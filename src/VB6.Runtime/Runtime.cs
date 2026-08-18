@@ -4,9 +4,13 @@ namespace VB6.Runtime;
 
 public static class VBConversions
 {
-    public static short CInt(object? value) => Convert.ToInt16(value, CultureInfo.CurrentCulture);
+    public static short CInt(object? value) => value is bool boolean
+        ? (short)(boolean ? -1 : 0)
+        : Convert.ToInt16(value, CultureInfo.CurrentCulture);
 
-    public static double CDbl(object? value) => Convert.ToDouble(value, CultureInfo.CurrentCulture);
+    public static double CDbl(object? value) => value is bool boolean
+        ? boolean ? -1d : 0d
+        : Convert.ToDouble(value, CultureInfo.CurrentCulture);
 
     public static bool CBool(object? value) => Convert.ToBoolean(value, CultureInfo.CurrentCulture);
 
@@ -26,6 +30,18 @@ public static class VBOperators
     public static short IntegerDivide(short left, short right) => checked((short)(left / right));
 
     public static double DivideDouble(double left, double right) => left / right;
+
+    public static bool NotBoolean(bool value) => !value;
+
+    public static bool AndBoolean(bool left, bool right) => left & right;
+
+    public static bool OrBoolean(bool left, bool right) => left | right;
+
+    public static bool XorBoolean(bool left, bool right) => left ^ right;
+
+    public static bool EqvBoolean(bool left, bool right) => left == right;
+
+    public static bool ImpBoolean(bool left, bool right) => !left || right;
 
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
