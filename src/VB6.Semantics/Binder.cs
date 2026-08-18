@@ -12,6 +12,7 @@ public sealed class Binder
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly List<LoopBindingContext> _loopStack = new();
     private int _nextLoopId;
+    private int _nextSelectId;
 
     public Binder(SourceText text)
     {
@@ -248,6 +249,12 @@ public sealed class Binder
                 case DoStatementSyntax doStatement:
                     PredeclareLocals(doStatement.Statements, locals, variables);
                     break;
+                case SelectCaseStatementSyntax selectStatement:
+                    foreach (var caseBlock in selectStatement.Cases)
+                    {
+                        PredeclareLocals(caseBlock.Statements, locals, variables);
+                    }
+                    break;
             }
         }
     }
@@ -285,6 +292,7 @@ public sealed class Binder
             WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
             DoStatementSyntax doStatement => BindDo(doStatement, variables, procedures),
             ExitStatementSyntax exitStatement => BindExit(exitStatement),
+            SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
@@ -454,6 +462,71 @@ public sealed class Binder
             $"Exit {syntax.TargetKeyword.Text} is not inside an active {syntax.TargetKeyword.Text} loop.",
             syntax.ExitKeyword.Span);
         return new BoundExitLoopStatement(loopKind, -1);
+    }
+
+    private BoundSelectCaseStatement BindSelectCase(
+        SelectCaseStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var expression = BindExpression(syntax.Expression, variables, procedures);
+        var cases = ImmutableArray.CreateBuilder<BoundCaseBlock>();
+        var hasElse = false;
+
+        for (var caseIndex = 0; caseIndex < syntax.Cases.Length; caseIndex++)
+        {
+            var syntaxCase = syntax.Cases[caseIndex];
+            var clauses = ImmutableArray.CreateBuilder<BoundCaseClause>();
+
+            foreach (var clause in syntaxCase.Clauses)
+            {
+                switch (clause)
+                {
+                    case CaseValueClauseSyntax valueClause:
+                        clauses.Add(new BoundCaseValueClause(BindConversion(
+                            BindExpression(valueClause.Value, variables, procedures),
+                            expression.Type)));
+                        break;
+
+                    case CaseRangeClauseSyntax rangeClause:
+                        clauses.Add(new BoundCaseRangeClause(
+                            BindConversion(
+                                BindExpression(rangeClause.LowerBound, variables, procedures),
+                                expression.Type),
+                            BindConversion(
+                                BindExpression(rangeClause.UpperBound, variables, procedures),
+                                expression.Type)));
+                        break;
+
+                    case CaseRelationalClauseSyntax relationalClause:
+                        clauses.Add(new BoundCaseRelationalClause(
+                            relationalClause.OperatorToken.Kind,
+                            BindConversion(
+                                BindExpression(relationalClause.Value, variables, procedures),
+                                expression.Type)));
+                        break;
+
+                    case CaseElseClauseSyntax elseClause:
+                        if (hasElse || caseIndex != syntax.Cases.Length - 1)
+                        {
+                            Report(
+                                "VB6S0016",
+                                "Case Else must appear once and as the final Case block.",
+                                elseClause.ElseKeyword.Span);
+                        }
+
+                        hasElse = true;
+                        clauses.Add(new BoundCaseElseClause());
+                        break;
+                }
+            }
+
+            cases.Add(new BoundCaseBlock(
+                clauses.ToImmutable(),
+                BindStatements(syntaxCase.Statements, variables, procedures)));
+        }
+
+        return new BoundSelectCaseStatement(_nextSelectId++, expression, cases.ToImmutable());
     }
 
     private BoundInvocationStatement BindInvocation(
