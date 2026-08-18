@@ -79,6 +79,7 @@ public sealed class Parser
         var subKeyword = MatchToken(SyntaxKind.SubKeyword);
         var identifier = MatchToken(SyntaxKind.IdentifierToken);
         var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
+        var parameters = ParseParameters();
         var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
         ConsumeLineTerminator();
 
@@ -109,10 +110,47 @@ public sealed class Parser
             subKeyword,
             identifier,
             openParenthesis,
+            parameters,
             closeParenthesis,
             statements.ToImmutable(),
             endKeyword,
             endSubKeyword);
+    }
+
+    private ImmutableArray<ParameterSyntax> ParseParameters()
+    {
+        var parameters = ImmutableArray.CreateBuilder<ParameterSyntax>();
+        if (Current.Kind == SyntaxKind.CloseParenthesisToken)
+        {
+            return parameters.ToImmutable();
+        }
+
+        while (Current.Kind is not SyntaxKind.CloseParenthesisToken and not SyntaxKind.EndOfFileToken)
+        {
+            parameters.Add(ParseParameter());
+            if (Current.Kind != SyntaxKind.CommaToken)
+            {
+                break;
+            }
+
+            NextToken();
+        }
+
+        return parameters.ToImmutable();
+    }
+
+    private ParameterSyntax ParseParameter()
+    {
+        SyntaxToken? passingModeKeyword = null;
+        if (Current.Kind is SyntaxKind.ByRefKeyword or SyntaxKind.ByValKeyword)
+        {
+            passingModeKeyword = NextToken();
+        }
+
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+        var typeToken = MatchTypeToken();
+        return new ParameterSyntax(passingModeKeyword, identifier, asKeyword, typeToken);
     }
 
     private StatementSyntax ParseStatement()
@@ -157,18 +195,58 @@ public sealed class Parser
         var identifier = MatchToken(SyntaxKind.IdentifierToken);
         SyntaxToken? openParenthesis = null;
         SyntaxToken? closeParenthesis = null;
+        ImmutableArray<ExpressionSyntax> arguments;
 
         if (Current.Kind == SyntaxKind.OpenParenthesisToken)
         {
             openParenthesis = NextToken();
+            arguments = ParseArguments(SyntaxKind.CloseParenthesisToken);
             closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        }
+        else
+        {
+            arguments = ParseArguments(null);
         }
 
         return new InvocationStatementSyntax(
             callKeyword,
             identifier,
             openParenthesis,
+            arguments,
             closeParenthesis);
+    }
+
+    private ImmutableArray<ExpressionSyntax> ParseArguments(SyntaxKind? terminator)
+    {
+        var arguments = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+        if ((terminator is not null && Current.Kind == terminator) ||
+            (terminator is null && IsLineTerminator(Current.Kind)))
+        {
+            return arguments.ToImmutable();
+        }
+
+        while (Current.Kind != SyntaxKind.EndOfFileToken)
+        {
+            if (terminator is not null && Current.Kind == terminator)
+            {
+                break;
+            }
+
+            if (terminator is null && IsLineTerminator(Current.Kind))
+            {
+                break;
+            }
+
+            arguments.Add(ParseExpression());
+            if (Current.Kind != SyntaxKind.CommaToken)
+            {
+                break;
+            }
+
+            NextToken();
+        }
+
+        return arguments.ToImmutable();
     }
 
     private IfStatementSyntax ParseIfStatement()
@@ -319,6 +397,9 @@ public sealed class Parser
 
     private bool IsEndPair(SyntaxKind secondKind) =>
         Current.Kind == SyntaxKind.EndKeyword && Peek(1).Kind == secondKind;
+
+    private static bool IsLineTerminator(SyntaxKind kind) =>
+        kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken;
 
     private SyntaxToken MatchToken(SyntaxKind kind)
     {
