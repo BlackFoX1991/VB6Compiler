@@ -38,7 +38,7 @@ public sealed class CSharpGenerator
     {
         var isMain = string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase);
         var visibility = isMain ? "public" : "private";
-        var name = isMain ? "Main" : $"__vb6_{SanitizeIdentifier(procedure.Symbol.Name)}";
+        var name = GetProcedureName(procedure.Symbol);
 
         WriteLine($"{visibility} static void {name}()");
         WriteLine("{");
@@ -79,6 +79,10 @@ public sealed class CSharpGenerator
 
             case BoundDebugPrintStatement debugPrint:
                 WriteLine($"VBDebug.Print({EmitExpression(debugPrint.Expression)});");
+                break;
+
+            case BoundInvocationStatement invocation:
+                WriteLine($"{GetProcedureName(invocation.Procedure)}();");
                 break;
         }
     }
@@ -235,6 +239,11 @@ public sealed class CSharpGenerator
 
         return "default";
     }
+
+    private static string GetProcedureName(ProcedureSymbol procedure) =>
+        string.Equals(procedure.Name, "Main", StringComparison.OrdinalIgnoreCase)
+            ? "Main"
+            : $"__vb6_{SanitizeIdentifier(procedure.Name)}";
 
     private static string GetLocalName(LocalVariableSymbol variable) =>
         $"__vb6_{SanitizeIdentifier(variable.Name)}";
