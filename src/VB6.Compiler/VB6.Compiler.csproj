@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../VB6.CodeGen.CSharp/VB6.CodeGen.CSharp.csproj" />
     <ProjectReference Include="../VB6.Parser/VB6.Parser.csproj" />
+    <ProjectReference Include="../VB6.ProjectSystem/VB6.ProjectSystem.csproj" />
     <ProjectReference Include="../VB6.Runtime/VB6.Runtime.csproj" />
     <ProjectReference Include="../VB6.Semantics/VB6.Semantics.csproj" />
     <ProjectReference Include="../VB6.Syntax/VB6.Syntax.csproj" />
