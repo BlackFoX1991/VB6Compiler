@@ -1,9 +1,11 @@
 using VB6.Compiler;
 
+const string usage = "Usage: vb6c <source-file> [--emit-csharp <output-file> | --emit-assembly <output-file>]";
+
 if (args.Length == 0)
 {
     Console.WriteLine("VB6Compiler");
-    Console.WriteLine("Usage: vb6c <source-file> [--emit-csharp <output-file>]");
+    Console.WriteLine(usage);
     return 0;
 }
 
@@ -34,9 +36,36 @@ if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison
     return 0;
 }
 
+if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+{
+    var emitResult = compilation.EmitManagedApplication(args[2]);
+    foreach (var diagnostic in emitResult.Diagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+
+    if (emitResult.BackendResult is not null)
+    {
+        foreach (var diagnostic in emitResult.BackendResult.Diagnostics)
+        {
+            Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}");
+        }
+    }
+
+    if (!emitResult.Success)
+    {
+        return 1;
+    }
+
+    Console.WriteLine($"Generated managed assembly: {emitResult.AssemblyPath}");
+    Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
+    Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
+    return 0;
+}
+
 if (args.Length != 1)
 {
-    Console.Error.WriteLine("Usage: vb6c <source-file> [--emit-csharp <output-file>]");
+    Console.Error.WriteLine(usage);
     return 1;
 }
 
