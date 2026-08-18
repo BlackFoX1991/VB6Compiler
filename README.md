@@ -14,14 +14,17 @@ Implemented so far:
 - source text and diagnostic infrastructure
 - case-insensitive VB6 lexer with trivia preservation
 - parser for the initial VB6 language subset
-- parameterless Sub calls using both `Helper` and `Call Helper()` syntax
-- semantic binder with symbols, local variables, type resolution, explicit conversion nodes, and procedure invocation binding
+- Sub calls using bare-call and `Call ...(...)` syntax with argument lists
+- Sub parameters with explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` behavior
+- semantic binder with procedure and parameter symbols, local variables, type resolution, explicit conversion nodes, and procedure invocation binding
+- ByRef argument validation for variable arguments and exact type matching in the current compiler subset
+- ByVal argument conversion through the VB6 conversion layer
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
 - project-wide procedure declaration and case-insensitive cross-module symbol resolution
 - project-level duplicate procedure detection across standard modules
 - primitive VB6 runtime helpers for conversions, integer arithmetic, comparisons, concatenation, and `Debug.Print`
-- C# source generation from the bound program, including procedure calls
+- C# source generation from the bound program, including `ref` parameters and arguments for VB6 ByRef calls
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
@@ -30,7 +33,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
 
-Windows CI run #226 validates the current cross-module pipeline on .NET 10. The test project compiles two standard modules into one assembly, calls a Sub from a different module, executes the generated assembly, and verifies its output.
+Windows CI run #252 validates the ByRef/ByVal implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, changes a caller variable through a default-ByRef parameter, passes that variable through an explicit ByVal parameter, executes the generated assembly, and verifies that the caller retains the ByRef result.
 
 ## Current acceptance program
 
@@ -54,16 +57,26 @@ Multi-module project:
 ```vb
 ' MainModule.bas
 Sub Main()
-    Call Helper()
+    Dim x As Integer
+    x = 5
+    Call Update(x)
+    Call Observe(x)
+    Debug.Print x
 End Sub
 ```
 
 ```vb
 ' HelperModule.bas
-Sub Helper()
-    Debug.Print 10
+Sub Update(value As Integer)
+    value = 10
+End Sub
+
+Sub Observe(ByVal value As Integer)
+    value = 20
 End Sub
 ```
+
+The output is `10`: `Update` receives `value` ByRef by default and changes the caller, while `Observe` receives a ByVal copy.
 
 ## Command line
 
@@ -111,11 +124,12 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point and parameterless cross-module Sub calls. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub calls, and the first ByRef/ByVal parameter subset. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add Sub parameters and `ByRef` / `ByVal` argument semantics
+- add `Function` declarations and return-value semantics
+- expand parameter semantics with additional VB6 ByRef coercion edge cases
 - introduce a dedicated lowered IR and control flow representation
 - expand the VB6 type system and runtime behavior
 - add class modules
