@@ -144,12 +144,35 @@ public sealed class Lexer
             }
         }
 
+        var numericEnd = _position;
+        var isCurrency = Current == '@';
+        if (isCurrency)
+        {
+            isFloating = true;
+            _position++;
+        }
+
         var span = TextSpan.FromBounds(start, _position);
         var text = _text.ToString(span);
+        var numericText = _text.ToString(TextSpan.FromBounds(start, numericEnd));
+
+        if (isCurrency)
+        {
+            if (decimal.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var currencyValue) &&
+                currencyValue >= -922337203685477.5808m &&
+                currencyValue <= 922337203685477.5807m)
+            {
+                currencyValue = decimal.Round(currencyValue, 4, MidpointRounding.ToEven);
+                return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, currencyValue, leadingTrivia);
+            }
+
+            Report("VB6L0005", "Invalid or out-of-range Currency literal.", span);
+            return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, null, leadingTrivia);
+        }
 
         if (isFloating)
         {
-            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingValue))
+            if (double.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingValue))
             {
                 return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, floatingValue, leadingTrivia);
             }
@@ -158,7 +181,7 @@ public sealed class Lexer
             return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, null, leadingTrivia);
         }
 
-        if (long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var integerValue))
+        if (long.TryParse(numericText, NumberStyles.None, CultureInfo.InvariantCulture, out var integerValue))
         {
             return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, integerValue, leadingTrivia);
         }
