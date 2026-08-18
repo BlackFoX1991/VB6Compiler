@@ -665,7 +665,7 @@ public sealed class Parser
 
     private SyntaxToken MatchTypeToken()
     {
-        if (Current.Kind is SyntaxKind.IntegerKeyword or SyntaxKind.IdentifierToken)
+        if (Current.Kind is SyntaxKind.IntegerKeyword or SyntaxKind.LongKeyword or SyntaxKind.IdentifierToken)
         {
             return NextToken();
         }
