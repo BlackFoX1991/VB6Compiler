@@ -24,7 +24,8 @@ Implemented so far:
 - pre-test and post-test `Do While`, `Do Until`, `Loop While`, and `Loop Until`
 - unconditional `Do ... Loop`
 - `Exit For` and `Exit Do` with bound loop targets for nested-loop correctness
-- semantic binder with procedure, parameter, return-value, local-variable and type symbols, explicit conversion nodes, invocation binding, and loop nodes
+- `Select Case` with value lists, ranges, relational clauses, and `Case Else`
+- semantic binder with procedure, parameter, return-value, local-variable and type symbols, explicit conversion nodes, invocation binding, loop nodes, and Select Case nodes
 - ByRef argument validation for variable arguments and exact type matching in the current compiler subset
 - ByVal argument conversion through the VB6 conversion layer
 - central `VBCompilation` analysis pipeline for individual source files
@@ -32,7 +33,7 @@ Implemented so far:
 - project-wide Sub and Function declaration with case-insensitive cross-module symbol resolution
 - project-level duplicate procedure detection across standard modules
 - primitive VB6 runtime helpers for conversions, integer arithmetic, comparisons, concatenation, and `Debug.Print`
-- C# source generation from the bound program, including `ref` parameters, Function return slots, invocation expressions, and loops
+- C# source generation from the bound program, including `ref` parameters, Function return slots, invocation expressions, loops, and Select Case
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
@@ -41,7 +42,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
 
-Windows CI run #302 validates the current control-flow implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, executes `For`, `While`, `Do`, `Exit For`, and `Exit Do`, applies ByRef/ByVal semantics, calls a Function from another module, executes the generated assembly, and verifies the final output.
+Windows CI run #326 validates the current Select Case implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, executes loops and Select Case, applies ByRef/ByVal semantics, calls a Function from another module, executes the generated assembly, and verifies the final output.
 
 ## Current acceptance program
 
@@ -91,6 +92,17 @@ Sub Main()
         x = x + 1
     Loop Until x = 7
 
+    Select Case x
+        Case 1 To 6
+            x = 100
+        Case 7, 8
+            x = x
+        Case Is > 8
+            x = 200
+        Case Else
+            x = 300
+    End Select
+
     Call Update(x)
     Call Observe(x)
     x = Add(x, 2)
@@ -113,7 +125,7 @@ Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
 End Function
 ```
 
-The output is `12`. The loop block exercises the current control-flow implementation, `Update` receives `value` ByRef by default and changes the caller to 10, `Observe` receives a ByVal copy, and the cross-module `Add` Function returns 12.
+The output is `12`. The structured control-flow block exercises loops and Select Case, `Update` receives `value` ByRef by default and changes the caller to 10, `Observe` receives a ByVal copy, and the cross-module `Add` Function returns 12.
 
 ## Command line
 
@@ -161,11 +173,11 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the first ByRef/ByVal parameter subset, typed Function calls, and the first structured loop subset. `For` currently supports Integer control variables; broader VB6 numeric and Variant loop semantics are a later compatibility pass. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the first ByRef/ByVal parameter subset, typed Function calls, structured loops, and Select Case. `For` currently supports Integer control variables; broader VB6 numeric and Variant loop semantics are a later compatibility pass. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add `Select Case`
+- add `ElseIf`, `Else`, and single-line `If`
 - add additional structured statements and branch forms
 - expand ByRef coercion and parenthesized-argument edge cases
 - introduce a dedicated lowered IR and control flow representation
