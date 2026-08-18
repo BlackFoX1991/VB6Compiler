@@ -679,6 +679,8 @@ public sealed class Binder
         return syntax.LiteralToken.Kind switch
         {
             SyntaxKind.IntegerLiteralToken => BindIntegerLiteral(syntax.LiteralToken.Value),
+            SyntaxKind.FloatingLiteralToken =>
+                new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Double),
             SyntaxKind.StringLiteralToken =>
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.String),
             SyntaxKind.TrueKeyword =>
@@ -824,13 +826,18 @@ public sealed class Binder
                     TypeSymbol.String);
 
             case SyntaxKind.SlashToken:
-                left = BindConversion(left, TypeSymbol.Double);
-                right = BindConversion(right, TypeSymbol.Double);
+            {
+                var resultType = IsSingleDivisionOperand(left.Type) && IsSingleDivisionOperand(right.Type)
+                    ? TypeSymbol.Single
+                    : TypeSymbol.Double;
+                left = BindConversion(left, resultType);
+                right = BindConversion(right, resultType);
                 return new BoundBinaryExpression(
                     left,
                     syntax.OperatorToken.Kind,
                     right,
-                    TypeSymbol.Double);
+                    resultType);
+            }
 
             case SyntaxKind.PlusToken:
             case SyntaxKind.MinusToken:
@@ -869,13 +876,28 @@ public sealed class Binder
     }
 
     private static bool IsNumericType(TypeSymbol type) =>
-        type == TypeSymbol.Integer || type == TypeSymbol.Long || type == TypeSymbol.Double;
+        type == TypeSymbol.Integer || type == TypeSymbol.Long ||
+        type == TypeSymbol.Single || type == TypeSymbol.Double;
+
+    private static bool IsSingleDivisionOperand(TypeSymbol type) =>
+        type == TypeSymbol.Integer || type == TypeSymbol.Single;
 
     private static TypeSymbol GetCommonNumericType(TypeSymbol left, TypeSymbol right)
     {
         if (left == TypeSymbol.Double || right == TypeSymbol.Double)
         {
             return TypeSymbol.Double;
+        }
+
+        if ((left == TypeSymbol.Single && right == TypeSymbol.Long) ||
+            (left == TypeSymbol.Long && right == TypeSymbol.Single))
+        {
+            return TypeSymbol.Double;
+        }
+
+        if (left == TypeSymbol.Single || right == TypeSymbol.Single)
+        {
+            return TypeSymbol.Single;
         }
 
         if (left == TypeSymbol.Long || right == TypeSymbol.Long)
