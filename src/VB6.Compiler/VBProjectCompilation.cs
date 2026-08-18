@@ -157,7 +157,7 @@ public sealed class VBProjectCompilation
 
             foreach (var declaration in module.ParseResult.Root.Members.OfType<SubDeclarationSyntax>())
             {
-                var symbol = new ProcedureSymbol(declaration.Identifier.Text);
+                var symbol = Binder.CreateProcedureSymbol(declaration);
                 if (procedures.TryAdd(symbol.Name, symbol))
                 {
                     origins.Add(symbol.Name, module.Item.RelativePath);
