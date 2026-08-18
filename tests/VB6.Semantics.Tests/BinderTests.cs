@@ -212,6 +212,51 @@ public sealed class BinderTests
         Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0006"));
     }
 
+    [TestMethod]
+    public void Bind_BindsFunctionReturnSlotAndInvocationExpression()
+    {
+        var model = BindSource("""
+            Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
+                Add = left + right
+            End Function
+
+            Sub Main()
+                Dim result As Integer
+                result = Add(5, 7)
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var function = model.Procedures.Single(procedure => procedure.Symbol.Name == "Add");
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+
+        Assert.IsTrue(function.Symbol.IsFunction);
+        Assert.AreEqual(TypeSymbol.Integer, function.Symbol.ReturnType);
+        var returnAssignment = (BoundAssignmentStatement)function.Body.Statements.Single();
+        Assert.IsInstanceOfType<ReturnValueSymbol>(returnAssignment.Variable);
+
+        var callAssignment = (BoundAssignmentStatement)main.Body.Statements[1];
+        var invocation = (BoundInvocationExpression)callAssignment.Expression;
+        Assert.AreEqual(function.Symbol, invocation.Procedure);
+        Assert.AreEqual(TypeSymbol.Integer, invocation.Type);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsSubUsedAsExpression()
+    {
+        var model = BindSource("""
+            Sub Helper()
+            End Sub
+
+            Sub Main()
+                Dim result As Integer
+                result = Helper()
+            End Sub
+            """);
+
+        Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0010"));
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
