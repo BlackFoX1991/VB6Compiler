@@ -645,7 +645,7 @@ public sealed class Parser
             return new ParenthesizedExpressionSyntax(openParenthesis, expression, closeParenthesis);
         }
 
-        if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.StringLiteralToken or
+        if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.FloatingLiteralToken or SyntaxKind.StringLiteralToken or
             SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
         {
             return new LiteralExpressionSyntax(NextToken());
@@ -665,7 +665,8 @@ public sealed class Parser
 
     private SyntaxToken MatchTypeToken()
     {
-        if (Current.Kind is SyntaxKind.IntegerKeyword or SyntaxKind.LongKeyword or SyntaxKind.IdentifierToken)
+        if (Current.Kind is SyntaxKind.IntegerKeyword or SyntaxKind.LongKeyword or SyntaxKind.SingleKeyword or
+            SyntaxKind.DoubleKeyword or SyntaxKind.IdentifierToken)
         {
             return NextToken();
         }
