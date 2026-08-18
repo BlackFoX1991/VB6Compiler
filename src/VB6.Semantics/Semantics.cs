@@ -12,6 +12,7 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
     public static readonly TypeSymbol Byte = new("Byte");
     public static readonly TypeSymbol Integer = new("Integer");
     public static readonly TypeSymbol Long = new("Long");
+    public static readonly TypeSymbol LongLong = new("LongLong");
     public static readonly TypeSymbol Single = new("Single");
     public static readonly TypeSymbol String = new("String");
     public static readonly TypeSymbol Boolean = new("Boolean");
@@ -22,6 +23,8 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
         "BYTE" => Byte,
         "INTEGER" => Integer,
         "LONG" => Long,
+        "LONGLONG" => LongLong,
+        "INT64" => LongLong,
         "SINGLE" => Single,
         "STRING" => String,
         "BOOLEAN" => Boolean,
