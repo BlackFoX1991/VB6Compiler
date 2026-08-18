@@ -98,6 +98,31 @@ public sealed class CSharpGeneratorTests
     }
 
     [TestMethod]
+    public void Generate_EmitsFunctionReturnSlotAndCallExpression()
+    {
+        var analysis = VBCompilation.Create("""
+            Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
+                Add = left + right
+            End Function
+
+            Sub Main()
+                Dim result As Integer
+                result = Add(5, 7)
+                Debug.Print result
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Success);
+        var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
+
+        StringAssert.Contains(source, "private static short __vb6_Add(short __vb6_arg_left, short __vb6_arg_right)");
+        StringAssert.Contains(source, "short __vb6_return = 0;");
+        StringAssert.Contains(source, "__vb6_return = VBOperators.AddInteger(__vb6_arg_left, __vb6_arg_right);");
+        StringAssert.Contains(source, "return __vb6_return;");
+        StringAssert.Contains(source, "__vb6_result = __vb6_Add(VBConversions.CInt(5L), VBConversions.CInt(7L));");
+    }
+
+    [TestMethod]
     public void Emit_ProducesManagedAssembly()
     {
         var analysis = VBCompilation.Create("""
