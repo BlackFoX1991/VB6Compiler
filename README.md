@@ -16,15 +16,18 @@ Implemented so far:
 - parser for the initial VB6 language subset
 - Sub calls using bare-call and `Call ...(...)` syntax with argument lists
 - Sub parameters with explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` behavior
-- semantic binder with procedure and parameter symbols, local variables, type resolution, explicit conversion nodes, and procedure invocation binding
+- typed `Function ... As Type` declarations with parameters and `End Function`
+- Function invocation expressions such as `result = Add(5, 7)`
+- VB6 Function return semantics through assignment to the function name
+- semantic binder with procedure, parameter, return-value, local-variable and type symbols, explicit conversion nodes, and invocation binding
 - ByRef argument validation for variable arguments and exact type matching in the current compiler subset
 - ByVal argument conversion through the VB6 conversion layer
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
-- project-wide procedure declaration and case-insensitive cross-module symbol resolution
+- project-wide Sub and Function declaration with case-insensitive cross-module symbol resolution
 - project-level duplicate procedure detection across standard modules
 - primitive VB6 runtime helpers for conversions, integer arithmetic, comparisons, concatenation, and `Debug.Print`
-- C# source generation from the bound program, including `ref` parameters and arguments for VB6 ByRef calls
+- C# source generation from the bound program, including `ref` parameters, Function return slots, and invocation expressions
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
@@ -33,7 +36,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
 
-Windows CI run #252 validates the ByRef/ByVal implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, changes a caller variable through a default-ByRef parameter, passes that variable through an explicit ByVal parameter, executes the generated assembly, and verifies that the caller retains the ByRef result.
+Windows CI run #278 validates the current Function and parameter implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, applies default-ByRef and explicit-ByVal semantics, calls a Function from another module, executes the generated assembly, and verifies the final output.
 
 ## Current acceptance program
 
@@ -61,6 +64,7 @@ Sub Main()
     x = 5
     Call Update(x)
     Call Observe(x)
+    x = Add(x, 2)
     Debug.Print x
 End Sub
 ```
@@ -74,9 +78,13 @@ End Sub
 Sub Observe(ByVal value As Integer)
     value = 20
 End Sub
+
+Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
+    Add = left + right
+End Function
 ```
 
-The output is `10`: `Update` receives `value` ByRef by default and changes the caller, while `Observe` receives a ByVal copy.
+The output is `12`: `Update` receives `value` ByRef by default and changes the caller to 10, `Observe` receives a ByVal copy, and the cross-module `Add` Function returns 12.
 
 ## Command line
 
@@ -124,12 +132,13 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub calls, and the first ByRef/ByVal parameter subset. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub calls, the first ByRef/ByVal parameter subset, and typed Function calls. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add `Function` declarations and return-value semantics
-- expand parameter semantics with additional VB6 ByRef coercion edge cases
+- add `For`, `While`, and `Do` control-flow statements
+- add `Select Case`
+- expand ByRef coercion and parenthesized-argument edge cases
 - introduce a dedicated lowered IR and control flow representation
 - expand the VB6 type system and runtime behavior
 - add class modules
