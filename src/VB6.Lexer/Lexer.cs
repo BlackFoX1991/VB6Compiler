@@ -66,28 +66,9 @@ public sealed class Lexer
             return new SyntaxToken(keywordKind, span, text, null, leadingTrivia);
         }
 
-        if (char.IsDigit(Current))
+        if (char.IsDigit(Current) || (Current == '.' && char.IsDigit(Peek(1))))
         {
-            _position++;
-            while (char.IsDigit(Current))
-            {
-                _position++;
-            }
-
-            var span = TextSpan.FromBounds(start, _position);
-            var text = _text.ToString(span);
-            object? value = null;
-
-            if (long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
-            {
-                value = parsed;
-            }
-            else
-            {
-                Report("VB6L0003", "Invalid integer literal.", span);
-            }
-
-            return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, value, leadingTrivia);
+            return ReadNumericToken(start, leadingTrivia);
         }
 
         if (Current == '"')
@@ -127,6 +108,73 @@ public sealed class Lexer
         }
 
         return token;
+    }
+
+    private SyntaxToken ReadNumericToken(int start, ImmutableArray<SyntaxTrivia> leadingTrivia)
+    {
+        var isFloating = false;
+
+        while (char.IsDigit(Current))
+        {
+            _position++;
+        }
+
+        if (Current == '.')
+        {
+            isFloating = true;
+            _position++;
+            while (char.IsDigit(Current))
+            {
+                _position++;
+            }
+        }
+
+        if (Current is 'E' or 'e' && IsValidExponentStart())
+        {
+            isFloating = true;
+            _position++;
+            if (Current is '+' or '-')
+            {
+                _position++;
+            }
+
+            while (char.IsDigit(Current))
+            {
+                _position++;
+            }
+        }
+
+        var span = TextSpan.FromBounds(start, _position);
+        var text = _text.ToString(span);
+
+        if (isFloating)
+        {
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingValue))
+            {
+                return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, floatingValue, leadingTrivia);
+            }
+
+            Report("VB6L0004", "Invalid floating-point literal.", span);
+            return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, null, leadingTrivia);
+        }
+
+        if (long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var integerValue))
+        {
+            return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, integerValue, leadingTrivia);
+        }
+
+        Report("VB6L0003", "Invalid integer literal.", span);
+        return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, null, leadingTrivia);
+    }
+
+    private bool IsValidExponentStart()
+    {
+        if (char.IsDigit(Peek(1)))
+        {
+            return true;
+        }
+
+        return Peek(1) is '+' or '-' && char.IsDigit(Peek(2));
     }
 
     private SyntaxToken ReadStringToken(int start, ImmutableArray<SyntaxTrivia> leadingTrivia)
