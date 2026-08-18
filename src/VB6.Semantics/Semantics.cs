@@ -24,8 +24,32 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
     };
 }
 
-public sealed record ProcedureSymbol(string Name) : Symbol(Name);
-public sealed record LocalVariableSymbol(string Name, TypeSymbol Type) : Symbol(Name);
+public enum ParameterPassingMode
+{
+    ByRef,
+    ByVal
+}
+
+public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Name);
+
+public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
+    : VariableSymbol(Name, Type);
+
+public sealed record ParameterSymbol(
+    string Name,
+    TypeSymbol Type,
+    ParameterPassingMode PassingMode)
+    : VariableSymbol(Name, Type);
+
+public sealed record ProcedureSymbol(
+    string Name,
+    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name)
+{
+    public ProcedureSymbol(string name)
+        : this(name, ImmutableArray<ParameterSymbol>.Empty)
+    {
+    }
+}
 
 public enum BoundNodeKind
 {
@@ -53,7 +77,7 @@ public sealed record BoundBlockStatement(ImmutableArray<BoundStatement> Statemen
 public sealed record BoundVariableDeclarationStatement(LocalVariableSymbol Variable)
     : BoundStatement(BoundNodeKind.VariableDeclarationStatement);
 
-public sealed record BoundAssignmentStatement(LocalVariableSymbol Variable, BoundExpression Expression)
+public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
 
 public sealed record BoundIfStatement(BoundExpression Condition, BoundBlockStatement Body)
@@ -62,13 +86,19 @@ public sealed record BoundIfStatement(BoundExpression Condition, BoundBlockState
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
 
-public sealed record BoundInvocationStatement(ProcedureSymbol Procedure)
+public sealed record BoundArgument(
+    ParameterSymbol? Parameter,
+    BoundExpression Expression);
+
+public sealed record BoundInvocationStatement(
+    ProcedureSymbol Procedure,
+    ImmutableArray<BoundArgument> Arguments)
     : BoundStatement(BoundNodeKind.InvocationStatement);
 
 public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralType)
     : BoundExpression(BoundNodeKind.LiteralExpression, LiteralType);
 
-public sealed record BoundVariableExpression(LocalVariableSymbol Variable)
+public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
 
 public sealed record BoundUnaryExpression(SyntaxKind OperatorKind, BoundExpression Operand, TypeSymbol ResultType)
