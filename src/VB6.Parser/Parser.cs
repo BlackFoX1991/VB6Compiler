@@ -1,0 +1,360 @@
+using System.Collections.Immutable;
+using VB6.Lexer;
+using VB6.Syntax;
+using VB6.Syntax.Diagnostics;
+using VB6.Syntax.Nodes;
+using VB6.Syntax.Text;
+using LexerType = VB6.Lexer.Lexer;
+
+namespace VB6.Parser;
+
+public sealed class Parser
+{
+    private readonly SourceText _text;
+    private readonly ImmutableArray<SyntaxToken> _tokens;
+    private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+    private int _position;
+
+    public Parser(SourceText text)
+    {
+        _text = text;
+        var lexResult = new LexerType(text).Lex();
+        _tokens = lexResult.Tokens.Where(token => token.Kind != SyntaxKind.BadToken).ToImmutableArray();
+        _diagnostics.AddRange(lexResult.Diagnostics);
+    }
+
+    public ParseResult ParseCompilationUnit()
+    {
+        var members = ImmutableArray.CreateBuilder<MemberSyntax>();
+        SkipNewLines();
+
+        while (Current.Kind != SyntaxKind.EndOfFileToken)
+        {
+            var start = _position;
+            var member = ParseMember();
+            if (member is not null)
+            {
+                members.Add(member);
+            }
+
+            if (_position == start)
+            {
+                ReportUnexpected(Current, "module member");
+                NextToken();
+            }
+
+            SkipNewLines();
+        }
+
+        return new ParseResult(
+            new CompilationUnitSyntax(members.ToImmutable(), MatchToken(SyntaxKind.EndOfFileToken)),
+            _diagnostics.ToImmutable());
+    }
+
+    private MemberSyntax? ParseMember()
+    {
+        if (Current.Kind == SyntaxKind.OptionKeyword && Peek(1).Kind == SyntaxKind.ExplicitKeyword)
+        {
+            return ParseOptionExplicit();
+        }
+
+        if (Current.Kind == SyntaxKind.SubKeyword)
+        {
+            return ParseSubDeclaration();
+        }
+
+        return null;
+    }
+
+    private OptionExplicitSyntax ParseOptionExplicit()
+    {
+        var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
+        var explicitKeyword = MatchToken(SyntaxKind.ExplicitKeyword);
+        ConsumeLineTerminator();
+        return new OptionExplicitSyntax(optionKeyword, explicitKeyword);
+    }
+
+    private SubDeclarationSyntax ParseSubDeclaration()
+    {
+        var subKeyword = MatchToken(SyntaxKind.SubKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
+        var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        ConsumeLineTerminator();
+
+        var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
+        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(SyntaxKind.SubKeyword))
+        {
+            if (Current.Kind == SyntaxKind.NewLineToken)
+            {
+                NextToken();
+                continue;
+            }
+
+            var start = _position;
+            statements.Add(ParseStatement());
+            if (_position == start)
+            {
+                NextToken();
+            }
+
+            ConsumeLineTerminator();
+        }
+
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endSubKeyword = MatchToken(SyntaxKind.SubKeyword);
+        ConsumeLineTerminator();
+
+        return new SubDeclarationSyntax(
+            subKeyword,
+            identifier,
+            openParenthesis,
+            closeParenthesis,
+            statements.ToImmutable(),
+            endKeyword,
+            endSubKeyword);
+    }
+
+    private StatementSyntax ParseStatement()
+    {
+        return Current.Kind switch
+        {
+            SyntaxKind.DimKeyword => ParseDimStatement(),
+            SyntaxKind.IfKeyword => ParseIfStatement(),
+            SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
+            SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
+            _ => ParseSkippedStatement()
+        };
+    }
+
+    private DimStatementSyntax ParseDimStatement()
+    {
+        var dimKeyword = MatchToken(SyntaxKind.DimKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+        var typeToken = MatchTypeToken();
+        return new DimStatementSyntax(dimKeyword, identifier, asKeyword, typeToken);
+    }
+
+    private AssignmentStatementSyntax ParseAssignmentStatement()
+    {
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var equalsToken = MatchToken(SyntaxKind.EqualsToken);
+        var expression = ParseExpression();
+        return new AssignmentStatementSyntax(identifier, equalsToken, expression);
+    }
+
+    private IfStatementSyntax ParseIfStatement()
+    {
+        var ifKeyword = MatchToken(SyntaxKind.IfKeyword);
+        var condition = ParseExpression();
+        var thenKeyword = MatchToken(SyntaxKind.ThenKeyword);
+        ConsumeLineTerminator();
+
+        var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
+        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(SyntaxKind.IfKeyword))
+        {
+            if (Current.Kind == SyntaxKind.NewLineToken)
+            {
+                NextToken();
+                continue;
+            }
+
+            var start = _position;
+            statements.Add(ParseStatement());
+            if (_position == start)
+            {
+                NextToken();
+            }
+
+            ConsumeLineTerminator();
+        }
+
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var ifEndKeyword = MatchToken(SyntaxKind.IfKeyword);
+        return new IfStatementSyntax(
+            ifKeyword,
+            condition,
+            thenKeyword,
+            statements.ToImmutable(),
+            endKeyword,
+            ifEndKeyword);
+    }
+
+    private DebugPrintStatementSyntax ParseDebugPrintStatement()
+    {
+        var debugKeyword = MatchToken(SyntaxKind.DebugKeyword);
+        var dotToken = MatchToken(SyntaxKind.DotToken);
+        var printKeyword = MatchToken(SyntaxKind.PrintKeyword);
+        var expression = ParseExpression();
+        return new DebugPrintStatementSyntax(debugKeyword, dotToken, printKeyword, expression);
+    }
+
+    private SkippedStatementSyntax ParseSkippedStatement()
+    {
+        var token = NextToken();
+        ReportUnexpected(token, "statement");
+
+        while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.EndOfFileToken)
+        {
+            NextToken();
+        }
+
+        return new SkippedStatementSyntax(token);
+    }
+
+    private ExpressionSyntax ParseExpression(int parentPrecedence = 0)
+    {
+        ExpressionSyntax left;
+        var unaryPrecedence = GetUnaryPrecedence(Current.Kind);
+        if (unaryPrecedence != 0 && unaryPrecedence >= parentPrecedence)
+        {
+            var operatorToken = NextToken();
+            var operand = ParseExpression(unaryPrecedence);
+            left = new UnaryExpressionSyntax(operatorToken, operand);
+        }
+        else
+        {
+            left = ParsePrimaryExpression();
+        }
+
+        while (true)
+        {
+            var precedence = GetBinaryPrecedence(Current.Kind);
+            if (precedence == 0 || precedence <= parentPrecedence)
+            {
+                break;
+            }
+
+            var operatorToken = NextToken();
+            var right = ParseExpression(precedence);
+            left = new BinaryExpressionSyntax(left, operatorToken, right);
+        }
+
+        return left;
+    }
+
+    private ExpressionSyntax ParsePrimaryExpression()
+    {
+        if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+        {
+            var openParenthesis = NextToken();
+            var expression = ParseExpression();
+            var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+            return new ParenthesizedExpressionSyntax(openParenthesis, expression, closeParenthesis);
+        }
+
+        if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.StringLiteralToken)
+        {
+            return new LiteralExpressionSyntax(NextToken());
+        }
+
+        return new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
+    }
+
+    private SyntaxToken MatchTypeToken()
+    {
+        if (Current.Kind is SyntaxKind.IntegerKeyword or SyntaxKind.IdentifierToken)
+        {
+            return NextToken();
+        }
+
+        return MatchToken(SyntaxKind.IdentifierToken);
+    }
+
+    private void ConsumeLineTerminator()
+    {
+        if (Current.Kind == SyntaxKind.ColonToken)
+        {
+            NextToken();
+            return;
+        }
+
+        if (Current.Kind == SyntaxKind.NewLineToken)
+        {
+            NextToken();
+            return;
+        }
+
+        if (Current.Kind != SyntaxKind.EndOfFileToken)
+        {
+            ReportUnexpected(Current, "end of line");
+        }
+    }
+
+    private void SkipNewLines()
+    {
+        while (Current.Kind == SyntaxKind.NewLineToken)
+        {
+            NextToken();
+        }
+    }
+
+    private bool IsEndPair(SyntaxKind secondKind) =>
+        Current.Kind == SyntaxKind.EndKeyword && Peek(1).Kind == secondKind;
+
+    private SyntaxToken MatchToken(SyntaxKind kind)
+    {
+        if (Current.Kind == kind)
+        {
+            return NextToken();
+        }
+
+        ReportUnexpected(Current, kind.ToString());
+        return new SyntaxToken(
+            kind,
+            new TextSpan(Current.Span.Start, 0),
+            string.Empty,
+            null,
+            ImmutableArray<SyntaxTrivia>.Empty);
+    }
+
+    private SyntaxToken NextToken()
+    {
+        var current = Current;
+        if (_position < _tokens.Length - 1)
+        {
+            _position++;
+        }
+
+        return current;
+    }
+
+    private SyntaxToken Current => Peek(0);
+
+    private SyntaxToken Peek(int offset)
+    {
+        var index = _position + offset;
+        if (index >= _tokens.Length)
+        {
+            return _tokens[^1];
+        }
+
+        return _tokens[index];
+    }
+
+    private void ReportUnexpected(SyntaxToken token, string expected)
+    {
+        _diagnostics.Add(new Diagnostic(
+            "VB6P0001",
+            DiagnosticSeverity.Error,
+            $"Unexpected token '{token.Kind}', expected {expected}.",
+            token.Span,
+            _text.FilePath));
+    }
+
+    private static int GetUnaryPrecedence(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.PlusToken or SyntaxKind.MinusToken => 6,
+        _ => 0
+    };
+
+    private static int GetBinaryPrecedence(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.StarToken or SyntaxKind.SlashToken or SyntaxKind.BackslashToken => 5,
+        SyntaxKind.PlusToken or SyntaxKind.MinusToken or SyntaxKind.AmpersandToken => 4,
+        SyntaxKind.EqualsToken or SyntaxKind.LessToken or SyntaxKind.LessOrEqualsToken or
+        SyntaxKind.GreaterToken or SyntaxKind.GreaterOrEqualsToken or SyntaxKind.LessGreaterToken => 3,
+        _ => 0
+    };
+}
