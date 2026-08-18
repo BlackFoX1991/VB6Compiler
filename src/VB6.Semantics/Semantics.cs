@@ -10,6 +10,7 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
 {
     public static readonly TypeSymbol Error = new("<error>");
     public static readonly TypeSymbol Integer = new("Integer");
+    public static readonly TypeSymbol Long = new("Long");
     public static readonly TypeSymbol String = new("String");
     public static readonly TypeSymbol Boolean = new("Boolean");
     public static readonly TypeSymbol Double = new("Double");
@@ -17,6 +18,7 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
     public static TypeSymbol? Lookup(string name) => name.ToUpperInvariant() switch
     {
         "INTEGER" => Integer,
+        "LONG" => Long,
         "STRING" => String,
         "BOOLEAN" => Boolean,
         "DOUBLE" => Double,
