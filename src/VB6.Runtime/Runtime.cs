@@ -4,37 +4,95 @@ namespace VB6.Runtime;
 
 public static class VBConversions
 {
-    public static byte CByte(object? value) => value is bool boolean
-        ? boolean ? byte.MaxValue : byte.MinValue
-        : Convert.ToByte(value, CultureInfo.CurrentCulture);
+    public static byte CByte(object? value)
+    {
+        if (value is VBCurrency currency)
+        {
+            return checked((byte)currency.ToRoundedInt64());
+        }
 
-    public static short CInt(object? value) => value is bool boolean
-        ? (short)(boolean ? -1 : 0)
-        : Convert.ToInt16(value, CultureInfo.CurrentCulture);
+        return value is bool boolean
+            ? boolean ? byte.MaxValue : byte.MinValue
+            : Convert.ToByte(value, CultureInfo.CurrentCulture);
+    }
 
-    public static int CLng(object? value) => value is bool boolean
-        ? boolean ? -1 : 0
-        : Convert.ToInt32(value, CultureInfo.CurrentCulture);
+    public static short CInt(object? value)
+    {
+        if (value is VBCurrency currency)
+        {
+            return checked((short)currency.ToRoundedInt64());
+        }
 
-    public static long CLngLng(object? value) => value is bool boolean
-        ? boolean ? -1L : 0L
-        : Convert.ToInt64(value, CultureInfo.CurrentCulture);
+        return value is bool boolean
+            ? (short)(boolean ? -1 : 0)
+            : Convert.ToInt16(value, CultureInfo.CurrentCulture);
+    }
+
+    public static int CLng(object? value)
+    {
+        if (value is VBCurrency currency)
+        {
+            return checked((int)currency.ToRoundedInt64());
+        }
+
+        return value is bool boolean
+            ? boolean ? -1 : 0
+            : Convert.ToInt32(value, CultureInfo.CurrentCulture);
+    }
+
+    public static long CLngLng(object? value)
+    {
+        if (value is VBCurrency currency)
+        {
+            return currency.ToRoundedInt64();
+        }
+
+        return value is bool boolean
+            ? boolean ? -1L : 0L
+            : Convert.ToInt64(value, CultureInfo.CurrentCulture);
+    }
+
+    public static VBCurrency CCur(object? value)
+    {
+        if (value is VBCurrency currency)
+        {
+            return currency;
+        }
+
+        if (value is bool boolean)
+        {
+            return VBCurrency.FromScaled(boolean ? -VBCurrency.Scale : 0L);
+        }
+
+        var decimalValue = Convert.ToDecimal(value, CultureInfo.CurrentCulture);
+        return VBCurrency.FromDecimal(decimalValue);
+    }
 
     public static float CSng(object? value)
     {
-        var result = value is bool boolean
-            ? boolean ? -1f : 0f
-            : Convert.ToSingle(value, CultureInfo.CurrentCulture);
+        var result = value switch
+        {
+            VBCurrency currency => currency.ToSingle(),
+            bool boolean => boolean ? -1f : 0f,
+            _ => Convert.ToSingle(value, CultureInfo.CurrentCulture)
+        };
         return CheckSingle(result);
     }
 
-    public static double CDbl(object? value) => value is bool boolean
-        ? boolean ? -1d : 0d
-        : Convert.ToDouble(value, CultureInfo.CurrentCulture);
+    public static double CDbl(object? value) => value switch
+    {
+        VBCurrency currency => currency.ToDouble(),
+        bool boolean => boolean ? -1d : 0d,
+        _ => Convert.ToDouble(value, CultureInfo.CurrentCulture)
+    };
 
-    public static bool CBool(object? value) => Convert.ToBoolean(value, CultureInfo.CurrentCulture);
+    public static bool CBool(object? value) => value is VBCurrency currency
+        ? currency.ScaledValue != 0
+        : Convert.ToBoolean(value, CultureInfo.CurrentCulture);
 
-    public static string CStr(object? value) => Convert.ToString(value, CultureInfo.CurrentCulture) ?? string.Empty;
+    public static string CStr(object? value) => value is VBCurrency currency
+        ? currency.ToString()
+        : Convert.ToString(value, CultureInfo.CurrentCulture) ?? string.Empty;
 
     private static float CheckSingle(float value)
     {
@@ -94,6 +152,18 @@ public static class VBOperators
     public static long IntegerDivideLongLong(long left, long right) => checked(left / right);
 
     public static long ModLongLong(long left, long right) => checked(left % right);
+
+    public static VBCurrency AddCurrency(VBCurrency left, VBCurrency right) =>
+        VBCurrency.FromScaled(checked(left.ScaledValue + right.ScaledValue));
+
+    public static VBCurrency SubtractCurrency(VBCurrency left, VBCurrency right) =>
+        VBCurrency.FromScaled(checked(left.ScaledValue - right.ScaledValue));
+
+    public static VBCurrency MultiplyCurrency(VBCurrency left, VBCurrency right) =>
+        VBCurrency.Multiply(left, right);
+
+    public static VBCurrency NegateCurrency(VBCurrency value) =>
+        VBCurrency.FromScaled(checked(-value.ScaledValue));
 
     public static float AddSingle(float left, float right) => CheckSingle(left + right);
 
