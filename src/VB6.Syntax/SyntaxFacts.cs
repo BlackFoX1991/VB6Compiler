@@ -24,6 +24,7 @@ public static class SyntaxFacts
         "XOR" => SyntaxKind.XorKeyword,
         "EQV" => SyntaxKind.EqvKeyword,
         "IMP" => SyntaxKind.ImpKeyword,
+        "MOD" => SyntaxKind.ModKeyword,
         "DEBUG" => SyntaxKind.DebugKeyword,
         "PRINT" => SyntaxKind.PrintKeyword,
         "CALL" => SyntaxKind.CallKeyword,
