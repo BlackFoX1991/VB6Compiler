@@ -19,18 +19,23 @@ public sealed class ProjectCompilationTests
             Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
             Assert.AreEqual(2, analysis.Units.Length);
             Assert.IsNotNull(analysis.SemanticModel);
-            Assert.AreEqual(3, analysis.SemanticModel!.Procedures.Length);
+            Assert.AreEqual(4, analysis.SemanticModel!.Procedures.Length);
 
             var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
             var update = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Update");
             var observe = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Observe");
+            var add = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Add");
             var updateInvocation = (BoundInvocationStatement)main.Body.Statements[2];
             var observeInvocation = (BoundInvocationStatement)main.Body.Statements[3];
+            var addAssignment = (BoundAssignmentStatement)main.Body.Statements[4];
+            var addInvocation = (BoundInvocationExpression)addAssignment.Expression;
 
             Assert.AreEqual(update.Symbol, updateInvocation.Procedure);
             Assert.AreEqual(observe.Symbol, observeInvocation.Procedure);
+            Assert.AreEqual(add.Symbol, addInvocation.Procedure);
             Assert.AreEqual(ParameterPassingMode.ByRef, update.Symbol.Parameters.Single().PassingMode);
             Assert.AreEqual(ParameterPassingMode.ByVal, observe.Symbol.Parameters.Single().PassingMode);
+            Assert.AreEqual(TypeSymbol.Integer, add.Symbol.ReturnType);
         }
         finally
         {
@@ -39,7 +44,7 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_ExecutesCrossModuleByRefAndByValCalls()
+    public void EmitManagedApplication_ExecutesCrossModuleCallsAndFunction()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -71,7 +76,7 @@ public sealed class ProjectCompilationTests
             process.WaitForExit();
 
             Assert.AreEqual(0, process.ExitCode, standardError);
-            Assert.AreEqual("10", standardOutput.Trim());
+            Assert.AreEqual("12", standardOutput.Trim());
         }
         finally
         {
@@ -136,6 +141,7 @@ public sealed class ProjectCompilationTests
                 x = 5
                 Call Update(x)
                 Call Observe(x)
+                x = Add(x, 2)
                 Debug.Print x
             End Sub
             """);
@@ -149,6 +155,10 @@ public sealed class ProjectCompilationTests
             Sub Observe(ByVal value As Integer)
                 value = 20
             End Sub
+
+            Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
+                Add = left + right
+            End Function
             """);
         return projectPath;
     }
