@@ -873,7 +873,8 @@ public sealed class Binder
             {
                 var resultType = left.Type == TypeSymbol.LongLong || right.Type == TypeSymbol.LongLong
                     ? TypeSymbol.LongLong
-                    : left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
+                    : IsFloatingOrFixedPointType(left.Type) || IsFloatingOrFixedPointType(right.Type) ||
+                      left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
                         ? TypeSymbol.Long
                         : left.Type == TypeSymbol.Byte && right.Type == TypeSymbol.Byte
                             ? TypeSymbol.Byte
@@ -894,13 +895,22 @@ public sealed class Binder
 
     private static bool IsNumericType(TypeSymbol type) =>
         type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long ||
-        type == TypeSymbol.LongLong || type == TypeSymbol.Single || type == TypeSymbol.Double;
+        type == TypeSymbol.LongLong || type == TypeSymbol.Single || type == TypeSymbol.Double ||
+        type == TypeSymbol.Currency;
+
+    private static bool IsFloatingOrFixedPointType(TypeSymbol type) =>
+        type == TypeSymbol.Single || type == TypeSymbol.Double || type == TypeSymbol.Currency;
 
     private static bool IsSingleDivisionOperand(TypeSymbol type) =>
         type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Single;
 
     private static TypeSymbol GetCommonNumericType(TypeSymbol left, TypeSymbol right)
     {
+        if (left == TypeSymbol.Currency || right == TypeSymbol.Currency)
+        {
+            return TypeSymbol.Currency;
+        }
+
         if (left == TypeSymbol.Double || right == TypeSymbol.Double)
         {
             return TypeSymbol.Double;
