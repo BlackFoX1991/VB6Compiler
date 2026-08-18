@@ -174,9 +174,11 @@ public sealed class CSharpGenerator
         WriteLine("{");
         _indent++;
         EmitBlock(statement.Body);
-        var addOperator = statement.ControlVariable.Type == TypeSymbol.Long
-            ? "AddLong"
-            : "AddInteger";
+        var addOperator = statement.ControlVariable.Type == TypeSymbol.LongLong
+            ? "AddLongLong"
+            : statement.ControlVariable.Type == TypeSymbol.Long
+                ? "AddLong"
+                : "AddInteger";
         WriteLine($"{variable} = VBOperators.{addOperator}({variable}, {stepName});");
         _indent--;
         WriteLine("}");
@@ -346,6 +348,12 @@ public sealed class CSharpGenerator
             return $"VBConversions.CLng({value.ToString(CultureInfo.InvariantCulture)}L)";
         }
 
+        if (literal.LiteralType == TypeSymbol.LongLong)
+        {
+            var value = Convert.ToInt64(literal.Value, CultureInfo.InvariantCulture);
+            return $"VBConversions.CLngLng({value.ToString(CultureInfo.InvariantCulture)}L)";
+        }
+
         if (literal.LiteralType == TypeSymbol.Single)
         {
             var value = Convert.ToSingle(literal.Value, CultureInfo.InvariantCulture);
@@ -385,6 +393,11 @@ public sealed class CSharpGenerator
             return $"VBConversions.CLng({expression})";
         }
 
+        if (conversion.TargetType == TypeSymbol.LongLong)
+        {
+            return $"VBConversions.CLngLng({expression})";
+        }
+
         if (conversion.TargetType == TypeSymbol.Single)
         {
             return $"VBConversions.CSng({expression})";
@@ -414,6 +427,7 @@ public sealed class CSharpGenerator
         return unary.OperatorKind switch
         {
             SyntaxKind.PlusToken => operand,
+            SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.LongLong => $"VBOperators.NegateLongLong({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Long => $"VBOperators.NegateLong({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Single => $"VBOperators.NegateSingle({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Double => $"VBOperators.NegateDouble({operand})",
@@ -446,8 +460,10 @@ public sealed class CSharpGenerator
             SyntaxKind.PlusToken => EmitArithmeticCall(binary.ResultType, "Add", left, right),
             SyntaxKind.MinusToken => EmitArithmeticCall(binary.ResultType, "Subtract", left, right),
             SyntaxKind.StarToken => EmitArithmeticCall(binary.ResultType, "Multiply", left, right),
+            SyntaxKind.BackslashToken when binary.ResultType == TypeSymbol.LongLong => $"VBOperators.IntegerDivideLongLong({left}, {right})",
             SyntaxKind.BackslashToken when binary.ResultType == TypeSymbol.Long => $"VBOperators.IntegerDivideLong({left}, {right})",
             SyntaxKind.BackslashToken => $"VBOperators.IntegerDivide({left}, {right})",
+            SyntaxKind.ModKeyword when binary.ResultType == TypeSymbol.LongLong => $"VBOperators.ModLongLong({left}, {right})",
             SyntaxKind.ModKeyword when binary.ResultType == TypeSymbol.Long => $"VBOperators.ModLong({left}, {right})",
             SyntaxKind.ModKeyword => $"VBOperators.ModInteger({left}, {right})",
             SyntaxKind.SlashToken when binary.ResultType == TypeSymbol.Single => $"VBOperators.DivideSingle({left}, {right})",
@@ -462,9 +478,11 @@ public sealed class CSharpGenerator
             ? "Double"
             : resultType == TypeSymbol.Single
                 ? "Single"
-                : resultType == TypeSymbol.Long
-                    ? "Long"
-                    : "Integer";
+                : resultType == TypeSymbol.LongLong
+                    ? "LongLong"
+                    : resultType == TypeSymbol.Long
+                        ? "Long"
+                        : "Integer";
         return $"VBOperators.{operation}{suffix}({left}, {right})";
     }
 
@@ -478,6 +496,11 @@ public sealed class CSharpGenerator
         if (type == TypeSymbol.Long)
         {
             return "int";
+        }
+
+        if (type == TypeSymbol.LongLong)
+        {
+            return "long";
         }
 
         if (type == TypeSymbol.Single)
@@ -525,7 +548,7 @@ public sealed class CSharpGenerator
             return "0d";
         }
 
-        if (type == TypeSymbol.Integer || type == TypeSymbol.Long)
+        if (type == TypeSymbol.Integer || type == TypeSymbol.Long || type == TypeSymbol.LongLong)
         {
             return "0";
         }
