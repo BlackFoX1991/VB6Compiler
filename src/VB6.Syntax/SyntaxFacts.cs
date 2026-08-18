@@ -12,6 +12,7 @@ public static class SyntaxFacts
         "DIM" => SyntaxKind.DimKeyword,
         "AS" => SyntaxKind.AsKeyword,
         "INTEGER" => SyntaxKind.IntegerKeyword,
+        "LONG" => SyntaxKind.LongKeyword,
         "IF" => SyntaxKind.IfKeyword,
         "THEN" => SyntaxKind.ThenKeyword,
         "ELSEIF" => SyntaxKind.ElseIfKeyword,
