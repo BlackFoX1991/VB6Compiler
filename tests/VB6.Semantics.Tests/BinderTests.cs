@@ -78,6 +78,40 @@ public sealed class BinderTests
         Assert.IsTrue(ifStatement.Condition is BoundBinaryExpression);
     }
 
+    [TestMethod]
+    public void Bind_ResolvesProcedureCallsCaseInsensitively()
+    {
+        var model = BindSource("""
+            Sub Main()
+                HELPER
+            End Sub
+
+            Sub Helper()
+                Debug.Print 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var helper = model.Procedures.Single(procedure => procedure.Symbol.Name == "Helper");
+        var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+
+        Assert.AreEqual(helper.Symbol, invocation.Procedure);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsUndefinedProcedure()
+    {
+        var model = BindSource("""
+            Sub Main()
+                MissingProcedure
+            End Sub
+            """);
+
+        Assert.AreEqual(1, model.Diagnostics.Length);
+        Assert.AreEqual("VB6S0005", model.Diagnostics[0].Code);
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
