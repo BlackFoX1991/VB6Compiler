@@ -25,7 +25,7 @@ public sealed class LongTypeCodeGenTests
 
         StringAssert.Contains(source, "int __vb6_value = 0;");
         StringAssert.Contains(source, "int __vb6_i = 0;");
-        StringAssert.Contains(source, "VBOperators.AddLong(VBConversions.CLng(40000L), VBConversions.CLng(20000L))");
+        StringAssert.Contains(source, "VBOperators.AddLong(VBConversions.CLng(40000L), VBConversions.CLng(VBConversions.CInt(20000L)))");
         StringAssert.Contains(source, "VBOperators.AddLong(__vb6_value, VBConversions.CLng(VBConversions.CInt(1L)))");
         StringAssert.Contains(source, "__vb6_i = VBOperators.AddLong(__vb6_i, __vb6_for_step_");
     }
