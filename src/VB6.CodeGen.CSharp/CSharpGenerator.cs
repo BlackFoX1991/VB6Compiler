@@ -39,13 +39,20 @@ public sealed class CSharpGenerator
         var isMain = string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase);
         var visibility = isMain ? "public" : "private";
         var name = GetProcedureName(procedure.Symbol);
+        var parameters = string.Join(", ", procedure.Symbol.Parameters.Select(EmitParameter));
 
-        WriteLine($"{visibility} static void {name}()");
+        WriteLine($"{visibility} static void {name}({parameters})");
         WriteLine("{");
         _indent++;
         EmitBlock(procedure.Body);
         _indent--;
         WriteLine("}");
+    }
+
+    private static string EmitParameter(ParameterSymbol parameter)
+    {
+        var modifier = parameter.PassingMode == ParameterPassingMode.ByRef ? "ref " : string.Empty;
+        return $"{modifier}{GetTypeName(parameter.Type)} {GetVariableName(parameter)}";
     }
 
     private void EmitBlock(BoundBlockStatement block)
@@ -61,11 +68,11 @@ public sealed class CSharpGenerator
         switch (statement)
         {
             case BoundVariableDeclarationStatement declaration:
-                WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetLocalName(declaration.Variable)} = {GetDefaultValue(declaration.Variable.Type)};");
+                WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetVariableName(declaration.Variable)} = {GetDefaultValue(declaration.Variable.Type)};");
                 break;
 
             case BoundAssignmentStatement assignment:
-                WriteLine($"{GetLocalName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
+                WriteLine($"{GetVariableName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
                 break;
 
             case BoundIfStatement ifStatement:
@@ -82,9 +89,18 @@ public sealed class CSharpGenerator
                 break;
 
             case BoundInvocationStatement invocation:
-                WriteLine($"{GetProcedureName(invocation.Procedure)}();");
+                var arguments = string.Join(", ", invocation.Arguments.Select(EmitArgument));
+                WriteLine($"{GetProcedureName(invocation.Procedure)}({arguments});");
                 break;
         }
+    }
+
+    private string EmitArgument(BoundArgument argument)
+    {
+        var expression = EmitExpression(argument.Expression);
+        return argument.Parameter?.PassingMode == ParameterPassingMode.ByRef
+            ? $"ref {expression}"
+            : expression;
     }
 
     private string EmitExpression(BoundExpression expression)
@@ -92,7 +108,7 @@ public sealed class CSharpGenerator
         return expression switch
         {
             BoundLiteralExpression literal => EmitLiteral(literal),
-            BoundVariableExpression variable => GetLocalName(variable.Variable),
+            BoundVariableExpression variable => GetVariableName(variable.Variable),
             BoundConversionExpression conversion => EmitConversion(conversion),
             BoundUnaryExpression unary => EmitUnary(unary),
             BoundBinaryExpression binary => EmitBinary(binary),
@@ -245,8 +261,11 @@ public sealed class CSharpGenerator
             ? "Main"
             : $"__vb6_{SanitizeIdentifier(procedure.Name)}";
 
-    private static string GetLocalName(LocalVariableSymbol variable) =>
-        $"__vb6_{SanitizeIdentifier(variable.Name)}";
+    private static string GetVariableName(VariableSymbol variable) => variable switch
+    {
+        ParameterSymbol parameter => $"__vb6_arg_{SanitizeIdentifier(parameter.Name)}",
+        _ => $"__vb6_{SanitizeIdentifier(variable.Name)}"
+    };
 
     private static string SanitizeIdentifier(string identifier)
     {
