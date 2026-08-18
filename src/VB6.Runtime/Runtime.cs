@@ -29,6 +29,8 @@ public static class VBOperators
 
     public static short IntegerDivide(short left, short right) => checked((short)(left / right));
 
+    public static short ModInteger(short left, short right) => checked((short)(left % right));
+
     public static double DivideDouble(double left, double right) => left / right;
 
     public static bool NotBoolean(bool value) => !value;
