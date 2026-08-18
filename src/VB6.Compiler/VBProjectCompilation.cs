@@ -1,8 +1,12 @@
 using System.Collections.Immutable;
 using VB6.CodeGen.CSharp;
+using VB6.Parser;
 using VB6.ProjectSystem;
 using VB6.Semantics;
 using VB6.Syntax.Diagnostics;
+using VB6.Syntax.Nodes;
+using VB6.Syntax.Text;
+using ParserType = VB6.Parser.Parser;
 
 namespace VB6.Compiler;
 
@@ -26,9 +30,7 @@ public sealed class VBProjectCompilation
         var loadResult = new VBProjectLoader().Load(_projectFilePath);
         var projectDiagnostics = ImmutableArray.CreateBuilder<VBProjectCompilationDiagnostic>();
         var sourceDiagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
-        var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
-        var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
-        var procedureNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var parsedModules = ImmutableArray.CreateBuilder<ParsedProjectModule>();
 
         foreach (var diagnostic in loadResult.Diagnostics)
         {
@@ -65,37 +67,46 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            var analysis = VBCompilation.Create(source, modulePath).Analyze();
-            units.Add(new VBProjectCompilationUnit(module, modulePath, analysis));
-            sourceDiagnostics.AddRange(analysis.Diagnostics);
+            var text = SourceText.From(source, modulePath);
+            var parseResult = new ParserType(text).ParseCompilationUnit();
+            sourceDiagnostics.AddRange(parseResult.Diagnostics);
+            parsedModules.Add(new ParsedProjectModule(module, modulePath, text, parseResult));
+        }
 
-            if (analysis.SemanticModel is null)
+        var procedureSymbols = DeclareProjectProcedures(parsedModules, projectDiagnostics);
+        var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
+        var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
+
+        foreach (var module in parsedModules)
+        {
+            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
             {
+                units.Add(new VBProjectCompilationUnit(
+                    module.Item,
+                    module.FilePath,
+                    new CompilationAnalysis(module.ParseResult, null, module.ParseResult.Diagnostics)));
                 continue;
             }
 
-            foreach (var procedure in analysis.SemanticModel.Procedures)
-            {
-                if (procedureNames.TryGetValue(procedure.Symbol.Name, out var existingModule))
-                {
-                    projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
-                        "VB6PRJ0003",
-                        $"Procedure '{procedure.Symbol.Name}' is declared in both '{existingModule}' and '{module.RelativePath}'.",
-                        modulePath));
-                    continue;
-                }
+            var semanticModel = new Binder(module.Text)
+                .BindCompilationUnit(module.ParseResult.Root, procedureSymbols);
+            sourceDiagnostics.AddRange(semanticModel.Diagnostics);
+            procedures.AddRange(semanticModel.Procedures);
 
-                procedureNames.Add(procedure.Symbol.Name, module.RelativePath);
-                procedures.Add(procedure);
-            }
+            var unitDiagnostics = module.ParseResult.Diagnostics.AddRange(semanticModel.Diagnostics);
+            units.Add(new VBProjectCompilationUnit(
+                module.Item,
+                module.FilePath,
+                new CompilationAnalysis(module.ParseResult, semanticModel, unitDiagnostics)));
         }
 
-        var semanticModel = new SemanticModel(procedures.ToImmutable(), sourceDiagnostics.ToImmutable());
+        var combinedDiagnostics = sourceDiagnostics.ToImmutable();
+        var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics);
         return new VBProjectCompilationAnalysis(
             loadResult.Project,
             units.ToImmutable(),
-            semanticModel,
-            sourceDiagnostics.ToImmutable(),
+            combinedSemanticModel,
+            combinedDiagnostics,
             projectDiagnostics.ToImmutable());
     }
 
@@ -128,6 +139,39 @@ public sealed class VBProjectCompilation
             artifacts.AssemblyPath,
             artifacts.RuntimeAssemblyPath,
             artifacts.RuntimeConfigPath);
+    }
+
+    private static Dictionary<string, ProcedureSymbol> DeclareProjectProcedures(
+        IEnumerable<ParsedProjectModule> modules,
+        ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
+    {
+        var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
+        var origins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var module in modules)
+        {
+            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            {
+                continue;
+            }
+
+            foreach (var declaration in module.ParseResult.Root.Members.OfType<SubDeclarationSyntax>())
+            {
+                var symbol = new ProcedureSymbol(declaration.Identifier.Text);
+                if (procedures.TryAdd(symbol.Name, symbol))
+                {
+                    origins.Add(symbol.Name, module.Item.RelativePath);
+                    continue;
+                }
+
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0003",
+                    $"Procedure '{symbol.Name}' is declared in both '{origins[symbol.Name]}' and '{module.Item.RelativePath}'.",
+                    module.FilePath));
+            }
+        }
+
+        return procedures;
     }
 
     private static VBProjectCompilationAnalysis ValidateEntryPoint(VBProjectCompilationAnalysis analysis)
@@ -165,6 +209,12 @@ public sealed class VBProjectCompilation
 
         return analysis with { ProjectDiagnostics = projectDiagnostics.ToImmutable() };
     }
+
+    private sealed record ParsedProjectModule(
+        VBProjectItem Item,
+        string FilePath,
+        SourceText Text,
+        ParseResult ParseResult);
 }
 
 public sealed record VBProjectCompilationUnit(
