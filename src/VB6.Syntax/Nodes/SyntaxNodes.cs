@@ -55,13 +55,23 @@ public sealed record AssignmentStatementSyntax(
     SyntaxToken EqualsToken,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.AssignmentStatement);
 
+public sealed record ElseIfClauseSyntax(
+    SyntaxToken ElseIfKeyword,
+    ExpressionSyntax Condition,
+    SyntaxToken ThenKeyword,
+    ImmutableArray<StatementSyntax> Statements) : SyntaxNode(SyntaxKind.ElseIfClause);
+
 public sealed record IfStatementSyntax(
     SyntaxToken IfKeyword,
     ExpressionSyntax Condition,
     SyntaxToken ThenKeyword,
     ImmutableArray<StatementSyntax> Statements,
-    SyntaxToken EndKeyword,
-    SyntaxToken IfEndKeyword) : StatementSyntax(SyntaxKind.IfStatement);
+    ImmutableArray<ElseIfClauseSyntax> ElseIfClauses,
+    SyntaxToken? ElseKeyword,
+    ImmutableArray<StatementSyntax> ElseStatements,
+    SyntaxToken? EndKeyword,
+    SyntaxToken? IfEndKeyword,
+    bool IsSingleLine) : StatementSyntax(SyntaxKind.IfStatement);
 
 public sealed record ForStatementSyntax(
     SyntaxToken ForKeyword,
