@@ -22,11 +22,13 @@ Implemented so far:
 - C# source generation from the bound program
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
-- end-to-end execution tests for generated managed applications
+- end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` project loading for common project metadata, modules, classes, forms, controls, references, and components
 - unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
+
+Windows CI run #200 validates the current multi-file project pipeline on .NET 10, including restore, Release build, the full test suite, project assembly emission, and execution of the generated assembly.
 
 ## Current acceptance program
 
