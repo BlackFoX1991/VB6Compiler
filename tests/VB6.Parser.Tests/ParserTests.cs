@@ -180,6 +180,86 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void Parse_RecognizesForWhileAndDoLoops()
+    {
+        const string source = """
+            Sub Main()
+                Dim i As Integer
+                For i = 3 To 1 Step -1
+                    Debug.Print i
+                Next i
+
+                While i < 3
+                    i = i + 1
+                Wend
+
+                Do Until i = 5
+                    i = i + 1
+                Loop
+
+                Do
+                    i = i - 1
+                Loop While i > 3
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        Assert.AreEqual(0, result.Diagnostics.Length);
+
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        Assert.AreEqual(5, sub.Statements.Length);
+
+        var forStatement = (ForStatementSyntax)sub.Statements[1];
+        Assert.AreEqual("i", forStatement.Identifier.Text);
+        Assert.IsNotNull(forStatement.StepKeyword);
+        Assert.IsInstanceOfType<UnaryExpressionSyntax>(forStatement.Step);
+        Assert.AreEqual("i", forStatement.NextIdentifier!.Text);
+
+        Assert.IsInstanceOfType<WhileStatementSyntax>(sub.Statements[2]);
+
+        var preTestDo = (DoStatementSyntax)sub.Statements[3];
+        Assert.AreEqual(SyntaxKind.UntilKeyword, preTestDo.PreConditionKeyword!.Kind);
+        Assert.IsNull(preTestDo.PostCondition);
+
+        var postTestDo = (DoStatementSyntax)sub.Statements[4];
+        Assert.IsNull(postTestDo.PreCondition);
+        Assert.AreEqual(SyntaxKind.WhileKeyword, postTestDo.PostConditionKeyword!.Kind);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesExitForAndExitDo()
+    {
+        const string source = """
+            Sub Main()
+                Dim i As Integer
+                For i = 1 To 3
+                    Do
+                        Exit For
+                    Loop
+                    Exit For
+                Next
+
+                Do
+                    Exit Do
+                Loop
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        Assert.AreEqual(0, result.Diagnostics.Length);
+
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        var forStatement = (ForStatementSyntax)sub.Statements[1];
+        var nestedDo = (DoStatementSyntax)forStatement.Statements[0];
+        var exitFor = (ExitStatementSyntax)nestedDo.Statements.Single();
+        Assert.AreEqual(SyntaxKind.ForKeyword, exitFor.TargetKeyword.Kind);
+
+        var doStatement = (DoStatementSyntax)sub.Statements[2];
+        var exitDo = (ExitStatementSyntax)doStatement.Statements.Single();
+        Assert.AreEqual(SyntaxKind.DoKeyword, exitDo.TargetKeyword.Kind);
+    }
+
+    [TestMethod]
     public void Parse_ReportsMissingEndSub()
     {
         const string source = """
