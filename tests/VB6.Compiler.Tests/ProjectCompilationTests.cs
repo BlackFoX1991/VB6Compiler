@@ -25,13 +25,15 @@ public sealed class ProjectCompilationTests
             var update = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Update");
             var observe = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Observe");
             var add = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Add");
-            var updateInvocation = (BoundInvocationStatement)main.Body.Statements[2];
-            var observeInvocation = (BoundInvocationStatement)main.Body.Statements[3];
-            var addAssignment = (BoundAssignmentStatement)main.Body.Statements[4];
+            var invocations = main.Body.Statements.OfType<BoundInvocationStatement>().ToArray();
+            var addAssignment = main.Body.Statements.OfType<BoundAssignmentStatement>().Last();
             var addInvocation = (BoundInvocationExpression)addAssignment.Expression;
 
-            Assert.AreEqual(update.Symbol, updateInvocation.Procedure);
-            Assert.AreEqual(observe.Symbol, observeInvocation.Procedure);
+            Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundForStatement));
+            Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundWhileStatement));
+            Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundDoStatement) >= 2);
+            Assert.AreEqual(update.Symbol, invocations[0].Procedure);
+            Assert.AreEqual(observe.Symbol, invocations[1].Procedure);
             Assert.AreEqual(add.Symbol, addInvocation.Procedure);
             Assert.AreEqual(ParameterPassingMode.ByRef, update.Symbol.Parameters.Single().PassingMode);
             Assert.AreEqual(ParameterPassingMode.ByVal, observe.Symbol.Parameters.Single().PassingMode);
@@ -44,7 +46,7 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_ExecutesCrossModuleCallsAndFunction()
+    public void EmitManagedApplication_ExecutesLoopsCrossModuleCallsAndFunction()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -138,7 +140,31 @@ public sealed class ProjectCompilationTests
 
             Sub Main()
                 Dim x As Integer
-                x = 5
+                Dim i As Integer
+                x = 0
+
+                For i = 1 To 5
+                    x = x + 1
+                    If i = 3 Then
+                        Exit For
+                    End If
+                Next i
+
+                While x < 5
+                    x = x + 1
+                Wend
+
+                Do
+                    x = x + 1
+                    If x = 6 Then
+                        Exit Do
+                    End If
+                Loop
+
+                Do
+                    x = x + 1
+                Loop Until x = 7
+
                 Call Update(x)
                 Call Observe(x)
                 x = Add(x, 2)
