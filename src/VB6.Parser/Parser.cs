@@ -204,6 +204,7 @@ public sealed class Parser
             SyntaxKind.WhileKeyword => ParseWhileStatement(),
             SyntaxKind.DoKeyword => ParseDoStatement(),
             SyntaxKind.ExitKeyword => ParseExitStatement(),
+            SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
@@ -328,6 +329,92 @@ public sealed class Parser
         }
 
         return new ExitStatementSyntax(exitKeyword, targetKeyword);
+    }
+
+    private SelectCaseStatementSyntax ParseSelectCaseStatement()
+    {
+        var selectKeyword = MatchToken(SyntaxKind.SelectKeyword);
+        var caseKeyword = MatchToken(SyntaxKind.CaseKeyword);
+        var expression = ParseExpression();
+        ConsumeLineTerminator();
+
+        var cases = ImmutableArray.CreateBuilder<CaseBlockSyntax>();
+        while (Current.Kind == SyntaxKind.CaseKeyword)
+        {
+            cases.Add(ParseCaseBlock());
+        }
+
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endSelectKeyword = MatchToken(SyntaxKind.SelectKeyword);
+        return new SelectCaseStatementSyntax(
+            selectKeyword,
+            caseKeyword,
+            expression,
+            cases.ToImmutable(),
+            endKeyword,
+            endSelectKeyword);
+    }
+
+    private CaseBlockSyntax ParseCaseBlock()
+    {
+        var caseKeyword = MatchToken(SyntaxKind.CaseKeyword);
+        var clauses = ImmutableArray.CreateBuilder<CaseClauseSyntax>();
+
+        if (Current.Kind == SyntaxKind.ElseKeyword)
+        {
+            clauses.Add(new CaseElseClauseSyntax(NextToken()));
+        }
+        else
+        {
+            while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.EndOfFileToken)
+            {
+                clauses.Add(ParseCaseClause());
+                if (Current.Kind != SyntaxKind.CommaToken)
+                {
+                    break;
+                }
+
+                NextToken();
+            }
+        }
+
+        ConsumeLineTerminator();
+        var statements = ParseStatementsUntil(() =>
+            Current.Kind == SyntaxKind.CaseKeyword || IsEndPair(SyntaxKind.SelectKeyword));
+        return new CaseBlockSyntax(caseKeyword, clauses.ToImmutable(), statements);
+    }
+
+    private CaseClauseSyntax ParseCaseClause()
+    {
+        if (Current.Kind == SyntaxKind.IsKeyword)
+        {
+            var isKeyword = NextToken();
+            var operatorToken = MatchComparisonOperator();
+            var value = ParseExpression();
+            return new CaseRelationalClauseSyntax(isKeyword, operatorToken, value);
+        }
+
+        var lowerBound = ParseExpression();
+        if (Current.Kind == SyntaxKind.ToKeyword)
+        {
+            var toKeyword = NextToken();
+            var upperBound = ParseExpression();
+            return new CaseRangeClauseSyntax(lowerBound, toKeyword, upperBound);
+        }
+
+        return new CaseValueClauseSyntax(lowerBound);
+    }
+
+    private SyntaxToken MatchComparisonOperator()
+    {
+        if (Current.Kind is SyntaxKind.EqualsToken or SyntaxKind.LessGreaterToken or
+            SyntaxKind.LessToken or SyntaxKind.LessOrEqualsToken or
+            SyntaxKind.GreaterToken or SyntaxKind.GreaterOrEqualsToken)
+        {
+            return NextToken();
+        }
+
+        return MatchToken(SyntaxKind.EqualsToken);
     }
 
     private InvocationStatementSyntax ParseInvocationStatement()
