@@ -1,6 +1,7 @@
 using VB6.Compiler;
+using VB6.ProjectSystem;
 
-const string usage = "Usage: vb6c <source-file> [--emit-csharp <output-file> | --emit-assembly <output-file>]";
+const string usage = "Usage: vb6c <source-file|project.vbp> [--emit-csharp <output-file> | --emit-assembly <output-file>]";
 
 if (args.Length == 0)
 {
@@ -14,6 +15,32 @@ if (!File.Exists(path))
 {
     Console.Error.WriteLine($"Input file not found: {path}");
     return 1;
+}
+
+if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnoreCase))
+{
+    if (args.Length != 1)
+    {
+        Console.Error.WriteLine("Project emission is not implemented yet.");
+        return 1;
+    }
+
+    var loadResult = new VBProjectLoader().Load(path);
+    foreach (var diagnostic in loadResult.Diagnostics)
+    {
+        Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
+    }
+
+    var project = loadResult.Project;
+    Console.WriteLine($"Loaded VB6 project: {project.Name ?? Path.GetFileNameWithoutExtension(project.FilePath)}");
+    Console.WriteLine($"Type: {project.ProjectType ?? "Unknown"}");
+    Console.WriteLine($"Startup: {project.StartupObject ?? "Not specified"}");
+    Console.WriteLine(
+        $"Items: {project.Items.Length} " +
+        $"(modules: {project.Modules.Count()}, classes: {project.Classes.Count()}, forms: {project.Forms.Count()})");
+    Console.WriteLine($"References: {project.References.Length}");
+    Console.WriteLine($"Components: {project.Objects.Length}");
+    return loadResult.Success ? 0 : 1;
 }
 
 var compilation = VBCompilation.Create(File.ReadAllText(path), path);
