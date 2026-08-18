@@ -19,13 +19,18 @@ public sealed class ProjectCompilationTests
             Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
             Assert.AreEqual(2, analysis.Units.Length);
             Assert.IsNotNull(analysis.SemanticModel);
-            Assert.AreEqual(2, analysis.SemanticModel!.Procedures.Length);
+            Assert.AreEqual(3, analysis.SemanticModel!.Procedures.Length);
 
             var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
-            var helper = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Helper");
-            var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+            var update = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Update");
+            var observe = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Observe");
+            var updateInvocation = (BoundInvocationStatement)main.Body.Statements[2];
+            var observeInvocation = (BoundInvocationStatement)main.Body.Statements[3];
 
-            Assert.AreEqual(helper.Symbol, invocation.Procedure);
+            Assert.AreEqual(update.Symbol, updateInvocation.Procedure);
+            Assert.AreEqual(observe.Symbol, observeInvocation.Procedure);
+            Assert.AreEqual(ParameterPassingMode.ByRef, update.Symbol.Parameters.Single().PassingMode);
+            Assert.AreEqual(ParameterPassingMode.ByVal, observe.Symbol.Parameters.Single().PassingMode);
         }
         finally
         {
@@ -34,7 +39,7 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_ExecutesCrossModuleProcedureCall()
+    public void EmitManagedApplication_ExecutesCrossModuleByRefAndByValCalls()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -127,14 +132,22 @@ public sealed class ProjectCompilationTests
             Option Explicit
 
             Sub Main()
-                Call Helper()
+                Dim x As Integer
+                x = 5
+                Call Update(x)
+                Call Observe(x)
+                Debug.Print x
             End Sub
             """);
         File.WriteAllText(Path.Combine(directory, "HelperModule.bas"), """
             Option Explicit
 
-            Sub Helper()
-                Debug.Print 10
+            Sub Update(value As Integer)
+                value = 10
+            End Sub
+
+            Sub Observe(ByVal value As Integer)
+                value = 20
             End Sub
             """);
         return projectPath;
