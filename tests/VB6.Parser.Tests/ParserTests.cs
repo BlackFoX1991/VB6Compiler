@@ -62,6 +62,46 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void Parse_RecognizesBareProcedureCall()
+    {
+        const string source = """
+            Sub Main()
+                Helper
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        var invocation = (InvocationStatementSyntax)sub.Statements.Single();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        Assert.IsNull(invocation.CallKeyword);
+        Assert.AreEqual("Helper", invocation.Identifier.Text);
+        Assert.IsNull(invocation.OpenParenthesisToken);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesCallKeywordWithParentheses()
+    {
+        const string source = """
+            Sub Main()
+                Call Helper()
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        var invocation = (InvocationStatementSyntax)sub.Statements.Single();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        Assert.IsNotNull(invocation.CallKeyword);
+        Assert.AreEqual(SyntaxKind.CallKeyword, invocation.CallKeyword!.Kind);
+        Assert.AreEqual("Helper", invocation.Identifier.Text);
+        Assert.IsNotNull(invocation.OpenParenthesisToken);
+        Assert.IsNotNull(invocation.CloseParenthesisToken);
+    }
+
+    [TestMethod]
     public void Parse_ReportsMissingEndSub()
     {
         const string source = """
