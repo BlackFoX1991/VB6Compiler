@@ -38,5 +38,19 @@ public enum SyntaxKind
     IfKeyword,
     ThenKeyword,
     DebugKeyword,
-    PrintKeyword
+    PrintKeyword,
+
+    CompilationUnit,
+    OptionExplicitStatement,
+    SubDeclaration,
+    DimStatement,
+    AssignmentStatement,
+    IfStatement,
+    DebugPrintStatement,
+    SkippedStatement,
+    LiteralExpression,
+    NameExpression,
+    UnaryExpression,
+    BinaryExpression,
+    ParenthesizedExpression
 }
