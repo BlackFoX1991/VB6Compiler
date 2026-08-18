@@ -29,6 +29,10 @@ public static class SyntaxFacts
         "LOOP" => SyntaxKind.LoopKeyword,
         "UNTIL" => SyntaxKind.UntilKeyword,
         "EXIT" => SyntaxKind.ExitKeyword,
+        "SELECT" => SyntaxKind.SelectKeyword,
+        "CASE" => SyntaxKind.CaseKeyword,
+        "ELSE" => SyntaxKind.ElseKeyword,
+        "IS" => SyntaxKind.IsKeyword,
         _ => SyntaxKind.IdentifierToken
     };
 }
