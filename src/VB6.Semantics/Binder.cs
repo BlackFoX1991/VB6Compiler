@@ -813,6 +813,7 @@ public sealed class Binder
             case SyntaxKind.MinusToken:
             case SyntaxKind.StarToken:
             case SyntaxKind.BackslashToken:
+            case SyntaxKind.ModKeyword:
                 left = BindConversion(left, TypeSymbol.Integer);
                 right = BindConversion(right, TypeSymbol.Integer);
                 return new BoundBinaryExpression(
