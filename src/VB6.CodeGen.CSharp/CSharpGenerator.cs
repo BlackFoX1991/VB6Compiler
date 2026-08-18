@@ -419,6 +419,7 @@ public sealed class CSharpGenerator
             SyntaxKind.MinusToken => $"VBOperators.SubtractInteger({left}, {right})",
             SyntaxKind.StarToken => $"VBOperators.MultiplyInteger({left}, {right})",
             SyntaxKind.BackslashToken => $"VBOperators.IntegerDivide({left}, {right})",
+            SyntaxKind.ModKeyword => $"VBOperators.ModInteger({left}, {right})",
             SyntaxKind.SlashToken => $"VBOperators.DivideDouble({left}, {right})",
             _ => "default"
         };
