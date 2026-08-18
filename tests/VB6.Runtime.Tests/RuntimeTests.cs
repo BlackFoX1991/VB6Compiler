@@ -11,6 +11,38 @@ public sealed class RuntimeTests
     }
 
     [TestMethod]
+    public void BooleanNumericConversions_UseVbTrueValue()
+    {
+        Assert.AreEqual((short)-1, VBConversions.CInt(true));
+        Assert.AreEqual((short)0, VBConversions.CInt(false));
+        Assert.AreEqual(-1d, VBConversions.CDbl(true));
+        Assert.AreEqual(0d, VBConversions.CDbl(false));
+    }
+
+    [TestMethod]
+    public void BooleanLogicalOperators_UseVbTruthTables()
+    {
+        Assert.IsFalse(VBOperators.NotBoolean(true));
+        Assert.IsTrue(VBOperators.NotBoolean(false));
+
+        Assert.IsTrue(VBOperators.AndBoolean(true, true));
+        Assert.IsFalse(VBOperators.AndBoolean(true, false));
+
+        Assert.IsTrue(VBOperators.OrBoolean(false, true));
+        Assert.IsFalse(VBOperators.OrBoolean(false, false));
+
+        Assert.IsTrue(VBOperators.XorBoolean(true, false));
+        Assert.IsFalse(VBOperators.XorBoolean(true, true));
+
+        Assert.IsTrue(VBOperators.EqvBoolean(true, true));
+        Assert.IsFalse(VBOperators.EqvBoolean(true, false));
+
+        Assert.IsFalse(VBOperators.ImpBoolean(true, false));
+        Assert.IsTrue(VBOperators.ImpBoolean(false, false));
+        Assert.IsTrue(VBOperators.ImpBoolean(true, true));
+    }
+
+    [TestMethod]
     public void IntegerAddition_ThrowsOnOverflow()
     {
         Assert.ThrowsException<OverflowException>(() =>
