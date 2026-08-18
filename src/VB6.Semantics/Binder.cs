@@ -10,6 +10,8 @@ public sealed class Binder
 {
     private readonly SourceText _text;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+    private readonly List<LoopBindingContext> _loopStack = new();
+    private int _nextLoopId;
 
     public Binder(SourceText text)
     {
@@ -237,6 +239,15 @@ public sealed class Binder
                 case IfStatementSyntax ifStatement:
                     PredeclareLocals(ifStatement.Statements, locals, variables);
                     break;
+                case ForStatementSyntax forStatement:
+                    PredeclareLocals(forStatement.Statements, locals, variables);
+                    break;
+                case WhileStatementSyntax whileStatement:
+                    PredeclareLocals(whileStatement.Statements, locals, variables);
+                    break;
+                case DoStatementSyntax doStatement:
+                    PredeclareLocals(doStatement.Statements, locals, variables);
+                    break;
             }
         }
     }
@@ -270,6 +281,10 @@ public sealed class Binder
             DimStatementSyntax dim => BindVariableDeclaration(dim, variables),
             AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
+            ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
+            WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
+            DoStatementSyntax doStatement => BindDo(doStatement, variables, procedures),
+            ExitStatementSyntax exitStatement => BindExit(exitStatement),
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
@@ -321,6 +336,124 @@ public sealed class Binder
         condition = BindConversion(condition, TypeSymbol.Boolean);
         var body = BindStatements(syntax.Statements, variables, procedures);
         return new BoundIfStatement(condition, body);
+    }
+
+    private BoundForStatement BindFor(
+        ForStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (!variables.TryGetValue(syntax.Identifier.Text, out var controlVariable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{syntax.Identifier.Text}' is not declared.",
+                syntax.Identifier.Span);
+            controlVariable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+        }
+
+        if (controlVariable.Type != TypeSymbol.Integer && controlVariable.Type != TypeSymbol.Error)
+        {
+            Report(
+                "VB6S0012",
+                $"For control variable '{controlVariable.Name}' must be Integer in the current compiler subset.",
+                syntax.Identifier.Span);
+        }
+
+        if (syntax.NextIdentifier is not null &&
+            !string.Equals(syntax.NextIdentifier.Text, syntax.Identifier.Text, StringComparison.OrdinalIgnoreCase))
+        {
+            Report(
+                "VB6S0013",
+                $"Next variable '{syntax.NextIdentifier.Text}' does not match For variable '{syntax.Identifier.Text}'.",
+                syntax.NextIdentifier.Span);
+        }
+
+        var initialValue = BindConversion(
+            BindExpression(syntax.InitialValue, variables, procedures),
+            controlVariable.Type);
+        var limit = BindConversion(
+            BindExpression(syntax.Limit, variables, procedures),
+            controlVariable.Type);
+        var step = syntax.Step is null
+            ? new BoundLiteralExpression(1L, TypeSymbol.Integer)
+            : BindConversion(BindExpression(syntax.Step, variables, procedures), controlVariable.Type);
+
+        var loopId = _nextLoopId++;
+        _loopStack.Add(new LoopBindingContext(BoundLoopKind.For, loopId));
+        var body = BindStatements(syntax.Statements, variables, procedures);
+        _loopStack.RemoveAt(_loopStack.Count - 1);
+
+        return new BoundForStatement(loopId, controlVariable, initialValue, limit, step, body);
+    }
+
+    private BoundWhileStatement BindWhile(
+        WhileStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var condition = BindConversion(
+            BindExpression(syntax.Condition, variables, procedures),
+            TypeSymbol.Boolean);
+        var body = BindStatements(syntax.Statements, variables, procedures);
+        return new BoundWhileStatement(condition, body);
+    }
+
+    private BoundDoStatement BindDo(
+        DoStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (syntax.PreCondition is not null && syntax.PostCondition is not null)
+        {
+            Report(
+                "VB6S0014",
+                "Do loop cannot have both a pre-test and a post-test condition.",
+                syntax.DoKeyword.Span);
+        }
+
+        var conditionSyntax = syntax.PreCondition ?? syntax.PostCondition;
+        var conditionKeyword = syntax.PreConditionKeyword ?? syntax.PostConditionKeyword;
+        BoundExpression? condition = null;
+        if (conditionSyntax is not null)
+        {
+            condition = BindConversion(
+                BindExpression(conditionSyntax, variables, procedures),
+                TypeSymbol.Boolean);
+        }
+
+        var loopId = _nextLoopId++;
+        _loopStack.Add(new LoopBindingContext(BoundLoopKind.Do, loopId));
+        var body = BindStatements(syntax.Statements, variables, procedures);
+        _loopStack.RemoveAt(_loopStack.Count - 1);
+
+        return new BoundDoStatement(
+            loopId,
+            condition,
+            syntax.PreCondition is null && syntax.PostCondition is not null,
+            conditionKeyword?.Kind == SyntaxKind.UntilKeyword,
+            body);
+    }
+
+    private BoundExitLoopStatement BindExit(ExitStatementSyntax syntax)
+    {
+        var loopKind = syntax.TargetKeyword.Kind == SyntaxKind.DoKeyword
+            ? BoundLoopKind.Do
+            : BoundLoopKind.For;
+
+        for (var index = _loopStack.Count - 1; index >= 0; index--)
+        {
+            if (_loopStack[index].Kind == loopKind)
+            {
+                return new BoundExitLoopStatement(loopKind, _loopStack[index].LoopId);
+            }
+        }
+
+        Report(
+            "VB6S0015",
+            $"Exit {syntax.TargetKeyword.Text} is not inside an active {syntax.TargetKeyword.Text} loop.",
+            syntax.ExitKeyword.Span);
+        return new BoundExitLoopStatement(loopKind, -1);
     }
 
     private BoundInvocationStatement BindInvocation(
@@ -578,4 +711,6 @@ public sealed class Binder
             span,
             _text.FilePath));
     }
+
+    private readonly record struct LoopBindingContext(BoundLoopKind Kind, int LoopId);
 }
