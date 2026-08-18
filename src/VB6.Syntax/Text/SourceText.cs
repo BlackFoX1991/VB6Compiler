@@ -58,9 +58,9 @@ public sealed class SourceText
     private static void AddLine(ImmutableArray<TextLine>.Builder builder, int lineStart, int lineEnd, int lineBreakWidth)
     {
         builder.Add(new TextLine(
-            start: lineStart,
-            length: lineEnd - lineStart,
-            lengthIncludingLineBreak: lineEnd - lineStart + lineBreakWidth));
+            lineStart,
+            lineEnd - lineStart,
+            lineEnd - lineStart + lineBreakWidth));
     }
 
     private static int GetLineBreakWidth(string text, int position)
