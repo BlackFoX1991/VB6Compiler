@@ -49,6 +49,12 @@ public sealed record DebugPrintStatementSyntax(
     SyntaxToken PrintKeyword,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugPrintStatement);
 
+public sealed record InvocationStatementSyntax(
+    SyntaxToken? CallKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken? OpenParenthesisToken,
+    SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement);
+
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
