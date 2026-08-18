@@ -3,7 +3,7 @@ using VB6.Compiler;
 if (args.Length == 0)
 {
     Console.WriteLine("VB6Compiler");
-    Console.WriteLine("Usage: vb6c <source-file>");
+    Console.WriteLine("Usage: vb6c <source-file> [--emit-csharp <output-file>]");
     return 0;
 }
 
@@ -15,8 +15,32 @@ if (!File.Exists(path))
 }
 
 var compilation = VBCompilation.Create(File.ReadAllText(path), path);
-var analysis = compilation.Analyze();
 
+if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
+{
+    var generation = compilation.GenerateCSharp();
+    foreach (var diagnostic in generation.Diagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+
+    if (!generation.Success || generation.Source is null)
+    {
+        return 1;
+    }
+
+    File.WriteAllText(args[2], generation.Source);
+    Console.WriteLine($"Generated C# source: {args[2]}");
+    return 0;
+}
+
+if (args.Length != 1)
+{
+    Console.Error.WriteLine("Usage: vb6c <source-file> [--emit-csharp <output-file>]");
+    return 1;
+}
+
+var analysis = compilation.Analyze();
 foreach (var diagnostic in analysis.Diagnostics)
 {
     Console.Error.WriteLine(diagnostic);
