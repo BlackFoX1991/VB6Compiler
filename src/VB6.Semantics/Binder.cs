@@ -741,6 +741,12 @@ public sealed class Binder
             return new BoundUnaryExpression(SyntaxKind.NotKeyword, operand, TypeSymbol.Boolean);
         }
 
+        if (syntax.OperatorToken.Kind == SyntaxKind.MinusToken && operand.Type == TypeSymbol.Byte)
+        {
+            operand = BindConversion(operand, TypeSymbol.Integer);
+            return new BoundUnaryExpression(SyntaxKind.MinusToken, operand, TypeSymbol.Integer);
+        }
+
         if (IsNumericType(operand.Type))
         {
             return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, operand.Type);
@@ -860,7 +866,9 @@ public sealed class Binder
             {
                 var resultType = left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
                     ? TypeSymbol.Long
-                    : TypeSymbol.Integer;
+                    : left.Type == TypeSymbol.Byte && right.Type == TypeSymbol.Byte
+                        ? TypeSymbol.Byte
+                        : TypeSymbol.Integer;
                 left = BindConversion(left, resultType);
                 right = BindConversion(right, resultType);
                 return new BoundBinaryExpression(
@@ -876,11 +884,11 @@ public sealed class Binder
     }
 
     private static bool IsNumericType(TypeSymbol type) =>
-        type == TypeSymbol.Integer || type == TypeSymbol.Long ||
+        type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long ||
         type == TypeSymbol.Single || type == TypeSymbol.Double;
 
     private static bool IsSingleDivisionOperand(TypeSymbol type) =>
-        type == TypeSymbol.Integer || type == TypeSymbol.Single;
+        type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Single;
 
     private static TypeSymbol GetCommonNumericType(TypeSymbol left, TypeSymbol right)
     {
@@ -905,7 +913,12 @@ public sealed class Binder
             return TypeSymbol.Long;
         }
 
-        return TypeSymbol.Integer;
+        if (left == TypeSymbol.Integer || right == TypeSymbol.Integer)
+        {
+            return TypeSymbol.Integer;
+        }
+
+        return TypeSymbol.Byte;
     }
 
     private static BoundExpression BindConversion(BoundExpression expression, TypeSymbol targetType)
