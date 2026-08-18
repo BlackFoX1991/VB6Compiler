@@ -14,12 +14,14 @@ Implemented so far:
 - source text and diagnostic infrastructure
 - case-insensitive VB6 lexer with trivia preservation
 - parser for the initial VB6 language subset
-- semantic binder with symbols, local variables, type resolution, and explicit conversion nodes
+- parameterless Sub calls using both `Helper` and `Call Helper()` syntax
+- semantic binder with symbols, local variables, type resolution, explicit conversion nodes, and procedure invocation binding
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
+- project-wide procedure declaration and case-insensitive cross-module symbol resolution
 - project-level duplicate procedure detection across standard modules
 - primitive VB6 runtime helpers for conversions, integer arithmetic, comparisons, concatenation, and `Debug.Print`
-- C# source generation from the bound program
+- C# source generation from the bound program, including procedure calls
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
@@ -28,9 +30,11 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
 
-Windows CI run #200 validates the current multi-file project pipeline on .NET 10, including restore, Release build, the full test suite, project assembly emission, and execution of the generated assembly.
+Windows CI run #226 validates the current cross-module pipeline on .NET 10. The test project compiles two standard modules into one assembly, calls a Sub from a different module, executes the generated assembly, and verifies its output.
 
 ## Current acceptance program
+
+Single-file source:
 
 ```vb
 Option Explicit
@@ -42,6 +46,22 @@ Sub Main()
     If x > 5 Then
         Debug.Print x
     End If
+End Sub
+```
+
+Multi-module project:
+
+```vb
+' MainModule.bas
+Sub Main()
+    Call Helper()
+End Sub
+```
+
+```vb
+' HelperModule.bas
+Sub Helper()
+    Debug.Print 10
 End Sub
 ```
 
@@ -91,11 +111,11 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point and parameterless cross-module Sub calls. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add procedure calls and cross-module symbol resolution
+- add Sub parameters and `ByRef` / `ByVal` argument semantics
 - introduce a dedicated lowered IR and control flow representation
 - expand the VB6 type system and runtime behavior
 - add class modules
