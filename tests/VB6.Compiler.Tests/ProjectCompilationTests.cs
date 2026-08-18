@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using VB6.Semantics;
 
 namespace VB6.Compiler.Tests;
 
@@ -19,8 +20,12 @@ public sealed class ProjectCompilationTests
             Assert.AreEqual(2, analysis.Units.Length);
             Assert.IsNotNull(analysis.SemanticModel);
             Assert.AreEqual(2, analysis.SemanticModel!.Procedures.Length);
-            Assert.IsTrue(analysis.SemanticModel.Procedures.Any(procedure => procedure.Symbol.Name == "Main"));
-            Assert.IsTrue(analysis.SemanticModel.Procedures.Any(procedure => procedure.Symbol.Name == "Helper"));
+
+            var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+            var helper = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Helper");
+            var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+
+            Assert.AreEqual(helper.Symbol, invocation.Procedure);
         }
         finally
         {
@@ -29,7 +34,7 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_ExecutesMultiModuleProject()
+    public void EmitManagedApplication_ExecutesCrossModuleProcedureCall()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -122,17 +127,14 @@ public sealed class ProjectCompilationTests
             Option Explicit
 
             Sub Main()
-                Dim x As Integer
-                x = 10
-                Debug.Print x
+                Call Helper()
             End Sub
             """);
         File.WriteAllText(Path.Combine(directory, "HelperModule.bas"), """
             Option Explicit
 
             Sub Helper()
-                Dim value As Integer
-                value = 5
+                Debug.Print 10
             End Sub
             """);
         return projectPath;
