@@ -14,6 +14,8 @@ public static class SyntaxFacts
         "INTEGER" => SyntaxKind.IntegerKeyword,
         "IF" => SyntaxKind.IfKeyword,
         "THEN" => SyntaxKind.ThenKeyword,
+        "ELSEIF" => SyntaxKind.ElseIfKeyword,
+        "ELSE" => SyntaxKind.ElseKeyword,
         "DEBUG" => SyntaxKind.DebugKeyword,
         "PRINT" => SyntaxKind.PrintKeyword,
         "CALL" => SyntaxKind.CallKeyword,
@@ -31,7 +33,6 @@ public static class SyntaxFacts
         "EXIT" => SyntaxKind.ExitKeyword,
         "SELECT" => SyntaxKind.SelectKeyword,
         "CASE" => SyntaxKind.CaseKeyword,
-        "ELSE" => SyntaxKind.ElseKeyword,
         "IS" => SyntaxKind.IsKeyword,
         _ => SyntaxKind.IdentifierToken
     };
