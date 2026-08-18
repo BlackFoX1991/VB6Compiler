@@ -3,6 +3,7 @@ using VB6.Parser;
 using VB6.Semantics;
 using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Text;
+using ParserType = VB6.Parser.Parser;
 
 namespace VB6.Compiler;
 
@@ -20,7 +21,7 @@ public sealed class VBCompilation
 
     public CompilationAnalysis Analyze()
     {
-        var parseResult = new Parser.Parser(Text).ParseCompilationUnit();
+        var parseResult = new ParserType(Text).ParseCompilationUnit();
         if (parseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
             return new CompilationAnalysis(
