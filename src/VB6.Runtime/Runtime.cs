@@ -12,6 +12,10 @@ public static class VBConversions
         ? boolean ? -1 : 0
         : Convert.ToInt32(value, CultureInfo.CurrentCulture);
 
+    public static long CLngLng(object? value) => value is bool boolean
+        ? boolean ? -1L : 0L
+        : Convert.ToInt64(value, CultureInfo.CurrentCulture);
+
     public static float CSng(object? value)
     {
         var result = value is bool boolean
@@ -64,6 +68,18 @@ public static class VBOperators
     public static int IntegerDivideLong(int left, int right) => checked(left / right);
 
     public static int ModLong(int left, int right) => checked(left % right);
+
+    public static long AddLongLong(long left, long right) => checked(left + right);
+
+    public static long SubtractLongLong(long left, long right) => checked(left - right);
+
+    public static long MultiplyLongLong(long left, long right) => checked(left * right);
+
+    public static long NegateLongLong(long value) => checked(-value);
+
+    public static long IntegerDivideLongLong(long left, long right) => checked(left / right);
+
+    public static long ModLongLong(long left, long right) => checked(left % right);
 
     public static float AddSingle(float left, float right) => CheckSingle(left + right);
 
