@@ -20,7 +20,9 @@ Implemented so far:
 - C# source generation from the bound program
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
-- unit tests for syntax, lexer, parser, semantics, runtime, code generation, and compiler orchestration
+- end-to-end execution tests for generated managed applications
+- `.vbp` project loading for common project metadata, modules, classes, forms, controls, references, and components
+- unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
 
@@ -47,6 +49,12 @@ Analyze a VB6 source file:
 vb6c Module1.bas
 ```
 
+Inspect a VB6 project file:
+
+```text
+vb6c LegacyApp.vbp
+```
+
 Generate C# source:
 
 ```text
@@ -67,12 +75,12 @@ Module1.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-A native Windows apphost `.exe` is not generated yet. That is a later backend milestone.
+Project-level emission from `.vbp` files and a native Windows apphost `.exe` are not generated yet. These are later compiler milestones.
 
 ## Next milestones
 
-- validate the complete solution in Windows CI and Codespaces
-- execute generated managed assemblies in end-to-end tests
+- compile standard modules from a loaded `.vbp` project as one compilation
 - introduce a dedicated lowered IR and control flow representation
 - expand the VB6 type system and runtime behavior
-- add `.vbp` project loading
+- add class modules and cross-file symbol resolution
+- begin `.frm` project item parsing
