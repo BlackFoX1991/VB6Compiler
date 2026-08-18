@@ -257,6 +257,80 @@ public sealed class BinderTests
         Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0010"));
     }
 
+    [TestMethod]
+    public void Bind_BindsLoopConditionsAndForValues()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim i As Integer
+                For i = 3 To 1 Step -1
+                    Debug.Print i
+                Next i
+
+                While i < 3
+                    i = i + 1
+                Wend
+
+                Do Until i = 5
+                    i = i + 1
+                Loop
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var body = model.Procedures.Single().Body;
+
+        var forStatement = (BoundForStatement)body.Statements[1];
+        Assert.AreEqual(TypeSymbol.Integer, forStatement.ControlVariable.Type);
+        Assert.AreEqual(TypeSymbol.Integer, forStatement.InitialValue.Type);
+        Assert.AreEqual(TypeSymbol.Integer, forStatement.Limit.Type);
+        Assert.AreEqual(TypeSymbol.Integer, forStatement.Step.Type);
+
+        var whileStatement = (BoundWhileStatement)body.Statements[2];
+        Assert.AreEqual(TypeSymbol.Boolean, whileStatement.Condition.Type);
+
+        var doStatement = (BoundDoStatement)body.Statements[3];
+        Assert.IsTrue(doStatement.IsUntil);
+        Assert.IsFalse(doStatement.ConditionIsPostTest);
+        Assert.AreEqual(TypeSymbol.Boolean, doStatement.Condition!.Type);
+    }
+
+    [TestMethod]
+    public void Bind_ResolvesExitForAcrossNestedDoLoop()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim i As Integer
+                For i = 1 To 3
+                    Do
+                        Exit For
+                    Loop
+                Next
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var forStatement = (BoundForStatement)model.Procedures.Single().Body.Statements[1];
+        var doStatement = (BoundDoStatement)forStatement.Body.Statements.Single();
+        var exitStatement = (BoundExitLoopStatement)doStatement.Body.Statements.Single();
+
+        Assert.AreEqual(BoundLoopKind.For, exitStatement.LoopKind);
+        Assert.AreEqual(forStatement.LoopId, exitStatement.TargetLoopId);
+        Assert.AreNotEqual(doStatement.LoopId, exitStatement.TargetLoopId);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsExitOutsideMatchingLoop()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Exit Do
+            End Sub
+            """);
+
+        Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0015"));
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
