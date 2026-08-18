@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Lexer", "src\VB6.Lexer\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Parser", "src\VB6.Parser\VB6.Parser.csproj", "{7D74093B-E214-4F1F-9C0D-4735A0B9AD52}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Semantics", "src\VB6.Semantics\VB6.Semantics.csproj", "{9F3E8B6A-1D2C-4F73-91A6-6E205A710C44}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Compiler.Cli", "src\VB6.Compiler.Cli\VB6.Compiler.Cli.csproj", "{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Syntax.Tests", "tests\VB6.Syntax.Tests\VB6.Syntax.Tests.csproj", "{90D7CECB-BFCF-44E5-8E12-158F35B05C53}"
@@ -15,6 +17,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Lexer.Tests", "tests\VB6.Lexer.Tests\VB6.Lexer.Tests.csproj", "{291AD62C-7EC1-4F6F-8F52-B20B824E6DA7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Parser.Tests", "tests\VB6.Parser.Tests\VB6.Parser.Tests.csproj", "{5C2E0C9F-6170-4C6D-B421-6CBAD18BEA33}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Semantics.Tests", "tests\VB6.Semantics.Tests\VB6.Semantics.Tests.csproj", "{C4E8B261-7A94-4F4A-A8E1-ED052B5BAF91}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,6 +38,10 @@ Global
 		{7D74093B-E214-4F1F-9C0D-4735A0B9AD52}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7D74093B-E214-4F1F-9C0D-4735A0B9AD52}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7D74093B-E214-4F1F-9C0D-4735A0B9AD52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9F3E8B6A-1D2C-4F73-91A6-6E205A710C44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9F3E8B6A-1D2C-4F73-91A6-6E205A710C44}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F3E8B6A-1D2C-4F73-91A6-6E205A710C44}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9F3E8B6A-1D2C-4F73-91A6-6E205A710C44}.Release|Any CPU.Build.0 = Release|Any CPU
 		{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -50,5 +58,9 @@ Global
 		{5C2E0C9F-6170-4C6D-B421-6CBAD18BEA33}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5C2E0C9F-6170-4C6D-B421-6CBAD18BEA33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5C2E0C9F-6170-4C6D-B421-6CBAD18BEA33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4E8B261-7A94-4F4A-A8E1-ED052B5BAF91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4E8B261-7A94-4F4A-A8E1-ED052B5BAF91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4E8B261-7A94-4F4A-A8E1-ED052B5BAF91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4E8B261-7A94-4F4A-A8E1-ED052B5BAF91}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
