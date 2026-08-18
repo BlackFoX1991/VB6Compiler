@@ -13,13 +13,18 @@ Implemented so far:
 - .NET 10 solution and command-line compiler entry point
 - source text and diagnostic infrastructure
 - case-insensitive VB6 lexer with trivia preservation
-- parser for the initial VB6 language subset
+- parser for the current VB6 language subset
 - Sub calls using bare-call and `Call ...(...)` syntax with argument lists
 - Sub parameters with explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` behavior
 - typed `Function ... As Type` declarations with parameters and `End Function`
 - Function invocation expressions such as `result = Add(5, 7)`
 - VB6 Function return semantics through assignment to the function name
-- semantic binder with procedure, parameter, return-value, local-variable and type symbols, explicit conversion nodes, and invocation binding
+- `For ... To ... Step ... Next` loops with positive and negative steps
+- `While ... Wend`
+- pre-test and post-test `Do While`, `Do Until`, `Loop While`, and `Loop Until`
+- unconditional `Do ... Loop`
+- `Exit For` and `Exit Do` with bound loop targets for nested-loop correctness
+- semantic binder with procedure, parameter, return-value, local-variable and type symbols, explicit conversion nodes, invocation binding, and loop nodes
 - ByRef argument validation for variable arguments and exact type matching in the current compiler subset
 - ByVal argument conversion through the VB6 conversion layer
 - central `VBCompilation` analysis pipeline for individual source files
@@ -27,7 +32,7 @@ Implemented so far:
 - project-wide Sub and Function declaration with case-insensitive cross-module symbol resolution
 - project-level duplicate procedure detection across standard modules
 - primitive VB6 runtime helpers for conversions, integer arithmetic, comparisons, concatenation, and `Debug.Print`
-- C# source generation from the bound program, including `ref` parameters, Function return slots, and invocation expressions
+- C# source generation from the bound program, including `ref` parameters, Function return slots, invocation expressions, and loops
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
@@ -36,7 +41,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions build and test workflow
 
-Windows CI run #278 validates the current Function and parameter implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, applies default-ByRef and explicit-ByVal semantics, calls a Function from another module, executes the generated assembly, and verifies the final output.
+Windows CI run #302 validates the current control-flow implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, executes `For`, `While`, `Do`, `Exit For`, and `Exit Do`, applies ByRef/ByVal semantics, calls a Function from another module, executes the generated assembly, and verifies the final output.
 
 ## Current acceptance program
 
@@ -61,7 +66,31 @@ Multi-module project:
 ' MainModule.bas
 Sub Main()
     Dim x As Integer
-    x = 5
+    Dim i As Integer
+    x = 0
+
+    For i = 1 To 5
+        x = x + 1
+        If i = 3 Then
+            Exit For
+        End If
+    Next i
+
+    While x < 5
+        x = x + 1
+    Wend
+
+    Do
+        x = x + 1
+        If x = 6 Then
+            Exit Do
+        End If
+    Loop
+
+    Do
+        x = x + 1
+    Loop Until x = 7
+
     Call Update(x)
     Call Observe(x)
     x = Add(x, 2)
@@ -84,7 +113,7 @@ Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
 End Function
 ```
 
-The output is `12`: `Update` receives `value` ByRef by default and changes the caller to 10, `Observe` receives a ByVal copy, and the cross-module `Add` Function returns 12.
+The output is `12`. The loop block exercises the current control-flow implementation, `Update` receives `value` ByRef by default and changes the caller to 10, `Observe` receives a ByVal copy, and the cross-module `Add` Function returns 12.
 
 ## Command line
 
@@ -132,12 +161,12 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub calls, the first ByRef/ByVal parameter subset, and typed Function calls. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the first ByRef/ByVal parameter subset, typed Function calls, and the first structured loop subset. `For` currently supports Integer control variables; broader VB6 numeric and Variant loop semantics are a later compatibility pass. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add `For`, `While`, and `Do` control-flow statements
 - add `Select Case`
+- add additional structured statements and branch forms
 - expand ByRef coercion and parenthesized-argument edge cases
 - introduce a dedicated lowered IR and control flow representation
 - expand the VB6 type system and runtime behavior
