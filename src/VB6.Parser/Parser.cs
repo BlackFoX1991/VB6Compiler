@@ -158,6 +158,30 @@ public sealed class Parser
         return statements.ToImmutable();
     }
 
+    private ImmutableArray<StatementSyntax> ParseInlineStatementsUntil(Func<bool> isTerminator)
+    {
+        var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
+        while (!IsPhysicalLineTerminator(Current.Kind) && !isTerminator())
+        {
+            var start = _position;
+            statements.Add(ParseStatement());
+            if (_position == start)
+            {
+                NextToken();
+            }
+
+            if (Current.Kind == SyntaxKind.ColonToken)
+            {
+                NextToken();
+                continue;
+            }
+
+            break;
+        }
+
+        return statements.ToImmutable();
+    }
+
     private ImmutableArray<ParameterSyntax> ParseParameters()
     {
         var parameters = ImmutableArray.CreateBuilder<ParameterSyntax>();
@@ -229,6 +253,82 @@ public sealed class Parser
         var expression = ParseExpression();
         return new AssignmentStatementSyntax(identifier, equalsToken, expression);
     }
+
+    private IfStatementSyntax ParseIfStatement()
+    {
+        var ifKeyword = MatchToken(SyntaxKind.IfKeyword);
+        var condition = ParseExpression();
+        var thenKeyword = MatchToken(SyntaxKind.ThenKeyword);
+
+        if (Current.Kind != SyntaxKind.NewLineToken)
+        {
+            var statements = ParseInlineStatementsUntil(() => Current.Kind == SyntaxKind.ElseKeyword);
+            SyntaxToken? elseKeyword = null;
+            var elseStatements = ImmutableArray<StatementSyntax>.Empty;
+
+            if (Current.Kind == SyntaxKind.ElseKeyword)
+            {
+                elseKeyword = NextToken();
+                elseStatements = ParseInlineStatementsUntil(() => false);
+            }
+
+            return new IfStatementSyntax(
+                ifKeyword,
+                condition,
+                thenKeyword,
+                statements,
+                ImmutableArray<ElseIfClauseSyntax>.Empty,
+                elseKeyword,
+                elseStatements,
+                null,
+                null,
+                true);
+        }
+
+        NextToken();
+        var thenStatements = ParseStatementsUntil(IsIfBranchTerminator);
+        var elseIfClauses = ImmutableArray.CreateBuilder<ElseIfClauseSyntax>();
+
+        while (Current.Kind == SyntaxKind.ElseIfKeyword)
+        {
+            var elseIfKeyword = NextToken();
+            var elseIfCondition = ParseExpression();
+            var elseIfThenKeyword = MatchToken(SyntaxKind.ThenKeyword);
+            ConsumeLineTerminator();
+            var elseIfStatements = ParseStatementsUntil(IsIfBranchTerminator);
+            elseIfClauses.Add(new ElseIfClauseSyntax(
+                elseIfKeyword,
+                elseIfCondition,
+                elseIfThenKeyword,
+                elseIfStatements));
+        }
+
+        SyntaxToken? multilineElseKeyword = null;
+        var multilineElseStatements = ImmutableArray<StatementSyntax>.Empty;
+        if (Current.Kind == SyntaxKind.ElseKeyword)
+        {
+            multilineElseKeyword = NextToken();
+            ConsumeLineTerminator();
+            multilineElseStatements = ParseStatementsUntil(() => IsEndPair(SyntaxKind.IfKeyword));
+        }
+
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var ifEndKeyword = MatchToken(SyntaxKind.IfKeyword);
+        return new IfStatementSyntax(
+            ifKeyword,
+            condition,
+            thenKeyword,
+            thenStatements,
+            elseIfClauses.ToImmutable(),
+            multilineElseKeyword,
+            multilineElseStatements,
+            endKeyword,
+            ifEndKeyword,
+            false);
+    }
+
+    private bool IsIfBranchTerminator() =>
+        Current.Kind is SyntaxKind.ElseIfKeyword or SyntaxKind.ElseKeyword || IsEndPair(SyntaxKind.IfKeyword);
 
     private ForStatementSyntax ParseForStatement()
     {
@@ -482,24 +582,6 @@ public sealed class Parser
         return arguments.ToImmutable();
     }
 
-    private IfStatementSyntax ParseIfStatement()
-    {
-        var ifKeyword = MatchToken(SyntaxKind.IfKeyword);
-        var condition = ParseExpression();
-        var thenKeyword = MatchToken(SyntaxKind.ThenKeyword);
-        ConsumeLineTerminator();
-        var statements = ParseStatementsUntil(() => IsEndPair(SyntaxKind.IfKeyword));
-        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
-        var ifEndKeyword = MatchToken(SyntaxKind.IfKeyword);
-        return new IfStatementSyntax(
-            ifKeyword,
-            condition,
-            thenKeyword,
-            statements,
-            endKeyword,
-            ifEndKeyword);
-    }
-
     private DebugPrintStatementSyntax ParseDebugPrintStatement()
     {
         var debugKeyword = MatchToken(SyntaxKind.DebugKeyword);
@@ -622,7 +704,10 @@ public sealed class Parser
         Current.Kind == SyntaxKind.EndKeyword && Peek(1).Kind == secondKind;
 
     private static bool IsLineTerminator(SyntaxKind kind) =>
-        kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken;
+        kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken or SyntaxKind.ElseKeyword;
+
+    private static bool IsPhysicalLineTerminator(SyntaxKind kind) =>
+        kind is SyntaxKind.NewLineToken or SyntaxKind.EndOfFileToken;
 
     private SyntaxToken MatchToken(SyntaxKind kind)
     {
