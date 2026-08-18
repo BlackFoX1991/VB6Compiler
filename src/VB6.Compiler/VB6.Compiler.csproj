@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../VB6.Parser/VB6.Parser.csproj" />
+    <ProjectReference Include="../VB6.Semantics/VB6.Semantics.csproj" />
+    <ProjectReference Include="../VB6.Syntax/VB6.Syntax.csproj" />
+  </ItemGroup>
+</Project>
