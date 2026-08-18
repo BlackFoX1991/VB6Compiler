@@ -239,6 +239,11 @@ public sealed class Binder
 
                 case IfStatementSyntax ifStatement:
                     PredeclareLocals(ifStatement.Statements, locals, variables);
+                    foreach (var elseIfClause in ifStatement.ElseIfClauses)
+                    {
+                        PredeclareLocals(elseIfClause.Statements, locals, variables);
+                    }
+                    PredeclareLocals(ifStatement.ElseStatements, locals, variables);
                     break;
                 case ForStatementSyntax forStatement:
                     PredeclareLocals(forStatement.Statements, locals, variables);
@@ -340,10 +345,27 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var condition = BindExpression(syntax.Condition, variables, procedures);
-        condition = BindConversion(condition, TypeSymbol.Boolean);
+        var condition = BindConversion(
+            BindExpression(syntax.Condition, variables, procedures),
+            TypeSymbol.Boolean);
         var body = BindStatements(syntax.Statements, variables, procedures);
-        return new BoundIfStatement(condition, body);
+        var elseIfClauses = ImmutableArray.CreateBuilder<BoundElseIfClause>();
+
+        foreach (var clause in syntax.ElseIfClauses)
+        {
+            var elseIfCondition = BindConversion(
+                BindExpression(clause.Condition, variables, procedures),
+                TypeSymbol.Boolean);
+            elseIfClauses.Add(new BoundElseIfClause(
+                elseIfCondition,
+                BindStatements(clause.Statements, variables, procedures)));
+        }
+
+        var elseBody = syntax.ElseKeyword is null
+            ? null
+            : BindStatements(syntax.ElseStatements, variables, procedures);
+
+        return new BoundIfStatement(condition, body, elseIfClauses.ToImmutable(), elseBody);
     }
 
     private BoundForStatement BindFor(
