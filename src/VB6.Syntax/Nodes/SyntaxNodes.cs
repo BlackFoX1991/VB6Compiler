@@ -62,6 +62,38 @@ public sealed record IfStatementSyntax(
     SyntaxToken EndKeyword,
     SyntaxToken IfEndKeyword) : StatementSyntax(SyntaxKind.IfStatement);
 
+public sealed record ForStatementSyntax(
+    SyntaxToken ForKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax InitialValue,
+    SyntaxToken ToKeyword,
+    ExpressionSyntax Limit,
+    SyntaxToken? StepKeyword,
+    ExpressionSyntax? Step,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken NextKeyword,
+    SyntaxToken? NextIdentifier) : StatementSyntax(SyntaxKind.ForStatement);
+
+public sealed record WhileStatementSyntax(
+    SyntaxToken WhileKeyword,
+    ExpressionSyntax Condition,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken WendKeyword) : StatementSyntax(SyntaxKind.WhileStatement);
+
+public sealed record DoStatementSyntax(
+    SyntaxToken DoKeyword,
+    SyntaxToken? PreConditionKeyword,
+    ExpressionSyntax? PreCondition,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken LoopKeyword,
+    SyntaxToken? PostConditionKeyword,
+    ExpressionSyntax? PostCondition) : StatementSyntax(SyntaxKind.DoStatement);
+
+public sealed record ExitStatementSyntax(
+    SyntaxToken ExitKeyword,
+    SyntaxToken TargetKeyword) : StatementSyntax(SyntaxKind.ExitStatement);
+
 public sealed record DebugPrintStatementSyntax(
     SyntaxToken DebugKeyword,
     SyntaxToken DotToken,
