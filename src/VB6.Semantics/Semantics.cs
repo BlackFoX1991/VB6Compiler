@@ -9,6 +9,7 @@ public abstract record Symbol(string Name);
 public sealed record TypeSymbol(string Name) : Symbol(Name)
 {
     public static readonly TypeSymbol Error = new("<error>");
+    public static readonly TypeSymbol Byte = new("Byte");
     public static readonly TypeSymbol Integer = new("Integer");
     public static readonly TypeSymbol Long = new("Long");
     public static readonly TypeSymbol Single = new("Single");
@@ -18,6 +19,7 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
 
     public static TypeSymbol? Lookup(string name) => name.ToUpperInvariant() switch
     {
+        "BYTE" => Byte,
         "INTEGER" => Integer,
         "LONG" => Long,
         "SINGLE" => Single,
