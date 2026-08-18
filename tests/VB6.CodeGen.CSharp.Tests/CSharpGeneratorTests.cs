@@ -48,6 +48,26 @@ public sealed class CSharpGeneratorTests
     }
 
     [TestMethod]
+    public void Generate_EmitsProcedureCalls()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Helper
+            End Sub
+
+            Sub Helper()
+                Debug.Print 10
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Success);
+        var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
+
+        StringAssert.Contains(source, "__vb6_Helper();");
+        StringAssert.Contains(source, "private static void __vb6_Helper()");
+    }
+
+    [TestMethod]
     public void Emit_ProducesManagedAssembly()
     {
         var analysis = VBCompilation.Create("""
