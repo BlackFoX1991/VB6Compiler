@@ -150,6 +150,36 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void Parse_RecognizesFunctionDeclarationAndInvocationExpression()
+    {
+        const string source = """
+            Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
+                Add = left + right
+            End Function
+
+            Sub Main()
+                Dim result As Integer
+                result = Add(5, 7)
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        Assert.AreEqual(0, result.Diagnostics.Length);
+
+        var function = (FunctionDeclarationSyntax)result.Root.Members[0];
+        Assert.AreEqual("Add", function.Identifier.Text);
+        Assert.AreEqual(2, function.Parameters.Length);
+        Assert.AreEqual("Integer", function.ReturnTypeToken.Text);
+        Assert.IsInstanceOfType<AssignmentStatementSyntax>(function.Statements.Single());
+
+        var main = (SubDeclarationSyntax)result.Root.Members[1];
+        var assignment = (AssignmentStatementSyntax)main.Statements[1];
+        var invocation = (InvocationExpressionSyntax)assignment.Expression;
+        Assert.AreEqual("Add", invocation.Identifier.Text);
+        Assert.AreEqual(2, invocation.Arguments.Length);
+    }
+
+    [TestMethod]
     public void Parse_ReportsMissingEndSub()
     {
         const string source = """
