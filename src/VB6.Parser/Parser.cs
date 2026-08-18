@@ -645,7 +645,8 @@ public sealed class Parser
             return new ParenthesizedExpressionSyntax(openParenthesis, expression, closeParenthesis);
         }
 
-        if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.StringLiteralToken)
+        if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.StringLiteralToken or
+            SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
         {
             return new LiteralExpressionSyntax(NextToken());
         }
@@ -761,16 +762,24 @@ public sealed class Parser
 
     private static int GetUnaryPrecedence(SyntaxKind kind) => kind switch
     {
-        SyntaxKind.PlusToken or SyntaxKind.MinusToken => 6,
+        SyntaxKind.PlusToken or SyntaxKind.MinusToken => 12,
+        SyntaxKind.NotKeyword => 6,
         _ => 0
     };
 
     private static int GetBinaryPrecedence(SyntaxKind kind) => kind switch
     {
-        SyntaxKind.StarToken or SyntaxKind.SlashToken or SyntaxKind.BackslashToken => 5,
-        SyntaxKind.PlusToken or SyntaxKind.MinusToken or SyntaxKind.AmpersandToken => 4,
+        SyntaxKind.StarToken or SyntaxKind.SlashToken => 11,
+        SyntaxKind.BackslashToken => 10,
+        SyntaxKind.PlusToken or SyntaxKind.MinusToken => 9,
+        SyntaxKind.AmpersandToken => 8,
         SyntaxKind.EqualsToken or SyntaxKind.LessToken or SyntaxKind.LessOrEqualsToken or
-        SyntaxKind.GreaterToken or SyntaxKind.GreaterOrEqualsToken or SyntaxKind.LessGreaterToken => 3,
+        SyntaxKind.GreaterToken or SyntaxKind.GreaterOrEqualsToken or SyntaxKind.LessGreaterToken => 7,
+        SyntaxKind.AndKeyword => 5,
+        SyntaxKind.OrKeyword => 4,
+        SyntaxKind.XorKeyword => 3,
+        SyntaxKind.EqvKeyword => 2,
+        SyntaxKind.ImpKeyword => 1,
         _ => 0
     };
 }
