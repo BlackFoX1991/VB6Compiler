@@ -68,6 +68,36 @@ public sealed class CSharpGeneratorTests
     }
 
     [TestMethod]
+    public void Generate_EmitsByRefAndByValParameters()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Dim x As Integer
+                x = 5
+                Call Update(x)
+                Call Observe(x)
+            End Sub
+
+            Sub Update(value As Integer)
+                value = 10
+            End Sub
+
+            Sub Observe(ByVal value As Integer)
+                value = 20
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Success);
+        var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
+
+        StringAssert.Contains(source, "private static void __vb6_Update(ref short __vb6_arg_value)");
+        StringAssert.Contains(source, "private static void __vb6_Observe(short __vb6_arg_value)");
+        StringAssert.Contains(source, "__vb6_Update(ref __vb6_x);");
+        StringAssert.Contains(source, "__vb6_Observe(__vb6_x);");
+        StringAssert.Contains(source, "__vb6_arg_value = VBConversions.CInt(10L);");
+    }
+
+    [TestMethod]
     public void Emit_ProducesManagedAssembly()
     {
         var analysis = VBCompilation.Create("""
