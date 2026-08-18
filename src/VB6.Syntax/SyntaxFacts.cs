@@ -15,6 +15,7 @@ public static class SyntaxFacts
         "THEN" => SyntaxKind.ThenKeyword,
         "DEBUG" => SyntaxKind.DebugKeyword,
         "PRINT" => SyntaxKind.PrintKeyword,
+        "CALL" => SyntaxKind.CallKeyword,
         _ => SyntaxKind.IdentifierToken
     };
 }
