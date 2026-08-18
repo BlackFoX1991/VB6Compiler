@@ -122,7 +122,9 @@ public sealed class Parser
             SyntaxKind.DimKeyword => ParseDimStatement(),
             SyntaxKind.IfKeyword => ParseIfStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
+            SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
+            SyntaxKind.IdentifierToken => ParseInvocationStatement(),
             _ => ParseSkippedStatement()
         };
     }
@@ -142,6 +144,31 @@ public sealed class Parser
         var equalsToken = MatchToken(SyntaxKind.EqualsToken);
         var expression = ParseExpression();
         return new AssignmentStatementSyntax(identifier, equalsToken, expression);
+    }
+
+    private InvocationStatementSyntax ParseInvocationStatement()
+    {
+        SyntaxToken? callKeyword = null;
+        if (Current.Kind == SyntaxKind.CallKeyword)
+        {
+            callKeyword = NextToken();
+        }
+
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        SyntaxToken? openParenthesis = null;
+        SyntaxToken? closeParenthesis = null;
+
+        if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+        {
+            openParenthesis = NextToken();
+            closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        }
+
+        return new InvocationStatementSyntax(
+            callKeyword,
+            identifier,
+            openParenthesis,
+            closeParenthesis);
     }
 
     private IfStatementSyntax ParseIfStatement()
