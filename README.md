@@ -20,14 +20,17 @@ Implemented so far:
 - cross-module Sub and Function resolution in `.vbp` projects
 - `Dim` locals for the current primitive type subset
 - 16-bit VB6 `Integer` and 32-bit VB6 `Long`
+- modern signed 64-bit integer extension exposed as `LongLong` and `Int64` while keeping VB6 `Long` 32-bit
 - Integer-to-Long numeric promotion without incorrectly promoting pure Integer expressions from their assignment target
+- 64-bit integer literal inference beyond the signed 32-bit range and promotion into `LongLong`
+- `Single` and `Double` floating-point types with floating literals and numeric promotion
 - `True` and `False`, including VB numeric `True = -1` conversion behavior
 - logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp`
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
 - string concatenation with `&`
 - VB-oriented operator precedence for the implemented expression subset
 - `If`, multiline `ElseIf` / `Else`, and single-line `If ... Then ... Else`
-- `For ... To ... Step ... Next` with Integer and Long control variables
+- `For ... To ... Step ... Next` with Integer, Long, and LongLong control variables
 - `While ... Wend`
 - pre-test and post-test `Do While`, `Do Until`, `Loop While`, and `Loop Until`
 - unconditional `Do ... Loop`
@@ -37,7 +40,7 @@ Implemented so far:
 - explicit conversion nodes and typed arithmetic promotion
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
-- primitive `VB6.Runtime` conversion, checked Integer/Long arithmetic, comparisons, Boolean operations, concatenation, and `Debug.Print`
+- primitive `VB6.Runtime` conversion, checked Integer/Long/LongLong arithmetic, comparisons, Boolean operations, concatenation, and `Debug.Print`
 - C# source generation from the bound program
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
@@ -80,6 +83,25 @@ value = 2000 * 365
 ```
 
 That distinction is important for preserving VB6 overflow behavior.
+
+For modern code that needs a signed 64-bit integer, VB6Compiler provides `LongLong` with `Int64` as an alias. This is a compiler extension and does not change the size of VB6 `Long`:
+
+```vb
+Sub Main()
+    Dim value As Int64
+    Dim i As LongLong
+
+    value = 3000000000
+
+    For i = 1 To 3
+        value = value + 1000000000
+    Next i
+
+    Debug.Print value
+End Sub
+```
+
+The generated application uses .NET `System.Int64` and prints `6000000000`.
 
 The current structured-control-flow and cross-module acceptance project also exercises loops, `Select Case`, extended `If`, Boolean expressions, default ByRef, explicit ByVal, and typed Function calls.
 
@@ -129,15 +151,15 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Integer, and Long.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Integer, Long, Single, Double, and the LongLong/Int64 extension.
 
 The current ByRef implementation requires a variable argument with an exactly matching type. VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add `Single` and complete the first floating-point literal/promotion slice
-- broaden `Double` arithmetic compatibility
-- add `Byte`, followed by `Currency`, `Date`, and the first `Variant` representation
+- complete `Byte` end to end
+- broaden `Double` arithmetic compatibility and floating-point edge cases
+- add `Currency`, `Date`, and the first `Variant` representation
 - expand ByRef coercion and parenthesized-argument edge cases
 - introduce a dedicated lowered IR and control flow representation
 - add class modules
