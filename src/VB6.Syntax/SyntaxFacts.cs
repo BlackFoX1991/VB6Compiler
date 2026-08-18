@@ -11,6 +11,7 @@ public static class SyntaxFacts
         "END" => SyntaxKind.EndKeyword,
         "DIM" => SyntaxKind.DimKeyword,
         "AS" => SyntaxKind.AsKeyword,
+        "BYTE" => SyntaxKind.ByteKeyword,
         "INTEGER" => SyntaxKind.IntegerKeyword,
         "LONG" => SyntaxKind.LongKeyword,
         "SINGLE" => SyntaxKind.SingleKeyword,
