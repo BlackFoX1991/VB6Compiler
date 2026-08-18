@@ -1,3 +1,4 @@
+using VB6.Syntax;
 using VB6.Syntax.Text;
 using ParserType = VB6.Parser.Parser;
 
@@ -22,6 +23,28 @@ public sealed class LongTypeBinderTests
         Assert.AreEqual(TypeSymbol.Long, add.Type);
         Assert.AreEqual(TypeSymbol.Long, add.Left.Type);
         Assert.AreEqual(TypeSymbol.Long, add.Right.Type);
+    }
+
+    [TestMethod]
+    public void Bind_DoesNotPromotePureIntegerArithmeticBecauseTargetIsLong()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim value As Long
+                value = 2000 * 365
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[1];
+        var conversion = (BoundConversionExpression)assignment.Expression;
+        var multiply = (BoundBinaryExpression)conversion.Expression;
+
+        Assert.AreEqual(TypeSymbol.Long, conversion.TargetType);
+        Assert.AreEqual(SyntaxKind.StarToken, multiply.OperatorKind);
+        Assert.AreEqual(TypeSymbol.Integer, multiply.Type);
+        Assert.AreEqual(TypeSymbol.Integer, multiply.Left.Type);
+        Assert.AreEqual(TypeSymbol.Integer, multiply.Right.Type);
     }
 
     [TestMethod]
