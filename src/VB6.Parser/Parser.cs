@@ -762,15 +762,16 @@ public sealed class Parser
 
     private static int GetUnaryPrecedence(SyntaxKind kind) => kind switch
     {
-        SyntaxKind.PlusToken or SyntaxKind.MinusToken => 12,
+        SyntaxKind.PlusToken or SyntaxKind.MinusToken => 13,
         SyntaxKind.NotKeyword => 6,
         _ => 0
     };
 
     private static int GetBinaryPrecedence(SyntaxKind kind) => kind switch
     {
-        SyntaxKind.StarToken or SyntaxKind.SlashToken => 11,
-        SyntaxKind.BackslashToken => 10,
+        SyntaxKind.StarToken or SyntaxKind.SlashToken => 12,
+        SyntaxKind.BackslashToken => 11,
+        SyntaxKind.ModKeyword => 10,
         SyntaxKind.PlusToken or SyntaxKind.MinusToken => 9,
         SyntaxKind.AmpersandToken => 8,
         SyntaxKind.EqualsToken or SyntaxKind.LessToken or SyntaxKind.LessOrEqualsToken or
