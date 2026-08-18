@@ -103,7 +103,15 @@ public sealed record BoundVariableDeclarationStatement(LocalVariableSymbol Varia
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
 
-public sealed record BoundIfStatement(BoundExpression Condition, BoundBlockStatement Body)
+public sealed record BoundElseIfClause(
+    BoundExpression Condition,
+    BoundBlockStatement Body);
+
+public sealed record BoundIfStatement(
+    BoundExpression Condition,
+    BoundBlockStatement Body,
+    ImmutableArray<BoundElseIfClause> ElseIfClauses,
+    BoundBlockStatement? ElseBody)
     : BoundStatement(BoundNodeKind.IfStatement);
 
 public sealed record BoundForStatement(
