@@ -36,15 +36,31 @@ public sealed class CSharpGenerator
 
     private void EmitProcedure(BoundProcedure procedure)
     {
-        var isMain = string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase);
+        var isMain = !procedure.Symbol.IsFunction &&
+            string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase);
         var visibility = isMain ? "public" : "private";
+        var returnType = procedure.Symbol.ReturnType is null
+            ? "void"
+            : GetTypeName(procedure.Symbol.ReturnType);
         var name = GetProcedureName(procedure.Symbol);
         var parameters = string.Join(", ", procedure.Symbol.Parameters.Select(EmitParameter));
 
-        WriteLine($"{visibility} static void {name}({parameters})");
+        WriteLine($"{visibility} static {returnType} {name}({parameters})");
         WriteLine("{");
         _indent++;
+
+        if (procedure.Symbol.ReturnType is not null)
+        {
+            WriteLine($"{returnType} __vb6_return = {GetDefaultValue(procedure.Symbol.ReturnType)};");
+        }
+
         EmitBlock(procedure.Body);
+
+        if (procedure.Symbol.ReturnType is not null)
+        {
+            WriteLine("return __vb6_return;");
+        }
+
         _indent--;
         WriteLine("}");
     }
@@ -89,11 +105,13 @@ public sealed class CSharpGenerator
                 break;
 
             case BoundInvocationStatement invocation:
-                var arguments = string.Join(", ", invocation.Arguments.Select(EmitArgument));
-                WriteLine($"{GetProcedureName(invocation.Procedure)}({arguments});");
+                WriteLine($"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)});");
                 break;
         }
     }
+
+    private string EmitArguments(IEnumerable<BoundArgument> arguments) =>
+        string.Join(", ", arguments.Select(EmitArgument));
 
     private string EmitArgument(BoundArgument argument)
     {
@@ -109,6 +127,8 @@ public sealed class CSharpGenerator
         {
             BoundLiteralExpression literal => EmitLiteral(literal),
             BoundVariableExpression variable => GetVariableName(variable.Variable),
+            BoundInvocationExpression invocation =>
+                $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
             BoundConversionExpression conversion => EmitConversion(conversion),
             BoundUnaryExpression unary => EmitUnary(unary),
             BoundBinaryExpression binary => EmitBinary(binary),
@@ -257,12 +277,13 @@ public sealed class CSharpGenerator
     }
 
     private static string GetProcedureName(ProcedureSymbol procedure) =>
-        string.Equals(procedure.Name, "Main", StringComparison.OrdinalIgnoreCase)
+        !procedure.IsFunction && string.Equals(procedure.Name, "Main", StringComparison.OrdinalIgnoreCase)
             ? "Main"
             : $"__vb6_{SanitizeIdentifier(procedure.Name)}";
 
     private static string GetVariableName(VariableSymbol variable) => variable switch
     {
+        ReturnValueSymbol => "__vb6_return",
         ParameterSymbol parameter => $"__vb6_arg_{SanitizeIdentifier(parameter.Name)}",
         _ => $"__vb6_{SanitizeIdentifier(variable.Name)}"
     };
