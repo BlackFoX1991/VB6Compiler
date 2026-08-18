@@ -409,6 +409,11 @@ public sealed class CSharpGenerator
             return $"VBConversions.CLngLng({expression})";
         }
 
+        if (conversion.TargetType == TypeSymbol.Currency)
+        {
+            return $"VBConversions.CCur({expression})";
+        }
+
         if (conversion.TargetType == TypeSymbol.Single)
         {
             return $"VBConversions.CSng({expression})";
@@ -440,6 +445,7 @@ public sealed class CSharpGenerator
             SyntaxKind.PlusToken => operand,
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.LongLong => $"VBOperators.NegateLongLong({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Long => $"VBOperators.NegateLong({operand})",
+            SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Currency => $"VBOperators.NegateCurrency({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Single => $"VBOperators.NegateSingle({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Double => $"VBOperators.NegateDouble({operand})",
             SyntaxKind.MinusToken => $"VBOperators.NegateInteger({operand})",
@@ -487,17 +493,19 @@ public sealed class CSharpGenerator
 
     private static string EmitArithmeticCall(TypeSymbol resultType, string operation, string left, string right)
     {
-        var suffix = resultType == TypeSymbol.Double
-            ? "Double"
-            : resultType == TypeSymbol.Single
-                ? "Single"
-                : resultType == TypeSymbol.LongLong
-                    ? "LongLong"
-                    : resultType == TypeSymbol.Long
-                        ? "Long"
-                        : resultType == TypeSymbol.Byte
-                            ? "Byte"
-                            : "Integer";
+        var suffix = resultType == TypeSymbol.Currency
+            ? "Currency"
+            : resultType == TypeSymbol.Double
+                ? "Double"
+                : resultType == TypeSymbol.Single
+                    ? "Single"
+                    : resultType == TypeSymbol.LongLong
+                        ? "LongLong"
+                        : resultType == TypeSymbol.Long
+                            ? "Long"
+                            : resultType == TypeSymbol.Byte
+                                ? "Byte"
+                                : "Integer";
         return $"VBOperators.{operation}{suffix}({left}, {right})";
     }
 
@@ -521,6 +529,11 @@ public sealed class CSharpGenerator
         if (type == TypeSymbol.LongLong)
         {
             return "long";
+        }
+
+        if (type == TypeSymbol.Currency)
+        {
+            return "VBCurrency";
         }
 
         if (type == TypeSymbol.Single)
@@ -571,6 +584,11 @@ public sealed class CSharpGenerator
         if (type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long || type == TypeSymbol.LongLong)
         {
             return "0";
+        }
+
+        if (type == TypeSymbol.Currency)
+        {
+            return "default";
         }
 
         return "default";
