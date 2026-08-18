@@ -31,6 +31,18 @@ public sealed record SubDeclarationSyntax(
     SyntaxToken EndKeyword,
     SyntaxToken EndSubKeyword) : MemberSyntax(SyntaxKind.SubDeclaration);
 
+public sealed record FunctionDeclarationSyntax(
+    SyntaxToken FunctionKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
+    SyntaxToken CloseParenthesisToken,
+    SyntaxToken AsKeyword,
+    SyntaxToken ReturnTypeToken,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken EndKeyword,
+    SyntaxToken EndFunctionKeyword) : MemberSyntax(SyntaxKind.FunctionDeclaration);
+
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,
     SyntaxToken Identifier,
@@ -66,6 +78,11 @@ public sealed record InvocationStatementSyntax(
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
+public sealed record InvocationExpressionSyntax(
+    SyntaxToken Identifier,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Arguments,
+    SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.InvocationExpression);
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
 public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
