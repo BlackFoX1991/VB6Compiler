@@ -1,0 +1,77 @@
+using VB6.Syntax;
+using VB6.Syntax.Text;
+
+namespace VB6.Lexer.Tests;
+
+[TestClass]
+public sealed class LexerTests
+{
+    [TestMethod]
+    public void Lex_RecognizesKeywordsCaseInsensitively()
+    {
+        var result = new Lexer(SourceText.From("option EXPLICIT Sub end")).Lex();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                SyntaxKind.OptionKeyword,
+                SyntaxKind.ExplicitKeyword,
+                SyntaxKind.SubKeyword,
+                SyntaxKind.EndKeyword,
+                SyntaxKind.EndOfFileToken
+            },
+            result.Tokens.Select(token => token.Kind).ToArray());
+        Assert.AreEqual(0, result.Diagnostics.Length);
+    }
+
+    [TestMethod]
+    public void Lex_PreservesCommentAsTrivia()
+    {
+        var result = new Lexer(SourceText.From("Dim x ' comment\r\nAs Integer")).Lex();
+        var newLine = result.Tokens.Single(token => token.Kind == SyntaxKind.NewLineToken);
+
+        Assert.IsTrue(newLine.LeadingTrivia.Any(trivia =>
+            trivia.Kind == SyntaxTriviaKind.Comment && trivia.Text == "' comment"));
+    }
+
+    [TestMethod]
+    public void Lex_DecodesEscapedQuotesInStrings()
+    {
+        var result = new Lexer(SourceText.From("\"Hello \"\"VB6\"\"\"")).Lex();
+        var token = result.Tokens[0];
+
+        Assert.AreEqual(SyntaxKind.StringLiteralToken, token.Kind);
+        Assert.AreEqual("Hello \"VB6\"", token.Value);
+        Assert.AreEqual(0, result.Diagnostics.Length);
+    }
+
+    [TestMethod]
+    public void Lex_ReportsBadCharacter()
+    {
+        var result = new Lexer(SourceText.From("?", "test.bas")).Lex();
+
+        Assert.AreEqual(SyntaxKind.BadToken, result.Tokens[0].Kind);
+        Assert.AreEqual(1, result.Diagnostics.Length);
+        Assert.AreEqual("VB6L0001", result.Diagnostics[0].Code);
+        Assert.AreEqual("test.bas", result.Diagnostics[0].FilePath);
+    }
+
+    [TestMethod]
+    public void Lex_RecognizesComparisonOperators()
+    {
+        var result = new Lexer(SourceText.From("<= <> >= < > =")).Lex();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                SyntaxKind.LessOrEqualsToken,
+                SyntaxKind.LessGreaterToken,
+                SyntaxKind.GreaterOrEqualsToken,
+                SyntaxKind.LessToken,
+                SyntaxKind.GreaterToken,
+                SyntaxKind.EqualsToken,
+                SyntaxKind.EndOfFileToken
+            },
+            result.Tokens.Select(token => token.Kind).ToArray());
+    }
+}
