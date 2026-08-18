@@ -63,6 +63,11 @@ public sealed class Parser
             return ParseSubDeclaration();
         }
 
+        if (Current.Kind == SyntaxKind.FunctionKeyword)
+        {
+            return ParseFunctionDeclaration();
+        }
+
         return null;
     }
 
@@ -82,9 +87,54 @@ public sealed class Parser
         var parameters = ParseParameters();
         var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
         ConsumeLineTerminator();
+        var statements = ParseProcedureStatements(SyntaxKind.SubKeyword);
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endSubKeyword = MatchToken(SyntaxKind.SubKeyword);
+        ConsumeLineTerminator();
 
+        return new SubDeclarationSyntax(
+            subKeyword,
+            identifier,
+            openParenthesis,
+            parameters,
+            closeParenthesis,
+            statements,
+            endKeyword,
+            endSubKeyword);
+    }
+
+    private FunctionDeclarationSyntax ParseFunctionDeclaration()
+    {
+        var functionKeyword = MatchToken(SyntaxKind.FunctionKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
+        var parameters = ParseParameters();
+        var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+        var returnType = MatchTypeToken();
+        ConsumeLineTerminator();
+        var statements = ParseProcedureStatements(SyntaxKind.FunctionKeyword);
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endFunctionKeyword = MatchToken(SyntaxKind.FunctionKeyword);
+        ConsumeLineTerminator();
+
+        return new FunctionDeclarationSyntax(
+            functionKeyword,
+            identifier,
+            openParenthesis,
+            parameters,
+            closeParenthesis,
+            asKeyword,
+            returnType,
+            statements,
+            endKeyword,
+            endFunctionKeyword);
+    }
+
+    private ImmutableArray<StatementSyntax> ParseProcedureStatements(SyntaxKind endingKeyword)
+    {
         var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
-        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(SyntaxKind.SubKeyword))
+        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(endingKeyword))
         {
             if (Current.Kind == SyntaxKind.NewLineToken)
             {
@@ -102,19 +152,7 @@ public sealed class Parser
             ConsumeLineTerminator();
         }
 
-        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
-        var endSubKeyword = MatchToken(SyntaxKind.SubKeyword);
-        ConsumeLineTerminator();
-
-        return new SubDeclarationSyntax(
-            subKeyword,
-            identifier,
-            openParenthesis,
-            parameters,
-            closeParenthesis,
-            statements.ToImmutable(),
-            endKeyword,
-            endSubKeyword);
+        return statements.ToImmutable();
     }
 
     private ImmutableArray<ParameterSyntax> ParseParameters()
@@ -352,6 +390,15 @@ public sealed class Parser
         if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.StringLiteralToken)
         {
             return new LiteralExpressionSyntax(NextToken());
+        }
+
+        if (Current.Kind == SyntaxKind.IdentifierToken && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
+        {
+            var identifier = NextToken();
+            var openParenthesis = NextToken();
+            var arguments = ParseArguments(SyntaxKind.CloseParenthesisToken);
+            var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+            return new InvocationExpressionSyntax(identifier, openParenthesis, arguments, closeParenthesis);
         }
 
         return new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
