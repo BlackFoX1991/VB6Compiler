@@ -4,6 +4,10 @@ namespace VB6.Runtime;
 
 public static class VBConversions
 {
+    public static byte CByte(object? value) => value is bool boolean
+        ? boolean ? byte.MaxValue : byte.MinValue
+        : Convert.ToByte(value, CultureInfo.CurrentCulture);
+
     public static short CInt(object? value) => value is bool boolean
         ? (short)(boolean ? -1 : 0)
         : Convert.ToInt16(value, CultureInfo.CurrentCulture);
@@ -45,6 +49,16 @@ public static class VBConversions
 
 public static class VBOperators
 {
+    public static byte AddByte(byte left, byte right) => checked((byte)(left + right));
+
+    public static byte SubtractByte(byte left, byte right) => checked((byte)(left - right));
+
+    public static byte MultiplyByte(byte left, byte right) => checked((byte)(left * right));
+
+    public static byte IntegerDivideByte(byte left, byte right) => checked((byte)(left / right));
+
+    public static byte ModByte(byte left, byte right) => checked((byte)(left % right));
+
     public static short AddInteger(short left, short right) => checked((short)(left + right));
 
     public static short SubtractInteger(short left, short right) => checked((short)(left - right));
