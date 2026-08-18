@@ -24,7 +24,7 @@ public sealed class CompilationTests
         Assert.IsTrue(analysis.Success);
         Assert.AreEqual(0, analysis.Diagnostics.Length);
         Assert.IsNotNull(analysis.SemanticModel);
-        Assert.AreEqual(1, analysis.SemanticModel.Procedures.Length);
+        Assert.AreEqual(1, analysis.SemanticModel!.Procedures.Length);
     }
 
     [TestMethod]
