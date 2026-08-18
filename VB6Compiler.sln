@@ -4,9 +4,13 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Syntax", "src\VB6.Syntax\VB6.Syntax.csproj", "{2F605E56-8B36-4A88-BBF8-1D3CFBF49E6A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Lexer", "src\VB6.Lexer\VB6.Lexer.csproj", "{4A65436F-1731-4A27-A1AE-6BDA5C924569}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Compiler.Cli", "src\VB6.Compiler.Cli\VB6.Compiler.Cli.csproj", "{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Syntax.Tests", "tests\VB6.Syntax.Tests\VB6.Syntax.Tests.csproj", "{90D7CECB-BFCF-44E5-8E12-158F35B05C53}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VB6.Lexer.Tests", "tests\VB6.Lexer.Tests\VB6.Lexer.Tests.csproj", "{291AD62C-7EC1-4F6F-8F52-B20B824E6DA7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,6 +22,10 @@ Global
 		{2F605E56-8B36-4A88-BBF8-1D3CFBF49E6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F605E56-8B36-4A88-BBF8-1D3CFBF49E6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F605E56-8B36-4A88-BBF8-1D3CFBF49E6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A65436F-1731-4A27-A1AE-6BDA5C924569}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A65436F-1731-4A27-A1AE-6BDA5C924569}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A65436F-1731-4A27-A1AE-6BDA5C924569}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A65436F-1731-4A27-A1AE-6BDA5C924569}.Release|Any CPU.Build.0 = Release|Any CPU
 		{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{63DA2059-D3D4-4A50-B8AF-D9E6BFF2B9A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -26,5 +34,9 @@ Global
 		{90D7CECB-BFCF-44E5-8E12-158F35B05C53}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{90D7CECB-BFCF-44E5-8E12-158F35B05C53}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{90D7CECB-BFCF-44E5-8E12-158F35B05C53}.Release|Any CPU.Build.0 = Release|Any CPU
+		{291AD62C-7EC1-4F6F-8F52-B20B824E6DA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{291AD62C-7EC1-4F6F-8F52-B20B824E6DA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{291AD62C-7EC1-4F6F-8F52-B20B824E6DA7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{291AD62C-7EC1-4F6F-8F52-B20B824E6DA7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
