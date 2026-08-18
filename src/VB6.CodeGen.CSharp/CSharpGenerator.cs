@@ -390,6 +390,7 @@ public sealed class CSharpGenerator
         {
             SyntaxKind.PlusToken => operand,
             SyntaxKind.MinusToken => $"VBOperators.NegateInteger({operand})",
+            SyntaxKind.NotKeyword => $"VBOperators.NotBoolean({operand})",
             _ => operand
         };
     }
@@ -407,6 +408,11 @@ public sealed class CSharpGenerator
             SyntaxKind.LessOrEqualsToken => $"VBOperators.LessOrEqual({left}, {right})",
             SyntaxKind.GreaterToken => $"VBOperators.Greater({left}, {right})",
             SyntaxKind.GreaterOrEqualsToken => $"VBOperators.GreaterOrEqual({left}, {right})",
+            SyntaxKind.AndKeyword => $"VBOperators.AndBoolean({left}, {right})",
+            SyntaxKind.OrKeyword => $"VBOperators.OrBoolean({left}, {right})",
+            SyntaxKind.XorKeyword => $"VBOperators.XorBoolean({left}, {right})",
+            SyntaxKind.EqvKeyword => $"VBOperators.EqvBoolean({left}, {right})",
+            SyntaxKind.ImpKeyword => $"VBOperators.ImpBoolean({left}, {right})",
             SyntaxKind.AmpersandToken => $"VBOperators.Concat({left}, {right})",
             SyntaxKind.PlusToken when binary.ResultType == TypeSymbol.String => $"VBOperators.Concat({left}, {right})",
             SyntaxKind.PlusToken => $"VBOperators.AddInteger({left}, {right})",
