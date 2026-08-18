@@ -8,6 +8,10 @@ public static class VBConversions
         ? (short)(boolean ? -1 : 0)
         : Convert.ToInt16(value, CultureInfo.CurrentCulture);
 
+    public static int CLng(object? value) => value is bool boolean
+        ? boolean ? -1 : 0
+        : Convert.ToInt32(value, CultureInfo.CurrentCulture);
+
     public static double CDbl(object? value) => value is bool boolean
         ? boolean ? -1d : 0d
         : Convert.ToDouble(value, CultureInfo.CurrentCulture);
@@ -30,6 +34,26 @@ public static class VBOperators
     public static short IntegerDivide(short left, short right) => checked((short)(left / right));
 
     public static short ModInteger(short left, short right) => checked((short)(left % right));
+
+    public static int AddLong(int left, int right) => checked(left + right);
+
+    public static int SubtractLong(int left, int right) => checked(left - right);
+
+    public static int MultiplyLong(int left, int right) => checked(left * right);
+
+    public static int NegateLong(int value) => checked(-value);
+
+    public static int IntegerDivideLong(int left, int right) => checked(left / right);
+
+    public static int ModLong(int left, int right) => checked(left % right);
+
+    public static double AddDouble(double left, double right) => left + right;
+
+    public static double SubtractDouble(double left, double right) => left - right;
+
+    public static double MultiplyDouble(double left, double right) => left * right;
+
+    public static double NegateDouble(double value) => -value;
 
     public static double DivideDouble(double left, double right) => left / right;
 
