@@ -7,6 +7,7 @@ public static class SyntaxFacts
         "OPTION" => SyntaxKind.OptionKeyword,
         "EXPLICIT" => SyntaxKind.ExplicitKeyword,
         "SUB" => SyntaxKind.SubKeyword,
+        "FUNCTION" => SyntaxKind.FunctionKeyword,
         "END" => SyntaxKind.EndKeyword,
         "DIM" => SyntaxKind.DimKeyword,
         "AS" => SyntaxKind.AsKeyword,
