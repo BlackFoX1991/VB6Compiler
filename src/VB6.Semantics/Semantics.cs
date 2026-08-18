@@ -41,14 +41,25 @@ public sealed record ParameterSymbol(
     ParameterPassingMode PassingMode)
     : VariableSymbol(Name, Type);
 
+public sealed record ReturnValueSymbol(string Name, TypeSymbol Type)
+    : VariableSymbol(Name, Type);
+
 public sealed record ProcedureSymbol(
     string Name,
-    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name)
+    ImmutableArray<ParameterSymbol> Parameters,
+    TypeSymbol? ReturnType) : Symbol(Name)
 {
     public ProcedureSymbol(string name)
-        : this(name, ImmutableArray<ParameterSymbol>.Empty)
+        : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {
     }
+
+    public ProcedureSymbol(string name, ImmutableArray<ParameterSymbol> parameters)
+        : this(name, parameters, null)
+    {
+    }
+
+    public bool IsFunction => ReturnType is not null;
 }
 
 public enum BoundNodeKind
@@ -61,6 +72,7 @@ public enum BoundNodeKind
     InvocationStatement,
     LiteralExpression,
     VariableExpression,
+    InvocationExpression,
     UnaryExpression,
     BinaryExpression,
     ConversionExpression,
@@ -100,6 +112,11 @@ public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralTyp
 
 public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
+
+public sealed record BoundInvocationExpression(
+    ProcedureSymbol Procedure,
+    ImmutableArray<BoundArgument> Arguments)
+    : BoundExpression(BoundNodeKind.InvocationExpression, Procedure.ReturnType ?? TypeSymbol.Error);
 
 public sealed record BoundUnaryExpression(SyntaxKind OperatorKind, BoundExpression Operand, TypeSymbol ResultType)
     : BoundExpression(BoundNodeKind.UnaryExpression, ResultType);
