@@ -19,28 +19,62 @@ if (!File.Exists(path))
 
 if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnoreCase))
 {
-    if (args.Length != 1)
+    if (args.Length == 1)
     {
-        Console.Error.WriteLine("Project emission is not implemented yet.");
-        return 1;
+        var loadResult = new VBProjectLoader().Load(path);
+        foreach (var diagnostic in loadResult.Diagnostics)
+        {
+            Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
+        }
+
+        var project = loadResult.Project;
+        Console.WriteLine($"Loaded VB6 project: {project.Name ?? Path.GetFileNameWithoutExtension(project.FilePath)}");
+        Console.WriteLine($"Type: {project.ProjectType ?? "Unknown"}");
+        Console.WriteLine($"Startup: {project.StartupObject ?? "Not specified"}");
+        Console.WriteLine(
+            $"Items: {project.Items.Length} " +
+            $"(modules: {project.Modules.Count()}, classes: {project.Classes.Count()}, forms: {project.Forms.Count()})");
+        Console.WriteLine($"References: {project.References.Length}");
+        Console.WriteLine($"Components: {project.Objects.Length}");
+        return loadResult.Success ? 0 : 1;
     }
 
-    var loadResult = new VBProjectLoader().Load(path);
-    foreach (var diagnostic in loadResult.Diagnostics)
+    var projectCompilation = VBProjectCompilation.Create(path);
+
+    if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
     {
-        Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
+        var generation = projectCompilation.GenerateCSharp();
+        PrintProjectDiagnostics(generation.Analysis);
+
+        if (!generation.Success || generation.Source is null)
+        {
+            return 1;
+        }
+
+        File.WriteAllText(args[2], generation.Source);
+        Console.WriteLine($"Generated project C# source: {args[2]}");
+        return 0;
     }
 
-    var project = loadResult.Project;
-    Console.WriteLine($"Loaded VB6 project: {project.Name ?? Path.GetFileNameWithoutExtension(project.FilePath)}");
-    Console.WriteLine($"Type: {project.ProjectType ?? "Unknown"}");
-    Console.WriteLine($"Startup: {project.StartupObject ?? "Not specified"}");
-    Console.WriteLine(
-        $"Items: {project.Items.Length} " +
-        $"(modules: {project.Modules.Count()}, classes: {project.Classes.Count()}, forms: {project.Forms.Count()})");
-    Console.WriteLine($"References: {project.References.Length}");
-    Console.WriteLine($"Components: {project.Objects.Length}");
-    return loadResult.Success ? 0 : 1;
+    if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    {
+        var emitResult = projectCompilation.EmitManagedApplication(args[2]);
+        PrintProjectDiagnostics(emitResult.Generation.Analysis);
+        PrintBackendDiagnostics(emitResult.BackendResult);
+
+        if (!emitResult.Success)
+        {
+            return 1;
+        }
+
+        Console.WriteLine($"Generated managed project assembly: {emitResult.AssemblyPath}");
+        Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
+        Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
+        return 0;
+    }
+
+    Console.Error.WriteLine(usage);
+    return 1;
 }
 
 var compilation = VBCompilation.Create(File.ReadAllText(path), path);
@@ -71,13 +105,7 @@ if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparis
         Console.Error.WriteLine(diagnostic);
     }
 
-    if (emitResult.BackendResult is not null)
-    {
-        foreach (var diagnostic in emitResult.BackendResult.Diagnostics)
-        {
-            Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}");
-        }
-    }
+    PrintBackendDiagnostics(emitResult.BackendResult);
 
     if (!emitResult.Success)
     {
@@ -110,3 +138,29 @@ if (analysis.SemanticModel is not null)
 }
 
 return analysis.Success ? 0 : 1;
+
+static void PrintProjectDiagnostics(VBProjectCompilationAnalysis analysis)
+{
+    foreach (var diagnostic in analysis.ProjectDiagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+
+    foreach (var diagnostic in analysis.Diagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+}
+
+static void PrintBackendDiagnostics(VB6.CodeGen.CSharp.AssemblyEmitResult? backendResult)
+{
+    if (backendResult is null)
+    {
+        return;
+    }
+
+    foreach (var diagnostic in backendResult.Diagnostics)
+    {
+        Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}");
+    }
+}
