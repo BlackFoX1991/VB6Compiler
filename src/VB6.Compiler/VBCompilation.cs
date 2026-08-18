@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using VB6.CodeGen.CSharp;
 using VB6.Parser;
-using VB6.Runtime;
 using VB6.Semantics;
 using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Text;
@@ -60,70 +59,13 @@ public sealed class VBCompilation
             return new ManagedApplicationEmitResult(generation, null, null, null, null);
         }
 
-        var fullOutputPath = Path.GetFullPath(outputPath);
-        var outputDirectory = Path.GetDirectoryName(fullOutputPath)!;
-        Directory.CreateDirectory(outputDirectory);
-
-        var assemblyName = Path.GetFileNameWithoutExtension(fullOutputPath);
-        if (string.IsNullOrWhiteSpace(assemblyName))
-        {
-            assemblyName = "VB6Program";
-        }
-
-        AssemblyEmitResult backendResult;
-        using (var peStream = File.Create(fullOutputPath))
-        {
-            backendResult = new CSharpAssemblyEmitter().Emit(
-                generation.Source,
-                assemblyName,
-                peStream);
-        }
-
-        if (!backendResult.Success)
-        {
-            File.Delete(fullOutputPath);
-            return new ManagedApplicationEmitResult(generation, backendResult, null, null, null);
-        }
-
-        var runtimeSourcePath = typeof(VBConversions).Assembly.Location;
-        var runtimeOutputPath = Path.Combine(outputDirectory, "VB6.Runtime.dll");
-        if (!string.Equals(
-                Path.GetFullPath(runtimeSourcePath),
-                Path.GetFullPath(runtimeOutputPath),
-                StringComparison.OrdinalIgnoreCase))
-        {
-            File.Copy(runtimeSourcePath, runtimeOutputPath, overwrite: true);
-        }
-
-        var runtimeConfigPath = Path.Combine(
-            outputDirectory,
-            Path.GetFileNameWithoutExtension(fullOutputPath) + ".runtimeconfig.json");
-        File.WriteAllText(runtimeConfigPath, CreateRuntimeConfig());
-
+        var artifacts = ManagedApplicationWriter.Emit(generation.Source, outputPath);
         return new ManagedApplicationEmitResult(
             generation,
-            backendResult,
-            fullOutputPath,
-            runtimeOutputPath,
-            runtimeConfigPath);
-    }
-
-    private static string CreateRuntimeConfig()
-    {
-        var targetFramework = $"net{Environment.Version.Major}.{Environment.Version.Minor}";
-        var frameworkVersion = $"{Environment.Version.Major}.{Environment.Version.Minor}.0";
-
-        return $$"""
-            {
-              "runtimeOptions": {
-                "tfm": "{{targetFramework}}",
-                "framework": {
-                  "name": "Microsoft.NETCore.App",
-                  "version": "{{frameworkVersion}}"
-                }
-              }
-            }
-            """;
+            artifacts.BackendResult,
+            artifacts.AssemblyPath,
+            artifacts.RuntimeAssemblyPath,
+            artifacts.RuntimeConfigPath);
     }
 }
 
