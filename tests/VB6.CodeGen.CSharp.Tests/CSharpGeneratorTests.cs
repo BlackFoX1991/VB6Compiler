@@ -19,7 +19,7 @@ public sealed class CSharpGeneratorTests
                     Debug.Print x
                 End If
             End Sub
-            "", "Module1.bas").Analyze();
+            """, "Module1.bas").Analyze();
 
         Assert.IsTrue(analysis.Success);
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
@@ -39,7 +39,7 @@ public sealed class CSharpGeneratorTests
                 Dim x As Integer
                 x = "10"
             End Sub
-            "", "Module1.bas").Analyze();
+            """, "Module1.bas").Analyze();
 
         Assert.IsTrue(analysis.Success);
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
