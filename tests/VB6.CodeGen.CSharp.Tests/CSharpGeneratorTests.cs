@@ -123,6 +123,43 @@ public sealed class CSharpGeneratorTests
     }
 
     [TestMethod]
+    public void Generate_EmitsForWhileDoAndExitTargets()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Dim i As Integer
+                i = 0
+
+                For i = 3 To 1 Step -1
+                    Do
+                        Exit For
+                    Loop
+                Next i
+
+                While i < 2
+                    i = i + 1
+                Wend
+
+                Do
+                    i = i + 1
+                Loop Until i = 3
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Success);
+        var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
+
+        StringAssert.Contains(source, "short __vb6_for_limit_");
+        StringAssert.Contains(source, "short __vb6_for_step_");
+        StringAssert.Contains(source, "VBOperators.LessOrEqual(__vb6_i");
+        StringAssert.Contains(source, "VBOperators.GreaterOrEqual(__vb6_i");
+        StringAssert.Contains(source, "while (VBOperators.Less(__vb6_i, VBConversions.CInt(2L)))");
+        StringAssert.Contains(source, "do");
+        StringAssert.Contains(source, "while (!(VBOperators.Equal(__vb6_i, VBConversions.CInt(3L))));");
+        StringAssert.Contains(source, "goto __vb6_loop_exit_");
+    }
+
+    [TestMethod]
     public void Emit_ProducesManagedAssembly()
     {
         var analysis = VBCompilation.Create("""
