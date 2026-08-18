@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using VB6.CodeGen.CSharp;
 using VB6.Parser;
 using VB6.Semantics;
 using VB6.Syntax.Diagnostics;
@@ -35,6 +36,18 @@ public sealed class VBCompilation
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics);
     }
+
+    public CSharpGenerationResult GenerateCSharp()
+    {
+        var analysis = Analyze();
+        if (!analysis.Success || analysis.SemanticModel is null)
+        {
+            return new CSharpGenerationResult(analysis, null);
+        }
+
+        var source = new CSharpGenerator().Generate(analysis.SemanticModel);
+        return new CSharpGenerationResult(analysis, source);
+    }
 }
 
 public sealed record CompilationAnalysis(
@@ -43,4 +56,12 @@ public sealed record CompilationAnalysis(
     ImmutableArray<Diagnostic> Diagnostics)
 {
     public bool Success => Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
+}
+
+public sealed record CSharpGenerationResult(
+    CompilationAnalysis Analysis,
+    string? Source)
+{
+    public bool Success => Analysis.Success && Source is not null;
+    public ImmutableArray<Diagnostic> Diagnostics => Analysis.Diagnostics;
 }
