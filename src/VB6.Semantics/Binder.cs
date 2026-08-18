@@ -678,6 +678,10 @@ public sealed class Binder
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Integer),
             SyntaxKind.StringLiteralToken =>
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.String),
+            SyntaxKind.TrueKeyword =>
+                new BoundLiteralExpression(true, TypeSymbol.Boolean),
+            SyntaxKind.FalseKeyword =>
+                new BoundLiteralExpression(false, TypeSymbol.Boolean),
             _ => new BoundErrorExpression()
         };
     }
@@ -709,6 +713,20 @@ public sealed class Binder
             return operand;
         }
 
+        if (syntax.OperatorToken.Kind == SyntaxKind.NotKeyword)
+        {
+            if (operand.Type != TypeSymbol.Boolean)
+            {
+                Report(
+                    "VB6S0017",
+                    "Logical operator 'Not' currently requires a Boolean operand; numeric bitwise semantics are not implemented yet.",
+                    syntax.OperatorToken.Span);
+                operand = BindConversion(operand, TypeSymbol.Boolean);
+            }
+
+            return new BoundUnaryExpression(SyntaxKind.NotKeyword, operand, TypeSymbol.Boolean);
+        }
+
         operand = BindConversion(operand, TypeSymbol.Integer);
         return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, TypeSymbol.Integer);
     }
@@ -737,6 +755,27 @@ public sealed class Binder
                 if (left.Type != right.Type)
                 {
                     right = BindConversion(right, left.Type);
+                }
+
+                return new BoundBinaryExpression(
+                    left,
+                    syntax.OperatorToken.Kind,
+                    right,
+                    TypeSymbol.Boolean);
+
+            case SyntaxKind.AndKeyword:
+            case SyntaxKind.OrKeyword:
+            case SyntaxKind.XorKeyword:
+            case SyntaxKind.EqvKeyword:
+            case SyntaxKind.ImpKeyword:
+                if (left.Type != TypeSymbol.Boolean || right.Type != TypeSymbol.Boolean)
+                {
+                    Report(
+                        "VB6S0018",
+                        $"Logical operator '{syntax.OperatorToken.Text}' currently requires Boolean operands; numeric bitwise semantics are not implemented yet.",
+                        syntax.OperatorToken.Span);
+                    left = BindConversion(left, TypeSymbol.Boolean);
+                    right = BindConversion(right, TypeSymbol.Boolean);
                 }
 
                 return new BoundBinaryExpression(
