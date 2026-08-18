@@ -155,9 +155,20 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            foreach (var declaration in module.ParseResult.Root.Members.OfType<SubDeclarationSyntax>())
+            foreach (var member in module.ParseResult.Root.Members)
             {
-                var symbol = Binder.CreateProcedureSymbol(declaration);
+                ProcedureSymbol? symbol = member switch
+                {
+                    SubDeclarationSyntax sub => Binder.CreateProcedureSymbol(sub),
+                    FunctionDeclarationSyntax function => Binder.CreateProcedureSymbol(function),
+                    _ => null
+                };
+
+                if (symbol is null)
+                {
+                    continue;
+                }
+
                 if (procedures.TryAdd(symbol.Name, symbol))
                 {
                     origins.Add(symbol.Name, module.Item.RelativePath);
@@ -195,6 +206,7 @@ public sealed class VBProjectCompilation
         }
 
         var mainCount = analysis.SemanticModel.Procedures.Count(procedure =>
+            !procedure.Symbol.IsFunction &&
             string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
 
         if (mainCount != 1)
