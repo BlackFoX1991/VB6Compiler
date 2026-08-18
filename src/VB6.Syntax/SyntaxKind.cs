@@ -8,6 +8,7 @@ public enum SyntaxKind
 
     IdentifierToken,
     IntegerLiteralToken,
+    FloatingLiteralToken,
     StringLiteralToken,
 
     PlusToken,
@@ -37,6 +38,8 @@ public enum SyntaxKind
     AsKeyword,
     IntegerKeyword,
     LongKeyword,
+    SingleKeyword,
+    DoubleKeyword,
     IfKeyword,
     ThenKeyword,
     ElseIfKeyword,
