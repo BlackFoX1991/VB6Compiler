@@ -15,10 +15,17 @@ public sealed record OptionExplicitSyntax(
     SyntaxToken OptionKeyword,
     SyntaxToken ExplicitKeyword) : MemberSyntax(SyntaxKind.OptionExplicitStatement);
 
+public sealed record ParameterSyntax(
+    SyntaxToken? PassingModeKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken AsKeyword,
+    SyntaxToken TypeToken) : SyntaxNode(SyntaxKind.Parameter);
+
 public sealed record SubDeclarationSyntax(
     SyntaxToken SubKeyword,
     SyntaxToken Identifier,
     SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
     SyntaxToken CloseParenthesisToken,
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
@@ -53,6 +60,7 @@ public sealed record InvocationStatementSyntax(
     SyntaxToken? CallKeyword,
     SyntaxToken Identifier,
     SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Arguments,
     SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement);
 
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
