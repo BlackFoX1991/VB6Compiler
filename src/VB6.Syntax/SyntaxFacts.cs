@@ -16,6 +16,8 @@ public static class SyntaxFacts
         "DEBUG" => SyntaxKind.DebugKeyword,
         "PRINT" => SyntaxKind.PrintKeyword,
         "CALL" => SyntaxKind.CallKeyword,
+        "BYREF" => SyntaxKind.ByRefKeyword,
+        "BYVAL" => SyntaxKind.ByValKeyword,
         _ => SyntaxKind.IdentifierToken
     };
 }
