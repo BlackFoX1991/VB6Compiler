@@ -12,6 +12,14 @@ public static class VBConversions
         ? boolean ? -1 : 0
         : Convert.ToInt32(value, CultureInfo.CurrentCulture);
 
+    public static float CSng(object? value)
+    {
+        var result = value is bool boolean
+            ? boolean ? -1f : 0f
+            : Convert.ToSingle(value, CultureInfo.CurrentCulture);
+        return CheckSingle(result);
+    }
+
     public static double CDbl(object? value) => value is bool boolean
         ? boolean ? -1d : 0d
         : Convert.ToDouble(value, CultureInfo.CurrentCulture);
@@ -19,6 +27,16 @@ public static class VBConversions
     public static bool CBool(object? value) => Convert.ToBoolean(value, CultureInfo.CurrentCulture);
 
     public static string CStr(object? value) => Convert.ToString(value, CultureInfo.CurrentCulture) ?? string.Empty;
+
+    private static float CheckSingle(float value)
+    {
+        if (float.IsInfinity(value))
+        {
+            throw new OverflowException("Value is outside the range of VB6 Single.");
+        }
+
+        return value;
+    }
 }
 
 public static class VBOperators
@@ -46,6 +64,24 @@ public static class VBOperators
     public static int IntegerDivideLong(int left, int right) => checked(left / right);
 
     public static int ModLong(int left, int right) => checked(left % right);
+
+    public static float AddSingle(float left, float right) => CheckSingle(left + right);
+
+    public static float SubtractSingle(float left, float right) => CheckSingle(left - right);
+
+    public static float MultiplySingle(float left, float right) => CheckSingle(left * right);
+
+    public static float NegateSingle(float value) => CheckSingle(-value);
+
+    public static float DivideSingle(float left, float right)
+    {
+        if (right == 0f)
+        {
+            throw new DivideByZeroException();
+        }
+
+        return CheckSingle(left / right);
+    }
 
     public static double AddDouble(double left, double right) => left + right;
 
@@ -82,6 +118,16 @@ public static class VBOperators
     public static bool Greater(object? left, object? right) => Compare(left, right) > 0;
 
     public static bool GreaterOrEqual(object? left, object? right) => Compare(left, right) >= 0;
+
+    private static float CheckSingle(float value)
+    {
+        if (float.IsInfinity(value))
+        {
+            throw new OverflowException("Value is outside the range of VB6 Single.");
+        }
+
+        return value;
+    }
 
     private static int Compare(object? left, object? right)
     {
