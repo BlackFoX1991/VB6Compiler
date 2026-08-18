@@ -34,6 +34,7 @@ public enum BoundNodeKind
     AssignmentStatement,
     IfStatement,
     DebugPrintStatement,
+    InvocationStatement,
     LiteralExpression,
     VariableExpression,
     UnaryExpression,
@@ -60,6 +61,9 @@ public sealed record BoundIfStatement(BoundExpression Condition, BoundBlockState
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
+
+public sealed record BoundInvocationStatement(ProcedureSymbol Procedure)
+    : BoundStatement(BoundNodeKind.InvocationStatement);
 
 public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralType)
     : BoundExpression(BoundNodeKind.LiteralExpression, LiteralType);
