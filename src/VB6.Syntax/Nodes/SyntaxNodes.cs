@@ -6,6 +6,7 @@ public abstract record SyntaxNode(SyntaxKind Kind);
 public abstract record MemberSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
 public abstract record StatementSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
 public abstract record ExpressionSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
+public abstract record CaseClauseSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
 
 public sealed record CompilationUnitSyntax(
     ImmutableArray<MemberSyntax> Members,
@@ -93,6 +94,35 @@ public sealed record DoStatementSyntax(
 public sealed record ExitStatementSyntax(
     SyntaxToken ExitKeyword,
     SyntaxToken TargetKeyword) : StatementSyntax(SyntaxKind.ExitStatement);
+
+public sealed record SelectCaseStatementSyntax(
+    SyntaxToken SelectKeyword,
+    SyntaxToken CaseKeyword,
+    ExpressionSyntax Expression,
+    ImmutableArray<CaseBlockSyntax> Cases,
+    SyntaxToken EndKeyword,
+    SyntaxToken EndSelectKeyword) : StatementSyntax(SyntaxKind.SelectCaseStatement);
+
+public sealed record CaseBlockSyntax(
+    SyntaxToken CaseKeyword,
+    ImmutableArray<CaseClauseSyntax> Clauses,
+    ImmutableArray<StatementSyntax> Statements) : SyntaxNode(SyntaxKind.CaseBlock);
+
+public sealed record CaseValueClauseSyntax(ExpressionSyntax Value)
+    : CaseClauseSyntax(SyntaxKind.CaseValueClause);
+
+public sealed record CaseRangeClauseSyntax(
+    ExpressionSyntax LowerBound,
+    SyntaxToken ToKeyword,
+    ExpressionSyntax UpperBound) : CaseClauseSyntax(SyntaxKind.CaseRangeClause);
+
+public sealed record CaseRelationalClauseSyntax(
+    SyntaxToken IsKeyword,
+    SyntaxToken OperatorToken,
+    ExpressionSyntax Value) : CaseClauseSyntax(SyntaxKind.CaseRelationalClause);
+
+public sealed record CaseElseClauseSyntax(SyntaxToken ElseKeyword)
+    : CaseClauseSyntax(SyntaxKind.CaseElseClause);
 
 public sealed record DebugPrintStatementSyntax(
     SyntaxToken DebugKeyword,
