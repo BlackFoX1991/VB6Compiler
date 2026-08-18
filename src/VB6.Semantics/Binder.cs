@@ -19,17 +19,16 @@ public sealed class Binder
     public static ProcedureSymbol CreateProcedureSymbol(SubDeclarationSyntax declaration)
     {
         ArgumentNullException.ThrowIfNull(declaration);
+        return new ProcedureSymbol(declaration.Identifier.Text, CreateParameterSymbols(declaration.Parameters));
+    }
 
-        var parameters = declaration.Parameters
-            .Select(parameter => new ParameterSymbol(
-                parameter.Identifier.Text,
-                TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error,
-                parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
-                    ? ParameterPassingMode.ByVal
-                    : ParameterPassingMode.ByRef))
-            .ToImmutableArray();
-
-        return new ProcedureSymbol(declaration.Identifier.Text, parameters);
+    public static ProcedureSymbol CreateProcedureSymbol(FunctionDeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+        return new ProcedureSymbol(
+            declaration.Identifier.Text,
+            CreateParameterSymbols(declaration.Parameters),
+            TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error);
     }
 
     public SemanticModel BindCompilationUnit(CompilationUnitSyntax root)
@@ -45,32 +44,109 @@ public sealed class Binder
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
-        foreach (var declaration in root.Members.OfType<SubDeclarationSyntax>())
+        foreach (var member in root.Members)
         {
-            if (!availableProcedures.TryGetValue(declaration.Identifier.Text, out var symbol))
+            switch (member)
             {
-                symbol = CreateProcedureSymbol(declaration);
-            }
+                case SubDeclarationSyntax declaration:
+                {
+                    var symbol = ResolveProcedureSymbol(declaration.Identifier.Text, declaration, availableProcedures);
+                    procedures.Add(BindProcedure(
+                        declaration.Identifier,
+                        declaration.Parameters,
+                        declaration.Statements,
+                        null,
+                        symbol,
+                        availableProcedures));
+                    break;
+                }
 
-            procedures.Add(BindProcedure(declaration, symbol, availableProcedures));
+                case FunctionDeclarationSyntax declaration:
+                {
+                    var symbol = ResolveProcedureSymbol(declaration.Identifier.Text, declaration, availableProcedures);
+                    if (symbol.ReturnType == TypeSymbol.Error)
+                    {
+                        Report(
+                            "VB6S0011",
+                            $"Unknown function return type '{declaration.ReturnTypeToken.Text}'.",
+                            declaration.ReturnTypeToken.Span);
+                    }
+
+                    procedures.Add(BindProcedure(
+                        declaration.Identifier,
+                        declaration.Parameters,
+                        declaration.Statements,
+                        declaration.ReturnTypeToken,
+                        symbol,
+                        availableProcedures));
+                    break;
+                }
+            }
         }
 
         return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable());
+    }
+
+    private static ImmutableArray<ParameterSymbol> CreateParameterSymbols(ImmutableArray<ParameterSyntax> parameters) =>
+        parameters
+            .Select(parameter => new ParameterSymbol(
+                parameter.Identifier.Text,
+                TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error,
+                parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
+                    ? ParameterPassingMode.ByVal
+                    : ParameterPassingMode.ByRef))
+            .ToImmutableArray();
+
+    private ProcedureSymbol ResolveProcedureSymbol(
+        string name,
+        MemberSyntax declaration,
+        IReadOnlyDictionary<string, ProcedureSymbol> availableProcedures)
+    {
+        if (availableProcedures.TryGetValue(name, out var symbol))
+        {
+            return symbol;
+        }
+
+        return declaration switch
+        {
+            SubDeclarationSyntax sub => CreateProcedureSymbol(sub),
+            FunctionDeclarationSyntax function => CreateProcedureSymbol(function),
+            _ => new ProcedureSymbol(name)
+        };
     }
 
     private Dictionary<string, ProcedureSymbol> DeclareProcedures(CompilationUnitSyntax root)
     {
         var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var declaration in root.Members.OfType<SubDeclarationSyntax>())
+        foreach (var member in root.Members)
         {
-            var symbol = CreateProcedureSymbol(declaration);
+            ProcedureSymbol? symbol = null;
+            SyntaxToken? identifier = null;
+
+            switch (member)
+            {
+                case SubDeclarationSyntax sub:
+                    symbol = CreateProcedureSymbol(sub);
+                    identifier = sub.Identifier;
+                    break;
+                case FunctionDeclarationSyntax function:
+                    symbol = CreateProcedureSymbol(function);
+                    identifier = function.Identifier;
+                    break;
+            }
+
+            if (symbol is null || identifier is null)
+            {
+                continue;
+            }
+
             if (!procedures.TryAdd(symbol.Name, symbol))
             {
                 Report(
                     "VB6S0004",
-                    $"Procedure '{declaration.Identifier.Text}' is already declared.",
-                    declaration.Identifier.Span);
+                    $"Procedure '{identifier.Text}' is already declared.",
+                    identifier.Span);
             }
         }
 
@@ -78,16 +154,24 @@ public sealed class Binder
     }
 
     private BoundProcedure BindProcedure(
-        SubDeclarationSyntax declaration,
+        SyntaxToken identifier,
+        ImmutableArray<ParameterSyntax> parameterSyntaxes,
+        ImmutableArray<StatementSyntax> statements,
+        SyntaxToken? returnTypeSyntax,
         ProcedureSymbol symbol,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         var variables = new Dictionary<string, VariableSymbol>(StringComparer.OrdinalIgnoreCase);
         var locals = new Dictionary<string, LocalVariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        for (var index = 0; index < declaration.Parameters.Length; index++)
+        if (symbol.IsFunction)
         {
-            var syntax = declaration.Parameters[index];
+            variables.Add(symbol.Name, new ReturnValueSymbol(symbol.Name, symbol.ReturnType ?? TypeSymbol.Error));
+        }
+
+        for (var index = 0; index < parameterSyntaxes.Length; index++)
+        {
+            var syntax = parameterSyntaxes[index];
             var parameter = index < symbol.Parameters.Length
                 ? symbol.Parameters[index]
                 : new ParameterSymbol(syntax.Identifier.Text, TypeSymbol.Error, ParameterPassingMode.ByRef);
@@ -109,8 +193,8 @@ public sealed class Binder
             }
         }
 
-        PredeclareLocals(declaration.Statements, locals, variables);
-        var body = BindStatements(declaration.Statements, variables, procedures);
+        PredeclareLocals(statements, locals, variables);
+        var body = BindStatements(statements, variables, procedures);
 
         return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
     }
@@ -184,10 +268,10 @@ public sealed class Binder
         return statement switch
         {
             DimStatementSyntax dim => BindVariableDeclaration(dim, variables),
-            AssignmentStatementSyntax assignment => BindAssignment(assignment, variables),
+            AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint =>
-                new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables)),
+                new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
             SkippedStatementSyntax => null,
             _ => null
@@ -209,9 +293,10 @@ public sealed class Binder
 
     private BoundAssignmentStatement BindAssignment(
         AssignmentStatementSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var expression = BindExpression(syntax.Expression, variables);
+        var expression = BindExpression(syntax.Expression, variables, procedures);
 
         if (!variables.TryGetValue(syntax.Identifier.Text, out var variable))
         {
@@ -232,7 +317,7 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var condition = BindExpression(syntax.Condition, variables);
+        var condition = BindExpression(syntax.Condition, variables, procedures);
         condition = BindConversion(condition, TypeSymbol.Boolean);
         var body = BindStatements(syntax.Statements, variables, procedures);
         return new BoundIfStatement(condition, body);
@@ -251,23 +336,80 @@ public sealed class Binder
                 syntax.Identifier.Span);
 
             var unknownArguments = syntax.Arguments
-                .Select(argument => new BoundArgument(null, BindExpression(argument, variables)))
+                .Select(argument => new BoundArgument(null, BindExpression(argument, variables, procedures)))
                 .ToImmutableArray();
             return new BoundInvocationStatement(new ProcedureSymbol(syntax.Identifier.Text), unknownArguments);
         }
 
-        if (syntax.Arguments.Length != procedure.Parameters.Length)
+        return new BoundInvocationStatement(
+            procedure,
+            BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
+    }
+
+    private BoundExpression BindExpression(
+        ExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        return syntax switch
+        {
+            LiteralExpressionSyntax literal => BindLiteral(literal),
+            NameExpressionSyntax name => BindName(name, variables),
+            InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
+            UnaryExpressionSyntax unary => BindUnary(unary, variables, procedures),
+            BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
+            ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
+            _ => new BoundErrorExpression()
+        };
+    }
+
+    private BoundExpression BindInvocationExpression(
+        InvocationExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (!procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
+        {
+            Report(
+                "VB6S0005",
+                $"Procedure '{syntax.Identifier.Text}' is not declared.",
+                syntax.Identifier.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (!procedure.IsFunction)
+        {
+            Report(
+                "VB6S0010",
+                $"Sub '{procedure.Name}' cannot be used as an expression.",
+                syntax.Identifier.Span);
+            return new BoundErrorExpression();
+        }
+
+        return new BoundInvocationExpression(
+            procedure,
+            BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
+    }
+
+    private ImmutableArray<BoundArgument> BindArguments(
+        SyntaxToken invocationIdentifier,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        ProcedureSymbol procedure,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (argumentSyntaxes.Length != procedure.Parameters.Length)
         {
             Report(
                 "VB6S0006",
-                $"Procedure '{procedure.Name}' expects {procedure.Parameters.Length} argument(s), but {syntax.Arguments.Length} were supplied.",
-                syntax.Identifier.Span);
+                $"Procedure '{procedure.Name}' expects {procedure.Parameters.Length} argument(s), but {argumentSyntaxes.Length} were supplied.",
+                invocationIdentifier.Span);
         }
 
         var arguments = ImmutableArray.CreateBuilder<BoundArgument>();
-        for (var index = 0; index < syntax.Arguments.Length; index++)
+        for (var index = 0; index < argumentSyntaxes.Length; index++)
         {
-            var expression = BindExpression(syntax.Arguments[index], variables);
+            var expression = BindExpression(argumentSyntaxes[index], variables, procedures);
             var parameter = index < procedure.Parameters.Length ? procedure.Parameters[index] : null;
 
             if (parameter is not null)
@@ -281,7 +423,7 @@ public sealed class Binder
                     Report(
                         "VB6S0007",
                         $"ByRef argument for parameter '{parameter.Name}' must be a variable in the current compiler subset.",
-                        syntax.Identifier.Span);
+                        invocationIdentifier.Span);
                 }
                 else if (variableExpression.Variable.Type != parameter.Type &&
                          variableExpression.Variable.Type != TypeSymbol.Error &&
@@ -290,29 +432,14 @@ public sealed class Binder
                     Report(
                         "VB6S0008",
                         $"ByRef argument type '{variableExpression.Variable.Type.Name}' does not match parameter type '{parameter.Type.Name}'.",
-                        syntax.Identifier.Span);
+                        invocationIdentifier.Span);
                 }
             }
 
             arguments.Add(new BoundArgument(parameter, expression));
         }
 
-        return new BoundInvocationStatement(procedure, arguments.ToImmutable());
-    }
-
-    private BoundExpression BindExpression(
-        ExpressionSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
-    {
-        return syntax switch
-        {
-            LiteralExpressionSyntax literal => BindLiteral(literal),
-            NameExpressionSyntax name => BindName(name, variables),
-            UnaryExpressionSyntax unary => BindUnary(unary, variables),
-            BinaryExpressionSyntax binary => BindBinary(binary, variables),
-            ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables),
-            _ => new BoundErrorExpression()
-        };
+        return arguments.ToImmutable();
     }
 
     private static BoundExpression BindLiteral(LiteralExpressionSyntax syntax)
@@ -345,9 +472,10 @@ public sealed class Binder
 
     private BoundExpression BindUnary(
         UnaryExpressionSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var operand = BindExpression(syntax.Operand, variables);
+        var operand = BindExpression(syntax.Operand, variables, procedures);
         if (operand.Type == TypeSymbol.Error)
         {
             return operand;
@@ -359,10 +487,11 @@ public sealed class Binder
 
     private BoundExpression BindBinary(
         BinaryExpressionSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var left = BindExpression(syntax.Left, variables);
-        var right = BindExpression(syntax.Right, variables);
+        var left = BindExpression(syntax.Left, variables, procedures);
+        var right = BindExpression(syntax.Right, variables, procedures);
 
         if (left.Type == TypeSymbol.Error || right.Type == TypeSymbol.Error)
         {
