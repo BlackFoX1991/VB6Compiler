@@ -13,6 +13,8 @@ public static class SyntaxFacts
         "AS" => SyntaxKind.AsKeyword,
         "INTEGER" => SyntaxKind.IntegerKeyword,
         "LONG" => SyntaxKind.LongKeyword,
+        "SINGLE" => SyntaxKind.SingleKeyword,
+        "DOUBLE" => SyntaxKind.DoubleKeyword,
         "IF" => SyntaxKind.IfKeyword,
         "THEN" => SyntaxKind.ThenKeyword,
         "ELSEIF" => SyntaxKind.ElseIfKeyword,
