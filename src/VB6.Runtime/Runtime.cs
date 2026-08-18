@@ -77,6 +77,11 @@ public static class VBOperators
     {
         if (right == 0f)
         {
+            if (left == 0f)
+            {
+                throw new OverflowException("VB6 floating-point division 0 / 0 causes overflow.");
+            }
+
             throw new DivideByZeroException();
         }
 
@@ -91,7 +96,20 @@ public static class VBOperators
 
     public static double NegateDouble(double value) => -value;
 
-    public static double DivideDouble(double left, double right) => left / right;
+    public static double DivideDouble(double left, double right)
+    {
+        if (right == 0d)
+        {
+            if (left == 0d)
+            {
+                throw new OverflowException("VB6 floating-point division 0 / 0 causes overflow.");
+            }
+
+            throw new DivideByZeroException();
+        }
+
+        return left / right;
+    }
 
     public static bool NotBoolean(bool value) => !value;
 
