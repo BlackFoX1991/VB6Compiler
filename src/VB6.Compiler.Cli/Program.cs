@@ -1,8 +1,9 @@
+using VB6.Lexer;
 using VB6.Syntax.Text;
 
 if (args.Length == 0)
 {
-    Console.WriteLine("VB6Compiler bootstrap");
+    Console.WriteLine("VB6Compiler");
     Console.WriteLine("Usage: vb6c <source-file>");
     return 0;
 }
@@ -15,5 +16,12 @@ if (!File.Exists(path))
 }
 
 var text = SourceText.From(File.ReadAllText(path), path);
-Console.WriteLine($"Loaded {path} ({text.Length} chars, {text.Lines.Length} lines)");
-return 0;
+var result = new Lexer(text).Lex();
+
+foreach (var diagnostic in result.Diagnostics)
+{
+    Console.Error.WriteLine(diagnostic);
+}
+
+Console.WriteLine($"Loaded {path} ({text.Length} chars, {text.Lines.Length} lines, {result.Tokens.Length} tokens)");
+return result.Diagnostics.Length == 0 ? 0 : 1;
