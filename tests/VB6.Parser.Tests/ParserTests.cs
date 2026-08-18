@@ -32,6 +32,7 @@ public sealed class ParserTests
 
         var sub = (SubDeclarationSyntax)result.Root.Members[1];
         Assert.AreEqual("Main", sub.Identifier.Text);
+        Assert.AreEqual(0, sub.Parameters.Length);
         Assert.AreEqual(3, sub.Statements.Length);
         Assert.IsInstanceOfType<DimStatementSyntax>(sub.Statements[0]);
         Assert.IsInstanceOfType<AssignmentStatementSyntax>(sub.Statements[1]);
@@ -78,6 +79,7 @@ public sealed class ParserTests
         Assert.IsNull(invocation.CallKeyword);
         Assert.AreEqual("Helper", invocation.Identifier.Text);
         Assert.IsNull(invocation.OpenParenthesisToken);
+        Assert.AreEqual(0, invocation.Arguments.Length);
     }
 
     [TestMethod]
@@ -98,7 +100,53 @@ public sealed class ParserTests
         Assert.AreEqual(SyntaxKind.CallKeyword, invocation.CallKeyword!.Kind);
         Assert.AreEqual("Helper", invocation.Identifier.Text);
         Assert.IsNotNull(invocation.OpenParenthesisToken);
+        Assert.AreEqual(0, invocation.Arguments.Length);
         Assert.IsNotNull(invocation.CloseParenthesisToken);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesParametersAndArguments()
+    {
+        const string source = """
+            Sub Update(ByRef value As Integer, ByVal copy As Integer, implicitRef As Integer)
+            End Sub
+
+            Sub Main()
+                Call Update(x, 2, x)
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        Assert.AreEqual(0, result.Diagnostics.Length);
+
+        var update = (SubDeclarationSyntax)result.Root.Members[0];
+        Assert.AreEqual(3, update.Parameters.Length);
+        Assert.AreEqual(SyntaxKind.ByRefKeyword, update.Parameters[0].PassingModeKeyword!.Kind);
+        Assert.AreEqual(SyntaxKind.ByValKeyword, update.Parameters[1].PassingModeKeyword!.Kind);
+        Assert.IsNull(update.Parameters[2].PassingModeKeyword);
+
+        var main = (SubDeclarationSyntax)result.Root.Members[1];
+        var invocation = (InvocationStatementSyntax)main.Statements.Single();
+        Assert.AreEqual(3, invocation.Arguments.Length);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(invocation.Arguments[0]);
+        Assert.IsInstanceOfType<LiteralExpressionSyntax>(invocation.Arguments[1]);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesBareCallArguments()
+    {
+        const string source = """
+            Sub Main()
+                Helper x, 10
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        var invocation = (InvocationStatementSyntax)sub.Statements.Single();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        Assert.AreEqual(2, invocation.Arguments.Length);
     }
 
     [TestMethod]
