@@ -32,6 +32,7 @@ public sealed class ProjectCompilationTests
             Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundForStatement));
             Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundWhileStatement));
             Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundDoStatement) >= 2);
+            Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundSelectCaseStatement));
             Assert.AreEqual(update.Symbol, invocations[0].Procedure);
             Assert.AreEqual(observe.Symbol, invocations[1].Procedure);
             Assert.AreEqual(add.Symbol, addInvocation.Procedure);
@@ -46,7 +47,7 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_ExecutesLoopsCrossModuleCallsAndFunction()
+    public void EmitManagedApplication_ExecutesControlFlowCrossModuleCallsAndFunction()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -164,6 +165,17 @@ public sealed class ProjectCompilationTests
                 Do
                     x = x + 1
                 Loop Until x = 7
+
+                Select Case x
+                    Case 1 To 6
+                        x = 100
+                    Case 7, 8
+                        x = x
+                    Case Is > 8
+                        x = 200
+                    Case Else
+                        x = 300
+                End Select
 
                 Call Update(x)
                 Call Observe(x)
