@@ -92,12 +92,7 @@ public sealed class CSharpGenerator
                 break;
 
             case BoundIfStatement ifStatement:
-                WriteLine($"if ({EmitExpression(ifStatement.Condition)})");
-                WriteLine("{");
-                _indent++;
-                EmitBlock(ifStatement.Body);
-                _indent--;
-                WriteLine("}");
+                EmitIfStatement(ifStatement);
                 break;
 
             case BoundForStatement forStatement:
@@ -132,6 +127,36 @@ public sealed class CSharpGenerator
             case BoundInvocationStatement invocation:
                 WriteLine($"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)});");
                 break;
+        }
+    }
+
+    private void EmitIfStatement(BoundIfStatement statement)
+    {
+        WriteLine($"if ({EmitExpression(statement.Condition)})");
+        WriteLine("{");
+        _indent++;
+        EmitBlock(statement.Body);
+        _indent--;
+        WriteLine("}");
+
+        foreach (var elseIfClause in statement.ElseIfClauses)
+        {
+            WriteLine($"else if ({EmitExpression(elseIfClause.Condition)})");
+            WriteLine("{");
+            _indent++;
+            EmitBlock(elseIfClause.Body);
+            _indent--;
+            WriteLine("}");
+        }
+
+        if (statement.ElseBody is not null)
+        {
+            WriteLine("else");
+            WriteLine("{");
+            _indent++;
+            EmitBlock(statement.ElseBody);
+            _indent--;
+            WriteLine("}");
         }
     }
 
