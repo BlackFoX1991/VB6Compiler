@@ -37,9 +37,9 @@ public sealed class BinderTests
 
         Assert.AreEqual(0, model.Diagnostics.Length);
         var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[1];
-        var conversion = assignment.Expression as BoundConversionExpression;
+        Assert.IsTrue(assignment.Expression is BoundConversionExpression);
+        var conversion = (BoundConversionExpression)assignment.Expression;
 
-        Assert.IsNotNull(conversion);
         Assert.AreEqual(TypeSymbol.Integer, conversion.TargetType);
         Assert.AreEqual(TypeSymbol.String, conversion.Expression.Type);
     }
@@ -74,7 +74,7 @@ public sealed class BinderTests
         var ifStatement = (BoundIfStatement)model.Procedures.Single().Body.Statements[2];
 
         Assert.AreEqual(TypeSymbol.Boolean, ifStatement.Condition.Type);
-        Assert.IsInstanceOfType<BoundBinaryExpression>(ifStatement.Condition);
+        Assert.IsTrue(ifStatement.Condition is BoundBinaryExpression);
     }
 
     private static SemanticModel BindSource(string source)
