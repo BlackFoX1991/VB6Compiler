@@ -62,12 +62,22 @@ public sealed record ProcedureSymbol(
     public bool IsFunction => ReturnType is not null;
 }
 
+public enum BoundLoopKind
+{
+    For,
+    Do
+}
+
 public enum BoundNodeKind
 {
     BlockStatement,
     VariableDeclarationStatement,
     AssignmentStatement,
     IfStatement,
+    ForStatement,
+    WhileStatement,
+    DoStatement,
+    ExitLoopStatement,
     DebugPrintStatement,
     InvocationStatement,
     LiteralExpression,
@@ -94,6 +104,33 @@ public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpr
 
 public sealed record BoundIfStatement(BoundExpression Condition, BoundBlockStatement Body)
     : BoundStatement(BoundNodeKind.IfStatement);
+
+public sealed record BoundForStatement(
+    int LoopId,
+    VariableSymbol ControlVariable,
+    BoundExpression InitialValue,
+    BoundExpression Limit,
+    BoundExpression Step,
+    BoundBlockStatement Body)
+    : BoundStatement(BoundNodeKind.ForStatement);
+
+public sealed record BoundWhileStatement(
+    BoundExpression Condition,
+    BoundBlockStatement Body)
+    : BoundStatement(BoundNodeKind.WhileStatement);
+
+public sealed record BoundDoStatement(
+    int LoopId,
+    BoundExpression? Condition,
+    bool ConditionIsPostTest,
+    bool IsUntil,
+    BoundBlockStatement Body)
+    : BoundStatement(BoundNodeKind.DoStatement);
+
+public sealed record BoundExitLoopStatement(
+    BoundLoopKind LoopKind,
+    int TargetLoopId)
+    : BoundStatement(BoundNodeKind.ExitLoopStatement);
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
