@@ -39,6 +39,7 @@ public enum SyntaxKind
     ThenKeyword,
     DebugKeyword,
     PrintKeyword,
+    CallKeyword,
 
     CompilationUnit,
     OptionExplicitStatement,
@@ -47,6 +48,7 @@ public enum SyntaxKind
     AssignmentStatement,
     IfStatement,
     DebugPrintStatement,
+    InvocationStatement,
     SkippedStatement,
     LiteralExpression,
     NameExpression,
