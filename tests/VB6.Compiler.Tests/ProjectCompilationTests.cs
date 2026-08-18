@@ -33,7 +33,7 @@ public sealed class ProjectCompilationTests
             Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundWhileStatement));
             Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundDoStatement) >= 2);
             Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundSelectCaseStatement));
-            Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundIfStatement) >= 2);
+            Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundIfStatement) >= 3);
             Assert.AreEqual(update.Symbol, invocations[0].Procedure);
             Assert.AreEqual(observe.Symbol, invocations[1].Procedure);
             Assert.AreEqual(add.Symbol, addInvocation.Procedure);
@@ -143,6 +143,7 @@ public sealed class ProjectCompilationTests
             Sub Main()
                 Dim x As Integer
                 Dim i As Integer
+                Dim flag As Boolean
                 x = 0
 
                 For i = 1 To 5
@@ -187,6 +188,13 @@ public sealed class ProjectCompilationTests
                 End If
 
                 If x = 8 Then x = 9 Else x = 300
+
+                flag = True
+                If flag And Not False And (True Xor False) And (True Eqv True) And (False Imp True) Then
+                    x = x
+                Else
+                    x = 300
+                End If
 
                 Call Update(x)
                 Call Observe(x)
