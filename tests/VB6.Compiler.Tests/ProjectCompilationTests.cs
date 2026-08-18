@@ -33,6 +33,7 @@ public sealed class ProjectCompilationTests
             Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundWhileStatement));
             Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundDoStatement) >= 2);
             Assert.IsTrue(main.Body.Statements.Any(statement => statement is BoundSelectCaseStatement));
+            Assert.IsTrue(main.Body.Statements.Count(statement => statement is BoundIfStatement) >= 2);
             Assert.AreEqual(update.Symbol, invocations[0].Procedure);
             Assert.AreEqual(observe.Symbol, invocations[1].Procedure);
             Assert.AreEqual(add.Symbol, addInvocation.Procedure);
@@ -176,6 +177,16 @@ public sealed class ProjectCompilationTests
                     Case Else
                         x = 300
                 End Select
+
+                If x < 0 Then
+                    x = 100
+                ElseIf x = 7 Then
+                    x = 8
+                Else
+                    x = 200
+                End If
+
+                If x = 8 Then x = 9 Else x = 300
 
                 Call Update(x)
                 Call Observe(x)
