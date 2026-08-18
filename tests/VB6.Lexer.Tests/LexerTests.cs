@@ -1,5 +1,6 @@
 using VB6.Syntax;
 using VB6.Syntax.Text;
+using LexerType = VB6.Lexer.Lexer;
 
 namespace VB6.Lexer.Tests;
 
@@ -9,7 +10,7 @@ public sealed class LexerTests
     [TestMethod]
     public void Lex_RecognizesKeywordsCaseInsensitively()
     {
-        var result = new Lexer(SourceText.From("option EXPLICIT Sub end")).Lex();
+        var result = new LexerType(SourceText.From("option EXPLICIT Sub end")).Lex();
 
         CollectionAssert.AreEqual(
             new[]
@@ -27,7 +28,7 @@ public sealed class LexerTests
     [TestMethod]
     public void Lex_PreservesCommentAsTrivia()
     {
-        var result = new Lexer(SourceText.From("Dim x ' comment\r\nAs Integer")).Lex();
+        var result = new LexerType(SourceText.From("Dim x ' comment\r\nAs Integer")).Lex();
         var newLine = result.Tokens.Single(token => token.Kind == SyntaxKind.NewLineToken);
 
         Assert.IsTrue(newLine.LeadingTrivia.Any(trivia =>
@@ -37,7 +38,7 @@ public sealed class LexerTests
     [TestMethod]
     public void Lex_DecodesEscapedQuotesInStrings()
     {
-        var result = new Lexer(SourceText.From("\"Hello \"\"VB6\"\"\"")).Lex();
+        var result = new LexerType(SourceText.From("\"Hello \"\"VB6\"\"\"")).Lex();
         var token = result.Tokens[0];
 
         Assert.AreEqual(SyntaxKind.StringLiteralToken, token.Kind);
@@ -48,7 +49,7 @@ public sealed class LexerTests
     [TestMethod]
     public void Lex_ReportsBadCharacter()
     {
-        var result = new Lexer(SourceText.From("?", "test.bas")).Lex();
+        var result = new LexerType(SourceText.From("?", "test.bas")).Lex();
 
         Assert.AreEqual(SyntaxKind.BadToken, result.Tokens[0].Kind);
         Assert.AreEqual(1, result.Diagnostics.Length);
@@ -59,7 +60,7 @@ public sealed class LexerTests
     [TestMethod]
     public void Lex_RecognizesComparisonOperators()
     {
-        var result = new Lexer(SourceText.From("<= <> >= < > =")).Lex();
+        var result = new LexerType(SourceText.From("<= <> >= < > =")).Lex();
 
         CollectionAssert.AreEqual(
             new[]
