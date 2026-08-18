@@ -336,6 +336,12 @@ public sealed class CSharpGenerator
 
     private static string EmitLiteral(BoundLiteralExpression literal)
     {
+        if (literal.LiteralType == TypeSymbol.Byte)
+        {
+            var value = Convert.ToByte(literal.Value, CultureInfo.InvariantCulture);
+            return $"VBConversions.CByte({value.ToString(CultureInfo.InvariantCulture)}L)";
+        }
+
         if (literal.LiteralType == TypeSymbol.Integer)
         {
             var value = Convert.ToInt64(literal.Value, CultureInfo.InvariantCulture);
@@ -382,6 +388,11 @@ public sealed class CSharpGenerator
     private string EmitConversion(BoundConversionExpression conversion)
     {
         var expression = EmitExpression(conversion.Expression);
+
+        if (conversion.TargetType == TypeSymbol.Byte)
+        {
+            return $"VBConversions.CByte({expression})";
+        }
 
         if (conversion.TargetType == TypeSymbol.Integer)
         {
@@ -462,9 +473,11 @@ public sealed class CSharpGenerator
             SyntaxKind.StarToken => EmitArithmeticCall(binary.ResultType, "Multiply", left, right),
             SyntaxKind.BackslashToken when binary.ResultType == TypeSymbol.LongLong => $"VBOperators.IntegerDivideLongLong({left}, {right})",
             SyntaxKind.BackslashToken when binary.ResultType == TypeSymbol.Long => $"VBOperators.IntegerDivideLong({left}, {right})",
+            SyntaxKind.BackslashToken when binary.ResultType == TypeSymbol.Byte => $"VBOperators.IntegerDivideByte({left}, {right})",
             SyntaxKind.BackslashToken => $"VBOperators.IntegerDivide({left}, {right})",
             SyntaxKind.ModKeyword when binary.ResultType == TypeSymbol.LongLong => $"VBOperators.ModLongLong({left}, {right})",
             SyntaxKind.ModKeyword when binary.ResultType == TypeSymbol.Long => $"VBOperators.ModLong({left}, {right})",
+            SyntaxKind.ModKeyword when binary.ResultType == TypeSymbol.Byte => $"VBOperators.ModByte({left}, {right})",
             SyntaxKind.ModKeyword => $"VBOperators.ModInteger({left}, {right})",
             SyntaxKind.SlashToken when binary.ResultType == TypeSymbol.Single => $"VBOperators.DivideSingle({left}, {right})",
             SyntaxKind.SlashToken => $"VBOperators.DivideDouble({left}, {right})",
@@ -482,12 +495,19 @@ public sealed class CSharpGenerator
                     ? "LongLong"
                     : resultType == TypeSymbol.Long
                         ? "Long"
-                        : "Integer";
+                        : resultType == TypeSymbol.Byte
+                            ? "Byte"
+                            : "Integer";
         return $"VBOperators.{operation}{suffix}({left}, {right})";
     }
 
     private static string GetTypeName(TypeSymbol type)
     {
+        if (type == TypeSymbol.Byte)
+        {
+            return "byte";
+        }
+
         if (type == TypeSymbol.Integer)
         {
             return "short";
@@ -548,7 +568,7 @@ public sealed class CSharpGenerator
             return "0d";
         }
 
-        if (type == TypeSymbol.Integer || type == TypeSymbol.Long || type == TypeSymbol.LongLong)
+        if (type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long || type == TypeSymbol.LongLong)
         {
             return "0";
         }
