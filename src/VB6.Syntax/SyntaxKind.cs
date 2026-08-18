@@ -36,6 +36,7 @@ public enum SyntaxKind
     DimKeyword,
     AsKeyword,
     IntegerKeyword,
+    LongKeyword,
     IfKeyword,
     ThenKeyword,
     ElseIfKeyword,
