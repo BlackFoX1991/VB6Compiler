@@ -25,6 +25,7 @@ Implemented so far:
 - Integer-to-Long numeric promotion without incorrectly promoting pure Integer expressions from their assignment target
 - 64-bit integer literal inference beyond the signed 32-bit range and promotion into `LongLong`
 - `Single` and `Double` floating-point types with floating literals and numeric promotion
+- 64-bit scaled VB6 `Currency`, including `@` literals, four decimal places, Banker's rounding, and checked arithmetic
 - `True` and `False`, including VB numeric conversion behavior
 - logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp`
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
@@ -41,7 +42,7 @@ Implemented so far:
 - explicit conversion nodes and typed arithmetic promotion
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
-- primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong arithmetic, comparisons, Boolean operations, concatenation, and `Debug.Print`
+- primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong/Currency arithmetic, comparisons, Boolean operations, concatenation, and `Debug.Print`
 - C# source generation from the bound program
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
@@ -106,6 +107,17 @@ The generated application uses .NET `System.Int64` and prints `6000000000`.
 
 `Byte` is emitted as .NET `System.Byte` and keeps the unsigned VB range from 0 through 255. Conversions and Byte arithmetic use checked runtime helpers so out-of-range results fail instead of silently wrapping.
 
+`Currency` uses a dedicated scaled 64-bit runtime value instead of binary floating point. Currency literals use the VB `@` suffix, arithmetic keeps four decimal places, and assignment/conversion paths use Banker's rounding:
+
+```vb
+Sub Main()
+    Dim amount As Currency
+    amount = 1.2345@
+    amount = amount * 1.2345@
+    Debug.Print amount
+End Sub
+```
+
 The current structured-control-flow and cross-module acceptance project also exercises loops, `Select Case`, extended `If`, Boolean expressions, default ByRef, explicit ByVal, and typed Function calls.
 
 ## Command line
@@ -154,14 +166,13 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Byte, Integer, Long, Single, Double, and the LongLong/Int64 extension.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency.
 
 The current ByRef implementation requires a variable argument with an exactly matching type. VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
 - broaden `Double` arithmetic compatibility and floating-point edge cases
-- add `Currency`
 - add `Date`
 - introduce the first `Variant` representation
 - expand ByRef coercion and parenthesized-argument edge cases
