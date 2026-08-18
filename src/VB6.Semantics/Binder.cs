@@ -18,32 +18,58 @@ public sealed class Binder
 
     public SemanticModel BindCompilationUnit(CompilationUnitSyntax root)
     {
+        var procedures = DeclareProcedures(root);
+        return BindCompilationUnit(root, procedures);
+    }
+
+    public SemanticModel BindCompilationUnit(
+        CompilationUnitSyntax root,
+        IReadOnlyDictionary<string, ProcedureSymbol> availableProcedures)
+    {
+        ArgumentNullException.ThrowIfNull(availableProcedures);
+
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
-        var procedureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var declaration in root.Members.OfType<SubDeclarationSyntax>())
+        {
+            if (!availableProcedures.TryGetValue(declaration.Identifier.Text, out var symbol))
+            {
+                symbol = new ProcedureSymbol(declaration.Identifier.Text);
+            }
+
+            procedures.Add(BindProcedure(declaration, symbol, availableProcedures));
+        }
+
+        return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable());
+    }
+
+    private Dictionary<string, ProcedureSymbol> DeclareProcedures(CompilationUnitSyntax root)
+    {
+        var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var declaration in root.Members.OfType<SubDeclarationSyntax>())
         {
-            if (!procedureNames.Add(declaration.Identifier.Text))
+            var symbol = new ProcedureSymbol(declaration.Identifier.Text);
+            if (!procedures.TryAdd(symbol.Name, symbol))
             {
                 Report(
                     "VB6S0004",
                     $"Procedure '{declaration.Identifier.Text}' is already declared.",
                     declaration.Identifier.Span);
             }
-
-            procedures.Add(BindProcedure(declaration));
         }
 
-        return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable());
+        return procedures;
     }
 
-    private BoundProcedure BindProcedure(SubDeclarationSyntax declaration)
+    private BoundProcedure BindProcedure(
+        SubDeclarationSyntax declaration,
+        ProcedureSymbol symbol,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var symbol = new ProcedureSymbol(declaration.Identifier.Text);
         var locals = new Dictionary<string, LocalVariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
         PredeclareLocals(declaration.Statements, locals);
-        var body = BindStatements(declaration.Statements, locals);
+        var body = BindStatements(declaration.Statements, locals, procedures);
 
         return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
     }
@@ -89,13 +115,14 @@ public sealed class Binder
 
     private BoundBlockStatement BindStatements(
         ImmutableArray<StatementSyntax> statements,
-        Dictionary<string, LocalVariableSymbol> locals)
+        Dictionary<string, LocalVariableSymbol> locals,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         var bound = ImmutableArray.CreateBuilder<BoundStatement>();
 
         foreach (var statement in statements)
         {
-            var boundStatement = BindStatement(statement, locals);
+            var boundStatement = BindStatement(statement, locals, procedures);
             if (boundStatement is not null)
             {
                 bound.Add(boundStatement);
@@ -107,15 +134,17 @@ public sealed class Binder
 
     private BoundStatement? BindStatement(
         StatementSyntax statement,
-        Dictionary<string, LocalVariableSymbol> locals)
+        Dictionary<string, LocalVariableSymbol> locals,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         return statement switch
         {
             DimStatementSyntax dim => BindVariableDeclaration(dim, locals),
             AssignmentStatementSyntax assignment => BindAssignment(assignment, locals),
-            IfStatementSyntax ifStatement => BindIf(ifStatement, locals),
+            IfStatementSyntax ifStatement => BindIf(ifStatement, locals, procedures),
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, locals)),
+            InvocationStatementSyntax invocation => BindInvocation(invocation, procedures),
             SkippedStatementSyntax => null,
             _ => null
         };
@@ -155,12 +184,29 @@ public sealed class Binder
 
     private BoundIfStatement BindIf(
         IfStatementSyntax syntax,
-        Dictionary<string, LocalVariableSymbol> locals)
+        Dictionary<string, LocalVariableSymbol> locals,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         var condition = BindExpression(syntax.Condition, locals);
         condition = BindConversion(condition, TypeSymbol.Boolean);
-        var body = BindStatements(syntax.Statements, locals);
+        var body = BindStatements(syntax.Statements, locals, procedures);
         return new BoundIfStatement(condition, body);
+    }
+
+    private BoundInvocationStatement BindInvocation(
+        InvocationStatementSyntax syntax,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
+        {
+            return new BoundInvocationStatement(procedure);
+        }
+
+        Report(
+            "VB6S0005",
+            $"Procedure '{syntax.Identifier.Text}' is not declared.",
+            syntax.Identifier.Span);
+        return new BoundInvocationStatement(new ProcedureSymbol(syntax.Identifier.Text));
     }
 
     private BoundExpression BindExpression(
