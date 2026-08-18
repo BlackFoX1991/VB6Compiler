@@ -48,6 +48,7 @@ public enum SyntaxKind
     XorKeyword,
     EqvKeyword,
     ImpKeyword,
+    ModKeyword,
     DebugKeyword,
     PrintKeyword,
     CallKeyword,
