@@ -40,10 +40,13 @@ public enum SyntaxKind
     DebugKeyword,
     PrintKeyword,
     CallKeyword,
+    ByRefKeyword,
+    ByValKeyword,
 
     CompilationUnit,
     OptionExplicitStatement,
     SubDeclaration,
+    Parameter,
     DimStatement,
     AssignmentStatement,
     IfStatement,
