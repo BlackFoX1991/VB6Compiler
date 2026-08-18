@@ -1,6 +1,4 @@
-using VB6.Parser;
-using VB6.Semantics;
-using VB6.Syntax.Text;
+using VB6.Compiler;
 
 if (args.Length == 0)
 {
@@ -16,27 +14,19 @@ if (!File.Exists(path))
     return 1;
 }
 
-var text = SourceText.From(File.ReadAllText(path), path);
-var parseResult = new Parser(text).ParseCompilationUnit();
+var compilation = VBCompilation.Create(File.ReadAllText(path), path);
+var analysis = compilation.Analyze();
 
-foreach (var diagnostic in parseResult.Diagnostics)
+foreach (var diagnostic in analysis.Diagnostics)
 {
     Console.Error.WriteLine(diagnostic);
 }
 
-if (parseResult.Diagnostics.Length != 0)
+if (analysis.SemanticModel is not null)
 {
-    return 1;
+    Console.WriteLine(
+        $"Analyzed {path} ({compilation.Text.Length} chars, {compilation.Text.Lines.Length} lines, " +
+        $"{analysis.ParseResult.Root.Members.Length} members, {analysis.SemanticModel.Procedures.Length} procedures)");
 }
 
-var semanticModel = new Binder(text).BindCompilationUnit(parseResult.Root);
-foreach (var diagnostic in semanticModel.Diagnostics)
-{
-    Console.Error.WriteLine(diagnostic);
-}
-
-Console.WriteLine(
-    $"Bound {path} ({text.Length} chars, {text.Lines.Length} lines, " +
-    $"{parseResult.Root.Members.Length} members, {semanticModel.Procedures.Length} procedures)");
-
-return semanticModel.Diagnostics.Length == 0 ? 0 : 1;
+return analysis.Success ? 0 : 1;
