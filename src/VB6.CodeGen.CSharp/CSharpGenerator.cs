@@ -121,6 +121,10 @@ public sealed class CSharpGenerator
                 WriteLine($"goto {GetLoopExitLabel(exitLoop.TargetLoopId)};");
                 break;
 
+            case BoundSelectCaseStatement selectCase:
+                EmitSelectCaseStatement(selectCase);
+                break;
+
             case BoundDebugPrintStatement debugPrint:
                 WriteLine($"VBDebug.Print({EmitExpression(debugPrint.Expression)});");
                 break;
@@ -201,6 +205,77 @@ public sealed class CSharpGenerator
     }
 
     private static string GetLoopExitLabel(int loopId) => $"__vb6_loop_exit_{loopId}";
+
+    private void EmitSelectCaseStatement(BoundSelectCaseStatement statement)
+    {
+        var selectName = $"__vb6_select_{statement.SelectId}";
+        WriteLine($"var {selectName} = {EmitExpression(statement.Expression)};");
+
+        var hasConditionalBlock = false;
+        foreach (var caseBlock in statement.Cases)
+        {
+            var isElse = caseBlock.Clauses.Any(clause => clause is BoundCaseElseClause);
+            if (isElse)
+            {
+                if (hasConditionalBlock)
+                {
+                    WriteLine("else");
+                }
+                else
+                {
+                    WriteLine("{");
+                    _indent++;
+                    EmitBlock(caseBlock.Body);
+                    _indent--;
+                    WriteLine("}");
+                    continue;
+                }
+            }
+            else
+            {
+                var condition = string.Join(" || ", caseBlock.Clauses.Select(clause => EmitCaseCondition(selectName, clause)));
+                WriteLine(hasConditionalBlock
+                    ? $"else if ({condition})"
+                    : $"if ({condition})");
+                hasConditionalBlock = true;
+            }
+
+            WriteLine("{");
+            _indent++;
+            EmitBlock(caseBlock.Body);
+            _indent--;
+            WriteLine("}");
+        }
+    }
+
+    private string EmitCaseCondition(string selectName, BoundCaseClause clause)
+    {
+        return clause switch
+        {
+            BoundCaseValueClause value =>
+                $"VBOperators.Equal({selectName}, {EmitExpression(value.Value)})",
+            BoundCaseRangeClause range =>
+                $"(VBOperators.GreaterOrEqual({selectName}, {EmitExpression(range.LowerBound)}) && VBOperators.LessOrEqual({selectName}, {EmitExpression(range.UpperBound)}))",
+            BoundCaseRelationalClause relational =>
+                EmitRelationalCaseCondition(selectName, relational),
+            _ => "false"
+        };
+    }
+
+    private string EmitRelationalCaseCondition(string selectName, BoundCaseRelationalClause clause)
+    {
+        var value = EmitExpression(clause.Value);
+        return clause.OperatorKind switch
+        {
+            SyntaxKind.EqualsToken => $"VBOperators.Equal({selectName}, {value})",
+            SyntaxKind.LessGreaterToken => $"VBOperators.NotEqual({selectName}, {value})",
+            SyntaxKind.LessToken => $"VBOperators.Less({selectName}, {value})",
+            SyntaxKind.LessOrEqualsToken => $"VBOperators.LessOrEqual({selectName}, {value})",
+            SyntaxKind.GreaterToken => $"VBOperators.Greater({selectName}, {value})",
+            SyntaxKind.GreaterOrEqualsToken => $"VBOperators.GreaterOrEqual({selectName}, {value})",
+            _ => "false"
+        };
+    }
 
     private string EmitArguments(IEnumerable<BoundArgument> arguments) =>
         string.Join(", ", arguments.Select(EmitArgument));
