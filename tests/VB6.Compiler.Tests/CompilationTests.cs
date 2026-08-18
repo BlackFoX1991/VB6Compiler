@@ -72,4 +72,43 @@ public sealed class CompilationTests
         StringAssert.Contains(generation.Source!, "public static void Main()");
         StringAssert.Contains(generation.Source!, "VBConversions.CInt(10L)");
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesRequiredFiles()
+    {
+        var compilation = VBCompilation.Create("""
+            Sub Main()
+                Dim x As Integer
+                x = 10
+                Debug.Print x
+            End Sub
+            """, "Module1.bas");
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerTests", Guid.NewGuid().ToString("N"));
+        var assemblyPath = Path.Combine(directory, "GeneratedProgram.dll");
+
+        try
+        {
+            var result = compilation.EmitManagedApplication(assemblyPath);
+            var backendDiagnostics = result.BackendResult is null
+                ? string.Empty
+                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}"));
+
+            Assert.IsTrue(result.Success, backendDiagnostics);
+            Assert.IsNotNull(result.AssemblyPath);
+            Assert.IsNotNull(result.RuntimeAssemblyPath);
+            Assert.IsNotNull(result.RuntimeConfigPath);
+            Assert.IsTrue(File.Exists(result.AssemblyPath!));
+            Assert.IsTrue(File.Exists(result.RuntimeAssemblyPath!));
+            Assert.IsTrue(File.Exists(result.RuntimeConfigPath!));
+            Assert.IsTrue(new FileInfo(result.AssemblyPath!).Length > 0);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
