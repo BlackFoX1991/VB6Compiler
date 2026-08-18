@@ -112,6 +112,106 @@ public sealed class BinderTests
         Assert.AreEqual("VB6S0005", model.Diagnostics[0].Code);
     }
 
+    [TestMethod]
+    public void Bind_UsesByRefByDefaultAndPreservesExplicitByVal()
+    {
+        var model = BindSource("""
+            Sub Update(value As Integer, ByVal copy As Integer)
+                value = copy
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var procedure = model.Procedures.Single();
+
+        Assert.AreEqual(ParameterPassingMode.ByRef, procedure.Symbol.Parameters[0].PassingMode);
+        Assert.AreEqual(ParameterPassingMode.ByVal, procedure.Symbol.Parameters[1].PassingMode);
+        Assert.AreEqual(TypeSymbol.Integer, procedure.Symbol.Parameters[0].Type);
+    }
+
+    [TestMethod]
+    public void Bind_BindsByRefVariableArgument()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim x As Integer
+                Call Update(x)
+            End Sub
+
+            Sub Update(value As Integer)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements[1];
+        var argument = invocation.Arguments.Single();
+
+        Assert.AreEqual(ParameterPassingMode.ByRef, argument.Parameter!.PassingMode);
+        Assert.IsInstanceOfType<BoundVariableExpression>(argument.Expression);
+    }
+
+    [TestMethod]
+    public void Bind_ConvertsByValArguments()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Call Consume("10")
+            End Sub
+
+            Sub Consume(ByVal value As Integer)
+                Debug.Print value
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+
+        Assert.IsInstanceOfType<BoundConversionExpression>(invocation.Arguments.Single().Expression);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsInvalidByRefArguments()
+    {
+        var literalModel = BindSource("""
+            Sub Main()
+                Call Update(10)
+            End Sub
+
+            Sub Update(value As Integer)
+            End Sub
+            """);
+        Assert.IsTrue(literalModel.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0007"));
+
+        var mismatchModel = BindSource("""
+            Sub Main()
+                Dim text As String
+                Call Update(text)
+            End Sub
+
+            Sub Update(value As Integer)
+            End Sub
+            """);
+        Assert.IsTrue(mismatchModel.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0008"));
+    }
+
+    [TestMethod]
+    public void Bind_ReportsArgumentCountMismatch()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Call Update()
+            End Sub
+
+            Sub Update(value As Integer)
+            End Sub
+            """);
+
+        Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0006"));
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
