@@ -1,4 +1,4 @@
-using VB6.Lexer;
+using VB6.Parser;
 using VB6.Syntax.Text;
 
 if (args.Length == 0)
@@ -16,12 +16,12 @@ if (!File.Exists(path))
 }
 
 var text = SourceText.From(File.ReadAllText(path), path);
-var result = new Lexer(text).Lex();
+var result = new Parser(text).ParseCompilationUnit();
 
 foreach (var diagnostic in result.Diagnostics)
 {
     Console.Error.WriteLine(diagnostic);
 }
 
-Console.WriteLine($"Loaded {path} ({text.Length} chars, {text.Lines.Length} lines, {result.Tokens.Length} tokens)");
+Console.WriteLine($"Parsed {path} ({text.Length} chars, {text.Lines.Length} lines, {result.Root.Members.Length} members)");
 return result.Diagnostics.Length == 0 ? 0 : 1;
