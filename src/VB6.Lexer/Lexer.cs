@@ -62,8 +62,8 @@ public sealed class Lexer
 
             var span = TextSpan.FromBounds(start, _position);
             var text = _text.ToString(span);
-            var kind = SyntaxFacts.GetKeywordKind(text);
-            return new SyntaxToken(kind, span, text, null, leadingTrivia);
+            var keywordKind = SyntaxFacts.GetKeywordKind(text);
+            return new SyntaxToken(keywordKind, span, text, null, leadingTrivia);
         }
 
         if (char.IsDigit(Current))
@@ -95,7 +95,7 @@ public sealed class Lexer
             return ReadStringToken(start, leadingTrivia);
         }
 
-        var kind = Current switch
+        var tokenKind = Current switch
         {
             '+' => SyntaxKind.PlusToken,
             '-' => SyntaxKind.MinusToken,
@@ -117,11 +117,11 @@ public sealed class Lexer
             _ => SyntaxKind.BadToken
         };
 
-        var tokenWidth = kind is SyntaxKind.LessOrEqualsToken or SyntaxKind.LessGreaterToken or SyntaxKind.GreaterOrEqualsToken ? 2 : 1;
+        var tokenWidth = tokenKind is SyntaxKind.LessOrEqualsToken or SyntaxKind.LessGreaterToken or SyntaxKind.GreaterOrEqualsToken ? 2 : 1;
         _position += tokenWidth;
 
-        var token = CreateToken(kind, start, tokenWidth, null, leadingTrivia);
-        if (kind == SyntaxKind.BadToken)
+        var token = CreateToken(tokenKind, start, tokenWidth, null, leadingTrivia);
+        if (tokenKind == SyntaxKind.BadToken)
         {
             Report("VB6L0001", $"Unexpected character '{token.Text}'.", token.Span);
         }
