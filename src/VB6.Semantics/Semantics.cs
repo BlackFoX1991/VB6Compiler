@@ -11,6 +11,7 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
     public static readonly TypeSymbol Error = new("<error>");
     public static readonly TypeSymbol Integer = new("Integer");
     public static readonly TypeSymbol Long = new("Long");
+    public static readonly TypeSymbol Single = new("Single");
     public static readonly TypeSymbol String = new("String");
     public static readonly TypeSymbol Boolean = new("Boolean");
     public static readonly TypeSymbol Double = new("Double");
@@ -19,6 +20,7 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
     {
         "INTEGER" => Integer,
         "LONG" => Long,
+        "SINGLE" => Single,
         "STRING" => String,
         "BOOLEAN" => Boolean,
         "DOUBLE" => Double,
