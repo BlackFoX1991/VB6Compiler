@@ -78,6 +78,7 @@ public enum BoundNodeKind
     WhileStatement,
     DoStatement,
     ExitLoopStatement,
+    SelectCaseStatement,
     DebugPrintStatement,
     InvocationStatement,
     LiteralExpression,
@@ -131,6 +132,30 @@ public sealed record BoundExitLoopStatement(
     BoundLoopKind LoopKind,
     int TargetLoopId)
     : BoundStatement(BoundNodeKind.ExitLoopStatement);
+
+public abstract record BoundCaseClause;
+
+public sealed record BoundCaseValueClause(BoundExpression Value) : BoundCaseClause;
+
+public sealed record BoundCaseRangeClause(
+    BoundExpression LowerBound,
+    BoundExpression UpperBound) : BoundCaseClause;
+
+public sealed record BoundCaseRelationalClause(
+    SyntaxKind OperatorKind,
+    BoundExpression Value) : BoundCaseClause;
+
+public sealed record BoundCaseElseClause : BoundCaseClause;
+
+public sealed record BoundCaseBlock(
+    ImmutableArray<BoundCaseClause> Clauses,
+    BoundBlockStatement Body);
+
+public sealed record BoundSelectCaseStatement(
+    int SelectId,
+    BoundExpression Expression,
+    ImmutableArray<BoundCaseBlock> Cases)
+    : BoundStatement(BoundNodeKind.SelectCaseStatement);
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
