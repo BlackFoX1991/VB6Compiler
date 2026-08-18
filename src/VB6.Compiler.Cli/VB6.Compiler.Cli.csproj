@@ -6,5 +6,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../VB6.Compiler/VB6.Compiler.csproj" />
+    <ProjectReference Include="../VB6.ProjectSystem/VB6.ProjectSystem.csproj" />
   </ItemGroup>
 </Project>
