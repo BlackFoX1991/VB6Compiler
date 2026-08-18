@@ -131,10 +131,13 @@ public sealed class Parser
             endFunctionKeyword);
     }
 
-    private ImmutableArray<StatementSyntax> ParseProcedureStatements(SyntaxKind endingKeyword)
+    private ImmutableArray<StatementSyntax> ParseProcedureStatements(SyntaxKind endingKeyword) =>
+        ParseStatementsUntil(() => IsEndPair(endingKeyword));
+
+    private ImmutableArray<StatementSyntax> ParseStatementsUntil(Func<bool> isTerminator)
     {
         var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
-        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(endingKeyword))
+        while (Current.Kind != SyntaxKind.EndOfFileToken && !isTerminator())
         {
             if (Current.Kind == SyntaxKind.NewLineToken)
             {
@@ -197,6 +200,10 @@ public sealed class Parser
         {
             SyntaxKind.DimKeyword => ParseDimStatement(),
             SyntaxKind.IfKeyword => ParseIfStatement(),
+            SyntaxKind.ForKeyword => ParseForStatement(),
+            SyntaxKind.WhileKeyword => ParseWhileStatement(),
+            SyntaxKind.DoKeyword => ParseDoStatement(),
+            SyntaxKind.ExitKeyword => ParseExitStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
@@ -220,6 +227,107 @@ public sealed class Parser
         var equalsToken = MatchToken(SyntaxKind.EqualsToken);
         var expression = ParseExpression();
         return new AssignmentStatementSyntax(identifier, equalsToken, expression);
+    }
+
+    private ForStatementSyntax ParseForStatement()
+    {
+        var forKeyword = MatchToken(SyntaxKind.ForKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var equalsToken = MatchToken(SyntaxKind.EqualsToken);
+        var initialValue = ParseExpression();
+        var toKeyword = MatchToken(SyntaxKind.ToKeyword);
+        var limit = ParseExpression();
+
+        SyntaxToken? stepKeyword = null;
+        ExpressionSyntax? step = null;
+        if (Current.Kind == SyntaxKind.StepKeyword)
+        {
+            stepKeyword = NextToken();
+            step = ParseExpression();
+        }
+
+        ConsumeLineTerminator();
+        var statements = ParseStatementsUntil(() => Current.Kind == SyntaxKind.NextKeyword);
+        var nextKeyword = MatchToken(SyntaxKind.NextKeyword);
+        SyntaxToken? nextIdentifier = null;
+        if (Current.Kind == SyntaxKind.IdentifierToken)
+        {
+            nextIdentifier = NextToken();
+        }
+
+        return new ForStatementSyntax(
+            forKeyword,
+            identifier,
+            equalsToken,
+            initialValue,
+            toKeyword,
+            limit,
+            stepKeyword,
+            step,
+            statements,
+            nextKeyword,
+            nextIdentifier);
+    }
+
+    private WhileStatementSyntax ParseWhileStatement()
+    {
+        var whileKeyword = MatchToken(SyntaxKind.WhileKeyword);
+        var condition = ParseExpression();
+        ConsumeLineTerminator();
+        var statements = ParseStatementsUntil(() => Current.Kind == SyntaxKind.WendKeyword);
+        var wendKeyword = MatchToken(SyntaxKind.WendKeyword);
+        return new WhileStatementSyntax(whileKeyword, condition, statements, wendKeyword);
+    }
+
+    private DoStatementSyntax ParseDoStatement()
+    {
+        var doKeyword = MatchToken(SyntaxKind.DoKeyword);
+        SyntaxToken? preConditionKeyword = null;
+        ExpressionSyntax? preCondition = null;
+
+        if (Current.Kind is SyntaxKind.WhileKeyword or SyntaxKind.UntilKeyword)
+        {
+            preConditionKeyword = NextToken();
+            preCondition = ParseExpression();
+        }
+
+        ConsumeLineTerminator();
+        var statements = ParseStatementsUntil(() => Current.Kind == SyntaxKind.LoopKeyword);
+        var loopKeyword = MatchToken(SyntaxKind.LoopKeyword);
+
+        SyntaxToken? postConditionKeyword = null;
+        ExpressionSyntax? postCondition = null;
+        if (Current.Kind is SyntaxKind.WhileKeyword or SyntaxKind.UntilKeyword)
+        {
+            postConditionKeyword = NextToken();
+            postCondition = ParseExpression();
+        }
+
+        return new DoStatementSyntax(
+            doKeyword,
+            preConditionKeyword,
+            preCondition,
+            statements,
+            loopKeyword,
+            postConditionKeyword,
+            postCondition);
+    }
+
+    private ExitStatementSyntax ParseExitStatement()
+    {
+        var exitKeyword = MatchToken(SyntaxKind.ExitKeyword);
+        SyntaxToken targetKeyword;
+
+        if (Current.Kind is SyntaxKind.ForKeyword or SyntaxKind.DoKeyword)
+        {
+            targetKeyword = NextToken();
+        }
+        else
+        {
+            targetKeyword = MatchToken(SyntaxKind.ForKeyword);
+        }
+
+        return new ExitStatementSyntax(exitKeyword, targetKeyword);
     }
 
     private InvocationStatementSyntax ParseInvocationStatement()
@@ -293,33 +401,14 @@ public sealed class Parser
         var condition = ParseExpression();
         var thenKeyword = MatchToken(SyntaxKind.ThenKeyword);
         ConsumeLineTerminator();
-
-        var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
-        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(SyntaxKind.IfKeyword))
-        {
-            if (Current.Kind == SyntaxKind.NewLineToken)
-            {
-                NextToken();
-                continue;
-            }
-
-            var start = _position;
-            statements.Add(ParseStatement());
-            if (_position == start)
-            {
-                NextToken();
-            }
-
-            ConsumeLineTerminator();
-        }
-
+        var statements = ParseStatementsUntil(() => IsEndPair(SyntaxKind.IfKeyword));
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
         var ifEndKeyword = MatchToken(SyntaxKind.IfKeyword);
         return new IfStatementSyntax(
             ifKeyword,
             condition,
             thenKeyword,
-            statements.ToImmutable(),
+            statements,
             endKeyword,
             ifEndKeyword);
     }
