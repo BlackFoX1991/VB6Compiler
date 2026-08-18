@@ -119,8 +119,8 @@ public sealed class CompilationTests
             };
             startInfo.ArgumentList.Add(result.AssemblyPath!);
 
-            using var process = Process.Start(startInfo);
-            Assert.IsNotNull(process);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start the generated application.");
 
             var standardOutput = process.StandardOutput.ReadToEnd();
             var standardError = process.StandardError.ReadToEnd();
