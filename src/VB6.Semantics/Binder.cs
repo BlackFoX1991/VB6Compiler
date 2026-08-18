@@ -384,11 +384,12 @@ public sealed class Binder
 
         if (controlVariable.Type != TypeSymbol.Integer &&
             controlVariable.Type != TypeSymbol.Long &&
+            controlVariable.Type != TypeSymbol.LongLong &&
             controlVariable.Type != TypeSymbol.Error)
         {
             Report(
                 "VB6S0012",
-                $"For control variable '{controlVariable.Name}' must be Integer or Long in the current compiler subset.",
+                $"For control variable '{controlVariable.Name}' must be Integer, Long, or LongLong in the current compiler subset.",
                 syntax.Identifier.Span);
         }
 
@@ -410,7 +411,11 @@ public sealed class Binder
         var step = syntax.Step is null
             ? new BoundLiteralExpression(
                 1L,
-                controlVariable.Type == TypeSymbol.Long ? TypeSymbol.Long : TypeSymbol.Integer)
+                controlVariable.Type == TypeSymbol.LongLong
+                    ? TypeSymbol.LongLong
+                    : controlVariable.Type == TypeSymbol.Long
+                        ? TypeSymbol.Long
+                        : TypeSymbol.Integer)
             : BindConversion(BindExpression(syntax.Step, variables, procedures), controlVariable.Type);
 
         var loopId = _nextLoopId++;
@@ -696,7 +701,9 @@ public sealed class Binder
         var numericValue = Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
         var type = numericValue <= short.MaxValue
             ? TypeSymbol.Integer
-            : TypeSymbol.Long;
+            : numericValue <= int.MaxValue
+                ? TypeSymbol.Long
+                : TypeSymbol.LongLong;
         return new BoundLiteralExpression(numericValue, type);
     }
 
@@ -864,11 +871,13 @@ public sealed class Binder
             case SyntaxKind.BackslashToken:
             case SyntaxKind.ModKeyword:
             {
-                var resultType = left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
-                    ? TypeSymbol.Long
-                    : left.Type == TypeSymbol.Byte && right.Type == TypeSymbol.Byte
-                        ? TypeSymbol.Byte
-                        : TypeSymbol.Integer;
+                var resultType = left.Type == TypeSymbol.LongLong || right.Type == TypeSymbol.LongLong
+                    ? TypeSymbol.LongLong
+                    : left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
+                        ? TypeSymbol.Long
+                        : left.Type == TypeSymbol.Byte && right.Type == TypeSymbol.Byte
+                            ? TypeSymbol.Byte
+                            : TypeSymbol.Integer;
                 left = BindConversion(left, resultType);
                 right = BindConversion(right, resultType);
                 return new BoundBinaryExpression(
@@ -885,7 +894,7 @@ public sealed class Binder
 
     private static bool IsNumericType(TypeSymbol type) =>
         type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long ||
-        type == TypeSymbol.Single || type == TypeSymbol.Double;
+        type == TypeSymbol.LongLong || type == TypeSymbol.Single || type == TypeSymbol.Double;
 
     private static bool IsSingleDivisionOperand(TypeSymbol type) =>
         type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Single;
@@ -897,8 +906,8 @@ public sealed class Binder
             return TypeSymbol.Double;
         }
 
-        if ((left == TypeSymbol.Single && right == TypeSymbol.Long) ||
-            (left == TypeSymbol.Long && right == TypeSymbol.Single))
+        if ((left == TypeSymbol.Single && (right == TypeSymbol.Long || right == TypeSymbol.LongLong)) ||
+            (right == TypeSymbol.Single && (left == TypeSymbol.Long || left == TypeSymbol.LongLong)))
         {
             return TypeSymbol.Double;
         }
@@ -906,6 +915,11 @@ public sealed class Binder
         if (left == TypeSymbol.Single || right == TypeSymbol.Single)
         {
             return TypeSymbol.Single;
+        }
+
+        if (left == TypeSymbol.LongLong || right == TypeSymbol.LongLong)
+        {
+            return TypeSymbol.LongLong;
         }
 
         if (left == TypeSymbol.Long || right == TypeSymbol.Long)
