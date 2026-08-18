@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -76,28 +78,14 @@ public sealed class CompilationTests
     [TestMethod]
     public void EmitManagedApplication_WritesRequiredFiles()
     {
-        var compilation = VBCompilation.Create("""
-            Sub Main()
-                Dim x As Integer
-                x = 10
-                Debug.Print x
-            End Sub
-            """, "Module1.bas");
-
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerTests", Guid.NewGuid().ToString("N"));
+        var compilation = CreatePrintableCompilation();
+        var directory = CreateTemporaryDirectory();
         var assemblyPath = Path.Combine(directory, "GeneratedProgram.dll");
 
         try
         {
             var result = compilation.EmitManagedApplication(assemblyPath);
-            var backendDiagnostics = result.BackendResult is null
-                ? string.Empty
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}"));
-
-            Assert.IsTrue(result.Success, backendDiagnostics);
-            Assert.IsNotNull(result.AssemblyPath);
-            Assert.IsNotNull(result.RuntimeAssemblyPath);
-            Assert.IsNotNull(result.RuntimeConfigPath);
+            AssertSuccessfulEmit(result);
             Assert.IsTrue(File.Exists(result.AssemblyPath!));
             Assert.IsTrue(File.Exists(result.RuntimeAssemblyPath!));
             Assert.IsTrue(File.Exists(result.RuntimeConfigPath!));
@@ -105,10 +93,78 @@ public sealed class CompilationTests
         }
         finally
         {
-            if (Directory.Exists(directory))
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesGeneratedProgram()
+    {
+        var compilation = CreatePrintableCompilation();
+        var directory = CreateTemporaryDirectory();
+        var assemblyPath = Path.Combine(directory, "GeneratedProgram.dll");
+
+        try
+        {
+            var result = compilation.EmitManagedApplication(assemblyPath);
+            AssertSuccessfulEmit(result);
+
+            var startInfo = new ProcessStartInfo("dotnet")
             {
-                Directory.Delete(directory, recursive: true);
-            }
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(result.AssemblyPath!);
+
+            using var process = Process.Start(startInfo);
+            Assert.IsNotNull(process);
+
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.AreEqual("10", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    private static VBCompilation CreatePrintableCompilation() => VBCompilation.Create("""
+        Sub Main()
+            Dim x As Integer
+            x = 10
+            Debug.Print x
+        End Sub
+        """, "Module1.bas");
+
+    private static string CreateTemporaryDirectory() =>
+        Path.Combine(Path.GetTempPath(), "VB6CompilerTests", Guid.NewGuid().ToString("N"));
+
+    private static void AssertSuccessfulEmit(ManagedApplicationEmitResult result)
+    {
+        var backendDiagnostics = result.BackendResult is null
+            ? string.Empty
+            : string.Join(
+                Environment.NewLine,
+                result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}"));
+
+        Assert.IsTrue(result.Success, backendDiagnostics);
+        Assert.IsNotNull(result.AssemblyPath);
+        Assert.IsNotNull(result.RuntimeAssemblyPath);
+        Assert.IsNotNull(result.RuntimeConfigPath);
+    }
+
+    private static void DeleteDirectory(string directory)
+    {
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, recursive: true);
         }
     }
 }
