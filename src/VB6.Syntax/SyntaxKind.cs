@@ -31,6 +31,7 @@ public enum SyntaxKind
     OptionKeyword,
     ExplicitKeyword,
     SubKeyword,
+    FunctionKeyword,
     EndKeyword,
     DimKeyword,
     AsKeyword,
@@ -46,6 +47,7 @@ public enum SyntaxKind
     CompilationUnit,
     OptionExplicitStatement,
     SubDeclaration,
+    FunctionDeclaration,
     Parameter,
     DimStatement,
     AssignmentStatement,
@@ -55,6 +57,7 @@ public enum SyntaxKind
     SkippedStatement,
     LiteralExpression,
     NameExpression,
+    InvocationExpression,
     UnaryExpression,
     BinaryExpression,
     ParenthesizedExpression
