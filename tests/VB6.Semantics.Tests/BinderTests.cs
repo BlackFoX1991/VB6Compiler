@@ -1,5 +1,6 @@
 using VB6.Parser;
 using VB6.Syntax.Text;
+using ParserType = VB6.Parser.Parser;
 
 namespace VB6.Semantics.Tests;
 
@@ -80,7 +81,7 @@ public sealed class BinderTests
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
-        var parseResult = new Parser(text).ParseCompilationUnit();
+        var parseResult = new ParserType(text).ParseCompilationUnit();
         Assert.AreEqual(0, parseResult.Diagnostics.Length);
 
         return new Binder(text).BindCompilationUnit(parseResult.Root);
