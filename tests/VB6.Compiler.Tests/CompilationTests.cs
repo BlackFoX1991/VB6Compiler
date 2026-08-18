@@ -69,7 +69,7 @@ public sealed class CompilationTests
 
         Assert.IsTrue(generation.Success);
         Assert.IsNotNull(generation.Source);
-        StringAssert.Contains(generation.Source, "public static void Main()");
-        StringAssert.Contains(generation.Source, "VBConversions.CInt(10L)");
+        StringAssert.Contains(generation.Source!, "public static void Main()");
+        StringAssert.Contains(generation.Source!, "VBConversions.CInt(10L)");
     }
 }
