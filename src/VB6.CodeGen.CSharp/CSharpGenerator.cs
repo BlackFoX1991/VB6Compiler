@@ -100,6 +100,27 @@ public sealed class CSharpGenerator
                 WriteLine("}");
                 break;
 
+            case BoundForStatement forStatement:
+                EmitForStatement(forStatement);
+                break;
+
+            case BoundWhileStatement whileStatement:
+                WriteLine($"while ({EmitExpression(whileStatement.Condition)})");
+                WriteLine("{");
+                _indent++;
+                EmitBlock(whileStatement.Body);
+                _indent--;
+                WriteLine("}");
+                break;
+
+            case BoundDoStatement doStatement:
+                EmitDoStatement(doStatement);
+                break;
+
+            case BoundExitLoopStatement exitLoop:
+                WriteLine($"goto {GetLoopExitLabel(exitLoop.TargetLoopId)};");
+                break;
+
             case BoundDebugPrintStatement debugPrint:
                 WriteLine($"VBDebug.Print({EmitExpression(debugPrint.Expression)});");
                 break;
@@ -109,6 +130,77 @@ public sealed class CSharpGenerator
                 break;
         }
     }
+
+    private void EmitForStatement(BoundForStatement statement)
+    {
+        var variable = GetVariableName(statement.ControlVariable);
+        var typeName = GetTypeName(statement.ControlVariable.Type);
+        var limitName = $"__vb6_for_limit_{statement.LoopId}";
+        var stepName = $"__vb6_for_step_{statement.LoopId}";
+
+        WriteLine($"{variable} = {EmitExpression(statement.InitialValue)};");
+        WriteLine($"{typeName} {limitName} = {EmitExpression(statement.Limit)};");
+        WriteLine($"{typeName} {stepName} = {EmitExpression(statement.Step)};");
+        WriteLine($"while ({stepName} >= 0 ? VBOperators.LessOrEqual({variable}, {limitName}) : VBOperators.GreaterOrEqual({variable}, {limitName}))");
+        WriteLine("{");
+        _indent++;
+        EmitBlock(statement.Body);
+        WriteLine($"{variable} = VBOperators.AddInteger({variable}, {stepName});");
+        _indent--;
+        WriteLine("}");
+        EmitLoopExitLabel(statement.LoopId);
+    }
+
+    private void EmitDoStatement(BoundDoStatement statement)
+    {
+        if (statement.Condition is null)
+        {
+            WriteLine("while (true)");
+            WriteLine("{");
+            _indent++;
+            EmitBlock(statement.Body);
+            _indent--;
+            WriteLine("}");
+            EmitLoopExitLabel(statement.LoopId);
+            return;
+        }
+
+        var condition = EmitLoopCondition(statement.Condition, statement.IsUntil);
+        if (statement.ConditionIsPostTest)
+        {
+            WriteLine("do");
+            WriteLine("{");
+            _indent++;
+            EmitBlock(statement.Body);
+            _indent--;
+            WriteLine($"}} while ({condition});");
+        }
+        else
+        {
+            WriteLine($"while ({condition})");
+            WriteLine("{");
+            _indent++;
+            EmitBlock(statement.Body);
+            _indent--;
+            WriteLine("}");
+        }
+
+        EmitLoopExitLabel(statement.LoopId);
+    }
+
+    private string EmitLoopCondition(BoundExpression condition, bool isUntil)
+    {
+        var expression = EmitExpression(condition);
+        return isUntil ? $"!({expression})" : expression;
+    }
+
+    private void EmitLoopExitLabel(int loopId)
+    {
+        WriteLine($"{GetLoopExitLabel(loopId)}:");
+        WriteLine(";");
+    }
+
+    private static string GetLoopExitLabel(int loopId) => $"__vb6_loop_exit_{loopId}";
 
     private string EmitArguments(IEnumerable<BoundArgument> arguments) =>
         string.Join(", ", arguments.Select(EmitArgument));
