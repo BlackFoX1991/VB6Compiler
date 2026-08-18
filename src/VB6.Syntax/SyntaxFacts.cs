@@ -19,6 +19,16 @@ public static class SyntaxFacts
         "CALL" => SyntaxKind.CallKeyword,
         "BYREF" => SyntaxKind.ByRefKeyword,
         "BYVAL" => SyntaxKind.ByValKeyword,
+        "FOR" => SyntaxKind.ForKeyword,
+        "TO" => SyntaxKind.ToKeyword,
+        "STEP" => SyntaxKind.StepKeyword,
+        "NEXT" => SyntaxKind.NextKeyword,
+        "WHILE" => SyntaxKind.WhileKeyword,
+        "WEND" => SyntaxKind.WendKeyword,
+        "DO" => SyntaxKind.DoKeyword,
+        "LOOP" => SyntaxKind.LoopKeyword,
+        "UNTIL" => SyntaxKind.UntilKeyword,
+        "EXIT" => SyntaxKind.ExitKeyword,
         _ => SyntaxKind.IdentifierToken
     };
 }
