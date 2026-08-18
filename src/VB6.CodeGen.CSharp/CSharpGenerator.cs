@@ -360,6 +360,12 @@ public sealed class CSharpGenerator
             return $"VBConversions.CLngLng({value.ToString(CultureInfo.InvariantCulture)}L)";
         }
 
+        if (literal.LiteralType == TypeSymbol.Currency)
+        {
+            var value = Convert.ToDecimal(literal.Value, CultureInfo.InvariantCulture);
+            return $"VBConversions.CCur({value.ToString(CultureInfo.InvariantCulture)}m)";
+        }
+
         if (literal.LiteralType == TypeSymbol.Single)
         {
             var value = Convert.ToSingle(literal.Value, CultureInfo.InvariantCulture);
