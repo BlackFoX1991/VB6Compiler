@@ -382,11 +382,13 @@ public sealed class Binder
             controlVariable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
         }
 
-        if (controlVariable.Type != TypeSymbol.Integer && controlVariable.Type != TypeSymbol.Error)
+        if (controlVariable.Type != TypeSymbol.Integer &&
+            controlVariable.Type != TypeSymbol.Long &&
+            controlVariable.Type != TypeSymbol.Error)
         {
             Report(
                 "VB6S0012",
-                $"For control variable '{controlVariable.Name}' must be Integer in the current compiler subset.",
+                $"For control variable '{controlVariable.Name}' must be Integer or Long in the current compiler subset.",
                 syntax.Identifier.Span);
         }
 
@@ -406,7 +408,9 @@ public sealed class Binder
             BindExpression(syntax.Limit, variables, procedures),
             controlVariable.Type);
         var step = syntax.Step is null
-            ? new BoundLiteralExpression(1L, TypeSymbol.Integer)
+            ? new BoundLiteralExpression(
+                1L,
+                controlVariable.Type == TypeSymbol.Long ? TypeSymbol.Long : TypeSymbol.Integer)
             : BindConversion(BindExpression(syntax.Step, variables, procedures), controlVariable.Type);
 
         var loopId = _nextLoopId++;
@@ -674,8 +678,7 @@ public sealed class Binder
     {
         return syntax.LiteralToken.Kind switch
         {
-            SyntaxKind.IntegerLiteralToken =>
-                new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Integer),
+            SyntaxKind.IntegerLiteralToken => BindIntegerLiteral(syntax.LiteralToken.Value),
             SyntaxKind.StringLiteralToken =>
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.String),
             SyntaxKind.TrueKeyword =>
@@ -684,6 +687,15 @@ public sealed class Binder
                 new BoundLiteralExpression(false, TypeSymbol.Boolean),
             _ => new BoundErrorExpression()
         };
+    }
+
+    private static BoundExpression BindIntegerLiteral(object? value)
+    {
+        var numericValue = Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
+        var type = numericValue <= short.MaxValue
+            ? TypeSymbol.Integer
+            : TypeSymbol.Long;
+        return new BoundLiteralExpression(numericValue, type);
     }
 
     private BoundExpression BindName(
@@ -727,6 +739,11 @@ public sealed class Binder
             return new BoundUnaryExpression(SyntaxKind.NotKeyword, operand, TypeSymbol.Boolean);
         }
 
+        if (IsNumericType(operand.Type))
+        {
+            return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, operand.Type);
+        }
+
         operand = BindConversion(operand, TypeSymbol.Integer);
         return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, TypeSymbol.Integer);
     }
@@ -752,7 +769,13 @@ public sealed class Binder
             case SyntaxKind.LessOrEqualsToken:
             case SyntaxKind.GreaterToken:
             case SyntaxKind.GreaterOrEqualsToken:
-                if (left.Type != right.Type)
+                if (IsNumericType(left.Type) && IsNumericType(right.Type))
+                {
+                    var comparisonType = GetCommonNumericType(left.Type, right.Type);
+                    left = BindConversion(left, comparisonType);
+                    right = BindConversion(right, comparisonType);
+                }
+                else if (left.Type != right.Type)
                 {
                     right = BindConversion(right, left.Type);
                 }
@@ -812,19 +835,55 @@ public sealed class Binder
             case SyntaxKind.PlusToken:
             case SyntaxKind.MinusToken:
             case SyntaxKind.StarToken:
-            case SyntaxKind.BackslashToken:
-            case SyntaxKind.ModKeyword:
-                left = BindConversion(left, TypeSymbol.Integer);
-                right = BindConversion(right, TypeSymbol.Integer);
+            {
+                var resultType = IsNumericType(left.Type) && IsNumericType(right.Type)
+                    ? GetCommonNumericType(left.Type, right.Type)
+                    : TypeSymbol.Integer;
+                left = BindConversion(left, resultType);
+                right = BindConversion(right, resultType);
                 return new BoundBinaryExpression(
                     left,
                     syntax.OperatorToken.Kind,
                     right,
-                    TypeSymbol.Integer);
+                    resultType);
+            }
+
+            case SyntaxKind.BackslashToken:
+            case SyntaxKind.ModKeyword:
+            {
+                var resultType = left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
+                    ? TypeSymbol.Long
+                    : TypeSymbol.Integer;
+                left = BindConversion(left, resultType);
+                right = BindConversion(right, resultType);
+                return new BoundBinaryExpression(
+                    left,
+                    syntax.OperatorToken.Kind,
+                    right,
+                    resultType);
+            }
 
             default:
                 return new BoundErrorExpression();
         }
+    }
+
+    private static bool IsNumericType(TypeSymbol type) =>
+        type == TypeSymbol.Integer || type == TypeSymbol.Long || type == TypeSymbol.Double;
+
+    private static TypeSymbol GetCommonNumericType(TypeSymbol left, TypeSymbol right)
+    {
+        if (left == TypeSymbol.Double || right == TypeSymbol.Double)
+        {
+            return TypeSymbol.Double;
+        }
+
+        if (left == TypeSymbol.Long || right == TypeSymbol.Long)
+        {
+            return TypeSymbol.Long;
+        }
+
+        return TypeSymbol.Integer;
     }
 
     private static BoundExpression BindConversion(BoundExpression expression, TypeSymbol targetType)
