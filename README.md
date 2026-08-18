@@ -6,126 +6,82 @@ The long-term goal is to compile existing VB6 projects to modern .NET executable
 
 ## Current status
 
-The first end-to-end compiler slice is under active development.
+The first end-to-end compiler path is working and is being expanded feature by feature.
 
 Implemented so far:
 
 - .NET 10 solution and command-line compiler entry point
 - source text and diagnostic infrastructure
 - case-insensitive VB6 lexer with trivia preservation
-- parser for the current VB6 language subset
-- Sub calls using bare-call and `Call ...(...)` syntax with argument lists
-- Sub parameters with explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` behavior
-- typed `Function ... As Type` declarations with parameters and `End Function`
-- Function invocation expressions such as `result = Add(5, 7)`
+- fault-tolerant parser for the current VB6 language subset
+- `Sub` and typed `Function` declarations and calls
+- explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` parameters
 - VB6 Function return semantics through assignment to the function name
-- `For ... To ... Step ... Next` loops with positive and negative steps
+- cross-module Sub and Function resolution in `.vbp` projects
+- `Dim` locals for the current primitive type subset
+- 16-bit VB6 `Integer` and 32-bit VB6 `Long`
+- Integer-to-Long numeric promotion without incorrectly promoting pure Integer expressions from their assignment target
+- `True` and `False`, including VB numeric `True = -1` conversion behavior
+- logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp`
+- arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
+- string concatenation with `&`
+- VB-oriented operator precedence for the implemented expression subset
+- `If`, multiline `ElseIf` / `Else`, and single-line `If ... Then ... Else`
+- `For ... To ... Step ... Next` with Integer and Long control variables
 - `While ... Wend`
 - pre-test and post-test `Do While`, `Do Until`, `Loop While`, and `Loop Until`
 - unconditional `Do ... Loop`
 - `Exit For` and `Exit Do` with bound loop targets for nested-loop correctness
 - `Select Case` with value lists, ranges, relational clauses, and `Case Else`
-- semantic binder with procedure, parameter, return-value, local-variable and type symbols, explicit conversion nodes, invocation binding, loop nodes, and Select Case nodes
-- ByRef argument validation for variable arguments and exact type matching in the current compiler subset
-- ByVal argument conversion through the VB6 conversion layer
+- semantic binder with procedure, parameter, return-value, local-variable and primitive type symbols
+- explicit conversion nodes and typed arithmetic promotion
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
-- project-wide Sub and Function declaration with case-insensitive cross-module symbol resolution
-- project-level duplicate procedure detection across standard modules
-- primitive VB6 runtime helpers for conversions, integer arithmetic, comparisons, concatenation, and `Debug.Print`
-- C# source generation from the bound program, including `ref` parameters, Function return slots, invocation expressions, loops, and Select Case
+- primitive `VB6.Runtime` conversion, checked Integer/Long arithmetic, comparisons, Boolean operations, concatenation, and `Debug.Print`
+- C# source generation from the bound program
 - Roslyn-based managed assembly emission
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
-- `.vbp` project loading for common project metadata, modules, classes, forms, controls, references, and components
+- `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
 - unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
 - Codespaces development configuration
-- Windows GitHub Actions build and test workflow
+- Windows GitHub Actions restore/build/test workflow
 
-Windows CI run #326 validates the current Select Case implementation on .NET 10. The end-to-end project test compiles multiple standard modules into one assembly, executes loops and Select Case, applies ByRef/ByVal semantics, calls a Function from another module, executes the generated assembly, and verifies the final output.
+Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated managed application whose Long arithmetic and Long `For` loop produce `60003`.
 
-## Current acceptance program
+`Mod` is also end-to-end verified by Windows CI run #394, including parser precedence, binding, runtime behavior, C# generation, and execution of a generated application.
 
-Single-file source:
+## Compatibility examples
 
-```vb
-Option Explicit
-
-Sub Main()
-    Dim x As Integer
-    x = 10
-
-    If x > 5 Then
-        Debug.Print x
-    End If
-End Sub
-```
-
-Multi-module project:
+The compiler keeps VB6 `Integer` as a signed 16-bit type and `Long` as a signed 32-bit type:
 
 ```vb
-' MainModule.bas
 Sub Main()
-    Dim x As Integer
-    Dim i As Integer
-    x = 0
+    Dim value As Long
+    Dim i As Long
 
-    For i = 1 To 5
-        x = x + 1
-        If i = 3 Then
-            Exit For
-        End If
+    value = 40000 + 20000
+
+    For i = 1 To 3
+        value = value + 1
     Next i
 
-    While x < 5
-        x = x + 1
-    Wend
-
-    Do
-        x = x + 1
-        If x = 6 Then
-            Exit Do
-        End If
-    Loop
-
-    Do
-        x = x + 1
-    Loop Until x = 7
-
-    Select Case x
-        Case 1 To 6
-            x = 100
-        Case 7, 8
-            x = x
-        Case Is > 8
-            x = 200
-        Case Else
-            x = 300
-    End Select
-
-    Call Update(x)
-    Call Observe(x)
-    x = Add(x, 2)
-    Debug.Print x
+    Debug.Print value
 End Sub
 ```
+
+The generated application prints `60003`.
+
+Pure Integer expressions are intentionally not promoted merely because the destination is Long. For example, the multiplication in the following statement remains Integer arithmetic before the assignment conversion:
 
 ```vb
-' HelperModule.bas
-Sub Update(value As Integer)
-    value = 10
-End Sub
-
-Sub Observe(ByVal value As Integer)
-    value = 20
-End Sub
-
-Function Add(ByVal left As Integer, ByVal right As Integer) As Integer
-    Add = left + right
-End Function
+Dim value As Long
+value = 2000 * 365
 ```
 
-The output is `12`. The structured control-flow block exercises loops and Select Case, `Update` receives `value` ByRef by default and changes the caller to 10, `Observe` receives a ByVal copy, and the cross-module `Add` Function returns 12.
+That distinction is important for preserving VB6 overflow behavior.
+
+The current structured-control-flow and cross-module acceptance project also exercises loops, `Select Case`, extended `If`, Boolean expressions, default ByRef, explicit ByVal, and typed Function calls.
 
 ## Command line
 
@@ -173,14 +129,16 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the first ByRef/ByVal parameter subset, typed Function calls, structured loops, and Select Case. `For` currently supports Integer control variables; broader VB6 numeric and Variant loop semantics are a later compatibility pass. The current ByRef implementation requires a variable argument with an exactly matching type; VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Integer, and Long.
+
+The current ByRef implementation requires a variable argument with an exactly matching type. VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
 ## Next milestones
 
-- add `ElseIf`, `Else`, and single-line `If`
-- add additional structured statements and branch forms
+- add `Single` and complete the first floating-point literal/promotion slice
+- broaden `Double` arithmetic compatibility
+- add `Byte`, followed by `Currency`, `Date`, and the first `Variant` representation
 - expand ByRef coercion and parenthesized-argument edge cases
 - introduce a dedicated lowered IR and control flow representation
-- expand the VB6 type system and runtime behavior
 - add class modules
 - begin `.frm` project item parsing
