@@ -362,23 +362,11 @@ public sealed class Binder
             switch (statement)
             {
                 case DimStatementSyntax dim:
-                    foreach (var declarator in dim.Declarators)
-                    {
-                        var type = ResolveVariableDeclaratorType(declarator);
-                        var variable = new LocalVariableSymbol(declarator.Identifier.Text, type);
-                        if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
-                        {
-                            Report(
-                                "VB6S0002",
-                                $"Local variable '{variable.Name}' is already declared.",
-                                declarator.Identifier.Span);
-                            continue;
-                        }
-
-                        locals.Add(variable.Name, variable);
-                    }
+                    PredeclareLocalDeclarators(dim.Declarators, locals, variables);
                     break;
-
+                case StaticStatementSyntax staticStatement:
+                    PredeclareLocalDeclarators(staticStatement.Declarators, locals, variables);
+                    break;
                 case IfStatementSyntax ifStatement:
                     PredeclareLocals(ifStatement.Statements, locals, variables);
                     foreach (var elseIfClause in ifStatement.ElseIfClauses)
@@ -406,6 +394,28 @@ public sealed class Binder
         }
     }
 
+    private void PredeclareLocalDeclarators(
+        ImmutableArray<VariableDeclaratorSyntax> declarators,
+        Dictionary<string, LocalVariableSymbol> locals,
+        Dictionary<string, VariableSymbol> variables)
+    {
+        foreach (var declarator in declarators)
+        {
+            var type = ResolveVariableDeclaratorType(declarator);
+            var variable = new LocalVariableSymbol(declarator.Identifier.Text, type);
+            if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
+            {
+                Report(
+                    "VB6S0002",
+                    $"Local variable '{variable.Name}' is already declared.",
+                    declarator.Identifier.Span);
+                continue;
+            }
+
+            locals.Add(variable.Name, variable);
+        }
+    }
+
     private BoundBlockStatement BindStatements(
         ImmutableArray<StatementSyntax> statements,
         Dictionary<string, VariableSymbol> variables,
@@ -421,6 +431,15 @@ public sealed class Binder
                 {
                     bound.Add(BindVariableDeclaration(declarator, variables));
                 }
+                continue;
+            }
+
+            if (statement is StaticStatementSyntax staticStatement)
+            {
+                Report(
+                    "VB6S0021",
+                    "Static local lifetime semantics are not implemented yet.",
+                    staticStatement.StaticKeyword.Span);
                 continue;
             }
 
@@ -1104,7 +1123,7 @@ public sealed class Binder
         IsNumericType(type) || type == TypeSymbol.Boolean;
 
     /// <summary>
-    /// Result type of the VB6 operators that work on whole numbers: '\', 'Mod' and the bitwise
+    /// Result type of the VB6 operators that work on whole numbers: '\\', 'Mod' and the bitwise
     /// operators. Floating-point and Currency operands are rounded to Long first.
     /// </summary>
     private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>
