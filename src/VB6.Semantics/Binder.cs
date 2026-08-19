@@ -213,11 +213,14 @@ public sealed class Binder
             {
                 case ModuleVariableDeclarationSyntax declaration:
                 {
-                    var type = ResolveDeclaredType(declaration.TypeToken);
-                    var symbol = new ModuleVariableSymbol(declaration.Identifier.Text, type);
-                    if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
+                    foreach (var declarator in declaration.Declarators)
                     {
-                        bound.Add(new BoundModuleVariable(symbol, null, IsConstant: false));
+                        var type = ResolveVariableDeclaratorType(declarator);
+                        var symbol = new ModuleVariableSymbol(declarator.Identifier.Text, type);
+                        if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
+                        {
+                            bound.Add(new BoundModuleVariable(symbol, null, IsConstant: false));
+                        }
                     }
 
                     break;
@@ -250,6 +253,20 @@ public sealed class Binder
         }
 
         return (scope, bound.ToImmutable());
+    }
+
+    private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
+    {
+        if (declarator.TypeToken is not null)
+        {
+            return ResolveDeclaredType(declarator.TypeToken);
+        }
+
+        Report(
+            "VB6S0020",
+            $"Variable '{declarator.Identifier.Text}' has implicit Variant type, which is not supported yet.",
+            declarator.Identifier.Span);
+        return TypeSymbol.Error;
     }
 
     private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken)
@@ -345,30 +362,22 @@ public sealed class Binder
             switch (statement)
             {
                 case DimStatementSyntax dim:
-                {
-                    var type = TypeSymbol.Lookup(dim.TypeToken.Text);
-                    if (type is null)
+                    foreach (var declarator in dim.Declarators)
                     {
-                        Report(
-                            "VB6S0003",
-                            $"Unknown type '{dim.TypeToken.Text}'.",
-                            dim.TypeToken.Span);
-                        type = TypeSymbol.Error;
-                    }
+                        var type = ResolveVariableDeclaratorType(declarator);
+                        var variable = new LocalVariableSymbol(declarator.Identifier.Text, type);
+                        if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
+                        {
+                            Report(
+                                "VB6S0002",
+                                $"Local variable '{variable.Name}' is already declared.",
+                                declarator.Identifier.Span);
+                            continue;
+                        }
 
-                    var variable = new LocalVariableSymbol(dim.Identifier.Text, type);
-                    if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
-                    {
-                        Report(
-                            "VB6S0002",
-                            $"Local variable '{variable.Name}' is already declared.",
-                            dim.Identifier.Span);
-                        break;
+                        locals.Add(variable.Name, variable);
                     }
-
-                    locals.Add(variable.Name, variable);
                     break;
-                }
 
                 case IfStatementSyntax ifStatement:
                     PredeclareLocals(ifStatement.Statements, locals, variables);
@@ -406,6 +415,15 @@ public sealed class Binder
 
         foreach (var statement in statements)
         {
+            if (statement is DimStatementSyntax dim)
+            {
+                foreach (var declarator in dim.Declarators)
+                {
+                    bound.Add(BindVariableDeclaration(declarator, variables));
+                }
+                continue;
+            }
+
             var boundStatement = BindStatement(statement, variables, procedures);
             if (boundStatement is not null)
             {
@@ -423,7 +441,6 @@ public sealed class Binder
     {
         return statement switch
         {
-            DimStatementSyntax dim => BindVariableDeclaration(dim, variables),
             AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
             ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
@@ -440,7 +457,7 @@ public sealed class Binder
     }
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
-        DimStatementSyntax syntax,
+        VariableDeclaratorSyntax syntax,
         Dictionary<string, VariableSymbol> variables)
     {
         if (!variables.TryGetValue(syntax.Identifier.Text, out var variable) ||
