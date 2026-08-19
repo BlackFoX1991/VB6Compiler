@@ -23,6 +23,16 @@ public sealed class CSharpGenerator
         WriteLine("{");
         _indent++;
 
+        if (!model.ModuleVariables.IsDefaultOrEmpty)
+        {
+            foreach (var variable in model.ModuleVariables)
+            {
+                WriteLine($"private static {GetTypeName(variable.Type)} {GetVariableName(variable)} = {GetDefaultValue(variable.Type)};");
+            }
+
+            WriteLine();
+        }
+
         foreach (var procedure in model.Procedures)
         {
             EmitProcedure(procedure);
