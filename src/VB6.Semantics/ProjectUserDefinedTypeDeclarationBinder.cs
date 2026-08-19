@@ -46,7 +46,10 @@ public sealed class ProjectUserDefinedTypeDeclarationBinder
         {
             var result = new UserDefinedTypeDeclarationBinder(module.Text, publicTypes).Bind(module.Root);
             diagnostics.AddRange(result.Diagnostics);
-            moduleResults.Add(new UserDefinedTypeModuleResult(module, result.Types));
+            moduleResults.Add(new UserDefinedTypeModuleResult(
+                module,
+                result.Types,
+                result.Diagnostics));
         }
 
         return new ProjectUserDefinedTypeDeclarationResult(
@@ -62,7 +65,8 @@ public sealed record UserDefinedTypeModuleInput(
 
 public sealed record UserDefinedTypeModuleResult(
     UserDefinedTypeModuleInput Module,
-    ImmutableDictionary<string, UserDefinedTypeSymbol> Types);
+    ImmutableDictionary<string, UserDefinedTypeSymbol> Types,
+    ImmutableArray<Diagnostic> Diagnostics);
 
 public sealed record ProjectUserDefinedTypeDeclarationResult(
     ImmutableDictionary<string, UserDefinedTypeSymbol> PublicTypes,
