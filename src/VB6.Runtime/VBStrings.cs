@@ -25,4 +25,29 @@ public static class VBStrings
         _ => throw new InvalidCastException(
             $"CLR value of type '{value.GetType().FullName}' is not supported by the VB6 Len intrinsic.")
     };
+
+    /// <summary>
+    /// Implements the three-argument VB6 Mid/Mid$ intrinsic. VB6 positions are one-based.
+    /// A start beyond the end of the string returns an empty string and length is clipped to the
+    /// remaining characters.
+    /// </summary>
+    public static string Mid(string value, int start, int length)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (start < 1 || length < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                start < 1 ? nameof(start) : nameof(length),
+                "VB6 Mid requires a one-based start position and a non-negative length.");
+        }
+
+        if (start > value.Length)
+        {
+            return string.Empty;
+        }
+
+        var zeroBasedStart = start - 1;
+        var available = value.Length - zeroBasedStart;
+        return value.Substring(zeroBasedStart, Math.Min(length, available));
+    }
 }
