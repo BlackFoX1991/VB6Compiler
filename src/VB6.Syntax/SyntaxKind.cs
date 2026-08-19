@@ -61,6 +61,7 @@ public enum SyntaxKind
     EqvKeyword,
     ImpKeyword,
     ModKeyword,
+    LikeKeyword,
     DebugKeyword,
     PrintKeyword,
     CallKeyword,
