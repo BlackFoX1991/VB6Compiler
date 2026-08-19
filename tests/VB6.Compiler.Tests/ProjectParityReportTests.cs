@@ -123,13 +123,13 @@ public sealed class ProjectParityReportTests
                 Module=modMixed; modMixed.bas
                 """);
 
-            // The '?' produces a lexer diagnostic late in the file. Lexer diagnostics are
-            // collected before parser diagnostics, so only span ordering yields the real blocker.
+            // 'Then' on its own is a parser error early in the file; the '?' is a lexer error
+            // later on. Lexer diagnostics are collected before parser diagnostics, so only
+            // ordering by span yields the construct that actually derailed the file.
             File.WriteAllText(Path.Combine(directory, "modMixed.bas"), """
-                Attribute VB_Name = "modMixed"
                 Sub Main()
-                    Dim value As Integer
-                    value = 1 ?
+                    Then
+                    Debug.Print 1 ?
                 End Sub
                 """);
 
@@ -186,10 +186,11 @@ public sealed class ProjectParityReportTests
         End Sub
         """;
 
+    // '?' is never valid VB6, so this module stays unsupported no matter how far the
+    // compiler progresses.
     private const string UnsupportedModule = """
-        Attribute VB_Name = "modBroken"
         Sub Main()
-            Debug.Print 1
+            Debug.Print 1 ?
         End Sub
         """;
 
