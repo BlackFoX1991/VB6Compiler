@@ -662,6 +662,8 @@ public sealed class CSharpGenerator
             BoundVariableExpression variable => GetVariableName(variable.Variable),
             BoundArrayAccessExpression arrayAccess =>
                 $"{GetVariableName(arrayAccess.Array)}[{EmitIndices(arrayAccess.Indices)}]",
+            BoundElementAccessExpression elementAccess =>
+                $"{EmitExpression(elementAccess.Receiver)}[{EmitIndices(elementAccess.Indices)}]",
             BoundArrayBoundExpression arrayBound =>
                 $"{GetVariableName(arrayBound.Array)}.{(arrayBound.IsUpperBound ? "UBound" : "LBound")}({EmitExpression(arrayBound.Dimension)})",
             BoundInvocationExpression invocation =>
