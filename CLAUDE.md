@@ -75,12 +75,21 @@ dotnet test VB6Compiler.sln -c Release
 
 **Wenn Tests mit `FileLoadException` scheitern, ist es kein Testfehler.** Meldungen wie
 `Could not load file or assembly ... Zugriff verweigert` oder `... Falscher Parameter
-(E_INVALIDARG)` auf die nach `tests/*/bin/` kopierten Projekt-DLLs kommen von beschädigten
-Build-Ausgaben — typisch nach einem abgebrochenen Build oder wenn Visual Studio parallel
-gebaut hat. Die betroffene Projektmenge wechselt von Lauf zu Lauf, was echte Fehler vortäuscht.
+(E_INVALIDARG)` betreffen die nach `tests/*/bin/` kopierten Projekt-DLLs. Die Dateien sind
+dabei nicht beschädigt — sie sind bytegleich mit dem Original und laden außerhalb des
+Testhosts problemlos; es ist ein Zustandsproblem der inkrementellen Kopie, typisch nach einem
+abgebrochenen Build oder parallelem Visual-Studio-Build.
 
-Behebung: `bin`/`obj` unter `src` und `tests` löschen und neu bauen. Immer erst die
-Fehlermeldung lesen, bevor Code angefasst wird.
+Behebung: `bin` und `obj` **des betroffenen Testprojekts** löschen und neu bauen. Ein
+solutionweites Löschen reicht nicht immer aus:
+
+```
+rm -rf tests/VB6.Compiler.Tests/bin tests/VB6.Compiler.Tests/obj
+```
+
+Erkennungsmerkmal: Die fehlschlagende Projektmenge wechselt von Lauf zu Lauf, und
+langjährig grüne Tests fallen mit aus. Immer erst die Fehlermeldung lesen, bevor Code
+angefasst wird.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 Stand der letzten Prüfung: 160 Tests, alle grün.
