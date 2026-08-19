@@ -8,7 +8,7 @@ namespace VB6.Semantics.Tests;
 public sealed class ArrayBinderGuardTests
 {
     [TestMethod]
-    public void Bind_LocalArrayPreservesElementTypeAndRankWhileExecutionRemainsGuarded()
+    public void Bind_FixedLocalArrayPreservesElementTypeAndRankWithoutGuard()
     {
         var model = BindSource("""
             Sub Main()
@@ -16,9 +16,7 @@ public sealed class ArrayBinderGuardTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length);
 
         var arrayType = model.Procedures.Single().Locals.Single().Type as ArrayTypeSymbol;
         Assert.IsNotNull(arrayType);
@@ -27,7 +25,7 @@ public sealed class ArrayBinderGuardTests
     }
 
     [TestMethod]
-    public void Bind_DynamicModuleArrayPreservesElementTypeWhileExecutionRemainsGuarded()
+    public void Bind_DynamicModuleArrayPreservesElementTypeWhileReDimRemainsGuarded()
     {
         var model = BindSource("""
             Private values() As Integer
@@ -46,7 +44,7 @@ public sealed class ArrayBinderGuardTests
     }
 
     [TestMethod]
-    public void Bind_ArrayParameterPreservesElementTypeWhileInvocationRemainsGuarded()
+    public void Bind_ArrayParameterPreservesElementTypeWithoutGuard()
     {
         var model = BindSource("""
             Function Sort(TheArray() As String) As Long
@@ -54,9 +52,7 @@ public sealed class ArrayBinderGuardTests
             End Function
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length);
 
         var arrayType = model.Procedures.Single().Symbol.Parameters.Single().Type as ArrayTypeSymbol;
         Assert.IsNotNull(arrayType);
