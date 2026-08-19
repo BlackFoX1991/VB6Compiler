@@ -37,6 +37,7 @@ Implemented so far:
 - line continuation with a trailing underscore
 - identifier type suffixes `$ % & ! # @`
 - `Exit Sub` and `Exit Function`
+- `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; native binding and P/Invoke emission remain in the interop milestone
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
 - string concatenation with `&`
 - VB-oriented operator precedence for the implemented expression subset
@@ -59,7 +60,9 @@ Implemented so far:
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
 - unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
 - Codespaces development configuration
-- Windows GitHub Actions restore/build/test workflow
+- Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
+
+Windows CI run #544 validates the `Declare` syntax work on .NET 10 with a warning-free Release build and the complete regression suite. Its VISIA report measures **2322 total errors** (2116 parser, 68 lexer, 138 semantic), down from 2464 before `Declare` parsing.
 
 Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated managed application whose Long arithmetic and Long `For` loop produce `60003`.
 

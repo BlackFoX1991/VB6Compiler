@@ -13,7 +13,12 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Stand | Fehler gesamt | Parser | Lexer | Semantik | fehlerfreie Dateien |
 |---|---|---|---|---|---|
 | Nulllinie (M0) | 3361 | 3183 | 178 | 0 | 0 von 27 |
-| nach M2 | **2464** | 2276 | 68 | 120 | 0 von 27 |
+| nach M2-Grundlagen | **2464** | 2276 | 68 | 120 | 0 von 27 |
+| nach `Declare`-Syntax | **2322** | 2116 | 68 | 138 | 0 von 27 |
+
+`Declare` senkt die Gesamtzahl damit um 142 und die Parserfehler um 160. Gleichzeitig werden
+18 zusätzliche Semantikfehler sichtbar, die vorher hinter Parserabbrüchen lagen. Der
+VISIA-Report läuft ab diesem Stand als eigener Schritt in GitHub Actions nach Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -98,7 +103,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] Zeilenfortsetzung mit `_`
 - [x] `Const`, typisiert und aus dem Wert abgeleitet
 - [x] `Exit Sub` und `Exit Function`
-- [ ] `Declare` (35 Vorkommen) — blockiert mehrere Module komplett
+- [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
 - [ ] `Enum` (25 mit `Type`) — blockiert `comLinker.bas` ab Zeile 4
 - [ ] `:` als Anweisungstrenner
 - [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
