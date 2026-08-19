@@ -38,6 +38,24 @@ public sealed class BuiltInStringConstantExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ComposesBuiltInConstantsWithBracketedEnumSymbols()
+    {
+        const string source = """
+            Enum SeparatorLength
+                [CrLfLength] = 2
+            End Enum
+
+            Sub Main()
+                Debug.Print Len(vbCrLf) = [CrLfLength]
+            End Sub
+            """;
+
+        var output = EmitAndRun(source, "BuiltInConstantBracketedEnum.dll");
+
+        CollectionAssert.AreEqual(new[] { "True" }, SplitLines(output), output);
+    }
+
+    [TestMethod]
     public void ProjectAnalysis_ResolvesBuiltInConstantsAcrossModules()
     {
         var directory = Path.Combine(
