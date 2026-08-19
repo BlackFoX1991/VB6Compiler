@@ -10,10 +10,10 @@ public sealed record BoundMemberAccessExpression(
     : BoundExpression(BoundNodeKind.VariableExpression, Member.Type);
 
 /// <summary>
-/// Assignment through a bound UDT member target. The target expression is kept intact so the C#
-/// backend can emit the same l-value chain that is used for reads.
+/// Assignment through a bound UDT member target. Error targets are preserved as bound expressions
+/// so analysis can report the real member diagnostic without inventing a fake field symbol.
 /// </summary>
 public sealed record BoundMemberAssignmentStatement(
-    BoundMemberAccessExpression Target,
+    BoundExpression Target,
     BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
