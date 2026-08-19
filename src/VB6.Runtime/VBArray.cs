@@ -99,6 +99,19 @@ public sealed class VBArray<T>
     }
 
     /// <summary>
+    /// Enumerates array values in VB array order. The rightmost dimension advances first, which is
+    /// also the physical order used by the current storage mapping. Values are returned by value so
+    /// a For Each control variable cannot accidentally alias an array slot by reference.
+    /// </summary>
+    public IEnumerable<T> EnumerateValues()
+    {
+        for (var index = 0; index < _items.Length; index++)
+        {
+            yield return _items[index];
+        }
+    }
+
+    /// <summary>
     /// Implements the storage operation required by VB6 <c>ReDim Preserve</c>. VB6 permits
     /// Preserve to change only the upper bound of the final dimension. Earlier dimensions, the
     /// rank, and the final dimension's lower bound must remain unchanged.
