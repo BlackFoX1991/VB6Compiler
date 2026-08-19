@@ -32,7 +32,7 @@ public sealed class ProjectUserDefinedTypeDeclarationBinder
                 if (!publicTypes.TryAdd(type.Name, type))
                 {
                     diagnostics.Add(new Diagnostic(
-                        "VB6S0041",
+                        "VB6S0045",
                         DiagnosticSeverity.Error,
                         $"Public user-defined type '{type.Name}' is already declared in this project.",
                         declaration.Identifier.Span,
