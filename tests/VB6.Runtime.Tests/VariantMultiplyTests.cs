@@ -34,10 +34,10 @@ public sealed class VariantMultiplyTests
         Assert.AreEqual(6d, VBOperators.MultiplyInteger((object?)2f, (object?)3));
 
         var currency = VBOperators.MultiplyInteger(
-            (object?)VBCurrency.FromDecimal(1.5m),
+            (object?)VBConversions.CCur(1.5m),
             (object?)(short)2);
         Assert.IsInstanceOfType<VBCurrency>(currency);
-        Assert.AreEqual(VBCurrency.FromDecimal(3m), currency);
+        Assert.AreEqual(VBConversions.CCur(3m), currency);
     }
 
     [TestMethod]
