@@ -20,6 +20,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach `Option Base` / `Option Compare` | **2210** | 1794 | 68 | 348 | 0 von 27 |
 | nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
 | M2 abgeschlossen (`Static`, `^`, `Like`, `Is`) | **2219** | 1758 | 68 | 393 | 0 von 27 |
+| M3 Array-Syntax/Runtime-Basis | **2105** | 1644 | 68 | 393 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -32,7 +33,17 @@ steigt dabei von 348 auf 393: unter anderem werden 4 echte implizite-Variant-Dek
 präzise als `VB6S0020` sichtbar, statt den Typ eines späteren Deklarators zu übernehmen oder im
 Parser zu entgleisen. `Static` entfernt weitere 4 Parserfehler und schließt M2 bei 1758
 Parserfehlern ab. `^`, `Like` und expression-level `Is` ändern den aktuellen VISIA-Zähler nicht,
-sind aber regressionsgesichert. Der VISIA-Report läuft als eigener Schritt in GitHub Actions nach
+sind aber regressionsgesichert.
+
+Der erste M3-Slice bewahrt jetzt feste, explizit begrenzte, mehrdimensionale und dynamische
+Arraydeklarationen sowie Arrayparameter im Syntaxbaum. Damit sinken die Parserfehler nochmals um
+114 auf 1644 und die Gesamtzahl auf 2105. `ArrayTypeSymbol` und die bounds-erhaltende
+`VBArray<T>`-Runtime sind als Fundament vorhanden und separat getestet. **Arrayvariablen und
+Arrayparameter werden im Binder aber weiterhin mit `VB6S0025` gestoppt**; `Option Base` wird also
+noch nicht semantisch auf Bound-Nodes angewendet und Arrayzugriffe werden noch nicht emittiert.
+Der zwischenzeitlich begonnene, aber unvollständig verdrahtete Codegen-Slice wurde mit
+`8e3a3a0` auf diesen kohärenten Stand zurückgenommen. Actions #700 bestätigt den Referenzstand
+mit 258 Tests, 0 Warnungen und 0 Buildfehlern. Der VISIA-Report läuft als eigener Schritt nach
 Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
@@ -84,8 +95,8 @@ persistente Lebensdauer in M5 implementiert ist, verhindert `VB6S0021` eine fals
 
 Der nächste konkrete VISIA-Blocker in `envSort.bas` ist nun ein aufrufseitiges `ByVal`, etwa
 `CopyMemory SwpVal, ByVal VarPtr(String1), 4`. Das gehört zu den späteren ByRef-Randfällen; M3
-startet trotzdem zuerst mit Arrays, weil dieselbe Datei außerdem Arrayparameter und feste lokale
-Arrays enthält und Arrays/UDTs der geplante nächste Strukturblock sind.
+bleibt trotzdem bei Arrays/UDTs, weil dieselbe Datei Arrayparameter und feste lokale Arrays enthält
+und Arrays/UDTs der geplante Strukturblock sind.
 
 Danach, nach betroffenen Dateien sortiert:
 
@@ -169,11 +180,12 @@ brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
 
 Zusammen, weil Win32-Strukturen beides brauchen.
 
-- [ ] `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional; `Option Base` wird hier semantisch angewendet
-- [ ] Arrayparameter wie `TheArray() As String`
-- [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound`, `For Each`
-- [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`
-- [ ] Neu: `ArrayTypeSymbol`, `UserDefinedTypeSymbol`; `VBArray<T>` in der Runtime
+- [x] Array-Deklarationssyntax: `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional und dynamisch `Dim x()`; Grenzen werden verlustfrei im Syntaxbaum bewahrt
+- [x] Arrayparameter-Syntax wie `TheArray() As String`
+- [x] `ArrayTypeSymbol` als Typfundament und `VBArray<T>` in der Runtime mit Rang, expliziten Unter-/Obergrenzen, Indexprüfung sowie `LBound`/`UBound`-Grundlage
+- [ ] Arrayvariablen/-parameter echt binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben und emittieren; `Option Base` semantisch auf implizite Untergrenzen anwenden (bis dahin `VB6S0025`)
+- [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound` als Sprach-/Bibliothekszugriff, `For Each`
+- [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`; `UserDefinedTypeSymbol`
 
 ## Meilenstein 4 — Variant
 
