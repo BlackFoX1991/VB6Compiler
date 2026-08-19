@@ -44,15 +44,47 @@ public sealed record AttributeSyntax(
     ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.AttributeStatement);
 
 /// <summary>
+/// One dimension inside a VB6 array rank specifier. <c>x(10)</c> has only an upper bound;
+/// <c>x(1 To 10)</c> preserves both explicit bounds. The trailing comma belongs to this
+/// dimension so multidimensional source can be round-tripped without inventing separators.
+/// </summary>
+public sealed record ArrayDimensionSyntax(
+    ExpressionSyntax? LowerBound,
+    SyntaxToken? ToKeyword,
+    ExpressionSyntax UpperBound,
+    SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.ArrayDimension);
+
+/// <summary>
 /// One variable inside a comma-separated declaration. VB6 applies <c>As Type</c> only to the
-/// declarator it follows, so both tokens are optional per name instead of being shared by the
-/// whole declaration.
+/// declarator it follows. Array rank/bounds also belong to the individual declarator.
 /// </summary>
 public sealed record VariableDeclaratorSyntax(
     SyntaxToken Identifier,
+    SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ArrayDimensionSyntax> Dimensions,
+    SyntaxToken? CloseParenthesisToken,
     SyntaxToken? AsKeyword,
     SyntaxToken? TypeToken,
-    SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.VariableDeclarator);
+    SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.VariableDeclarator)
+{
+    public VariableDeclaratorSyntax(
+        SyntaxToken identifier,
+        SyntaxToken? asKeyword,
+        SyntaxToken? typeToken,
+        SyntaxToken? commaToken)
+        : this(
+            identifier,
+            null,
+            ImmutableArray<ArrayDimensionSyntax>.Empty,
+            null,
+            asKeyword,
+            typeToken,
+            commaToken)
+    {
+    }
+
+    public bool IsArray => OpenParenthesisToken is not null;
+}
 
 /// <summary>
 /// Variables declared at module level, such as <c>Public Source As String, Position As Long</c>
@@ -120,7 +152,13 @@ public sealed record ParameterSyntax(
     SyntaxToken TypeToken,
     SyntaxToken? OptionalKeyword = null,
     SyntaxToken? EqualsToken = null,
-    ExpressionSyntax? DefaultValue = null) : SyntaxNode(SyntaxKind.Parameter);
+    ExpressionSyntax? DefaultValue = null,
+    SyntaxToken? OpenParenthesisToken = null,
+    ImmutableArray<ArrayDimensionSyntax> Dimensions = default,
+    SyntaxToken? CloseParenthesisToken = null) : SyntaxNode(SyntaxKind.Parameter)
+{
+    public bool IsArray => OpenParenthesisToken is not null;
+}
 
 public sealed record SubDeclarationSyntax(
     SyntaxToken SubKeyword,
