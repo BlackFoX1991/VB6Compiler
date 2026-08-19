@@ -222,10 +222,6 @@ public static class VariantOperationGuard
             BoundUnaryExpression unary => ContainsVariantValue(unary.Operand),
             BoundBinaryExpression binary =>
                 ContainsVariantValue(binary.Left) || ContainsVariantValue(binary.Right),
-            BoundInvocationExpression invocation =>
-                invocation.Arguments.Any(argument => ContainsVariantValue(argument.Expression)),
-            BoundElementAccessExpression elementAccess => ContainsVariantValue(elementAccess.Receiver),
-            BoundMemberAccessExpression memberAccess => ContainsVariantValue(memberAccess.Receiver),
             _ => false
         };
     }
