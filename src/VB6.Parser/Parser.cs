@@ -248,6 +248,13 @@ public sealed class Parser
                 continue;
             }
 
+            if (Current.Kind != SyntaxKind.IdentifierToken)
+            {
+                ReportUnexpected(Current, "Type member");
+                RecoverToLineEndOrTypeEnd();
+                continue;
+            }
+
             var memberIdentifier = MatchToken(SyntaxKind.IdentifierToken);
             var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
             var asKeyword = MatchToken(SyntaxKind.AsKeyword);
@@ -283,6 +290,20 @@ public sealed class Parser
             members.ToImmutable(),
             endKeyword,
             endTypeKeyword);
+    }
+
+    private void RecoverToLineEndOrTypeEnd()
+    {
+        while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.EndOfFileToken &&
+               !IsEndPair(SyntaxKind.TypeKeyword))
+        {
+            NextToken();
+        }
+
+        if (Current.Kind == SyntaxKind.NewLineToken)
+        {
+            NextToken();
+        }
     }
 
     private ConstDeclarationSyntax ParseConstDeclaration(SyntaxToken? visibilityKeyword)
