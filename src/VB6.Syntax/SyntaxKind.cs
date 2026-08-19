@@ -75,6 +75,8 @@ public enum SyntaxKind
 
     CompilationUnit,
     OptionExplicitStatement,
+    AttributeStatement,
+    ModuleVariableDeclaration,
     SubDeclaration,
     FunctionDeclaration,
     Parameter,

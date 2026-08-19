@@ -16,6 +16,25 @@ public sealed record OptionExplicitSyntax(
     SyntaxToken OptionKeyword,
     SyntaxToken ExplicitKeyword) : MemberSyntax(SyntaxKind.OptionExplicitStatement);
 
+/// <summary>
+/// A VB6 <c>Attribute</c> line such as <c>Attribute VB_Name = "modMain"</c>. These carry IDE
+/// metadata, not program semantics, so the tokens are kept for round-tripping and ignored
+/// by the binder.
+/// </summary>
+public sealed record AttributeSyntax(
+    SyntaxToken AttributeKeyword,
+    ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.AttributeStatement);
+
+/// <summary>
+/// A variable declared at module level, such as <c>Public Source As String</c> or
+/// <c>Dim Position As Long</c> outside a procedure.
+/// </summary>
+public sealed record ModuleVariableDeclarationSyntax(
+    SyntaxToken? VisibilityKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken AsKeyword,
+    SyntaxToken TypeToken) : MemberSyntax(SyntaxKind.ModuleVariableDeclaration);
+
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
     SyntaxToken Identifier,
@@ -30,7 +49,8 @@ public sealed record SubDeclarationSyntax(
     SyntaxToken CloseParenthesisToken,
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
-    SyntaxToken EndSubKeyword) : MemberSyntax(SyntaxKind.SubDeclaration);
+    SyntaxToken EndSubKeyword,
+    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.SubDeclaration);
 
 public sealed record FunctionDeclarationSyntax(
     SyntaxToken FunctionKeyword,
@@ -42,7 +62,8 @@ public sealed record FunctionDeclarationSyntax(
     SyntaxToken ReturnTypeToken,
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
-    SyntaxToken EndFunctionKeyword) : MemberSyntax(SyntaxKind.FunctionDeclaration);
+    SyntaxToken EndFunctionKeyword,
+    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
 
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,

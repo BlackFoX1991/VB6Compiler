@@ -53,9 +53,33 @@ public sealed class Parser
 
     private MemberSyntax? ParseMember()
     {
+        if (IsAttributeLine())
+        {
+            return ParseAttribute();
+        }
+
         if (Current.Kind == SyntaxKind.OptionKeyword && Peek(1).Kind == SyntaxKind.ExplicitKeyword)
         {
             return ParseOptionExplicit();
+        }
+
+        // Visibility modifiers are not reserved words in VB6, so they only count as one when a
+        // declaration follows.
+        if (IsVisibilityModifier(Current) && Peek(1).Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
+        {
+            var visibility = NextToken();
+            return Current.Kind == SyntaxKind.SubKeyword
+                ? ParseSubDeclaration(visibility)
+                : ParseFunctionDeclaration(visibility);
+        }
+
+        // Requiring 'As' keeps this from swallowing other declarations that start the same way,
+        // such as 'Private Declare Function ...' or 'Public Const ...'.
+        if ((IsVisibilityModifier(Current) || Current.Kind == SyntaxKind.DimKeyword) &&
+            Peek(1).Kind == SyntaxKind.IdentifierToken &&
+            Peek(2).Kind == SyntaxKind.AsKeyword)
+        {
+            return ParseModuleVariableDeclaration(NextToken());
         }
 
         if (Current.Kind == SyntaxKind.SubKeyword)
@@ -71,6 +95,45 @@ public sealed class Parser
         return null;
     }
 
+    private ModuleVariableDeclarationSyntax ParseModuleVariableDeclaration(SyntaxToken visibilityKeyword)
+    {
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+        var typeToken = MatchTypeToken();
+        ConsumeLineTerminator();
+        return new ModuleVariableDeclarationSyntax(visibilityKeyword, identifier, asKeyword, typeToken);
+    }
+
+    private static bool IsVisibilityModifier(SyntaxToken token) =>
+        token.Kind == SyntaxKind.IdentifierToken &&
+        (string.Equals(token.Text, "Public", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(token.Text, "Private", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(token.Text, "Friend", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(token.Text, "Global", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// 'Attribute' is not a reserved word in VB6, so it is only an attribute line when an
+    /// attribute name follows it. That keeps 'Attribute' usable as an ordinary identifier.
+    /// </summary>
+    private bool IsAttributeLine() =>
+        Current.Kind == SyntaxKind.IdentifierToken &&
+        string.Equals(Current.Text, "Attribute", StringComparison.OrdinalIgnoreCase) &&
+        Peek(1).Kind == SyntaxKind.IdentifierToken;
+
+    private AttributeSyntax ParseAttribute()
+    {
+        var attributeKeyword = NextToken();
+        var tokens = ImmutableArray.CreateBuilder<SyntaxToken>();
+
+        while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.EndOfFileToken)
+        {
+            tokens.Add(NextToken());
+        }
+
+        ConsumeLineTerminator();
+        return new AttributeSyntax(attributeKeyword, tokens.ToImmutable());
+    }
+
     private OptionExplicitSyntax ParseOptionExplicit()
     {
         var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
@@ -79,7 +142,7 @@ public sealed class Parser
         return new OptionExplicitSyntax(optionKeyword, explicitKeyword);
     }
 
-    private SubDeclarationSyntax ParseSubDeclaration()
+    private SubDeclarationSyntax ParseSubDeclaration(SyntaxToken? visibilityKeyword = null)
     {
         var subKeyword = MatchToken(SyntaxKind.SubKeyword);
         var identifier = MatchToken(SyntaxKind.IdentifierToken);
@@ -100,10 +163,11 @@ public sealed class Parser
             closeParenthesis,
             statements,
             endKeyword,
-            endSubKeyword);
+            endSubKeyword,
+            visibilityKeyword);
     }
 
-    private FunctionDeclarationSyntax ParseFunctionDeclaration()
+    private FunctionDeclarationSyntax ParseFunctionDeclaration(SyntaxToken? visibilityKeyword = null)
     {
         var functionKeyword = MatchToken(SyntaxKind.FunctionKeyword);
         var identifier = MatchToken(SyntaxKind.IdentifierToken);
@@ -128,7 +192,8 @@ public sealed class Parser
             returnType,
             statements,
             endKeyword,
-            endFunctionKeyword);
+            endFunctionKeyword,
+            visibilityKeyword);
     }
 
     private ImmutableArray<StatementSyntax> ParseProcedureStatements(SyntaxKind endingKeyword) =>
