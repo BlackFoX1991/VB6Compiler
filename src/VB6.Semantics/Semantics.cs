@@ -18,6 +18,7 @@ public record TypeSymbol(string Name) : Symbol(Name)
     public static readonly TypeSymbol Boolean = new("Boolean");
     public static readonly TypeSymbol Double = new("Double");
     public static readonly TypeSymbol Currency = new("Currency");
+    public static readonly TypeSymbol Variant = new("Variant");
 
     public static TypeSymbol? Lookup(string name) => name.ToUpperInvariant() switch
     {
@@ -31,6 +32,7 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "BOOLEAN" => Boolean,
         "DOUBLE" => Double,
         "CURRENCY" => Currency,
+        "VARIANT" => Variant,
         _ => UserDefinedTypeLookupScope.Lookup(name)
     };
 }
