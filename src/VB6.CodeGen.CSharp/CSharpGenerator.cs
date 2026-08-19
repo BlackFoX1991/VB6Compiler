@@ -103,6 +103,10 @@ public sealed class CSharpGenerator
                 WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetVariableName(declaration.Variable)} = {EmitVariableInitializer(declaration.Variable.Type, declaration.ArrayDimensions)};");
                 break;
 
+            case BoundReDimStatement reDim:
+                EmitReDimStatement(reDim);
+                break;
+
             case BoundAssignmentStatement assignment:
                 WriteLine($"{GetVariableName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
                 break;
@@ -168,10 +172,31 @@ public sealed class CSharpGenerator
             return "null!";
         }
 
-        var bounds = string.Join(", ", dimensions.Select(dimension =>
-            $"new VBArrayBound({EmitExpression(dimension.LowerBound)}, {EmitExpression(dimension.UpperBound)})"));
-        return $"new {GetTypeName(arrayType)}({bounds})";
+        return $"new {GetTypeName(arrayType)}({EmitArrayBounds(dimensions)})";
     }
+
+    private void EmitReDimStatement(BoundReDimStatement statement)
+    {
+        if (statement.Array.Type is not ArrayTypeSymbol arrayType)
+        {
+            return;
+        }
+
+        var variable = GetVariableName(statement.Array);
+        var bounds = EmitArrayBounds(statement.ArrayDimensions);
+        if (statement.Preserve)
+        {
+            WriteLine($"{variable} = {variable}.ReDimPreserve({bounds});");
+        }
+        else
+        {
+            WriteLine($"{variable} = new {GetTypeName(arrayType)}({bounds});");
+        }
+    }
+
+    private string EmitArrayBounds(ImmutableArray<BoundArrayDimension> dimensions) =>
+        string.Join(", ", dimensions.Select(dimension =>
+            $"new VBArrayBound({EmitExpression(dimension.LowerBound)}, {EmitExpression(dimension.UpperBound)})"));
 
     private void EmitIfStatement(BoundIfStatement statement)
     {
