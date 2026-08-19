@@ -1,0 +1,225 @@
+<!doctype HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+    <meta name="Author" content="Kinex">
+    <meta name="Date" content="Sat, 07 Jan 2006 20:07:46 GMT">
+    <link href="content.css" rel="STYLESHEET" type="text/css">
+    <meta name="Generator" content="XynX! NetJet 3.10 Build 106 (Win32r)">
+</head>
+<body>
+<p><font size=2><b>Linley Compiler 4.8.3 Open Documentation</b></font></p>
+<p><font size=2><b>1. Introduction</b></font></p>
+<p><font size=2>Linley Compiler is a native x86 compiler for the Windows platform and<br>
+produces optimized portable executable files (PE) through built in linker.<br>
+Linley compiles directly into machine code so there is no need for any<br>
+runtime libraries or other dependencies.</font><br>
+<br>
+<font size=2><b>1. 1 How to Read</b></font><br>
+<br>
+<font size=2><b>1.1.1 Meanings of the Symbols used in this Document</b></font></p>
+<table border=1 width=500 cellspacing=0 cellpadding=2 bordercolor="#CCD2C4">
+<tr>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><b>Symbol</b></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Meaning</b></font></p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>|</p></td>
+    <td valign=top>
+        <p>Or (you can choose between)</p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p><font size=2>[]</font></p></td>
+    <td valign=top>
+        <p><font size=2>Optional Statement</font></p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>&lt;&gt;</p></td>
+    <td valign=top>
+        <p>Number Expression</p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>&quot;&quot;</p></td>
+    <td valign=top>
+        <p>String Expression</p></td>
+</tr>
+</table><br>
+
+<hr>
+<p><font size=2><b>2. Data Types</b></font><br>
+</p>
+<table border=1 width=500 cellspacing=0 cellpadding=2 bordercolor="#CCD2C4">
+<tr>
+    <td bgcolor="#FFFFFF" valign=top>
+        <p></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>byte</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>word</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>dword</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>single</b></font></p></td>
+</tr>
+<tr>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>signed</b></font></p></td>
+    <td valign=top>
+        <p><font size=2>-128 to 128</font></p></td>
+    <td valign=top>
+        <p><font size=2>-32767 to 32767</font></p></td>
+    <td valign=top>
+        <p><font size=2>-214748364 to 214748364</font></p></td>
+    <td valign=top>
+        <p><font size=2>X</font></p></td>
+</tr>
+<tr>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>unsigned</b></font></p></td>
+    <td valign=top>
+        <p><font size=2>0 to 256</font></p></td>
+    <td valign=top>
+        <p><font size=2>0 to 65536</font></p></td>
+    <td valign=top>
+        <p>0 to 4294967294</p></td>
+    <td valign=top>
+        <p><font size=2>X</font></p></td>
+</tr>
+</table>
+<p><br>
+The datatypes are declared as signed by standard if you want to have the<br>
+unsigned version you have to tell this to the parser by<br>
+<br>
+<font color="#6B8E23">unsigned </font><font color="#00008B">byte </font>i; or the other way<font
+color="#6B8E23"> signed </font><font color="#00008B">byte </font>i;<font size=2><br>
+</font><br>
+if only: <font color="#00008B">byte </font>i; is written then it is declared as signed.<font
+size=2><br>
+</font></p>
+<hr>
+<p><font size=2><b>3 Directives</b></font><br>
+<br>
+<font size=2><b>3.1 The Application Directive</b></font><br>
+</p>
+<p><font size=2><font color="#00008B">application</font><font color="#6B8E23"> FORMAT APPTYPE
+</font>[<font color="#6B8E23">EXTRA</font> <font color="#00008B">entry </font><font color="#808080">Symbol</font><font
+color="#00008B">]</font>;<br>
+<br>
+The first statement is important to tell the parser what application is made.<br>
+You specify the file format and application type by this directive. You cannot<br>
+leave this directive out it is expected as first directive by the parser.<br>
+</font></p>
+<table border=1 width=500 cellspacing=0 cellpadding=2 bordercolor="#CCD2C4">
+<tr>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Directive</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Format</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Apptype</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Extra</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Entry</b></font></p></td>
+    <td bgcolor="#FFFFFF" valign=top></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p><font size=2>application</font></p></td>
+    <td valign=top>
+        <p><font size=2>PE</font></p></td>
+    <td valign=top>
+        <p><font size=2>CUI or GUI</font></p></td>
+    <td valign=top>
+        <p><font size=2>DLL</font></p></td>
+    <td valign=top>
+        <p><font size=2>entry @</font></p></td>
+    <td valign=top>
+        <p><font size=2>;</font></p></td>
+</tr>
+</table>
+<p><br>
+Example:<font size=2><font color="#00008B"> application</font><font color="#6B8E23"> PE GUI</font><font
+color="#00008B"> entry</font></font> main;<br>
+</p>
+<hr>
+<p><br>
+<font size=2><b>3.2 The Import Directive</b></font></p>
+<p><font size=2><font color="#00008B">import</font><font color="#6B8E23"> </font></font>Name
+[<font color="#00008B">alias </font>AliasName] [<font color="#00008B">ascii</font>|<font color="#00008B">unicode</font>]
+<font color="#00008B">lib </font><font color="#C0C0C0">&quot;Library.dll&quot;</font>,&lt;<font
+color="#6B8E23">Parameters</font>&gt;;<br>
+</p>
+<table border=1 width=500 cellspacing=0 cellpadding=2 bordercolor="#CCD2C4">
+<tr>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Keyword</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Format</b></font></p></td>
+    <td bgcolor="#DFE2B1" valign=top>
+        <p><font size=2><b>Example</b></font></p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>Name</p></td>
+    <td valign=top>
+        <p>is the function name.</p></td>
+    <td valign=top>
+        <p>MessageBox</p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>[alias AliasName]</p></td>
+    <td valign=top>
+        <p>specifies alias that is passed to the library. and the name declared before is used
+        in code.</p></td>
+    <td valign=top>
+        <p>MessageBox alias MessageBoxA</p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>[ascii|unicode]</p></td>
+    <td valign=top>
+        <p>is for standard ascii or unicode aliases.</p></td>
+    <td valign=top>
+        <p>1. MessageBox ascii ~<br>
+        MessageBoxA<br>
+        <br>
+        2. MessageBox unicode ~ MessageBoxW<br>
+        <br>
+        </p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>lib &quot;Library.dll&quot;</p></td>
+    <td valign=top>
+        <p>specifies in which Dynamic Link Library the functions is stored.</p></td>
+    <td valign=top>
+        <p>&quot;USER32.DLL&quot;</p></td>
+</tr>
+<tr>
+    <td valign=top>
+        <p>Parameters</p></td>
+    <td valign=top>
+        <p>Specifies the number of parameters which will be passed to that import.</p></td>
+    <td valign=top>
+        <p>MessageBox has 4 parameters.</p></td>
+</tr>
+</table>
+<p><br>
+Example:<br>
+<br>
+import MessageBox ascii lib &quot;USER32.DLL&quot;,4;<br>
+<br>
+MessageBox(0,&quot;Hello World!&quot;,&quot;Linley&quot;,$20);<br>
+</p>
+<hr>
+<p><br>
+</p>
+</body>
+</html>
