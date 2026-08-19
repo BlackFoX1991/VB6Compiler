@@ -298,10 +298,10 @@ public sealed record BoundModuleVariable(
     ImmutableArray<BoundArrayDimension> ArrayDimensions)
 {
     public BoundModuleVariable(
-        ModuleVariableSymbol symbol,
-        BoundExpression? initializer,
-        bool isConstant)
-        : this(symbol, initializer, isConstant, ImmutableArray<BoundArrayDimension>.Empty)
+        ModuleVariableSymbol Symbol,
+        BoundExpression? Initializer,
+        bool IsConstant)
+        : this(Symbol, Initializer, IsConstant, ImmutableArray<BoundArrayDimension>.Empty)
     {
     }
 }
