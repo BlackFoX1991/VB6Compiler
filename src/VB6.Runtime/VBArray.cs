@@ -50,6 +50,7 @@ public sealed class VBArray<T>
         }
 
         _items = new T[(int)totalLength];
+        InitializeElements();
     }
 
     public int Rank => _bounds.Length;
@@ -69,7 +70,11 @@ public sealed class VBArray<T>
     /// used by VB6 <c>Erase</c> for fixed-size arrays. Dynamic-array Erase deallocates the variable
     /// itself and is emitted by the compiler instead.
     /// </summary>
-    public void Clear() => Array.Clear(_items);
+    public void Clear()
+    {
+        Array.Clear(_items);
+        InitializeElements();
+    }
 
     /// <summary>
     /// Implements the storage operation required by VB6 <c>ReDim Preserve</c>. VB6 permits
@@ -121,6 +126,17 @@ public sealed class VBArray<T>
         }
 
         return resized;
+    }
+
+    private void InitializeElements()
+    {
+        // Variable-length VB6 Strings have "" as their initial value, unlike CLR string arrays,
+        // whose default element value is null. Other currently supported VB6 element types map to
+        // their CLR/default struct zero value.
+        if (typeof(T) == typeof(string))
+        {
+            Array.Fill(_items, (T)(object)string.Empty);
+        }
     }
 
     private VBArrayBound GetBound(int dimension)
