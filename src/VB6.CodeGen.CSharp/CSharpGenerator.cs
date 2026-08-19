@@ -139,7 +139,32 @@ public sealed class CSharpGenerator
         _indent++;
         foreach (var member in type.Members)
         {
-            WriteLine($"public {GetTypeName(member.Type)} __vb6_member_{SanitizeIdentifier(member.Name)};");
+            var memberName = SanitizeIdentifier(member.Name);
+            if (member.Type is FixedLengthStringTypeSymbol fixedString)
+            {
+                var backingName = $"__vb6_fixed_{memberName}";
+                WriteLine($"private string? {backingName};");
+                WriteLine($"public string __vb6_member_{memberName}");
+                WriteLine("{");
+                _indent++;
+                WriteLine($"get => {backingName} ?? new string(' ', {fixedString.Length});");
+                WriteLine("set");
+                WriteLine("{");
+                _indent++;
+                WriteLine("var __vb6_value = value ?? string.Empty;");
+                WriteLine($"{backingName} = __vb6_value.Length >= {fixedString.Length}");
+                _indent++;
+                WriteLine($"? __vb6_value[..{fixedString.Length}]");
+                WriteLine($": __vb6_value.PadRight({fixedString.Length});");
+                _indent--;
+                _indent--;
+                WriteLine("}");
+                _indent--;
+                WriteLine("}");
+                continue;
+            }
+
+            WriteLine($"public {GetTypeName(member.Type)} __vb6_member_{memberName};");
         }
         _indent--;
         WriteLine("}");
