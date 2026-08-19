@@ -1063,6 +1063,7 @@ public sealed class Binder
             NameExpressionSyntax name => BindName(name, variables),
             InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
             MemberAccessExpressionSyntax memberAccess => BindMemberAccess(memberAccess, variables, procedures),
+            ElementAccessExpressionSyntax elementAccess => BindElementAccess(elementAccess, variables, procedures),
             UnaryExpressionSyntax unary => BindUnary(unary, variables, procedures),
             BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
             ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
@@ -1102,6 +1103,40 @@ public sealed class Binder
         }
 
         return new BoundMemberAccessExpression(receiver, member);
+    }
+
+    private BoundExpression BindElementAccess(
+        ElementAccessExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var receiver = BindExpression(syntax.Receiver, variables, procedures);
+        if (receiver.Type == TypeSymbol.Error)
+        {
+            return receiver;
+        }
+
+        if (receiver.Type is not ArrayTypeSymbol arrayType)
+        {
+            Report(
+                "VB6S0026",
+                $"Expression of type '{receiver.Type.Name}' is not an array.",
+                syntax.OpenParenthesisToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (arrayType.Rank is int rank && syntax.Indices.Length != rank)
+        {
+            Report(
+                "VB6S0027",
+                $"Array expression has rank {rank}, but {syntax.Indices.Length} index(es) were supplied.",
+                syntax.OpenParenthesisToken.Span);
+        }
+
+        var indices = syntax.Indices
+            .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+            .ToImmutableArray();
+        return new BoundElementAccessExpression(receiver, indices, arrayType.ElementType);
     }
 
     private BoundExpression BindWithReceiver(SyntaxToken dotToken)
@@ -1244,6 +1279,7 @@ public sealed class Binder
                 }
                 else if (expression is not BoundVariableExpression &&
                          expression is not BoundArrayAccessExpression &&
+                         expression is not BoundElementAccessExpression &&
                          expression is not BoundMemberAccessExpression)
                 {
                     Report(
@@ -1583,6 +1619,7 @@ public sealed class Binder
     private static bool IsAddressableExpression(BoundExpression expression) =>
         expression is BoundVariableExpression or
             BoundArrayAccessExpression or
+            BoundElementAccessExpression or
             BoundMemberAccessExpression or
             BoundWithReceiverExpression;
 
