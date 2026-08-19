@@ -126,6 +126,7 @@ public enum BoundNodeKind
     BlockStatement,
     VariableDeclarationStatement,
     AssignmentStatement,
+    ArrayElementAssignmentStatement,
     IfStatement,
     ForStatement,
     WhileStatement,
@@ -137,6 +138,7 @@ public enum BoundNodeKind
     InvocationStatement,
     LiteralExpression,
     VariableExpression,
+    ArrayAccessExpression,
     InvocationExpression,
     UnaryExpression,
     BinaryExpression,
@@ -172,6 +174,16 @@ public sealed record BoundVariableDeclarationStatement(
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
+
+/// <summary>
+/// Assignment to one element of a VB6 array. Indices are normalized to VB6 Long by the binder;
+/// the runtime remains responsible for lower/upper-bound checks.
+/// </summary>
+public sealed record BoundArrayElementAssignmentStatement(
+    VariableSymbol Array,
+    ImmutableArray<BoundExpression> Indices,
+    BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.ArrayElementAssignmentStatement);
 
 public sealed record BoundElseIfClause(
     BoundExpression Condition,
@@ -259,6 +271,16 @@ public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralTyp
 
 public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
+
+/// <summary>
+/// Read of one VB6 array element. The expression type is the array's element type, not the array
+/// type itself, which keeps later conversion and operator binding identical to scalar values.
+/// </summary>
+public sealed record BoundArrayAccessExpression(
+    VariableSymbol Array,
+    ImmutableArray<BoundExpression> Indices,
+    TypeSymbol ElementType)
+    : BoundExpression(BoundNodeKind.ArrayAccessExpression, ElementType);
 
 public sealed record BoundInvocationExpression(
     ProcedureSymbol Procedure,
