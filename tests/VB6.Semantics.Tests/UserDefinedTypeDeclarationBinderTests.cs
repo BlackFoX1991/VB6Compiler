@@ -45,11 +45,41 @@ public sealed class UserDefinedTypeDeclarationBinderTests
         var fixedArray = (ArrayTypeSymbol)fixedValues.Type;
         Assert.AreEqual(2, fixedArray.Rank);
         Assert.AreEqual(TypeSymbol.Long, fixedArray.ElementType);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                new UserDefinedTypeArrayBound(1, 2),
+                new UserDefinedTypeArrayBound(3, 4)
+            },
+            fixedValues.ArrayBounds.ToArray());
 
         Assert.IsTrue(type.TryGetMember("DynamicValues", out var dynamicValues));
         var dynamicArray = (ArrayTypeSymbol)dynamicValues.Type;
         Assert.IsNull(dynamicArray.Rank);
         Assert.AreEqual(TypeSymbol.Integer, dynamicArray.ElementType);
+        Assert.IsFalse(dynamicValues.HasArrayBounds);
+    }
+
+    [TestMethod]
+    public void Bind_AppliesOptionBaseToImplicitUdtArrayLowerBound()
+    {
+        var result = Bind("""
+            Option Base 1
+
+            Type Arrays
+                Values(5) As Long
+                Signed(-2 To 2) As Integer
+            End Type
+            """);
+
+        Assert.IsTrue(result.Success, FormatDiagnostics(result));
+        var type = result.Types["Arrays"];
+
+        Assert.IsTrue(type.TryGetMember("Values", out var values));
+        Assert.AreEqual(new UserDefinedTypeArrayBound(1, 5), values.ArrayBounds.Single());
+
+        Assert.IsTrue(type.TryGetMember("Signed", out var signed));
+        Assert.AreEqual(new UserDefinedTypeArrayBound(-2, 2), signed.ArrayBounds.Single());
     }
 
     [TestMethod]
