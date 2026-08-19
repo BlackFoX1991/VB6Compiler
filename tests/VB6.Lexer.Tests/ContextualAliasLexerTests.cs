@@ -1,3 +1,4 @@
+using VB6.Syntax;
 using VB6.Syntax.Text;
 using LexerType = VB6.Lexer.Lexer;
 
