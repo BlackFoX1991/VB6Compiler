@@ -31,10 +31,16 @@ public sealed class VBCompilation
                 parseResult.Diagnostics);
         }
 
+        var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(parseResult.Root);
         var semanticModel = new Binder(Text).BindCompilationUnit(parseResult.Root);
-        var diagnostics = parseResult.Diagnostics.AddRange(semanticModel.Diagnostics);
+        var diagnostics = parseResult.Diagnostics
+            .AddRange(userDefinedTypes.Diagnostics)
+            .AddRange(semanticModel.Diagnostics);
 
-        return new CompilationAnalysis(parseResult, semanticModel, diagnostics);
+        return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
+        {
+            UserDefinedTypes = userDefinedTypes
+        };
     }
 
     public CSharpGenerationResult GenerateCSharp()
@@ -74,6 +80,8 @@ public sealed record CompilationAnalysis(
     SemanticModel? SemanticModel,
     ImmutableArray<Diagnostic> Diagnostics)
 {
+    public UserDefinedTypeDeclarationResult? UserDefinedTypes { get; init; }
+
     public bool Success => Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
 
