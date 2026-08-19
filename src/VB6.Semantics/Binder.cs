@@ -310,7 +310,7 @@ public sealed class Binder
 
         Report(
             "VB6S0025",
-            $"Array variable '{declarator.Identifier.Text}' is typed, but array allocation and element semantics are not implemented yet.",
+            $"Array variable '{declarator.Identifier.Text}' is typed and bound, but array allocation and code generation are not implemented yet.",
             declarator.Identifier.Span);
 
         return new ArrayTypeSymbol(
@@ -417,7 +417,7 @@ public sealed class Binder
             {
                 Report(
                     "VB6S0025",
-                    $"Array parameter '{syntax.Identifier.Text}' is typed, but array invocation and element semantics are not implemented yet.",
+                    $"Array parameter '{syntax.Identifier.Text}' is typed and bound, but array invocation and code generation are not implemented yet.",
                     syntax.Identifier.Span);
             }
 
@@ -545,6 +545,7 @@ public sealed class Binder
         return statement switch
         {
             AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
+            ArrayElementAssignmentStatementSyntax arrayAssignment => BindArrayElementAssignment(arrayAssignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
             ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
             WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
@@ -594,6 +595,64 @@ public sealed class Binder
         }
 
         return new BoundAssignmentStatement(variable, BindConversion(expression, variable.Type));
+    }
+
+    private BoundArrayElementAssignmentStatement BindArrayElementAssignment(
+        ArrayElementAssignmentStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var expression = BindExpression(syntax.Expression, variables, procedures);
+
+        if (!variables.TryGetValue(syntax.Identifier.Text, out var variable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{syntax.Identifier.Text}' is not declared.",
+                syntax.Identifier.Span);
+            variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            return new BoundArrayElementAssignmentStatement(
+                variable,
+                BindArrayIndices(syntax.Identifier, syntax.Indices, null, variables, procedures),
+                expression);
+        }
+
+        if (variable.Type is not ArrayTypeSymbol arrayType)
+        {
+            Report(
+                "VB6S0026",
+                $"Variable '{syntax.Identifier.Text}' is not an array.",
+                syntax.Identifier.Span);
+            return new BoundArrayElementAssignmentStatement(
+                variable,
+                BindArrayIndices(syntax.Identifier, syntax.Indices, null, variables, procedures),
+                expression);
+        }
+
+        return new BoundArrayElementAssignmentStatement(
+            variable,
+            BindArrayIndices(syntax.Identifier, syntax.Indices, arrayType, variables, procedures),
+            BindConversion(expression, arrayType.ElementType));
+    }
+
+    private ImmutableArray<BoundExpression> BindArrayIndices(
+        SyntaxToken identifier,
+        ImmutableArray<ExpressionSyntax> indexSyntaxes,
+        ArrayTypeSymbol? arrayType,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (arrayType is not null && indexSyntaxes.Length != arrayType.Rank)
+        {
+            Report(
+                "VB6S0027",
+                $"Array '{identifier.Text}' has rank {arrayType.Rank}, but {indexSyntaxes.Length} index(es) were supplied.",
+                identifier.Span);
+        }
+
+        return indexSyntaxes
+            .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+            .ToImmutableArray();
     }
 
     private BoundIfStatement BindIf(
@@ -866,6 +925,15 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        if (variables.TryGetValue(syntax.Identifier.Text, out var variable) &&
+            variable.Type is ArrayTypeSymbol arrayType)
+        {
+            return new BoundArrayAccessExpression(
+                variable,
+                BindArrayIndices(syntax.Identifier, syntax.Arguments, arrayType, variables, procedures),
+                arrayType.ElementType);
+        }
+
         if (!procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
         {
             Report(
@@ -916,20 +984,20 @@ public sealed class Binder
                 {
                     expression = BindConversion(expression, parameter.Type);
                 }
-                else if (expression is not BoundVariableExpression variableExpression)
+                else if (expression is not BoundVariableExpression && expression is not BoundArrayAccessExpression)
                 {
                     Report(
                         "VB6S0007",
                         $"ByRef argument for parameter '{parameter.Name}' must be a variable in the current compiler subset.",
                         invocationIdentifier.Span);
                 }
-                else if (variableExpression.Variable.Type != parameter.Type &&
-                         variableExpression.Variable.Type != TypeSymbol.Error &&
+                else if (expression.Type != parameter.Type &&
+                         expression.Type != TypeSymbol.Error &&
                          parameter.Type != TypeSymbol.Error)
                 {
                     Report(
                         "VB6S0008",
-                        $"ByRef argument type '{variableExpression.Variable.Type.Name}' does not match parameter type '{parameter.Type.Name}'.",
+                        $"ByRef argument type '{expression.Type.Name}' does not match parameter type '{parameter.Type.Name}'.",
                         invocationIdentifier.Span);
                 }
             }
