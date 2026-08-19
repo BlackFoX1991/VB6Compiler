@@ -69,6 +69,68 @@ public sealed class UserDefinedTypeDeclarationBinderTests
     }
 
     [TestMethod]
+    public void Bind_ReusesPredeclaredPublicTypeIdentity()
+    {
+        var predeclared = new UserDefinedTypeSymbol("Point");
+        var result = Bind(
+            """
+            Public Type Point
+                X As Long
+            End Type
+            """,
+            new Dictionary<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase)
+            {
+                [predeclared.Name] = predeclared
+            });
+
+        Assert.IsTrue(result.Success, FormatDiagnostics(result));
+        Assert.AreSame(predeclared, result.Types["Point"]);
+        Assert.IsTrue(predeclared.MembersDefined);
+    }
+
+    [TestMethod]
+    public void Bind_ResolvesExternalPublicTypeFromAnotherModule()
+    {
+        var point = new UserDefinedTypeSymbol("Point");
+        var result = Bind(
+            """
+            Private Type Container
+                Position As Point
+            End Type
+            """,
+            new Dictionary<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase)
+            {
+                [point.Name] = point
+            });
+
+        Assert.IsTrue(result.Success, FormatDiagnostics(result));
+        var container = result.Types["Container"];
+        Assert.IsTrue(container.TryGetMember("Position", out var position));
+        Assert.AreSame(point, position.Type);
+    }
+
+    [TestMethod]
+    public void Bind_PrivateTypeCanShadowExternalPublicTypeIdentity()
+    {
+        var publicPoint = new UserDefinedTypeSymbol("Point");
+        var result = Bind(
+            """
+            Private Type Point
+                X As Integer
+            End Type
+            """,
+            new Dictionary<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase)
+            {
+                [publicPoint.Name] = publicPoint
+            });
+
+        Assert.IsTrue(result.Success, FormatDiagnostics(result));
+        Assert.AreNotSame(publicPoint, result.Types["Point"]);
+        Assert.IsFalse(publicPoint.MembersDefined);
+        Assert.IsTrue(result.Types["Point"].MembersDefined);
+    }
+
+    [TestMethod]
     public void Bind_DiagnosesDuplicateMembersCaseInsensitively()
     {
         var result = Bind("""
@@ -108,7 +170,9 @@ public sealed class UserDefinedTypeDeclarationBinderTests
         Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
     }
 
-    private static UserDefinedTypeDeclarationResult Bind(string source)
+    private static UserDefinedTypeDeclarationResult Bind(
+        string source,
+        IReadOnlyDictionary<string, UserDefinedTypeSymbol>? externalTypes = null)
     {
         var text = SourceText.From(source, "test.bas");
         var parse = new ParserType(text).ParseCompilationUnit();
@@ -116,7 +180,7 @@ public sealed class UserDefinedTypeDeclarationBinderTests
             0,
             parse.Diagnostics.Length,
             string.Join(Environment.NewLine, parse.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        return new UserDefinedTypeDeclarationBinder(text).Bind(parse.Root);
+        return new UserDefinedTypeDeclarationBinder(text, externalTypes).Bind(parse.Root);
     }
 
     private static string FormatDiagnostics(UserDefinedTypeDeclarationResult result) =>
