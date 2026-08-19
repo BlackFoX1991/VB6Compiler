@@ -92,6 +92,40 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void Array_ClonePreservesBoundsAndCreatesIndependentStorage()
+    {
+        var array = new VBArray<int>(
+            new VBArrayBound(-2, 0),
+            new VBArrayBound(4, 5));
+        array[-2, 4] = 24;
+        array[0, 5] = 5;
+
+        var clone = array.Clone();
+        clone[-2, 4] = 99;
+
+        Assert.AreEqual(-2, clone.LBound(1));
+        Assert.AreEqual(0, clone.UBound(1));
+        Assert.AreEqual(4, clone.LBound(2));
+        Assert.AreEqual(5, clone.UBound(2));
+        Assert.AreEqual(24, array[-2, 4]);
+        Assert.AreEqual(99, clone[-2, 4]);
+        Assert.AreEqual(5, clone[0, 5]);
+    }
+
+    [TestMethod]
+    public void Array_CloneCanRecursivelyCloneManagedElements()
+    {
+        var array = new VBArray<MutableValue>(new VBArrayBound(1, 1));
+        array[1] = new MutableValue { Value = 10 };
+
+        var clone = array.Clone(value => new MutableValue { Value = value.Value });
+        clone[1].Value = 20;
+
+        Assert.AreEqual(10, array[1].Value);
+        Assert.AreEqual(20, clone[1].Value);
+    }
+
+    [TestMethod]
     public void Array_ReDimPreserveCanGrowLastDimension()
     {
         var array = new VBArray<int>(
@@ -183,4 +217,9 @@ public sealed class VBArrayTests
     }
 
     private static void Increment(ref int value) => value++;
+
+    private sealed class MutableValue
+    {
+        public int Value { get; set; }
+    }
 }
