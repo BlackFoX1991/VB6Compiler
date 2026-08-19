@@ -77,6 +77,28 @@ public sealed class VBArray<T>
     }
 
     /// <summary>
+    /// Creates independent array storage with the same VB6 rank and bounds. The optional element
+    /// cloner lets generated UDT copy code recursively preserve value semantics when an element
+    /// itself contains managed backing storage.
+    /// </summary>
+    public VBArray<T> Clone(Func<T, T>? elementCloner = null)
+    {
+        var clone = new VBArray<T>(_bounds);
+        if (elementCloner is null)
+        {
+            Array.Copy(_items, clone._items, _items.Length);
+            return clone;
+        }
+
+        for (var index = 0; index < _items.Length; index++)
+        {
+            clone._items[index] = elementCloner(_items[index]);
+        }
+
+        return clone;
+    }
+
+    /// <summary>
     /// Implements the storage operation required by VB6 <c>ReDim Preserve</c>. VB6 permits
     /// Preserve to change only the upper bound of the final dimension. Earlier dimensions, the
     /// rank, and the final dimension's lower bound must remain unchanged.
