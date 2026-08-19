@@ -148,6 +148,10 @@ files each one affects. Raw diagnostic counts are deliberately not the headline 
 unsupported construct derails the parser for the rest of the file, so the cascade would drown
 out the gaps that matter.
 
+`conformance/` holds real third-party VB6 projects that the compiler is measured against, and
+the regression suite runs the same analysis over them on every build. See
+`conformance/README.md`.
+
 Generate C# source from one source file:
 
 ```text

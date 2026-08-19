@@ -66,9 +66,8 @@ Resume-Zustandsautomat.
   in-process laden kann. „64 Bit" gilt für Sprache und Typen, nicht zwingend für den Prozess.
   Muss vor Meilenstein 8 endgültig entschieden sein, weil Marshalling-Code davon abhängt.
 - **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
-- **Offen:** VISIA ist Fremdsoftware und liegt bislang unversioniert im Arbeitsverzeichnis. Vor
-  dem Einchecken als `conformance/`-Fixture ist die Lizenzlage zu klären; alternativ per
-  Pfadangabe referenzieren. `--report` nimmt jeden Pfad entgegen.
+  Es liegt versioniert unter `conformance/VISIA/` und wird von `ConformanceCorpusTests` in CI
+  mitgemessen. Herkunft und Zweck: `conformance/README.md`.
 
 ---
 
