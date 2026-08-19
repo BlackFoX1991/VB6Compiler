@@ -703,6 +703,7 @@ public sealed class Parser
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.IdentifierToken when LooksLikeArrayElementAssignment() => ParseArrayElementAssignmentStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
             _ => ParseSkippedStatement()
@@ -738,6 +739,59 @@ public sealed class Parser
                     return false;
             }
         }
+    }
+
+    private bool LooksLikeMemberAssignment()
+    {
+        if (Current.Kind != SyntaxKind.IdentifierToken)
+        {
+            return false;
+        }
+
+        var offset = 1;
+        if (Peek(offset).Kind == SyntaxKind.OpenParenthesisToken)
+        {
+            var depth = 0;
+            for (;; offset++)
+            {
+                var kind = Peek(offset).Kind;
+                if (kind == SyntaxKind.OpenParenthesisToken)
+                {
+                    depth++;
+                }
+                else if (kind == SyntaxKind.CloseParenthesisToken)
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        offset++;
+                        break;
+                    }
+                }
+                else if (kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (Peek(offset).Kind != SyntaxKind.DotToken)
+        {
+            return false;
+        }
+
+        while (Peek(offset).Kind == SyntaxKind.DotToken)
+        {
+            offset++;
+            var memberKind = Peek(offset).Kind;
+            if (memberKind != SyntaxKind.IdentifierToken && !IsKeyword(memberKind))
+            {
+                return false;
+            }
+            offset++;
+        }
+
+        return Peek(offset).Kind == SyntaxKind.EqualsToken;
     }
 
     private DimStatementSyntax ParseDimStatement()
@@ -806,6 +860,29 @@ public sealed class Parser
             closeParenthesis,
             equalsToken,
             expression);
+    }
+
+    private MemberAssignmentStatementSyntax ParseMemberAssignmentStatement()
+    {
+        var target = ParsePrimaryExpression();
+        var memberTarget = target as MemberAccessExpressionSyntax;
+        if (memberTarget is null)
+        {
+            var missingDot = new SyntaxToken(
+                SyntaxKind.DotToken,
+                new TextSpan(Current.Span.Start, 0),
+                string.Empty,
+                null,
+                ImmutableArray<SyntaxTrivia>.Empty);
+            memberTarget = new MemberAccessExpressionSyntax(
+                target,
+                missingDot,
+                MatchTypeMemberName());
+        }
+
+        var equalsToken = MatchToken(SyntaxKind.EqualsToken);
+        var expression = ParseExpression();
+        return new MemberAssignmentStatementSyntax(memberTarget, equalsToken, expression);
     }
 
     private IfStatementSyntax ParseIfStatement()
@@ -1205,30 +1282,40 @@ public sealed class Parser
 
     private ExpressionSyntax ParsePrimaryExpression()
     {
+        ExpressionSyntax expression;
         if (Current.Kind == SyntaxKind.OpenParenthesisToken)
         {
             var openParenthesis = NextToken();
-            var expression = ParseExpression();
+            var inner = ParseExpression();
             var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
-            return new ParenthesizedExpressionSyntax(openParenthesis, expression, closeParenthesis);
+            expression = new ParenthesizedExpressionSyntax(openParenthesis, inner, closeParenthesis);
         }
-
-        if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.FloatingLiteralToken or SyntaxKind.StringLiteralToken or
-            SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
+        else if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.FloatingLiteralToken or SyntaxKind.StringLiteralToken or
+                 SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
         {
-            return new LiteralExpressionSyntax(NextToken());
+            expression = new LiteralExpressionSyntax(NextToken());
         }
-
-        if (Current.Kind == SyntaxKind.IdentifierToken && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
+        else if (Current.Kind == SyntaxKind.IdentifierToken && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
         {
             var identifier = NextToken();
             var openParenthesis = NextToken();
             var arguments = ParseArguments(SyntaxKind.CloseParenthesisToken);
             var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
-            return new InvocationExpressionSyntax(identifier, openParenthesis, arguments, closeParenthesis);
+            expression = new InvocationExpressionSyntax(identifier, openParenthesis, arguments, closeParenthesis);
+        }
+        else
+        {
+            expression = new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
         }
 
-        return new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
+        while (Current.Kind == SyntaxKind.DotToken)
+        {
+            var dotToken = NextToken();
+            var memberToken = MatchTypeMemberName();
+            expression = new MemberAccessExpressionSyntax(expression, dotToken, memberToken);
+        }
+
+        return expression;
     }
 
     private SyntaxToken MatchTypeToken()

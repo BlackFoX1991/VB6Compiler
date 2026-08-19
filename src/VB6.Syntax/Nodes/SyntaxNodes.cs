@@ -210,6 +210,16 @@ public sealed record AssignmentStatementSyntax(
     SyntaxToken EqualsToken,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.AssignmentStatement);
 
+/// <summary>
+/// Assignment through an explicit member chain, for example <c>point.X = 1</c> or
+/// <c>outer.Inner.Value = 1</c>. The target is kept as a member-access expression so binding
+/// can reuse exactly the same member lookup model as reads and later <c>With</c> lowering.
+/// </summary>
+public sealed record MemberAssignmentStatementSyntax(
+    MemberAccessExpressionSyntax Target,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.MemberAssignmentStatement);
+
 public sealed record ElseIfClauseSyntax(
     SyntaxToken ElseIfKeyword,
     ExpressionSyntax Condition,
@@ -310,6 +320,17 @@ public sealed record InvocationExpressionSyntax(
     SyntaxToken OpenParenthesisToken,
     ImmutableArray<ExpressionSyntax> Arguments,
     SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.InvocationExpression);
+
+/// <summary>
+/// Explicit VB member selection. Chains are represented recursively, so <c>a.B.C</c> is a
+/// MemberAccess whose receiver is another MemberAccess. Member names may be VB keywords, matching
+/// the language's legal UDT member-name rules.
+/// </summary>
+public sealed record MemberAccessExpressionSyntax(
+    ExpressionSyntax Receiver,
+    SyntaxToken DotToken,
+    SyntaxToken MemberToken) : ExpressionSyntax(SyntaxKind.MemberAccessExpression);
+
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
 public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
