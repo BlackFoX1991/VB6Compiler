@@ -84,6 +84,7 @@ public enum SyntaxKind
     ExitKeyword,
     SelectKeyword,
     CaseKeyword,
+    WithKeyword,
     IsKeyword,
 
     CompilationUnit,
@@ -115,6 +116,7 @@ public enum SyntaxKind
     ForStatement,
     WhileStatement,
     DoStatement,
+    WithStatement,
     ExitStatement,
     SelectCaseStatement,
     CaseBlock,
@@ -129,6 +131,7 @@ public enum SyntaxKind
     NameExpression,
     InvocationExpression,
     MemberAccessExpression,
+    WithReceiverExpression,
     UnaryExpression,
     BinaryExpression,
     ParenthesizedExpression
