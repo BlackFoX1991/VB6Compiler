@@ -20,7 +20,7 @@ Implemented so far:
 - `Option Base 0` / `Option Base 1` and `Option Compare Text` / `Option Compare Binary` syntax; `Base` and `Compare` remain ordinary identifiers outside the directive context, while array-bound and string-comparison semantics remain later milestones
 - VB6 Function return semantics through assignment to the function name
 - cross-module Sub and Function resolution in `.vbp` projects
-- `Dim` locals for the current primitive type subset
+- typed comma-separated local and module variable declarators; each declarator has its own optional `As Type`, while omitted types remain implicit Variant and diagnose until the Variant milestone
 - unsigned 8-bit VB6 `Byte`
 - 16-bit VB6 `Integer` and 32-bit VB6 `Long`
 - modern signed 64-bit integer extension exposed as `LongLong` and `Int64` while keeping VB6 `Long` 32-bit
@@ -65,7 +65,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
-Windows CI run #582 validates the contextual `Option Base` / `Option Compare` syntax work on .NET 10 with a warning-free Release build and 208 passing tests. Its VISIA report measures **2210 total errors** (1794 parser, 68 lexer, 348 semantic), down from 2216 after `Optional` syntax. `envSort.bas` drops from 141 to 135 errors and now reaches a later `As`-related parser gap instead of stopping at `Option Base`.
+Windows CI run #604 validates comma-separated variable declarators on .NET 10 with a warning-free Release build and 218 passing tests, including generated-application execution for typed local and module lists. Its VISIA report measures **2223 total errors** (1762 parser, 68 lexer, 393 semantic). Compared with 2210 after `Option Base` / `Option Compare`, parser errors fall by 32 while more code reaches the binder; four declarations now report the precise `VB6S0020` implicit-Variant gap instead of borrowing a neighboring type. `envSort.bas` drops from 135 to 127 errors.
 
 Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated Long application whose Long arithmetic and Long `For` loop produce `60003`.
 
@@ -100,6 +100,8 @@ value = 2000 * 365
 ```
 
 That distinction is important for preserving VB6 overflow behavior.
+
+VB6 variable types are attached to individual declarators, not to the whole comma-separated declaration. For example, in `Dim a, b As Integer`, only `b` is Integer; `a` is Variant. VB6Compiler preserves that distinction now. Until Variant is implemented, the untyped `a` is diagnosed instead of being silently treated as Integer.
 
 For modern code that needs a signed 64-bit integer, VB6Compiler provides `LongLong` with `Int64` as an alias. This is a compiler extension and does not change the size of VB6 `Long`:
 
@@ -197,7 +199,7 @@ LegacyApp.runtimeconfig.json
 VB6.Runtime.dll
 ```
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, typed comma-separated variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency.
 
 The current ByRef implementation requires a variable argument with an exactly matching type. VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
 
@@ -206,10 +208,10 @@ The current ByRef implementation requires a variable argument with an exactly ma
 The order below is derived from a construct-frequency analysis over a real VB6
 codebase rather than from a generic VB6 feature list. See `docs/ROADMAP.md`.
 
-- `Option Explicit` enforcement, multi-declarator `Dim`, statement separators, and the remaining M2 parser gaps
+- `Option Explicit` enforcement, `Static` syntax, and the remaining M2 parser gaps
 - arrays and `Type ... End Type`, including `ReDim Preserve`
-- the first `Variant` representation
-- `Optional` omitted-argument/default-value semantics, `ParamArray`, `Property Get`/`Let`/`Set`, and class modules
+- the first `Variant` representation, including untyped variable declarators
+- `Optional` omitted-argument/default-value semantics, `ParamArray`, `Static` local lifetime, `Property Get`/`Let`/`Set`, and class modules
 - a dedicated lowered IR, then `GoTo`, `On Error`, and the `Err` object
 - the string and binary file I/O parts of the VB6 standard library
 - `Declare` marshalling and COM consumption
