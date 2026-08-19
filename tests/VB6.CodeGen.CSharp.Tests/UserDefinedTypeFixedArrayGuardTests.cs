@@ -59,4 +59,25 @@ public sealed class UserDefinedTypeFixedArrayGuardTests
         Assert.IsFalse(generation.Success);
         Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
     }
+
+    [TestMethod]
+    public void GenerateCSharp_KeepsFixedUdtElementArrayMemberGuarded()
+    {
+        var generation = VBCompilation.Create("""
+            Type Child
+                Value As Long
+            End Type
+
+            Type Record
+                Children(1 To 2) As Child
+            End Type
+
+            Sub Main()
+                Dim value As Record
+            End Sub
+            """, "test.bas").GenerateCSharp();
+
+        Assert.IsFalse(generation.Success);
+        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+    }
 }
