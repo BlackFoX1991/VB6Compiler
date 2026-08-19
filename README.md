@@ -30,6 +30,13 @@ Implemented so far:
 - logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp` on Boolean operands
 - bitwise `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp` on numeric operands
 - `&H` hexadecimal and `&O` octal literals with VB6 wrapping, plus the `&` and `%` integer type suffixes
+- `Attribute` metadata lines
+- `Public`, `Private`, `Friend` and `Global` on procedures and module-level declarations
+- module-level variables, shared across the standard modules of a project
+- `Const` declarations, typed or inferred from the value
+- line continuation with a trailing underscore
+- identifier type suffixes `$ % & ! # @`
+- `Exit Sub` and `Exit Function`
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
 - string concatenation with `&`
 - VB-oriented operator precedence for the implemented expression subset

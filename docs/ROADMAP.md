@@ -10,13 +10,21 @@ generischen VB6-Feature-Liste.
 
 Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42 Quelldateien):
 
-```
-Analyzed 27 of 40 project items. 0 of 27 analyze without errors.
-Total errors: 3361   (VB6P0001: 3183, VB6L0001: 178)
-```
+| Stand | Fehler gesamt | Parser | Lexer | Semantik | fehlerfreie Dateien |
+|---|---|---|---|---|---|
+| Nulllinie (M0) | 3361 | 3183 | 178 | 0 | 0 von 27 |
+| nach M2 | **2464** | 2276 | 68 | 120 | 0 von 27 |
 
-Das ist die Nulllinie. Sie muss über die Meilensteine monoton fallen. Nur `.bas` wird heute
-gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor — daher 27 von 40 Items.
+Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
+daher 27 von 40 Items.
+
+Dass erstmals *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
+bis zum Binder durch, statt schon im Parser zu entgleisen. `comMemory.bas` parst inzwischen
+fehlerfrei und scheitert nur noch an Prozeduren aus Modulen, die selbst noch nicht parsen.
+
+Deshalb bleibt die Zahl fehlerfreier Dateien vorerst bei 0: gebunden wird projektweit, also
+kann eine Datei erst sauber sein, wenn auch ihre Abhängigkeiten parsen. Der Sprung kommt
+schlagartig, nicht schrittweise.
 
 ### Was die Messung an der Planung geändert hat
 
@@ -81,21 +89,24 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 `&H`/`&O`-Literale mit VB6-Wrapping, `&`/`%`-Typsuffixe an Literalen, bitweise
 `And`/`Or`/`Xor`/`Eqv`/`Imp`/`Not` auf Numerik.
 
-## Meilenstein 2 — Dateien überhaupt lesbar machen
+## Meilenstein 2 — Dateien überhaupt lesbar machen (teilweise)
 
-Vorgezogen und neu zugeschnitten nach der Messung. Ziel: die Zahl fehlerfrei analysierter
-Dateien von 0 wegbekommen.
-
-- [ ] `Attribute`-Zeilen auf Modulebene
-- [ ] Deklarationen auf Modulebene: `Public`/`Private`/`Global`/`Dim`/`Static`
-- [ ] `Public`/`Private`/`Friend`-Modifizierer an `Sub` und `Function`
-- [ ] Bezeichner-Typsuffixe `$ % & ! # @`
+- [x] `Attribute`-Zeilen auf Modulebene
+- [x] Deklarationen auf Modulebene: `Public`/`Private`/`Global`/`Dim`
+- [x] `Public`/`Private`/`Friend`-Modifizierer an `Sub` und `Function`
+- [x] Bezeichner-Typsuffixe `$ % & ! # @`
+- [x] Zeilenfortsetzung mit `_`
+- [x] `Const`, typisiert und aus dem Wert abgeleitet
+- [x] `Exit Sub` und `Exit Function`
+- [ ] `Declare` (35 Vorkommen) — blockiert mehrere Module komplett
+- [ ] `Enum` (25 mit `Type`) — blockiert `comLinker.bas` ab Zeile 4
 - [ ] `:` als Anweisungstrenner
-- [ ] `With`-Blöcke und `.Feld`-Zugriff
-- [ ] `Const`, `Option Explicit`, `Option Base`, `Option Compare`
-- [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren)
-- [ ] `Enum`
+- [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
+- [ ] `Option Base`, `Option Compare`
 - [ ] `^`-Operator, `Like`, `Is`
+
+**Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
+brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
 
 ## Meilenstein 3 — Arrays und UDTs
 
