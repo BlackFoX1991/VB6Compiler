@@ -112,14 +112,22 @@ public sealed class Binder
 
     private static ImmutableArray<ParameterSymbol> CreateParameterSymbols(ImmutableArray<ParameterSyntax> parameters) =>
         parameters
-            .Select(parameter => new ParameterSymbol(
-                parameter.Identifier.Text,
-                parameter.IsArray
-                    ? TypeSymbol.Error
-                    : TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error,
-                parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
-                    ? ParameterPassingMode.ByVal
-                    : ParameterPassingMode.ByRef))
+            .Select(parameter =>
+            {
+                var elementType = TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error;
+                var type = parameter.IsArray && elementType != TypeSymbol.Error
+                    ? new ArrayTypeSymbol(
+                        elementType,
+                        parameter.Dimensions.IsDefaultOrEmpty ? 1 : parameter.Dimensions.Length)
+                    : elementType;
+
+                return new ParameterSymbol(
+                    parameter.Identifier.Text,
+                    type,
+                    parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
+                        ? ParameterPassingMode.ByVal
+                        : ParameterPassingMode.ByRef);
+            })
             .ToImmutableArray();
 
     private ProcedureSymbol ResolveProcedureSymbol(
@@ -259,25 +267,29 @@ public sealed class Binder
 
     private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
     {
-        if (declarator.IsArray)
+        if (declarator.TypeToken is null)
         {
             Report(
-                "VB6S0025",
-                $"Array variable '{declarator.Identifier.Text}' requires array type semantics, which are not implemented yet.",
+                "VB6S0020",
+                $"Variable '{declarator.Identifier.Text}' has implicit Variant type, which is not supported yet.",
                 declarator.Identifier.Span);
             return TypeSymbol.Error;
         }
 
-        if (declarator.TypeToken is not null)
+        var elementType = ResolveDeclaredType(declarator.TypeToken);
+        if (!declarator.IsArray || elementType == TypeSymbol.Error)
         {
-            return ResolveDeclaredType(declarator.TypeToken);
+            return elementType;
         }
 
         Report(
-            "VB6S0020",
-            $"Variable '{declarator.Identifier.Text}' has implicit Variant type, which is not supported yet.",
+            "VB6S0025",
+            $"Array variable '{declarator.Identifier.Text}' is typed, but array allocation and element semantics are not implemented yet.",
             declarator.Identifier.Span);
-        return TypeSymbol.Error;
+
+        return new ArrayTypeSymbol(
+            elementType,
+            declarator.Dimensions.IsDefaultOrEmpty ? 1 : declarator.Dimensions.Length);
     }
 
     private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken)
@@ -340,19 +352,19 @@ public sealed class Binder
                 ? symbol.Parameters[index]
                 : new ParameterSymbol(syntax.Identifier.Text, TypeSymbol.Error, ParameterPassingMode.ByRef);
 
-            if (syntax.IsArray)
-            {
-                Report(
-                    "VB6S0025",
-                    $"Array parameter '{syntax.Identifier.Text}' requires array type semantics, which are not implemented yet.",
-                    syntax.Identifier.Span);
-            }
-            else if (parameter.Type == TypeSymbol.Error)
+            if (parameter.Type == TypeSymbol.Error)
             {
                 Report(
                     "VB6S0003",
                     $"Unknown type '{syntax.TypeToken.Text}'.",
                     syntax.TypeToken.Span);
+            }
+            else if (syntax.IsArray)
+            {
+                Report(
+                    "VB6S0025",
+                    $"Array parameter '{syntax.Identifier.Text}' is typed, but array invocation and element semantics are not implemented yet.",
+                    syntax.Identifier.Span);
             }
 
             if (!TryDeclareInProcedureScope(variables, parameter.Name, parameter))
