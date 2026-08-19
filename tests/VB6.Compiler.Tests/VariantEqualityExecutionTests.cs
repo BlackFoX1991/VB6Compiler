@@ -28,6 +28,29 @@ public sealed class VariantEqualityExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ComparesVariantFunctionReturnSlotToInteger()
+    {
+        const string source = """
+            Function NumberExpression() As Variant
+                If NumberExpression = 0 Then
+                    NumberExpression = 42
+                End If
+            End Function
+
+            Sub Main()
+                Debug.Print NumberExpression()
+            End Sub
+            """;
+
+        var output = EmitAndRun(source, "VariantReturnEqualityProgram.dll");
+
+        CollectionAssert.AreEqual(
+            new[] { "42" },
+            SplitLines(output),
+            output);
+    }
+
+    [TestMethod]
     public void GenerateCSharp_LowersVariantLeftIntegerEqualityThroughDoubleConversions()
     {
         var generation = VBCompilation.Create("""
