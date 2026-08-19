@@ -47,6 +47,8 @@ public static class SyntaxFacts
         "BYREF" => SyntaxKind.ByRefKeyword,
         "BYVAL" => SyntaxKind.ByValKeyword,
         "FOR" => SyntaxKind.ForKeyword,
+        "EACH" => SyntaxKind.EachKeyword,
+        "IN" => SyntaxKind.InKeyword,
         "TO" => SyntaxKind.ToKeyword,
         "STEP" => SyntaxKind.StepKeyword,
         "NEXT" => SyntaxKind.NextKeyword,
