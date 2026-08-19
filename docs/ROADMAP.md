@@ -15,10 +15,12 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Nulllinie (M0) | 3361 | 3183 | 178 | 0 | 0 von 27 |
 | nach M2-Grundlagen | **2464** | 2276 | 68 | 120 | 0 von 27 |
 | nach `Declare`-Syntax | **2322** | 2116 | 68 | 138 | 0 von 27 |
+| nach `Enum`-Syntax | **2100** | 1894 | 68 | 138 | 0 von 27 |
 
-`Declare` senkt die Gesamtzahl damit um 142 und die Parserfehler um 160. Gleichzeitig werden
-18 zusätzliche Semantikfehler sichtbar, die vorher hinter Parserabbrüchen lagen. Der
-VISIA-Report läuft ab diesem Stand als eigener Schritt in GitHub Actions nach Build und Tests.
+`Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
+Parserfehler weg, ohne Lexer- oder Semantikzahlen zu verschieben; `comLinker.bas` fällt dabei
+von 324 auf 255 Fehler und kommt jetzt bis zum anschließenden `Type`-Block. Der VISIA-Report
+läuft als eigener Schritt in GitHub Actions nach Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -64,7 +66,7 @@ Business-Programm:
 | `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
 | `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
 | `ReDim`/`Preserve` | 103 | `Type ... End Type` | 52 |
-| `With` | 102 | `Enum` | 44 |
+| `With` | 102 | `Enum` | 44 ✅ Syntax |
 
 Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0, `Resume`-Statement 0. Da `Resume`
 fehlt, genügt `On Error GoTo` + `On Error Resume Next` + `Err` — kein voller
@@ -104,7 +106,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Const`, typisiert und aus dem Wert abgeleitet
 - [x] `Exit Sub` und `Exit Function`
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
-- [ ] `Enum` (25 mit `Type`) — blockiert `comLinker.bas` ab Zeile 4
+- [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; Binding bleibt später
 - [ ] `:` als Anweisungstrenner
 - [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
 - [ ] `Option Base`, `Option Compare`

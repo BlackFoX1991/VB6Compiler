@@ -38,6 +38,7 @@ Implemented so far:
 - identifier type suffixes `$ % & ! # @`
 - `Exit Sub` and `Exit Function`
 - `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; native binding and P/Invoke emission remain in the interop milestone
+- `Enum ... End Enum` syntax with optional visibility plus explicit or implicit member values; enum type binding remains a later language milestone
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
 - string concatenation with `&`
 - VB-oriented operator precedence for the implemented expression subset
@@ -62,7 +63,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
-Windows CI run #544 validates the `Declare` syntax work on .NET 10 with a warning-free Release build and the complete regression suite. Its VISIA report measures **2322 total errors** (2116 parser, 68 lexer, 138 semantic), down from 2464 before `Declare` parsing.
+Windows CI run #554 validates the `Enum` syntax work on .NET 10 with a warning-free Release build and 200 passing tests. Its VISIA report measures **2100 total errors** (1894 parser, 68 lexer, 138 semantic), down from 2322 after `Declare` parsing.
 
 Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated managed application whose Long arithmetic and Long `For` loop produce `60003`.
 
@@ -203,7 +204,7 @@ The current ByRef implementation requires a variable argument with an exactly ma
 The order below is derived from a construct-frequency analysis over a real VB6
 codebase rather than from a generic VB6 feature list. See `docs/ROADMAP.md`.
 
-- `Const`, `Option Explicit` enforcement, multi-declarator `Dim`, and `Enum`
+- `Option Explicit` enforcement, multi-declarator `Dim`, statement separators, and the remaining M2 parser gaps
 - arrays and `Type ... End Type`, including `ReDim Preserve`
 - the first `Variant` representation
 - `Optional`, `ParamArray`, `Property Get`/`Let`/`Set`, and class modules
