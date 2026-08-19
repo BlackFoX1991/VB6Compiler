@@ -112,6 +112,10 @@ public static class UserDefinedTypeValueGuard
                     ValidateStatements(text, doStatement.Statements, types, diagnostics);
                     break;
 
+                case WithStatementSyntax withStatement:
+                    ValidateStatements(text, withStatement.Statements, types, diagnostics);
+                    break;
+
                 case SelectCaseStatementSyntax selectStatement:
                     foreach (var caseBlock in selectStatement.Cases)
                     {

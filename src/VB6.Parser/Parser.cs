@@ -698,12 +698,14 @@ public sealed class Parser
             SyntaxKind.ForKeyword => ParseForStatement(),
             SyntaxKind.WhileKeyword => ParseWhileStatement(),
             SyntaxKind.DoKeyword => ParseDoStatement(),
+            SyntaxKind.WithKeyword => ParseWithStatement(),
             SyntaxKind.ExitKeyword => ParseExitStatement(),
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.IdentifierToken when LooksLikeArrayElementAssignment() => ParseArrayElementAssignmentStatement(),
             SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
+            SyntaxKind.DotToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
             _ => ParseSkippedStatement()
@@ -743,34 +745,38 @@ public sealed class Parser
 
     private bool LooksLikeMemberAssignment()
     {
-        if (Current.Kind != SyntaxKind.IdentifierToken)
+        if (Current.Kind is not SyntaxKind.IdentifierToken and not SyntaxKind.DotToken)
         {
             return false;
         }
 
-        var offset = 1;
-        if (Peek(offset).Kind == SyntaxKind.OpenParenthesisToken)
+        var offset = 0;
+        if (Current.Kind == SyntaxKind.IdentifierToken)
         {
-            var depth = 0;
-            for (;; offset++)
+            offset = 1;
+            if (Peek(offset).Kind == SyntaxKind.OpenParenthesisToken)
             {
-                var kind = Peek(offset).Kind;
-                if (kind == SyntaxKind.OpenParenthesisToken)
+                var depth = 0;
+                for (;; offset++)
                 {
-                    depth++;
-                }
-                else if (kind == SyntaxKind.CloseParenthesisToken)
-                {
-                    depth--;
-                    if (depth == 0)
+                    var kind = Peek(offset).Kind;
+                    if (kind == SyntaxKind.OpenParenthesisToken)
                     {
-                        offset++;
-                        break;
+                        depth++;
                     }
-                }
-                else if (kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken)
-                {
-                    return false;
+                    else if (kind == SyntaxKind.CloseParenthesisToken)
+                    {
+                        depth--;
+                        if (depth == 0)
+                        {
+                            offset++;
+                            break;
+                        }
+                    }
+                    else if (kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken)
+                    {
+                        return false;
+                    }
                 }
             }
         }
@@ -1045,6 +1051,22 @@ public sealed class Parser
             postCondition);
     }
 
+    private WithStatementSyntax ParseWithStatement()
+    {
+        var withKeyword = MatchToken(SyntaxKind.WithKeyword);
+        var expression = ParseExpression();
+        ConsumeLineTerminator();
+        var statements = ParseStatementsUntil(() => IsEndPair(SyntaxKind.WithKeyword));
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endWithKeyword = MatchToken(SyntaxKind.WithKeyword);
+        return new WithStatementSyntax(
+            withKeyword,
+            expression,
+            statements,
+            endKeyword,
+            endWithKeyword);
+    }
+
     private ExitStatementSyntax ParseExitStatement()
     {
         var exitKeyword = MatchToken(SyntaxKind.ExitKeyword);
@@ -1283,7 +1305,11 @@ public sealed class Parser
     private ExpressionSyntax ParsePrimaryExpression()
     {
         ExpressionSyntax expression;
-        if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+        if (Current.Kind == SyntaxKind.DotToken)
+        {
+            expression = new WithReceiverExpressionSyntax();
+        }
+        else if (Current.Kind == SyntaxKind.OpenParenthesisToken)
         {
             var openParenthesis = NextToken();
             var inner = ParseExpression();

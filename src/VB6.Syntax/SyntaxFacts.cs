@@ -58,6 +58,7 @@ public static class SyntaxFacts
         "EXIT" => SyntaxKind.ExitKeyword,
         "SELECT" => SyntaxKind.SelectKeyword,
         "CASE" => SyntaxKind.CaseKeyword,
+        "WITH" => SyntaxKind.WithKeyword,
         "IS" => SyntaxKind.IsKeyword,
         _ => SyntaxKind.IdentifierToken
     };
