@@ -21,6 +21,8 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
 | M2 abgeschlossen (`Static`, `^`, `Like`, `Is`) | **2219** | 1758 | 68 | 393 | 0 von 27 |
 | M3 Array-Syntax/Runtime-Basis | **2105** | 1644 | 68 | 393 | 0 von 27 |
+| M3 Array-Bindung/Elementzugriff | **2032** | 1571 | 68 | 393 | 0 von 27 |
+| M3 `ReDim` / `ReDim Preserve` | **2299** | 1474 | 68 | 757 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -35,16 +37,27 @@ Parser zu entgleisen. `Static` entfernt weitere 4 Parserfehler und schließt M2 
 Parserfehlern ab. `^`, `Like` und expression-level `Is` ändern den aktuellen VISIA-Zähler nicht,
 sind aber regressionsgesichert.
 
-Der erste M3-Slice bewahrt jetzt feste, explizit begrenzte, mehrdimensionale und dynamische
-Arraydeklarationen sowie Arrayparameter im Syntaxbaum. Damit sinken die Parserfehler nochmals um
-114 auf 1644 und die Gesamtzahl auf 2105. `ArrayTypeSymbol` und die bounds-erhaltende
-`VBArray<T>`-Runtime sind als Fundament vorhanden und separat getestet. **Arrayvariablen und
-Arrayparameter werden im Binder aber weiterhin mit `VB6S0025` gestoppt**; `Option Base` wird also
-noch nicht semantisch auf Bound-Nodes angewendet und Arrayzugriffe werden noch nicht emittiert.
-Der zwischenzeitlich begonnene, aber unvollständig verdrahtete Codegen-Slice wurde mit
-`8e3a3a0` auf diesen kohärenten Stand zurückgenommen. Actions #700 bestätigt den Referenzstand
-mit 258 Tests, 0 Warnungen und 0 Buildfehlern. Der VISIA-Report läuft als eigener Schritt nach
-Build und Tests.
+Der erste M3-Slice bewahrt feste, explizit begrenzte, mehrdimensionale und dynamische
+Arraydeklarationen sowie Arrayparameter im Syntaxbaum. Damit sanken die Parserfehler um 114 auf
+1644 und die Gesamtzahl auf 2105. `ArrayTypeSymbol` und die bounds-erhaltende `VBArray<T>`-Runtime
+bildeten dafür das Fundament.
+
+Die anschließende echte Array-Bindung, feste Initialisierung, `Option Base`, Elementzugriffe und
+ByRef-fähige Arrayelemente senkten die Parserdiagnostik weiter auf 1571 und die Gesamtzahl auf
+2032. Dynamische Arrays und `values()`-Arrayparameter tragen jetzt bewusst einen unbekannten Rang;
+bei festen Deklarationen bleibt der Rang bekannt und wird statisch geprüft. Ganze Arrayparameter
+sind wie in VB6 ByRef, während einzelne Elemente dank des `ref`-Indexers auch als echte ByRef-
+Argumente weitergereicht werden können.
+
+`ReDim` und `ReDim Preserve` sind nun für explizit typisierte dynamische Arrays von Lexer bis
+End-to-End-Ausführung verdrahtet. `Preserve` bewahrt Werte beim Ändern der Obergrenze der letzten
+Dimension und lehnt Rang-, frühere Dimensions- und Untergrenzenänderungen ab. Dadurch fallen die
+Parserfehler nochmals von 1571 auf 1474. Gleichzeitig steigt die sichtbare Semantik auf 757 und
+die rohe Gesamtsumme auf 2299: 97 weitere Parserbarrieren sind verschwunden und deutlich mehr
+realer VISIA-Code gelangt nun in Namensauflösung und ByRef-Prüfung. Dieser Anstieg ist daher wie
+bei `Optional` ein Übergang von Parserkaskaden zu konkreten späteren Semantiklücken. Actions #793
+validiert diesen Stand mit 298 Tests, 0 Warnungen und 0 Buildfehlern sowie erfolgreichen
+Compiler-/Runtime-End-to-End-Tests für `ReDim` und `ReDim Preserve`.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -124,7 +137,7 @@ Business-Programm:
 | String-Funktionen | 337 | `Optional`/`ParamArray` | 77 (`Optional`-Syntax ✅) |
 | `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
 | `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
-| `ReDim`/`Preserve` | 103 | `Type ... End Type` | 52 |
+| `ReDim`/`Preserve` | 103 ✅ typed arrays | `Type ... End Type` | 52 |
 | `With` | 102 | `Enum` | 44 ✅ Syntax |
 
 Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0, `Resume`-Statement 0. Da `Resume`
@@ -181,10 +194,11 @@ brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
 Zusammen, weil Win32-Strukturen beides brauchen.
 
 - [x] Array-Deklarationssyntax: `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional und dynamisch `Dim x()`; Grenzen werden verlustfrei im Syntaxbaum bewahrt
-- [x] Arrayparameter-Syntax wie `TheArray() As String`
-- [x] `ArrayTypeSymbol` als Typfundament und `VBArray<T>` in der Runtime mit Rang, expliziten Unter-/Obergrenzen, Indexprüfung sowie `LBound`/`UBound`-Grundlage
-- [ ] Arrayvariablen/-parameter echt binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben und emittieren; `Option Base` semantisch auf implizite Untergrenzen anwenden (bis dahin `VB6S0025`)
-- [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound` als Sprach-/Bibliothekszugriff, `For Each`
+- [x] Arrayparameter-Syntax wie `TheArray() As String`; Parameter haben keinen statisch festgelegten Rang und ganze Arrays werden ByRef übergeben
+- [x] `ArrayTypeSymbol` / `VBArray<T>` mit bekanntem oder dynamischem Rang, expliziten Unter-/Obergrenzen, Indexprüfung sowie `LBound`/`UBound`-Runtime-Grundlage
+- [x] Arrayvariablen/-parameter binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben/emittieren; `Option Base` auf implizite Untergrenzen anwenden; Arrayelemente ByRef weiterreichen
+- [x] `ReDim` / `ReDim Preserve` für explizit typisierte dynamische Arrays inklusive Bounds, Codegen, Runtime-Wertbewahrung und End-to-End-Ausführung
+- [ ] `Erase`, `LBound`/`UBound` als Sprach-/Bibliothekszugriff, `For Each`
 - [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`; `UserDefinedTypeSymbol`
 
 ## Meilenstein 4 — Variant
