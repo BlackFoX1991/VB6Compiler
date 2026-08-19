@@ -542,6 +542,7 @@ public sealed class Parser
         return Current.Kind switch
         {
             SyntaxKind.DimKeyword => ParseDimStatement(),
+            SyntaxKind.StaticKeyword => ParseStaticStatement(),
             SyntaxKind.IfKeyword => ParseIfStatement(),
             SyntaxKind.ForKeyword => ParseForStatement(),
             SyntaxKind.WhileKeyword => ParseWhileStatement(),
@@ -560,6 +561,12 @@ public sealed class Parser
     {
         var dimKeyword = MatchToken(SyntaxKind.DimKeyword);
         return new DimStatementSyntax(dimKeyword, ParseVariableDeclarators());
+    }
+
+    private StaticStatementSyntax ParseStaticStatement()
+    {
+        var staticKeyword = MatchToken(SyntaxKind.StaticKeyword);
+        return new StaticStatementSyntax(staticKeyword, ParseVariableDeclarators());
     }
 
     private AssignmentStatementSyntax ParseAssignmentStatement()
