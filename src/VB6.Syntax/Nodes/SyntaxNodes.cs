@@ -73,7 +73,10 @@ public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
     SyntaxToken Identifier,
     SyntaxToken AsKeyword,
-    SyntaxToken TypeToken) : SyntaxNode(SyntaxKind.Parameter);
+    SyntaxToken TypeToken,
+    SyntaxToken? OptionalKeyword = null,
+    SyntaxToken? EqualsToken = null,
+    ExpressionSyntax? DefaultValue = null) : SyntaxNode(SyntaxKind.Parameter);
 
 public sealed record SubDeclarationSyntax(
     SyntaxToken SubKeyword,

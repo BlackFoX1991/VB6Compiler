@@ -422,6 +422,12 @@ public sealed class Parser
 
     private ParameterSyntax ParseParameter()
     {
+        SyntaxToken? optionalKeyword = null;
+        if (Current.Kind == SyntaxKind.OptionalKeyword)
+        {
+            optionalKeyword = NextToken();
+        }
+
         SyntaxToken? passingModeKeyword = null;
         if (Current.Kind is SyntaxKind.ByRefKeyword or SyntaxKind.ByValKeyword)
         {
@@ -431,7 +437,23 @@ public sealed class Parser
         var identifier = MatchToken(SyntaxKind.IdentifierToken);
         var asKeyword = MatchToken(SyntaxKind.AsKeyword);
         var typeToken = MatchTypeToken();
-        return new ParameterSyntax(passingModeKeyword, identifier, asKeyword, typeToken);
+
+        SyntaxToken? equalsToken = null;
+        ExpressionSyntax? defaultValue = null;
+        if (Current.Kind == SyntaxKind.EqualsToken)
+        {
+            equalsToken = NextToken();
+            defaultValue = ParseExpression();
+        }
+
+        return new ParameterSyntax(
+            passingModeKeyword,
+            identifier,
+            asKeyword,
+            typeToken,
+            optionalKeyword,
+            equalsToken,
+            defaultValue);
     }
 
     private StatementSyntax ParseStatement()
