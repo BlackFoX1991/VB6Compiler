@@ -27,8 +27,11 @@ public sealed class UserDefinedTypeMemberArrayCodeGenTests
             End Sub
             """, "Module1.bas").Analyze();
 
+        Assert.IsTrue(
+            analysis.Success,
+            string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
         Assert.IsNotNull(analysis.SemanticModel);
-        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
 
         var source = new CSharpGenerator().Generate(analysis.SemanticModel);
 
