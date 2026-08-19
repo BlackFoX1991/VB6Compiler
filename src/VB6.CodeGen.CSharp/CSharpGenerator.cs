@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using VB6.Semantics;
@@ -29,7 +30,7 @@ public sealed class CSharpGenerator
             foreach (var variable in model.ModuleVariables)
             {
                 var initializer = variable.Initializer is null
-                    ? GetDefaultValue(variable.Symbol.Type)
+                    ? EmitVariableInitializer(variable.Symbol.Type, variable.ArrayDimensions)
                     : EmitExpression(variable.Initializer);
                 WriteLine($"private static {GetTypeName(variable.Symbol.Type)} {GetVariableName(variable.Symbol)} = {initializer};");
             }
@@ -99,11 +100,19 @@ public sealed class CSharpGenerator
         switch (statement)
         {
             case BoundVariableDeclarationStatement declaration:
-                WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetVariableName(declaration.Variable)} = {GetDefaultValue(declaration.Variable.Type)};");
+                WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetVariableName(declaration.Variable)} = {EmitVariableInitializer(declaration.Variable.Type, declaration.ArrayDimensions)};");
+                break;
+
+            case BoundReDimStatement reDim:
+                EmitReDimStatement(reDim);
                 break;
 
             case BoundAssignmentStatement assignment:
                 WriteLine($"{GetVariableName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
+                break;
+
+            case BoundArrayElementAssignmentStatement arrayAssignment:
+                WriteLine($"{GetVariableName(arrayAssignment.Array)}[{EmitIndices(arrayAssignment.Indices)}] = {EmitExpression(arrayAssignment.Expression)};");
                 break;
 
             case BoundIfStatement ifStatement:
@@ -148,6 +157,46 @@ public sealed class CSharpGenerator
                 break;
         }
     }
+
+    private string EmitVariableInitializer(
+        TypeSymbol type,
+        ImmutableArray<BoundArrayDimension> dimensions)
+    {
+        if (type is not ArrayTypeSymbol arrayType)
+        {
+            return GetDefaultValue(type);
+        }
+
+        if (dimensions.IsDefaultOrEmpty)
+        {
+            return "null!";
+        }
+
+        return $"new {GetTypeName(arrayType)}({EmitArrayBounds(dimensions)})";
+    }
+
+    private void EmitReDimStatement(BoundReDimStatement statement)
+    {
+        if (statement.Array.Type is not ArrayTypeSymbol arrayType)
+        {
+            return;
+        }
+
+        var variable = GetVariableName(statement.Array);
+        var bounds = EmitArrayBounds(statement.ArrayDimensions);
+        if (statement.Preserve)
+        {
+            WriteLine($"{variable} = {variable}.ReDimPreserve({bounds});");
+        }
+        else
+        {
+            WriteLine($"{variable} = new {GetTypeName(arrayType)}({bounds});");
+        }
+    }
+
+    private string EmitArrayBounds(ImmutableArray<BoundArrayDimension> dimensions) =>
+        string.Join(", ", dimensions.Select(dimension =>
+            $"new VBArrayBound({EmitExpression(dimension.LowerBound)}, {EmitExpression(dimension.UpperBound)})"));
 
     private void EmitIfStatement(BoundIfStatement statement)
     {
@@ -338,12 +387,17 @@ public sealed class CSharpGenerator
             : expression;
     }
 
+    private string EmitIndices(IEnumerable<BoundExpression> indices) =>
+        string.Join(", ", indices.Select(EmitExpression));
+
     private string EmitExpression(BoundExpression expression)
     {
         return expression switch
         {
             BoundLiteralExpression literal => EmitLiteral(literal),
             BoundVariableExpression variable => GetVariableName(variable.Variable),
+            BoundArrayAccessExpression arrayAccess =>
+                $"{GetVariableName(arrayAccess.Array)}[{EmitIndices(arrayAccess.Indices)}]",
             BoundInvocationExpression invocation =>
                 $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
             BoundConversionExpression conversion => EmitConversion(conversion),
@@ -540,6 +594,11 @@ public sealed class CSharpGenerator
 
     private static string GetTypeName(TypeSymbol type)
     {
+        if (type is ArrayTypeSymbol arrayType)
+        {
+            return $"VBArray<{GetTypeName(arrayType.ElementType)}>";
+        }
+
         if (type == TypeSymbol.Byte)
         {
             return "byte";
@@ -590,6 +649,11 @@ public sealed class CSharpGenerator
 
     private static string GetDefaultValue(TypeSymbol type)
     {
+        if (type is ArrayTypeSymbol)
+        {
+            return "null!";
+        }
+
         if (type == TypeSymbol.String)
         {
             return "string.Empty";

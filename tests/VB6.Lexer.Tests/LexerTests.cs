@@ -43,6 +43,23 @@ public sealed class LexerTests
     }
 
     [TestMethod]
+    public void Lex_RecognizesReDimKeywordsCaseInsensitively()
+    {
+        var result = new LexerType(SourceText.From("rEdIm PRESERVE values")).Lex();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                SyntaxKind.ReDimKeyword,
+                SyntaxKind.PreserveKeyword,
+                SyntaxKind.IdentifierToken,
+                SyntaxKind.EndOfFileToken
+            },
+            result.Tokens.Select(token => token.Kind).ToArray());
+        Assert.AreEqual(0, result.Diagnostics.Length);
+    }
+
+    [TestMethod]
     public void Lex_PreservesCommentAsTrivia()
     {
         var result = new LexerType(SourceText.From("Dim x ' comment\r\nAs Integer")).Lex();

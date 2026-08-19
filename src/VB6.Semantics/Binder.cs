@@ -13,6 +13,7 @@ public sealed class Binder
     private readonly List<LoopBindingContext> _loopStack = new();
     private int _nextLoopId;
     private int _nextSelectId;
+    private int _optionBase;
 
     public Binder(SourceText text)
     {
@@ -43,7 +44,9 @@ public sealed class Binder
         CompilationUnitSyntax root)
     {
         ArgumentNullException.ThrowIfNull(root);
-        return new Binder(text).DeclareModuleVariables(root).Scope.Values.ToImmutableArray();
+        var binder = new Binder(text);
+        binder.ApplyModuleOptions(root);
+        return binder.DeclareModuleVariables(root).Scope.Values.ToImmutableArray();
     }
 
     public SemanticModel BindCompilationUnit(CompilationUnitSyntax root)
@@ -59,6 +62,7 @@ public sealed class Binder
     {
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
+        ApplyModuleOptions(root);
         var declared = DeclareModuleVariables(root);
         var moduleVariables = availableModuleVariables ?? declared.Scope;
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
@@ -110,16 +114,35 @@ public sealed class Binder
         };
     }
 
+    private void ApplyModuleOptions(CompilationUnitSyntax root)
+    {
+        _optionBase = 0;
+        foreach (var member in root.Members)
+        {
+            if (member is OptionBaseSyntax optionBase)
+            {
+                _optionBase = optionBase.ValueToken.Text == "1" ? 1 : 0;
+                break;
+            }
+        }
+    }
+
     private static ImmutableArray<ParameterSymbol> CreateParameterSymbols(ImmutableArray<ParameterSyntax> parameters) =>
         parameters
-            .Select(parameter => new ParameterSymbol(
-                parameter.Identifier.Text,
-                parameter.IsArray
-                    ? TypeSymbol.Error
-                    : TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error,
-                parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
-                    ? ParameterPassingMode.ByVal
-                    : ParameterPassingMode.ByRef))
+            .Select(parameter =>
+            {
+                var elementType = TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error;
+                var type = parameter.IsArray && elementType != TypeSymbol.Error
+                    ? new ArrayTypeSymbol(elementType)
+                    : elementType;
+
+                return new ParameterSymbol(
+                    parameter.Identifier.Text,
+                    type,
+                    parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
+                        ? ParameterPassingMode.ByVal
+                        : ParameterPassingMode.ByRef);
+            })
             .ToImmutableArray();
 
     private ProcedureSymbol ResolveProcedureSymbol(
@@ -217,11 +240,20 @@ public sealed class Binder
                 {
                     foreach (var declarator in declaration.Declarators)
                     {
+                        var visible = scope.ToDictionary(
+                            entry => entry.Key,
+                            entry => (VariableSymbol)entry.Value,
+                            StringComparer.OrdinalIgnoreCase);
                         var type = ResolveVariableDeclaratorType(declarator);
+                        var dimensions = BindArrayDimensions(declarator, visible, noProcedures);
                         var symbol = new ModuleVariableSymbol(declarator.Identifier.Text, type);
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
-                            bound.Add(new BoundModuleVariable(symbol, null, IsConstant: false));
+                            bound.Add(new BoundModuleVariable(
+                                symbol,
+                                null,
+                                IsConstant: false,
+                                dimensions));
                         }
                     }
 
@@ -259,25 +291,52 @@ public sealed class Binder
 
     private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
     {
-        if (declarator.IsArray)
+        if (declarator.TypeToken is null)
         {
             Report(
-                "VB6S0025",
-                $"Array variable '{declarator.Identifier.Text}' requires array type semantics, which are not implemented yet.",
+                "VB6S0020",
+                $"Variable '{declarator.Identifier.Text}' has implicit Variant type, which is not supported yet.",
                 declarator.Identifier.Span);
             return TypeSymbol.Error;
         }
 
-        if (declarator.TypeToken is not null)
+        var elementType = ResolveDeclaredType(declarator.TypeToken);
+        if (!declarator.IsArray || elementType == TypeSymbol.Error)
         {
-            return ResolveDeclaredType(declarator.TypeToken);
+            return elementType;
         }
 
-        Report(
-            "VB6S0020",
-            $"Variable '{declarator.Identifier.Text}' has implicit Variant type, which is not supported yet.",
-            declarator.Identifier.Span);
-        return TypeSymbol.Error;
+        return declarator.Dimensions.IsDefaultOrEmpty
+            ? new ArrayTypeSymbol(elementType)
+            : new ArrayTypeSymbol(elementType, declarator.Dimensions.Length);
+    }
+
+    private ImmutableArray<BoundArrayDimension> BindArrayDimensions(
+        VariableDeclaratorSyntax declarator,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (!declarator.IsArray || declarator.Dimensions.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<BoundArrayDimension>.Empty;
+        }
+
+        var dimensions = ImmutableArray.CreateBuilder<BoundArrayDimension>(declarator.Dimensions.Length);
+        foreach (var dimension in declarator.Dimensions)
+        {
+            var lowerBound = dimension.LowerBound is null
+                ? new BoundLiteralExpression((long)_optionBase, TypeSymbol.Long)
+                : BindConversion(
+                    BindExpression(dimension.LowerBound, variables, procedures),
+                    TypeSymbol.Long);
+            var upperBound = BindConversion(
+                BindExpression(dimension.UpperBound, variables, procedures),
+                TypeSymbol.Long);
+
+            dimensions.Add(new BoundArrayDimension(lowerBound, upperBound));
+        }
+
+        return dimensions.ToImmutable();
     }
 
     private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken)
@@ -340,19 +399,28 @@ public sealed class Binder
                 ? symbol.Parameters[index]
                 : new ParameterSymbol(syntax.Identifier.Text, TypeSymbol.Error, ParameterPassingMode.ByRef);
 
-            if (syntax.IsArray)
-            {
-                Report(
-                    "VB6S0025",
-                    $"Array parameter '{syntax.Identifier.Text}' requires array type semantics, which are not implemented yet.",
-                    syntax.Identifier.Span);
-            }
-            else if (parameter.Type == TypeSymbol.Error)
+            if (parameter.Type == TypeSymbol.Error)
             {
                 Report(
                     "VB6S0003",
                     $"Unknown type '{syntax.TypeToken.Text}'.",
                     syntax.TypeToken.Span);
+            }
+
+            if (syntax.IsArray && syntax.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword)
+            {
+                Report(
+                    "VB6S0028",
+                    $"Array parameter '{syntax.Identifier.Text}' must be passed ByRef.",
+                    syntax.PassingModeKeyword.Span);
+            }
+
+            if (syntax.IsArray && !syntax.Dimensions.IsDefaultOrEmpty)
+            {
+                Report(
+                    "VB6S0032",
+                    $"Array parameter '{syntax.Identifier.Text}' cannot specify a fixed rank or bounds.",
+                    syntax.Identifier.Span);
             }
 
             if (!TryDeclareInProcedureScope(variables, parameter.Name, parameter))
@@ -447,7 +515,20 @@ public sealed class Binder
             {
                 foreach (var declarator in dim.Declarators)
                 {
-                    bound.Add(BindVariableDeclaration(declarator, variables));
+                    bound.Add(BindVariableDeclaration(declarator, variables, procedures));
+                }
+                continue;
+            }
+
+            if (statement is ReDimStatementSyntax reDim)
+            {
+                foreach (var declarator in reDim.Declarators)
+                {
+                    bound.Add(BindReDim(
+                        declarator,
+                        reDim.PreserveKeyword is not null,
+                        variables,
+                        procedures));
                 }
                 continue;
             }
@@ -479,6 +560,7 @@ public sealed class Binder
         return statement switch
         {
             AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
+            ArrayElementAssignmentStatementSyntax arrayAssignment => BindArrayElementAssignment(arrayAssignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
             ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
             WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
@@ -495,7 +577,8 @@ public sealed class Binder
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
         VariableDeclaratorSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         if (!variables.TryGetValue(syntax.Identifier.Text, out var variable) ||
             variable is not LocalVariableSymbol local)
@@ -503,7 +586,67 @@ public sealed class Binder
             local = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
         }
 
-        return new BoundVariableDeclarationStatement(local);
+        return new BoundVariableDeclarationStatement(
+            local,
+            BindArrayDimensions(syntax, variables, procedures));
+    }
+
+    private BoundReDimStatement BindReDim(
+        VariableDeclaratorSyntax syntax,
+        bool preserve,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var dimensions = BindArrayDimensions(syntax, variables, procedures);
+
+        if (!variables.TryGetValue(syntax.Identifier.Text, out var variable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{syntax.Identifier.Text}' is not declared.",
+                syntax.Identifier.Span);
+            variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            return new BoundReDimStatement(variable, dimensions, preserve);
+        }
+
+        if (variable.Type is not ArrayTypeSymbol arrayType)
+        {
+            Report(
+                "VB6S0029",
+                $"ReDim target '{syntax.Identifier.Text}' is not a dynamic array.",
+                syntax.Identifier.Span);
+            return new BoundReDimStatement(variable, dimensions, preserve);
+        }
+
+        if (arrayType.HasKnownRank)
+        {
+            Report(
+                "VB6S0029",
+                $"ReDim target '{syntax.Identifier.Text}' is a fixed array.",
+                syntax.Identifier.Span);
+        }
+
+        if (!syntax.IsArray || syntax.Dimensions.IsDefaultOrEmpty)
+        {
+            Report(
+                "VB6S0030",
+                $"ReDim target '{syntax.Identifier.Text}' requires at least one dimension.",
+                syntax.Identifier.Span);
+        }
+
+        if (syntax.TypeToken is not null)
+        {
+            var reDimElementType = ResolveDeclaredType(syntax.TypeToken);
+            if (reDimElementType != TypeSymbol.Error && reDimElementType != arrayType.ElementType)
+            {
+                Report(
+                    "VB6S0031",
+                    $"ReDim cannot change array '{syntax.Identifier.Text}' from element type '{arrayType.ElementType.Name}' to '{reDimElementType.Name}'.",
+                    syntax.TypeToken.Span);
+            }
+        }
+
+        return new BoundReDimStatement(variable, dimensions, preserve);
     }
 
     private BoundAssignmentStatement BindAssignment(
@@ -525,6 +668,64 @@ public sealed class Binder
         }
 
         return new BoundAssignmentStatement(variable, BindConversion(expression, variable.Type));
+    }
+
+    private BoundArrayElementAssignmentStatement BindArrayElementAssignment(
+        ArrayElementAssignmentStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var expression = BindExpression(syntax.Expression, variables, procedures);
+
+        if (!variables.TryGetValue(syntax.Identifier.Text, out var variable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{syntax.Identifier.Text}' is not declared.",
+                syntax.Identifier.Span);
+            variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            return new BoundArrayElementAssignmentStatement(
+                variable,
+                BindArrayIndices(syntax.Identifier, syntax.Indices, null, variables, procedures),
+                expression);
+        }
+
+        if (variable.Type is not ArrayTypeSymbol arrayType)
+        {
+            Report(
+                "VB6S0026",
+                $"Variable '{syntax.Identifier.Text}' is not an array.",
+                syntax.Identifier.Span);
+            return new BoundArrayElementAssignmentStatement(
+                variable,
+                BindArrayIndices(syntax.Identifier, syntax.Indices, null, variables, procedures),
+                expression);
+        }
+
+        return new BoundArrayElementAssignmentStatement(
+            variable,
+            BindArrayIndices(syntax.Identifier, syntax.Indices, arrayType, variables, procedures),
+            BindConversion(expression, arrayType.ElementType));
+    }
+
+    private ImmutableArray<BoundExpression> BindArrayIndices(
+        SyntaxToken identifier,
+        ImmutableArray<ExpressionSyntax> indexSyntaxes,
+        ArrayTypeSymbol? arrayType,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (arrayType?.Rank is int rank && indexSyntaxes.Length != rank)
+        {
+            Report(
+                "VB6S0027",
+                $"Array '{identifier.Text}' has rank {rank}, but {indexSyntaxes.Length} index(es) were supplied.",
+                identifier.Span);
+        }
+
+        return indexSyntaxes
+            .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+            .ToImmutableArray();
     }
 
     private BoundIfStatement BindIf(
@@ -797,6 +998,15 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        if (variables.TryGetValue(syntax.Identifier.Text, out var variable) &&
+            variable.Type is ArrayTypeSymbol arrayType)
+        {
+            return new BoundArrayAccessExpression(
+                variable,
+                BindArrayIndices(syntax.Identifier, syntax.Arguments, arrayType, variables, procedures),
+                arrayType.ElementType);
+        }
+
         if (!procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
         {
             Report(
@@ -847,20 +1057,20 @@ public sealed class Binder
                 {
                     expression = BindConversion(expression, parameter.Type);
                 }
-                else if (expression is not BoundVariableExpression variableExpression)
+                else if (expression is not BoundVariableExpression && expression is not BoundArrayAccessExpression)
                 {
                     Report(
                         "VB6S0007",
                         $"ByRef argument for parameter '{parameter.Name}' must be a variable in the current compiler subset.",
                         invocationIdentifier.Span);
                 }
-                else if (variableExpression.Variable.Type != parameter.Type &&
-                         variableExpression.Variable.Type != TypeSymbol.Error &&
+                else if (!AreByRefTypesCompatible(expression.Type, parameter.Type) &&
+                         expression.Type != TypeSymbol.Error &&
                          parameter.Type != TypeSymbol.Error)
                 {
                     Report(
                         "VB6S0008",
-                        $"ByRef argument type '{variableExpression.Variable.Type.Name}' does not match parameter type '{parameter.Type.Name}'.",
+                        $"ByRef argument type '{expression.Type.Name}' does not match parameter type '{parameter.Type.Name}'.",
                         invocationIdentifier.Span);
                 }
             }
@@ -869,6 +1079,22 @@ public sealed class Binder
         }
 
         return arguments.ToImmutable();
+    }
+
+    private static bool AreByRefTypesCompatible(TypeSymbol argumentType, TypeSymbol parameterType)
+    {
+        if (argumentType == parameterType)
+        {
+            return true;
+        }
+
+        if (argumentType is ArrayTypeSymbol argumentArray && parameterType is ArrayTypeSymbol parameterArray)
+        {
+            return argumentArray.ElementType == parameterArray.ElementType &&
+                (!argumentArray.HasKnownRank || !parameterArray.HasKnownRank || argumentArray.Rank == parameterArray.Rank);
+        }
+
+        return false;
     }
 
     private static BoundExpression BindLiteral(LiteralExpressionSyntax syntax)

@@ -36,11 +36,20 @@ public record TypeSymbol(string Name) : Symbol(Name)
 }
 
 /// <summary>
-/// A VB6 array type. Bounds are properties of an array instance/declaration, not of its type;
-/// the semantic type therefore records only element type and rank.
+/// A VB6 array type. Bounds are properties of an array instance/declaration, not of its type.
+/// Fixed arrays have a known rank; dynamic arrays and array parameters use an unknown rank because
+/// VB6 allows a later ReDim (or caller) to determine the actual number of dimensions.
 /// </summary>
 public sealed record ArrayTypeSymbol : TypeSymbol
 {
+    public ArrayTypeSymbol(TypeSymbol elementType)
+        : base(BuildName(elementType, null))
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+        ElementType = elementType;
+        Rank = null;
+    }
+
     public ArrayTypeSymbol(TypeSymbol elementType, int rank)
         : base(BuildName(elementType, rank))
     {
@@ -55,17 +64,20 @@ public sealed record ArrayTypeSymbol : TypeSymbol
     }
 
     public TypeSymbol ElementType { get; }
-    public int Rank { get; }
+    public int? Rank { get; }
+    public bool HasKnownRank => Rank.HasValue;
 
-    private static string BuildName(TypeSymbol elementType, int rank)
+    private static string BuildName(TypeSymbol elementType, int? rank)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        if (rank <= 0)
+        if (rank is <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(rank), rank, "Array rank must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(rank), rank, "Array rank must be positive when specified.");
         }
 
-        return $"{elementType.Name}({new string(',', rank - 1)})";
+        return rank is null
+            ? $"{elementType.Name}()"
+            : $"{elementType.Name}({new string(',', rank.Value - 1)})";
     }
 }
 
@@ -125,7 +137,9 @@ public enum BoundNodeKind
 {
     BlockStatement,
     VariableDeclarationStatement,
+    ReDimStatement,
     AssignmentStatement,
+    ArrayElementAssignmentStatement,
     IfStatement,
     ForStatement,
     WhileStatement,
@@ -137,6 +151,7 @@ public enum BoundNodeKind
     InvocationStatement,
     LiteralExpression,
     VariableExpression,
+    ArrayAccessExpression,
     InvocationExpression,
     UnaryExpression,
     BinaryExpression,
@@ -151,11 +166,47 @@ public abstract record BoundExpression(BoundNodeKind Kind, TypeSymbol Type) : Bo
 public sealed record BoundBlockStatement(ImmutableArray<BoundStatement> Statements)
     : BoundStatement(BoundNodeKind.BlockStatement);
 
-public sealed record BoundVariableDeclarationStatement(LocalVariableSymbol Variable)
-    : BoundStatement(BoundNodeKind.VariableDeclarationStatement);
+/// <summary>
+/// One bound VB6 array dimension. Bounds are inclusive and normalized to VB6 Long so the
+/// runtime and later code generation can preserve non-zero lower bounds exactly.
+/// </summary>
+public sealed record BoundArrayDimension(
+    BoundExpression LowerBound,
+    BoundExpression UpperBound);
+
+public sealed record BoundVariableDeclarationStatement(
+    LocalVariableSymbol Variable,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions)
+    : BoundStatement(BoundNodeKind.VariableDeclarationStatement)
+{
+    public BoundVariableDeclarationStatement(LocalVariableSymbol variable)
+        : this(variable, ImmutableArray<BoundArrayDimension>.Empty)
+    {
+    }
+}
+
+/// <summary>
+/// A bound resize of a dynamic VB6 array. ReDim without Preserve replaces storage; Preserve uses
+/// the runtime's VB6-compatible last-dimension preservation rules.
+/// </summary>
+public sealed record BoundReDimStatement(
+    VariableSymbol Array,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions,
+    bool Preserve)
+    : BoundStatement(BoundNodeKind.ReDimStatement);
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
+
+/// <summary>
+/// Assignment to one element of a VB6 array. Indices are normalized to VB6 Long by the binder;
+/// the runtime remains responsible for lower/upper-bound checks.
+/// </summary>
+public sealed record BoundArrayElementAssignmentStatement(
+    VariableSymbol Array,
+    ImmutableArray<BoundExpression> Indices,
+    BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.ArrayElementAssignmentStatement);
 
 public sealed record BoundElseIfClause(
     BoundExpression Condition,
@@ -244,6 +295,16 @@ public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralTyp
 public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
 
+/// <summary>
+/// Read of one VB6 array element. The expression type is the array's element type, not the array
+/// type itself, which keeps later conversion and operator binding identical to scalar values.
+/// </summary>
+public sealed record BoundArrayAccessExpression(
+    VariableSymbol Array,
+    ImmutableArray<BoundExpression> Indices,
+    TypeSymbol ElementType)
+    : BoundExpression(BoundNodeKind.ArrayAccessExpression, ElementType);
+
 public sealed record BoundInvocationExpression(
     ProcedureSymbol Procedure,
     ImmutableArray<BoundArgument> Arguments)
@@ -272,12 +333,23 @@ public sealed record BoundProcedure(
 
 /// <summary>
 /// A module-level variable together with its initial value. Plain declarations have none;
-/// constants always do.
+/// constants always do. Fixed arrays carry their declaration bounds; dynamic arrays have an
+/// array type but an empty bound list until ReDim allocates them.
 /// </summary>
 public sealed record BoundModuleVariable(
     ModuleVariableSymbol Symbol,
     BoundExpression? Initializer,
-    bool IsConstant);
+    bool IsConstant,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions)
+{
+    public BoundModuleVariable(
+        ModuleVariableSymbol Symbol,
+        BoundExpression? Initializer,
+        bool IsConstant)
+        : this(Symbol, Initializer, IsConstant, ImmutableArray<BoundArrayDimension>.Empty)
+    {
+    }
+}
 
 public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,

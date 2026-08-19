@@ -8,37 +8,42 @@ namespace VB6.Semantics.Tests;
 public sealed class ArrayBinderGuardTests
 {
     [TestMethod]
-    public void Bind_LocalArrayProducesDedicatedSemanticDiagnostic()
+    public void Bind_FixedLocalArrayPreservesElementTypeAndRankWithoutGuard()
     {
         var model = BindSource("""
             Sub Main()
-                Dim values(1 To 10) As Long
+                Dim values(1 To 10, 0 To 4) As Long
             End Sub
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
-        Assert.AreEqual(TypeSymbol.Error, model.Procedures.Single().Locals.Single().Type);
+        Assert.AreEqual(0, model.Diagnostics.Length);
+
+        var arrayType = model.Procedures.Single().Locals.Single().Type as ArrayTypeSymbol;
+        Assert.IsNotNull(arrayType);
+        Assert.AreEqual(TypeSymbol.Long, arrayType.ElementType);
+        Assert.AreEqual(2, arrayType.Rank);
     }
 
     [TestMethod]
-    public void Bind_ModuleArrayProducesDedicatedSemanticDiagnostic()
+    public void Bind_DynamicModuleArrayPreservesElementTypeAndUnknownRank()
     {
         var model = BindSource("""
-            Private values(10) As Integer
+            Private values() As Integer
             Sub Main()
             End Sub
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
-        Assert.AreEqual(TypeSymbol.Error, model.ModuleVariables.Single().Symbol.Type);
+        Assert.AreEqual(0, model.Diagnostics.Length);
+
+        var arrayType = model.ModuleVariables.Single().Symbol.Type as ArrayTypeSymbol;
+        Assert.IsNotNull(arrayType);
+        Assert.AreEqual(TypeSymbol.Integer, arrayType.ElementType);
+        Assert.IsNull(arrayType.Rank);
+        Assert.IsFalse(arrayType.HasKnownRank);
     }
 
     [TestMethod]
-    public void Bind_ArrayParameterProducesDedicatedSemanticDiagnostic()
+    public void Bind_ArrayParameterPreservesElementTypeWithUnknownRank()
     {
         var model = BindSource("""
             Function Sort(TheArray() As String) As Long
@@ -46,10 +51,13 @@ public sealed class ArrayBinderGuardTests
             End Function
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
-        Assert.AreEqual(TypeSymbol.Error, model.Procedures.Single().Symbol.Parameters.Single().Type);
+        Assert.AreEqual(0, model.Diagnostics.Length);
+
+        var arrayType = model.Procedures.Single().Symbol.Parameters.Single().Type as ArrayTypeSymbol;
+        Assert.IsNotNull(arrayType);
+        Assert.AreEqual(TypeSymbol.String, arrayType.ElementType);
+        Assert.IsNull(arrayType.Rank);
+        Assert.IsFalse(arrayType.HasKnownRank);
     }
 
     private static SemanticModel BindSource(string source)

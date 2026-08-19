@@ -40,6 +40,90 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void Array_IndexerCanBePassedByReference()
+    {
+        var array = new VBArray<int>(new VBArrayBound(1, 2));
+        array[1] = 10;
+
+        Increment(ref array[1]);
+
+        Assert.AreEqual(11, array[1]);
+    }
+
+    [TestMethod]
+    public void Array_ReDimPreserveCanGrowLastDimension()
+    {
+        var array = new VBArray<int>(
+            new VBArrayBound(1, 2),
+            new VBArrayBound(5, 6));
+        array[1, 5] = 15;
+        array[1, 6] = 16;
+        array[2, 5] = 25;
+        array[2, 6] = 26;
+
+        var resized = array.ReDimPreserve(
+            new VBArrayBound(1, 2),
+            new VBArrayBound(5, 8));
+
+        Assert.AreEqual(8, resized.Length);
+        Assert.AreEqual(15, resized[1, 5]);
+        Assert.AreEqual(16, resized[1, 6]);
+        Assert.AreEqual(25, resized[2, 5]);
+        Assert.AreEqual(26, resized[2, 6]);
+        Assert.AreEqual(0, resized[1, 7]);
+        Assert.AreEqual(0, resized[2, 8]);
+    }
+
+    [TestMethod]
+    public void Array_ReDimPreserveCanShrinkLastDimension()
+    {
+        var array = new VBArray<int>(new VBArrayBound(-1, 2));
+        array[-1] = 10;
+        array[0] = 20;
+        array[1] = 30;
+        array[2] = 40;
+
+        var resized = array.ReDimPreserve(new VBArrayBound(-1, 0));
+
+        Assert.AreEqual(-1, resized.LBound());
+        Assert.AreEqual(0, resized.UBound());
+        Assert.AreEqual(10, resized[-1]);
+        Assert.AreEqual(20, resized[0]);
+        Assert.ThrowsException<IndexOutOfRangeException>(() => _ = resized[1]);
+    }
+
+    [TestMethod]
+    public void Array_ReDimPreserveRejectsRankChange()
+    {
+        var array = new VBArray<int>(new VBArrayBound(0, 2));
+
+        Assert.ThrowsException<ArgumentException>(() => array.ReDimPreserve(
+            new VBArrayBound(0, 2),
+            new VBArrayBound(0, 2)));
+    }
+
+    [TestMethod]
+    public void Array_ReDimPreserveRejectsEarlierDimensionChange()
+    {
+        var array = new VBArray<int>(
+            new VBArrayBound(0, 1),
+            new VBArrayBound(0, 2));
+
+        Assert.ThrowsException<ArgumentException>(() => array.ReDimPreserve(
+            new VBArrayBound(0, 2),
+            new VBArrayBound(0, 3)));
+    }
+
+    [TestMethod]
+    public void Array_ReDimPreserveRejectsLowerBoundChange()
+    {
+        var array = new VBArray<int>(new VBArrayBound(1, 3));
+
+        Assert.ThrowsException<ArgumentException>(() =>
+            array.ReDimPreserve(new VBArrayBound(0, 3)));
+    }
+
+    [TestMethod]
     public void Array_RejectsOutOfRangeSubscriptsAndDimensions()
     {
         var array = new VBArray<int>(new VBArrayBound(-2, 2));
@@ -56,4 +140,6 @@ public sealed class VBArrayTests
             new VBArray<int>(new VBArrayBound(5, 4)));
         Assert.ThrowsException<ArgumentException>(() => new VBArray<int>());
     }
+
+    private static void Increment(ref int value) => value++;
 }
