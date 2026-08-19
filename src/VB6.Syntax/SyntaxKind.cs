@@ -87,6 +87,7 @@ public enum SyntaxKind
     OptionBaseStatement,
     OptionCompareStatement,
     AttributeStatement,
+    ArrayDimension,
     VariableDeclarator,
     ModuleVariableDeclaration,
     ConstDeclaration,
