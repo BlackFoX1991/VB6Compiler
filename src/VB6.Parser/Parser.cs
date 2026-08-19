@@ -560,7 +560,7 @@ public sealed class Parser
         ConsumeLineTerminator();
 
         return new FunctionDeclarationSyntax(
-            subKeyword: functionKeyword,
+            functionKeyword,
             identifier,
             openParenthesis,
             parameters,
