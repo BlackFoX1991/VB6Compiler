@@ -6,9 +6,10 @@ using VB6.Syntax.Text;
 namespace VB6.Semantics;
 
 /// <summary>
-/// Scalar UDT values can be lowered as managed value types. This validator keeps the remaining
-/// layouts guarded until their VB6 storage semantics are represented explicitly: array members
-/// and recursive by-value UDT layouts.
+/// Scalar UDT values and fixed arrays of supported primitive values can be lowered as managed
+/// value types. This validator keeps dynamic arrays, fixed-length String arrays, arrays of UDTs,
+/// and recursive by-value UDT layouts guarded until their VB6 storage semantics are represented
+/// explicitly.
 /// </summary>
 public static class UserDefinedTypeValueGuard
 {
@@ -166,10 +167,15 @@ public static class UserDefinedTypeValueGuard
 
         foreach (var member in type.Members)
         {
-            if (member.Type is ArrayTypeSymbol)
+            if (member.Type is ArrayTypeSymbol arrayType)
             {
-                activePath.Remove(type);
-                return true;
+                if (!member.HasArrayBounds || !IsSupportedFixedArrayElementType(arrayType.ElementType))
+                {
+                    activePath.Remove(type);
+                    return true;
+                }
+
+                continue;
             }
 
             if (member.Type is UserDefinedTypeSymbol nestedType &&
@@ -183,6 +189,17 @@ public static class UserDefinedTypeValueGuard
         activePath.Remove(type);
         return false;
     }
+
+    private static bool IsSupportedFixedArrayElementType(TypeSymbol type) =>
+        type == TypeSymbol.Byte ||
+        type == TypeSymbol.Integer ||
+        type == TypeSymbol.Long ||
+        type == TypeSymbol.LongLong ||
+        type == TypeSymbol.Single ||
+        type == TypeSymbol.String ||
+        type == TypeSymbol.Boolean ||
+        type == TypeSymbol.Double ||
+        type == TypeSymbol.Currency;
 
     private static void AddDiagnostic(
         SourceText text,
