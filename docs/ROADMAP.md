@@ -17,15 +17,16 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach `Declare`-Syntax | **2322** | 2116 | 68 | 138 | 0 von 27 |
 | nach `Enum`-Syntax | **2100** | 1894 | 68 | 138 | 0 von 27 |
 | nach `Optional`-Syntax | **2216** | 1800 | 68 | 348 | 0 von 27 |
+| nach `Option Base` / `Option Compare` | **2210** | 1794 | 68 | 348 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
 dabei von 2100 auf 2216, weil 210 zusätzliche Semantikdiagnosen sichtbar werden: mehr echte
 Prozeduren erreichen nun den Binder, statt an ihrer Parameterliste zu entgleisen. Das ist kein
 Parser-Rückschritt, sondern genau der gewünschte Übergang von Syntaxkaskaden zu konkreten
-semantischen Lücken. `comAssembler.bas` erreicht jetzt als ersten Fehler eine fehlende Prozedur;
-`comMemory.bas` beginnt mit einem konkreten ByRef-Randfall. Der VISIA-Report läuft als eigener
-Schritt in GitHub Actions nach Build und Tests.
+semantischen Lücken. `Option Base` / `Option Compare` entfernen danach weitere 6 Parserfehler;
+`envSort.bas` fällt von 141 auf 135 Fehler und erreicht nun einen späteren `As`-Blocker. Der
+VISIA-Report läuft als eigener Schritt in GitHub Actions nach Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -48,6 +49,11 @@ Nach `Enum` zeigte die Messung zudem, dass ein großer Teil der verbliebenen `As
 nicht von Mehrfach-`Dim`, sondern von `Optional ... As ...` in realen Prozedurköpfen stammt.
 Deshalb wurde die `Optional`-**Syntax** nach M2 vorgezogen; Default-/Missing-Aufrufsemantik bleibt
 weiterhin M5.
+
+`Option Base` und `Option Compare` haben außerdem bestätigt, dass VB6-Kontextwörter nicht
+vorschnell global reserviert werden dürfen: `Base` wird im bestehenden Akzeptanzkorpus legal als
+Bezeichner verwendet. Beide Direktiven werden deshalb nur direkt hinter `Option` erkannt; die
+Wörter bleiben sonst normale Identifier.
 
 Danach, nach betroffenen Dateien sortiert:
 
@@ -118,9 +124,9 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
 - [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; Binding bleibt später
 - [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
+- [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [ ] `:` als Anweisungstrenner
 - [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
-- [ ] `Option Base`, `Option Compare`
 - [ ] `^`-Operator, `Like`, `Is`
 
 **Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
@@ -130,7 +136,7 @@ brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
 
 Zusammen, weil Win32-Strukturen beides brauchen.
 
-- [ ] `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional, `Option Base`
+- [ ] `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional; `Option Base` wird hier semantisch angewendet
 - [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound`, `For Each`
 - [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`
 - [ ] Neu: `ArrayTypeSymbol`, `UserDefinedTypeSymbol`; `VBArray<T>` in der Runtime

@@ -17,6 +17,7 @@ Implemented so far:
 - `Sub` and typed `Function` declarations and calls
 - explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` parameters
 - `Optional` parameter syntax with explicit `ByVal`/`ByRef` and optional default expressions; omitted-argument/default-value semantics remain a later procedure milestone and are still diagnosed
+- `Option Base 0` / `Option Base 1` and `Option Compare Text` / `Option Compare Binary` syntax; `Base` and `Compare` remain ordinary identifiers outside the directive context, while array-bound and string-comparison semantics remain later milestones
 - VB6 Function return semantics through assignment to the function name
 - cross-module Sub and Function resolution in `.vbp` projects
 - `Dim` locals for the current primitive type subset
@@ -64,9 +65,9 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
-Windows CI run #564 validates the `Optional` parameter syntax work on .NET 10 with a warning-free Release build and 203 passing tests. Its VISIA report measures **2216 total errors** (1800 parser, 68 lexer, 348 semantic). The raw total rises from 2100 after `Enum`, but parser errors fall by 94 while 210 additional semantic diagnostics become visible because more procedures now reach the binder.
+Windows CI run #582 validates the contextual `Option Base` / `Option Compare` syntax work on .NET 10 with a warning-free Release build and 208 passing tests. Its VISIA report measures **2210 total errors** (1794 parser, 68 lexer, 348 semantic), down from 2216 after `Optional` syntax. `envSort.bas` drops from 141 to 135 errors and now reaches a later `As`-related parser gap instead of stopping at `Option Base`.
 
-Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated managed application whose Long arithmetic and Long `For` loop produce `60003`.
+Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated Long application whose Long arithmetic and Long `For` loop produce `60003`.
 
 `Mod` is also end-to-end verified by Windows CI run #394, including parser precedence, binding, runtime behavior, C# generation, and execution of a generated application.
 
