@@ -14,6 +14,7 @@ public static class SyntaxFacts
         "ENUM" => SyntaxKind.EnumKeyword,
         "END" => SyntaxKind.EndKeyword,
         "DIM" => SyntaxKind.DimKeyword,
+        "STATIC" => SyntaxKind.StaticKeyword,
         "CONST" => SyntaxKind.ConstKeyword,
         "AS" => SyntaxKind.AsKeyword,
         "BYTE" => SyntaxKind.ByteKeyword,
