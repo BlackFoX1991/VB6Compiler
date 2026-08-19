@@ -22,7 +22,7 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.AreEqual(4, VBStrings.Len(42f));
         Assert.AreEqual(8, VBStrings.Len(42d));
         Assert.AreEqual(2, VBStrings.Len(true));
-        Assert.AreEqual(8, VBStrings.Len(VBCurrency.FromDecimal(42m)));
+        Assert.AreEqual(8, VBStrings.Len(VBConversions.CCur(42m)));
     }
 
     [TestMethod]
