@@ -18,15 +18,19 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach `Enum`-Syntax | **2100** | 1894 | 68 | 138 | 0 von 27 |
 | nach `Optional`-Syntax | **2216** | 1800 | 68 | 348 | 0 von 27 |
 | nach `Option Base` / `Option Compare` | **2210** | 1794 | 68 | 348 | 0 von 27 |
+| nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
 dabei von 2100 auf 2216, weil 210 zusätzliche Semantikdiagnosen sichtbar werden: mehr echte
 Prozeduren erreichen nun den Binder, statt an ihrer Parameterliste zu entgleisen. Das ist kein
 Parser-Rückschritt, sondern genau der gewünschte Übergang von Syntaxkaskaden zu konkreten
-semantischen Lücken. `Option Base` / `Option Compare` entfernen danach weitere 6 Parserfehler;
-`envSort.bas` fällt von 141 auf 135 Fehler und erreicht nun einen späteren `As`-Blocker. Der
-VISIA-Report läuft als eigener Schritt in GitHub Actions nach Build und Tests.
+semantischen Lücken. `Option Base` / `Option Compare` entfernen danach weitere 6 Parserfehler.
+Mehrfachdeklaratoren senken die Parserfehler anschließend um weitere 32 auf 1762. Die Semantik
+steigt dabei von 348 auf 393: unter anderem werden 4 echte implizite-Variant-Deklaratoren jetzt
+präzise als `VB6S0020` sichtbar, statt den Typ eines späteren Deklarators zu übernehmen oder im
+Parser zu entgleisen. `envSort.bas` fällt von 135 auf 127 Fehler. Der VISIA-Report läuft als
+eigener Schritt in GitHub Actions nach Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -61,6 +65,12 @@ für mehrere Statements pro Zeile, Single-Line-`If` und `Case`. Die VISIA-Zahlen
 unverändert bei 2210 / 1794 Parser / 68 Lexer / 348 Semantik, weil kein Produktionscode geändert
 werden musste. Labels wie `LinkFail:` gehören weiterhin zum späteren Sprung-/IR-Meilenstein und
 sind von diesem Statement-Separator-Support getrennt.
+
+Bei Mehrfachdeklarationen gilt die echte VB6-Regel **pro Deklarator**: `Dim a, b As Integer`
+macht nur `b` zu Integer; `a` bleibt Variant. Der Syntaxbaum speichert deshalb `As Type` an jedem
+Deklarator einzeln. Explizit typisierte Listen werden bereits vollständig gebunden und emittiert.
+Untypisierte Deklaratoren werden bis M4 als `VB6S0020` diagnostiziert, statt stillschweigend den
+Typ des Nachbarn zu erben. Actions #604 verifiziert das mit Parser-, Binder- und End-to-End-Tests.
 
 Danach, nach betroffenen Dateien sortiert:
 
@@ -133,7 +143,8 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
-- [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
+- [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, implizites Variant bleibt M4
+- [ ] `Static`-Local-Syntax; statische Lebensdauer bleibt M5
 - [ ] `^`-Operator, `Like`, `Is`
 
 **Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
@@ -152,12 +163,12 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 
 - [ ] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`
 - [ ] Variant-Arithmetik mit VB6-Promotionsregeln, implizite Konvertierung
-- [ ] Untypisierte `Dim` und untypisierte `Optional`-Parameter werden Variant
+- [ ] Untypisierte `Dim`-Deklaratoren und untypisierte `Optional`-Parameter werden Variant; bis dahin `VB6S0020`
 - [ ] Erstklassiges `Decimal` als additive Erweiterung
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
-- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Locals, ByRef-Randfälle
+- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Local-Lebensdauer, ByRef-Randfälle
 - [ ] `Property Get`/`Let`/`Set`
 - [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
 - [ ] `Event`/`RaiseEvent`, `WithEvents`
