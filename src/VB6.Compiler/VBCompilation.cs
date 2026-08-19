@@ -32,23 +32,33 @@ public sealed class VBCompilation
         }
 
         var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(parseResult.Root);
+        SemanticModel preliminaryModel;
+        using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
+        {
+            preliminaryModel = new Binder(Text).BindCompilationUnit(parseResult.Root);
+        }
+
+        var forEachLowering = ForEachArraySyntaxLowerer.Lower(
+            Text,
+            parseResult.Root,
+            preliminaryModel);
+
         SemanticModel semanticModel;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
-            semanticModel = new Binder(Text).BindCompilationUnit(parseResult.Root);
+            semanticModel = new Binder(Text).BindCompilationUnit(forEachLowering.Root);
         }
 
         var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
             Text,
-            parseResult.Root,
+            forEachLowering.Root,
             userDefinedTypes.Types);
-        var forEachDiagnostics = ForEachSyntaxGuard.Validate(Text, parseResult.Root);
         var variantOperationDiagnostics = VariantOperationGuard.Validate(Text, semanticModel);
         var diagnostics = parseResult.Diagnostics
             .AddRange(userDefinedTypes.Diagnostics)
+            .AddRange(forEachLowering.Diagnostics)
             .AddRange(semanticModel.Diagnostics)
             .AddRange(userDefinedTypeValueDiagnostics)
-            .AddRange(forEachDiagnostics)
             .AddRange(variantOperationDiagnostics);
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
