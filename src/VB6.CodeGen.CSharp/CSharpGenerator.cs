@@ -311,10 +311,11 @@ public sealed class CSharpGenerator
         };
     }
 
-    private string EmitRelationalCaseCondition(string selectName, BoundCaseRelationalClause clause)
+    private string EmitRelationalCaseCondition(string selectName, BoundCaseClause clause)
     {
-        var value = EmitExpression(clause.Value);
-        return clause.OperatorKind switch
+        var relational = (BoundCaseRelationalClause)clause;
+        var value = EmitExpression(relational.Value);
+        return relational.OperatorKind switch
         {
             SyntaxKind.EqualsToken => $"VBOperators.Equal({selectName}, {value})",
             SyntaxKind.LessGreaterToken => $"VBOperators.NotEqual({selectName}, {value})",
@@ -486,6 +487,7 @@ public sealed class CSharpGenerator
 
         return binary.OperatorKind switch
         {
+            SyntaxKind.CaretToken => $"VBOperators.Power({left}, {right})",
             SyntaxKind.EqualsToken => $"VBOperators.Equal({left}, {right})",
             SyntaxKind.LessGreaterToken => $"VBOperators.NotEqual({left}, {right})",
             SyntaxKind.LessToken => $"VBOperators.Less({left}, {right})",
