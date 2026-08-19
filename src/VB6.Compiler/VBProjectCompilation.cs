@@ -107,28 +107,45 @@ public sealed class VBProjectCompilation
             }
 
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
+            SemanticModel preliminaryModel;
+            using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
+            {
+                preliminaryModel = new Binder(module.Text)
+                    .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
+            }
+
+            var forEachLowering = ForEachArraySyntaxLowerer.Lower(
+                module.Text,
+                module.ParseResult.Root,
+                preliminaryModel);
+
             SemanticModel semanticModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
                 semanticModel = new Binder(module.Text)
-                    .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
+                    .BindCompilationUnit(forEachLowering.Root, procedureSymbols, moduleVariableSymbols);
             }
 
             var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
                 ? ImmutableArray<Diagnostic>.Empty
                 : UserDefinedTypeValueGuard.Validate(
                     module.Text,
-                    module.ParseResult.Root,
+                    forEachLowering.Root,
                     moduleUserDefinedTypes.Types);
+            var variantOperationDiagnostics = VariantOperationGuard.Validate(module.Text, semanticModel);
+            sourceDiagnostics.AddRange(forEachLowering.Diagnostics);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
             sourceDiagnostics.AddRange(userDefinedTypeValueDiagnostics);
+            sourceDiagnostics.AddRange(variantOperationDiagnostics);
             procedures.AddRange(semanticModel.Procedures);
             moduleVariables.AddRange(semanticModel.ModuleVariables);
 
             var unitDiagnostics = module.ParseResult.Diagnostics
                 .AddRange(moduleUserDefinedTypes?.Diagnostics ?? ImmutableArray<Diagnostic>.Empty)
+                .AddRange(forEachLowering.Diagnostics)
                 .AddRange(semanticModel.Diagnostics)
-                .AddRange(userDefinedTypeValueDiagnostics);
+                .AddRange(userDefinedTypeValueDiagnostics)
+                .AddRange(variantOperationDiagnostics);
             var compilationAnalysis = new CompilationAnalysis(
                 module.ParseResult,
                 semanticModel,
