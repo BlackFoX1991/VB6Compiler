@@ -44,14 +44,40 @@ public sealed record AttributeSyntax(
     ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.AttributeStatement);
 
 /// <summary>
-/// A variable declared at module level, such as <c>Public Source As String</c> or
-/// <c>Dim Position As Long</c> outside a procedure.
+/// One variable inside a comma-separated declaration. VB6 applies <c>As Type</c> only to the
+/// declarator it follows, so both tokens are optional per name instead of being shared by the
+/// whole declaration.
+/// </summary>
+public sealed record VariableDeclaratorSyntax(
+    SyntaxToken Identifier,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? TypeToken,
+    SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.VariableDeclarator);
+
+/// <summary>
+/// Variables declared at module level, such as <c>Public Source As String, Position As Long</c>
+/// or <c>Dim Counter As Integer</c> outside a procedure.
 /// </summary>
 public sealed record ModuleVariableDeclarationSyntax(
     SyntaxToken? VisibilityKeyword,
-    SyntaxToken Identifier,
-    SyntaxToken AsKeyword,
-    SyntaxToken TypeToken) : MemberSyntax(SyntaxKind.ModuleVariableDeclaration);
+    ImmutableArray<VariableDeclaratorSyntax> Declarators) : MemberSyntax(SyntaxKind.ModuleVariableDeclaration)
+{
+    public ModuleVariableDeclarationSyntax(
+        SyntaxToken? visibilityKeyword,
+        SyntaxToken identifier,
+        SyntaxToken asKeyword,
+        SyntaxToken typeToken)
+        : this(
+            visibilityKeyword,
+            ImmutableArray.Create(new VariableDeclaratorSyntax(identifier, asKeyword, typeToken, null)))
+    {
+    }
+
+    public VariableDeclaratorSyntax FirstDeclarator => Declarators[0];
+    public SyntaxToken Identifier => FirstDeclarator.Identifier;
+    public SyntaxToken AsKeyword => FirstDeclarator.AsKeyword!;
+    public SyntaxToken TypeToken => FirstDeclarator.TypeToken!;
+}
 
 /// <summary>
 /// A module-level constant, such as <c>Private Const Limit As Long = 10</c>. The type is
@@ -122,9 +148,24 @@ public sealed record FunctionDeclarationSyntax(
 
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,
-    SyntaxToken Identifier,
-    SyntaxToken AsKeyword,
-    SyntaxToken TypeToken) : StatementSyntax(SyntaxKind.DimStatement);
+    ImmutableArray<VariableDeclaratorSyntax> Declarators) : StatementSyntax(SyntaxKind.DimStatement)
+{
+    public DimStatementSyntax(
+        SyntaxToken dimKeyword,
+        SyntaxToken identifier,
+        SyntaxToken asKeyword,
+        SyntaxToken typeToken)
+        : this(
+            dimKeyword,
+            ImmutableArray.Create(new VariableDeclaratorSyntax(identifier, asKeyword, typeToken, null)))
+    {
+    }
+
+    public VariableDeclaratorSyntax FirstDeclarator => Declarators[0];
+    public SyntaxToken Identifier => FirstDeclarator.Identifier;
+    public SyntaxToken AsKeyword => FirstDeclarator.AsKeyword!;
+    public SyntaxToken TypeToken => FirstDeclarator.TypeToken!;
+}
 
 public sealed record AssignmentStatementSyntax(
     SyntaxToken Identifier,
