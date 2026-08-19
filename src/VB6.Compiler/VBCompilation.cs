@@ -32,14 +32,22 @@ public sealed class VBCompilation
         }
 
         var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
+        var enumSymbols = VBEnumSymbols.Bind(new[] { implicitVariantRoot });
+        using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
+
         var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(implicitVariantRoot);
         Dictionary<string, ProcedureSymbol> procedureSymbols;
+        Dictionary<string, ModuleVariableSymbol> moduleVariableSymbols;
+        ImmutableArray<BoundModuleVariable> visibleEnumConstants;
         SemanticModel preliminaryModel;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
             procedureSymbols = VBIntrinsicSymbols.CreateProcedureTable(implicitVariantRoot);
+            moduleVariableSymbols = Binder.CreateModuleVariableSymbols(Text, implicitVariantRoot)
+                .ToDictionary(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
+            visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
             preliminaryModel = new Binder(Text)
-                .BindCompilationUnit(implicitVariantRoot, procedureSymbols);
+                .BindCompilationUnit(implicitVariantRoot, procedureSymbols, moduleVariableSymbols);
         }
 
         var forEachLowering = ForEachArraySyntaxLowerer.Lower(
@@ -52,7 +60,7 @@ public sealed class VBCompilation
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
             semanticModel = new Binder(Text)
-                .BindCompilationUnit(forEachLowering.Root, procedureSymbols);
+                .BindCompilationUnit(forEachLowering.Root, procedureSymbols, moduleVariableSymbols);
             duplicateProcedureDiagnostics = new Binder(Text)
                 .BindCompilationUnit(forEachLowering.Root)
                 .Diagnostics
@@ -61,7 +69,8 @@ public sealed class VBCompilation
         }
         semanticModel = semanticModel with
         {
-            Diagnostics = semanticModel.Diagnostics.AddRange(duplicateProcedureDiagnostics)
+            Diagnostics = semanticModel.Diagnostics.AddRange(duplicateProcedureDiagnostics),
+            ModuleVariables = semanticModel.ModuleVariables.AddRange(visibleEnumConstants)
         };
         semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
 

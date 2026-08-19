@@ -79,11 +79,16 @@ public sealed class VBProjectCompilation
                 semanticRoot));
         }
 
+        var parseableModules = parsedModules
+            .Where(module => !module.ParseResult.Diagnostics.Any(
+                diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            .ToImmutableArray();
+        var enumSymbols = VBEnumSymbols.Bind(parseableModules.Select(module => module.SemanticRoot));
+        using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
+
         var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
-            parsedModules
-                .Where(module => !module.ParseResult.Diagnostics.Any(
-                    diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-                .Select(module => new UserDefinedTypeModuleInput(module.Text, module.SemanticRoot)));
+            parseableModules.Select(module =>
+                new UserDefinedTypeModuleInput(module.Text, module.SemanticRoot)));
         sourceDiagnostics.AddRange(userDefinedTypes.Diagnostics);
         var userDefinedTypesByPath = userDefinedTypes.Modules.ToDictionary(
             module => module.Module.Text.FilePath ?? string.Empty,
@@ -97,6 +102,7 @@ public sealed class VBProjectCompilation
             parsedModules,
             userDefinedTypesByPath,
             projectDiagnostics);
+        var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         var moduleVariables = ImmutableArray.CreateBuilder<BoundModuleVariable>();
@@ -176,7 +182,7 @@ public sealed class VBProjectCompilation
         var combinedDiagnostics = sourceDiagnostics.ToImmutable();
         var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics)
         {
-            ModuleVariables = moduleVariables.ToImmutable()
+            ModuleVariables = moduleVariables.ToImmutable().AddRange(visibleEnumConstants)
         };
         return new VBProjectCompilationAnalysis(
             loadResult.Project,
