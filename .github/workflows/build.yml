@@ -33,3 +33,6 @@ jobs:
 
       - name: Test
         run: dotnet test VB6Compiler.sln --configuration Release --no-build --no-restore
+
+      - name: VISIA parity report
+        run: dotnet run --project src/VB6.Compiler.Cli/VB6.Compiler.Cli.csproj --configuration Release --no-build -- conformance/VISIA/4.8.7.1/prjVisia.vbp --report
