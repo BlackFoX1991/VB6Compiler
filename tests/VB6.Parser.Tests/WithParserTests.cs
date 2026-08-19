@@ -26,7 +26,9 @@ public sealed class WithParserTests
 
         var assignment = withStatement.Statements[0] as MemberAssignmentStatementSyntax;
         Assert.IsNotNull(assignment);
-        Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(assignment.Target.Receiver);
+        var assignmentTarget = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(assignmentTarget);
+        Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(assignmentTarget.Receiver);
 
         var debugPrint = withStatement.Statements[1] as DebugPrintStatementSyntax;
         Assert.IsNotNull(debugPrint);
@@ -56,7 +58,9 @@ public sealed class WithParserTests
         Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(innerTarget.Receiver);
 
         var assignment = inner.Statements.OfType<MemberAssignmentStatementSyntax>().Single();
-        Assert.AreEqual("Value", assignment.Target.MemberToken.Text);
+        var assignmentTarget = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(assignmentTarget);
+        Assert.AreEqual("Value", assignmentTarget.MemberToken.Text);
     }
 
     [TestMethod]
@@ -84,7 +88,9 @@ public sealed class WithParserTests
             """);
 
         var assignment = procedure.Statements.OfType<MemberAssignmentStatementSyntax>().Single();
-        Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(assignment.Target.Receiver);
+        var assignmentTarget = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(assignmentTarget);
+        Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(assignmentTarget.Receiver);
     }
 
     private static SubDeclarationSyntax ParseProcedure(string source)

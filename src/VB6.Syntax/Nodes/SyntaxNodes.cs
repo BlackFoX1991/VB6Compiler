@@ -211,12 +211,12 @@ public sealed record AssignmentStatementSyntax(
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.AssignmentStatement);
 
 /// <summary>
-/// Assignment through an explicit member chain, for example <c>point.X = 1</c> or
-/// <c>outer.Inner.Value = 1</c>. The target is kept as a member-access expression so binding
-/// can reuse exactly the same member lookup model as reads and later <c>With</c> lowering.
+/// Assignment through an addressable member/postfix chain, for example <c>point.X = 1</c>,
+/// <c>record.Values(i) = 2</c> or <c>outer.Children(i).Value = 3</c>. Binding validates the
+/// resulting expression target using the same addressability model as ByRef and With.
 /// </summary>
 public sealed record MemberAssignmentStatementSyntax(
-    MemberAccessExpressionSyntax Target,
+    ExpressionSyntax Target,
     SyntaxToken EqualsToken,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.MemberAssignmentStatement);
 

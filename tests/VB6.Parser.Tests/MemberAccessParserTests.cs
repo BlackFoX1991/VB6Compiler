@@ -14,9 +14,11 @@ public sealed class MemberAccessParserTests
 
         var assignment = statement as MemberAssignmentStatementSyntax;
         Assert.IsNotNull(assignment);
-        Assert.AreEqual("X", assignment.Target.MemberToken.Text);
-        Assert.IsInstanceOfType<NameExpressionSyntax>(assignment.Target.Receiver);
-        Assert.AreEqual("point", ((NameExpressionSyntax)assignment.Target.Receiver).IdentifierToken.Text);
+        var target = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(target);
+        Assert.AreEqual("X", target.MemberToken.Text);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(target.Receiver);
+        Assert.AreEqual("point", ((NameExpressionSyntax)target.Receiver).IdentifierToken.Text);
     }
 
     [TestMethod]
@@ -41,7 +43,9 @@ public sealed class MemberAccessParserTests
 
         var assignment = statement as MemberAssignmentStatementSyntax;
         Assert.IsNotNull(assignment);
-        Assert.AreEqual("Type", assignment.Target.MemberToken.Text);
+        var target = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(target);
+        Assert.AreEqual("Type", target.MemberToken.Text);
         var read = assignment.Expression as MemberAccessExpressionSyntax;
         Assert.IsNotNull(read);
         Assert.AreEqual("End", read.MemberToken.Text);
@@ -54,8 +58,10 @@ public sealed class MemberAccessParserTests
 
         var assignment = statement as MemberAssignmentStatementSyntax;
         Assert.IsNotNull(assignment);
-        Assert.AreEqual("X", assignment.Target.MemberToken.Text);
-        Assert.IsInstanceOfType<InvocationExpressionSyntax>(assignment.Target.Receiver);
+        var target = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(target);
+        Assert.AreEqual("X", target.MemberToken.Text);
+        Assert.IsInstanceOfType<InvocationExpressionSyntax>(target.Receiver);
     }
 
     private static StatementSyntax ParseSingleStatement(string statement)

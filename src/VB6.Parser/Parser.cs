@@ -750,16 +750,32 @@ public sealed class Parser
             return false;
         }
 
-        var offset = 0;
-        if (Current.Kind == SyntaxKind.IdentifierToken)
+        var offset = Current.Kind == SyntaxKind.IdentifierToken ? 1 : 0;
+        var sawMember = false;
+
+        while (true)
         {
-            offset = 1;
-            if (Peek(offset).Kind == SyntaxKind.OpenParenthesisToken)
+            var kind = Peek(offset).Kind;
+            if (kind == SyntaxKind.DotToken)
+            {
+                sawMember = true;
+                offset++;
+                var memberKind = Peek(offset).Kind;
+                if (memberKind != SyntaxKind.IdentifierToken && !IsKeyword(memberKind))
+                {
+                    return false;
+                }
+
+                offset++;
+                continue;
+            }
+
+            if (kind == SyntaxKind.OpenParenthesisToken)
             {
                 var depth = 0;
                 for (;; offset++)
                 {
-                    var kind = Peek(offset).Kind;
+                    kind = Peek(offset).Kind;
                     if (kind == SyntaxKind.OpenParenthesisToken)
                     {
                         depth++;
@@ -778,26 +794,14 @@ public sealed class Parser
                         return false;
                     }
                 }
+
+                continue;
             }
+
+            break;
         }
 
-        if (Peek(offset).Kind != SyntaxKind.DotToken)
-        {
-            return false;
-        }
-
-        while (Peek(offset).Kind == SyntaxKind.DotToken)
-        {
-            offset++;
-            var memberKind = Peek(offset).Kind;
-            if (memberKind != SyntaxKind.IdentifierToken && !IsKeyword(memberKind))
-            {
-                return false;
-            }
-            offset++;
-        }
-
-        return Peek(offset).Kind == SyntaxKind.EqualsToken;
+        return sawMember && Peek(offset).Kind == SyntaxKind.EqualsToken;
     }
 
     private DimStatementSyntax ParseDimStatement()
@@ -871,24 +875,9 @@ public sealed class Parser
     private MemberAssignmentStatementSyntax ParseMemberAssignmentStatement()
     {
         var target = ParsePrimaryExpression();
-        var memberTarget = target as MemberAccessExpressionSyntax;
-        if (memberTarget is null)
-        {
-            var missingDot = new SyntaxToken(
-                SyntaxKind.DotToken,
-                new TextSpan(Current.Span.Start, 0),
-                string.Empty,
-                null,
-                ImmutableArray<SyntaxTrivia>.Empty);
-            memberTarget = new MemberAccessExpressionSyntax(
-                target,
-                missingDot,
-                MatchTypeMemberName());
-        }
-
         var equalsToken = MatchToken(SyntaxKind.EqualsToken);
         var expression = ParseExpression();
-        return new MemberAssignmentStatementSyntax(memberTarget, equalsToken, expression);
+        return new MemberAssignmentStatementSyntax(target, equalsToken, expression);
     }
 
     private IfStatementSyntax ParseIfStatement()
