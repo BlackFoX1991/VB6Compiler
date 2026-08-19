@@ -11,6 +11,7 @@ public static class SyntaxFacts
         "DECLARE" => SyntaxKind.DeclareKeyword,
         "LIB" => SyntaxKind.LibKeyword,
         "ALIAS" => SyntaxKind.AliasKeyword,
+        "ENUM" => SyntaxKind.EnumKeyword,
         "END" => SyntaxKind.EndKeyword,
         "DIM" => SyntaxKind.DimKeyword,
         "CONST" => SyntaxKind.ConstKeyword,
