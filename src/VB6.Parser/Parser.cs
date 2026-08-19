@@ -248,14 +248,8 @@ public sealed class Parser
                 continue;
             }
 
-            if (Current.Kind != SyntaxKind.IdentifierToken)
-            {
-                ReportUnexpected(Current, "Type member");
-                RecoverToLineEndOrTypeEnd();
-                continue;
-            }
-
-            var memberIdentifier = MatchToken(SyntaxKind.IdentifierToken);
+            var memberStart = _position;
+            var memberIdentifier = MatchTypeMemberName();
             var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
             var asKeyword = MatchToken(SyntaxKind.AsKeyword);
             var memberType = MatchTypeToken();
@@ -278,6 +272,11 @@ public sealed class Parser
                 memberType,
                 starToken,
                 fixedStringLength));
+
+            if (_position == memberStart)
+            {
+                RecoverToLineEndOrTypeEnd();
+            }
         }
 
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
@@ -291,6 +290,20 @@ public sealed class Parser
             endKeyword,
             endTypeKeyword);
     }
+
+    private SyntaxToken MatchTypeMemberName()
+    {
+        if (Current.Kind == SyntaxKind.IdentifierToken || IsKeyword(Current.Kind))
+        {
+            return NextToken();
+        }
+
+        return MatchToken(SyntaxKind.IdentifierToken);
+    }
+
+    private static bool IsKeyword(SyntaxKind kind) =>
+        (int)kind >= (int)SyntaxKind.OptionKeyword &&
+        (int)kind <= (int)SyntaxKind.IsKeyword;
 
     private void RecoverToLineEndOrTypeEnd()
     {
@@ -1172,7 +1185,7 @@ public sealed class Parser
             var right = operatorToken.Kind == SyntaxKind.CaretToken
                 ? ParseExponentOperand()
                 : ParseExpression(precedence);
-            left = new BinaryExpressionSyntax(left, operatorToken, right);
+            left = new BinaryExpressionSyntax(left, operatorToken.Kind == SyntaxKind.CaretToken ? operatorToken : operatorToken, right);
         }
 
         return left;
