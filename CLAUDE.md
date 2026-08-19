@@ -73,10 +73,14 @@ dotnet build VB6Compiler.sln -c Release
 dotnet test VB6Compiler.sln -c Release
 ```
 
-**Kein `--no-build` beim Testen.** Auf diesem Rechner scheitern die Testläufe dann sporadisch mit
-`FileLoadException ... Zugriff verweigert` auf die nach `tests/*/bin/` kopierten Projekt-DLLs —
-mal zwei Projekte, mal alle. Mit regulärem Build ist der Lauf stabil. Die Fehler sehen aus wie
-echte Testfehler, sind aber keine; erst die Fehlermeldung prüfen, bevor Code geändert wird.
+**Wenn Tests mit `FileLoadException` scheitern, ist es kein Testfehler.** Meldungen wie
+`Could not load file or assembly ... Zugriff verweigert` oder `... Falscher Parameter
+(E_INVALIDARG)` auf die nach `tests/*/bin/` kopierten Projekt-DLLs kommen von beschädigten
+Build-Ausgaben — typisch nach einem abgebrochenen Build oder wenn Visual Studio parallel
+gebaut hat. Die betroffene Projektmenge wechselt von Lauf zu Lauf, was echte Fehler vortäuscht.
+
+Behebung: `bin`/`obj` unter `src` und `tests` löschen und neu bauen. Immer erst die
+Fehlermeldung lesen, bevor Code angefasst wird.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 Stand der letzten Prüfung: 160 Tests, alle grün.
