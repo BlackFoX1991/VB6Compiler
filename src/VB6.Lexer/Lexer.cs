@@ -52,6 +52,11 @@ public sealed class Lexer
             return CreateToken(SyntaxKind.NewLineToken, start, width, null, leadingTrivia);
         }
 
+        if (Current == '[')
+        {
+            return ReadBracketedIdentifier(start, leadingTrivia);
+        }
+
         if (char.IsLetter(Current) || Current == '_')
         {
             _position++;
@@ -68,9 +73,6 @@ public sealed class Lexer
                 keywordKind = SyntaxKind.IdentifierToken;
             }
 
-            // VB6 type suffixes ($ % & ! # @) name the same variable as the bare identifier, so
-            // the suffix stays inside the token span for round-tripping but out of its text.
-            // The declared type still comes from the declaration, not from the suffix.
             if (keywordKind == SyntaxKind.IdentifierToken && IsIdentifierTypeSuffix(Current))
             {
                 _position++;
@@ -128,6 +130,38 @@ public sealed class Lexer
         }
 
         return token;
+    }
+
+    private SyntaxToken ReadBracketedIdentifier(
+        int start,
+        ImmutableArray<SyntaxTrivia> leadingTrivia)
+    {
+        _position++;
+        var nameStart = _position;
+        while (Current != '\0' && Current is not '\r' and not '\n' and not ']')
+        {
+            _position++;
+        }
+
+        var nameEnd = _position;
+        var terminated = Current == ']';
+        if (terminated)
+        {
+            _position++;
+        }
+
+        var span = TextSpan.FromBounds(start, _position);
+        if (!terminated)
+        {
+            Report("VB6L0008", "Unterminated bracketed identifier.", span);
+        }
+
+        return new SyntaxToken(
+            SyntaxKind.IdentifierToken,
+            span,
+            _text.ToString(TextSpan.FromBounds(nameStart, nameEnd)),
+            null,
+            leadingTrivia);
     }
 
     private SyntaxToken ReadNumericToken(int start, ImmutableArray<SyntaxTrivia> leadingTrivia)
@@ -259,8 +293,6 @@ public sealed class Lexer
             magnitude = magnitude * radix + digitValue;
         }
 
-        // VB6 radix literals wrap into the smallest fitting signed type instead of growing:
-        // &HFFFF is -1 as Integer, &HFFFFFFFF is -1 as Long.
         object? value = suffix switch
         {
             IntegerTypeSuffix.Integer when magnitude <= ushort.MaxValue => unchecked((short)(ushort)magnitude),
@@ -295,10 +327,6 @@ public sealed class Lexer
         }
     }
 
-    /// <summary>
-    /// An underscore continues the line only when nothing but whitespace follows it up to the
-    /// line break. Anywhere else it is part of an identifier.
-    /// </summary>
     private bool TryGetLineContinuationEnd(out int end)
     {
         var index = _position + 1;
