@@ -109,6 +109,7 @@ public enum SyntaxKind
     StaticStatement,
     AssignmentStatement,
     ArrayElementAssignmentStatement,
+    MemberAssignmentStatement,
     IfStatement,
     ElseIfClause,
     ForStatement,
@@ -127,6 +128,7 @@ public enum SyntaxKind
     LiteralExpression,
     NameExpression,
     InvocationExpression,
+    MemberAccessExpression,
     UnaryExpression,
     BinaryExpression,
     ParenthesizedExpression
