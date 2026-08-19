@@ -8,7 +8,7 @@ namespace VB6.Lexer.Tests;
 public sealed class OptionDirectiveLexerTests
 {
     [TestMethod]
-    public void Lex_RecognizesOptionDirectiveKeywordsCaseInsensitively()
+    public void Lex_KeepsOptionDirectiveWordsAsIdentifiers()
     {
         var result = new LexerType(SourceText.From("oPtIoN bAsE 0\nOpTiOn CoMpArE Text")).Lex();
 
@@ -16,15 +16,17 @@ public sealed class OptionDirectiveLexerTests
             new[]
             {
                 SyntaxKind.OptionKeyword,
-                SyntaxKind.BaseKeyword,
+                SyntaxKind.IdentifierToken,
                 SyntaxKind.IntegerLiteralToken,
                 SyntaxKind.NewLineToken,
                 SyntaxKind.OptionKeyword,
-                SyntaxKind.CompareKeyword,
+                SyntaxKind.IdentifierToken,
                 SyntaxKind.IdentifierToken,
                 SyntaxKind.EndOfFileToken
             },
             result.Tokens.Select(token => token.Kind).ToArray());
+        Assert.AreEqual("bAsE", result.Tokens[1].Text);
+        Assert.AreEqual("CoMpArE", result.Tokens[5].Text);
         Assert.AreEqual(0, result.Diagnostics.Length);
     }
 }
