@@ -23,6 +23,7 @@ public sealed class ProjectUserDefinedTypeDeclarationBinderTests
 
         Assert.IsTrue(result.Success, FormatDiagnostics(result));
         var point = result.PublicTypes["Point"];
+        Assert.AreSame(point, result.Modules[1].Types["Point"]);
         var container = result.Modules[1].Types["Container"];
         Assert.IsTrue(container.TryGetMember("Position", out var position));
         Assert.AreSame(point, position.Type);
@@ -99,7 +100,7 @@ public sealed class ProjectUserDefinedTypeDeclarationBinderTests
             """);
 
         Assert.IsFalse(result.Success);
-        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0041"));
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0045"));
     }
 
     private static ProjectUserDefinedTypeDeclarationResult BindProject(params string[] sources)

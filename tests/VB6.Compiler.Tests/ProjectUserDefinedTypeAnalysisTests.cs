@@ -1,3 +1,5 @@
+using VB6.Semantics;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -47,6 +49,103 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
     }
 
     [TestMethod]
+    public void Analyze_BindsPublicUdtValuesAcrossModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            var projectPath = WriteProject(
+                directory,
+                """
+                Public Type Point
+                    X As Long
+                End Type
+
+                Public Origin As Point
+                """,
+                """
+                Sub UsePoint(ByRef value As Point)
+                    Dim local As Point
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsNotNull(analysis.UserDefinedTypes);
+            Assert.IsNotNull(analysis.SemanticModel);
+            var point = analysis.UserDefinedTypes.PublicTypes["Point"];
+
+            var origin = analysis.SemanticModel.ModuleVariables.Single(variable => variable.Symbol.Name == "Origin");
+            Assert.AreSame(point, origin.Symbol.Type);
+
+            var usePoint = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "UsePoint");
+            Assert.AreSame(point, usePoint.Symbol.Parameters.Single().Type);
+            Assert.AreSame(point, usePoint.Locals.Single(local => local.Name == "local").Type);
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
+            Assert.AreEqual(3, analysis.Diagnostics.Count(diagnostic => diagnostic.Code == "VB6S0046"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_UsesPrivateUdtIdentityInOriginModule()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            var projectPath = WriteProject(
+                directory,
+                """
+                Public Type Point
+                    X As Long
+                End Type
+
+                Sub UsePublic(ByRef value As Point)
+                End Sub
+                """,
+                """
+                Private Type Point
+                    X As Integer
+                End Type
+
+                Sub UsePrivate(ByRef value As Point)
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsNotNull(analysis.UserDefinedTypes);
+            Assert.IsNotNull(analysis.SemanticModel);
+            var publicPoint = analysis.UserDefinedTypes.PublicTypes["Point"];
+            var privatePoint = analysis.UserDefinedTypes.Modules[1].Types["Point"];
+            Assert.AreNotSame(publicPoint, privatePoint);
+
+            var publicParameter = analysis.SemanticModel.Procedures
+                .Single(procedure => procedure.Symbol.Name == "UsePublic")
+                .Symbol.Parameters.Single();
+            var privateParameter = analysis.SemanticModel.Procedures
+                .Single(procedure => procedure.Symbol.Name == "UsePrivate")
+                .Symbol.Parameters.Single();
+
+            Assert.AreSame(publicPoint, publicParameter.Type);
+            Assert.AreSame(privatePoint, privateParameter.Type);
+            Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
+            Assert.AreEqual(2, analysis.Diagnostics.Count(diagnostic => diagnostic.Code == "VB6S0046"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ReportsDuplicatePublicUserDefinedTypesAcrossModules()
     {
         var directory = CreateTemporaryDirectory();
@@ -69,7 +168,7 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
             var analysis = VBProjectCompilation.Create(projectPath).Analyze();
 
             Assert.IsFalse(analysis.Success);
-            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0041"));
+            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0045"));
         }
         finally
         {

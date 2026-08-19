@@ -83,8 +83,14 @@ public sealed class VBProjectCompilation
             module => module.Module.Text.FilePath ?? string.Empty,
             StringComparer.OrdinalIgnoreCase);
 
-        var procedureSymbols = DeclareProjectProcedures(parsedModules, projectDiagnostics);
-        var moduleVariableSymbols = DeclareProjectModuleVariables(parsedModules, projectDiagnostics);
+        var procedureSymbols = DeclareProjectProcedures(
+            parsedModules,
+            userDefinedTypesByPath,
+            projectDiagnostics);
+        var moduleVariableSymbols = DeclareProjectModuleVariables(
+            parsedModules,
+            userDefinedTypesByPath,
+            projectDiagnostics);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         var moduleVariables = ImmutableArray.CreateBuilder<BoundModuleVariable>();
@@ -101,15 +107,28 @@ public sealed class VBProjectCompilation
             }
 
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
-            var semanticModel = new Binder(module.Text)
-                .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
+            SemanticModel semanticModel;
+            using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
+            {
+                semanticModel = new Binder(module.Text)
+                    .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
+            }
+
+            var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
+                ? ImmutableArray<Diagnostic>.Empty
+                : UserDefinedTypeValueGuard.Validate(
+                    module.Text,
+                    module.ParseResult.Root,
+                    moduleUserDefinedTypes.Types);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
+            sourceDiagnostics.AddRange(userDefinedTypeValueDiagnostics);
             procedures.AddRange(semanticModel.Procedures);
             moduleVariables.AddRange(semanticModel.ModuleVariables);
 
             var unitDiagnostics = module.ParseResult.Diagnostics
                 .AddRange(moduleUserDefinedTypes?.Diagnostics ?? ImmutableArray<Diagnostic>.Empty)
-                .AddRange(semanticModel.Diagnostics);
+                .AddRange(semanticModel.Diagnostics)
+                .AddRange(userDefinedTypeValueDiagnostics);
             var compilationAnalysis = new CompilationAnalysis(
                 module.ParseResult,
                 semanticModel,
@@ -179,10 +198,13 @@ public sealed class VBProjectCompilation
 
     /// <summary>
     /// VB6 <c>Public</c> module variables are visible project-wide, so they are declared across
-    /// all modules before any module is bound - the same way procedures already are.
+    /// all modules before any module is bound - the same way procedures already are. The type
+    /// lookup scope must match the variable's origin module because Private UDT names can shadow
+    /// project-wide Public UDTs.
     /// </summary>
     private static Dictionary<string, ModuleVariableSymbol> DeclareProjectModuleVariables(
         IEnumerable<ParsedProjectModule> modules,
+        IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
@@ -195,7 +217,14 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            foreach (var symbol in Binder.CreateModuleVariableSymbols(module.Text, module.ParseResult.Root))
+            userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
+            ImmutableArray<ModuleVariableSymbol> symbols;
+            using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
+            {
+                symbols = Binder.CreateModuleVariableSymbols(module.Text, module.ParseResult.Root);
+            }
+
+            foreach (var symbol in symbols)
             {
                 if (moduleVariables.TryAdd(symbol.Name, symbol))
                 {
@@ -215,6 +244,7 @@ public sealed class VBProjectCompilation
 
     private static Dictionary<string, ProcedureSymbol> DeclareProjectProcedures(
         IEnumerable<ParsedProjectModule> modules,
+        IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
@@ -227,6 +257,8 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
+            userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
+            using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
             foreach (var member in module.ParseResult.Root.Members)
             {
                 ProcedureSymbol? symbol = member switch
@@ -256,6 +288,11 @@ public sealed class VBProjectCompilation
 
         return procedures;
     }
+
+    private static IReadOnlyDictionary<string, UserDefinedTypeSymbol> GetTypeScope(
+        UserDefinedTypeModuleResult? moduleUserDefinedTypes) =>
+        moduleUserDefinedTypes?.Types ??
+        ImmutableDictionary.Create<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase);
 
     private static VBProjectCompilationAnalysis ValidateEntryPoint(VBProjectCompilationAnalysis analysis)
     {
