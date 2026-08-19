@@ -69,6 +69,6 @@ public sealed class ArrayCodeGenTests
         StringAssert.Contains(source, "__vb6_First(ref __vb6_values)");
     }
 
-    private static string FormatDiagnostics(VBCompilationAnalysis analysis) =>
+    private static string FormatDiagnostics(CompilationAnalysis analysis) =>
         string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}"));
 }
