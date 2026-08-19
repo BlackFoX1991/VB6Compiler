@@ -93,8 +93,6 @@ public sealed class Parser
             return ParseEnumDeclaration(NextToken());
         }
 
-        // Visibility modifiers are not reserved words in VB6, so they only count as one when a
-        // declaration follows.
         if (IsVisibilityModifier(Current) && Peek(1).Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
         {
             var visibility = NextToken();
@@ -368,10 +366,6 @@ public sealed class Parser
         Peek(1).Kind == SyntaxKind.IdentifierToken &&
         string.Equals(Peek(1).Text, name, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// 'Attribute' is not a reserved word in VB6, so it is only an attribute line when an
-    /// attribute name follows it. That keeps 'Attribute' usable as an ordinary identifier.
-    /// </summary>
     private bool IsAttributeLine() =>
         Current.Kind == SyntaxKind.IdentifierToken &&
         string.Equals(Current.Text, "Attribute", StringComparison.OrdinalIgnoreCase) &&
@@ -601,6 +595,7 @@ public sealed class Parser
         {
             SyntaxKind.DimKeyword => ParseDimStatement(),
             SyntaxKind.ReDimKeyword => ParseReDimStatement(),
+            SyntaxKind.EraseKeyword => ParseEraseStatement(),
             SyntaxKind.StaticKeyword => ParseStaticStatement(),
             SyntaxKind.IfKeyword => ParseIfStatement(),
             SyntaxKind.ForKeyword => ParseForStatement(),
@@ -664,6 +659,25 @@ public sealed class Parser
         }
 
         return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, ParseVariableDeclarators());
+    }
+
+    private EraseStatementSyntax ParseEraseStatement()
+    {
+        var eraseKeyword = MatchToken(SyntaxKind.EraseKeyword);
+        var identifiers = ImmutableArray.CreateBuilder<SyntaxToken>();
+
+        while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.ColonToken and not SyntaxKind.EndOfFileToken)
+        {
+            identifiers.Add(MatchToken(SyntaxKind.IdentifierToken));
+            if (Current.Kind != SyntaxKind.CommaToken)
+            {
+                break;
+            }
+
+            NextToken();
+        }
+
+        return new EraseStatementSyntax(eraseKeyword, identifiers.ToImmutable());
     }
 
     private StaticStatementSyntax ParseStaticStatement()
@@ -1081,11 +1095,6 @@ public sealed class Parser
         return left;
     }
 
-    /// <summary>
-    /// VB6 evaluates exponentiation before unary negation, but a signed exponent is still legal
-    /// directly after '^'. Parsing only one signed primary here also preserves VB6's unusual
-    /// left-to-right associativity for repeated exponentiation.
-    /// </summary>
     private ExpressionSyntax ParseExponentOperand()
     {
         if (Current.Kind is SyntaxKind.PlusToken or SyntaxKind.MinusToken)
