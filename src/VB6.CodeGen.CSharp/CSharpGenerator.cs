@@ -9,6 +9,7 @@ public sealed class CSharpGenerator
 {
     private readonly StringBuilder _builder = new();
     private int _indent;
+    private bool _currentProcedureReturnsValue;
 
     public string Generate(SemanticModel model)
     {
@@ -27,7 +28,10 @@ public sealed class CSharpGenerator
         {
             foreach (var variable in model.ModuleVariables)
             {
-                WriteLine($"private static {GetTypeName(variable.Type)} {GetVariableName(variable)} = {GetDefaultValue(variable.Type)};");
+                var initializer = variable.Initializer is null
+                    ? GetDefaultValue(variable.Symbol.Type)
+                    : EmitExpression(variable.Initializer);
+                WriteLine($"private static {GetTypeName(variable.Symbol.Type)} {GetVariableName(variable.Symbol)} = {initializer};");
             }
 
             WriteLine();
@@ -54,6 +58,7 @@ public sealed class CSharpGenerator
             : GetTypeName(procedure.Symbol.ReturnType);
         var name = GetProcedureName(procedure.Symbol);
         var parameters = string.Join(", ", procedure.Symbol.Parameters.Select(EmitParameter));
+        _currentProcedureReturnsValue = procedure.Symbol.ReturnType is not null;
 
         WriteLine($"{visibility} static {returnType} {name}({parameters})");
         WriteLine("{");
@@ -124,6 +129,10 @@ public sealed class CSharpGenerator
 
             case BoundExitLoopStatement exitLoop:
                 WriteLine($"goto {GetLoopExitLabel(exitLoop.TargetLoopId)};");
+                break;
+
+            case BoundReturnStatement:
+                WriteLine(_currentProcedureReturnsValue ? "return __vb6_return;" : "return;");
                 break;
 
             case BoundSelectCaseStatement selectCase:

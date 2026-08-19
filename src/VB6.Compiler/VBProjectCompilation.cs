@@ -77,6 +77,7 @@ public sealed class VBProjectCompilation
         var moduleVariableSymbols = DeclareProjectModuleVariables(parsedModules, projectDiagnostics);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
+        var moduleVariables = ImmutableArray.CreateBuilder<BoundModuleVariable>();
 
         foreach (var module in parsedModules)
         {
@@ -93,6 +94,7 @@ public sealed class VBProjectCompilation
                 .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
             procedures.AddRange(semanticModel.Procedures);
+            moduleVariables.AddRange(semanticModel.ModuleVariables);
 
             var unitDiagnostics = module.ParseResult.Diagnostics.AddRange(semanticModel.Diagnostics);
             units.Add(new VBProjectCompilationUnit(
@@ -104,7 +106,7 @@ public sealed class VBProjectCompilation
         var combinedDiagnostics = sourceDiagnostics.ToImmutable();
         var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics)
         {
-            ModuleVariables = moduleVariableSymbols.Values.ToImmutableArray()
+            ModuleVariables = moduleVariables.ToImmutable()
         };
         return new VBProjectCompilationAnalysis(
             loadResult.Project,
@@ -163,7 +165,7 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            foreach (var symbol in Binder.CreateModuleVariableSymbols(module.ParseResult.Root))
+            foreach (var symbol in Binder.CreateModuleVariableSymbols(module.Text, module.ParseResult.Root))
             {
                 if (moduleVariables.TryAdd(symbol.Name, symbol))
                 {
