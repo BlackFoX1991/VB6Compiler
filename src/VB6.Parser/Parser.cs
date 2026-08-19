@@ -952,11 +952,29 @@ public sealed class Parser
             }
 
             var operatorToken = NextToken();
-            var right = ParseExpression(precedence);
+            var right = operatorToken.Kind == SyntaxKind.CaretToken
+                ? ParseExponentOperand()
+                : ParseExpression(precedence);
             left = new BinaryExpressionSyntax(left, operatorToken, right);
         }
 
         return left;
+    }
+
+    /// <summary>
+    /// VB6 evaluates exponentiation before unary negation, but a signed exponent is still legal
+    /// directly after '^'. Parsing only one signed primary here also preserves VB6's unusual
+    /// left-to-right associativity for repeated exponentiation.
+    /// </summary>
+    private ExpressionSyntax ParseExponentOperand()
+    {
+        if (Current.Kind is SyntaxKind.PlusToken or SyntaxKind.MinusToken)
+        {
+            var operatorToken = NextToken();
+            return new UnaryExpressionSyntax(operatorToken, ParseExponentOperand());
+        }
+
+        return ParsePrimaryExpression();
     }
 
     private ExpressionSyntax ParsePrimaryExpression()
@@ -1094,6 +1112,7 @@ public sealed class Parser
 
     private static int GetBinaryPrecedence(SyntaxKind kind) => kind switch
     {
+        SyntaxKind.CaretToken => 14,
         SyntaxKind.StarToken or SyntaxKind.SlashToken => 12,
         SyntaxKind.BackslashToken => 11,
         SyntaxKind.ModKeyword => 10,
