@@ -19,9 +19,7 @@ public sealed class ArrayElementBinderTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length);
 
         var statements = model.Procedures.Single().Body.Statements;
         var assignment = statements.OfType<BoundArrayElementAssignmentStatement>().Single();
@@ -45,9 +43,7 @@ public sealed class ArrayElementBinderTests
             End Function
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length);
 
         var assignment = model.Procedures.Single().Body.Statements
             .OfType<BoundAssignmentStatement>()
@@ -67,7 +63,7 @@ public sealed class ArrayElementBinderTests
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "VB6S0025", "VB6S0027" },
+            new[] { "VB6S0027" },
             model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
     }
 
