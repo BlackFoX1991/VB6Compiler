@@ -73,6 +73,16 @@ public sealed class VBProjectCompilation
             parsedModules.Add(new ParsedProjectModule(module, modulePath, text, parseResult));
         }
 
+        var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
+            parsedModules
+                .Where(module => !module.ParseResult.Diagnostics.Any(
+                    diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+                .Select(module => new UserDefinedTypeModuleInput(module.Text, module.ParseResult.Root)));
+        sourceDiagnostics.AddRange(userDefinedTypes.Diagnostics);
+        var userDefinedTypesByPath = userDefinedTypes.Modules.ToDictionary(
+            module => module.Module.Text.FilePath ?? string.Empty,
+            StringComparer.OrdinalIgnoreCase);
+
         var procedureSymbols = DeclareProjectProcedures(parsedModules, projectDiagnostics);
         var moduleVariableSymbols = DeclareProjectModuleVariables(parsedModules, projectDiagnostics);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
@@ -90,17 +100,34 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
+            userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
             var semanticModel = new Binder(module.Text)
                 .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
             procedures.AddRange(semanticModel.Procedures);
             moduleVariables.AddRange(semanticModel.ModuleVariables);
 
-            var unitDiagnostics = module.ParseResult.Diagnostics.AddRange(semanticModel.Diagnostics);
+            var unitDiagnostics = module.ParseResult.Diagnostics
+                .AddRange(moduleUserDefinedTypes?.Diagnostics ?? ImmutableArray<Diagnostic>.Empty)
+                .AddRange(semanticModel.Diagnostics);
+            var compilationAnalysis = new CompilationAnalysis(
+                module.ParseResult,
+                semanticModel,
+                unitDiagnostics);
+            if (moduleUserDefinedTypes is not null)
+            {
+                compilationAnalysis = compilationAnalysis with
+                {
+                    UserDefinedTypes = new UserDefinedTypeDeclarationResult(
+                        moduleUserDefinedTypes.Types,
+                        moduleUserDefinedTypes.Diagnostics)
+                };
+            }
+
             units.Add(new VBProjectCompilationUnit(
                 module.Item,
                 module.FilePath,
-                new CompilationAnalysis(module.ParseResult, semanticModel, unitDiagnostics)));
+                compilationAnalysis));
         }
 
         var combinedDiagnostics = sourceDiagnostics.ToImmutable();
@@ -113,7 +140,10 @@ public sealed class VBProjectCompilation
             units.ToImmutable(),
             combinedSemanticModel,
             combinedDiagnostics,
-            projectDiagnostics.ToImmutable());
+            projectDiagnostics.ToImmutable())
+        {
+            UserDefinedTypes = userDefinedTypes
+        };
     }
 
     public VBProjectCSharpGenerationResult GenerateCSharp()
@@ -149,7 +179,7 @@ public sealed class VBProjectCompilation
 
     /// <summary>
     /// VB6 <c>Public</c> module variables are visible project-wide, so they are declared across
-    /// all modules before any module is bound - the same way procedures are.
+    /// all modules before any module is bound - the same way procedures already are.
     /// </summary>
     private static Dictionary<string, ModuleVariableSymbol> DeclareProjectModuleVariables(
         IEnumerable<ParsedProjectModule> modules,
@@ -300,6 +330,8 @@ public sealed record VBProjectCompilationAnalysis(
     ImmutableArray<Diagnostic> Diagnostics,
     ImmutableArray<VBProjectCompilationDiagnostic> ProjectDiagnostics)
 {
+    public ProjectUserDefinedTypeDeclarationResult? UserDefinedTypes { get; init; }
+
     public bool Success =>
         ProjectDiagnostics.Length == 0 &&
         Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
