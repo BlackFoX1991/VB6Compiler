@@ -19,6 +19,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach `Optional`-Syntax | **2216** | 1800 | 68 | 348 | 0 von 27 |
 | nach `Option Base` / `Option Compare` | **2210** | 1794 | 68 | 348 | 0 von 27 |
 | nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
+| M2 abgeschlossen (`Static`, `^`, `Like`, `Is`) | **2219** | 1758 | 68 | 393 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -29,8 +30,10 @@ semantischen Lücken. `Option Base` / `Option Compare` entfernen danach weitere 
 Mehrfachdeklaratoren senken die Parserfehler anschließend um weitere 32 auf 1762. Die Semantik
 steigt dabei von 348 auf 393: unter anderem werden 4 echte implizite-Variant-Deklaratoren jetzt
 präzise als `VB6S0020` sichtbar, statt den Typ eines späteren Deklarators zu übernehmen oder im
-Parser zu entgleisen. `envSort.bas` fällt von 135 auf 127 Fehler. Der VISIA-Report läuft als
-eigener Schritt in GitHub Actions nach Build und Tests.
+Parser zu entgleisen. `Static` entfernt weitere 4 Parserfehler und schließt M2 bei 1758
+Parserfehlern ab. `^`, `Like` und expression-level `Is` ändern den aktuellen VISIA-Zähler nicht,
+sind aber regressionsgesichert. Der VISIA-Report läuft als eigener Schritt in GitHub Actions nach
+Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -60,17 +63,29 @@ Bezeichner verwendet. Beide Direktiven werden deshalb nur direkt hinter `Option`
 Wörter bleiben sonst normale Identifier.
 
 Der `:`-Anweisungstrenner war im Parser bereits über die gemeinsame Zeilenabschlusslogik
-implementiert. Actions #588 verifiziert ihn jetzt ausdrücklich mit Parser- und End-to-End-Tests
-für mehrere Statements pro Zeile, Single-Line-`If` und `Case`. Die VISIA-Zahlen bleiben dadurch
-unverändert bei 2210 / 1794 Parser / 68 Lexer / 348 Semantik, weil kein Produktionscode geändert
-werden musste. Labels wie `LinkFail:` gehören weiterhin zum späteren Sprung-/IR-Meilenstein und
-sind von diesem Statement-Separator-Support getrennt.
+implementiert. Actions #588 verifiziert ihn ausdrücklich mit Parser- und End-to-End-Tests für
+mehrere Statements pro Zeile, Single-Line-`If` und `Case`. Labels wie `LinkFail:` gehören
+weiterhin zum späteren Sprung-/IR-Meilenstein und sind von diesem Statement-Separator-Support
+getrennt.
 
 Bei Mehrfachdeklarationen gilt die echte VB6-Regel **pro Deklarator**: `Dim a, b As Integer`
 macht nur `b` zu Integer; `a` bleibt Variant. Der Syntaxbaum speichert deshalb `As Type` an jedem
 Deklarator einzeln. Explizit typisierte Listen werden bereits vollständig gebunden und emittiert.
 Untypisierte Deklaratoren werden bis M4 als `VB6S0020` diagnostiziert, statt stillschweigend den
 Typ des Nachbarn zu erben. Actions #604 verifiziert das mit Parser-, Binder- und End-to-End-Tests.
+
+`Static` verwendet dieselbe Deklaratorstruktur, aber einen eigenen Syntaxknoten. Der Binder macht
+die Namen für Folgeausdrücke sichtbar, emittiert sie jedoch **nicht** als normale Locals; bis die
+persistente Lebensdauer in M5 implementiert ist, verhindert `VB6S0021` eine falsche Absenkung.
+`Like` und expression-level `Is` werden analog syntaktisch bewahrt, aber mit `VB6S0023` bzw.
+`VB6S0024` gestoppt, bis Pattern-/`Option Compare`- bzw. Objektidentitätssemantik existiert.
+`^` ist dagegen bereits vollständig von Lexer bis End-to-End-Ausführung implementiert. Actions
+#662 validiert den abgeschlossenen M2-Stand mit 243 Tests.
+
+Der nächste konkrete VISIA-Blocker in `envSort.bas` ist nun ein aufrufseitiges `ByVal`, etwa
+`CopyMemory SwpVal, ByVal VarPtr(String1), 4`. Das gehört zu den späteren ByRef-Randfällen; M3
+startet trotzdem zuerst mit Arrays, weil dieselbe Datei außerdem Arrayparameter und feste lokale
+Arrays enthält und Arrays/UDTs der geplante nächste Strukturblock sind.
 
 Danach, nach betroffenen Dateien sortiert:
 
@@ -129,7 +144,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 `&H`/`&O`-Literale mit VB6-Wrapping, `&`/`%`-Typsuffixe an Literalen, bitweise
 `And`/`Or`/`Xor`/`Eqv`/`Imp`/`Not` auf Numerik.
 
-## Meilenstein 2 — Dateien überhaupt lesbar machen (teilweise)
+## Meilenstein 2 — Dateien überhaupt lesbar machen ✅
 
 - [x] `Attribute`-Zeilen auf Modulebene
 - [x] Deklarationen auf Modulebene: `Public`/`Private`/`Global`/`Dim`
@@ -144,8 +159,8 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
 - [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, implizites Variant bleibt M4
-- [ ] `Static`-Local-Syntax; statische Lebensdauer bleibt M5
-- [ ] `^`-Operator, `Like`, `Is`
+- [x] `Static`-Local-Syntax; statische Lebensdauer bleibt M5 und wird bis dahin als `VB6S0021` diagnostiziert
+- [x] `^` vollständig; `Like`- und `Is`-Syntax mit Semantik-Guards bis M7 bzw. M5
 
 **Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
 brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
@@ -155,6 +170,7 @@ brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
 Zusammen, weil Win32-Strukturen beides brauchen.
 
 - [ ] `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional; `Option Base` wird hier semantisch angewendet
+- [ ] Arrayparameter wie `TheArray() As String`
 - [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound`, `For Each`
 - [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`
 - [ ] Neu: `ArrayTypeSymbol`, `UserDefinedTypeSymbol`; `VBArray<T>` in der Runtime
@@ -169,6 +185,7 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 ## Meilenstein 5 — Prozeduren und Klassen
 
 - [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Local-Lebensdauer, ByRef-Randfälle
+- [ ] `Is`-Objektreferenzidentität auf dem echten Klassen-/Objekttypmodell
 - [ ] `Property Get`/`Let`/`Set`
 - [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
 - [ ] `Event`/`RaiseEvent`, `WithEvents`
@@ -191,7 +208,7 @@ Nach Korpusbedarf priorisiert:
 1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`
 2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`
 3. `MsgBox`/`InputBox`
-4. Math, Konvertierung, `Like`
+4. Math, Konvertierung, vollständiges `Like` inklusive `Option Compare`
 5. Erst danach `Format$`, Datum/Zeit, Finanzfunktionen — im Korpus unbenutzt
 
 ## Meilenstein 8 — Interop
