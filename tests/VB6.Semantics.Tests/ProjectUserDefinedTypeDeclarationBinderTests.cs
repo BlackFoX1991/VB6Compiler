@@ -99,7 +99,7 @@ public sealed class ProjectUserDefinedTypeDeclarationBinderTests
             """);
 
         Assert.IsFalse(result.Success);
-        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0041"));
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0045"));
     }
 
     private static ProjectUserDefinedTypeDeclarationResult BindProject(params string[] sources)
