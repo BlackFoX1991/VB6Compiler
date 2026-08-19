@@ -10,6 +10,7 @@ public static class SyntaxFacts
         "FUNCTION" => SyntaxKind.FunctionKeyword,
         "END" => SyntaxKind.EndKeyword,
         "DIM" => SyntaxKind.DimKeyword,
+        "CONST" => SyntaxKind.ConstKeyword,
         "AS" => SyntaxKind.AsKeyword,
         "BYTE" => SyntaxKind.ByteKeyword,
         "INTEGER" => SyntaxKind.IntegerKeyword,

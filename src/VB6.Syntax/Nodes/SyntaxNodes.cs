@@ -35,6 +35,19 @@ public sealed record ModuleVariableDeclarationSyntax(
     SyntaxToken AsKeyword,
     SyntaxToken TypeToken) : MemberSyntax(SyntaxKind.ModuleVariableDeclaration);
 
+/// <summary>
+/// A module-level constant, such as <c>Private Const Limit As Long = 10</c>. The type is
+/// optional in VB6; without it the type follows from the value.
+/// </summary>
+public sealed record ConstDeclarationSyntax(
+    SyntaxToken? VisibilityKeyword,
+    SyntaxToken ConstKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? TypeToken,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax Value) : MemberSyntax(SyntaxKind.ConstDeclaration);
+
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
     SyntaxToken Identifier,

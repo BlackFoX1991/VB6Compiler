@@ -82,6 +82,16 @@ public sealed class Parser
             return ParseModuleVariableDeclaration(NextToken());
         }
 
+        if (Current.Kind == SyntaxKind.ConstKeyword)
+        {
+            return ParseConstDeclaration(null);
+        }
+
+        if (IsVisibilityModifier(Current) && Peek(1).Kind == SyntaxKind.ConstKeyword)
+        {
+            return ParseConstDeclaration(NextToken());
+        }
+
         if (Current.Kind == SyntaxKind.SubKeyword)
         {
             return ParseSubDeclaration();
@@ -93,6 +103,33 @@ public sealed class Parser
         }
 
         return null;
+    }
+
+    private ConstDeclarationSyntax ParseConstDeclaration(SyntaxToken? visibilityKeyword)
+    {
+        var constKeyword = MatchToken(SyntaxKind.ConstKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+
+        SyntaxToken? asKeyword = null;
+        SyntaxToken? typeToken = null;
+        if (Current.Kind == SyntaxKind.AsKeyword)
+        {
+            asKeyword = NextToken();
+            typeToken = MatchTypeToken();
+        }
+
+        var equalsToken = MatchToken(SyntaxKind.EqualsToken);
+        var value = ParseExpression();
+        ConsumeLineTerminator();
+
+        return new ConstDeclarationSyntax(
+            visibilityKeyword,
+            constKeyword,
+            identifier,
+            asKeyword,
+            typeToken,
+            equalsToken,
+            value);
     }
 
     private ModuleVariableDeclarationSyntax ParseModuleVariableDeclaration(SyntaxToken visibilityKeyword)
@@ -484,7 +521,8 @@ public sealed class Parser
         var exitKeyword = MatchToken(SyntaxKind.ExitKeyword);
         SyntaxToken targetKeyword;
 
-        if (Current.Kind is SyntaxKind.ForKeyword or SyntaxKind.DoKeyword)
+        if (Current.Kind is SyntaxKind.ForKeyword or SyntaxKind.DoKeyword
+            or SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
         {
             targetKeyword = NextToken();
         }
