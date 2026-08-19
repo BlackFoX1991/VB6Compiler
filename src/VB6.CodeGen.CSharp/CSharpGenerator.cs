@@ -164,11 +164,127 @@ public sealed class CSharpGenerator
                 continue;
             }
 
+            if (member.Type is ArrayTypeSymbol arrayType && member.HasArrayBounds)
+            {
+                EmitFixedUserDefinedTypeArrayMember(member, memberName, arrayType);
+                continue;
+            }
+
             WriteLine($"public {GetTypeName(member.Type)} __vb6_member_{memberName};");
         }
+
+        if (RequiresManagedClone(type))
+        {
+            WriteLine();
+            EmitUserDefinedTypeClone(type);
+        }
+
         _indent--;
         WriteLine("}");
     }
+
+    private void EmitFixedUserDefinedTypeArrayMember(
+        UserDefinedTypeMemberSymbol member,
+        string memberName,
+        ArrayTypeSymbol arrayType)
+    {
+        var typeName = GetTypeName(arrayType);
+        var backingName = GetUserDefinedTypeArrayBackingName(memberName);
+        WriteLine($"private {typeName}? {backingName};");
+        WriteLine($"public {typeName} __vb6_member_{memberName} =>");
+        _indent++;
+        WriteLine($"{backingName} ??= new {typeName}({EmitUserDefinedTypeArrayBounds(member.ArrayBounds)});");
+        _indent--;
+    }
+
+    private void EmitUserDefinedTypeClone(UserDefinedTypeSymbol type)
+    {
+        var typeName = GetUserDefinedTypeName(type);
+        WriteLine($"public {typeName} __vb6_clone()");
+        WriteLine("{");
+        _indent++;
+        WriteLine("var __vb6_copy = this;");
+
+        foreach (var member in type.Members)
+        {
+            var memberName = SanitizeIdentifier(member.Name);
+            if (member.Type is ArrayTypeSymbol arrayType)
+            {
+                var source = member.HasArrayBounds
+                    ? GetUserDefinedTypeArrayBackingName(memberName)
+                    : $"__vb6_member_{memberName}";
+                var destination = member.HasArrayBounds
+                    ? $"__vb6_copy.{GetUserDefinedTypeArrayBackingName(memberName)}"
+                    : $"__vb6_copy.__vb6_member_{memberName}";
+                WriteLine($"if ({source} is not null)");
+                WriteLine("{");
+                _indent++;
+                WriteLine($"{destination} = {EmitArrayCloneExpression(source, arrayType)};");
+                _indent--;
+                WriteLine("}");
+                continue;
+            }
+
+            if (member.Type is UserDefinedTypeSymbol nestedType && RequiresManagedClone(nestedType))
+            {
+                WriteLine($"__vb6_copy.__vb6_member_{memberName} = __vb6_member_{memberName}.__vb6_clone();");
+            }
+        }
+
+        WriteLine("return __vb6_copy;");
+        _indent--;
+        WriteLine("}");
+    }
+
+    private string EmitArrayCloneExpression(string source, ArrayTypeSymbol arrayType)
+    {
+        if (arrayType.ElementType is UserDefinedTypeSymbol elementType && RequiresManagedClone(elementType))
+        {
+            return $"{source}.Clone(static __vb6_item => __vb6_item.__vb6_clone())";
+        }
+
+        return $"{source}.Clone()";
+    }
+
+    private static bool RequiresManagedClone(UserDefinedTypeSymbol type) =>
+        RequiresManagedClone(
+            type,
+            new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance));
+
+    private static bool RequiresManagedClone(
+        UserDefinedTypeSymbol type,
+        HashSet<UserDefinedTypeSymbol> activePath)
+    {
+        if (!activePath.Add(type))
+        {
+            return false;
+        }
+
+        foreach (var member in type.Members)
+        {
+            if (member.Type is ArrayTypeSymbol)
+            {
+                activePath.Remove(type);
+                return true;
+            }
+
+            if (member.Type is UserDefinedTypeSymbol nestedType && RequiresManagedClone(nestedType, activePath))
+            {
+                activePath.Remove(type);
+                return true;
+            }
+        }
+
+        activePath.Remove(type);
+        return false;
+    }
+
+    private static string GetUserDefinedTypeArrayBackingName(string memberName) =>
+        $"__vb6_array_{memberName}";
+
+    private static string EmitUserDefinedTypeArrayBounds(ImmutableArray<UserDefinedTypeArrayBound> bounds) =>
+        string.Join(", ", bounds.Select(bound =>
+            $"new VBArrayBound({bound.Lower.ToString(CultureInfo.InvariantCulture)}, {bound.Upper.ToString(CultureInfo.InvariantCulture)})"));
 
     private void EmitProcedure(BoundProcedure procedure)
     {
