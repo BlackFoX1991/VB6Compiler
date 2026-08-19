@@ -70,14 +70,20 @@ public sealed class VBProjectCompilation
             var text = SourceText.From(source, modulePath);
             var parseResult = new ParserType(text).ParseCompilationUnit();
             sourceDiagnostics.AddRange(parseResult.Diagnostics);
-            parsedModules.Add(new ParsedProjectModule(module, modulePath, text, parseResult));
+            var semanticRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
+            parsedModules.Add(new ParsedProjectModule(
+                module,
+                modulePath,
+                text,
+                parseResult,
+                semanticRoot));
         }
 
         var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
             parsedModules
                 .Where(module => !module.ParseResult.Diagnostics.Any(
                     diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-                .Select(module => new UserDefinedTypeModuleInput(module.Text, module.ParseResult.Root)));
+                .Select(module => new UserDefinedTypeModuleInput(module.Text, module.SemanticRoot)));
         sourceDiagnostics.AddRange(userDefinedTypes.Diagnostics);
         var userDefinedTypesByPath = userDefinedTypes.Modules.ToDictionary(
             module => module.Module.Text.FilePath ?? string.Empty,
@@ -111,12 +117,12 @@ public sealed class VBProjectCompilation
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
                 preliminaryModel = new Binder(module.Text)
-                    .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
+                    .BindCompilationUnit(module.SemanticRoot, procedureSymbols, moduleVariableSymbols);
             }
 
             var forEachLowering = ForEachArraySyntaxLowerer.Lower(
                 module.Text,
-                module.ParseResult.Root,
+                module.SemanticRoot,
                 preliminaryModel);
 
             SemanticModel semanticModel;
@@ -238,7 +244,7 @@ public sealed class VBProjectCompilation
             ImmutableArray<ModuleVariableSymbol> symbols;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                symbols = Binder.CreateModuleVariableSymbols(module.Text, module.ParseResult.Root);
+                symbols = Binder.CreateModuleVariableSymbols(module.Text, module.SemanticRoot);
             }
 
             foreach (var symbol in symbols)
@@ -276,7 +282,7 @@ public sealed class VBProjectCompilation
 
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
             using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
-            foreach (var member in module.ParseResult.Root.Members)
+            foreach (var member in module.SemanticRoot.Members)
             {
                 ProcedureSymbol? symbol = member switch
                 {
@@ -352,7 +358,8 @@ public sealed class VBProjectCompilation
         VBProjectItem Item,
         string FilePath,
         SourceText Text,
-        ParseResult ParseResult);
+        ParseResult ParseResult,
+        CompilationUnitSyntax SemanticRoot);
 }
 
 public sealed record VBProjectCompilationUnit(
