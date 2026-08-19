@@ -105,7 +105,7 @@ public static class VBConversions
     }
 }
 
-public static class VBOperators
+public static partial class VBOperators
 {
     public static byte AddByte(byte left, byte right) => checked((byte)(left + right));
 
