@@ -40,6 +40,8 @@ public enum SyntaxKind
     EnumKeyword,
     EndKeyword,
     DimKeyword,
+    ReDimKeyword,
+    PreserveKeyword,
     StaticKeyword,
     ConstKeyword,
     AsKeyword,
