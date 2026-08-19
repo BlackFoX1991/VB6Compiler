@@ -42,10 +42,12 @@ public sealed class VBCompilation
             Text,
             parseResult.Root,
             userDefinedTypes.Types);
+        var forEachDiagnostics = ForEachSyntaxGuard.Validate(Text, parseResult.Root);
         var diagnostics = parseResult.Diagnostics
             .AddRange(userDefinedTypes.Diagnostics)
             .AddRange(semanticModel.Diagnostics)
-            .AddRange(userDefinedTypeValueDiagnostics);
+            .AddRange(userDefinedTypeValueDiagnostics)
+            .AddRange(forEachDiagnostics);
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
         {

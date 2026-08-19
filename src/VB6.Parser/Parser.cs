@@ -695,6 +695,7 @@ public sealed class Parser
             SyntaxKind.EraseKeyword => ParseEraseStatement(),
             SyntaxKind.StaticKeyword => ParseStaticStatement(),
             SyntaxKind.IfKeyword => ParseIfStatement(),
+            SyntaxKind.ForKeyword when Peek(1).Kind == SyntaxKind.EachKeyword => ParseForEachStatement(),
             SyntaxKind.ForKeyword => ParseForStatement(),
             SyntaxKind.WhileKeyword => ParseWhileStatement(),
             SyntaxKind.DoKeyword => ParseDoStatement(),
@@ -955,6 +956,34 @@ public sealed class Parser
 
     private bool IsIfBranchTerminator() =>
         Current.Kind is SyntaxKind.ElseIfKeyword or SyntaxKind.ElseKeyword || IsEndPair(SyntaxKind.IfKeyword);
+
+    private ForEachStatementSyntax ParseForEachStatement()
+    {
+        var forKeyword = MatchToken(SyntaxKind.ForKeyword);
+        var eachKeyword = MatchToken(SyntaxKind.EachKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var inKeyword = MatchToken(SyntaxKind.InKeyword);
+        var collection = ParseExpression();
+
+        ConsumeLineTerminator();
+        var statements = ParseStatementsUntil(() => Current.Kind == SyntaxKind.NextKeyword);
+        var nextKeyword = MatchToken(SyntaxKind.NextKeyword);
+        SyntaxToken? nextIdentifier = null;
+        if (Current.Kind == SyntaxKind.IdentifierToken)
+        {
+            nextIdentifier = NextToken();
+        }
+
+        return new ForEachStatementSyntax(
+            forKeyword,
+            eachKeyword,
+            identifier,
+            inKeyword,
+            collection,
+            statements,
+            nextKeyword,
+            nextIdentifier);
+    }
 
     private ForStatementSyntax ParseForStatement()
     {
