@@ -7,8 +7,8 @@ namespace VB6.Semantics;
 
 /// <summary>
 /// Scalar UDT values can be lowered as managed value types. This validator keeps the remaining
-/// layouts guarded until their VB6 storage semantics are represented explicitly: array members,
-/// fixed-length strings, and recursive by-value UDT layouts.
+/// layouts guarded until their VB6 storage semantics are represented explicitly: array members
+/// and recursive by-value UDT layouts.
 /// </summary>
 public static class UserDefinedTypeValueGuard
 {
@@ -166,7 +166,7 @@ public static class UserDefinedTypeValueGuard
 
         foreach (var member in type.Members)
         {
-            if (member.Type is FixedLengthStringTypeSymbol or ArrayTypeSymbol)
+            if (member.Type is ArrayTypeSymbol)
             {
                 activePath.Remove(type);
                 return true;
