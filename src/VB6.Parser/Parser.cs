@@ -1119,7 +1119,8 @@ public sealed class Parser
         SyntaxKind.PlusToken or SyntaxKind.MinusToken => 9,
         SyntaxKind.AmpersandToken => 8,
         SyntaxKind.EqualsToken or SyntaxKind.LessToken or SyntaxKind.LessOrEqualsToken or
-        SyntaxKind.GreaterToken or SyntaxKind.GreaterOrEqualsToken or SyntaxKind.LessGreaterToken => 7,
+        SyntaxKind.GreaterToken or SyntaxKind.GreaterOrEqualsToken or SyntaxKind.LessGreaterToken or
+        SyntaxKind.LikeKeyword or SyntaxKind.IsKeyword => 7,
         SyntaxKind.AndKeyword => 5,
         SyntaxKind.OrKeyword => 4,
         SyntaxKind.XorKeyword => 3,
