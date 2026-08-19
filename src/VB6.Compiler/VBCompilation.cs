@@ -43,11 +43,13 @@ public sealed class VBCompilation
             parseResult.Root,
             userDefinedTypes.Types);
         var forEachDiagnostics = ForEachSyntaxGuard.Validate(Text, parseResult.Root);
+        var variantOperationDiagnostics = VariantOperationGuard.Validate(Text, semanticModel);
         var diagnostics = parseResult.Diagnostics
             .AddRange(userDefinedTypes.Diagnostics)
             .AddRange(semanticModel.Diagnostics)
             .AddRange(userDefinedTypeValueDiagnostics)
-            .AddRange(forEachDiagnostics);
+            .AddRange(forEachDiagnostics)
+            .AddRange(variantOperationDiagnostics);
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
         {
