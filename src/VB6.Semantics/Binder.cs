@@ -709,7 +709,7 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var target = BindMemberAccess(syntax.Target, variables, procedures);
+        var target = BindExpression(syntax.Target, variables, procedures);
         var expression = BindExpression(syntax.Expression, variables, procedures);
         return new BoundMemberAssignmentStatement(target, BindConversion(expression, target.Type));
     }
