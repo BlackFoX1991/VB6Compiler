@@ -65,6 +65,65 @@ public sealed class ForEachProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_LowersDynamicArrayForEachInsideVbpProject()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            var projectPath = WriteProject(
+                directory,
+                """
+                Sub Main()
+                    Dim item As Variant
+                    Dim values() As Long
+                    ReDim values(-1 To 1)
+                    values(-1) = 7
+                    values(0) = 8
+                    values(1) = 9
+
+                    For Each item In values
+                        Debug.Print item
+                    Next item
+                End Sub
+                """);
+            var outputDirectory = Path.Combine(directory, "bin");
+            var assemblyPath = Path.Combine(outputDirectory, "ProjectDynamicForEach.dll");
+
+            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(assemblyPath);
+            Assert.IsTrue(result.Success, FormatDiagnostics(result));
+            Assert.IsNotNull(result.AssemblyPath);
+
+            var startInfo = new ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = outputDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(result.AssemblyPath!);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start the generated dynamic project For Each application.");
+
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[] { "7", "8", "9" },
+                standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ProjectForEachPreservesControlVariableGuard()
     {
         var directory = CreateTemporaryDirectory();
