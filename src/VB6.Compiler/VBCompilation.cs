@@ -31,16 +31,17 @@ public sealed class VBCompilation
                 parseResult.Diagnostics);
         }
 
-        var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(parseResult.Root);
+        var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
+        var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(implicitVariantRoot);
         SemanticModel preliminaryModel;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
-            preliminaryModel = new Binder(Text).BindCompilationUnit(parseResult.Root);
+            preliminaryModel = new Binder(Text).BindCompilationUnit(implicitVariantRoot);
         }
 
         var forEachLowering = ForEachArraySyntaxLowerer.Lower(
             Text,
-            parseResult.Root,
+            implicitVariantRoot,
             preliminaryModel);
 
         SemanticModel semanticModel;
