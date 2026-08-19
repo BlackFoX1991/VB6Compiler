@@ -59,4 +59,25 @@ public sealed class VariantFoundationCodeGenTests
         Assert.IsNull(generation.Source);
         Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
     }
+
+    [TestMethod]
+    public void GenerateCSharp_AllowsTypedOperatorResultFromCallWithVariantArgument()
+    {
+        var generation = VBCompilation.Create("""
+            Function ReadValue(ByVal value As Variant) As Long
+                ReadValue = 4
+            End Function
+
+            Sub Main()
+                Dim value As Variant
+                Debug.Print ReadValue(value) + 1
+            End Sub
+            """, "test.bas").GenerateCSharp();
+
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
+        Assert.IsNotNull(generation.Source);
+    }
 }
