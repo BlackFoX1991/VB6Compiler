@@ -13,6 +13,7 @@ public sealed class Binder
     private readonly List<LoopBindingContext> _loopStack = new();
     private int _nextLoopId;
     private int _nextSelectId;
+    private int _optionBase;
 
     public Binder(SourceText text)
     {
@@ -43,7 +44,9 @@ public sealed class Binder
         CompilationUnitSyntax root)
     {
         ArgumentNullException.ThrowIfNull(root);
-        return new Binder(text).DeclareModuleVariables(root).Scope.Values.ToImmutableArray();
+        var binder = new Binder(text);
+        binder.ApplyModuleOptions(root);
+        return binder.DeclareModuleVariables(root).Scope.Values.ToImmutableArray();
     }
 
     public SemanticModel BindCompilationUnit(CompilationUnitSyntax root)
@@ -59,6 +62,7 @@ public sealed class Binder
     {
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
+        ApplyModuleOptions(root);
         var declared = DeclareModuleVariables(root);
         var moduleVariables = availableModuleVariables ?? declared.Scope;
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
@@ -108,6 +112,19 @@ public sealed class Binder
         {
             ModuleVariables = declared.Bound
         };
+    }
+
+    private void ApplyModuleOptions(CompilationUnitSyntax root)
+    {
+        _optionBase = 0;
+        foreach (var member in root.Members)
+        {
+            if (member is OptionBaseSyntax optionBase)
+            {
+                _optionBase = optionBase.ValueToken.Text == "1" ? 1 : 0;
+                break;
+            }
+        }
     }
 
     private static ImmutableArray<ParameterSymbol> CreateParameterSymbols(ImmutableArray<ParameterSyntax> parameters) =>
@@ -225,11 +242,20 @@ public sealed class Binder
                 {
                     foreach (var declarator in declaration.Declarators)
                     {
+                        var visible = scope.ToDictionary(
+                            entry => entry.Key,
+                            entry => (VariableSymbol)entry.Value,
+                            StringComparer.OrdinalIgnoreCase);
                         var type = ResolveVariableDeclaratorType(declarator);
+                        var dimensions = BindArrayDimensions(declarator, visible, noProcedures);
                         var symbol = new ModuleVariableSymbol(declarator.Identifier.Text, type);
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
-                            bound.Add(new BoundModuleVariable(symbol, null, IsConstant: false));
+                            bound.Add(new BoundModuleVariable(
+                                symbol,
+                                null,
+                                IsConstant: false,
+                                dimensions));
                         }
                     }
 
@@ -290,6 +316,34 @@ public sealed class Binder
         return new ArrayTypeSymbol(
             elementType,
             declarator.Dimensions.IsDefaultOrEmpty ? 1 : declarator.Dimensions.Length);
+    }
+
+    private ImmutableArray<BoundArrayDimension> BindArrayDimensions(
+        VariableDeclaratorSyntax declarator,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (!declarator.IsArray || declarator.Dimensions.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<BoundArrayDimension>.Empty;
+        }
+
+        var dimensions = ImmutableArray.CreateBuilder<BoundArrayDimension>(declarator.Dimensions.Length);
+        foreach (var dimension in declarator.Dimensions)
+        {
+            var lowerBound = dimension.LowerBound is null
+                ? new BoundLiteralExpression((long)_optionBase, TypeSymbol.Long)
+                : BindConversion(
+                    BindExpression(dimension.LowerBound, variables, procedures),
+                    TypeSymbol.Long);
+            var upperBound = BindConversion(
+                BindExpression(dimension.UpperBound, variables, procedures),
+                TypeSymbol.Long);
+
+            dimensions.Add(new BoundArrayDimension(lowerBound, upperBound));
+        }
+
+        return dimensions.ToImmutable();
     }
 
     private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken)
@@ -459,7 +513,7 @@ public sealed class Binder
             {
                 foreach (var declarator in dim.Declarators)
                 {
-                    bound.Add(BindVariableDeclaration(declarator, variables));
+                    bound.Add(BindVariableDeclaration(declarator, variables, procedures));
                 }
                 continue;
             }
@@ -507,7 +561,8 @@ public sealed class Binder
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
         VariableDeclaratorSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         if (!variables.TryGetValue(syntax.Identifier.Text, out var variable) ||
             variable is not LocalVariableSymbol local)
@@ -515,7 +570,9 @@ public sealed class Binder
             local = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
         }
 
-        return new BoundVariableDeclarationStatement(local);
+        return new BoundVariableDeclarationStatement(
+            local,
+            BindArrayDimensions(syntax, variables, procedures));
     }
 
     private BoundAssignmentStatement BindAssignment(
