@@ -39,7 +39,7 @@ public sealed class VBProjectLoader
         {
             lineNumber++;
             var trimmed = line.Trim();
-            if (trimmed.Length == 0)
+            if (trimmed.Length == 0 || IsSectionHeader(trimmed))
             {
                 continue;
             }
@@ -128,6 +128,9 @@ public sealed class VBProjectLoader
 
         return new VBProjectLoadResult(project, diagnostics.ToImmutable());
     }
+
+    private static bool IsSectionHeader(string line) =>
+        line.Length >= 2 && line[0] == '[' && line[^1] == ']';
 
     private static VBProjectItem ParseNamedItem(VBProjectItemKind kind, string value)
     {
