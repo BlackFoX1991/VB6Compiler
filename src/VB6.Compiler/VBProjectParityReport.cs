@@ -74,13 +74,23 @@ public sealed record VBProjectParityReport(
 
         var gaps = errorDiagnostics
             .GroupBy(diagnostic => (diagnostic.Code, diagnostic.Message))
-            .Select(group => new ParityGap(
-                group.Key.Code,
-                group.Key.Message,
-                group.Count(),
-                group.Select(diagnostic => diagnostic.FilePath ?? string.Empty)
+            .Select(group =>
+            {
+                var filePaths = group
+                    .Select(diagnostic => diagnostic.FilePath ?? string.Empty)
+                    .Where(path => path.Length != 0)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Count()))
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToImmutableArray();
+                return new ParityGap(
+                    group.Key.Code,
+                    group.Key.Message,
+                    group.Count(),
+                    filePaths.Length)
+                {
+                    FilePaths = filePaths
+                };
+            })
             .OrderByDescending(gap => gap.FileCount)
             .ThenByDescending(gap => gap.Occurrences)
             .ThenBy(gap => gap.Message, StringComparer.Ordinal)
@@ -141,6 +151,11 @@ public sealed record VBProjectParityReport(
             {
                 builder.AppendLine(
                     $"  {gap.FileCount,3} files {gap.Occurrences,5}x  {gap.Code}  {gap.Message}");
+                if (!gap.FilePaths.IsDefaultOrEmpty)
+                {
+                    builder.AppendLine(
+                        "      examples: " + string.Join(", ", gap.FilePaths.Take(3).Select(Path.GetFileName)));
+                }
             }
         }
 
@@ -189,6 +204,9 @@ public sealed record ParityFileResult(string RelativePath, int DiagnosticCount, 
     public bool IsClean => DiagnosticCount == 0;
 }
 
-public sealed record ParityGap(string Code, string Message, int Occurrences, int FileCount);
+public sealed record ParityGap(string Code, string Message, int Occurrences, int FileCount)
+{
+    public ImmutableArray<string> FilePaths { get; init; } = ImmutableArray<string>.Empty;
+}
 
 public sealed record ParityDiagnosticCode(string Code, int Occurrences);
