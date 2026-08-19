@@ -46,9 +46,26 @@ public sealed class ProjectUserDefinedTypeDeclarationBinder
         {
             var result = new UserDefinedTypeDeclarationBinder(module.Text, publicTypes).Bind(module.Root);
             diagnostics.AddRange(result.Diagnostics);
+
+            // A module's effective UDT scope contains every project-wide Public Type. Its own
+            // declarations are then overlaid so a module-local Private Type can shadow a Public
+            // Type with the same name while preserving the stable project identity everywhere
+            // else.
+            var visibleTypes = ImmutableDictionary.CreateBuilder<string, UserDefinedTypeSymbol>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var publicType in publicTypes)
+            {
+                visibleTypes.Add(publicType.Key, publicType.Value);
+            }
+
+            foreach (var moduleType in result.Types)
+            {
+                visibleTypes[moduleType.Key] = moduleType.Value;
+            }
+
             moduleResults.Add(new UserDefinedTypeModuleResult(
                 module,
-                result.Types,
+                visibleTypes.ToImmutable(),
                 result.Diagnostics));
         }
 
