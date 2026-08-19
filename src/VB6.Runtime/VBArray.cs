@@ -65,6 +65,13 @@ public sealed class VBArray<T>
     public ref T this[params int[] indices] => ref _items[GetOffset(indices)];
 
     /// <summary>
+    /// Reinitializes every element while preserving rank and bounds. This is the runtime operation
+    /// used by VB6 <c>Erase</c> for fixed-size arrays. Dynamic-array Erase deallocates the variable
+    /// itself and is emitted by the compiler instead.
+    /// </summary>
+    public void Clear() => Array.Clear(_items);
+
+    /// <summary>
     /// Implements the storage operation required by VB6 <c>ReDim Preserve</c>. VB6 permits
     /// Preserve to change only the upper bound of the final dimension. Earlier dimensions, the
     /// rank, and the final dimension's lower bound must remain unchanged.
