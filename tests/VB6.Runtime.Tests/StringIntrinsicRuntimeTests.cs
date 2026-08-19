@@ -46,4 +46,20 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.Mid("abc", 0, 1));
         Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.Mid("abc", 1, -1));
     }
+
+    [TestMethod]
+    public void Chr_ReturnsReachableAsciiCharacters()
+    {
+        Assert.AreEqual("\0", VBStrings.Chr(0));
+        Assert.AreEqual("\"", VBStrings.Chr(34));
+        Assert.AreEqual("A", VBStrings.Chr(65));
+        Assert.AreEqual(((char)127).ToString(), VBStrings.Chr(127));
+    }
+
+    [TestMethod]
+    public void Chr_RejectsExtendedAnsiUntilCodePageSemanticsAreModeled()
+    {
+        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(-1));
+        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(128));
+    }
 }
