@@ -263,6 +263,12 @@ public sealed class Parser
             }
 
             ConsumeLineTerminator();
+            if (_position == memberStart)
+            {
+                RecoverToLineEndOrTypeEnd();
+                continue;
+            }
+
             members.Add(new TypeMemberSyntax(
                 memberIdentifier,
                 openParenthesis,
@@ -272,11 +278,6 @@ public sealed class Parser
                 memberType,
                 starToken,
                 fixedStringLength));
-
-            if (_position == memberStart)
-            {
-                RecoverToLineEndOrTypeEnd();
-            }
         }
 
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
@@ -1185,7 +1186,7 @@ public sealed class Parser
             var right = operatorToken.Kind == SyntaxKind.CaretToken
                 ? ParseExponentOperand()
                 : ParseExpression(precedence);
-            left = new BinaryExpressionSyntax(left, operatorToken.Kind == SyntaxKind.CaretToken ? operatorToken : operatorToken, right);
+            left = new BinaryExpressionSyntax(left, operatorToken, right);
         }
 
         return left;
