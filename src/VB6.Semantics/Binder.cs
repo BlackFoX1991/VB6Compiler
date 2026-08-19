@@ -201,11 +201,6 @@ public sealed class Binder
         return procedures;
     }
 
-    /// <summary>
-    /// Declares a parameter or local in the procedure scope. A name already taken by a module
-    /// variable is shadowed, which is what VB6 does; a clash with another parameter or local is
-    /// a real redeclaration and fails.
-    /// </summary>
     private static bool TryDeclareInProcedureScope(
         Dictionary<string, VariableSymbol> variables,
         string name,
@@ -220,11 +215,6 @@ public sealed class Binder
         return true;
     }
 
-    /// <summary>
-    /// Collects the module-level declarations of one compilation unit. Constants are bound in
-    /// declaration order against the scope built so far, so a constant may refer to one declared
-    /// above it.
-    /// </summary>
     private (Dictionary<string, ModuleVariableSymbol> Scope, ImmutableArray<BoundModuleVariable> Bound)
         DeclareModuleVariables(CompilationUnitSyntax root)
     {
@@ -267,8 +257,6 @@ public sealed class Binder
                         entry => (VariableSymbol)entry.Value,
                         StringComparer.OrdinalIgnoreCase);
                     var value = BindExpression(declaration.Value, visible, noProcedures);
-
-                    // Without 'As' the constant takes the type of its value.
                     var type = declaration.TypeToken is null
                         ? value.Type
                         : ResolveDeclaredType(declaration.TypeToken);
@@ -379,7 +367,6 @@ public sealed class Binder
     {
         var variables = new Dictionary<string, VariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        // Module scope is the outermost scope; parameters and locals shadow it.
         foreach (var moduleVariable in moduleVariables)
         {
             variables[moduleVariable.Key] = moduleVariable.Value;
@@ -570,6 +557,7 @@ public sealed class Binder
         {
             AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
             ArrayElementAssignmentStatementSyntax arrayAssignment => BindArrayElementAssignment(arrayAssignment, variables, procedures),
+            MemberAssignmentStatementSyntax memberAssignment => BindMemberAssignment(memberAssignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
             ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
             WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
@@ -712,6 +700,16 @@ public sealed class Binder
         }
 
         return new BoundAssignmentStatement(variable, BindConversion(expression, variable.Type));
+    }
+
+    private BoundMemberAssignmentStatement BindMemberAssignment(
+        MemberAssignmentStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var target = BindMemberAccess(syntax.Target, variables, procedures);
+        var expression = BindExpression(syntax.Expression, variables, procedures);
+        return new BoundMemberAssignmentStatement(target, BindConversion(expression, target.Type));
     }
 
     private BoundArrayElementAssignmentStatement BindArrayElementAssignment(
@@ -1030,11 +1028,44 @@ public sealed class Binder
             LiteralExpressionSyntax literal => BindLiteral(literal),
             NameExpressionSyntax name => BindName(name, variables),
             InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
+            MemberAccessExpressionSyntax memberAccess => BindMemberAccess(memberAccess, variables, procedures),
             UnaryExpressionSyntax unary => BindUnary(unary, variables, procedures),
             BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
             ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
             _ => new BoundErrorExpression()
         };
+    }
+
+    private BoundExpression BindMemberAccess(
+        MemberAccessExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var receiver = BindExpression(syntax.Receiver, variables, procedures);
+        if (receiver.Type == TypeSymbol.Error)
+        {
+            return receiver;
+        }
+
+        if (receiver.Type is not UserDefinedTypeSymbol userDefinedType)
+        {
+            Report(
+                "VB6S0047",
+                $"Type '{receiver.Type.Name}' does not expose user-defined type members.",
+                syntax.MemberToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (!userDefinedType.TryGetMember(syntax.MemberToken.Text, out var member))
+        {
+            Report(
+                "VB6S0048",
+                $"User-defined type '{userDefinedType.Name}' has no member '{syntax.MemberToken.Text}'.",
+                syntax.MemberToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        return new BoundMemberAccessExpression(receiver, member);
     }
 
     private BoundExpression BindInvocationExpression(
@@ -1158,7 +1189,9 @@ public sealed class Binder
                 {
                     expression = BindConversion(expression, parameter.Type);
                 }
-                else if (expression is not BoundVariableExpression && expression is not BoundArrayAccessExpression)
+                else if (expression is not BoundVariableExpression &&
+                         expression is not BoundArrayAccessExpression &&
+                         expression is not BoundMemberAccessExpression)
                 {
                     Report(
                         "VB6S0007",
@@ -1219,8 +1252,6 @@ public sealed class Binder
 
     private static BoundExpression BindIntegerLiteral(object? value)
     {
-        // Radix literals and literals with a type suffix already carry their VB6 type in the
-        // boxed CLR type; only plain decimal literals are typed by magnitude.
         if (value is short shortValue)
         {
             return new BoundLiteralExpression((long)shortValue, TypeSymbol.Integer);
@@ -1283,7 +1314,6 @@ public sealed class Binder
                 return new BoundErrorExpression();
             }
 
-            // The complement of a Byte is negative, so VB6 widens it to Integer.
             var notType = operand.Type == TypeSymbol.Byte
                 ? TypeSymbol.Integer
                 : GetIntegerOperationType(operand.Type, operand.Type);
@@ -1400,12 +1430,10 @@ public sealed class Binder
                     return new BoundErrorExpression();
                 }
 
-                // A Boolean mixed with a number takes part as its VB6 numeric value (-1 / 0).
                 var resultType = GetIntegerOperationType(
                     left.Type == TypeSymbol.Boolean ? TypeSymbol.Integer : left.Type,
                     right.Type == TypeSymbol.Boolean ? TypeSymbol.Integer : right.Type);
 
-                // The complement produced by Eqv and Imp does not fit the unsigned Byte range.
                 if (resultType == TypeSymbol.Byte &&
                     syntax.OperatorToken.Kind is SyntaxKind.EqvKeyword or SyntaxKind.ImpKeyword)
                 {
@@ -1499,10 +1527,6 @@ public sealed class Binder
     private static bool IsBitwiseOperandType(TypeSymbol type) =>
         IsNumericType(type) || type == TypeSymbol.Boolean;
 
-    /// <summary>
-    /// Result type of the VB6 operators that work on whole numbers: '\\', 'Mod' and the bitwise
-    /// operators. Floating-point and Currency operands are rounded to Long first.
-    /// </summary>
     private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>
         left == TypeSymbol.LongLong || right == TypeSymbol.LongLong
             ? TypeSymbol.LongLong
