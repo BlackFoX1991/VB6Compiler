@@ -103,6 +103,7 @@ public sealed class VBProjectCompilation
             userDefinedTypesByPath,
             projectDiagnostics);
         var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
+        var visibleBuiltInConstants = VBBuiltInConstants.AddTo(moduleVariableSymbols);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         var moduleVariables = ImmutableArray.CreateBuilder<BoundModuleVariable>();
@@ -182,7 +183,9 @@ public sealed class VBProjectCompilation
         var combinedDiagnostics = sourceDiagnostics.ToImmutable();
         var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics)
         {
-            ModuleVariables = moduleVariables.ToImmutable().AddRange(visibleEnumConstants)
+            ModuleVariables = moduleVariables.ToImmutable()
+                .AddRange(visibleEnumConstants)
+                .AddRange(visibleBuiltInConstants)
         };
         return new VBProjectCompilationAnalysis(
             loadResult.Project,
