@@ -100,7 +100,6 @@ public enum SyntaxKind
     DimStatement,
     StaticStatement,
     AssignmentStatement,
-    ArrayElementAssignmentStatement,
     IfStatement,
     ElseIfClause,
     ForStatement,

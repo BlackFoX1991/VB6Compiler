@@ -99,13 +99,8 @@ public sealed class CSharpGenerator
         switch (statement)
         {
             case BoundVariableDeclarationStatement declaration:
-            {
-                var initializer = declaration.Initializer is null
-                    ? GetDefaultValue(declaration.Variable.Type)
-                    : EmitExpression(declaration.Initializer);
-                WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetVariableName(declaration.Variable)} = {initializer};");
+                WriteLine($"{GetTypeName(declaration.Variable.Type)} {GetVariableName(declaration.Variable)} = {GetDefaultValue(declaration.Variable.Type)};");
                 break;
-            }
 
             case BoundAssignmentStatement assignment:
                 WriteLine($"{GetVariableName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
@@ -316,10 +311,11 @@ public sealed class CSharpGenerator
         };
     }
 
-    private string EmitRelationalCaseCondition(string selectName, BoundCaseRelationalClause clause)
+    private string EmitRelationalCaseCondition(string selectName, BoundCaseClause clause)
     {
-        var value = EmitExpression(clause.Value);
-        return clause.OperatorKind switch
+        var relational = (BoundCaseRelationalClause)clause;
+        var value = EmitExpression(relational.Value);
+        return relational.OperatorKind switch
         {
             SyntaxKind.EqualsToken => $"VBOperators.Equal({selectName}, {value})",
             SyntaxKind.LessGreaterToken => $"VBOperators.NotEqual({selectName}, {value})",
@@ -350,27 +346,12 @@ public sealed class CSharpGenerator
             BoundVariableExpression variable => GetVariableName(variable.Variable),
             BoundInvocationExpression invocation =>
                 $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
-            BoundArrayCreationExpression arrayCreation => EmitArrayCreation(arrayCreation),
-            BoundArrayAccessExpression arrayAccess => EmitArrayAccess(arrayAccess),
             BoundConversionExpression conversion => EmitConversion(conversion),
             BoundUnaryExpression unary => EmitUnary(unary),
             BoundBinaryExpression binary => EmitBinary(binary),
             BoundErrorExpression => "default",
             _ => "default"
         };
-    }
-
-    private string EmitArrayCreation(BoundArrayCreationExpression creation)
-    {
-        var bounds = string.Join(", ", creation.Bounds.Select(bound =>
-            $"new VBArrayBound({EmitExpression(bound.LowerBound)}, {EmitExpression(bound.UpperBound)})"));
-        return $"new {GetTypeName(creation.ArrayType)}({bounds})";
-    }
-
-    private string EmitArrayAccess(BoundArrayAccessExpression access)
-    {
-        var indices = string.Join(", ", access.Indices.Select(EmitExpression));
-        return $"{GetVariableName(access.Array)}[{indices}]";
     }
 
     private static string EmitLiteral(BoundLiteralExpression literal)
@@ -559,11 +540,6 @@ public sealed class CSharpGenerator
 
     private static string GetTypeName(TypeSymbol type)
     {
-        if (type is ArrayTypeSymbol arrayType)
-        {
-            return $"VBArray<{GetTypeName(arrayType.ElementType)}>";
-        }
-
         if (type == TypeSymbol.Byte)
         {
             return "byte";
@@ -614,11 +590,6 @@ public sealed class CSharpGenerator
 
     private static string GetDefaultValue(TypeSymbol type)
     {
-        if (type is ArrayTypeSymbol)
-        {
-            return "null!";
-        }
-
         if (type == TypeSymbol.String)
         {
             return "string.Empty";
