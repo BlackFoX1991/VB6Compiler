@@ -60,9 +60,19 @@ public sealed class Lexer
                 _position++;
             }
 
-            var span = TextSpan.FromBounds(start, _position);
-            var text = _text.ToString(span);
+            var nameSpan = TextSpan.FromBounds(start, _position);
+            var text = _text.ToString(nameSpan);
             var keywordKind = SyntaxFacts.GetKeywordKind(text);
+
+            // VB6 type suffixes ($ % & ! # @) name the same variable as the bare identifier, so
+            // the suffix stays inside the token span for round-tripping but out of its text.
+            // The declared type still comes from the declaration, not from the suffix.
+            if (keywordKind == SyntaxKind.IdentifierToken && IsIdentifierTypeSuffix(Current))
+            {
+                _position++;
+            }
+
+            var span = TextSpan.FromBounds(start, _position);
             return new SyntaxToken(keywordKind, span, text, null, leadingTrivia);
         }
 
@@ -280,7 +290,45 @@ public sealed class Lexer
         }
     }
 
+    /// <summary>
+    /// An underscore continues the line only when nothing but whitespace follows it up to the
+    /// line break. Anywhere else it is part of an identifier.
+    /// </summary>
+    private bool TryGetLineContinuationEnd(out int end)
+    {
+        var index = _position + 1;
+
+        while (index < _text.Length && _text[index] is ' ' or '\t' or '\f')
+        {
+            index++;
+        }
+
+        if (index < _text.Length && _text[index] == '\r')
+        {
+            index++;
+            if (index < _text.Length && _text[index] == '\n')
+            {
+                index++;
+            }
+
+            end = index;
+            return true;
+        }
+
+        if (index < _text.Length && _text[index] == '\n')
+        {
+            end = index + 1;
+            return true;
+        }
+
+        end = 0;
+        return false;
+    }
+
     private static string RadixName(bool isHex) => isHex ? "Hexadecimal" : "Octal";
+
+    private static bool IsIdentifierTypeSuffix(char character) =>
+        character is '$' or '%' or '&' or '!' or '#' or '@';
 
     private static bool IsRadixPrefix(char character) => character is 'H' or 'h' or 'O' or 'o';
 
@@ -376,6 +424,15 @@ public sealed class Lexer
 
                 var span = TextSpan.FromBounds(start, _position);
                 trivia.Add(new SyntaxTrivia(SyntaxTriviaKind.Comment, span, _text.ToString(span)));
+                continue;
+            }
+
+            if (Current == '_' && TryGetLineContinuationEnd(out var continuationEnd))
+            {
+                var start = _position;
+                _position = continuationEnd;
+                var span = TextSpan.FromBounds(start, _position);
+                trivia.Add(new SyntaxTrivia(SyntaxTriviaKind.LineContinuation, span, _text.ToString(span)));
                 continue;
             }
 
