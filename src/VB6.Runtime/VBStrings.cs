@@ -50,4 +50,20 @@ public static class VBStrings
         var available = value.Length - zeroBasedStart;
         return value.Substring(zeroBasedStart, Math.Min(length, available));
     }
+
+    /// <summary>
+    /// Implements the ASCII subset of VB6 Chr that is reachable in the current corpus.
+    /// Extended ANSI values depend on the active VB6 code page and remain an explicit runtime
+    /// boundary until code-page handling is modeled by the compiler/runtime.
+    /// </summary>
+    public static string Chr(int charCode)
+    {
+        if (charCode is < 0 or > 127)
+        {
+            throw new NotSupportedException(
+                "The current VB6 Chr subset supports ASCII character codes 0 through 127 only.");
+        }
+
+        return ((char)charCode).ToString();
+    }
 }
