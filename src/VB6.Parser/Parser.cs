@@ -73,6 +73,16 @@ public sealed class Parser
             return ParseDeclareDeclaration(NextToken());
         }
 
+        if (Current.Kind == SyntaxKind.EnumKeyword)
+        {
+            return ParseEnumDeclaration(null);
+        }
+
+        if (IsVisibilityModifier(Current) && Peek(1).Kind == SyntaxKind.EnumKeyword)
+        {
+            return ParseEnumDeclaration(NextToken());
+        }
+
         // Visibility modifiers are not reserved words in VB6, so they only count as one when a
         // declaration follows.
         if (IsVisibilityModifier(Current) && Peek(1).Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
@@ -167,6 +177,46 @@ public sealed class Parser
             closeParenthesis,
             asKeyword,
             returnType);
+    }
+
+    private EnumDeclarationSyntax ParseEnumDeclaration(SyntaxToken? visibilityKeyword)
+    {
+        var enumKeyword = MatchToken(SyntaxKind.EnumKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        ConsumeLineTerminator();
+
+        var members = ImmutableArray.CreateBuilder<EnumMemberSyntax>();
+        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(SyntaxKind.EnumKeyword))
+        {
+            if (Current.Kind == SyntaxKind.NewLineToken)
+            {
+                NextToken();
+                continue;
+            }
+
+            var memberIdentifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken? equalsToken = null;
+            ExpressionSyntax? value = null;
+            if (Current.Kind == SyntaxKind.EqualsToken)
+            {
+                equalsToken = NextToken();
+                value = ParseExpression();
+            }
+
+            ConsumeLineTerminator();
+            members.Add(new EnumMemberSyntax(memberIdentifier, equalsToken, value));
+        }
+
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endEnumKeyword = MatchToken(SyntaxKind.EnumKeyword);
+        ConsumeLineTerminator();
+        return new EnumDeclarationSyntax(
+            visibilityKeyword,
+            enumKeyword,
+            identifier,
+            members.ToImmutable(),
+            endKeyword,
+            endEnumKeyword);
     }
 
     private ConstDeclarationSyntax ParseConstDeclaration(SyntaxToken? visibilityKeyword)
