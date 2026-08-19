@@ -266,6 +266,8 @@ public sealed class Parser
         while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.ColonToken and not SyntaxKind.EndOfFileToken)
         {
             var identifier = MatchToken(SyntaxKind.IdentifierToken);
+            var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
+
             SyntaxToken? asKeyword = null;
             SyntaxToken? typeToken = null;
             if (Current.Kind == SyntaxKind.AsKeyword)
@@ -280,7 +282,14 @@ public sealed class Parser
                 commaToken = NextToken();
             }
 
-            declarators.Add(new VariableDeclaratorSyntax(identifier, asKeyword, typeToken, commaToken));
+            declarators.Add(new VariableDeclaratorSyntax(
+                identifier,
+                openParenthesis,
+                dimensions,
+                closeParenthesis,
+                asKeyword,
+                typeToken,
+                commaToken));
             if (commaToken is null)
             {
                 break;
@@ -288,6 +297,51 @@ public sealed class Parser
         }
 
         return declarators.ToImmutable();
+    }
+
+    private (SyntaxToken? OpenParenthesis, ImmutableArray<ArrayDimensionSyntax> Dimensions, SyntaxToken? CloseParenthesis)
+        ParseArrayDimensions()
+    {
+        if (Current.Kind != SyntaxKind.OpenParenthesisToken)
+        {
+            return (null, ImmutableArray<ArrayDimensionSyntax>.Empty, null);
+        }
+
+        var openParenthesis = NextToken();
+        var dimensions = ImmutableArray.CreateBuilder<ArrayDimensionSyntax>();
+
+        if (Current.Kind != SyntaxKind.CloseParenthesisToken)
+        {
+            while (Current.Kind is not SyntaxKind.CloseParenthesisToken and not SyntaxKind.EndOfFileToken)
+            {
+                var firstBound = ParseExpression();
+                ExpressionSyntax? lowerBound = null;
+                SyntaxToken? toKeyword = null;
+                var upperBound = firstBound;
+
+                if (Current.Kind == SyntaxKind.ToKeyword)
+                {
+                    lowerBound = firstBound;
+                    toKeyword = NextToken();
+                    upperBound = ParseExpression();
+                }
+
+                SyntaxToken? commaToken = null;
+                if (Current.Kind == SyntaxKind.CommaToken)
+                {
+                    commaToken = NextToken();
+                }
+
+                dimensions.Add(new ArrayDimensionSyntax(lowerBound, toKeyword, upperBound, commaToken));
+                if (commaToken is null)
+                {
+                    break;
+                }
+            }
+        }
+
+        var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        return (openParenthesis, dimensions.ToImmutable(), closeParenthesis);
     }
 
     private static bool IsVisibilityModifier(SyntaxToken token) =>
@@ -305,7 +359,7 @@ public sealed class Parser
             return false;
         }
 
-        return Peek(2).Kind is SyntaxKind.AsKeyword or SyntaxKind.CommaToken or
+        return Peek(2).Kind is SyntaxKind.AsKeyword or SyntaxKind.CommaToken or SyntaxKind.OpenParenthesisToken or
             SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken;
     }
 
@@ -516,6 +570,7 @@ public sealed class Parser
         }
 
         var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
         var asKeyword = MatchToken(SyntaxKind.AsKeyword);
         var typeToken = MatchTypeToken();
 
@@ -534,7 +589,10 @@ public sealed class Parser
             typeToken,
             optionalKeyword,
             equalsToken,
-            defaultValue);
+            defaultValue,
+            openParenthesis,
+            dimensions,
+            closeParenthesis);
     }
 
     private StatementSyntax ParseStatement()
