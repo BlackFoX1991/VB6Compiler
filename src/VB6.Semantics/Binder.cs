@@ -449,6 +449,9 @@ public sealed class Binder
                 case ForStatementSyntax forStatement:
                     PredeclareLocals(forStatement.Statements, locals, variables);
                     break;
+                case ForEachStatementSyntax forEachStatement:
+                    PredeclareLocals(forEachStatement.Statements, locals, variables);
+                    break;
                 case WhileStatementSyntax whileStatement:
                     PredeclareLocals(whileStatement.Statements, locals, variables);
                     break;
@@ -561,6 +564,7 @@ public sealed class Binder
             MemberAssignmentStatementSyntax memberAssignment => BindMemberAssignment(memberAssignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
             ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
+            ForEachStatementSyntax forEachStatement => BindForEach(forEachStatement, variables, procedures),
             WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
             DoStatementSyntax doStatement => BindDo(doStatement, variables, procedures),
             WithStatementSyntax withStatement => BindWith(withStatement, variables, procedures),
@@ -856,6 +860,72 @@ public sealed class Binder
         _loopStack.RemoveAt(_loopStack.Count - 1);
 
         return new BoundForStatement(loopId, controlVariable, initialValue, limit, step, body);
+    }
+
+    private BoundForEachStatement BindForEach(
+        ForEachStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (!variables.TryGetValue(syntax.Identifier.Text, out var controlVariable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{syntax.Identifier.Text}' is not declared.",
+                syntax.Identifier.Span);
+            controlVariable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+        }
+
+        if (controlVariable.Type != TypeSymbol.Variant && controlVariable.Type != TypeSymbol.Error)
+        {
+            Report(
+                "VB6S0054",
+                $"For Each control variable '{controlVariable.Name}' must be Variant when iterating an array.",
+                syntax.Identifier.Span);
+        }
+
+        var collection = BindExpression(syntax.Collection, variables, procedures);
+        ArrayTypeSymbol arrayType;
+        if (collection.Type is ArrayTypeSymbol boundArrayType)
+        {
+            arrayType = boundArrayType;
+        }
+        else
+        {
+            if (collection.Type != TypeSymbol.Error)
+            {
+                Report(
+                    "VB6S0055",
+                    $"For Each collection type '{collection.Type.Name}' is not an array in the current compiler subset.",
+                    syntax.InKeyword.Span);
+            }
+
+            arrayType = new ArrayTypeSymbol(TypeSymbol.Error);
+        }
+
+        if (arrayType.ElementType is UserDefinedTypeSymbol)
+        {
+            Report(
+                "VB6S0056",
+                "For Each over arrays of user-defined types is not supported.",
+                syntax.InKeyword.Span);
+        }
+
+        if (syntax.NextIdentifier is not null &&
+            !string.Equals(syntax.NextIdentifier.Text, syntax.Identifier.Text, StringComparison.OrdinalIgnoreCase))
+        {
+            Report(
+                "VB6S0013",
+                $"Next variable '{syntax.NextIdentifier.Text}' does not match For variable '{syntax.Identifier.Text}'.",
+                syntax.NextIdentifier.Span);
+        }
+
+        var loopId = _nextLoopId++;
+        _loopStack.Add(new LoopBindingContext(BoundLoopKind.For, loopId));
+        var body = BindStatements(syntax.Statements, variables, procedures);
+        _loopStack.RemoveAt(_loopStack.Count - 1);
+
+        return new BoundForEachStatement(loopId, controlVariable, collection, arrayType, body);
     }
 
     private BoundWhileStatement BindWhile(

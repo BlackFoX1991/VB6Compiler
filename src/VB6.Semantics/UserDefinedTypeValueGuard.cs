@@ -105,6 +105,10 @@ public static class UserDefinedTypeValueGuard
                     ValidateStatements(text, forStatement.Statements, types, diagnostics);
                     break;
 
+                case ForEachStatementSyntax forEachStatement:
+                    ValidateStatements(text, forEachStatement.Statements, types, diagnostics);
+                    break;
+
                 case WhileStatementSyntax whileStatement:
                     ValidateStatements(text, whileStatement.Statements, types, diagnostics);
                     break;

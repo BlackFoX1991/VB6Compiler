@@ -373,6 +373,10 @@ public sealed class CSharpGenerator
                 EmitForStatement(forStatement);
                 break;
 
+            case BoundForEachStatement forEachStatement:
+                EmitForEachStatement(forEachStatement);
+                break;
+
             case BoundWhileStatement whileStatement:
                 WriteLine($"while ({EmitExpression(whileStatement.Condition)})");
                 WriteLine("{");
@@ -502,6 +506,21 @@ public sealed class CSharpGenerator
                 ? "AddLong"
                 : "AddInteger";
         WriteLine($"{variable} = VBOperators.{addOperator}({variable}, {stepName});");
+        _indent--;
+        WriteLine("}");
+        EmitLoopExitLabel(statement.LoopId);
+    }
+
+    private void EmitForEachStatement(BoundForEachStatement statement)
+    {
+        var variable = GetVariableName(statement.ControlVariable);
+        var itemName = $"__vb6_for_each_item_{statement.LoopId}";
+
+        WriteLine($"foreach (var {itemName} in {EmitExpression(statement.Collection)}.EnumerateValues())");
+        WriteLine("{");
+        _indent++;
+        WriteLine($"{variable} = {itemName};");
+        EmitBlock(statement.Body);
         _indent--;
         WriteLine("}");
         EmitLoopExitLabel(statement.LoopId);

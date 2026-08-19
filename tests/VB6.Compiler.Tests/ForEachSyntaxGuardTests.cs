@@ -64,19 +64,26 @@ public sealed class ForEachSyntaxGuardTests
     }
 
     [TestMethod]
-    public void Analyze_KeepsUnknownRankArrayForEachGuarded()
+    public void GenerateCSharp_BindsUnknownRankArrayForEachToRuntimeEnumeration()
     {
-        var analysis = VBCompilation.Create("""
+        var generation = VBCompilation.Create("""
             Sub Main()
                 Dim item As Variant
                 Dim values() As Long
+                ReDim values(2 To 4)
                 For Each item In values
+                    Debug.Print item
                 Next item
             End Sub
-            """, "test.bas").Analyze();
+            """, "test.bas").GenerateCSharp();
 
-        Assert.IsFalse(analysis.Success);
-        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0055"));
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        Assert.IsNotNull(generation.Source);
+        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0055"));
+        StringAssert.Contains(generation.Source, "foreach (var __vb6_for_each_item_");
+        StringAssert.Contains(generation.Source, "__vb6_values.EnumerateValues()");
     }
 
     [TestMethod]

@@ -94,6 +94,11 @@ public static class VariantOperationGuard
                 VisitStatement(text, forStatement.Body, diagnostics);
                 break;
 
+            case BoundForEachStatement forEachStatement:
+                VisitExpression(text, forEachStatement.Collection, diagnostics);
+                VisitStatement(text, forEachStatement.Body, diagnostics);
+                break;
+
             case BoundWhileStatement whileStatement:
                 VisitExpression(text, whileStatement.Condition, diagnostics);
                 VisitStatement(text, whileStatement.Body, diagnostics);
