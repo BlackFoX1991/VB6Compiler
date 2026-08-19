@@ -131,6 +131,7 @@ public sealed class VBProjectCompilation
                 semanticModel = new Binder(module.Text)
                     .BindCompilationUnit(forEachLowering.Root, procedureSymbols, moduleVariableSymbols);
             }
+            semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
 
             var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
                 ? ImmutableArray<Diagnostic>.Empty
