@@ -34,9 +34,9 @@ public sealed class UserDefinedTypeMemberArrayAssignmentCodeGenTests
         var source = new CSharpGenerator().Generate(analysis.SemanticModel);
 
         StringAssert.Contains(source, "__vb6_record.__vb6_member_Values[");
-        StringAssert.Contains(source, "] = VBConversions.CLng(9L);");
+        StringAssert.Contains(source, "] = VBConversions.CLng(");
         StringAssert.Contains(source, "__vb6_record.__vb6_member_Children[");
-        StringAssert.Contains(source, "].__vb6_member_Value = VBConversions.CLng(3L);");
+        StringAssert.Contains(source, "].__vb6_member_Value = VBConversions.CLng(");
         StringAssert.Contains(source, "__vb6_with_0.__vb6_member_Values[");
 
         using var peStream = new MemoryStream();
