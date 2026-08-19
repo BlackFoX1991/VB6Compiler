@@ -58,9 +58,15 @@ public sealed class Parser
             return ParseAttribute();
         }
 
-        if (Current.Kind == SyntaxKind.OptionKeyword && Peek(1).Kind == SyntaxKind.ExplicitKeyword)
+        if (Current.Kind == SyntaxKind.OptionKeyword)
         {
-            return ParseOptionExplicit();
+            return Peek(1).Kind switch
+            {
+                SyntaxKind.ExplicitKeyword => ParseOptionExplicit(),
+                SyntaxKind.BaseKeyword => ParseOptionBase(),
+                SyntaxKind.CompareKeyword => ParseOptionCompare(),
+                _ => null
+            };
         }
 
         if (Current.Kind == SyntaxKind.DeclareKeyword)
@@ -291,6 +297,35 @@ public sealed class Parser
         var explicitKeyword = MatchToken(SyntaxKind.ExplicitKeyword);
         ConsumeLineTerminator();
         return new OptionExplicitSyntax(optionKeyword, explicitKeyword);
+    }
+
+    private OptionBaseSyntax ParseOptionBase()
+    {
+        var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
+        var baseKeyword = MatchToken(SyntaxKind.BaseKeyword);
+        var valueToken = MatchToken(SyntaxKind.IntegerLiteralToken);
+        if (valueToken.Text is not "0" and not "1")
+        {
+            ReportUnexpected(valueToken, "0 or 1");
+        }
+
+        ConsumeLineTerminator();
+        return new OptionBaseSyntax(optionKeyword, baseKeyword, valueToken);
+    }
+
+    private OptionCompareSyntax ParseOptionCompare()
+    {
+        var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
+        var compareKeyword = MatchToken(SyntaxKind.CompareKeyword);
+        var modeToken = MatchToken(SyntaxKind.IdentifierToken);
+        if (!string.Equals(modeToken.Text, "Text", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(modeToken.Text, "Binary", StringComparison.OrdinalIgnoreCase))
+        {
+            ReportUnexpected(modeToken, "Text or Binary");
+        }
+
+        ConsumeLineTerminator();
+        return new OptionCompareSyntax(optionKeyword, compareKeyword, modeToken);
     }
 
     private SubDeclarationSyntax ParseSubDeclaration(SyntaxToken? visibilityKeyword = null)

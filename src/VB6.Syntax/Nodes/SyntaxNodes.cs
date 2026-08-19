@@ -17,6 +17,24 @@ public sealed record OptionExplicitSyntax(
     SyntaxToken ExplicitKeyword) : MemberSyntax(SyntaxKind.OptionExplicitStatement);
 
 /// <summary>
+/// A module-level <c>Option Base 0</c> or <c>Option Base 1</c> directive. M2 preserves the
+/// directive syntax; array lower-bound semantics are applied when arrays are implemented.
+/// </summary>
+public sealed record OptionBaseSyntax(
+    SyntaxToken OptionKeyword,
+    SyntaxToken BaseKeyword,
+    SyntaxToken ValueToken) : MemberSyntax(SyntaxKind.OptionBaseStatement);
+
+/// <summary>
+/// A module-level <c>Option Compare Text</c> or <c>Option Compare Binary</c> directive. M2
+/// preserves the selected mode; comparison semantics are applied by the later string layer.
+/// </summary>
+public sealed record OptionCompareSyntax(
+    SyntaxToken OptionKeyword,
+    SyntaxToken CompareKeyword,
+    SyntaxToken ModeToken) : MemberSyntax(SyntaxKind.OptionCompareStatement);
+
+/// <summary>
 /// A VB6 <c>Attribute</c> line such as <c>Attribute VB_Name = "modMain"</c>. These carry IDE
 /// metadata, not program semantics, so the tokens are kept for round-tripping and ignored
 /// by the binder.
