@@ -32,6 +32,7 @@ public sealed class UserDefinedTypeDeclarationBinder
         ArgumentNullException.ThrowIfNull(root);
 
         var declarations = root.Members.OfType<TypeDeclarationSyntax>().ToImmutableArray();
+        var optionBase = GetOptionBase(root);
         var types = new Dictionary<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var declaration in declarations)
@@ -61,7 +62,11 @@ public sealed class UserDefinedTypeDeclarationBinder
             foreach (var memberSyntax in declaration.Members)
             {
                 var memberType = ResolveMemberType(memberSyntax, types);
-                members.Add(new UserDefinedTypeMemberSymbol(memberSyntax.Identifier.Text, memberType));
+                var arrayBounds = BindArrayBounds(memberSyntax, optionBase);
+                members.Add(new UserDefinedTypeMemberSymbol(
+                    memberSyntax.Identifier.Text,
+                    memberType,
+                    arrayBounds));
             }
 
             if (!type.TryDefineMembers(members, out var duplicateMemberName))
@@ -127,6 +132,73 @@ public sealed class UserDefinedTypeDeclarationBinder
         return member.Dimensions.IsDefaultOrEmpty
             ? new ArrayTypeSymbol(elementType)
             : new ArrayTypeSymbol(elementType, member.Dimensions.Length);
+    }
+
+    private ImmutableArray<UserDefinedTypeArrayBound> BindArrayBounds(TypeMemberSyntax member, long optionBase)
+    {
+        if (!member.IsArray || member.Dimensions.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<UserDefinedTypeArrayBound>.Empty;
+        }
+
+        var bounds = ImmutableArray.CreateBuilder<UserDefinedTypeArrayBound>(member.Dimensions.Length);
+        foreach (var dimension in member.Dimensions)
+        {
+            var lower = optionBase;
+            if (dimension.LowerBound is not null && !TryEvaluateIntegerConstant(dimension.LowerBound, out lower))
+            {
+                return ImmutableArray<UserDefinedTypeArrayBound>.Empty;
+            }
+
+            if (!TryEvaluateIntegerConstant(dimension.UpperBound, out var upper))
+            {
+                return ImmutableArray<UserDefinedTypeArrayBound>.Empty;
+            }
+
+            bounds.Add(new UserDefinedTypeArrayBound(lower, upper));
+        }
+
+        return bounds.ToImmutable();
+    }
+
+    private static long GetOptionBase(CompilationUnitSyntax root)
+    {
+        var optionBase = root.Members.OfType<OptionBaseSyntax>().LastOrDefault();
+        if (optionBase is null)
+        {
+            return 0;
+        }
+
+        return Convert.ToInt64(optionBase.ValueToken.Value, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryEvaluateIntegerConstant(ExpressionSyntax expression, out long value)
+    {
+        switch (expression)
+        {
+            case LiteralExpressionSyntax literal when literal.LiteralToken.Kind == SyntaxKind.IntegerLiteralToken:
+                value = Convert.ToInt64(
+                    literal.LiteralToken.Value,
+                    System.Globalization.CultureInfo.InvariantCulture);
+                return true;
+
+            case ParenthesizedExpressionSyntax parenthesized:
+                return TryEvaluateIntegerConstant(parenthesized.Expression, out value);
+
+            case UnaryExpressionSyntax unary when unary.OperatorToken.Kind is SyntaxKind.PlusToken or SyntaxKind.MinusToken:
+                if (TryEvaluateIntegerConstant(unary.Operand, out var operand))
+                {
+                    value = unary.OperatorToken.Kind == SyntaxKind.MinusToken
+                        ? checked(-operand)
+                        : operand;
+                    return true;
+                }
+
+                break;
+        }
+
+        value = 0;
+        return false;
     }
 
     private TypeSymbol ResolveType(
