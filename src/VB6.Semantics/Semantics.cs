@@ -31,7 +31,7 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "BOOLEAN" => Boolean,
         "DOUBLE" => Double,
         "CURRENCY" => Currency,
-        _ => null
+        _ => UserDefinedTypeLookupScope.Lookup(name)
     };
 }
 
