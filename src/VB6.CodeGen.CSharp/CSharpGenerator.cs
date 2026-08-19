@@ -245,6 +245,10 @@ public sealed class CSharpGenerator
                 EmitDoStatement(doStatement);
                 break;
 
+            case BoundWithStatement withStatement:
+                EmitWithStatement(withStatement);
+                break;
+
             case BoundExitLoopStatement exitLoop:
                 WriteLine($"goto {GetLoopExitLabel(exitLoop.TargetLoopId)};");
                 break;
@@ -399,6 +403,16 @@ public sealed class CSharpGenerator
         EmitLoopExitLabel(statement.LoopId);
     }
 
+    private void EmitWithStatement(BoundWithStatement statement)
+    {
+        WriteLine("{");
+        _indent++;
+        WriteLine($"ref var __vb6_with_{statement.WithId} = ref {EmitExpression(statement.Target)};");
+        EmitBlock(statement.Body);
+        _indent--;
+        WriteLine("}");
+    }
+
     private string EmitLoopCondition(BoundExpression condition, bool isUntil)
     {
         var expression = EmitExpression(condition);
@@ -513,6 +527,7 @@ public sealed class CSharpGenerator
                 $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
             BoundMemberAccessExpression memberAccess =>
                 $"{EmitExpression(memberAccess.Receiver)}.__vb6_member_{SanitizeIdentifier(memberAccess.Member.Name)}",
+            BoundWithReceiverExpression withReceiver => $"__vb6_with_{withReceiver.WithId}",
             BoundConversionExpression conversion => EmitConversion(conversion),
             BoundUnaryExpression unary => EmitUnary(unary),
             BoundBinaryExpression binary => EmitBinary(binary),
