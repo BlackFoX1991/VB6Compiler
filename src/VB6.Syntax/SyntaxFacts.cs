@@ -12,6 +12,7 @@ public static class SyntaxFacts
         "LIB" => SyntaxKind.LibKeyword,
         "ALIAS" => SyntaxKind.AliasKeyword,
         "ENUM" => SyntaxKind.EnumKeyword,
+        "TYPE" => SyntaxKind.TypeKeyword,
         "END" => SyntaxKind.EndKeyword,
         "DIM" => SyntaxKind.DimKeyword,
         "REDIM" => SyntaxKind.ReDimKeyword,
