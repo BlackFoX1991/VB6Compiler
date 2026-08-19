@@ -6,7 +6,7 @@ namespace VB6.Semantics;
 
 public abstract record Symbol(string Name);
 
-public sealed record TypeSymbol(string Name) : Symbol(Name)
+public record TypeSymbol(string Name) : Symbol(Name)
 {
     public static readonly TypeSymbol Error = new("<error>");
     public static readonly TypeSymbol Byte = new("Byte");
@@ -33,6 +33,40 @@ public sealed record TypeSymbol(string Name) : Symbol(Name)
         "CURRENCY" => Currency,
         _ => null
     };
+}
+
+/// <summary>
+/// A VB6 array type. Bounds are properties of an array instance/declaration, not of its type;
+/// the semantic type therefore records only element type and rank.
+/// </summary>
+public sealed record ArrayTypeSymbol : TypeSymbol
+{
+    public ArrayTypeSymbol(TypeSymbol elementType, int rank)
+        : base(BuildName(elementType, rank))
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+        if (rank <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rank), rank, "Array rank must be positive.");
+        }
+
+        ElementType = elementType;
+        Rank = rank;
+    }
+
+    public TypeSymbol ElementType { get; }
+    public int Rank { get; }
+
+    private static string BuildName(TypeSymbol elementType, int rank)
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+        if (rank <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rank), rank, "Array rank must be positive.");
+        }
+
+        return $"{elementType.Name}({new string(',', rank - 1)})";
+    }
 }
 
 public enum ParameterPassingMode
