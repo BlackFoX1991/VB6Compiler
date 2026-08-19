@@ -1,7 +1,9 @@
 using VB6.Compiler;
 using VB6.ProjectSystem;
 
-const string usage = "Usage: vb6c <source-file|project.vbp> [--emit-csharp <output-file> | --emit-assembly <output-file>]";
+const string usage =
+    "Usage: vb6c <source-file|project.vbp> [--emit-csharp <output-file> | --emit-assembly <output-file>]\n" +
+    "       vb6c <project.vbp> --report";
 
 if (args.Length == 0)
 {
@@ -40,6 +42,13 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     }
 
     var projectCompilation = VBProjectCompilation.Create(path);
+
+    if (args.Length == 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
+    {
+        var report = VBProjectParityReport.Create(projectCompilation.Analyze());
+        Console.Write(report.Render());
+        return 0;
+    }
 
     if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
     {
