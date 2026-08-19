@@ -74,6 +74,7 @@ public sealed class VBProjectCompilation
         }
 
         var procedureSymbols = DeclareProjectProcedures(parsedModules, projectDiagnostics);
+        var moduleVariableSymbols = DeclareProjectModuleVariables(parsedModules, projectDiagnostics);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
 
@@ -89,7 +90,7 @@ public sealed class VBProjectCompilation
             }
 
             var semanticModel = new Binder(module.Text)
-                .BindCompilationUnit(module.ParseResult.Root, procedureSymbols);
+                .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
             procedures.AddRange(semanticModel.Procedures);
 
@@ -101,7 +102,10 @@ public sealed class VBProjectCompilation
         }
 
         var combinedDiagnostics = sourceDiagnostics.ToImmutable();
-        var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics);
+        var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics)
+        {
+            ModuleVariables = moduleVariableSymbols.Values.ToImmutableArray()
+        };
         return new VBProjectCompilationAnalysis(
             loadResult.Project,
             units.ToImmutable(),
@@ -139,6 +143,42 @@ public sealed class VBProjectCompilation
             artifacts.AssemblyPath,
             artifacts.RuntimeAssemblyPath,
             artifacts.RuntimeConfigPath);
+    }
+
+    /// <summary>
+    /// VB6 <c>Public</c> module variables are visible project-wide, so they are declared across
+    /// all modules before any module is bound - the same way procedures are.
+    /// </summary>
+    private static Dictionary<string, ModuleVariableSymbol> DeclareProjectModuleVariables(
+        IEnumerable<ParsedProjectModule> modules,
+        ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
+    {
+        var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
+        var origins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var module in modules)
+        {
+            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            {
+                continue;
+            }
+
+            foreach (var symbol in Binder.CreateModuleVariableSymbols(module.ParseResult.Root))
+            {
+                if (moduleVariables.TryAdd(symbol.Name, symbol))
+                {
+                    origins.Add(symbol.Name, module.Item.RelativePath);
+                    continue;
+                }
+
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0004",
+                    $"Module variable '{symbol.Name}' is declared in both '{origins[symbol.Name]}' and '{module.Item.RelativePath}'.",
+                    module.FilePath));
+            }
+        }
+
+        return moduleVariables;
     }
 
     private static Dictionary<string, ProcedureSymbol> DeclareProjectProcedures(
