@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Text;
 
@@ -7,7 +8,8 @@ namespace VB6.Semantics;
 /// <summary>
 /// Variant storage and explicit conversions are supported before the full VB6 Variant operator
 /// promotion matrix. This guard prevents already-bound unary/binary expressions from being
-/// lowered with scalar rules when any operand originates from a Variant value.
+/// lowered with scalar rules when any operand originates from a Variant value. Multiplication is
+/// allowed only after VariantMultiplyLowerer has marked the bound result as Variant.
 /// </summary>
 public static class VariantOperationGuard
 {
@@ -165,13 +167,19 @@ public static class VariantOperationGuard
                 break;
 
             case BoundBinaryExpression binary:
-                if (ContainsVariantValue(binary.Left) || ContainsVariantValue(binary.Right))
+            {
+                var hasVariantOperand =
+                    ContainsVariantValue(binary.Left) || ContainsVariantValue(binary.Right);
+                var isLoweredMultiply =
+                    binary.OperatorKind == SyntaxKind.StarToken && binary.Type == TypeSymbol.Variant;
+                if (hasVariantOperand && !isLoweredMultiply)
                 {
                     AddOperatorDiagnostic(text, binary.OperatorKind.ToString(), diagnostics);
                 }
                 VisitExpression(text, binary.Left, diagnostics);
                 VisitExpression(text, binary.Right, diagnostics);
                 break;
+            }
 
             case BoundConversionExpression conversion:
                 VisitExpression(text, conversion.Expression, diagnostics);
