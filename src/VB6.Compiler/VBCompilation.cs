@@ -32,10 +32,20 @@ public sealed class VBCompilation
         }
 
         var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(parseResult.Root);
-        var semanticModel = new Binder(Text).BindCompilationUnit(parseResult.Root);
+        SemanticModel semanticModel;
+        using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
+        {
+            semanticModel = new Binder(Text).BindCompilationUnit(parseResult.Root);
+        }
+
+        var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
+            Text,
+            parseResult.Root,
+            userDefinedTypes.Types);
         var diagnostics = parseResult.Diagnostics
             .AddRange(userDefinedTypes.Diagnostics)
-            .AddRange(semanticModel.Diagnostics);
+            .AddRange(semanticModel.Diagnostics)
+            .AddRange(userDefinedTypeValueDiagnostics);
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
         {
