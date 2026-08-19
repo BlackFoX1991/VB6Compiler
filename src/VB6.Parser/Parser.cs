@@ -1003,7 +1003,7 @@ public sealed class Parser
         ConsumeLineTerminator();
         var statements = ParseStatementsUntil(() => Current.Kind == SyntaxKind.WendKeyword);
         var wendKeyword = MatchToken(SyntaxKind.WendKeyword);
-        return new WhileStatementSyntax(condition: condition, WhileKeyword: whileKeyword, Statements: statements, WendKeyword: wendKeyword);
+        return new WhileStatementSyntax(whileKeyword, condition, statements, wendKeyword);
     }
 
     private DoStatementSyntax ParseDoStatement()
