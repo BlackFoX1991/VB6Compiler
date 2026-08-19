@@ -75,10 +75,10 @@ Sichtbarkeit, skalare Felder, feste und mehrdimensionale Arrayfelder, verschacht
 `String * n` bleiben erhalten. UDT-Feldnamen dürfen dabei wie in klassischem VB auch reservierte
 Schlüsselwörter sein. Eine gezielte Recovery bei fehlerhaften/noch nicht unterstützten Feldformen
 stellt sicher, dass der Parser im realen Korpus immer Fortschritt macht und nicht in einem
-`Type`-Block hängen bleibt. Actions #832 validiert diesen Stand mit 319 Tests, 0 Warnungen und
-0 Buildfehlern. Die Parserdiagnostik sinkt um 260 von 1474 auf 1214; die Semantik bleibt bei 752,
-die Gesamtsumme fällt entsprechend von 2294 auf 2034. UDT-Typ- und Memberbindung bleibt bewusst
-der nächste M3-Slice.
+`Type`-Block hängen bleibt. Actions #832 validiert den Implementierungsstand mit 319 Tests,
+0 Warnungen und 0 Buildfehlern. Die Parserdiagnostik sinkt um 260 von 1474 auf 1214; die Semantik
+bleibt bei 752, die Gesamtsumme fällt entsprechend von 2294 auf 2034. UDT-Typ- und Memberbindung
+bleibt bewusst der nächste M3-Slice.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
