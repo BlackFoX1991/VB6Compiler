@@ -35,6 +35,7 @@ public static class SyntaxFacts
         "EQV" => SyntaxKind.EqvKeyword,
         "IMP" => SyntaxKind.ImpKeyword,
         "MOD" => SyntaxKind.ModKeyword,
+        "LIKE" => SyntaxKind.LikeKeyword,
         "DEBUG" => SyntaxKind.DebugKeyword,
         "PRINT" => SyntaxKind.PrintKeyword,
         "CALL" => SyntaxKind.CallKeyword,
