@@ -168,7 +168,11 @@ public static class VariantOperationGuard
             case BoundUnaryExpression unary:
                 if (ContainsVariantValue(unary.Operand))
                 {
-                    AddOperatorDiagnostic(text, unary.OperatorKind.ToString(), diagnostics);
+                    AddOperatorDiagnostic(
+                        text,
+                        unary.OperatorKind.ToString(),
+                        $"operand={DescribeExpression(unary.Operand)}",
+                        diagnostics);
                 }
                 VisitExpression(text, unary.Operand, diagnostics);
                 break;
@@ -183,7 +187,11 @@ public static class VariantOperationGuard
                     VariantMultiplyLowerer.IsLoweredVariantIntegralEquality(binary);
                 if (hasVariantOperand && !isLoweredMultiply && !isLoweredIntegralEquality)
                 {
-                    AddOperatorDiagnostic(text, binary.OperatorKind.ToString(), diagnostics);
+                    AddOperatorDiagnostic(
+                        text,
+                        binary.OperatorKind.ToString(),
+                        $"left={DescribeExpression(binary.Left)}, right={DescribeExpression(binary.Right)}, result={binary.Type.Name}",
+                        diagnostics);
                 }
                 VisitExpression(text, binary.Left, diagnostics);
                 VisitExpression(text, binary.Right, diagnostics);
@@ -243,15 +251,32 @@ public static class VariantOperationGuard
         };
     }
 
+    private static string DescribeExpression(BoundExpression expression)
+    {
+        var origin = ContainsVariantValue(expression) ? ",variant-origin" : string.Empty;
+        return expression switch
+        {
+            BoundVariableExpression variable =>
+                $"variable:{variable.Variable.Name}:{expression.Type.Name}{origin}",
+            BoundInvocationExpression invocation =>
+                $"call:{invocation.Procedure.Name}:{expression.Type.Name}{origin}",
+            BoundConversionExpression conversion =>
+                $"conversion:{conversion.Expression.Type.Name}->{conversion.TargetType.Name}{origin}",
+            BoundLiteralExpression => $"literal:{expression.Type.Name}{origin}",
+            _ => $"{expression.Kind}:{expression.Type.Name}{origin}"
+        };
+    }
+
     private static void AddOperatorDiagnostic(
         SourceText text,
         string operatorKind,
+        string operandShape,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         diagnostics.Add(new Diagnostic(
             "VB6S0053",
             DiagnosticSeverity.Error,
-            $"Variant operator '{operatorKind}' is not implemented yet.",
+            $"Variant operator '{operatorKind}' is not implemented yet ({operandShape}).",
             new TextSpan(0, 0),
             text.FilePath));
     }
