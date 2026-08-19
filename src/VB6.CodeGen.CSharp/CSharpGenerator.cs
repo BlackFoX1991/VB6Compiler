@@ -9,13 +9,19 @@ namespace VB6.CodeGen.CSharp;
 public sealed class CSharpGenerator
 {
     private readonly StringBuilder _builder = new();
+    private readonly Dictionary<UserDefinedTypeSymbol, string> _userDefinedTypeNames =
+        new(ReferenceEqualityComparer.Instance);
     private int _indent;
     private bool _currentProcedureReturnsValue;
 
     public string Generate(SemanticModel model)
     {
         _builder.Clear();
+        _userDefinedTypeNames.Clear();
         _indent = 0;
+
+        var userDefinedTypes = CollectUserDefinedTypes(model);
+        RegisterUserDefinedTypeNames(userDefinedTypes);
 
         WriteLine("using VB6.Runtime;");
         WriteLine();
@@ -24,6 +30,15 @@ public sealed class CSharpGenerator
         WriteLine("internal static class Program");
         WriteLine("{");
         _indent++;
+
+        if (!userDefinedTypes.IsDefaultOrEmpty)
+        {
+            foreach (var type in userDefinedTypes)
+            {
+                EmitUserDefinedType(type);
+                WriteLine();
+            }
+        }
 
         if (!model.ModuleVariables.IsDefaultOrEmpty)
         {
@@ -47,6 +62,87 @@ public sealed class CSharpGenerator
         _indent--;
         WriteLine("}");
         return _builder.ToString();
+    }
+
+    private static ImmutableArray<UserDefinedTypeSymbol> CollectUserDefinedTypes(SemanticModel model)
+    {
+        var types = ImmutableArray.CreateBuilder<UserDefinedTypeSymbol>();
+        var seen = new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance);
+
+        void AddType(TypeSymbol type)
+        {
+            if (type is ArrayTypeSymbol arrayType)
+            {
+                AddType(arrayType.ElementType);
+                return;
+            }
+
+            if (type is not UserDefinedTypeSymbol userDefinedType || !seen.Add(userDefinedType))
+            {
+                return;
+            }
+
+            types.Add(userDefinedType);
+            foreach (var member in userDefinedType.Members)
+            {
+                AddType(member.Type);
+            }
+        }
+
+        foreach (var variable in model.ModuleVariables)
+        {
+            AddType(variable.Symbol.Type);
+        }
+
+        foreach (var procedure in model.Procedures)
+        {
+            if (procedure.Symbol.ReturnType is not null)
+            {
+                AddType(procedure.Symbol.ReturnType);
+            }
+
+            foreach (var parameter in procedure.Symbol.Parameters)
+            {
+                AddType(parameter.Type);
+            }
+
+            foreach (var local in procedure.Locals)
+            {
+                AddType(local.Type);
+            }
+        }
+
+        return types.ToImmutable();
+    }
+
+    private void RegisterUserDefinedTypeNames(ImmutableArray<UserDefinedTypeSymbol> types)
+    {
+        var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var type in types)
+        {
+            var baseName = $"__vb6_udt_{SanitizeIdentifier(type.Name)}";
+            var name = baseName;
+            var suffix = 2;
+            while (!usedNames.Add(name))
+            {
+                name = $"{baseName}_{suffix++}";
+            }
+
+            _userDefinedTypeNames.Add(type, name);
+        }
+    }
+
+    private void EmitUserDefinedType(UserDefinedTypeSymbol type)
+    {
+        WriteLine($"private struct {GetUserDefinedTypeName(type)}");
+        WriteLine("{");
+        _indent++;
+        foreach (var member in type.Members)
+        {
+            WriteLine($"public {GetTypeName(member.Type)} __vb6_member_{SanitizeIdentifier(member.Name)};");
+        }
+        _indent--;
+        WriteLine("}");
     }
 
     private void EmitProcedure(BoundProcedure procedure)
@@ -81,7 +177,7 @@ public sealed class CSharpGenerator
         WriteLine("}");
     }
 
-    private static string EmitParameter(ParameterSymbol parameter)
+    private string EmitParameter(ParameterSymbol parameter)
     {
         var modifier = parameter.PassingMode == ParameterPassingMode.ByRef ? "ref " : string.Empty;
         return $"{modifier}{GetTypeName(parameter.Type)} {GetVariableName(parameter)}";
@@ -603,11 +699,21 @@ public sealed class CSharpGenerator
                                     ? "Byte"
                                     : "Integer";
 
-    private static string GetTypeName(TypeSymbol type)
+    private string GetTypeName(TypeSymbol type)
     {
         if (type is ArrayTypeSymbol arrayType)
         {
             return $"VBArray<{GetTypeName(arrayType.ElementType)}>";
+        }
+
+        if (type is UserDefinedTypeSymbol userDefinedType)
+        {
+            return GetUserDefinedTypeName(userDefinedType);
+        }
+
+        if (type is FixedLengthStringTypeSymbol)
+        {
+            return "string";
         }
 
         if (type == TypeSymbol.Byte)
@@ -656,6 +762,16 @@ public sealed class CSharpGenerator
         }
 
         return "object?";
+    }
+
+    private string GetUserDefinedTypeName(UserDefinedTypeSymbol type)
+    {
+        if (_userDefinedTypeNames.TryGetValue(type, out var name))
+        {
+            return name;
+        }
+
+        throw new InvalidOperationException($"UDT '{type.Name}' was not registered for C# generation.");
     }
 
     private static string GetDefaultValue(TypeSymbol type)
