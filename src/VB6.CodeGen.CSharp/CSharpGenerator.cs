@@ -220,6 +220,10 @@ public sealed class CSharpGenerator
                 WriteLine($"{GetVariableName(arrayAssignment.Array)}[{EmitIndices(arrayAssignment.Indices)}] = {EmitExpression(arrayAssignment.Expression)};");
                 break;
 
+            case BoundMemberAssignmentStatement memberAssignment:
+                WriteLine($"{EmitExpression(memberAssignment.Target)} = {EmitExpression(memberAssignment.Expression)};");
+                break;
+
             case BoundIfStatement ifStatement:
                 EmitIfStatement(ifStatement);
                 break;
@@ -507,6 +511,8 @@ public sealed class CSharpGenerator
                 $"{GetVariableName(arrayBound.Array)}.{(arrayBound.IsUpperBound ? "UBound" : "LBound")}({EmitExpression(arrayBound.Dimension)})",
             BoundInvocationExpression invocation =>
                 $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
+            BoundMemberAccessExpression memberAccess =>
+                $"{EmitExpression(memberAccess.Receiver)}.__vb6_member_{SanitizeIdentifier(memberAccess.Member.Name)}",
             BoundConversionExpression conversion => EmitConversion(conversion),
             BoundUnaryExpression unary => EmitUnary(unary),
             BoundBinaryExpression binary => EmitBinary(binary),
