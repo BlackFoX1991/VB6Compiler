@@ -1,0 +1,101 @@
+using System.Collections.Immutable;
+
+namespace VB6.Semantics;
+
+/// <summary>
+/// VB6 fixed-length String storage used by Type members declared as <c>String * n</c>.
+/// The length participates in the declared type because it is part of the UDT layout.
+/// </summary>
+public sealed record FixedLengthStringTypeSymbol : TypeSymbol
+{
+    public FixedLengthStringTypeSymbol(int length)
+        : base($"String * {length}")
+    {
+        if (length is < 1 or > 65526)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(length),
+                length,
+                "VB6 fixed-length String members must contain between 1 and 65526 characters.");
+        }
+
+        Length = length;
+    }
+
+    public int Length { get; }
+}
+
+/// <summary>
+/// One field declared inside a VB6 <c>Type ... End Type</c>. Array members carry an
+/// <see cref="ArrayTypeSymbol"/>; their concrete bounds remain declaration/layout metadata and
+/// are bound in the following UDT layout slice.
+/// </summary>
+public sealed record UserDefinedTypeMemberSymbol(string Name, TypeSymbol Type) : Symbol(Name);
+
+/// <summary>
+/// A VB6 user-defined type. Type names are predeclared before member types are resolved, so the
+/// member list is filled exactly once in a second pass. This supports forward references between
+/// UDT declarations without stringly-typed placeholders.
+/// </summary>
+public sealed record UserDefinedTypeSymbol : TypeSymbol
+{
+    private readonly UserDefinedTypeDefinition _definition;
+
+    public UserDefinedTypeSymbol(string name)
+        : this(name, new UserDefinedTypeDefinition())
+    {
+    }
+
+    private UserDefinedTypeSymbol(string name, UserDefinedTypeDefinition definition)
+        : base(name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _definition = definition;
+    }
+
+    public ImmutableArray<UserDefinedTypeMemberSymbol> Members => _definition.Members;
+    public bool MembersDefined => _definition.IsDefined;
+
+    public bool TryGetMember(string name, out UserDefinedTypeMemberSymbol member) =>
+        _definition.MemberMap.TryGetValue(name, out member!);
+
+    internal bool TryDefineMembers(
+        IEnumerable<UserDefinedTypeMemberSymbol> members,
+        out string? duplicateMemberName)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        if (_definition.IsDefined)
+        {
+            throw new InvalidOperationException($"Members for UDT '{Name}' have already been defined.");
+        }
+
+        var memberArray = members.ToImmutableArray();
+        var map = ImmutableDictionary.CreateBuilder<string, UserDefinedTypeMemberSymbol>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var member in memberArray)
+        {
+            if (!map.TryAdd(member.Name, member))
+            {
+                duplicateMemberName = member.Name;
+                return false;
+            }
+        }
+
+        _definition.Members = memberArray;
+        _definition.MemberMap = map.ToImmutable();
+        _definition.IsDefined = true;
+        duplicateMemberName = null;
+        return true;
+    }
+
+    private sealed class UserDefinedTypeDefinition
+    {
+        public ImmutableArray<UserDefinedTypeMemberSymbol> Members { get; set; } =
+            ImmutableArray<UserDefinedTypeMemberSymbol>.Empty;
+
+        public ImmutableDictionary<string, UserDefinedTypeMemberSymbol> MemberMap { get; set; } =
+            ImmutableDictionary.Create<string, UserDefinedTypeMemberSymbol>(StringComparer.OrdinalIgnoreCase);
+
+        public bool IsDefined { get; set; }
+    }
+}
