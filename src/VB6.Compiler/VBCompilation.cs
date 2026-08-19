@@ -33,10 +33,12 @@ public sealed class VBCompilation
 
         var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
         var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(implicitVariantRoot);
+        var procedureSymbols = VBIntrinsicSymbols.CreateProcedureTable(implicitVariantRoot);
         SemanticModel preliminaryModel;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
-            preliminaryModel = new Binder(Text).BindCompilationUnit(implicitVariantRoot);
+            preliminaryModel = new Binder(Text)
+                .BindCompilationUnit(implicitVariantRoot, procedureSymbols);
         }
 
         var forEachLowering = ForEachArraySyntaxLowerer.Lower(
@@ -45,10 +47,21 @@ public sealed class VBCompilation
             preliminaryModel);
 
         SemanticModel semanticModel;
+        ImmutableArray<Diagnostic> duplicateProcedureDiagnostics;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
-            semanticModel = new Binder(Text).BindCompilationUnit(forEachLowering.Root);
+            semanticModel = new Binder(Text)
+                .BindCompilationUnit(forEachLowering.Root, procedureSymbols);
+            duplicateProcedureDiagnostics = new Binder(Text)
+                .BindCompilationUnit(forEachLowering.Root)
+                .Diagnostics
+                .Where(diagnostic => diagnostic.Code == "VB6S0004")
+                .ToImmutableArray();
         }
+        semanticModel = semanticModel with
+        {
+            Diagnostics = semanticModel.Diagnostics.AddRange(duplicateProcedureDiagnostics)
+        };
         semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
 
         var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
@@ -78,6 +91,7 @@ public sealed class VBCompilation
         }
 
         var source = new CSharpGenerator().Generate(analysis.SemanticModel);
+        source = VBIntrinsicSymbols.RewriteGeneratedCalls(source);
         return new CSharpGenerationResult(analysis, source);
     }
 
