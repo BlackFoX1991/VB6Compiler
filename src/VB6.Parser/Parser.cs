@@ -609,10 +609,42 @@ public sealed class Parser
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeArrayElementAssignment() => ParseArrayElementAssignmentStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
             _ => ParseSkippedStatement()
         };
+    }
+
+    private bool LooksLikeArrayElementAssignment()
+    {
+        if (Current.Kind != SyntaxKind.IdentifierToken || Peek(1).Kind != SyntaxKind.OpenParenthesisToken)
+        {
+            return false;
+        }
+
+        var depth = 0;
+        for (var offset = 1; ; offset++)
+        {
+            var kind = Peek(offset).Kind;
+            switch (kind)
+            {
+                case SyntaxKind.OpenParenthesisToken:
+                    depth++;
+                    break;
+                case SyntaxKind.CloseParenthesisToken:
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return Peek(offset + 1).Kind == SyntaxKind.EqualsToken;
+                    }
+                    break;
+                case SyntaxKind.NewLineToken:
+                case SyntaxKind.ColonToken:
+                case SyntaxKind.EndOfFileToken:
+                    return false;
+            }
+        }
     }
 
     private DimStatementSyntax ParseDimStatement()
@@ -633,6 +665,23 @@ public sealed class Parser
         var equalsToken = MatchToken(SyntaxKind.EqualsToken);
         var expression = ParseExpression();
         return new AssignmentStatementSyntax(identifier, equalsToken, expression);
+    }
+
+    private ArrayElementAssignmentStatementSyntax ParseArrayElementAssignmentStatement()
+    {
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
+        var indices = ParseArguments(SyntaxKind.CloseParenthesisToken);
+        var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        var equalsToken = MatchToken(SyntaxKind.EqualsToken);
+        var expression = ParseExpression();
+        return new ArrayElementAssignmentStatementSyntax(
+            identifier,
+            openParenthesis,
+            indices,
+            closeParenthesis,
+            equalsToken,
+            expression);
     }
 
     private IfStatementSyntax ParseIfStatement()
