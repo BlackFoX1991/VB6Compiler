@@ -16,6 +16,7 @@ public static class SyntaxFacts
         "DIM" => SyntaxKind.DimKeyword,
         "REDIM" => SyntaxKind.ReDimKeyword,
         "PRESERVE" => SyntaxKind.PreserveKeyword,
+        "ERASE" => SyntaxKind.EraseKeyword,
         "STATIC" => SyntaxKind.StaticKeyword,
         "CONST" => SyntaxKind.ConstKeyword,
         "AS" => SyntaxKind.AsKeyword,

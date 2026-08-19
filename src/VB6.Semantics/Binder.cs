@@ -533,6 +533,15 @@ public sealed class Binder
                 continue;
             }
 
+            if (statement is EraseStatementSyntax erase)
+            {
+                foreach (var eraseIdentifier in erase.Identifiers)
+                {
+                    bound.Add(BindErase(eraseIdentifier, variables));
+                }
+                continue;
+            }
+
             if (statement is StaticStatementSyntax staticStatement)
             {
                 Report(
@@ -647,6 +656,41 @@ public sealed class Binder
         }
 
         return new BoundReDimStatement(variable, dimensions, preserve);
+    }
+
+    private BoundEraseStatement BindErase(
+        SyntaxToken identifier,
+        Dictionary<string, VariableSymbol> variables)
+    {
+        if (!variables.TryGetValue(identifier.Text, out var variable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{identifier.Text}' is not declared.",
+                identifier.Span);
+            variable = new LocalVariableSymbol(identifier.Text, TypeSymbol.Error);
+            return new BoundEraseStatement(variable, Deallocate: false);
+        }
+
+        if (variable.Type is not ArrayTypeSymbol arrayType)
+        {
+            Report(
+                "VB6S0033",
+                $"Erase target '{identifier.Text}' is not an array.",
+                identifier.Span);
+            return new BoundEraseStatement(variable, Deallocate: false);
+        }
+
+        if (variable is ParameterSymbol)
+        {
+            Report(
+                "VB6S0036",
+                $"Erase on array parameter '{identifier.Text}' requires caller allocation semantics, which are not implemented yet.",
+                identifier.Span);
+            return new BoundEraseStatement(variable, Deallocate: false);
+        }
+
+        return new BoundEraseStatement(variable, Deallocate: !arrayType.HasKnownRank);
     }
 
     private BoundAssignmentStatement BindAssignment(
@@ -998,6 +1042,12 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        if (string.Equals(syntax.Identifier.Text, "LBound", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(syntax.Identifier.Text, "UBound", StringComparison.OrdinalIgnoreCase))
+        {
+            return BindArrayBoundExpression(syntax, variables, procedures);
+        }
+
         if (variables.TryGetValue(syntax.Identifier.Text, out var variable) &&
             variable.Type is ArrayTypeSymbol arrayType)
         {
@@ -1028,6 +1078,57 @@ public sealed class Binder
         return new BoundInvocationExpression(
             procedure,
             BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
+    }
+
+    private BoundExpression BindArrayBoundExpression(
+        InvocationExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (syntax.Arguments.Length is < 1 or > 2)
+        {
+            Report(
+                "VB6S0034",
+                $"{syntax.Identifier.Text} expects one array and an optional dimension.",
+                syntax.Identifier.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (syntax.Arguments[0] is not NameExpressionSyntax arrayName)
+        {
+            Report(
+                "VB6S0035",
+                $"{syntax.Identifier.Text} requires an array variable.",
+                syntax.Identifier.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (!variables.TryGetValue(arrayName.IdentifierToken.Text, out var arrayVariable))
+        {
+            Report(
+                "VB6S0001",
+                $"Variable '{arrayName.IdentifierToken.Text}' is not declared.",
+                arrayName.IdentifierToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (arrayVariable.Type is not ArrayTypeSymbol)
+        {
+            Report(
+                "VB6S0035",
+                $"{syntax.Identifier.Text} requires an array variable.",
+                arrayName.IdentifierToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        var dimension = syntax.Arguments.Length == 2
+            ? BindConversion(BindExpression(syntax.Arguments[1], variables, procedures), TypeSymbol.Long)
+            : new BoundLiteralExpression(1L, TypeSymbol.Long);
+
+        return new BoundArrayBoundExpression(
+            arrayVariable,
+            dimension,
+            IsUpperBound: string.Equals(syntax.Identifier.Text, "UBound", StringComparison.OrdinalIgnoreCase));
     }
 
     private ImmutableArray<BoundArgument> BindArguments(

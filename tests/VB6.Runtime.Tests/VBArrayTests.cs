@@ -40,6 +40,47 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void Array_StringElementsUseVbEmptyStringDefault()
+    {
+        var array = new VBArray<string>(new VBArrayBound(1, 2));
+
+        Assert.AreEqual(string.Empty, array[1]);
+        Assert.AreEqual(string.Empty, array[2]);
+    }
+
+    [TestMethod]
+    public void Array_ClearResetsElementsAndPreservesBounds()
+    {
+        var array = new VBArray<int>(
+            new VBArrayBound(-1, 1),
+            new VBArrayBound(4, 5));
+        array[-1, 4] = 10;
+        array[1, 5] = 20;
+
+        array.Clear();
+
+        Assert.AreEqual(-1, array.LBound(1));
+        Assert.AreEqual(1, array.UBound(1));
+        Assert.AreEqual(4, array.LBound(2));
+        Assert.AreEqual(5, array.UBound(2));
+        Assert.AreEqual(0, array[-1, 4]);
+        Assert.AreEqual(0, array[1, 5]);
+    }
+
+    [TestMethod]
+    public void Array_ClearRestoresVbStringDefaults()
+    {
+        var array = new VBArray<string>(new VBArrayBound(0, 1));
+        array[0] = "first";
+        array[1] = "second";
+
+        array.Clear();
+
+        Assert.AreEqual(string.Empty, array[0]);
+        Assert.AreEqual(string.Empty, array[1]);
+    }
+
+    [TestMethod]
     public void Array_IndexerCanBePassedByReference()
     {
         var array = new VBArray<int>(new VBArrayBound(1, 2));

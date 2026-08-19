@@ -138,6 +138,7 @@ public enum BoundNodeKind
     BlockStatement,
     VariableDeclarationStatement,
     ReDimStatement,
+    EraseStatement,
     AssignmentStatement,
     ArrayElementAssignmentStatement,
     IfStatement,
@@ -152,6 +153,7 @@ public enum BoundNodeKind
     LiteralExpression,
     VariableExpression,
     ArrayAccessExpression,
+    ArrayBoundExpression,
     InvocationExpression,
     UnaryExpression,
     BinaryExpression,
@@ -194,6 +196,15 @@ public sealed record BoundReDimStatement(
     ImmutableArray<BoundArrayDimension> ArrayDimensions,
     bool Preserve)
     : BoundStatement(BoundNodeKind.ReDimStatement);
+
+/// <summary>
+/// VB6 Erase either reinitializes a fixed array while preserving its bounds or deallocates a
+/// dynamic array. The binder records which operation applies so code generation never guesses.
+/// </summary>
+public sealed record BoundEraseStatement(
+    VariableSymbol Array,
+    bool Deallocate)
+    : BoundStatement(BoundNodeKind.EraseStatement);
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
@@ -304,6 +315,16 @@ public sealed record BoundArrayAccessExpression(
     ImmutableArray<BoundExpression> Indices,
     TypeSymbol ElementType)
     : BoundExpression(BoundNodeKind.ArrayAccessExpression, ElementType);
+
+/// <summary>
+/// Bound LBound/UBound access. The optional dimension is normalized to VB6 Long and defaults to
+/// one in the binder. Runtime range validation stays centralized in VBArray&lt;T&gt;.
+/// </summary>
+public sealed record BoundArrayBoundExpression(
+    VariableSymbol Array,
+    BoundExpression Dimension,
+    bool IsUpperBound)
+    : BoundExpression(BoundNodeKind.ArrayBoundExpression, TypeSymbol.Long);
 
 public sealed record BoundInvocationExpression(
     ProcedureSymbol Procedure,
