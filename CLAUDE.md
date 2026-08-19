@@ -70,10 +70,16 @@ Commit-Betreffs: imperativ, kurz, kein Präfix, kein Punkt (`Bind Currency arith
 
 ```
 dotnet build VB6Compiler.sln -c Release
-dotnet test VB6Compiler.sln -c Release --no-build
+dotnet test VB6Compiler.sln -c Release
 ```
 
-`TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben. Stand der letzten Prüfung: 135 Tests, alle grün.
+**Kein `--no-build` beim Testen.** Auf diesem Rechner scheitern die Testläufe dann sporadisch mit
+`FileLoadException ... Zugriff verweigert` auf die nach `tests/*/bin/` kopierten Projekt-DLLs —
+mal zwei Projekte, mal alle. Mit regulärem Build ist der Lauf stabil. Die Fehler sehen aus wie
+echte Testfehler, sind aber keine; erst die Fehlermeldung prüfen, bevor Code geändert wird.
+
+`TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
+Stand der letzten Prüfung: 160 Tests, alle grün.
 
 CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
 

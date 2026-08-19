@@ -27,7 +27,9 @@ Implemented so far:
 - `Single` and `Double` floating-point types with floating literals and numeric promotion
 - 64-bit scaled VB6 `Currency`, including `@` literals, four decimal places, Banker's rounding, and checked arithmetic
 - `True` and `False`, including VB numeric conversion behavior
-- logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp`
+- logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp` on Boolean operands
+- bitwise `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp` on numeric operands
+- `&H` hexadecimal and `&O` octal literals with VB6 wrapping, plus the `&` and `%` integer type suffixes
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, and `Mod`
 - string concatenation with `&`
 - VB-oriented operator precedence for the implemented expression subset
@@ -172,10 +174,14 @@ The current ByRef implementation requires a variable argument with an exactly ma
 
 ## Next milestones
 
-- broaden `Double` arithmetic compatibility and floating-point edge cases
-- add `Date`
-- introduce the first `Variant` representation
-- expand ByRef coercion and parenthesized-argument edge cases
-- introduce a dedicated lowered IR and control flow representation
-- add class modules
-- begin `.frm` project item parsing
+The order below is derived from a construct-frequency analysis over a real VB6
+codebase rather than from a generic VB6 feature list. See `docs/ROADMAP.md`.
+
+- `Const`, `Option Explicit` enforcement, multi-declarator `Dim`, and `Enum`
+- arrays and `Type ... End Type`, including `ReDim Preserve`
+- the first `Variant` representation
+- `Optional`, `ParamArray`, `Property Get`/`Let`/`Set`, and class modules
+- a dedicated lowered IR, then `GoTo`, `On Error`, and the `Err` object
+- the string and binary file I/O parts of the VB6 standard library
+- `Declare` marshalling and COM consumption
+- `.frm` project item parsing and a VB6-compatible forms runtime
