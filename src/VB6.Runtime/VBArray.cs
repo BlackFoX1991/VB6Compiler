@@ -58,11 +58,11 @@ public sealed class VBArray<T>
     public int LBound(int dimension = 1) => GetBound(dimension).Lower;
     public int UBound(int dimension = 1) => GetBound(dimension).Upper;
 
-    public T this[params int[] indices]
-    {
-        get => _items[GetOffset(indices)];
-        set => _items[GetOffset(indices)] = value;
-    }
+    /// <summary>
+    /// Returns the actual storage slot by reference. Besides ordinary reads/writes, this preserves
+    /// VB6 ByRef semantics when an array element is passed to a procedure.
+    /// </summary>
+    public ref T this[params int[] indices] => ref _items[GetOffset(indices)];
 
     private VBArrayBound GetBound(int dimension)
     {
