@@ -100,6 +100,7 @@ public enum SyntaxKind
     FunctionDeclaration,
     Parameter,
     DimStatement,
+    ReDimStatement,
     StaticStatement,
     AssignmentStatement,
     ArrayElementAssignmentStatement,
