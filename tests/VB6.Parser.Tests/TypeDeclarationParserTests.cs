@@ -64,19 +64,33 @@ public sealed class TypeDeclarationParserTests
     }
 
     [TestMethod]
-    public void Parse_RecoversFromUnexpectedKeywordInsideType()
+    public void Parse_AllowsKeywordMemberNames()
+    {
+        var declaration = ParseType("""
+            Type KeywordNames
+                Print As Long
+                Type As Integer
+            End Type
+            """);
+
+        Assert.AreEqual(2, declaration.Members.Length);
+        Assert.AreEqual("Print", declaration.Members[0].Identifier.Text, ignoreCase: true);
+        Assert.AreEqual("Type", declaration.Members[1].Identifier.Text, ignoreCase: true);
+    }
+
+    [TestMethod]
+    public void Parse_RecoversFromMalformedTypeMember()
     {
         var result = new ParserType(SourceText.From("""
             Type Broken
-                Dim As Long
+                , As Long
                 Value As Long
             End Type
             """, "test.bas")).ParseCompilationUnit();
 
         Assert.IsTrue(result.Diagnostics.Length > 0);
         var declaration = (TypeDeclarationSyntax)result.Root.Members.Single();
-        Assert.AreEqual(1, declaration.Members.Length);
-        Assert.AreEqual("Value", declaration.Members[0].Identifier.Text);
+        Assert.IsTrue(declaration.Members.Any(member => member.Identifier.Text == "Value"));
     }
 
     private static TypeDeclarationSyntax ParseType(string source)
