@@ -110,7 +110,7 @@ public sealed class UserDefinedTypeAnalysisTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_StopsOnFixedStringMemberLayout()
+    public void GenerateCSharp_EmitsFixedStringMemberLayout()
     {
         var generation = VBCompilation.Create("""
             Type Record
@@ -119,12 +119,21 @@ public sealed class UserDefinedTypeAnalysisTests
 
             Sub Main()
                 Dim value As Record
+                value.Name = "hello"
+                Debug.Print value.Name
             End Sub
             """, "test.bas").GenerateCSharp();
 
-        Assert.IsFalse(generation.Success);
-        Assert.IsNull(generation.Source);
-        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        Assert.IsNotNull(generation.Source);
+        StringAssert.Contains(generation.Source, "private string? __vb6_fixed_Name;");
+        StringAssert.Contains(generation.Source, "public string __vb6_member_Name");
+        StringAssert.Contains(generation.Source, "new string(' ', 16)");
+        StringAssert.Contains(generation.Source, "__vb6_value[..16]");
+        StringAssert.Contains(generation.Source, "__vb6_value.PadRight(16)");
+        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
     }
 
     [TestMethod]
