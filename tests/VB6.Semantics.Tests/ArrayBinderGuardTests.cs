@@ -25,7 +25,7 @@ public sealed class ArrayBinderGuardTests
     }
 
     [TestMethod]
-    public void Bind_DynamicModuleArrayPreservesElementTypeWhileReDimRemainsGuarded()
+    public void Bind_DynamicModuleArrayPreservesElementTypeAndUnknownRank()
     {
         var model = BindSource("""
             Private values() As Integer
@@ -33,18 +33,17 @@ public sealed class ArrayBinderGuardTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0025" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length);
 
         var arrayType = model.ModuleVariables.Single().Symbol.Type as ArrayTypeSymbol;
         Assert.IsNotNull(arrayType);
         Assert.AreEqual(TypeSymbol.Integer, arrayType.ElementType);
-        Assert.AreEqual(1, arrayType.Rank);
+        Assert.IsNull(arrayType.Rank);
+        Assert.IsFalse(arrayType.HasKnownRank);
     }
 
     [TestMethod]
-    public void Bind_ArrayParameterPreservesElementTypeWithoutGuard()
+    public void Bind_ArrayParameterPreservesElementTypeWithUnknownRank()
     {
         var model = BindSource("""
             Function Sort(TheArray() As String) As Long
@@ -57,7 +56,8 @@ public sealed class ArrayBinderGuardTests
         var arrayType = model.Procedures.Single().Symbol.Parameters.Single().Type as ArrayTypeSymbol;
         Assert.IsNotNull(arrayType);
         Assert.AreEqual(TypeSymbol.String, arrayType.ElementType);
-        Assert.AreEqual(1, arrayType.Rank);
+        Assert.IsNull(arrayType.Rank);
+        Assert.IsFalse(arrayType.HasKnownRank);
     }
 
     private static SemanticModel BindSource(string source)
