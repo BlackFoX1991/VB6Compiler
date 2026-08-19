@@ -36,11 +36,20 @@ public record TypeSymbol(string Name) : Symbol(Name)
 }
 
 /// <summary>
-/// A VB6 array type. Bounds are properties of an array instance/declaration, not of its type;
-/// the semantic type therefore records only element type and rank.
+/// A VB6 array type. Bounds are properties of an array instance/declaration, not of its type.
+/// Fixed arrays have a known rank; dynamic arrays and array parameters use an unknown rank because
+/// VB6 allows a later ReDim (or caller) to determine the actual number of dimensions.
 /// </summary>
 public sealed record ArrayTypeSymbol : TypeSymbol
 {
+    public ArrayTypeSymbol(TypeSymbol elementType)
+        : base(BuildName(elementType, null))
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+        ElementType = elementType;
+        Rank = null;
+    }
+
     public ArrayTypeSymbol(TypeSymbol elementType, int rank)
         : base(BuildName(elementType, rank))
     {
@@ -55,17 +64,20 @@ public sealed record ArrayTypeSymbol : TypeSymbol
     }
 
     public TypeSymbol ElementType { get; }
-    public int Rank { get; }
+    public int? Rank { get; }
+    public bool HasKnownRank => Rank.HasValue;
 
-    private static string BuildName(TypeSymbol elementType, int rank)
+    private static string BuildName(TypeSymbol elementType, int? rank)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        if (rank <= 0)
+        if (rank is <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(rank), rank, "Array rank must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(rank), rank, "Array rank must be positive when specified.");
         }
 
-        return $"{elementType.Name}({new string(',', rank - 1)})";
+        return rank is null
+            ? $"{elementType.Name}()"
+            : $"{elementType.Name}({new string(',', rank.Value - 1)})";
     }
 }
 
@@ -125,6 +137,7 @@ public enum BoundNodeKind
 {
     BlockStatement,
     VariableDeclarationStatement,
+    ReDimStatement,
     AssignmentStatement,
     ArrayElementAssignmentStatement,
     IfStatement,
@@ -171,6 +184,16 @@ public sealed record BoundVariableDeclarationStatement(
     {
     }
 }
+
+/// <summary>
+/// A bound resize of a dynamic VB6 array. ReDim without Preserve replaces storage; Preserve uses
+/// the runtime's VB6-compatible last-dimension preservation rules.
+/// </summary>
+public sealed record BoundReDimStatement(
+    VariableSymbol Array,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions,
+    bool Preserve)
+    : BoundStatement(BoundNodeKind.ReDimStatement);
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
