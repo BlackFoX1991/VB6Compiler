@@ -103,11 +103,7 @@ public sealed class Parser
                 : ParseFunctionDeclaration(visibility);
         }
 
-        // Requiring 'As' keeps this from swallowing other declarations that start the same way,
-        // such as 'Private Declare Function ...' or 'Public Const ...'.
-        if ((IsVisibilityModifier(Current) || Current.Kind == SyntaxKind.DimKeyword) &&
-            Peek(1).Kind == SyntaxKind.IdentifierToken &&
-            Peek(2).Kind == SyntaxKind.AsKeyword)
+        if (LooksLikeModuleVariableDeclaration())
         {
             return ParseModuleVariableDeclaration(NextToken());
         }
@@ -258,11 +254,40 @@ public sealed class Parser
 
     private ModuleVariableDeclarationSyntax ParseModuleVariableDeclaration(SyntaxToken visibilityKeyword)
     {
-        var identifier = MatchToken(SyntaxKind.IdentifierToken);
-        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
-        var typeToken = MatchTypeToken();
+        var declarators = ParseVariableDeclarators();
         ConsumeLineTerminator();
-        return new ModuleVariableDeclarationSyntax(visibilityKeyword, identifier, asKeyword, typeToken);
+        return new ModuleVariableDeclarationSyntax(visibilityKeyword, declarators);
+    }
+
+    private ImmutableArray<VariableDeclaratorSyntax> ParseVariableDeclarators()
+    {
+        var declarators = ImmutableArray.CreateBuilder<VariableDeclaratorSyntax>();
+
+        while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.ColonToken and not SyntaxKind.EndOfFileToken)
+        {
+            var identifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken? asKeyword = null;
+            SyntaxToken? typeToken = null;
+            if (Current.Kind == SyntaxKind.AsKeyword)
+            {
+                asKeyword = NextToken();
+                typeToken = MatchTypeToken();
+            }
+
+            SyntaxToken? commaToken = null;
+            if (Current.Kind == SyntaxKind.CommaToken)
+            {
+                commaToken = NextToken();
+            }
+
+            declarators.Add(new VariableDeclaratorSyntax(identifier, asKeyword, typeToken, commaToken));
+            if (commaToken is null)
+            {
+                break;
+            }
+        }
+
+        return declarators.ToImmutable();
     }
 
     private static bool IsVisibilityModifier(SyntaxToken token) =>
@@ -271,6 +296,18 @@ public sealed class Parser
          string.Equals(token.Text, "Private", StringComparison.OrdinalIgnoreCase) ||
          string.Equals(token.Text, "Friend", StringComparison.OrdinalIgnoreCase) ||
          string.Equals(token.Text, "Global", StringComparison.OrdinalIgnoreCase));
+
+    private bool LooksLikeModuleVariableDeclaration()
+    {
+        if ((!IsVisibilityModifier(Current) && Current.Kind != SyntaxKind.DimKeyword) ||
+            Peek(1).Kind != SyntaxKind.IdentifierToken)
+        {
+            return false;
+        }
+
+        return Peek(2).Kind is SyntaxKind.AsKeyword or SyntaxKind.CommaToken or
+            SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken;
+    }
 
     private bool IsOptionDirective(string name) =>
         Current.Kind == SyntaxKind.OptionKeyword &&
@@ -522,10 +559,7 @@ public sealed class Parser
     private DimStatementSyntax ParseDimStatement()
     {
         var dimKeyword = MatchToken(SyntaxKind.DimKeyword);
-        var identifier = MatchToken(SyntaxKind.IdentifierToken);
-        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
-        var typeToken = MatchTypeToken();
-        return new DimStatementSyntax(dimKeyword, identifier, asKeyword, typeToken);
+        return new DimStatementSyntax(dimKeyword, ParseVariableDeclarators());
     }
 
     private AssignmentStatementSyntax ParseAssignmentStatement()
