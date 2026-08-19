@@ -46,6 +46,14 @@ public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Nam
 public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
     : VariableSymbol(Name, Type);
 
+/// <summary>
+/// A variable declared at module level. VB6 <c>Public</c> module variables are visible across
+/// the whole project; <c>Private</c> ones are module-local. The binder currently makes both
+/// visible everywhere, which accepts more than VB6 does but never miscompiles valid code.
+/// </summary>
+public sealed record ModuleVariableSymbol(string Name, TypeSymbol Type)
+    : VariableSymbol(Name, Type);
+
 public sealed record ParameterSymbol(
     string Name,
     TypeSymbol Type,
@@ -222,4 +230,8 @@ public sealed record BoundProcedure(
 
 public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,
-    ImmutableArray<Diagnostic> Diagnostics);
+    ImmutableArray<Diagnostic> Diagnostics)
+{
+    public ImmutableArray<ModuleVariableSymbol> ModuleVariables { get; init; } =
+        ImmutableArray<ModuleVariableSymbol>.Empty;
+}

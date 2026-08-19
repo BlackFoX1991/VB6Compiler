@@ -34,6 +34,22 @@ public sealed class Binder
             TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error);
     }
 
+    /// <summary>
+    /// Module-level variables declared by a compilation unit. Exposed so that a project
+    /// compilation can pre-declare them across modules, the way procedures already are.
+    /// </summary>
+    public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(CompilationUnitSyntax root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        return root.Members
+            .OfType<ModuleVariableDeclarationSyntax>()
+            .Select(declaration => new ModuleVariableSymbol(
+                declaration.Identifier.Text,
+                TypeSymbol.Lookup(declaration.TypeToken.Text) ?? TypeSymbol.Error))
+            .ToImmutableArray();
+    }
+
     public SemanticModel BindCompilationUnit(CompilationUnitSyntax root)
     {
         var procedures = DeclareProcedures(root);
@@ -42,10 +58,12 @@ public sealed class Binder
 
     public SemanticModel BindCompilationUnit(
         CompilationUnitSyntax root,
-        IReadOnlyDictionary<string, ProcedureSymbol> availableProcedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> availableProcedures,
+        IReadOnlyDictionary<string, ModuleVariableSymbol>? availableModuleVariables = null)
     {
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
+        var moduleVariables = availableModuleVariables ?? DeclareModuleVariables(root);
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         foreach (var member in root.Members)
         {
@@ -60,7 +78,8 @@ public sealed class Binder
                         declaration.Statements,
                         null,
                         symbol,
-                        availableProcedures));
+                        availableProcedures,
+                        moduleVariables));
                     break;
                 }
 
@@ -81,13 +100,17 @@ public sealed class Binder
                         declaration.Statements,
                         declaration.ReturnTypeToken,
                         symbol,
-                        availableProcedures));
+                        availableProcedures,
+                        moduleVariables));
                     break;
                 }
             }
         }
 
-        return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable());
+        return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable())
+        {
+            ModuleVariables = moduleVariables.Values.ToImmutableArray()
+        };
     }
 
     private static ImmutableArray<ParameterSymbol> CreateParameterSymbols(ImmutableArray<ParameterSyntax> parameters) =>
@@ -156,15 +179,71 @@ public sealed class Binder
         return procedures;
     }
 
+    /// <summary>
+    /// Declares a parameter or local in the procedure scope. A name already taken by a module
+    /// variable is shadowed, which is what VB6 does; a clash with another parameter or local is
+    /// a real redeclaration and fails.
+    /// </summary>
+    private static bool TryDeclareInProcedureScope(
+        Dictionary<string, VariableSymbol> variables,
+        string name,
+        VariableSymbol symbol)
+    {
+        if (variables.TryGetValue(name, out var existing) && existing is not ModuleVariableSymbol)
+        {
+            return false;
+        }
+
+        variables[name] = symbol;
+        return true;
+    }
+
+    private Dictionary<string, ModuleVariableSymbol> DeclareModuleVariables(CompilationUnitSyntax root)
+    {
+        var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var declaration in root.Members.OfType<ModuleVariableDeclarationSyntax>())
+        {
+            var type = TypeSymbol.Lookup(declaration.TypeToken.Text) ?? TypeSymbol.Error;
+            if (type == TypeSymbol.Error)
+            {
+                Report(
+                    "VB6S0003",
+                    $"Unknown type '{declaration.TypeToken.Text}'.",
+                    declaration.TypeToken.Span);
+            }
+
+            if (!moduleVariables.TryAdd(
+                    declaration.Identifier.Text,
+                    new ModuleVariableSymbol(declaration.Identifier.Text, type)))
+            {
+                Report(
+                    "VB6S0019",
+                    $"Module variable '{declaration.Identifier.Text}' is already declared.",
+                    declaration.Identifier.Span);
+            }
+        }
+
+        return moduleVariables;
+    }
+
     private BoundProcedure BindProcedure(
         SyntaxToken identifier,
         ImmutableArray<ParameterSyntax> parameterSyntaxes,
         ImmutableArray<StatementSyntax> statements,
         SyntaxToken? returnTypeSyntax,
         ProcedureSymbol symbol,
-        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        IReadOnlyDictionary<string, ModuleVariableSymbol> moduleVariables)
     {
         var variables = new Dictionary<string, VariableSymbol>(StringComparer.OrdinalIgnoreCase);
+
+        // Module scope is the outermost scope; parameters and locals shadow it.
+        foreach (var moduleVariable in moduleVariables)
+        {
+            variables[moduleVariable.Key] = moduleVariable.Value;
+        }
+
         var locals = new Dictionary<string, LocalVariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
         if (symbol.IsFunction)
@@ -187,7 +266,7 @@ public sealed class Binder
                     syntax.TypeToken.Span);
             }
 
-            if (!variables.TryAdd(parameter.Name, parameter))
+            if (!TryDeclareInProcedureScope(variables, parameter.Name, parameter))
             {
                 Report(
                     "VB6S0009",
@@ -224,7 +303,7 @@ public sealed class Binder
                     }
 
                     var variable = new LocalVariableSymbol(dim.Identifier.Text, type);
-                    if (!variables.TryAdd(variable.Name, variable))
+                    if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
                     {
                         Report(
                             "VB6S0002",
