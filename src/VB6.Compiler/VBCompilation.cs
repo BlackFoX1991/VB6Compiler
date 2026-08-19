@@ -49,6 +49,7 @@ public sealed class VBCompilation
         {
             semanticModel = new Binder(Text).BindCompilationUnit(forEachLowering.Root);
         }
+        semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
 
         var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
             Text,
