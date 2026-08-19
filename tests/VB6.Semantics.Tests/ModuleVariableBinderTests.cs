@@ -20,8 +20,9 @@ public sealed class ModuleVariableBinderTests
 
         Assert.AreEqual(0, model.Diagnostics.Length);
         Assert.AreEqual(1, model.ModuleVariables.Length);
-        Assert.AreEqual("Total", model.ModuleVariables[0].Name);
-        Assert.AreEqual(TypeSymbol.Long, model.ModuleVariables[0].Type);
+        Assert.AreEqual("Total", model.ModuleVariables[0].Symbol.Name);
+        Assert.AreEqual(TypeSymbol.Long, model.ModuleVariables[0].Symbol.Type);
+        Assert.IsNull(model.ModuleVariables[0].Initializer);
 
         var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[0];
         Assert.IsInstanceOfType<ModuleVariableSymbol>(assignment.Variable);
