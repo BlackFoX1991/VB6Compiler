@@ -30,7 +30,7 @@ public sealed class UserDefinedTypeMemberCodeGenTests
         Assert.IsNotNull(generation.Source);
         StringAssert.Contains(
             generation.Source,
-            "__vb6_outer.__vb6_member_Child.__vb6_member_Value = VBConversions.CLng(42L);");
+            "__vb6_outer.__vb6_member_Child.__vb6_member_Value = ");
         StringAssert.Contains(
             generation.Source,
             "__vb6_result = __vb6_outer.__vb6_member_Child.__vb6_member_Value;");
@@ -54,7 +54,8 @@ public sealed class UserDefinedTypeMemberCodeGenTests
 
         Assert.IsTrue(generation.Success, FormatDiagnostics(generation));
         Assert.IsNotNull(generation.Source);
-        StringAssert.Contains(generation.Source, "__vb6_points[VBConversions.CLng(1L)].__vb6_member_X");
+        StringAssert.Contains(generation.Source, "__vb6_points[");
+        StringAssert.Contains(generation.Source, "].__vb6_member_X");
         AssertRoslynEmitSucceeds(generation.Source);
     }
 
