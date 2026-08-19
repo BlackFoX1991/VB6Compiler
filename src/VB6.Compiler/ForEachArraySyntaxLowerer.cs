@@ -17,7 +17,8 @@ internal sealed record ForEachArrayLoweringResult(
 /// array-indexing syntax. A preliminary semantic model supplies the declared control/collection
 /// types and fixed array rank. The generated loops enumerate dimension 1 outermost and the
 /// rightmost dimension innermost, matching VB6 array iteration order.
-/// Dynamic/unknown-rank arrays are deliberately left in syntax form for direct semantic lowering.
+/// Dynamic/unknown-rank arrays and non-name collection expressions are deliberately left in syntax
+/// form for direct semantic lowering.
 /// </summary>
 internal sealed class ForEachArraySyntaxLowerer
 {
@@ -203,8 +204,15 @@ internal sealed class ForEachArraySyntaxLowerer
         Dictionary<string, VariableSymbol> scope,
         HashSet<string> usedNames)
     {
-        if (syntax.Collection is NameExpressionSyntax dynamicCollectionName &&
-            scope.TryGetValue(dynamicCollectionName.IdentifierToken.Text, out var dynamicCollectionVariable) &&
+        if (syntax.Collection is not NameExpressionSyntax collectionName)
+        {
+            return ImmutableArray.Create<StatementSyntax>(syntax with
+            {
+                Statements = LowerStatements(syntax.Statements, scope, usedNames)
+            });
+        }
+
+        if (scope.TryGetValue(collectionName.IdentifierToken.Text, out var dynamicCollectionVariable) &&
             dynamicCollectionVariable.Type is ArrayTypeSymbol { Rank: null })
         {
             return ImmutableArray.Create<StatementSyntax>(syntax with
@@ -239,15 +247,6 @@ internal sealed class ForEachArraySyntaxLowerer
                 $"Next variable '{syntax.NextIdentifier.Text}' does not match For variable '{syntax.Identifier.Text}'.",
                 syntax.NextIdentifier.Span);
             valid = false;
-        }
-
-        if (syntax.Collection is not NameExpressionSyntax collectionName)
-        {
-            Report(
-                "VB6S0055",
-                "For Each currently requires a fixed array variable as its collection.",
-                syntax.InKeyword.Span);
-            return ImmutableArray.Create<StatementSyntax>(syntax);
         }
 
         if (!scope.TryGetValue(collectionName.IdentifierToken.Text, out var collectionVariable))
