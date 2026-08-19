@@ -211,6 +211,27 @@ public static class VBOperators
         return left / right;
     }
 
+    public static double Power(double number, double exponent)
+    {
+        if (number < 0d && exponent != Math.Truncate(exponent))
+        {
+            throw new ArgumentException("VB6 exponentiation requires an integer exponent for a negative base.", nameof(exponent));
+        }
+
+        var result = Math.Pow(number, exponent);
+        if (double.IsInfinity(result))
+        {
+            throw new OverflowException("VB6 exponentiation result is outside the Double range.");
+        }
+
+        if (double.IsNaN(result))
+        {
+            throw new ArithmeticException("VB6 exponentiation produced an invalid numeric result.");
+        }
+
+        return result;
+    }
+
     public static bool NotBoolean(bool value) => !value;
 
     public static bool AndBoolean(bool left, bool right) => left & right;
