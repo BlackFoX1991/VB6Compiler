@@ -31,8 +31,6 @@ public enum SyntaxKind
 
     OptionKeyword,
     ExplicitKeyword,
-    BaseKeyword,
-    CompareKeyword,
     SubKeyword,
     FunctionKeyword,
     DeclareKeyword,

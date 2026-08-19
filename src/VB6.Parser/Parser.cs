@@ -58,15 +58,19 @@ public sealed class Parser
             return ParseAttribute();
         }
 
-        if (Current.Kind == SyntaxKind.OptionKeyword)
+        if (Current.Kind == SyntaxKind.OptionKeyword && Peek(1).Kind == SyntaxKind.ExplicitKeyword)
         {
-            return Peek(1).Kind switch
-            {
-                SyntaxKind.ExplicitKeyword => ParseOptionExplicit(),
-                SyntaxKind.BaseKeyword => ParseOptionBase(),
-                SyntaxKind.CompareKeyword => ParseOptionCompare(),
-                _ => null
-            };
+            return ParseOptionExplicit();
+        }
+
+        if (IsOptionDirective("Base"))
+        {
+            return ParseOptionBase();
+        }
+
+        if (IsOptionDirective("Compare"))
+        {
+            return ParseOptionCompare();
         }
 
         if (Current.Kind == SyntaxKind.DeclareKeyword)
@@ -268,6 +272,11 @@ public sealed class Parser
          string.Equals(token.Text, "Friend", StringComparison.OrdinalIgnoreCase) ||
          string.Equals(token.Text, "Global", StringComparison.OrdinalIgnoreCase));
 
+    private bool IsOptionDirective(string name) =>
+        Current.Kind == SyntaxKind.OptionKeyword &&
+        Peek(1).Kind == SyntaxKind.IdentifierToken &&
+        string.Equals(Peek(1).Text, name, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// 'Attribute' is not a reserved word in VB6, so it is only an attribute line when an
     /// attribute name follows it. That keeps 'Attribute' usable as an ordinary identifier.
@@ -302,7 +311,7 @@ public sealed class Parser
     private OptionBaseSyntax ParseOptionBase()
     {
         var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
-        var baseKeyword = MatchToken(SyntaxKind.BaseKeyword);
+        var baseIdentifier = MatchToken(SyntaxKind.IdentifierToken);
         var valueToken = MatchToken(SyntaxKind.IntegerLiteralToken);
         if (valueToken.Text is not "0" and not "1")
         {
@@ -310,13 +319,13 @@ public sealed class Parser
         }
 
         ConsumeLineTerminator();
-        return new OptionBaseSyntax(optionKeyword, baseKeyword, valueToken);
+        return new OptionBaseSyntax(optionKeyword, baseIdentifier, valueToken);
     }
 
     private OptionCompareSyntax ParseOptionCompare()
     {
         var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
-        var compareKeyword = MatchToken(SyntaxKind.CompareKeyword);
+        var compareIdentifier = MatchToken(SyntaxKind.IdentifierToken);
         var modeToken = MatchToken(SyntaxKind.IdentifierToken);
         if (!string.Equals(modeToken.Text, "Text", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(modeToken.Text, "Binary", StringComparison.OrdinalIgnoreCase))
@@ -325,7 +334,7 @@ public sealed class Parser
         }
 
         ConsumeLineTerminator();
-        return new OptionCompareSyntax(optionKeyword, compareKeyword, modeToken);
+        return new OptionCompareSyntax(optionKeyword, compareIdentifier, modeToken);
     }
 
     private SubDeclarationSyntax ParseSubDeclaration(SyntaxToken? visibilityKeyword = null)

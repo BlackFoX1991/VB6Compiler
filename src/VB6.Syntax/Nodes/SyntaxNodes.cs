@@ -22,7 +22,7 @@ public sealed record OptionExplicitSyntax(
 /// </summary>
 public sealed record OptionBaseSyntax(
     SyntaxToken OptionKeyword,
-    SyntaxToken BaseKeyword,
+    SyntaxToken BaseIdentifier,
     SyntaxToken ValueToken) : MemberSyntax(SyntaxKind.OptionBaseStatement);
 
 /// <summary>
@@ -31,7 +31,7 @@ public sealed record OptionBaseSyntax(
 /// </summary>
 public sealed record OptionCompareSyntax(
     SyntaxToken OptionKeyword,
-    SyntaxToken CompareKeyword,
+    SyntaxToken CompareIdentifier,
     SyntaxToken ModeToken) : MemberSyntax(SyntaxKind.OptionCompareStatement);
 
 /// <summary>

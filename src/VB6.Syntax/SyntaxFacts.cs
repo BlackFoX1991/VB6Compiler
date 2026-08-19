@@ -6,8 +6,6 @@ public static class SyntaxFacts
     {
         "OPTION" => SyntaxKind.OptionKeyword,
         "EXPLICIT" => SyntaxKind.ExplicitKeyword,
-        "BASE" => SyntaxKind.BaseKeyword,
-        "COMPARE" => SyntaxKind.CompareKeyword,
         "SUB" => SyntaxKind.SubKeyword,
         "FUNCTION" => SyntaxKind.FunctionKeyword,
         "DECLARE" => SyntaxKind.DeclareKeyword,
