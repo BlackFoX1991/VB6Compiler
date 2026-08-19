@@ -93,6 +93,16 @@ public sealed class Parser
             return ParseEnumDeclaration(NextToken());
         }
 
+        if (Current.Kind == SyntaxKind.TypeKeyword)
+        {
+            return ParseTypeDeclaration(null);
+        }
+
+        if (IsVisibilityModifier(Current) && Peek(1).Kind == SyntaxKind.TypeKeyword)
+        {
+            return ParseTypeDeclaration(NextToken());
+        }
+
         if (IsVisibilityModifier(Current) && Peek(1).Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
         {
             var visibility = NextToken();
@@ -221,6 +231,58 @@ public sealed class Parser
             members.ToImmutable(),
             endKeyword,
             endEnumKeyword);
+    }
+
+    private TypeDeclarationSyntax ParseTypeDeclaration(SyntaxToken? visibilityKeyword)
+    {
+        var typeKeyword = MatchToken(SyntaxKind.TypeKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        ConsumeLineTerminator();
+
+        var members = ImmutableArray.CreateBuilder<TypeMemberSyntax>();
+        while (Current.Kind != SyntaxKind.EndOfFileToken && !IsEndPair(SyntaxKind.TypeKeyword))
+        {
+            if (Current.Kind == SyntaxKind.NewLineToken)
+            {
+                NextToken();
+                continue;
+            }
+
+            var memberIdentifier = MatchToken(SyntaxKind.IdentifierToken);
+            var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
+            var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+            var memberType = MatchTypeToken();
+
+            SyntaxToken? starToken = null;
+            ExpressionSyntax? fixedStringLength = null;
+            if (Current.Kind == SyntaxKind.StarToken)
+            {
+                starToken = NextToken();
+                fixedStringLength = ParseExpression();
+            }
+
+            ConsumeLineTerminator();
+            members.Add(new TypeMemberSyntax(
+                memberIdentifier,
+                openParenthesis,
+                dimensions,
+                closeParenthesis,
+                asKeyword,
+                memberType,
+                starToken,
+                fixedStringLength));
+        }
+
+        var endKeyword = MatchToken(SyntaxKind.EndKeyword);
+        var endTypeKeyword = MatchToken(SyntaxKind.TypeKeyword);
+        ConsumeLineTerminator();
+        return new TypeDeclarationSyntax(
+            visibilityKeyword,
+            typeKeyword,
+            identifier,
+            members.ToImmutable(),
+            endKeyword,
+            endTypeKeyword);
     }
 
     private ConstDeclarationSyntax ParseConstDeclaration(SyntaxToken? visibilityKeyword)
