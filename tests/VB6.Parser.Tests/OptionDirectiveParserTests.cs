@@ -24,11 +24,13 @@ public sealed class OptionDirectiveParserTests
         Assert.IsInstanceOfType<OptionExplicitSyntax>(result.Root.Members[0]);
 
         var optionBase = (OptionBaseSyntax)result.Root.Members[1];
-        Assert.AreEqual(SyntaxKind.BaseKeyword, optionBase.BaseKeyword.Kind);
+        Assert.AreEqual(SyntaxKind.IdentifierToken, optionBase.BaseIdentifier.Kind);
+        Assert.AreEqual("Base", optionBase.BaseIdentifier.Text);
         Assert.AreEqual("0", optionBase.ValueToken.Text);
 
         var optionCompare = (OptionCompareSyntax)result.Root.Members[2];
-        Assert.AreEqual(SyntaxKind.CompareKeyword, optionCompare.CompareKeyword.Kind);
+        Assert.AreEqual(SyntaxKind.IdentifierToken, optionCompare.CompareIdentifier.Kind);
+        Assert.AreEqual("Compare", optionCompare.CompareIdentifier.Text);
         Assert.AreEqual("Text", optionCompare.ModeToken.Text);
     }
 
