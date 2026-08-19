@@ -1,123 +1,180 @@
 # Roadmap
 
-Weg von "VB6-Teilmenge kompiliert" zu "beliebiges Legacy-`.vbp` kompiliert unverändert", plus moderne Typerweiterungen, danach die IDE.
+Weg von "VB6-Teilmenge kompiliert" zu "beliebiges Legacy-`.vbp` kompiliert unverändert", plus
+moderne Typerweiterungen, danach die IDE.
 
-## Ehrliche Größeneinschätzung
+Die Reihenfolge stammt aus einer Konstrukt-Frequenzanalyse über echten VB6-Code, nicht aus einer
+generischen VB6-Feature-Liste.
 
-Der heutige Compiler ist ~4.700 Zeilen und deckt die imperative Sprachbasis ab. Zur vollen Parität fehlen drei Blöcke, von denen **jeder einzelne größer ist als der bisherige Compiler**:
+## Gemessener Ist-Stand
 
-1. die VB6-Standardbibliothek (~200 Funktionen, `Format$` allein ist ein Projekt)
-2. Forms + Controls + OCX-Hosting
-3. COM-Interop in beide Richtungen
+Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42 Quelldateien):
 
-Das ist kein Argument gegen das Ziel, sondern für die Reihenfolge: Jede Phase unten ist für sich nutzbar, und keine erzwingt später einen Umbau der vorherigen.
+```
+Analyzed 27 of 40 project items. 0 of 27 analyze without errors.
+Total errors: 3361   (VB6P0001: 3183, VB6L0001: 178)
+```
 
-## Zwei Entscheidungen, die die Architektur bestimmen
+Das ist die Nulllinie. Sie muss über die Meilensteine monoton fallen. Nur `.bas` wird heute
+gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor — daher 27 von 40 Items.
 
-### 1. Bitness vs. Legacy-Controls — der zentrale Zielkonflikt
+### Was die Messung an der Planung geändert hat
 
-"64 Bit" und "alte Projekte laufen ohne weiteres" widersprechen sich an einer Stelle: **OCX/ActiveX-Controls und die meisten `Declare`-Ziele in Legacy-Projekten sind 32-Bit-COM-DLLs. Ein 64-Bit-Prozess kann sie nicht in-process laden.** Kein Compiler-Trick ändert das.
+Die Top-Blocker sind kleinteiliger und billiger als erwartet. Alle 27 Module scheitern an
+derselben Stelle: **Zeile 1 jeder `.bas`-Datei ist `Attribute VB_Name = "..."`**. Das allein
+erzeugt drei der vier häufigsten Meldungen und trifft ausnahmslos jede Datei.
 
-Mögliche Wege:
-- **x86-Ausgabe als Default, x64 als Opt-in.** Maximale Kompatibilität, "64 Bit" gilt dann für Sprache/Typen, nicht für den Prozess.
-- **x64-Default mit COM-Surrogat** für 32-Bit-Controls (out-of-process). Funktioniert für Automatisierungsobjekte, nicht für sichtbare Controls im Fenster.
-- **Beides emittieren**, Wahl pro Projekt.
+Danach, nach betroffenen Dateien sortiert:
 
-Empfehlung: dritter Weg, Default x86, sobald Phase E ansteht. Bis dahin blockiert die Frage nichts — sie muss aber **vor** Phase E entschieden sein, weil Marshalling-Code davon abhängt.
+| Blocker | Belege |
+|---|---|
+| `Attribute`-Kopfzeile | 27 von 27 Dateien |
+| Deklarationen auf Modulebene (`Public x As Long`) | 22 Dateien |
+| `Sub`/`Function` mit `Public`/`Private`-Modifizierer | 20 Dateien |
+| `With`-Blöcke (`.Feld`-Zugriff) | 19 Dateien, 629 Vorkommen |
+| Bezeichner-Typsuffixe | `Mid$` 110×, `ret&` 26×, `lphKey&` 10× |
+| `:` als Anweisungstrenner | `AppType = 0: pError = False` |
+| Datei-I/O mit Dateinummern | `Open ... For Binary As #1`, `Put #1`, `Close #1` |
 
-### 2. `Variant` sollte früh kommen, nicht spät
+Konsequenz: Diese Punkte sind einzeln klein, betreffen aber jede Datei und blockieren dadurch
+die Messung von allem Übrigen. Sie stehen deshalb vorn.
 
-`Variant` ist der Default-Typ in VB6 — jede nicht deklarierte Variable, jeder `Optional`-Parameter ohne Typ, fast jede Bibliotheksfunktionssignatur. Je länger Binder und Generator ohne `Variant` wachsen, desto mehr Code muss beim Nachrüsten angefasst werden. Deshalb steht er hier in Phase A und nicht hinter den Klassen.
+## Korpus-Frequenzen
 
-### 3. Ohne Konformitätskorpus ist "Parität" nicht messbar
+Häufig in VISIA — es ist ein Systemprogramm (Assembler, Linker, PE-Erzeugung), kein
+Business-Programm:
 
-Am wertvollsten früh: ein `conformance/`-Verzeichnis mit echten kleinen VB6-Projekten plus erwarteter Ausgabe (idealerweise unter echtem VB6 einmal aufgezeichnet). Jedes Feature erweitert den Korpus, CI hält ihn grün. Das verwandelt "unterstützt alles" von einer Meinung in eine Zahl.
+| | | | |
+|---|---|---|---|
+| `&H`/`&O`-Literale | 892 ✅ | `Event`/`RaiseEvent` | 97 |
+| String-Funktionen | 337 | `Optional`/`ParamArray` | 77 |
+| `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
+| `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
+| `ReDim`/`Preserve` | 103 | `Type ... End Type` | 52 |
+| `With` | 102 | `Enum` | 44 |
+
+Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0, `Resume`-Statement 0. Da `Resume`
+fehlt, genügt `On Error GoTo` + `On Error Resume Next` + `Err` — kein voller
+Resume-Zustandsautomat.
+
+## Entschiedene Weichenstellungen
+
+- **Variant früh**, bewusst gegen die VISIA-Evidenz (dort nur 20 Treffer): der Umbau wird später
+  teurer, und die Business-Legacy-Projekte brauchen ihn sehr wohl.
+- **x86 als Default-Ausgabe, x64 opt-in.** Bestätigt durch den Korpus: VISIA hängt an 32-Bit-OCX
+  (`MSComDlg.CommonDialog`, `MSComctlLib`, `RichTextLib`), die ein 64-Bit-Prozess nicht
+  in-process laden kann. „64 Bit" gilt für Sprache und Typen, nicht zwingend für den Prozess.
+  Muss vor Meilenstein 8 endgültig entschieden sein, weil Marshalling-Code davon abhängt.
+- **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
+- **Offen:** VISIA ist Fremdsoftware und liegt bislang unversioniert im Arbeitsverzeichnis. Vor
+  dem Einchecken als `conformance/`-Fixture ist die Lizenzlage zu klären; alternativ per
+  Pfadangabe referenzieren. `--report` nimmt jeden Pfad entgegen.
 
 ---
 
-## Phase A — Sprachkern schließen
+## Meilenstein 0 — Paritätsmessung ✅
 
-Reihenfolge innerhalb der Phase ist bewusst.
+`vb6c <projekt.vbp> --report` liefert Item-Inventar, Anteil fehlerfrei analysierter Dateien und
+die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 
-- [ ] **Bitweise `And`/`Or`/`Xor`/`Not`/`Eqv`/`Imp` auf Numerik** + `&H`/`&O`-Literale — heute per `VB6S0018` abgelehnt, in Legacy-Code allgegenwärtig (`If (flags And &H1) <> 0`)
-- [ ] `Const`, `Option Explicit`-Durchsetzung, `Option Base`, `Option Compare`
-- [ ] **Arrays** — fest, dynamisch, mehrdimensional, `ReDim`/`Preserve`, `LBound`/`UBound`, `Erase`, `For Each`
-- [ ] `String`-Vollständigkeit: Strings fester Länge, `Option Compare Text/Binary` in Vergleichen
-- [ ] `Date` + `#...#`-Literale (VB6-Date ist ein Double-Serial, nicht `DateTime`)
-- [ ] **`Variant`** — `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`, implizite Konvertierungen, Variant-Arithmetik mit VB6-Promotionsregeln
-- [ ] `Type ... End Type` (UDT), `Enum`
-- [ ] Zeilennummern und Labels
+## Meilenstein 1 — Bitweise Semantik und Zahlliterale ✅
 
-**Moderne Erweiterungen dieser Phase** (additiv, siehe Invariante in CLAUDE.md): erstklassiges `Decimal` (VB6 kennt es nur als Variant-Subtyp), vorzeichenlose Ganzzahltypen, `LongPtr`.
+`&H`/`&O`-Literale mit VB6-Wrapping, `&`/`%`-Typsuffixe an Literalen, bitweise
+`And`/`Or`/`Xor`/`Eqv`/`Imp`/`Not` auf Numerik.
 
-## Phase B — Prozedur- und Modulmodell
+## Meilenstein 2 — Dateien überhaupt lesbar machen
 
-- [ ] `Optional` mit Defaultwerten, `ParamArray`, `Static`-Locals
-- [ ] ByRef-Randfälle: geklammerte Argumente, temporäre Konvertierungen
+Vorgezogen und neu zugeschnitten nach der Messung. Ziel: die Zahl fehlerfrei analysierter
+Dateien von 0 wegbekommen.
+
+- [ ] `Attribute`-Zeilen auf Modulebene
+- [ ] Deklarationen auf Modulebene: `Public`/`Private`/`Global`/`Dim`/`Static`
+- [ ] `Public`/`Private`/`Friend`-Modifizierer an `Sub` und `Function`
+- [ ] Bezeichner-Typsuffixe `$ % & ! # @`
+- [ ] `:` als Anweisungstrenner
+- [ ] `With`-Blöcke und `.Feld`-Zugriff
+- [ ] `Const`, `Option Explicit`, `Option Base`, `Option Compare`
+- [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren)
+- [ ] `Enum`
+- [ ] `^`-Operator, `Like`, `Is`
+
+## Meilenstein 3 — Arrays und UDTs
+
+Zusammen, weil Win32-Strukturen beides brauchen.
+
+- [ ] `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional, `Option Base`
+- [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound`, `For Each`
+- [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`
+- [ ] Neu: `ArrayTypeSymbol`, `UserDefinedTypeSymbol`; `VBArray<T>` in der Runtime
+
+## Meilenstein 4 — Variant
+
+- [ ] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`
+- [ ] Variant-Arithmetik mit VB6-Promotionsregeln, implizite Konvertierung
+- [ ] Untypisierte `Dim` und untypisierte `Optional`-Parameter werden Variant
+- [ ] Erstklassiges `Decimal` als additive Erweiterung
+
+## Meilenstein 5 — Prozeduren und Klassen
+
+- [ ] `Optional` mit Defaults, `ParamArray`, `Static`-Locals, ByRef-Randfälle
 - [ ] `Property Get`/`Let`/`Set`
-- [ ] **Klassenmodule** — `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`, `Event`/`RaiseEvent`/`WithEvents`, Default-Properties
-- [ ] Bedingte Kompilierung `#If`/`#Const`
-- [ ] `With`-Blöcke
+- [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
+- [ ] `Event`/`RaiseEvent`, `WithEvents`
+- [ ] `.cls` als Projektquelle lesen (hebt die Item-Abdeckung von 27 auf 30)
 
-## Phase C — IR und Fehlerbehandlung
+## Meilenstein 6 — IR und Fehlerbehandlung
 
-**Hier ist der Punkt, an dem das Lowering aus dem Generator raus muss.** `Resume` muss zur Anweisung *nach* der fehlgeschlagenen zurückkehren — das braucht eine explizite Anweisungsnummerierung und einen Zustandsautomaten pro Prozedur, kein Textgenerator.
+Hier muss das Lowering aus dem Generator heraus. Heute erzeugt `CSharpGenerator` Sprungmarken
+direkt beim Emittieren; das trägt nicht mehr, sobald `On Error Resume Next` jede Anweisung
+einzeln absichern muss.
 
-- [ ] Lowered IR mit explizitem Control Flow (Basic Blocks, Labels, Sprünge)
-- [ ] `GoTo`, `On ... GoTo`, `GoSub`/`Return`
-- [ ] **`On Error GoTo` / `Resume` / `Resume Next` / `Err`-Objekt** mit VB6-Fehlercodes
-- [ ] `End`, `Stop`, `DoEvents`
+- [ ] Lowered IR mit Basic Blocks und expliziten Sprüngen
+- [ ] `GoTo`, Labels, Zeilennummern, `On ... GoTo`, `GoSub`/`Return`
+- [ ] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt
 
-C# als Backend trägt das (`goto` + `switch`-Automat). Falls stattdessen direkt IL emittiert werden soll, ist **hier** der Entscheidungspunkt, nicht später.
+## Meilenstein 7 — Standardbibliothek
 
-## Phase D — VB6-Standardbibliothek
+Nach Korpusbedarf priorisiert:
 
-- [ ] String: `Left`/`Right`/`Mid`/`Len`/`InStr`/`InStrRev`/`Replace`/`Split`/`Join`/`Trim`/`LCase`/`UCase`/`StrComp`/`String`/`Space`/`StrReverse`
-- [ ] Math: `Abs`/`Sgn`/`Sqr`/`Int`/`Fix`/`Round`/`Rnd`/`Randomize`/trigonometrisch/`Log`/`Exp`
-- [ ] Konvertierung: vollständige `C*`-Familie, `Val`, `Str`, `Hex`, `Oct`, `Asc`, `Chr`
-- [ ] **`Format$`/`Format`** — eigenes Teilprojekt, VB6-Formatstrings sind nicht .NET-Formatstrings
-- [ ] Datum/Zeit: `Now`/`Date`/`Time`/`DateAdd`/`DateDiff`/`DatePart`/`DateSerial`/`Timer`
-- [ ] Datei-I/O-Statements: `Open`/`Close`/`Print #`/`Write #`/`Input #`/`Line Input #`/`Get`/`Put`/`Seek`/`FreeFile`/`Dir`/`Kill`/`Name`
-- [ ] `Collection`, `App`, `Screen`, `Printer`, `Clipboard`
-- [ ] Finanzfunktionen (`Pmt`, `NPV`, `IRR`, ...)
-- [ ] `MsgBox`/`InputBox`
+1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`
+2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`
+3. `MsgBox`/`InputBox`
+4. Math, Konvertierung, `Like`
+5. Erst danach `Format$`, Datum/Zeit, Finanzfunktionen — im Korpus unbenutzt
 
-## Phase E — Interop
+## Meilenstein 8 — Interop
 
-- [ ] `Declare` -> P/Invoke, inkl. `Alias`, `As Any`, ANSI-String-Marshalling
-- [ ] COM-Konsum: Typbibliotheken aus `.vbp`-`Reference=`-Zeilen, `CreateObject`, `GetObject`, Late Binding über `IDispatch`
-- [ ] COM-Bereitstellung: Projekttypen ActiveX-DLL/-EXE
-- [ ] **Bitness-Entscheidung umgesetzt** (siehe oben)
+Durch `Declare` (234) deutlich früher als ursprünglich geplant; ab Meilenstein 5 parallel
+beginnbar, da weitgehend unabhängig vom Sprachkern.
 
-## Phase F — Forms
+- [ ] `Declare` → P/Invoke mit `Alias`, `As Any`, ANSI-String-Marshalling
+- [ ] COM-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
+- [ ] x86-Standardausgabe umgesetzt, nativer Apphost statt DLL + runtimeconfig
+- [ ] `LongPtr`, vorzeichenlose Ganzzahltypen
 
-Größter Einzelblock. Hier entscheidet sich, ob echte Legacy-Anwendungen laufen.
+## Meilenstein 9 — Forms
 
-- [ ] `.frm`/`.frx` parsen -> Formulardefinition
-- [ ] VB6-kompatible Forms-Runtime auf WinForms: intrinsische Controls, Property-/Event-Mapping, `Load`/`Unload`/`Show`/`Hide`, Twips-Koordinaten
-- [ ] **Control-Arrays** — kein WinForms-Konzept, braucht eigene Nachbildung
-- [ ] Zeichnen: `Line`/`Circle`/`PSet`/`Print` auf Form und `PictureBox`
-- [ ] OCX-Hosting (ActiveX-Control-Container)
-- [ ] MDI-Formulare
-- [ ] Nativer Windows-Apphost `.exe` statt DLL + runtimeconfig
-- [ ] `.res`-Ressourcendateien
+Größter Einzelblock.
 
-## Phase G — IDE
+- [ ] `.frm`/`.frx` parsen; intrinsische Controls (Menu, Label, Shape, PictureBox, Image, Line,
+      CommandButton, TextBox, Frame, Timer)
+- [ ] Forms-Runtime auf WinForms: Twips, Property-/Event-Mapping, `Load`/`Unload`/`Show`
+- [ ] **Control-Arrays** — kein WinForms-Konzept, eigene Nachbildung
+- [ ] Zeichnen auf Form/PictureBox, MDI
+- [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
+- [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
 
-Erst sinnvoll, wenn Phase F trägt — der Designer braucht dieselbe Formularrepräsentation, die der Compiler liest.
+## Meilenstein 10 — IDE
 
-- [ ] Editor mit VB6-Syntax, Projektbaum, Compilerdiagnostik inline
-- [ ] WinForms-Designer, der `.frm` liest und schreibt (Roundtrip verlustfrei)
-- [ ] Debugger: Haltepunkte, Direktfenster, Überwachungsausdrücke
-- [ ] Kompilieren und Starten aus der IDE
+Eigenständig in C#/WinForms, sobald der Compiler trägt: Editor mit VB6-Syntax, Projektbaum,
+Inline-Diagnostics, WinForms-Designer mit verlustfreiem `.frm`-Roundtrip, Debugger.
 
 ---
 
-## Kurzfristig als Nächstes
+## Zusätzlich, klein und unabhängig
 
-Unabhängig von der großen Reihenfolge, klein und in sich abgeschlossen:
-
-1. `Debug.Print` auf VB6-Formatierung bringen (führendes Leerzeichen, 15 signifikante Stellen) und die E2E-Tests von `.Trim()` befreien
-2. Typisierte Vergleiche direkt emittieren statt über `object`-Boxing
-3. `conformance/`-Korpus aufsetzen, solange er noch klein ist
-4. `Currency`-Promotionsregeln gegen echtes VB6 verifizieren (`Currency + Double` liefert hier heute `Currency`)
+1. `Debug.Print` auf VB6-Formatierung (führendes Vorzeichen-Leerzeichen, 15 signifikante
+   Stellen); danach `.Trim()` aus den E2E-Tests entfernen
+2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
+   Binder hat beide Seiten bereits angeglichen
+3. `Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren

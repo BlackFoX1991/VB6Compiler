@@ -136,6 +136,18 @@ Inspect a VB6 project file:
 vb6c LegacyApp.vbp
 ```
 
+Measure how much of a project the compiler currently understands:
+
+```text
+vb6c LegacyApp.vbp --report
+```
+
+The report lists the project items by kind and marks the kinds that are not read yet, counts
+how many source files analyze without errors, and ranks the remaining gaps by the number of
+files each one affects. Raw diagnostic counts are deliberately not the headline number: one
+unsupported construct derails the parser for the rest of the file, so the cascade would drown
+out the gaps that matter.
+
 Generate C# source from one source file:
 
 ```text
