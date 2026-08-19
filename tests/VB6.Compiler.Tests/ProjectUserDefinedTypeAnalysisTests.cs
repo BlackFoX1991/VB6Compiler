@@ -69,7 +69,7 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
             var analysis = VBProjectCompilation.Create(projectPath).Analyze();
 
             Assert.IsFalse(analysis.Success);
-            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0041"));
+            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0045"));
         }
         finally
         {
