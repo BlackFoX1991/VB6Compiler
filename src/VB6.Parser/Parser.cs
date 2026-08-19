@@ -1334,11 +1334,30 @@ public sealed class Parser
             expression = new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
         }
 
-        while (Current.Kind == SyntaxKind.DotToken)
+        while (true)
         {
-            var dotToken = NextToken();
-            var memberToken = MatchTypeMemberName();
-            expression = new MemberAccessExpressionSyntax(expression, dotToken, memberToken);
+            if (Current.Kind == SyntaxKind.DotToken)
+            {
+                var dotToken = NextToken();
+                var memberToken = MatchTypeMemberName();
+                expression = new MemberAccessExpressionSyntax(expression, dotToken, memberToken);
+                continue;
+            }
+
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                var openParenthesis = NextToken();
+                var indices = ParseArguments(SyntaxKind.CloseParenthesisToken);
+                var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+                expression = new ElementAccessExpressionSyntax(
+                    expression,
+                    openParenthesis,
+                    indices,
+                    closeParenthesis);
+                continue;
+            }
+
+            break;
         }
 
         return expression;

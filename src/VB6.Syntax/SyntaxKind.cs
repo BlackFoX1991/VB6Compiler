@@ -131,6 +131,7 @@ public enum SyntaxKind
     NameExpression,
     InvocationExpression,
     MemberAccessExpression,
+    ElementAccessExpression,
     WithReceiverExpression,
     UnaryExpression,
     BinaryExpression,
