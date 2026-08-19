@@ -102,7 +102,7 @@ public sealed record VBProjectParityReport(
             analysis.ProjectDiagnostics);
     }
 
-    public string Render(int gapLimit = 15, int fileLimit = 10)
+    public string Render(int gapLimit = 50, int fileLimit = 20)
     {
         var builder = new StringBuilder();
         var projectName = Project.Name ?? Path.GetFileNameWithoutExtension(Project.FilePath);
