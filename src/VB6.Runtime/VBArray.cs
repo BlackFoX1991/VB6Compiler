@@ -64,6 +64,58 @@ public sealed class VBArray<T>
     /// </summary>
     public ref T this[params int[] indices] => ref _items[GetOffset(indices)];
 
+    /// <summary>
+    /// Implements the storage operation required by VB6 <c>ReDim Preserve</c>. VB6 permits
+    /// Preserve to change only the upper bound of the final dimension. Earlier dimensions, the
+    /// rank, and the final dimension's lower bound must remain unchanged.
+    /// </summary>
+    public VBArray<T> ReDimPreserve(params VBArrayBound[] bounds)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+        if (bounds.Length != Rank)
+        {
+            throw new ArgumentException(
+                "ReDim Preserve cannot change the number of array dimensions.",
+                nameof(bounds));
+        }
+
+        for (var dimension = 0; dimension < Rank - 1; dimension++)
+        {
+            if (bounds[dimension] != _bounds[dimension])
+            {
+                throw new ArgumentException(
+                    "ReDim Preserve can change only the upper bound of the final dimension.",
+                    nameof(bounds));
+            }
+        }
+
+        var lastDimension = Rank - 1;
+        if (bounds[lastDimension].Lower != _bounds[lastDimension].Lower)
+        {
+            throw new ArgumentException(
+                "ReDim Preserve cannot change an array lower bound.",
+                nameof(bounds));
+        }
+
+        var resized = new VBArray<T>(bounds);
+        var oldLastLength = _bounds[lastDimension].Length;
+        var newLastLength = bounds[lastDimension].Length;
+        var preservedLastLength = Math.Min(oldLastLength, newLastLength);
+        var rows = Length / oldLastLength;
+
+        for (var row = 0; row < rows; row++)
+        {
+            Array.Copy(
+                _items,
+                row * oldLastLength,
+                resized._items,
+                row * newLastLength,
+                preservedLastLength);
+        }
+
+        return resized;
+    }
+
     private VBArrayBound GetBound(int dimension)
     {
         if (dimension < 1 || dimension > Rank)
