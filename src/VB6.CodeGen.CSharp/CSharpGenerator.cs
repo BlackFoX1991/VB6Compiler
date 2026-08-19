@@ -354,15 +354,15 @@ public sealed class CSharpGenerator
             }
 
             case BoundAssignmentStatement assignment:
-                WriteLine($"{GetVariableName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
+                WriteLine($"{GetVariableName(assignment.Variable)} = {EmitValueCopy(assignment.Expression)};");
                 break;
 
             case BoundArrayElementAssignmentStatement arrayAssignment:
-                WriteLine($"{GetVariableName(arrayAssignment.Array)}[{EmitIndices(arrayAssignment.Indices)}] = {EmitExpression(arrayAssignment.Expression)};");
+                WriteLine($"{GetVariableName(arrayAssignment.Array)}[{EmitIndices(arrayAssignment.Indices)}] = {EmitValueCopy(arrayAssignment.Expression)};");
                 break;
 
             case BoundMemberAssignmentStatement memberAssignment:
-                WriteLine($"{EmitExpression(memberAssignment.Target)} = {EmitExpression(memberAssignment.Expression)};");
+                WriteLine($"{EmitExpression(memberAssignment.Target)} = {EmitValueCopy(memberAssignment.Expression)};");
                 break;
 
             case BoundIfStatement ifStatement:
@@ -645,10 +645,22 @@ public sealed class CSharpGenerator
 
     private string EmitArgument(BoundArgument argument)
     {
-        var expression = EmitExpression(argument.Expression);
-        return argument.Parameter?.PassingMode == ParameterPassingMode.ByRef
-            ? $"ref {expression}"
-            : expression;
+        if (argument.Parameter?.PassingMode == ParameterPassingMode.ByRef)
+        {
+            return $"ref {EmitExpression(argument.Expression)}";
+        }
+
+        return argument.Parameter?.PassingMode == ParameterPassingMode.ByVal
+            ? EmitValueCopy(argument.Expression)
+            : EmitExpression(argument.Expression);
+    }
+
+    private string EmitValueCopy(BoundExpression expression)
+    {
+        var emitted = EmitExpression(expression);
+        return expression.Type is UserDefinedTypeSymbol userDefinedType && RequiresManagedClone(userDefinedType)
+            ? $"{emitted}.__vb6_clone()"
+            : emitted;
     }
 
     private string EmitIndices(IEnumerable<BoundExpression> indices) =>
