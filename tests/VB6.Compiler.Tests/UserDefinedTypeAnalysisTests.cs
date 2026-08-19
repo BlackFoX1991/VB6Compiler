@@ -92,7 +92,7 @@ public sealed class UserDefinedTypeAnalysisTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_StopsOnArrayMemberLayout()
+    public void GenerateCSharp_AllowsFixedPrimitiveArrayMemberLayout()
     {
         var generation = VBCompilation.Create("""
             Type Buffer
@@ -104,9 +104,12 @@ public sealed class UserDefinedTypeAnalysisTests
             End Sub
             """, "test.bas").GenerateCSharp();
 
-        Assert.IsFalse(generation.Success);
-        Assert.IsNull(generation.Source);
-        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        Assert.IsNotNull(generation.Source);
+        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        StringAssert.Contains(generation.Source, "new VBArray<int>(new VBArrayBound(0, 3))");
     }
 
     [TestMethod]
