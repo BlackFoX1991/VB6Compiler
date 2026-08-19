@@ -38,16 +38,12 @@ public sealed class Binder
     /// Module-level variables declared by a compilation unit. Exposed so that a project
     /// compilation can pre-declare them across modules, the way procedures already are.
     /// </summary>
-    public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(CompilationUnitSyntax root)
+    public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
+        SourceText text,
+        CompilationUnitSyntax root)
     {
         ArgumentNullException.ThrowIfNull(root);
-
-        return root.Members
-            .OfType<ModuleVariableDeclarationSyntax>()
-            .Select(declaration => new ModuleVariableSymbol(
-                declaration.Identifier.Text,
-                TypeSymbol.Lookup(declaration.TypeToken.Text) ?? TypeSymbol.Error))
-            .ToImmutableArray();
+        return new Binder(text).DeclareModuleVariables(root).Scope.Values.ToImmutableArray();
     }
 
     public SemanticModel BindCompilationUnit(CompilationUnitSyntax root)
@@ -63,7 +59,8 @@ public sealed class Binder
     {
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
-        var moduleVariables = availableModuleVariables ?? DeclareModuleVariables(root);
+        var declared = DeclareModuleVariables(root);
+        var moduleVariables = availableModuleVariables ?? declared.Scope;
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         foreach (var member in root.Members)
         {
@@ -109,7 +106,7 @@ public sealed class Binder
 
         return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable())
         {
-            ModuleVariables = moduleVariables.Values.ToImmutableArray()
+            ModuleVariables = declared.Bound
         };
     }
 
@@ -198,33 +195,90 @@ public sealed class Binder
         return true;
     }
 
-    private Dictionary<string, ModuleVariableSymbol> DeclareModuleVariables(CompilationUnitSyntax root)
+    /// <summary>
+    /// Collects the module-level declarations of one compilation unit. Constants are bound in
+    /// declaration order against the scope built so far, so a constant may refer to one declared
+    /// above it.
+    /// </summary>
+    private (Dictionary<string, ModuleVariableSymbol> Scope, ImmutableArray<BoundModuleVariable> Bound)
+        DeclareModuleVariables(CompilationUnitSyntax root)
     {
-        var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
+        var scope = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
+        var bound = ImmutableArray.CreateBuilder<BoundModuleVariable>();
+        var noProcedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var declaration in root.Members.OfType<ModuleVariableDeclarationSyntax>())
+        foreach (var member in root.Members)
         {
-            var type = TypeSymbol.Lookup(declaration.TypeToken.Text) ?? TypeSymbol.Error;
-            if (type == TypeSymbol.Error)
+            switch (member)
             {
-                Report(
-                    "VB6S0003",
-                    $"Unknown type '{declaration.TypeToken.Text}'.",
-                    declaration.TypeToken.Span);
-            }
+                case ModuleVariableDeclarationSyntax declaration:
+                {
+                    var type = ResolveDeclaredType(declaration.TypeToken);
+                    var symbol = new ModuleVariableSymbol(declaration.Identifier.Text, type);
+                    if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
+                    {
+                        bound.Add(new BoundModuleVariable(symbol, null, IsConstant: false));
+                    }
 
-            if (!moduleVariables.TryAdd(
-                    declaration.Identifier.Text,
-                    new ModuleVariableSymbol(declaration.Identifier.Text, type)))
-            {
-                Report(
-                    "VB6S0019",
-                    $"Module variable '{declaration.Identifier.Text}' is already declared.",
-                    declaration.Identifier.Span);
+                    break;
+                }
+
+                case ConstDeclarationSyntax declaration:
+                {
+                    var visible = scope.ToDictionary(
+                        entry => entry.Key,
+                        entry => (VariableSymbol)entry.Value,
+                        StringComparer.OrdinalIgnoreCase);
+                    var value = BindExpression(declaration.Value, visible, noProcedures);
+
+                    // Without 'As' the constant takes the type of its value.
+                    var type = declaration.TypeToken is null
+                        ? value.Type
+                        : ResolveDeclaredType(declaration.TypeToken);
+                    var symbol = new ModuleVariableSymbol(declaration.Identifier.Text, type);
+                    if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
+                    {
+                        bound.Add(new BoundModuleVariable(
+                            symbol,
+                            BindConversion(value, type),
+                            IsConstant: true));
+                    }
+
+                    break;
+                }
             }
         }
 
-        return moduleVariables;
+        return (scope, bound.ToImmutable());
+    }
+
+    private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken)
+    {
+        var type = TypeSymbol.Lookup(typeToken.Text);
+        if (type is not null)
+        {
+            return type;
+        }
+
+        Report("VB6S0003", $"Unknown type '{typeToken.Text}'.", typeToken.Span);
+        return TypeSymbol.Error;
+    }
+
+    private bool TryDeclareModuleVariable(
+        Dictionary<string, ModuleVariableSymbol> scope,
+        ModuleVariableSymbol symbol,
+        SyntaxToken identifier)
+    {
+        if (scope.TryAdd(symbol.Name, symbol))
+        {
+            return true;
+        }
+
+        Report(
+            "VB6S0019",
+            $"Module variable '{symbol.Name}' is already declared.",
+            identifier.Span);
+        return false;
     }
 
     private BoundProcedure BindProcedure(
@@ -553,8 +607,13 @@ public sealed class Binder
             body);
     }
 
-    private BoundExitLoopStatement BindExit(ExitStatementSyntax syntax)
+    private BoundStatement BindExit(ExitStatementSyntax syntax)
     {
+        if (syntax.TargetKeyword.Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
+        {
+            return new BoundReturnStatement();
+        }
+
         var loopKind = syntax.TargetKeyword.Kind == SyntaxKind.DoKeyword
             ? BoundLoopKind.Do
             : BoundLoopKind.For;

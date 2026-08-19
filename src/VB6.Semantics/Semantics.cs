@@ -97,6 +97,7 @@ public enum BoundNodeKind
     WhileStatement,
     DoStatement,
     ExitLoopStatement,
+    ReturnStatement,
     SelectCaseStatement,
     DebugPrintStatement,
     InvocationStatement,
@@ -159,6 +160,13 @@ public sealed record BoundExitLoopStatement(
     BoundLoopKind LoopKind,
     int TargetLoopId)
     : BoundStatement(BoundNodeKind.ExitLoopStatement);
+
+/// <summary>
+/// <c>Exit Sub</c> and <c>Exit Function</c>: leave the procedure, returning whatever has been
+/// assigned to the function name so far.
+/// </summary>
+public sealed record BoundReturnStatement()
+    : BoundStatement(BoundNodeKind.ReturnStatement);
 
 public abstract record BoundCaseClause;
 
@@ -228,10 +236,19 @@ public sealed record BoundProcedure(
     ImmutableArray<LocalVariableSymbol> Locals,
     BoundBlockStatement Body);
 
+/// <summary>
+/// A module-level variable together with its initial value. Plain declarations have none;
+/// constants always do.
+/// </summary>
+public sealed record BoundModuleVariable(
+    ModuleVariableSymbol Symbol,
+    BoundExpression? Initializer,
+    bool IsConstant);
+
 public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,
     ImmutableArray<Diagnostic> Diagnostics)
 {
-    public ImmutableArray<ModuleVariableSymbol> ModuleVariables { get; init; } =
-        ImmutableArray<ModuleVariableSymbol>.Empty;
+    public ImmutableArray<BoundModuleVariable> ModuleVariables { get; init; } =
+        ImmutableArray<BoundModuleVariable>.Empty;
 }
