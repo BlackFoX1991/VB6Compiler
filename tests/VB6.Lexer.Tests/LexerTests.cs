@@ -26,6 +26,23 @@ public sealed class LexerTests
     }
 
     [TestMethod]
+    public void Lex_RecognizesDeclareKeywordsCaseInsensitively()
+    {
+        var result = new LexerType(SourceText.From("dEcLaRe LIB alias")).Lex();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                SyntaxKind.DeclareKeyword,
+                SyntaxKind.LibKeyword,
+                SyntaxKind.AliasKeyword,
+                SyntaxKind.EndOfFileToken
+            },
+            result.Tokens.Select(token => token.Kind).ToArray());
+        Assert.AreEqual(0, result.Diagnostics.Length);
+    }
+
+    [TestMethod]
     public void Lex_PreservesCommentAsTrivia()
     {
         var result = new LexerType(SourceText.From("Dim x ' comment\r\nAs Integer")).Lex();
