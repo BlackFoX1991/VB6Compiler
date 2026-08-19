@@ -98,6 +98,7 @@ public sealed class Lexer
             '*' => SyntaxKind.StarToken,
             '/' => SyntaxKind.SlashToken,
             '\\' => SyntaxKind.BackslashToken,
+            '^' => SyntaxKind.CaretToken,
             '&' => SyntaxKind.AmpersandToken,
             '=' => SyntaxKind.EqualsToken,
             '(' => SyntaxKind.OpenParenthesisToken,
