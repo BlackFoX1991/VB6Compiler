@@ -141,7 +141,7 @@ public sealed class UserDefinedTypeDeclarationBinderTests
             """);
 
         Assert.IsFalse(result.Success);
-        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0037"));
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0041"));
     }
 
     [TestMethod]
@@ -154,7 +154,7 @@ public sealed class UserDefinedTypeDeclarationBinderTests
             """);
 
         Assert.IsFalse(result.Success);
-        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0040"));
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0044"));
     }
 
     [TestMethod]
