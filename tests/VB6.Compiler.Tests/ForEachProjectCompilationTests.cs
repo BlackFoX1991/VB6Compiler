@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using VB6.Semantics;
+using VB6.Syntax.Nodes;
 
 namespace VB6.Compiler.Tests;
 
@@ -16,7 +18,7 @@ public sealed class ForEachProjectCompilationTests
                 directory,
                 """
                 Sub Main()
-                    Dim item As Variant
+                    Dim item
                     Dim values(1 To 2, 5 To 6) As Long
                     values(1, 5) = 10
                     values(1, 6) = 11
@@ -65,7 +67,7 @@ public sealed class ForEachProjectCompilationTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_LowersDynamicArrayForEachInsideVbpProject()
+    public void Analyze_ProjectPathDefaultsUntypedDeclarationsToVariantWithoutMutatingParseTree()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -74,48 +76,34 @@ public sealed class ForEachProjectCompilationTests
             var projectPath = WriteProject(
                 directory,
                 """
-                Sub Main()
-                    Dim item As Variant
-                    Dim values() As Long
-                    ReDim values(-1 To 1)
-                    values(-1) = 7
-                    values(0) = 8
-                    values(1) = 9
+                Public Current
 
-                    For Each item In values
-                        Debug.Print item
-                    Next item
+                Sub Main()
+                    Dim item
+                    Dim values(1 To 2)
                 End Sub
                 """);
-            var outputDirectory = Path.Combine(directory, "bin");
-            var assemblyPath = Path.Combine(outputDirectory, "ProjectDynamicForEach.dll");
 
-            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(assemblyPath);
-            Assert.IsTrue(result.Success, FormatDiagnostics(result));
-            Assert.IsNotNull(result.AssemblyPath);
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
 
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = outputDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+            Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0020"));
+            Assert.IsNotNull(analysis.SemanticModel);
 
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated dynamic project For Each application.");
+            var current = analysis.SemanticModel.ModuleVariables.Single(variable => variable.Symbol.Name == "Current");
+            Assert.AreSame(TypeSymbol.Variant, current.Symbol.Type);
 
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
+            var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+            Assert.AreSame(TypeSymbol.Variant, main.Locals.Single(local => local.Name == "item").Type);
+            var values = (ArrayTypeSymbol)main.Locals.Single(local => local.Name == "values").Type;
+            Assert.AreSame(TypeSymbol.Variant, values.ElementType);
 
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            CollectionAssert.AreEqual(
-                new[] { "7", "8", "9" },
-                standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
-                standardOutput);
+            var parsedSub = (SubDeclarationSyntax)analysis.Units.Single().Analysis.ParseResult.Root.Members
+                .Single(member => member is SubDeclarationSyntax);
+            var parsedItem = ((DimStatementSyntax)parsedSub.Statements[0]).Declarators.Single();
+            Assert.IsNull(parsedItem.TypeToken);
         }
         finally
         {
