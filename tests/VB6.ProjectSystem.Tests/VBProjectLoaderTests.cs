@@ -58,6 +58,25 @@ public sealed class VBProjectLoaderTests
     }
 
     [TestMethod]
+    public void Parse_IgnoresStandardSectionHeadersAndKeepsSectionProperties()
+    {
+        const string source = """
+            Type=Exe
+            Name="Project1"
+
+            [MS Transaction Server]
+            AutoRefresh=1
+            """;
+
+        var result = new VBProjectLoader().Parse(source, Path.Combine(Path.GetTempPath(), "Project1.vbp"));
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        Assert.IsTrue(result.Project.Properties.Any(property =>
+            property.Name == "AutoRefresh" && property.Value == "1"));
+    }
+
+    [TestMethod]
     public void Parse_ReportsMalformedProjectLineWithoutDiscardingProject()
     {
         const string source = """
