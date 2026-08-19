@@ -38,13 +38,14 @@ public sealed class VBCompilation
         var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(implicitVariantRoot);
         Dictionary<string, ProcedureSymbol> procedureSymbols;
         Dictionary<string, ModuleVariableSymbol> moduleVariableSymbols;
+        ImmutableArray<BoundModuleVariable> visibleEnumConstants;
         SemanticModel preliminaryModel;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
             procedureSymbols = VBIntrinsicSymbols.CreateProcedureTable(implicitVariantRoot);
             moduleVariableSymbols = Binder.CreateModuleVariableSymbols(Text, implicitVariantRoot)
                 .ToDictionary(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
-            enumSymbols.AddMemberSymbols(moduleVariableSymbols);
+            visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
             preliminaryModel = new Binder(Text)
                 .BindCompilationUnit(implicitVariantRoot, procedureSymbols, moduleVariableSymbols);
         }
@@ -69,7 +70,7 @@ public sealed class VBCompilation
         semanticModel = semanticModel with
         {
             Diagnostics = semanticModel.Diagnostics.AddRange(duplicateProcedureDiagnostics),
-            ModuleVariables = semanticModel.ModuleVariables.AddRange(enumSymbols.Constants)
+            ModuleVariables = semanticModel.ModuleVariables.AddRange(visibleEnumConstants)
         };
         semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
 
