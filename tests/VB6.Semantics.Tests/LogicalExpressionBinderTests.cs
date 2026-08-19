@@ -28,20 +28,41 @@ public sealed class LogicalExpressionBinderTests
     }
 
     [TestMethod]
-    public void Bind_ReportsNumericLogicalOperandsUntilBitwiseSemanticsAreImplemented()
+    public void Bind_BindsNumericOperandsAsBitwise()
     {
         var model = BindSource("""
             Sub Main()
                 Dim value As Integer
-                value = 1 And 2
+                value = 12 And 10
             End Sub
             """);
 
-        Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0018"));
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[1];
+        var and = (BoundBinaryExpression)assignment.Expression;
+        Assert.AreEqual(SyntaxKind.AndKeyword, and.OperatorKind);
+        Assert.AreEqual(TypeSymbol.Integer, and.Type);
     }
 
     [TestMethod]
-    public void Bind_ReportsNumericNotUntilBitwiseSemanticsAreImplemented()
+    public void Bind_WidensBitwiseResultToTheCommonIntegerType()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim value As Long
+                Dim wide As Long
+                wide = 70000
+                value = wide Or 1
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[3];
+        Assert.AreEqual(TypeSymbol.Long, assignment.Expression.Type);
+    }
+
+    [TestMethod]
+    public void Bind_BindsNumericNotAsBitwise()
     {
         var model = BindSource("""
             Sub Main()
@@ -50,7 +71,43 @@ public sealed class LogicalExpressionBinderTests
             End Sub
             """);
 
-        Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0017"));
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[1];
+        var not = (BoundUnaryExpression)assignment.Expression;
+        Assert.AreEqual(SyntaxKind.NotKeyword, not.OperatorKind);
+        Assert.AreEqual(TypeSymbol.Integer, not.Type);
+    }
+
+    [TestMethod]
+    public void Bind_WidensEqvOnBytesToInteger()
+    {
+        // The complement produced by Eqv does not fit the unsigned Byte range.
+        var model = BindSource("""
+            Sub Main()
+                Dim left As Byte
+                Dim right As Byte
+                Dim value As Integer
+                value = left Eqv right
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[3];
+        Assert.AreEqual(TypeSymbol.Integer, assignment.Expression.Type);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsNonNumericBitwiseOperand()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim text As String
+                Dim value As Integer
+                value = text And 1
+            End Sub
+            """);
+
+        Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0018"));
     }
 
     private static SemanticModel BindSource(string source)
