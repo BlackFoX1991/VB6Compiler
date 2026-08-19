@@ -112,15 +112,22 @@ internal sealed record VBEnumSymbolSet(
     ImmutableDictionary<string, TypeSymbol> TypeAliases,
     ImmutableArray<BoundModuleVariable> Constants)
 {
-    public void AddMemberSymbols(IDictionary<string, ModuleVariableSymbol> variables)
+    public ImmutableArray<BoundModuleVariable> AddMemberSymbols(
+        IDictionary<string, ModuleVariableSymbol> variables)
     {
         ArgumentNullException.ThrowIfNull(variables);
+        var visible = ImmutableArray.CreateBuilder<BoundModuleVariable>();
         foreach (var constant in Constants)
         {
-            if (!variables.ContainsKey(constant.Symbol.Name))
+            if (variables.ContainsKey(constant.Symbol.Name))
             {
-                variables.Add(constant.Symbol.Name, constant.Symbol);
+                continue;
             }
+
+            variables.Add(constant.Symbol.Name, constant.Symbol);
+            visible.Add(constant);
         }
+
+        return visible.ToImmutable();
     }
 }
