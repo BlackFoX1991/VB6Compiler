@@ -9,7 +9,9 @@ namespace VB6.Semantics;
 /// Variant storage and explicit conversions are supported before the full VB6 Variant operator
 /// promotion matrix. This guard prevents already-bound unary/binary expressions from being
 /// lowered with scalar rules when any operand originates from a Variant value. Multiplication is
-/// allowed only after VariantMultiplyLowerer has marked the bound result as Variant.
+/// allowed only after VariantMultiplyLowerer has marked the bound result as Variant; the narrow
+/// Variant-left integral equality slice is allowed only after the same lowerer has normalized both
+/// operands to Double.
 /// </summary>
 public static class VariantOperationGuard
 {
@@ -177,7 +179,9 @@ public static class VariantOperationGuard
                     ContainsVariantValue(binary.Left) || ContainsVariantValue(binary.Right);
                 var isLoweredMultiply =
                     binary.OperatorKind == SyntaxKind.StarToken && binary.Type == TypeSymbol.Variant;
-                if (hasVariantOperand && !isLoweredMultiply)
+                var isLoweredIntegralEquality =
+                    VariantMultiplyLowerer.IsLoweredVariantIntegralEquality(binary);
+                if (hasVariantOperand && !isLoweredMultiply && !isLoweredIntegralEquality)
                 {
                     AddOperatorDiagnostic(text, binary.OperatorKind.ToString(), diagnostics);
                 }
