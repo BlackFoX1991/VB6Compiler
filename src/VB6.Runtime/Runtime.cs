@@ -223,6 +223,49 @@ public static class VBOperators
 
     public static bool ImpBoolean(bool left, bool right) => !left || right;
 
+    public static short NotInteger(short value) => unchecked((short)~value);
+
+    public static int NotLong(int value) => ~value;
+
+    public static long NotLongLong(long value) => ~value;
+
+    public static byte AndByte(byte left, byte right) => (byte)(left & right);
+
+    public static short AndInteger(short left, short right) => (short)(left & right);
+
+    public static int AndLong(int left, int right) => left & right;
+
+    public static long AndLongLong(long left, long right) => left & right;
+
+    public static byte OrByte(byte left, byte right) => (byte)(left | right);
+
+    public static short OrInteger(short left, short right) => (short)(left | right);
+
+    public static int OrLong(int left, int right) => left | right;
+
+    public static long OrLongLong(long left, long right) => left | right;
+
+    public static byte XorByte(byte left, byte right) => (byte)(left ^ right);
+
+    public static short XorInteger(short left, short right) => (short)(left ^ right);
+
+    public static int XorLong(int left, int right) => left ^ right;
+
+    public static long XorLongLong(long left, long right) => left ^ right;
+
+    public static short EqvInteger(short left, short right) => unchecked((short)~(left ^ right));
+
+    public static int EqvLong(int left, int right) => ~(left ^ right);
+
+    public static long EqvLongLong(long left, long right) => ~(left ^ right);
+
+    public static short ImpInteger(short left, short right) =>
+        unchecked((short)((~left & 0xFFFF) | (right & 0xFFFF)));
+
+    public static int ImpLong(int left, int right) => ~left | right;
+
+    public static long ImpLongLong(long left, long right) => ~left | right;
+
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
     public static bool Equal(object? left, object? right) => Compare(left, right) == 0;

@@ -455,7 +455,7 @@ public sealed class CSharpGenerator
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Single => $"VBOperators.NegateSingle({operand})",
             SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Double => $"VBOperators.NegateDouble({operand})",
             SyntaxKind.MinusToken => $"VBOperators.NegateInteger({operand})",
-            SyntaxKind.NotKeyword => $"VBOperators.NotBoolean({operand})",
+            SyntaxKind.NotKeyword => $"VBOperators.Not{GetRuntimeTypeSuffix(unary.ResultType)}({operand})",
             _ => operand
         };
     }
@@ -473,11 +473,11 @@ public sealed class CSharpGenerator
             SyntaxKind.LessOrEqualsToken => $"VBOperators.LessOrEqual({left}, {right})",
             SyntaxKind.GreaterToken => $"VBOperators.Greater({left}, {right})",
             SyntaxKind.GreaterOrEqualsToken => $"VBOperators.GreaterOrEqual({left}, {right})",
-            SyntaxKind.AndKeyword => $"VBOperators.AndBoolean({left}, {right})",
-            SyntaxKind.OrKeyword => $"VBOperators.OrBoolean({left}, {right})",
-            SyntaxKind.XorKeyword => $"VBOperators.XorBoolean({left}, {right})",
-            SyntaxKind.EqvKeyword => $"VBOperators.EqvBoolean({left}, {right})",
-            SyntaxKind.ImpKeyword => $"VBOperators.ImpBoolean({left}, {right})",
+            SyntaxKind.AndKeyword => EmitArithmeticCall(binary.ResultType, "And", left, right),
+            SyntaxKind.OrKeyword => EmitArithmeticCall(binary.ResultType, "Or", left, right),
+            SyntaxKind.XorKeyword => EmitArithmeticCall(binary.ResultType, "Xor", left, right),
+            SyntaxKind.EqvKeyword => EmitArithmeticCall(binary.ResultType, "Eqv", left, right),
+            SyntaxKind.ImpKeyword => EmitArithmeticCall(binary.ResultType, "Imp", left, right),
             SyntaxKind.AmpersandToken => $"VBOperators.Concat({left}, {right})",
             SyntaxKind.PlusToken when binary.ResultType == TypeSymbol.String => $"VBOperators.Concat({left}, {right})",
             SyntaxKind.PlusToken => EmitArithmeticCall(binary.ResultType, "Add", left, right),
@@ -497,23 +497,25 @@ public sealed class CSharpGenerator
         };
     }
 
-    private static string EmitArithmeticCall(TypeSymbol resultType, string operation, string left, string right)
-    {
-        var suffix = resultType == TypeSymbol.Currency
-            ? "Currency"
-            : resultType == TypeSymbol.Double
-                ? "Double"
-                : resultType == TypeSymbol.Single
-                    ? "Single"
-                    : resultType == TypeSymbol.LongLong
-                        ? "LongLong"
-                        : resultType == TypeSymbol.Long
-                            ? "Long"
-                            : resultType == TypeSymbol.Byte
-                                ? "Byte"
-                                : "Integer";
-        return $"VBOperators.{operation}{suffix}({left}, {right})";
-    }
+    private static string EmitArithmeticCall(TypeSymbol resultType, string operation, string left, string right) =>
+        $"VBOperators.{operation}{GetRuntimeTypeSuffix(resultType)}({left}, {right})";
+
+    private static string GetRuntimeTypeSuffix(TypeSymbol type) =>
+        type == TypeSymbol.Boolean
+            ? "Boolean"
+            : type == TypeSymbol.Currency
+                ? "Currency"
+                : type == TypeSymbol.Double
+                    ? "Double"
+                    : type == TypeSymbol.Single
+                        ? "Single"
+                        : type == TypeSymbol.LongLong
+                            ? "LongLong"
+                            : type == TypeSymbol.Long
+                                ? "Long"
+                                : type == TypeSymbol.Byte
+                                    ? "Byte"
+                                    : "Integer";
 
     private static string GetTypeName(TypeSymbol type)
     {

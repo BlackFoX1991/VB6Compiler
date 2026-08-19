@@ -750,16 +750,26 @@ public sealed class Binder
 
         if (syntax.OperatorToken.Kind == SyntaxKind.NotKeyword)
         {
-            if (operand.Type != TypeSymbol.Boolean)
+            if (operand.Type == TypeSymbol.Boolean)
+            {
+                return new BoundUnaryExpression(SyntaxKind.NotKeyword, operand, TypeSymbol.Boolean);
+            }
+
+            if (!IsNumericType(operand.Type))
             {
                 Report(
                     "VB6S0017",
-                    "Logical operator 'Not' currently requires a Boolean operand; numeric bitwise semantics are not implemented yet.",
+                    "Operator 'Not' requires a Boolean or numeric operand.",
                     syntax.OperatorToken.Span);
-                operand = BindConversion(operand, TypeSymbol.Boolean);
+                return new BoundErrorExpression();
             }
 
-            return new BoundUnaryExpression(SyntaxKind.NotKeyword, operand, TypeSymbol.Boolean);
+            // The complement of a Byte is negative, so VB6 widens it to Integer.
+            var notType = operand.Type == TypeSymbol.Byte
+                ? TypeSymbol.Integer
+                : GetIntegerOperationType(operand.Type, operand.Type);
+            operand = BindConversion(operand, notType);
+            return new BoundUnaryExpression(SyntaxKind.NotKeyword, operand, notType);
         }
 
         if (syntax.OperatorToken.Kind == SyntaxKind.MinusToken && operand.Type == TypeSymbol.Byte)
@@ -820,21 +830,45 @@ public sealed class Binder
             case SyntaxKind.XorKeyword:
             case SyntaxKind.EqvKeyword:
             case SyntaxKind.ImpKeyword:
-                if (left.Type != TypeSymbol.Boolean || right.Type != TypeSymbol.Boolean)
+            {
+                if (left.Type == TypeSymbol.Boolean && right.Type == TypeSymbol.Boolean)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.Boolean);
+                }
+
+                if (!IsBitwiseOperandType(left.Type) || !IsBitwiseOperandType(right.Type))
                 {
                     Report(
                         "VB6S0018",
-                        $"Logical operator '{syntax.OperatorToken.Text}' currently requires Boolean operands; numeric bitwise semantics are not implemented yet.",
+                        $"Operator '{syntax.OperatorToken.Text}' requires Boolean or numeric operands.",
                         syntax.OperatorToken.Span);
-                    left = BindConversion(left, TypeSymbol.Boolean);
-                    right = BindConversion(right, TypeSymbol.Boolean);
+                    return new BoundErrorExpression();
                 }
 
+                // A Boolean mixed with a number takes part as its VB6 numeric value (-1 / 0).
+                var resultType = GetIntegerOperationType(
+                    left.Type == TypeSymbol.Boolean ? TypeSymbol.Integer : left.Type,
+                    right.Type == TypeSymbol.Boolean ? TypeSymbol.Integer : right.Type);
+
+                // The complement produced by Eqv and Imp does not fit the unsigned Byte range.
+                if (resultType == TypeSymbol.Byte &&
+                    syntax.OperatorToken.Kind is SyntaxKind.EqvKeyword or SyntaxKind.ImpKeyword)
+                {
+                    resultType = TypeSymbol.Integer;
+                }
+
+                left = BindConversion(left, resultType);
+                right = BindConversion(right, resultType);
                 return new BoundBinaryExpression(
                     left,
                     syntax.OperatorToken.Kind,
                     right,
-                    TypeSymbol.Boolean);
+                    resultType);
+            }
 
             case SyntaxKind.AmpersandToken:
                 left = BindConversion(left, TypeSymbol.String);
@@ -885,14 +919,7 @@ public sealed class Binder
             case SyntaxKind.BackslashToken:
             case SyntaxKind.ModKeyword:
             {
-                var resultType = left.Type == TypeSymbol.LongLong || right.Type == TypeSymbol.LongLong
-                    ? TypeSymbol.LongLong
-                    : IsFloatingOrFixedPointType(left.Type) || IsFloatingOrFixedPointType(right.Type) ||
-                      left.Type == TypeSymbol.Long || right.Type == TypeSymbol.Long
-                        ? TypeSymbol.Long
-                        : left.Type == TypeSymbol.Byte && right.Type == TypeSymbol.Byte
-                            ? TypeSymbol.Byte
-                            : TypeSymbol.Integer;
+                var resultType = GetIntegerOperationType(left.Type, right.Type);
                 left = BindConversion(left, resultType);
                 right = BindConversion(right, resultType);
                 return new BoundBinaryExpression(
@@ -917,6 +944,23 @@ public sealed class Binder
 
     private static bool IsSingleDivisionOperand(TypeSymbol type) =>
         type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Single;
+
+    private static bool IsBitwiseOperandType(TypeSymbol type) =>
+        IsNumericType(type) || type == TypeSymbol.Boolean;
+
+    /// <summary>
+    /// Result type of the VB6 operators that work on whole numbers: '\', 'Mod' and the bitwise
+    /// operators. Floating-point and Currency operands are rounded to Long first.
+    /// </summary>
+    private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>
+        left == TypeSymbol.LongLong || right == TypeSymbol.LongLong
+            ? TypeSymbol.LongLong
+            : IsFloatingOrFixedPointType(left) || IsFloatingOrFixedPointType(right) ||
+              left == TypeSymbol.Long || right == TypeSymbol.Long
+                ? TypeSymbol.Long
+                : left == TypeSymbol.Byte && right == TypeSymbol.Byte
+                    ? TypeSymbol.Byte
+                    : TypeSymbol.Integer;
 
     private static TypeSymbol GetCommonNumericType(TypeSymbol left, TypeSymbol right)
     {
