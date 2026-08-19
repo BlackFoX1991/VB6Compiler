@@ -16,18 +16,22 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach M2-Grundlagen | **2464** | 2276 | 68 | 120 | 0 von 27 |
 | nach `Declare`-Syntax | **2322** | 2116 | 68 | 138 | 0 von 27 |
 | nach `Enum`-Syntax | **2100** | 1894 | 68 | 138 | 0 von 27 |
+| nach `Optional`-Syntax | **2216** | 1800 | 68 | 348 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
-Parserfehler weg, ohne Lexer- oder Semantikzahlen zu verschieben; `comLinker.bas` fällt dabei
-von 324 auf 255 Fehler und kommt jetzt bis zum anschließenden `Type`-Block. Der VISIA-Report
-läuft als eigener Schritt in GitHub Actions nach Build und Tests.
+Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
+dabei von 2100 auf 2216, weil 210 zusätzliche Semantikdiagnosen sichtbar werden: mehr echte
+Prozeduren erreichen nun den Binder, statt an ihrer Parameterliste zu entgleisen. Das ist kein
+Parser-Rückschritt, sondern genau der gewünschte Übergang von Syntaxkaskaden zu konkreten
+semantischen Lücken. `comAssembler.bas` erreicht jetzt als ersten Fehler eine fehlende Prozedur;
+`comMemory.bas` beginnt mit einem konkreten ByRef-Randfall. Der VISIA-Report läuft als eigener
+Schritt in GitHub Actions nach Build und Tests.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
 
-Dass erstmals *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
-bis zum Binder durch, statt schon im Parser zu entgleisen. `comMemory.bas` parst inzwischen
-fehlerfrei und scheitert nur noch an Prozeduren aus Modulen, die selbst noch nicht parsen.
+Dass zunehmend *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
+bis zum Binder durch, statt schon im Parser zu entgleisen.
 
 Deshalb bleibt die Zahl fehlerfreier Dateien vorerst bei 0: gebunden wird projektweit, also
 kann eine Datei erst sauber sein, wenn auch ihre Abhängigkeiten parsen. Der Sprung kommt
@@ -35,9 +39,15 @@ schlagartig, nicht schrittweise.
 
 ### Was die Messung an der Planung geändert hat
 
-Die Top-Blocker sind kleinteiliger und billiger als erwartet. Alle 27 Module scheitern an
-derselben Stelle: **Zeile 1 jeder `.bas`-Datei ist `Attribute VB_Name = "..."`**. Das allein
-erzeugt drei der vier häufigsten Meldungen und trifft ausnahmslos jede Datei.
+Die Top-Blocker sind kleinteiliger und billiger als erwartet. Alle 27 Module scheiterten anfangs
+an derselben Stelle: **Zeile 1 jeder `.bas`-Datei ist `Attribute VB_Name = "..."`**. Diese
+frühen Parserbarrieren werden deshalb zuerst entfernt, auch wenn die vollständige Semantik eines
+Konstrukts erst in einem späteren Meilenstein folgt.
+
+Nach `Enum` zeigte die Messung zudem, dass ein großer Teil der verbliebenen `AsKeyword`-Kaskaden
+nicht von Mehrfach-`Dim`, sondern von `Optional ... As ...` in realen Prozedurköpfen stammt.
+Deshalb wurde die `Optional`-**Syntax** nach M2 vorgezogen; Default-/Missing-Aufrufsemantik bleibt
+weiterhin M5.
 
 Danach, nach betroffenen Dateien sortiert:
 
@@ -51,7 +61,7 @@ Danach, nach betroffenen Dateien sortiert:
 | `:` als Anweisungstrenner | `AppType = 0: pError = False` |
 | Datei-I/O mit Dateinummern | `Open ... For Binary As #1`, `Put #1`, `Close #1` |
 
-Konsequenz: Diese Punkte sind einzeln klein, betreffen aber jede Datei und blockieren dadurch
+Konsequenz: Diese Punkte sind einzeln klein, betreffen aber viele Dateien und blockieren dadurch
 die Messung von allem Übrigen. Sie stehen deshalb vorn.
 
 ## Korpus-Frequenzen
@@ -62,7 +72,7 @@ Business-Programm:
 | | | | |
 |---|---|---|---|
 | `&H`/`&O`-Literale | 892 ✅ | `Event`/`RaiseEvent` | 97 |
-| String-Funktionen | 337 | `Optional`/`ParamArray` | 77 |
+| String-Funktionen | 337 | `Optional`/`ParamArray` | 77 (`Optional`-Syntax ✅) |
 | `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
 | `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
 | `ReDim`/`Preserve` | 103 | `Type ... End Type` | 52 |
@@ -107,6 +117,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Exit Sub` und `Exit Function`
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
 - [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; Binding bleibt später
+- [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
 - [ ] `:` als Anweisungstrenner
 - [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
 - [ ] `Option Base`, `Option Compare`
@@ -133,7 +144,7 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
-- [ ] `Optional` mit Defaults, `ParamArray`, `Static`-Locals, ByRef-Randfälle
+- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Locals, ByRef-Randfälle
 - [ ] `Property Get`/`Let`/`Set`
 - [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
 - [ ] `Event`/`RaiseEvent`, `WithEvents`

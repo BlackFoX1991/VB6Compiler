@@ -16,6 +16,7 @@ Implemented so far:
 - fault-tolerant parser for the current VB6 language subset
 - `Sub` and typed `Function` declarations and calls
 - explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` parameters
+- `Optional` parameter syntax with explicit `ByVal`/`ByRef` and optional default expressions; omitted-argument/default-value semantics remain a later procedure milestone and are still diagnosed
 - VB6 Function return semantics through assignment to the function name
 - cross-module Sub and Function resolution in `.vbp` projects
 - `Dim` locals for the current primitive type subset
@@ -63,7 +64,7 @@ Implemented so far:
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
-Windows CI run #554 validates the `Enum` syntax work on .NET 10 with a warning-free Release build and 200 passing tests. Its VISIA report measures **2100 total errors** (1894 parser, 68 lexer, 138 semantic), down from 2322 after `Declare` parsing.
+Windows CI run #564 validates the `Optional` parameter syntax work on .NET 10 with a warning-free Release build and 203 passing tests. Its VISIA report measures **2216 total errors** (1800 parser, 68 lexer, 348 semantic). The raw total rises from 2100 after `Enum`, but parser errors fall by 94 while 210 additional semantic diagnostics become visible because more procedures now reach the binder.
 
 Windows CI run #422 validates the current `Long` implementation on .NET 10. It builds the complete solution, runs the full regression suite, verifies Integer/Long promotion rules, and executes a generated managed application whose Long arithmetic and Long `For` loop produce `60003`.
 
@@ -207,7 +208,7 @@ codebase rather than from a generic VB6 feature list. See `docs/ROADMAP.md`.
 - `Option Explicit` enforcement, multi-declarator `Dim`, statement separators, and the remaining M2 parser gaps
 - arrays and `Type ... End Type`, including `ReDim Preserve`
 - the first `Variant` representation
-- `Optional`, `ParamArray`, `Property Get`/`Let`/`Set`, and class modules
+- `Optional` omitted-argument/default-value semantics, `ParamArray`, `Property Get`/`Let`/`Set`, and class modules
 - a dedicated lowered IR, then `GoTo`, `On Error`, and the `Err` object
 - the string and binary file I/O parts of the VB6 standard library
 - `Declare` marshalling and COM consumption
