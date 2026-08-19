@@ -76,6 +76,11 @@ public sealed class Lexer
             return ReadStringToken(start, leadingTrivia);
         }
 
+        if (Current == '&' && IsRadixPrefix(Peek(1)) && IsRadixDigit(Peek(2), IsHexPrefix(Peek(1))))
+        {
+            return ReadRadixNumericToken(start, leadingTrivia);
+        }
+
         var tokenKind = Current switch
         {
             '+' => SyntaxKind.PlusToken,
@@ -152,6 +157,13 @@ public sealed class Lexer
             _position++;
         }
 
+        var suffix = IntegerTypeSuffix.None;
+        if (!isFloating && Current is '&' or '%')
+        {
+            suffix = Current == '&' ? IntegerTypeSuffix.Long : IntegerTypeSuffix.Integer;
+            _position++;
+        }
+
         var span = TextSpan.FromBounds(start, _position);
         var text = _text.ToString(span);
         var numericText = _text.ToString(TextSpan.FromBounds(start, numericEnd));
@@ -183,11 +195,105 @@ public sealed class Lexer
 
         if (long.TryParse(numericText, NumberStyles.None, CultureInfo.InvariantCulture, out var integerValue))
         {
-            return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, integerValue, leadingTrivia);
+            return new SyntaxToken(
+                SyntaxKind.IntegerLiteralToken,
+                span,
+                text,
+                ApplyIntegerSuffix(integerValue, suffix, span),
+                leadingTrivia);
         }
 
         Report("VB6L0003", "Invalid integer literal.", span);
         return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, null, leadingTrivia);
+    }
+
+    private SyntaxToken ReadRadixNumericToken(int start, ImmutableArray<SyntaxTrivia> leadingTrivia)
+    {
+        var isHex = IsHexPrefix(Peek(1));
+        _position += 2;
+
+        var digitsStart = _position;
+        while (IsRadixDigit(Current, isHex))
+        {
+            _position++;
+        }
+
+        var digits = _text.ToString(TextSpan.FromBounds(digitsStart, _position));
+
+        var suffix = IntegerTypeSuffix.None;
+        if (Current is '&' or '%')
+        {
+            suffix = Current == '&' ? IntegerTypeSuffix.Long : IntegerTypeSuffix.Integer;
+            _position++;
+        }
+
+        var span = TextSpan.FromBounds(start, _position);
+        var text = _text.ToString(span);
+        var radix = isHex ? 16UL : 8UL;
+        var magnitude = 0UL;
+
+        foreach (var digit in digits)
+        {
+            var digitValue = (ulong)Uri.FromHex(digit);
+            if (magnitude > (ulong.MaxValue - digitValue) / radix)
+            {
+                Report("VB6L0006", $"{RadixName(isHex)} literal is outside the supported range.", span);
+                return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, null, leadingTrivia);
+            }
+
+            magnitude = magnitude * radix + digitValue;
+        }
+
+        // VB6 radix literals wrap into the smallest fitting signed type instead of growing:
+        // &HFFFF is -1 as Integer, &HFFFFFFFF is -1 as Long.
+        object? value = suffix switch
+        {
+            IntegerTypeSuffix.Integer when magnitude <= ushort.MaxValue => unchecked((short)(ushort)magnitude),
+            IntegerTypeSuffix.Long when magnitude <= uint.MaxValue => unchecked((int)(uint)magnitude),
+            IntegerTypeSuffix.None when magnitude <= ushort.MaxValue => unchecked((short)(ushort)magnitude),
+            IntegerTypeSuffix.None when magnitude <= uint.MaxValue => unchecked((int)(uint)magnitude),
+            IntegerTypeSuffix.None => unchecked((long)magnitude),
+            _ => null
+        };
+
+        if (value is null)
+        {
+            Report("VB6L0006", $"{RadixName(isHex)} literal is outside the range of its type suffix.", span);
+        }
+
+        return new SyntaxToken(SyntaxKind.IntegerLiteralToken, span, text, value, leadingTrivia);
+    }
+
+    private object? ApplyIntegerSuffix(long value, IntegerTypeSuffix suffix, TextSpan span)
+    {
+        switch (suffix)
+        {
+            case IntegerTypeSuffix.Integer when value <= short.MaxValue:
+                return (short)value;
+            case IntegerTypeSuffix.Long when value <= int.MaxValue:
+                return (int)value;
+            case IntegerTypeSuffix.None:
+                return value;
+            default:
+                Report("VB6L0007", "Integer literal is outside the range of its type suffix.", span);
+                return null;
+        }
+    }
+
+    private static string RadixName(bool isHex) => isHex ? "Hexadecimal" : "Octal";
+
+    private static bool IsRadixPrefix(char character) => character is 'H' or 'h' or 'O' or 'o';
+
+    private static bool IsHexPrefix(char character) => character is 'H' or 'h';
+
+    private static bool IsRadixDigit(char character, bool isHex) =>
+        isHex ? Uri.IsHexDigit(character) : character is >= '0' and <= '7';
+
+    private enum IntegerTypeSuffix
+    {
+        None,
+        Integer,
+        Long
     }
 
     private bool IsValidExponentStart()

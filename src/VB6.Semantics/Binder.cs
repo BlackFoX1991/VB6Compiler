@@ -700,6 +700,18 @@ public sealed class Binder
 
     private static BoundExpression BindIntegerLiteral(object? value)
     {
+        // Radix literals and literals with a type suffix already carry their VB6 type in the
+        // boxed CLR type; only plain decimal literals are typed by magnitude.
+        if (value is short shortValue)
+        {
+            return new BoundLiteralExpression((long)shortValue, TypeSymbol.Integer);
+        }
+
+        if (value is int intValue)
+        {
+            return new BoundLiteralExpression((long)intValue, TypeSymbol.Long);
+        }
+
         var numericValue = Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
         var type = numericValue <= short.MaxValue
             ? TypeSymbol.Integer
