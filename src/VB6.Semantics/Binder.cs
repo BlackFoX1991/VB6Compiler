@@ -976,6 +976,24 @@ public sealed class Binder
 
         switch (syntax.OperatorToken.Kind)
         {
+            case SyntaxKind.CaretToken:
+                if (!IsNumericType(left.Type) || !IsNumericType(right.Type))
+                {
+                    Report(
+                        "VB6S0022",
+                        "Operator '^' requires numeric operands.",
+                        syntax.OperatorToken.Span);
+                    return new BoundErrorExpression();
+                }
+
+                left = BindConversion(left, TypeSymbol.Double);
+                right = BindConversion(right, TypeSymbol.Double);
+                return new BoundBinaryExpression(
+                    left,
+                    syntax.OperatorToken.Kind,
+                    right,
+                    TypeSymbol.Double);
+
             case SyntaxKind.EqualsToken:
             case SyntaxKind.LessGreaterToken:
             case SyntaxKind.LessToken:
