@@ -21,9 +21,9 @@ public sealed class ArrayCodeGenTests
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
 
         StringAssert.Contains(source, "VBArray<int> __vb6_values = new VBArray<int>(");
-        StringAssert.Contains(source, "new VBArrayBound(VBConversions.CLng(1L), VBConversions.CLng(3L))");
-        StringAssert.Contains(source, "__vb6_values[VBConversions.CLng(1L)] = VBConversions.CLng(42L);");
-        StringAssert.Contains(source, "VBDebug.Print(__vb6_values[VBConversions.CLng(1L)]);");
+        StringAssert.Contains(source, "new VBArrayBound(VBConversions.CLng(1L), VBConversions.CLng(VBConversions.CInt(3L)))");
+        StringAssert.Contains(source, "__vb6_values[VBConversions.CLng(VBConversions.CInt(1L))] = VBConversions.CLng(VBConversions.CInt(42L));");
+        StringAssert.Contains(source, "VBDebug.Print(__vb6_values[VBConversions.CLng(VBConversions.CInt(1L))]);");
     }
 
     [TestMethod]
@@ -41,8 +41,8 @@ public sealed class ArrayCodeGenTests
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
 
         StringAssert.Contains(source, "VBArray<short> __vb6_grid = new VBArray<short>(");
-        StringAssert.Contains(source, "new VBArrayBound(VBConversions.CLng(VBOperators.NegateInteger(VBConversions.CInt(2L))), VBConversions.CLng(2L))");
-        StringAssert.Contains(source, "new VBArrayBound(VBConversions.CLng(1L), VBConversions.CLng(4L))");
+        StringAssert.Contains(source, "new VBArrayBound(VBConversions.CLng(VBOperators.NegateInteger(VBConversions.CInt(2L))), VBConversions.CLng(VBConversions.CInt(2L)))");
+        StringAssert.Contains(source, "new VBArrayBound(VBConversions.CLng(VBConversions.CInt(1L)), VBConversions.CLng(VBConversions.CInt(4L)))");
         StringAssert.Contains(source, "__vb6_grid[");
     }
 
@@ -65,7 +65,7 @@ public sealed class ArrayCodeGenTests
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
 
         StringAssert.Contains(source, "ref VBArray<int> __vb6_arg_values");
-        StringAssert.Contains(source, "__vb6_return = __vb6_arg_values[VBConversions.CLng(1L)];");
+        StringAssert.Contains(source, "__vb6_return = __vb6_arg_values[VBConversions.CLng(VBConversions.CInt(1L))];");
         StringAssert.Contains(source, "__vb6_First(ref __vb6_values)");
     }
 
