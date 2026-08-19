@@ -1,4 +1,5 @@
-using VB6.Parser;
+using System.Collections.Immutable;
+using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Text;
 using ParserType = VB6.Parser.Parser;
 
@@ -129,7 +130,7 @@ public sealed class UserDefinedTypeMemberBindingTests
         return analysis.SemanticModel;
     }
 
-    private static CompilationAnalysis Analyze(string source)
+    private static TestAnalysis Analyze(string source)
     {
         var text = SourceText.From(source, "test.bas");
         var parse = new ParserType(text).ParseCompilationUnit();
@@ -138,16 +139,17 @@ public sealed class UserDefinedTypeMemberBindingTests
         using (UserDefinedTypeLookupScope.Push(types.Types))
         {
             var model = new Binder(text).BindCompilationUnit(parse.Root);
-            return new CompilationAnalysis(parse, model, types.Diagnostics.AddRange(model.Diagnostics))
-            {
-                UserDefinedTypes = types
-            };
+            return new TestAnalysis(model, types.Diagnostics.AddRange(model.Diagnostics));
         }
     }
 
     private static string FormatDiagnostics(SemanticModel model) =>
         string.Join(Environment.NewLine, model.Diagnostics.Select(diagnostic => diagnostic.ToString()));
 
-    private static string FormatDiagnostics(CompilationAnalysis analysis) =>
+    private static string FormatDiagnostics(TestAnalysis analysis) =>
         string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()));
+
+    private sealed record TestAnalysis(
+        SemanticModel? SemanticModel,
+        ImmutableArray<Diagnostic> Diagnostics);
 }
