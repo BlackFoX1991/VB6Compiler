@@ -10,6 +10,10 @@ internal static class VBIntrinsicSymbols
     private const string LenGeneratedName = "__VB6_INTRINSIC_LEN";
     private const string LenGeneratedCall = "__vb6___VB6_INTRINSIC_LEN(";
 
+    private const string MidLookupName = "Mid";
+    private const string MidGeneratedName = "__VB6_INTRINSIC_MID";
+    private const string MidGeneratedCall = "__vb6___VB6_INTRINSIC_MID(";
+
     private static readonly ProcedureSymbol LenSymbol = new(
         LenGeneratedName,
         ImmutableArray.Create(new ParameterSymbol(
@@ -17,6 +21,14 @@ internal static class VBIntrinsicSymbols
             TypeSymbol.Variant,
             ParameterPassingMode.ByVal)),
         TypeSymbol.Long);
+
+    private static readonly ProcedureSymbol MidSymbol = new(
+        MidGeneratedName,
+        ImmutableArray.Create(
+            new ParameterSymbol("Expression", TypeSymbol.String, ParameterPassingMode.ByVal),
+            new ParameterSymbol("Start", TypeSymbol.Long, ParameterPassingMode.ByVal),
+            new ParameterSymbol("Length", TypeSymbol.Long, ParameterPassingMode.ByVal)),
+        TypeSymbol.String);
 
     public static Dictionary<string, ProcedureSymbol> CreateProcedureTable(CompilationUnitSyntax root)
     {
@@ -45,18 +57,26 @@ internal static class VBIntrinsicSymbols
     public static void AddTo(IDictionary<string, ProcedureSymbol> procedures)
     {
         ArgumentNullException.ThrowIfNull(procedures);
-        if (!procedures.ContainsKey(LenLookupName))
-        {
-            procedures.Add(LenLookupName, LenSymbol);
-        }
+        AddIfMissing(procedures, LenLookupName, LenSymbol);
+        AddIfMissing(procedures, MidLookupName, MidSymbol);
     }
 
     public static string RewriteGeneratedCalls(string source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        return source.Replace(
-            LenGeneratedCall,
-            "VBStrings.Len(",
-            StringComparison.Ordinal);
+        return source
+            .Replace(LenGeneratedCall, "VBStrings.Len(", StringComparison.Ordinal)
+            .Replace(MidGeneratedCall, "VBStrings.Mid(", StringComparison.Ordinal);
+    }
+
+    private static void AddIfMissing(
+        IDictionary<string, ProcedureSymbol> procedures,
+        string name,
+        ProcedureSymbol symbol)
+    {
+        if (!procedures.ContainsKey(name))
+        {
+            procedures.Add(name, symbol);
+        }
     }
 }
