@@ -36,7 +36,11 @@ public sealed class UserDefinedTypeDeclarationBinder
 
         foreach (var declaration in declarations)
         {
-            var symbol = new UserDefinedTypeSymbol(declaration.Identifier.Text);
+            var isPrivate = IsPrivate(declaration);
+            var symbol = !isPrivate && _externalTypes.TryGetValue(declaration.Identifier.Text, out var predeclared)
+                ? predeclared
+                : new UserDefinedTypeSymbol(declaration.Identifier.Text);
+
             if (!types.TryAdd(symbol.Name, symbol))
             {
                 Report(
@@ -78,6 +82,12 @@ public sealed class UserDefinedTypeDeclarationBinder
             types.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase),
             _diagnostics.ToImmutable());
     }
+
+    public static bool IsPrivate(TypeDeclarationSyntax declaration) =>
+        string.Equals(
+            declaration.VisibilityKeyword?.Text,
+            "Private",
+            StringComparison.OrdinalIgnoreCase);
 
     private TypeSymbol ResolveMemberType(
         TypeMemberSyntax member,
