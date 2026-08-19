@@ -55,6 +55,13 @@ vorschnell global reserviert werden dürfen: `Base` wird im bestehenden Akzeptan
 Bezeichner verwendet. Beide Direktiven werden deshalb nur direkt hinter `Option` erkannt; die
 Wörter bleiben sonst normale Identifier.
 
+Der `:`-Anweisungstrenner war im Parser bereits über die gemeinsame Zeilenabschlusslogik
+implementiert. Actions #588 verifiziert ihn jetzt ausdrücklich mit Parser- und End-to-End-Tests
+für mehrere Statements pro Zeile, Single-Line-`If` und `Case`. Die VISIA-Zahlen bleiben dadurch
+unverändert bei 2210 / 1794 Parser / 68 Lexer / 348 Semantik, weil kein Produktionscode geändert
+werden musste. Labels wie `LinkFail:` gehören weiterhin zum späteren Sprung-/IR-Meilenstein und
+sind von diesem Statement-Separator-Support getrennt.
+
 Danach, nach betroffenen Dateien sortiert:
 
 | Blocker | Belege |
@@ -64,7 +71,7 @@ Danach, nach betroffenen Dateien sortiert:
 | `Sub`/`Function` mit `Public`/`Private`-Modifizierer | 20 Dateien |
 | `With`-Blöcke (`.Feld`-Zugriff) | 19 Dateien, 629 Vorkommen |
 | Bezeichner-Typsuffixe | `Mid$` 110×, `ret&` 26×, `lphKey&` 10× |
-| `:` als Anweisungstrenner | `AppType = 0: pError = False` |
+| `:` als Anweisungstrenner | `AppType = 0: pError = False` ✅ |
 | Datei-I/O mit Dateinummern | `Open ... For Binary As #1`, `Put #1`, `Close #1` |
 
 Konsequenz: Diese Punkte sind einzeln klein, betreffen aber viele Dateien und blockieren dadurch
@@ -125,7 +132,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; Binding bleibt später
 - [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
-- [ ] `:` als Anweisungstrenner
+- [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
 - [ ] `Dim a, b As Integer` (Mehrfachdeklaratoren), `Static`-Locals
 - [ ] `^`-Operator, `Like`, `Is`
 
