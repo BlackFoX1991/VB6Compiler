@@ -1,0 +1,13 @@
+{
+  "name": "VB6Compiler",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:10.0-noble",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit"
+      ]
+    }
+  },
+  "postCreateCommand": "dotnet restore VB6Compiler.sln"
+}

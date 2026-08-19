@@ -1,0 +1,72 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - agent/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore VB6Compiler.sln
+
+      - name: Build
+        run: dotnet build VB6Compiler.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test VB6Compiler.sln --configuration Release --no-build --no-restore --logger "trx;LogFileName=tests.trx" --results-directory artifacts/test-results
+
+      - name: VISIA parity report
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          dotnet run --project src/VB6.Compiler.Cli/VB6.Compiler.Cli.csproj --configuration Release --no-build -- conformance/VISIA/4.8.7.1/prjVisia.vbp --report | Tee-Object -FilePath artifacts/visia-report.txt
+
+      - name: Publish compiler CLI
+        run: dotnet publish src/VB6.Compiler.Cli/VB6.Compiler.Cli.csproj --configuration Release --no-restore --output artifacts/vb6c
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results/**/*.trx
+          if-no-files-found: error
+
+      - name: Upload VISIA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visia-report
+          path: artifacts/visia-report.txt
+          if-no-files-found: error
+
+      - name: Upload compiler CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: vb6c-net10
+          path: artifacts/vb6c/**
+          if-no-files-found: error

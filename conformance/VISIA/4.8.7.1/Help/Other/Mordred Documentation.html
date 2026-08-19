@@ -1,0 +1,1096 @@
+<!doctype HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+    <title></title>
+    <meta name="Author" content="Kinex">
+    <meta name="Date" content="Fri, 06 Jan 2006 11:22:12 GMT">
+    <meta http-equiv="CONTENT-TYPE" content="text/html; charset=windows-1252">
+    <meta name="CREATED" content="20051105;10211700">
+    <meta name="CHANGED" content="20051105;13433500">
+<style>
+	<!--
+		@page { size: 21cm 29.7cm; margin: 2cm }
+		P { margin-bottom: 0.21cm }
+		TD P { margin-bottom: 0cm }
+		TH P { margin-bottom: 0cm; font-style: italic }
+	-->
+	
+</style>
+    <meta name="Generator" content="XynX! NetJet 3.10 Build 106 (Win32r)">
+</head>
+<body LANG="en-US" DIR="LTR">
+<p align=center STYLE="margin-bottom: 0cm"><font size=6><i>Linley documentation</i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2>Compiler Version
+: 4.5</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2>Documentation : 0.1a</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><img align=left src="LinleyDocODTh_html_32f562d2.png"
+name="graphics3" border=0><br clear=left>
+<br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=6>Table of contents:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<ol>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Getting
+    started</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Keyword
+    Reference manual</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Operators</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Symbols</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Data
+    types / User defined types (UDTs)</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Dynamic
+    link libraries (Dlls)</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Links
+    / About</font></p>
+</ol>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=5 STYLE="font-size: 20pt"><u>Getting
+started:</u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">Linley is a true x86 compiler/IDE, which combines some aspects of C
+and BASIC.</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">Linley is targeted to create small executables while keeping it fast,
+user-friendly and simple.</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">Linley's features:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">Linley has a few special features which make it different from other
+compilers, some of them are listed here:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<ul>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+    size=2 STYLE="font-size: 11pt">Small executable size (A &amp;ldquo;Hello World&amp;rdquo;
+    program compiles to 4KB!!!)</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+    size=2 STYLE="font-size: 11pt">Dynamic arrays</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+    size=2 STYLE="font-size: 11pt">Easy to extend by using Dlls and Libraries</font></p>
+    <li>
+    <p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+    size=2 STYLE="font-size: 11pt">Built-in IDE</font></p>
+</ul>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; border-top: none; border-bottom: 1.00pt solid #000000; border-left: none; border-right: none; padding-top: 0cm; padding-bottom: 0.07cm; padding-left: 0cm; padding-right: 0cm; font-style: normal; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">This an example of a simple &amp;ldquo;Hello World!&amp;rdquo;
+program:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">application</font><font
+color="#000000"> </font><font color="#003680">PE</font><font color="#000000">.</font><font
+color="#003680">GUI</font><font color="#000000">;</font></font></font></SPAN></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">import</font><font
+color="#000000"> MessageBox </font><font color="#003680">ascii</font><font color="#000000">
+</font><font color="#003680">lib</font><font color="#000000"> </font><font color="#767467">&quot;USER32.DLL&quot;</font><font
+color="#000000">,</font><font color="#96B000">4</font><font color="#000000">;</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#003680"><font face="Courier New"><font
+size=2>entry</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> MessageBox(</font><font
+color="#96B000">0</font><font color="#000000">,</font><font color="#767467">&quot;Hello World!&quot;</font><font
+color="#000000">,</font><font color="#767467">&quot;Template..&quot;</font><font color="#000000">,</font><font
+color="#96B000">$20</font><font color="#000000">);</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p STYLE="margin-bottom: 0cm; border-top: none; border-bottom: 1.00pt solid #000000; border-left: none; border-right: none; padding-top: 0cm; padding-bottom: 0.07cm; padding-left: 0cm; padding-right: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">end</font><font
+color="#000000">.</font></font></font></SPAN></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">Copy and paste the code above in the IDE, Run the program, you should
+see that a Message-Box has appeared:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><img align=left
+src="LinleyDocODTh_html_5c615d20.gif" name="graphics1" height=293 width=415 border=0><br clear=left>
+<br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">This
+indicates that your code has been compiled successfully, and a 2.50 KB executable has been</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">produced.
+Now click the run button:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><img align=left src="LinleyDocODTh_html_546eb4b5.gif"
+name="graphics2" height=129 width=140 border=0><br clear=left>
+<br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">This
+is the most simple win32 program you can compile in Linley; Most win32 programs are more complex.</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Also,
+in all programs you <b>need </b>
+<SPAN STYLE="font-weight: medium">to supply an entry frame, an entry frame contains the statements
+that will</SPAN></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font size=2
+STYLE="font-size: 11pt">be executed when the program starts, like <b>int main() in C</b> </font>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>application
+PE.&lt;type&gt; [entry] [&lt;entryframe&gt;]</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>type =
+CUI (console) or GUI (Graphical user interface)</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>entry =
+Optional &amp;ndash; use this to specify an entry frame</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>[&lt;entryframe&gt;]
+= Optional &amp;ndash; name of the entry frame</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font size=2
+STYLE="font-size: 11pt">If you don't include an entry frame then the entry frame will default
+to <b>entry</b></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font size=2
+STYLE="font-size: 11pt">as in the above example.</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=4 STYLE="font-size: 15pt"><u><b>Console
+programs:</b></u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">Linley
+supports the creation of console programs. Note that you need to tell the compiler what kind</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt">of
+program you're compiling, if you look at the above code you'll notice that the first line is:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">application</font><font
+color="#000000"> </font><font color="#003680">PE</font><font color="#000000">.</font><font
+color="#003680">GUI</font><font color="#000000">;</font></font></font></SPAN></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">which
+tells the compiler that we are compiling a <b>GUI</b> application (Graphical User Interface),</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">However,
+there is another case for console programs:</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><font
+size=2><font face="Courier New"><font color="#003680">application</font> <font color="#003680">PE</font>.C<font
+color="#003680">UI</font>;</font></font></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">This
+tells the compiler that we are compiling a <b>CUI </b>
+<SPAN STYLE="font-weight: medium">application (Console User Interface),</SPAN></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Linley
+has a special Library for use with console programs</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Here
+is an example console program demonstrating Linley's console functions &amp;bdquo;Csimple.lnl&amp;ldquo;:</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; border-top: none; border-bottom: 1.00pt solid #000000; border-left: none; border-right: none; padding-top: 0cm; padding-bottom: 0.07cm; padding-left: 0cm; padding-right: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+color="#000000"><font face="Courier New"><font size=2 STYLE="font-size: 11pt"><font size=2><font
+color="#003680">application</font> <font color="#003680">PE</font>.<font color="#003680">CUI</font>;</font></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">include</font><font
+color="#000000"> </font><font color="#767467">&quot;Windows.inc&quot;</font><font color="#000000">,</font><font
+color="#767467">&quot;Console.inc&quot;</font><font color="#000000">;</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#003680"><font face="Courier New"><font
+size=2>entry</font></font></font></p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">Console</font><font color="#000000">.Init(</font><font color="#767467">&quot;Linley
+CUI&quot;</font><font color="#000000">);</font></font></font></SPAN></p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">Console</font><font color="#000000">.Color(FOREGROUND_BLUE|FOREGROUND_GREEN|
+_</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Courier New"><font
+size=2> FOREGROUND_RED|FOREGROUND_INTENSITY| _</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Courier New"><font
+size=2> BACKGROUND_BLUE);</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">Console</font><font color="#000000">.Write(</font><font color="#767467">&quot;Linley
+Compiler Console Application .. \n&quot;</font><font color="#000000">);</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">Console</font><font color="#000000">.Color(FOREGROUND_RED|FOREGROUND_GREEN|
+_</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Courier New"><font
+size=2> FOREGROUND_BLUE);</font></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"> <font color="#003680">Console</font><font
+color="#000000">.Write(</font><font color="#767467">&quot;Press enter to exit.. &quot;</font><font
+color="#000000">);</font></font></font></SPAN></p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">Console</font><font color="#000000">.Read();</font></font></font></SPAN></p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">Console</font><font color="#000000">.Free();</font></font></font></SPAN></p>
+<p STYLE="margin-bottom: 0cm; border-top: none; border-bottom: 1.00pt solid #000000; border-left: none; border-right: none; padding-top: 0cm; padding-bottom: 0.07cm; padding-left: 0cm; padding-right: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">end</font><font
+color="#000000">.</font></font></font></SPAN></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt"><b>Console
+functions:</b></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=2 STYLE="font-size: 11pt"><b>Console
+functions are included in the file <u>Console.inc</u>
+<SPAN STYLE="text-decoration: none"> Make sure you include this file in the beginning</SPAN></b></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt"><b>of your code if you are going to use these functions</b></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>Console.Init
+(string stitle[256])</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Initializes
+a console window with the selected title (caption), the length of the title string must not</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>exceed
+256 bytes (characters)</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>Console.Color
+(dword dwColor)</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Sets
+the Foreground and Background colors for the console.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>This
+must be at least one or a combination of these values:</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<table border=1 width="100%" cellspacing=0 cellpadding=4 bordercolor="#000000">
+<col width="8500%">
+<col width="8500%">
+<col width="8500%">
+<thead>
+<tr valign=top>
+    <th width="33%">
+        <p>Constant</p></th>
+    <th width="33%">
+        <p>Effect</p></th>
+    <th width="33%">
+        <p>Constant Value</p></th>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center><font face="Courier New,monospace"><font size=2>FOREGROUND_RED</font></font></p></td>
+    <td width="33%">
+        <p align=center><font color="#FF0000">RED Foreground</font></p></td>
+    <td width="33%">
+        <p align=center>4</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center><font face="Courier New,monospace"><font size=2>FOREGROUND_GREEN</font></font></p></td>
+    <td width="33%">
+        <p align=center><font color="#3DEB3D">GREEN Foreground</font></p></td>
+    <td width="33%">
+        <p align=center>2</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center><font face="Courier New,monospace"><font size=2>FOREGROUND_BLUE</font></font></p></td>
+    <td width="33%">
+        <p align=center><font color="#0047FF">BLUE Foreground</font></p></td>
+    <td width="33%">
+        <p align=center>1</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center><font face="Courier New,monospace"><font size=2>BACKGROUND_RED</font></font></p></td>
+    <td width="33%">
+        <p align=center><font color="#FF0000">RED Background</font></p></td>
+    <td width="33%">
+        <p align=center>40</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center><font face="Courier New,monospace"><font size=2>BACKGROUND_GREEN</font></font></p></td>
+    <td width="33%">
+        <p align=center><font color="#3DEB3D">GREEN Background</font></p></td>
+    <td width="33%">
+        <p align=center>20</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center><font face="Courier New,monospace"><font size=2>BACKGROUND_BLUE</font></font></p></td>
+    <td width="33%">
+        <p align=center>BLUE Background</p></td>
+    <td width="33%">
+        <p align=center>10</p></td>
+</tr>
+</table>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">So using <font size=2><font face="Courier New,monospace">FOREGROUND_GREEN|BACKGROUND_RED</font></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt">will change the text color to RED and the the Background color
+to BLUE</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none">&amp;ldquo;<font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><b>|&amp;rdquo; </b>
+<SPAN STYLE="font-weight: medium">is the bitwise OR operator for more info about it, see the
+keywords/operators section</SPAN></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><i><u><b>Console.Write
+(string sout[256])</b></u></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Writes text to the console, the length of the written
+text must not exceed 256 bytes</b></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><i><u><b>string
+Console.Read ()</b></u></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Gets text input from the user, similar to the BASIC Input
+statement.</b></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Returns a string containing the read data.</b></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><i><u><b>Console.Free
+()</b></u></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Frees the resources and the text buffer allocated to the
+console.</b></i></font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=4 STYLE="font-size: 15pt"><u><b>More
+About GUI Programs:</b></u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">GUI Programs are a lot more complex than console programs, the
+only way (until now) to write this kind</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">of programs in Linley is to use pure win32 API, Linley supports
+the win32 API 100% </font> </p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt"><b>WIN32 API Include files/Libraries:</b></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Win32a.inc &amp;ndash; Standard Windows functions</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Windows.inc &amp;ndash; Standard Windows functions (Same as
+above)</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">These files allow you to use <b>all </b>Windows functions i.e.:
+Kernel32,User32,Gdi32 ..... etc.</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">If you don't want to include all of the Libraries, there's another
+way to do it:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Use the <b>library </b>keyword:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">library</font><font
+color="#000000"> </font><font color="#767467">&quot;lib\user32.lib&quot;;</font></font></font></SPAN></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">as
+with the <b>include</b> keyword, you are allowed to declare more libraries with one statement,
+Ex:</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#767467"><font face="Courier New"><font size=2>library &quot;lib\user32.lib&quot;,&quot;lib\kernel32.lib&quot;,&quot;lib\gdi32.lib&quot;,&quot;lib\shell32.lib&quot;;</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Now
+you can use the functions of these 4 libraries in your programs.</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><b>NOTE:
+</b>
+<SPAN STYLE="font-weight: medium">If you want to know more about GUI programming, use the Win32
+API help file or TheForgers</SPAN></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">API
+Tutorial.</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">[TODO:
+Examples/API Programming weblinks]</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal"><font color="#000000"><font face="Times New Roman,serif"><font
+size=5><u><b>Using C functions in Linley:</b></u></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">You
+can extend Linley by using the C functions included in the Dll &amp;bdquo;msvcrt.dll&amp;ldquo;,
+</font></font></font> </p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">It's
+not an API dll, but it's included in all Windows versions starting from Windows 98</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">If
+you want to use C functions in your code you need to include the Library &amp;bdquo;msvcrt&amp;ldquo;.
+Ex:</font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><font
+size=2><font face="Courier New"><font color="#003680">library</font><font color="#000000">
+</font><font color="#767467">&quot;lib\msvcrt.lib&quot;</font><font color="#000000">;</font></font></font></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><u><b>Useful C Functions:</b></u></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><u><b>srand (int seed)</b></u></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>seeds the random number generator with an integer</b></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><u><b>int rand()</b></u></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>returns a random Integer</b></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><u><b>double floor (double x)</b></u></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Rounds the value x and returns the resulting value</b></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><u><b>double ceil (double x)</b></u></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Rounds the value x and returns the resulting value</b></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><u><b>string getenv (string varname)</b></u></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>Returns the value of the envoirment variable varname</b></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>[TODO: More functions to come]</b></i></font></font></font></p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=5><u><b>Memory functions:</b></u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Linley comes with a few Memory functions in the Include file
+&amp;ldquo;Memory.inc&amp;rdquo;</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>int
+MemAlloc (dword size)</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>reserves
+or commits a region of pages with the size &amp;ldquo;size&amp;rdquo; in the virtual address
+space of the calling process. Memory allocated by this function is automatically initialized
+to zero.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>If
+the function succeeds, the return value is the base address of the allocated region of pages
+(handle).</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>If
+the function fails, the return value is NULL</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Memfree
+(dword Handle)</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>releases
+a region of pages within the virtual address space of the calling process (using the handle).
+</b></i></font> </p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=5><u><b>Inline assembler
+support:</b></u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">You can use assembly instructions to optimize your programs,
+but you need FASM (Dos version)</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">installed to do it, you can use inline assembler in your programs
+by using:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2>iassembler {</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2> ...</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2> ...</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2> assembler commands</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2> ...</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2> ...</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font face="Courier New,monospace"><font
+size=2>}</font></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal"><font size=5 STYLE="font-size: 20pt"><u>Keyword
+reference manual:</u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">-----------------------------------------------------------</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">Variables:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=2
+STYLE="font-size: 11pt">-----------------------------------------------------------</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'byte'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Reserves
+a byte.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>byte
+&lt;Identifier&gt; [optional: = &lt;Number&gt;] ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'int'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Reserves
+a word.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>int
+&lt;Identifier&gt; [optional: = &lt;Number&gt;] ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'dword'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Reserves
+a double word.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>dword
+&lt;Identifier&gt; [optional: = &lt;Number&gt;] ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'string'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Reserves
+space for a string.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>string
+&lt;Identifier&gt; '['&lt;Size&gt;']';</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'local'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Reserves
+a local variable.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>local
+&lt;byte|int|dword|string&gt; &lt;Identifier&gt;;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'const':</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Defines
+a constant.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>const
+&lt;Identifier&gt; = &lt;Number|String&gt; ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Example
+: const test = 12</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>
+const testII = &amp;ldquo;Hello&amp;rdquo;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'Frame'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Frames
+are functions in Linley, </b></i></font> </p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>You
+Begin a frame by typeing:</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>frame
+&lt;identifier&gt; ( &lt;variableblock&gt; );</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>....</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>....</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>statements</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>....</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>....</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>return
+&lt;return value&gt;;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>end;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>the
+return value is optional, if omitted the function returns nothing, this is called a VOID function
+in C</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>and
+a SUB in BASIC.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'label'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Declares
+a label to the current offset (you can jump to the this label by using goto)</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>label
+&lt;identifier&gt; ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>ex:
+label beginn;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'goto'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Jumps
+to a label defined previously by 'label', similar to the BASIC goto statement</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>goto
+&lt;identifier&gt;;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>ex:
+goto beginn;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- 'if'
+statement</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>evaluates
+an expression</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>ex:</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>if
+( &lt;Expression&gt; [=,!,&lt;,&gt;,&lt;&gt;,&lt;=,&gt;=] &lt;Expression&gt; ) {</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>
+-&gt; [CodeBlock]</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>
+-&gt; } [optional: else { [CodeBlock] }</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- Directive
+'type'</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Defines
+types (structures)</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>type
+&lt;Identifier&gt; { [VariableBlock] }</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>ex:</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Type
+person {</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>
+dword health;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>
+string name[50];</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>}</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><u><b>- 'application'
+statement</b></u></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Defines
+the program type and (Optionally), an entryframe</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>application
+PE.&lt;type&gt; [entry] [&lt;entryframe&gt;]</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>type =
+CUI (console) or GUI (Graphical user interface)</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm"><font size=2 STYLE="font-size: 11pt"><i><b>entry =
+Optional &amp;ndash; use this to specify an entry frame</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>[&lt;entryframe&gt;]
+= Optional &amp;ndash; name of the entry frame</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>-
+Statement 'return'</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>If
+raised inside a frame, frame execution is terminated and returns the expression.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>return
+( &lt;Expression&gt; ) ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>-
+Statement 'call'</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Calls
+a frame.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>call
+( &lt;Identifier&gt; ) ;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font size=5
+STYLE="font-size: 20pt"><u>Operators:</u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><br>
+</p>
+<table border=1 width="100%" cellspacing=0 cellpadding=4 bordercolor="#000000">
+<col width="8500%">
+<col width="8500%">
+<col width="8500%">
+<thead>
+<tr valign=top>
+    <th width="33%">
+        <p STYLE="font-style: normal"><u>Operator</u></p></th>
+    <th width="33%">
+        <p><u>Description</u></p></th>
+    <th width="33%">
+        <p><u>Usage</u></p></th>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>+</p></td>
+    <td width="33%">
+        <p align=center>Addition</p></td>
+    <td width="33%">
+        <p align=center>Value+Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>-</p></td>
+    <td width="33%">
+        <p align=center>Subtraction</p></td>
+    <td width="33%">
+        <p align=center>Value-Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>*</p></td>
+    <td width="33%">
+        <p align=center>Multiplication</p></td>
+    <td width="33%">
+        <p align=center>Value*Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>/</p></td>
+    <td width="33%">
+        <p align=center>Division</p></td>
+    <td width="33%">
+        <p align=center>Value/Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>%</p></td>
+    <td width="33%">
+        <p align=center>Modulus</p></td>
+    <td width="33%">
+        <p align=center>Value%Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>|</p></td>
+    <td width="33%">
+        <p align=center>Bitwise OR</p></td>
+    <td width="33%">
+        <p align=center>Value|Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>~</p></td>
+    <td width="33%">
+        <p align=center>Bitwise eXclusive OR</p></td>
+    <td width="33%">
+        <p align=center>Value~Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>&amp;</p></td>
+    <td width="33%">
+        <p align=center>Bitwise AND</p></td>
+    <td width="33%">
+        <p align=center>Value&amp;Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>&lt;&gt;</p></td>
+    <td width="33%">
+        <p align=center>NOT</p></td>
+    <td width="33%">
+        <p align=center>&lt;&gt; Value</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center STYLE="text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>=</b></i></font></p></td>
+    <td width="33%">
+        <p align=center>Assignment/Equality</p></td>
+    <td width="33%">
+        <p align=center>Value 
+        <SPAN STYLE="text-decoration: none"><font size=2 STYLE="font-size: 11pt"><b><i>= </i></b>
+        <SPAN STYLE="font-weight: medium">
+        <SPAN STYLE="font-style: normal">Value</SPAN></SPAN></font></SPAN></p></td>
+</tr>
+</table>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Additionally, the following <b>relational Operators</b> may
+be used with the 'if' statement:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none">&amp;ldquo;<font
+size=2 STYLE="font-size: 11pt">&lt;&gt;&amp;rdquo; - Not (ex: if(variable &lt;&gt; 2)</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none">&amp;ldquo;<font
+size=2 STYLE="font-size: 11pt">!=&amp;rdquo; - Not equal to (ex: if(variable != 0)</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none">&amp;ldquo;<font
+size=2 STYLE="font-size: 11pt">&gt;&amp;rdquo; - Greater</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none">&amp;ldquo;<font
+size=2 STYLE="font-size: 11pt">&lt;&amp;rdquo; - Smaller</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none">&amp;ldquo;<font
+size=2 STYLE="font-size: 11pt">=&gt;&amp;rdquo; - Greater or equal to</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none">&amp;ldquo;<font
+size=2 STYLE="font-size: 11pt">&lt;=&amp;rdquo; - Smaller or equal to</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font size=5
+STYLE="font-size: 20pt"><u>Symbols:</u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>-
+'$' Symbol</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Makes
+a number a HEX Value.</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>$&lt;number&gt;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>-
+'@'</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>Pointer
+to a variable or a frame address</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; text-decoration: none"><font size=2 STYLE="font-size: 11pt"><i><b>@&lt;variable|Frame&gt;</b></i></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"
+STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font size=5 STYLE="font-size: 20pt"><u>Linley's
+data types:</u></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Linley supports the following data types:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<table border=1 width="100%" cellspacing=0 cellpadding=4 bordercolor="#000000">
+<col width="8500%">
+<col width="8500%">
+<col width="8500%">
+<thead>
+<tr valign=top>
+    <th width="33%">
+        <p STYLE="font-style: normal"><u><b>Name</b></u></p></th>
+    <th width="33%">
+        <p STYLE="font-style: normal"><u>Size</u></p></th>
+    <th width="33%">
+        <p STYLE="font-style: normal"><u>Range</u></p></th>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center STYLE="font-weight: medium">byte</p></td>
+    <td width="33%">
+        <p align=center>1 byte</p></td>
+    <td width="33%">
+        <p align=center STYLE="font-style: normal; font-weight: medium">0-255</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>Int (word)</p></td>
+    <td width="33%">
+        <p align=center>2 bytes</p></td>
+    <td width="33%">
+        <p align=center>0-65536</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>Dword (double word)</p></td>
+    <td width="33%">
+        <p align=center>4 bytes</p></td>
+    <td width="33%">
+        <p align=center>0-4294967294</p></td>
+</tr>
+<tr valign=top>
+    <td width="33%">
+        <p align=center>String[&lt;size&gt;]</p></td>
+    <td width="33%">
+        <p align=center>size</p></td>
+    <td width="33%">
+        <p align=center>N/A</p></td>
+</tr>
+</table>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; text-decoration: none"><font size=5><b>User-defined-types
+(UDTs):</b></font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Linley support UDTs (Structs in C, and Types in BASIC)</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">You can create a structure by using the <b>type </b>statement.</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+size=2 STYLE="font-size: 11pt">Ex:</font></p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p align=left STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#003680">type</font><font
+color="#000000"> person {</font></font></font></SPAN></p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">dword</font><font color="#000000"> health;</font></font></font></SPAN></p>
+<p STYLE="margin-bottom: 0cm">
+<SPAN LANG="de-DE"><font size=2><font face="Courier New"><font color="#000000"> </font><font
+color="#003680">string</font><font color="#000000"> name[</font><font color="#96B000">50</font><font
+color="#000000">];</font></font></font></SPAN></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Courier New"><font
+size=2>}</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Then
+you define your newly created structure this way: &lt;<b><i>structure&gt; &lt;identifier&gt;</i></b></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Ex:</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Courier New"><font
+size=2>person kinex;</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font face="Courier New"><font size=2>person bill;</font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt">Now we have two structures, here is how we can access the members:</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt">Ex:</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><font size=2><font face="Courier New">kinex.health = <font color="#96B000">100</font>;</font></font></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Courier New"><font
+size=2>kinex.name = <font color="#767467">&quot;Robert Stock&quot;</font>;</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><font color="#000000"><font face="Times New Roman,serif"><font
+size=5 STYLE="font-size: 20pt"><u>Dynamic link libraries (Dlls):</u></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt">Dlls are useful libraries which contain functions that your
+program can use.</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt">You can declare DLL function by using the <b>import </b>
+<SPAN STYLE="font-weight: medium">statement:</SPAN></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Ex:</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-weight: medium; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><font
+size=2><font face="Courier New"><font color="#003680">import</font> MessageBox <font color="#003680">ascii</font>
+<font color="#003680">lib</font> <font color="#767467">&quot;USER32.DLL&quot;</font>,<font
+color="#96B000">4</font>;</font></font></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-weight: medium; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">The
+syntax is: <b><i>import &lt;functionname&gt; [alias] [&lt;realname&gt;] lib &amp;bdquo;&lt;libname.ext&gt;&amp;ldquo;,&lt;numparams&gt;
+;</i></b></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>functionname = the EXACT name of the function (Case sensitive)</b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>[alias] = Optional &amp;ndash; use this to define the
+real name of the function if you named it anything else in &lt;functionname&gt;</b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>[&lt;realname&gt;] = Optional &amp;ndash; the real name
+of the function (see [alias] )</b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>&lt;libname.ext&gt; = The complete name of the DLL with
+extension, this assumes that the DLL is located</b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b> in your \system directory</b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b>&lt;numparams&gt; = number of parameters that the function
+needs.</b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">After
+that, you can call the function as you call a normal frame.</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt">Ex:</font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"> </font><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><font color="#000000"><font face="Times New Roman,serif"><font
+size=2 STYLE="font-size: 11pt"><i><b><font size=2><font face="Courier New">MessageBox(<font
+color="#96B000">0</font>,<font color="#767467">&quot;Hello World!&quot;</font>,<font color="#767467">&quot;Template..&quot;</font>,<font
+color="#96B000">$20</font>);</font></font></b></i></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium"><font color="#000000"><font face="Times New Roman,serif"><font
+size=5 STYLE="font-size: 20pt"><u>Links and credits:</u></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-style: normal; font-weight: medium; text-decoration: none"><font
+color="#000000"><font face="Times New Roman,serif"><font size=2 STYLE="font-size: 11pt"><a
+href="http://www.kidev.com">Linley Website</a><br>
+<a href="http://www.kidev.com/devforum">Developer Forum</a></font></font></font></p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm; font-weight: medium; text-decoration: none"><br>
+</p>
+<p LANG="de-DE" STYLE="margin-bottom: 0cm"><br>
+</p>
+</body>
+</html>
