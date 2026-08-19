@@ -11,8 +11,10 @@ public sealed class Binder
     private readonly SourceText _text;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly List<LoopBindingContext> _loopStack = new();
+    private readonly List<WithBindingContext> _withStack = new();
     private int _nextLoopId;
     private int _nextSelectId;
+    private int _nextWithId;
     private int _optionBase;
 
     public Binder(SourceText text)
@@ -35,10 +37,6 @@ public sealed class Binder
             TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error);
     }
 
-    /// <summary>
-    /// Module-level variables declared by a compilation unit. Exposed so that a project
-    /// compilation can pre-declare them across modules, the way procedures already are.
-    /// </summary>
     public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
         SourceText text,
         CompilationUnitSyntax root)
@@ -457,6 +455,9 @@ public sealed class Binder
                 case DoStatementSyntax doStatement:
                     PredeclareLocals(doStatement.Statements, locals, variables);
                     break;
+                case WithStatementSyntax withStatement:
+                    PredeclareLocals(withStatement.Statements, locals, variables);
+                    break;
                 case SelectCaseStatementSyntax selectStatement:
                     foreach (var caseBlock in selectStatement.Cases)
                     {
@@ -562,6 +563,7 @@ public sealed class Binder
             ForStatementSyntax forStatement => BindFor(forStatement, variables, procedures),
             WhileStatementSyntax whileStatement => BindWhile(whileStatement, variables, procedures),
             DoStatementSyntax doStatement => BindDo(doStatement, variables, procedures),
+            WithStatementSyntax withStatement => BindWith(withStatement, variables, procedures),
             ExitStatementSyntax exitStatement => BindExit(exitStatement),
             SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint =>
@@ -904,6 +906,38 @@ public sealed class Binder
             body);
     }
 
+    private BoundWithStatement BindWith(
+        WithStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var target = BindExpression(syntax.Expression, variables, procedures);
+        var contextReceiver = target;
+
+        if (target.Type != TypeSymbol.Error && target.Type is not UserDefinedTypeSymbol)
+        {
+            Report(
+                "VB6S0050",
+                $"With target type '{target.Type.Name}' is not a user-defined type in the current compiler subset.",
+                syntax.WithKeyword.Span);
+            contextReceiver = new BoundErrorExpression();
+        }
+        else if (target.Type != TypeSymbol.Error && !IsAddressableExpression(target))
+        {
+            Report(
+                "VB6S0051",
+                "With target must be an addressable variable, array element, or user-defined type member in the current compiler subset.",
+                syntax.WithKeyword.Span);
+            contextReceiver = new BoundErrorExpression();
+        }
+
+        var withId = _nextWithId++;
+        _withStack.Add(new WithBindingContext(withId, contextReceiver));
+        var body = BindStatements(syntax.Statements, variables, procedures);
+        _withStack.RemoveAt(_withStack.Count - 1);
+        return new BoundWithStatement(withId, target, body);
+    }
+
     private BoundStatement BindExit(ExitStatementSyntax syntax)
     {
         if (syntax.TargetKeyword.Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
@@ -1041,7 +1075,9 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var receiver = BindExpression(syntax.Receiver, variables, procedures);
+        var receiver = syntax.Receiver is WithReceiverExpressionSyntax
+            ? BindWithReceiver(syntax.DotToken)
+            : BindExpression(syntax.Receiver, variables, procedures);
         if (receiver.Type == TypeSymbol.Error)
         {
             return receiver;
@@ -1066,6 +1102,23 @@ public sealed class Binder
         }
 
         return new BoundMemberAccessExpression(receiver, member);
+    }
+
+    private BoundExpression BindWithReceiver(SyntaxToken dotToken)
+    {
+        if (_withStack.Count == 0)
+        {
+            Report(
+                "VB6S0049",
+                "Implicit member access requires an active With block.",
+                dotToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        var context = _withStack[^1];
+        return context.Receiver.Type == TypeSymbol.Error
+            ? new BoundErrorExpression()
+            : new BoundWithReceiverExpression(context.WithId, context.Receiver.Type);
     }
 
     private BoundExpression BindInvocationExpression(
@@ -1527,6 +1580,12 @@ public sealed class Binder
     private static bool IsBitwiseOperandType(TypeSymbol type) =>
         IsNumericType(type) || type == TypeSymbol.Boolean;
 
+    private static bool IsAddressableExpression(BoundExpression expression) =>
+        expression is BoundVariableExpression or
+            BoundArrayAccessExpression or
+            BoundMemberAccessExpression or
+            BoundWithReceiverExpression;
+
     private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>
         left == TypeSymbol.LongLong || right == TypeSymbol.LongLong
             ? TypeSymbol.LongLong
@@ -1599,4 +1658,5 @@ public sealed class Binder
     }
 
     private readonly record struct LoopBindingContext(BoundLoopKind Kind, int LoopId);
+    private readonly record struct WithBindingContext(int WithId, BoundExpression Receiver);
 }
