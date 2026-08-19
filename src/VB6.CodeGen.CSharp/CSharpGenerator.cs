@@ -107,6 +107,15 @@ public sealed class CSharpGenerator
                 EmitReDimStatement(reDim);
                 break;
 
+            case BoundEraseStatement erase:
+            {
+                var variable = GetVariableName(erase.Array);
+                WriteLine(erase.Deallocate
+                    ? $"{variable} = null!;"
+                    : $"{variable}.Clear();");
+                break;
+            }
+
             case BoundAssignmentStatement assignment:
                 WriteLine($"{GetVariableName(assignment.Variable)} = {EmitExpression(assignment.Expression)};");
                 break;
@@ -398,6 +407,8 @@ public sealed class CSharpGenerator
             BoundVariableExpression variable => GetVariableName(variable.Variable),
             BoundArrayAccessExpression arrayAccess =>
                 $"{GetVariableName(arrayAccess.Array)}[{EmitIndices(arrayAccess.Indices)}]",
+            BoundArrayBoundExpression arrayBound =>
+                $"{GetVariableName(arrayBound.Array)}.{(arrayBound.IsUpperBound ? "UBound" : "LBound")}({EmitExpression(arrayBound.Dimension)})",
             BoundInvocationExpression invocation =>
                 $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
             BoundConversionExpression conversion => EmitConversion(conversion),
