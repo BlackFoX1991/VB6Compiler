@@ -33,10 +33,11 @@ public sealed class VBCompilation
 
         var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
         var userDefinedTypes = new UserDefinedTypeDeclarationBinder(Text).Bind(implicitVariantRoot);
-        var procedureSymbols = VBIntrinsicSymbols.CreateProcedureTable(implicitVariantRoot);
+        Dictionary<string, ProcedureSymbol> procedureSymbols;
         SemanticModel preliminaryModel;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
+            procedureSymbols = VBIntrinsicSymbols.CreateProcedureTable(implicitVariantRoot);
             preliminaryModel = new Binder(Text)
                 .BindCompilationUnit(implicitVariantRoot, procedureSymbols);
         }
