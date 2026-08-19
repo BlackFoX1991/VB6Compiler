@@ -44,7 +44,7 @@ public sealed class UserDefinedTypeDeclarationBinder
             if (!types.TryAdd(symbol.Name, symbol))
             {
                 Report(
-                    "VB6S0036",
+                    "VB6S0040",
                     $"User-defined type '{symbol.Name}' is already declared in this module.",
                     declaration.Identifier.Span);
             }
@@ -72,7 +72,7 @@ public sealed class UserDefinedTypeDeclarationBinder
                         duplicateMemberName,
                         StringComparison.OrdinalIgnoreCase));
                 Report(
-                    "VB6S0037",
+                    "VB6S0041",
                     $"Member '{duplicateMemberName}' is already declared in user-defined type '{type.Name}'.",
                     duplicateSyntax.Identifier.Span);
             }
@@ -104,7 +104,7 @@ public sealed class UserDefinedTypeDeclarationBinder
             if (elementType != TypeSymbol.String)
             {
                 Report(
-                    "VB6S0038",
+                    "VB6S0042",
                     $"Fixed-length declaration for member '{member.Identifier.Text}' requires String.",
                     member.TypeToken.Span);
                 return TypeSymbol.Error;
@@ -159,7 +159,7 @@ public sealed class UserDefinedTypeDeclarationBinder
             literal.LiteralToken.Kind != SyntaxKind.IntegerLiteralToken)
         {
             Report(
-                "VB6S0039",
+                "VB6S0043",
                 $"Fixed-length String member '{member.Identifier.Text}' requires an integer constant length in the current compiler subset.",
                 member.StarToken?.Span ?? member.Identifier.Span);
             return null;
@@ -169,7 +169,7 @@ public sealed class UserDefinedTypeDeclarationBinder
         if (value is < 1 or > 65526)
         {
             Report(
-                "VB6S0040",
+                "VB6S0044",
                 $"Fixed-length String member '{member.Identifier.Text}' must contain between 1 and 65526 characters.",
                 literal.LiteralToken.Span);
             return null;
