@@ -63,6 +63,22 @@ public sealed class TypeDeclarationParserTests
         Assert.IsTrue(declaration.Members[1].IsFixedLengthString);
     }
 
+    [TestMethod]
+    public void Parse_RecoversFromUnexpectedKeywordInsideType()
+    {
+        var result = new ParserType(SourceText.From("""
+            Type Broken
+                Dim As Long
+                Value As Long
+            End Type
+            """, "test.bas")).ParseCompilationUnit();
+
+        Assert.IsTrue(result.Diagnostics.Length > 0);
+        var declaration = (TypeDeclarationSyntax)result.Root.Members.Single();
+        Assert.AreEqual(1, declaration.Members.Length);
+        Assert.AreEqual("Value", declaration.Members[0].Identifier.Text);
+    }
+
     private static TypeDeclarationSyntax ParseType(string source)
     {
         var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
