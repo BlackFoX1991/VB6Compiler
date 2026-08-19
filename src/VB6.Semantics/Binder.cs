@@ -308,10 +308,13 @@ public sealed class Binder
             return elementType;
         }
 
-        Report(
-            "VB6S0025",
-            $"Array variable '{declarator.Identifier.Text}' is typed and bound, but array allocation and code generation are not implemented yet.",
-            declarator.Identifier.Span);
+        if (declarator.Dimensions.IsDefaultOrEmpty)
+        {
+            Report(
+                "VB6S0025",
+                $"Dynamic array variable '{declarator.Identifier.Text}' requires ReDim semantics, which are not implemented yet.",
+                declarator.Identifier.Span);
+        }
 
         return new ArrayTypeSymbol(
             elementType,
@@ -412,13 +415,6 @@ public sealed class Binder
                     "VB6S0003",
                     $"Unknown type '{syntax.TypeToken.Text}'.",
                     syntax.TypeToken.Span);
-            }
-            else if (syntax.IsArray)
-            {
-                Report(
-                    "VB6S0025",
-                    $"Array parameter '{syntax.Identifier.Text}' is typed and bound, but array invocation and code generation are not implemented yet.",
-                    syntax.Identifier.Span);
             }
 
             if (!TryDeclareInProcedureScope(variables, parameter.Name, parameter))
