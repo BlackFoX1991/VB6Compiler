@@ -90,18 +90,13 @@ public sealed class ModuleMemberParserTests
     }
 
     [TestMethod]
-    public void Parse_DoesNotTreatOtherDeclarationsAsModuleVariables()
+    public void Parse_DoesNotTreatDeclareAsModuleVariable()
     {
-        // 'Private Declare Function ...' starts like a module variable but is not one. The
-        // parser must not swallow it; it is still unsupported, so it must report rather than
-        // silently mis-parse.
-        var result = new ParserType(SourceText.From(
-            """
+        var root = Parse("""
             Private Declare Function GetTickCount Lib "kernel32" () As Long
-            """,
-            "test.bas")).ParseCompilationUnit();
+            """);
 
-        Assert.IsTrue(result.Diagnostics.Length > 0);
-        Assert.AreEqual(0, result.Root.Members.OfType<ModuleVariableDeclarationSyntax>().Count());
+        Assert.AreEqual(0, root.Members.OfType<ModuleVariableDeclarationSyntax>().Count());
+        Assert.AreEqual(1, root.Members.OfType<DeclareDeclarationSyntax>().Count());
     }
 }
