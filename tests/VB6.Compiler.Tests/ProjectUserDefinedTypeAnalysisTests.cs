@@ -83,9 +83,9 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
             Assert.AreSame(point, usePoint.Symbol.Parameters.Single().Type);
             Assert.AreSame(point, usePoint.Locals.Single(local => local.Name == "local").Type);
 
-            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
             Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
-            Assert.AreEqual(3, analysis.Diagnostics.Count(diagnostic => diagnostic.Code == "VB6S0046"));
+            Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
         }
         finally
         {
@@ -136,8 +136,55 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
 
             Assert.AreSame(publicPoint, publicParameter.Type);
             Assert.AreSame(privatePoint, privateParameter.Type);
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
             Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
-            Assert.AreEqual(2, analysis.Diagnostics.Count(diagnostic => diagnostic.Code == "VB6S0046"));
+            Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void GenerateCSharp_UsesDistinctStorageTypesForPrivateUdtShadowing()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            var projectPath = WriteProject(
+                directory,
+                """
+                Public Type Point
+                    X As Long
+                End Type
+
+                Sub Main()
+                    Dim value As Point
+                    UsePublic value
+                End Sub
+
+                Sub UsePublic(ByRef value As Point)
+                End Sub
+                """,
+                """
+                Private Type Point
+                    X As Integer
+                End Type
+
+                Sub UsePrivate(ByRef value As Point)
+                End Sub
+                """);
+
+            var generation = VBProjectCompilation.Create(projectPath).GenerateCSharp();
+
+            Assert.IsTrue(generation.Success, FormatDiagnostics(generation.Analysis));
+            Assert.IsNotNull(generation.Source);
+            StringAssert.Contains(generation.Source, "private struct __vb6_udt_Point");
+            StringAssert.Contains(generation.Source, "private struct __vb6_udt_Point_2");
+            StringAssert.Contains(generation.Source, "private static void __vb6_UsePublic(ref __vb6_udt_Point __vb6_arg_value)");
+            StringAssert.Contains(generation.Source, "private static void __vb6_UsePrivate(ref __vb6_udt_Point_2 __vb6_arg_value)");
         }
         finally
         {

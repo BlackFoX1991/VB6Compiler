@@ -61,13 +61,15 @@ public sealed class UserDefinedTypeAnalysisTests
         Assert.AreSame(point, points.ElementType);
         Assert.AreEqual(1, points.Rank);
 
-        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(
+            analysis.Success,
+            string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
         Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
-        Assert.AreEqual(5, analysis.Diagnostics.Count(diagnostic => diagnostic.Code == "VB6S0046"));
+        Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
     }
 
     [TestMethod]
-    public void GenerateCSharp_StopsOnBoundUdtValueUntilStorageLoweringExists()
+    public void GenerateCSharp_EmitsManagedUdtStorage()
     {
         var generation = VBCompilation.Create("""
             Type Point
@@ -79,10 +81,50 @@ public sealed class UserDefinedTypeAnalysisTests
             End Sub
             """, "test.bas").GenerateCSharp();
 
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        Assert.IsNotNull(generation.Source);
+        StringAssert.Contains(generation.Source, "private struct __vb6_udt_Point");
+        StringAssert.Contains(generation.Source, "public int __vb6_member_X;");
+        StringAssert.Contains(generation.Source, "__vb6_udt_Point __vb6_value = default;");
+        Assert.IsFalse(generation.Source.Contains("object?", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void GenerateCSharp_StopsOnArrayMemberLayout()
+    {
+        var generation = VBCompilation.Create("""
+            Type Buffer
+                Values(0 To 3) As Long
+            End Type
+
+            Sub Main()
+                Dim value As Buffer
+            End Sub
+            """, "test.bas").GenerateCSharp();
+
         Assert.IsFalse(generation.Success);
         Assert.IsNull(generation.Source);
         Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
-        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
+    }
+
+    [TestMethod]
+    public void GenerateCSharp_StopsOnFixedStringMemberLayout()
+    {
+        var generation = VBCompilation.Create("""
+            Type Record
+                Name As String * 16
+            End Type
+
+            Sub Main()
+                Dim value As Record
+            End Sub
+            """, "test.bas").GenerateCSharp();
+
+        Assert.IsFalse(generation.Success);
+        Assert.IsNull(generation.Source);
+        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
     }
 
     [TestMethod]
