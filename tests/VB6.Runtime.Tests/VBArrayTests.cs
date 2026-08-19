@@ -40,6 +40,17 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void Array_IndexerCanBePassedByReference()
+    {
+        var array = new VBArray<int>(new VBArrayBound(1, 2));
+        array[1] = 10;
+
+        Increment(ref array[1]);
+
+        Assert.AreEqual(11, array[1]);
+    }
+
+    [TestMethod]
     public void Array_RejectsOutOfRangeSubscriptsAndDimensions()
     {
         var array = new VBArray<int>(new VBArrayBound(-2, 2));
@@ -56,4 +67,6 @@ public sealed class VBArrayTests
             new VBArray<int>(new VBArrayBound(5, 4)));
         Assert.ThrowsException<ArgumentException>(() => new VBArray<int>());
     }
+
+    private static void Increment(ref int value) => value++;
 }
