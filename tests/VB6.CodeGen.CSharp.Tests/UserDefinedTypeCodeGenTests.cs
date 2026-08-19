@@ -42,6 +42,50 @@ public sealed class UserDefinedTypeCodeGenTests
     }
 
     [TestMethod]
+    public void Generate_EmitsFixedUdtArrayStorageBoundsAndCloneHelpers()
+    {
+        var analysis = VBCompilation.Create("""
+            Option Base 1
+
+            Type Child
+                Values(2 To 4) As Long
+            End Type
+
+            Type Parent
+                Child As Child
+                Flags(3) As Integer
+            End Type
+
+            Sub Main()
+                Dim value As Parent
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsNotNull(analysis.SemanticModel);
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+
+        var source = new CSharpGenerator().Generate(analysis.SemanticModel);
+
+        StringAssert.Contains(source, "private VBArray<int>? __vb6_array_Values;");
+        StringAssert.Contains(source, "public VBArray<int> __vb6_member_Values =>");
+        StringAssert.Contains(source, "__vb6_array_Values ??= new VBArray<int>(new VBArrayBound(2, 4));");
+        StringAssert.Contains(source, "private VBArray<short>? __vb6_array_Flags;");
+        StringAssert.Contains(source, "__vb6_array_Flags ??= new VBArray<short>(new VBArrayBound(1, 3));");
+        StringAssert.Contains(source, "public __vb6_udt_Child __vb6_clone()");
+        StringAssert.Contains(source, "__vb6_copy.__vb6_array_Values = __vb6_array_Values.Clone();");
+        StringAssert.Contains(source, "public __vb6_udt_Parent __vb6_clone()");
+        StringAssert.Contains(source, "__vb6_copy.__vb6_member_Child = __vb6_member_Child.__vb6_clone();");
+        StringAssert.Contains(source, "__vb6_copy.__vb6_array_Flags = __vb6_array_Flags.Clone();");
+
+        using var peStream = new MemoryStream();
+        var emitResult = new CSharpAssemblyEmitter().Emit(source, "GeneratedUdtArrayStorageProgram", peStream);
+
+        Assert.IsTrue(
+            emitResult.Success,
+            string.Join(Environment.NewLine, emitResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}")));
+    }
+
+    [TestMethod]
     public void Emit_ProducesManagedAssemblyForUdtValueCopy()
     {
         var generation = VBCompilation.Create("""
