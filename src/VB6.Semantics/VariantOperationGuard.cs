@@ -11,7 +11,8 @@ namespace VB6.Semantics;
 /// lowered with scalar rules when any operand originates from a Variant value. Multiplication is
 /// allowed only after VariantMultiplyLowerer has marked the bound result as Variant; the narrow
 /// Variant-left integral equality slice is allowed only after the same lowerer has normalized both
-/// operands to Double.
+/// operands to Double. String concatenation with <c>&amp;</c> is safe once binding has converted both
+/// operands to String because the backend routes it through <c>VBOperators.Concat</c>/<c>CStr</c>.
 /// </summary>
 public static class VariantOperationGuard
 {
@@ -185,7 +186,15 @@ public static class VariantOperationGuard
                     binary.OperatorKind == SyntaxKind.StarToken && binary.Type == TypeSymbol.Variant;
                 var isLoweredIntegralEquality =
                     VariantMultiplyLowerer.IsLoweredVariantIntegralEquality(binary);
-                if (hasVariantOperand && !isLoweredMultiply && !isLoweredIntegralEquality)
+                var isBoundStringConcatenation =
+                    binary.OperatorKind == SyntaxKind.AmpersandToken &&
+                    binary.Type == TypeSymbol.String &&
+                    binary.Left.Type == TypeSymbol.String &&
+                    binary.Right.Type == TypeSymbol.String;
+                if (hasVariantOperand &&
+                    !isLoweredMultiply &&
+                    !isLoweredIntegralEquality &&
+                    !isBoundStringConcatenation)
                 {
                     AddOperatorDiagnostic(
                         text,
