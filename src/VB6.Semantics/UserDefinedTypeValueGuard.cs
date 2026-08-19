@@ -6,9 +6,9 @@ using VB6.Syntax.Text;
 namespace VB6.Semantics;
 
 /// <summary>
-/// UDT declarations and value types can already bind, but the managed storage/layout lowering is
-/// not implemented yet. This validator keeps those bound types visible to later compiler layers
-/// while preventing the current C# generator from silently lowering them as object?.
+/// Scalar UDT values can be lowered as managed value types. This validator keeps the remaining
+/// layouts guarded until their VB6 storage semantics are represented explicitly: array members,
+/// fixed-length strings, and recursive by-value UDT layouts.
 /// </summary>
 public static class UserDefinedTypeValueGuard
 {
@@ -30,7 +30,7 @@ public static class UserDefinedTypeValueGuard
                     ValidateDeclarators(text, declaration.Declarators, types, diagnostics);
                     break;
 
-                case ConstDeclarationSyntax declaration when IsUserDefinedType(declaration.TypeToken?.Text, types):
+                case ConstDeclarationSyntax declaration when RequiresStorageGuard(declaration.TypeToken?.Text, types):
                     AddDiagnostic(text, declaration.Identifier.Text, declaration.Identifier.Span, diagnostics);
                     break;
 
@@ -40,7 +40,7 @@ public static class UserDefinedTypeValueGuard
                     break;
 
                 case FunctionDeclarationSyntax declaration:
-                    if (IsUserDefinedType(declaration.ReturnTypeToken.Text, types))
+                    if (RequiresStorageGuard(declaration.ReturnTypeToken.Text, types))
                     {
                         AddDiagnostic(text, declaration.Identifier.Text, declaration.ReturnTypeToken.Span, diagnostics);
                     }
@@ -62,7 +62,7 @@ public static class UserDefinedTypeValueGuard
     {
         foreach (var parameter in parameters)
         {
-            if (IsUserDefinedType(parameter.TypeToken.Text, types))
+            if (RequiresStorageGuard(parameter.TypeToken.Text, types))
             {
                 AddDiagnostic(text, parameter.Identifier.Text, parameter.TypeToken.Span, diagnostics);
             }
@@ -130,17 +130,55 @@ public static class UserDefinedTypeValueGuard
     {
         foreach (var declarator in declarators)
         {
-            if (IsUserDefinedType(declarator.TypeToken?.Text, types))
+            if (RequiresStorageGuard(declarator.TypeToken?.Text, types))
             {
                 AddDiagnostic(text, declarator.Identifier.Text, declarator.TypeToken!.Span, diagnostics);
             }
         }
     }
 
-    private static bool IsUserDefinedType(
+    private static bool RequiresStorageGuard(
         string? typeName,
-        IReadOnlyDictionary<string, UserDefinedTypeSymbol> types) =>
-        typeName is not null && types.ContainsKey(typeName);
+        IReadOnlyDictionary<string, UserDefinedTypeSymbol> types)
+    {
+        if (typeName is null || !types.TryGetValue(typeName, out var type))
+        {
+            return false;
+        }
+
+        return RequiresStorageGuard(
+            type,
+            new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance));
+    }
+
+    private static bool RequiresStorageGuard(
+        UserDefinedTypeSymbol type,
+        HashSet<UserDefinedTypeSymbol> activePath)
+    {
+        if (!activePath.Add(type))
+        {
+            return true;
+        }
+
+        foreach (var member in type.Members)
+        {
+            if (member.Type is FixedLengthStringTypeSymbol or ArrayTypeSymbol)
+            {
+                activePath.Remove(type);
+                return true;
+            }
+
+            if (member.Type is UserDefinedTypeSymbol nestedType &&
+                RequiresStorageGuard(nestedType, activePath))
+            {
+                activePath.Remove(type);
+                return true;
+            }
+        }
+
+        activePath.Remove(type);
+        return false;
+    }
 
     private static void AddDiagnostic(
         SourceText text,
@@ -151,7 +189,7 @@ public static class UserDefinedTypeValueGuard
         diagnostics.Add(new Diagnostic(
             "VB6S0046",
             DiagnosticSeverity.Error,
-            $"User-defined type value '{valueName}' is bound, but managed UDT storage/code generation is not implemented yet.",
+            $"User-defined type value '{valueName}' uses a UDT layout that is not supported by managed lowering yet.",
             span,
             text.FilePath));
     }
