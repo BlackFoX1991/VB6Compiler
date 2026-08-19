@@ -20,6 +20,7 @@ public sealed class FixedUdtArrayExecutionTests
             Sub Main()
                 Dim first As Record
                 Dim copied As Record
+                Dim items(1 To 1) As Record
 
                 Debug.Print first.Values(1)
                 first.Values(1) = 10
@@ -39,6 +40,12 @@ public sealed class FixedUdtArrayExecutionTests
                     .Values(1) = 7
                     Debug.Print .Values(1)
                 End With
+
+                items(1).Values(1) = 40
+                copied = items(1)
+                copied.Values(1) = 41
+                Debug.Print items(1).Values(1)
+                Debug.Print copied.Values(1)
             End Sub
             """, "Module1.bas");
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerFixedUdtArrayTests", Guid.NewGuid().ToString("N"));
@@ -77,7 +84,7 @@ public sealed class FixedUdtArrayExecutionTests
                 .TrimEnd('\n')
                 .Split('\n');
             CollectionAssert.AreEqual(
-                new[] { "0", "10", "99", "20", "30", "7" },
+                new[] { "0", "10", "99", "20", "30", "7", "40", "41" },
                 lines);
         }
         finally
