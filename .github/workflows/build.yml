@@ -37,7 +37,16 @@ jobs:
         run: dotnet build VB6Compiler.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test VB6Compiler.sln --configuration Release --no-build --no-restore --logger "trx;LogFileName=tests.trx" --results-directory artifacts/test-results
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/test-results | Out-Null
+          Get-ChildItem tests -Filter *.csproj -Recurse | Sort-Object FullName | ForEach-Object {
+            $projectName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+            dotnet test $_.FullName --configuration Release --no-build --no-restore --logger "trx;LogFileName=$projectName.trx" --results-directory artifacts/test-results
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
 
       - name: VISIA parity report
         shell: pwsh
