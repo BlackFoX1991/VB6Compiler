@@ -114,7 +114,9 @@ public sealed class Binder
         parameters
             .Select(parameter => new ParameterSymbol(
                 parameter.Identifier.Text,
-                TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error,
+                parameter.IsArray
+                    ? TypeSymbol.Error
+                    : TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error,
                 parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
                     ? ParameterPassingMode.ByVal
                     : ParameterPassingMode.ByRef))
@@ -257,6 +259,15 @@ public sealed class Binder
 
     private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
     {
+        if (declarator.IsArray)
+        {
+            Report(
+                "VB6S0025",
+                $"Array variable '{declarator.Identifier.Text}' requires array type semantics, which are not implemented yet.",
+                declarator.Identifier.Span);
+            return TypeSymbol.Error;
+        }
+
         if (declarator.TypeToken is not null)
         {
             return ResolveDeclaredType(declarator.TypeToken);
@@ -329,7 +340,14 @@ public sealed class Binder
                 ? symbol.Parameters[index]
                 : new ParameterSymbol(syntax.Identifier.Text, TypeSymbol.Error, ParameterPassingMode.ByRef);
 
-            if (parameter.Type == TypeSymbol.Error)
+            if (syntax.IsArray)
+            {
+                Report(
+                    "VB6S0025",
+                    $"Array parameter '{syntax.Identifier.Text}' requires array type semantics, which are not implemented yet.",
+                    syntax.Identifier.Span);
+            }
+            else if (parameter.Type == TypeSymbol.Error)
             {
                 Report(
                     "VB6S0003",
