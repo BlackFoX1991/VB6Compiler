@@ -14,7 +14,6 @@ public sealed class ImplicitVariantAnalysisTests
             Sub Main()
                 Dim first, second As Long
                 Dim values(1 To 2)
-                Static cached
             End Sub
             """, "test.bas").Analyze();
 
@@ -30,11 +29,27 @@ public sealed class ImplicitVariantAnalysisTests
         var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
         Assert.AreSame(TypeSymbol.Variant, main.Locals.Single(local => local.Name == "first").Type);
         Assert.AreSame(TypeSymbol.Long, main.Locals.Single(local => local.Name == "second").Type);
-        Assert.AreSame(TypeSymbol.Variant, main.Locals.Single(local => local.Name == "cached").Type);
 
         var values = (ArrayTypeSymbol)main.Locals.Single(local => local.Name == "values").Type;
         Assert.AreSame(TypeSymbol.Variant, values.ElementType);
         Assert.AreEqual(1, values.Rank);
+    }
+
+    [TestMethod]
+    public void Analyze_DefaultsUntypedStaticToVariantWhileKeepingLifetimeGuard()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Static cached
+            End Sub
+            """, "test.bas").Analyze();
+
+        Assert.IsNotNull(analysis.SemanticModel);
+        Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0020"));
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0021"));
+
+        var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        Assert.AreSame(TypeSymbol.Variant, main.Locals.Single(local => local.Name == "cached").Type);
     }
 
     [TestMethod]
