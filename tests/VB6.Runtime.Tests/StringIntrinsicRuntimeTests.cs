@@ -30,4 +30,20 @@ public sealed class StringIntrinsicRuntimeTests
     {
         Assert.ThrowsException<InvalidCastException>(() => VBStrings.Len(new object()));
     }
+
+    [TestMethod]
+    public void Mid_UsesOneBasedPositionsAndClipsLength()
+    {
+        Assert.AreEqual("bcd", VBStrings.Mid("abcdef", 2, 3));
+        Assert.AreEqual("ef", VBStrings.Mid("abcdef", 5, 20));
+        Assert.AreEqual(string.Empty, VBStrings.Mid("abcdef", 9, 3));
+        Assert.AreEqual(string.Empty, VBStrings.Mid("abcdef", 2, 0));
+    }
+
+    [TestMethod]
+    public void Mid_RejectsInvalidStartOrLength()
+    {
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.Mid("abc", 0, 1));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.Mid("abc", 1, -1));
+    }
 }
