@@ -994,6 +994,20 @@ public sealed class Binder
                     right,
                     TypeSymbol.Double);
 
+            case SyntaxKind.LikeKeyword:
+                Report(
+                    "VB6S0023",
+                    "Like pattern-matching semantics, including Option Compare, are not implemented yet.",
+                    syntax.OperatorToken.Span);
+                return new BoundErrorExpression();
+
+            case SyntaxKind.IsKeyword:
+                Report(
+                    "VB6S0024",
+                    "Is object-reference identity semantics are not implemented yet.",
+                    syntax.OperatorToken.Span);
+                return new BoundErrorExpression();
+
             case SyntaxKind.EqualsToken:
             case SyntaxKind.LessGreaterToken:
             case SyntaxKind.LessToken:
