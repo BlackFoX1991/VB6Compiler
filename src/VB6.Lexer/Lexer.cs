@@ -63,6 +63,10 @@ public sealed class Lexer
             var nameSpan = TextSpan.FromBounds(start, _position);
             var text = _text.ToString(nameSpan);
             var keywordKind = SyntaxFacts.GetKeywordKind(text);
+            if (keywordKind == SyntaxKind.AliasKeyword && !IsDeclareAliasKeyword(start))
+            {
+                keywordKind = SyntaxKind.IdentifierToken;
+            }
 
             // VB6 type suffixes ($ % & ! # @) name the same variable as the bare identifier, so
             // the suffix stays inside the token span for round-tripping but out of its text.
@@ -324,6 +328,49 @@ public sealed class Lexer
 
         end = 0;
         return false;
+    }
+
+    private bool IsDeclareAliasKeyword(int aliasStart)
+    {
+        var logicalStart = FindLogicalLineStart(aliasStart);
+        var prefix = _text.ToString(TextSpan.FromBounds(logicalStart, aliasStart));
+        return prefix.Contains("Declare", StringComparison.OrdinalIgnoreCase) &&
+               prefix.Contains("Lib", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int FindLogicalLineStart(int position)
+    {
+        var scan = position - 1;
+        while (scan >= 0)
+        {
+            if (_text[scan] is not '\r' and not '\n')
+            {
+                scan--;
+                continue;
+            }
+
+            var newlineStart = scan;
+            if (_text[scan] == '\n' && scan > 0 && _text[scan - 1] == '\r')
+            {
+                newlineStart--;
+            }
+
+            var previousContentEnd = newlineStart - 1;
+            while (previousContentEnd >= 0 && _text[previousContentEnd] is ' ' or '\t' or '\f')
+            {
+                previousContentEnd--;
+            }
+
+            if (previousContentEnd >= 0 && _text[previousContentEnd] == '_')
+            {
+                scan = previousContentEnd - 1;
+                continue;
+            }
+
+            return scan + 1;
+        }
+
+        return 0;
     }
 
     private static string RadixName(bool isHex) => isHex ? "Hexadecimal" : "Octal";
