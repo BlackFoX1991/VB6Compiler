@@ -62,6 +62,7 @@ public enum SyntaxKind
     DebugKeyword,
     PrintKeyword,
     CallKeyword,
+    OptionalKeyword,
     ByRefKeyword,
     ByValKeyword,
     ForKeyword,

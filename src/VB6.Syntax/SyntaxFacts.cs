@@ -37,6 +37,7 @@ public static class SyntaxFacts
         "DEBUG" => SyntaxKind.DebugKeyword,
         "PRINT" => SyntaxKind.PrintKeyword,
         "CALL" => SyntaxKind.CallKeyword,
+        "OPTIONAL" => SyntaxKind.OptionalKeyword,
         "BYREF" => SyntaxKind.ByRefKeyword,
         "BYVAL" => SyntaxKind.ByValKeyword,
         "FOR" => SyntaxKind.ForKeyword,
