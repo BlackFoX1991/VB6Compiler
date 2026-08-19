@@ -151,8 +151,24 @@ public abstract record BoundExpression(BoundNodeKind Kind, TypeSymbol Type) : Bo
 public sealed record BoundBlockStatement(ImmutableArray<BoundStatement> Statements)
     : BoundStatement(BoundNodeKind.BlockStatement);
 
-public sealed record BoundVariableDeclarationStatement(LocalVariableSymbol Variable)
-    : BoundStatement(BoundNodeKind.VariableDeclarationStatement);
+/// <summary>
+/// One bound VB6 array dimension. Bounds are inclusive and normalized to VB6 Long so the
+/// runtime and later code generation can preserve non-zero lower bounds exactly.
+/// </summary>
+public sealed record BoundArrayDimension(
+    BoundExpression LowerBound,
+    BoundExpression UpperBound);
+
+public sealed record BoundVariableDeclarationStatement(
+    LocalVariableSymbol Variable,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions)
+    : BoundStatement(BoundNodeKind.VariableDeclarationStatement)
+{
+    public BoundVariableDeclarationStatement(LocalVariableSymbol variable)
+        : this(variable, ImmutableArray<BoundArrayDimension>.Empty)
+    {
+    }
+}
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
@@ -272,12 +288,23 @@ public sealed record BoundProcedure(
 
 /// <summary>
 /// A module-level variable together with its initial value. Plain declarations have none;
-/// constants always do.
+/// constants always do. Fixed arrays carry their declaration bounds; dynamic arrays have an
+/// array type but an empty bound list until ReDim allocates them.
 /// </summary>
 public sealed record BoundModuleVariable(
     ModuleVariableSymbol Symbol,
     BoundExpression? Initializer,
-    bool IsConstant);
+    bool IsConstant,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions)
+{
+    public BoundModuleVariable(
+        ModuleVariableSymbol symbol,
+        BoundExpression? initializer,
+        bool isConstant)
+        : this(symbol, initializer, isConstant, ImmutableArray<BoundArrayDimension>.Empty)
+    {
+    }
+}
 
 public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,
