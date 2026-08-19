@@ -16,6 +16,7 @@ public enum SyntaxKind
     StarToken,
     SlashToken,
     BackslashToken,
+    CaretToken,
     AmpersandToken,
     EqualsToken,
     LessToken,
