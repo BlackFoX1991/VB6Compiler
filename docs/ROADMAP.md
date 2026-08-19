@@ -24,6 +24,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M3 Array-Bindung/Elementzugriff | **2032** | 1571 | 68 | 393 | 0 von 27 |
 | M3 `ReDim` / `ReDim Preserve` | **2299** | 1474 | 68 | 757 | 0 von 27 |
 | M3 `Erase` / `LBound` / `UBound` | **2294** | 1474 | 68 | 752 | 0 von 27 |
+| M3 `Type ... End Type`-Syntax | **2034** | 1214 | 68 | 752 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -68,6 +69,16 @@ String-Arrayelemente verwenden dabei den VB6-Initialwert `""` statt CLR-`null`. 
 Dimension 1. Actions #812 validiert den Slice mit 314 Tests, 0 Warnungen und 0 Buildfehlern. Im
 VISIA-Report bleibt der Parser bei 1474, während die Semantik von 757 auf 752 und die Gesamtsumme
 von 2299 auf 2294 sinkt.
+
+Die UDT-Syntax für `Type ... End Type` ist jetzt verlustfrei im Syntaxbaum vertreten: optionale
+Sichtbarkeit, skalare Felder, feste und mehrdimensionale Arrayfelder, verschachtelte Typnamen und
+`String * n` bleiben erhalten. UDT-Feldnamen dürfen dabei wie in klassischem VB auch reservierte
+Schlüsselwörter sein. Eine gezielte Recovery bei fehlerhaften/noch nicht unterstützten Feldformen
+stellt sicher, dass der Parser im realen Korpus immer Fortschritt macht und nicht in einem
+`Type`-Block hängen bleibt. Actions #832 validiert den Implementierungsstand mit 319 Tests,
+0 Warnungen und 0 Buildfehlern. Die Parserdiagnostik sinkt um 260 von 1474 auf 1214; die Semantik
+bleibt bei 752, die Gesamtsumme fällt entsprechend von 2294 auf 2034. UDT-Typ- und Memberbindung
+bleibt bewusst der nächste M3-Slice.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -147,7 +158,7 @@ Business-Programm:
 | String-Funktionen | 337 | `Optional`/`ParamArray` | 77 (`Optional`-Syntax ✅) |
 | `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
 | `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
-| `ReDim`/`Preserve` | 103 ✅ typed arrays | `Type ... End Type` | 52 |
+| `ReDim`/`Preserve` | 103 ✅ typed arrays | `Type ... End Type` | 52 ✅ Syntax |
 | `With` | 102 | `Enum` | 44 ✅ Syntax |
 
 Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0, `Resume`-Statement 0. Da `Resume`
@@ -192,7 +203,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
-- [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, implizites Variant bleibt M4
+- [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, impliztes Variant bleibt M4
 - [x] `Static`-Local-Syntax; statische Lebensdauer bleibt M5 und wird bis dahin als `VB6S0021` diagnostiziert
 - [x] `^` vollständig; `Like`- und `Is`-Syntax mit Semantik-Guards bis M7 bzw. M5
 
@@ -209,8 +220,9 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] Arrayvariablen/-parameter binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben/emittieren; `Option Base` auf implizite Untergrenzen anwenden; Arrayelemente ByRef weiterreichen
 - [x] `ReDim` / `ReDim Preserve` für explizit typisierte dynamische Arrays inklusive Bounds, Codegen, Runtime-Wertbewahrung und End-to-End-Ausführung
 - [x] `Erase`, `LBound` und `UBound` für typisierte Arrays inklusive Runtime-/Codegen-/End-to-End-Semantik
-- [ ] `For Each` über Arrays
-- [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`; `UserDefinedTypeSymbol`
+- [ ] `For Each` über Arrays — vollständige VB6-Ausführung hängt am Variant-Fundament von M4
+- [x] `Type ... End Type`-Syntax mit Sichtbarkeit, skalaren/festen Arrayfeldern, verschachtelten Typnamen, Keyword-Feldnamen und `String * n`
+- [ ] `UserDefinedTypeSymbol`, UDT-Memberbindung, Layout, Memberzugriff/-zuweisung und Codegen
 
 ## Meilenstein 4 — Variant
 
