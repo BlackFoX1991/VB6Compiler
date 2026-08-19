@@ -31,6 +31,8 @@ public enum SyntaxKind
 
     OptionKeyword,
     ExplicitKeyword,
+    BaseKeyword,
+    CompareKeyword,
     SubKeyword,
     FunctionKeyword,
     DeclareKeyword,
@@ -81,6 +83,8 @@ public enum SyntaxKind
 
     CompilationUnit,
     OptionExplicitStatement,
+    OptionBaseStatement,
+    OptionCompareStatement,
     AttributeStatement,
     ModuleVariableDeclaration,
     ConstDeclaration,
