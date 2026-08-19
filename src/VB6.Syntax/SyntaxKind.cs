@@ -82,6 +82,7 @@ public enum SyntaxKind
     AttributeStatement,
     ModuleVariableDeclaration,
     ConstDeclaration,
+    DeclareDeclaration,
     SubDeclaration,
     FunctionDeclaration,
     Parameter,

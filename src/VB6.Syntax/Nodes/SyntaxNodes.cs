@@ -48,6 +48,27 @@ public sealed record ConstDeclarationSyntax(
     SyntaxToken EqualsToken,
     ExpressionSyntax Value) : MemberSyntax(SyntaxKind.ConstDeclaration);
 
+/// <summary>
+/// A native procedure declaration such as
+/// <c>Private Declare Function GetTickCount Lib "kernel32" () As Long</c>. M2 preserves the
+/// complete declaration syntax; binding and P/Invoke emission are added later by the interop
+/// milestone.
+/// </summary>
+public sealed record DeclareDeclarationSyntax(
+    SyntaxToken? VisibilityKeyword,
+    SyntaxToken DeclareKeyword,
+    SyntaxToken ProcedureKindKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken LibKeyword,
+    SyntaxToken LibraryName,
+    SyntaxToken? AliasKeyword,
+    SyntaxToken? AliasName,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
+    SyntaxToken CloseParenthesisToken,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? ReturnTypeToken) : MemberSyntax(SyntaxKind.DeclareDeclaration);
+
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
     SyntaxToken Identifier,

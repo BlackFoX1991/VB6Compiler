@@ -63,6 +63,16 @@ public sealed class Parser
             return ParseOptionExplicit();
         }
 
+        if (Current.Kind == SyntaxKind.DeclareKeyword)
+        {
+            return ParseDeclareDeclaration(null);
+        }
+
+        if (IsVisibilityModifier(Current) && Peek(1).Kind == SyntaxKind.DeclareKeyword)
+        {
+            return ParseDeclareDeclaration(NextToken());
+        }
+
         // Visibility modifiers are not reserved words in VB6, so they only count as one when a
         // declaration follows.
         if (IsVisibilityModifier(Current) && Peek(1).Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
@@ -103,6 +113,60 @@ public sealed class Parser
         }
 
         return null;
+    }
+
+    private DeclareDeclarationSyntax ParseDeclareDeclaration(SyntaxToken? visibilityKeyword)
+    {
+        var declareKeyword = MatchToken(SyntaxKind.DeclareKeyword);
+        SyntaxToken procedureKindKeyword;
+        if (Current.Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
+        {
+            procedureKindKeyword = NextToken();
+        }
+        else
+        {
+            procedureKindKeyword = MatchToken(SyntaxKind.FunctionKeyword);
+        }
+
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var libKeyword = MatchToken(SyntaxKind.LibKeyword);
+        var libraryName = MatchToken(SyntaxKind.StringLiteralToken);
+
+        SyntaxToken? aliasKeyword = null;
+        SyntaxToken? aliasName = null;
+        if (Current.Kind == SyntaxKind.AliasKeyword)
+        {
+            aliasKeyword = NextToken();
+            aliasName = MatchToken(SyntaxKind.StringLiteralToken);
+        }
+
+        var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
+        var parameters = ParseParameters();
+        var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+
+        SyntaxToken? asKeyword = null;
+        SyntaxToken? returnType = null;
+        if (procedureKindKeyword.Kind == SyntaxKind.FunctionKeyword && Current.Kind == SyntaxKind.AsKeyword)
+        {
+            asKeyword = NextToken();
+            returnType = MatchTypeToken();
+        }
+
+        ConsumeLineTerminator();
+        return new DeclareDeclarationSyntax(
+            visibilityKeyword,
+            declareKeyword,
+            procedureKindKeyword,
+            identifier,
+            libKeyword,
+            libraryName,
+            aliasKeyword,
+            aliasName,
+            openParenthesis,
+            parameters,
+            closeParenthesis,
+            asKeyword,
+            returnType);
     }
 
     private ConstDeclarationSyntax ParseConstDeclaration(SyntaxToken? visibilityKeyword)
