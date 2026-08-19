@@ -4,11 +4,12 @@ using VB6.Syntax;
 namespace VB6.Semantics;
 
 /// <summary>
-/// Corrects the binder's scalar fallback for multiplication when a bound operand originates from
-/// Variant. The existing binder currently coerces otherwise unknown arithmetic to Integer; this
-/// post-bind pass restores the original operand values, marks the multiplication result as Variant,
-/// and re-applies target conversions at value-copy boundaries. Other Variant operators remain
-/// untouched and therefore stay behind VariantOperationGuard.
+/// Corrects selected binder scalar fallbacks when a bound operand originates from Variant.
+/// Multiplication is restored to Variant runtime dispatch. Equality currently supports the safe
+/// VB6 subset of a Variant value on the left compared with a Byte/Integer/Long value on the right;
+/// both sides are converted to Double so Empty, numeric strings, Boolean, and numeric Variant
+/// subtypes use numeric comparison without narrowing the Variant to the scalar operand type.
+/// Other Variant operators remain untouched and therefore stay behind VariantOperationGuard.
 /// </summary>
 public static class VariantMultiplyLowerer
 {
@@ -210,6 +211,11 @@ public static class VariantMultiplyLowerer
                         TypeSymbol.Variant);
                 }
 
+                if (TryLowerVariantIntegralEquality(binary, left, right, out var equality))
+                {
+                    return equality;
+                }
+
                 return binary with { Left = left, Right = right };
             }
 
@@ -248,6 +254,67 @@ public static class VariantMultiplyLowerer
             default:
                 return expression;
         }
+    }
+
+    private static bool TryLowerVariantIntegralEquality(
+        BoundBinaryExpression original,
+        BoundExpression left,
+        BoundExpression right,
+        out BoundExpression lowered)
+    {
+        lowered = original with { Left = left, Right = right };
+        if (original.OperatorKind != SyntaxKind.EqualsToken || !IsRuntimeVariantValue(left))
+        {
+            return false;
+        }
+
+        if (right is not BoundConversionExpression
+            {
+                TargetType: var targetType,
+                Expression: var scalar
+            } || targetType != TypeSymbol.Variant || !IsSupportedEqualityScalar(scalar.Type))
+        {
+            return false;
+        }
+
+        lowered = new BoundBinaryExpression(
+            new BoundConversionExpression(TypeSymbol.Double, left),
+            SyntaxKind.EqualsToken,
+            new BoundConversionExpression(TypeSymbol.Double, scalar),
+            TypeSymbol.Boolean);
+        return true;
+    }
+
+    private static bool IsRuntimeVariantValue(BoundExpression expression)
+    {
+        if (expression.Type != TypeSymbol.Variant)
+        {
+            return false;
+        }
+
+        return expression is not BoundConversionExpression
+        {
+            TargetType: var targetType,
+            Expression: var operand
+        } || targetType != TypeSymbol.Variant || operand.Type == TypeSymbol.Variant;
+    }
+
+    private static bool IsSupportedEqualityScalar(TypeSymbol type) =>
+        type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long;
+
+    internal static bool IsLoweredVariantIntegralEquality(BoundBinaryExpression binary)
+    {
+        if (binary.OperatorKind != SyntaxKind.EqualsToken || binary.Type != TypeSymbol.Boolean ||
+            binary.Left is not BoundConversionExpression { TargetType: var leftTarget, Expression: var leftOperand } ||
+            binary.Right is not BoundConversionExpression { TargetType: var rightTarget, Expression: var rightOperand })
+        {
+            return false;
+        }
+
+        return leftTarget == TypeSymbol.Double &&
+            rightTarget == TypeSymbol.Double &&
+            IsRuntimeVariantValue(leftOperand) &&
+            IsSupportedEqualityScalar(rightOperand.Type);
     }
 
     private static BoundExpression StripBinderArithmeticConversion(
