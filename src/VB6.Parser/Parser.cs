@@ -551,8 +551,21 @@ public sealed class Parser
         var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
         var parameters = ParseParameters();
         var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
-        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
-        var returnType = MatchTypeToken();
+
+        SyntaxToken asKeyword;
+        SyntaxToken returnType;
+        if (Current.Kind == SyntaxKind.AsKeyword)
+        {
+            asKeyword = NextToken();
+            returnType = MatchTypeToken();
+        }
+        else
+        {
+            var position = closeParenthesis.Span.End;
+            asKeyword = CreateSyntheticToken(SyntaxKind.AsKeyword, "As", position);
+            returnType = CreateSyntheticToken(SyntaxKind.IdentifierToken, "Variant", position);
+        }
+
         ConsumeLineTerminator();
         var statements = ParseProcedureStatements(SyntaxKind.FunctionKeyword);
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
@@ -715,21 +728,52 @@ public sealed class Parser
         };
     }
 
-    private static bool IsFileIoStatementStart(SyntaxToken token)
+    private bool IsFileIoStatementStart(SyntaxToken token)
     {
         if (token.Kind != SyntaxKind.IdentifierToken)
         {
             return false;
         }
 
-        return token.Text.Equals("Open", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Get", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Put", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Close", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Seek", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Input", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Write", StringComparison.OrdinalIgnoreCase) ||
-               token.Text.Equals("Kill", StringComparison.OrdinalIgnoreCase);
+        if (token.Text.Equals("Kill", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (token.Text.Equals("Open", StringComparison.OrdinalIgnoreCase))
+        {
+            return HasHashBeforeLineTerminator();
+        }
+
+        if (token.Text.Equals("Close", StringComparison.OrdinalIgnoreCase) && IsLineTerminator(Peek(1).Kind))
+        {
+            return true;
+        }
+
+        return (token.Text.Equals("Get", StringComparison.OrdinalIgnoreCase) ||
+                token.Text.Equals("Put", StringComparison.OrdinalIgnoreCase) ||
+                token.Text.Equals("Close", StringComparison.OrdinalIgnoreCase) ||
+                token.Text.Equals("Seek", StringComparison.OrdinalIgnoreCase) ||
+                token.Text.Equals("Input", StringComparison.OrdinalIgnoreCase) ||
+                token.Text.Equals("Write", StringComparison.OrdinalIgnoreCase)) &&
+               Peek(1).Kind == SyntaxKind.HashToken;
+    }
+
+    private bool HasHashBeforeLineTerminator()
+    {
+        for (var offset = 1; ; offset++)
+        {
+            var kind = Peek(offset).Kind;
+            if (kind == SyntaxKind.HashToken)
+            {
+                return true;
+            }
+
+            if (IsLineTerminator(kind))
+            {
+                return false;
+            }
+        }
     }
 
     private FileIoStatementSyntax ParseFileIoStatement()
@@ -1458,6 +1502,9 @@ public sealed class Parser
 
     private static bool IsPhysicalLineTerminator(SyntaxKind kind) =>
         kind is SyntaxKind.NewLineToken or SyntaxKind.EndOfFileToken;
+
+    private static SyntaxToken CreateSyntheticToken(SyntaxKind kind, string text, int position) =>
+        new(kind, new TextSpan(position, 0), text, null, ImmutableArray<SyntaxTrivia>.Empty);
 
     private SyntaxToken MatchToken(SyntaxKind kind)
     {
