@@ -380,4 +380,14 @@ public sealed record MemberAccessExpressionSyntax(
 
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
-public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
+public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
+
+/// <summary>
+/// <c>TypeOf ctlControl Is CheckBox</c>. The type name is a plain token because resolving it
+/// needs the object model, which does not exist yet.
+/// </summary>
+public sealed record TypeOfExpressionSyntax(
+    SyntaxToken TypeOfKeyword,
+    ExpressionSyntax Expression,
+    SyntaxToken IsKeyword,
+    SyntaxToken TypeToken) : ExpressionSyntax(SyntaxKind.TypeOfExpression);

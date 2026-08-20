@@ -62,6 +62,7 @@ public static class SyntaxFacts
         "CASE" => SyntaxKind.CaseKeyword,
         "WITH" => SyntaxKind.WithKeyword,
         "IS" => SyntaxKind.IsKeyword,
+        "TYPEOF" => SyntaxKind.TypeOfKeyword,
         _ => SyntaxKind.IdentifierToken
     };
 }

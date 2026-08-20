@@ -1468,6 +1468,17 @@ public sealed class Parser
     private ExpressionSyntax ParsePrimaryExpression()
     {
         ExpressionSyntax expression;
+        if (Current.Kind == SyntaxKind.TypeOfKeyword)
+        {
+            // TypeOf x Is T is one complete boolean expression, so the Is and the type name are
+            // consumed here rather than left to the binary operator loop.
+            var typeOfKeyword = NextToken();
+            var operand = ParsePrimaryExpression();
+            var isKeyword = MatchToken(SyntaxKind.IsKeyword);
+            var typeToken = MatchToken(SyntaxKind.IdentifierToken);
+            return new TypeOfExpressionSyntax(typeOfKeyword, operand, isKeyword, typeToken);
+        }
+
         if (Current.Kind == SyntaxKind.DotToken)
         {
             expression = new WithReceiverExpressionSyntax();

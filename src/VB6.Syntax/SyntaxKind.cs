@@ -89,6 +89,7 @@ public enum SyntaxKind
     CaseKeyword,
     WithKeyword,
     IsKeyword,
+    TypeOfKeyword,
 
     CompilationUnit,
     OptionExplicitStatement,
@@ -140,6 +141,7 @@ public enum SyntaxKind
     UnaryExpression,
     BinaryExpression,
     ParenthesizedExpression,
+    TypeOfExpression,
     FileNumber,
     OpenStatement,
     CloseStatement,
