@@ -101,14 +101,82 @@ public static class VBVariantFunctions
     public static VBVariant CVErr(object? errorNumber) =>
         VBVariant.FromError(VBConversions.CLng(errorNumber));
 
+    /// <summary>
+    /// VB6 asks whether the value can be *read* as a number, not whether it already is one.
+    /// Numeric strings therefore count — validating text input is what legacy code uses this
+    /// for — and so do Boolean and Empty, which convert to -1/0 and 0. Null, Nothing, Missing
+    /// and Error do not.
+    ///
+    /// Strings are read with the current culture, like the rest of <see cref="VBConversions"/>,
+    /// so the accepted decimal separator follows the locale exactly as VB6 does.
+    /// </summary>
     public static bool IsNumeric(object? value)
     {
         if (value is VBVariant variant)
         {
-            value = variant.Unwrap();
+            if (variant.Kind != VBVariantKind.Value)
+            {
+                return variant.Kind == VBVariantKind.Empty;
+            }
+
+            value = variant.Value;
         }
 
-        return value is byte or short or int or long or float or double or decimal or VBCurrency;
+        return value switch
+        {
+            // A bare null is the unwrapped Empty, which converts to 0.
+            null => true,
+            byte or short or int or long or float or double or decimal or VBCurrency or bool => true,
+            string text => IsNumericText(text),
+            _ => false
+        };
+    }
+
+    private static bool IsNumericText(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0)
+        {
+            return false;
+        }
+
+        if (TryReadRadixDigits(trimmed, out var digits, out var isHexadecimal))
+        {
+            return isHexadecimal
+                ? digits.All(Uri.IsHexDigit)
+                : digits.All(digit => digit is >= '0' and <= '7');
+        }
+
+        return double.TryParse(
+            trimmed,
+            NumberStyles.Float | NumberStyles.AllowThousands,
+            CultureInfo.CurrentCulture,
+            out _);
+    }
+
+    /// <summary>
+    /// VB6 accepts its own radix literals as numeric text, so "&amp;HFF" is numeric. The
+    /// trailing integer type suffixes are part of the literal syntax and do not change that.
+    /// </summary>
+    private static bool TryReadRadixDigits(string text, out string digits, out bool isHexadecimal)
+    {
+        digits = string.Empty;
+        isHexadecimal = false;
+
+        if (text.Length <= 2 || text[0] != '&')
+        {
+            return false;
+        }
+
+        var prefix = char.ToUpperInvariant(text[1]);
+        if (prefix is not ('H' or 'O'))
+        {
+            return false;
+        }
+
+        isHexadecimal = prefix == 'H';
+        digits = text[2..].TrimEnd('&', '%');
+        return digits.Length > 0;
     }
 }
 
@@ -123,9 +191,17 @@ public static class VBVariantOperators
 
         left = Unwrap(left);
         right = Unwrap(right);
+
+        // VB6 only concatenates when '+' has no numeric operand at all. A number on either side
+        // turns it into an addition and converts the string, which is what the very common
+        // 'Total = Total + Text1.Text' relies on. Empty pairs with a string as the empty string
+        // rather than as zero, so it keeps concatenating. Converting a string yields a Double,
+        // so the sum is Double even when both numbers are narrower.
         if (left is string || right is string)
         {
-            return VBVariant.From(VBConversions.CStr(left) + VBConversions.CStr(right));
+            return IsNumericLike(left) || IsNumericLike(right)
+                ? VBVariant.From(VBOperators.AddDouble(VBConversions.CDbl(left), VBConversions.CDbl(right)))
+                : VBVariant.From(VBConversions.CStr(left) + VBConversions.CStr(right));
         }
 
         return Numeric(left, right, "Add");
