@@ -236,7 +236,7 @@ public sealed class Parser
             }
 
             var start = _position;
-            var memberIdentifier = MatchToken(SyntaxKind.IdentifierToken);
+            var memberIdentifier = MatchDeclarationName();
             SyntaxToken? equalsToken = null;
             ExpressionSyntax? value = null;
             if (Current.Kind == SyntaxKind.EqualsToken)
@@ -284,7 +284,7 @@ public sealed class Parser
             }
 
             var start = _position;
-            fields.AddRange(ParseVariableDeclarators());
+            fields.AddRange(ParseVariableDeclarators(allowReservedNames: true));
             ConsumeLineTerminator();
 
             // MatchToken fabricates a zero-width token without consuming, so a field line the
@@ -341,13 +341,20 @@ public sealed class Parser
         return new ModuleVariableDeclarationSyntax(visibilityKeyword, declarators);
     }
 
-    private ImmutableArray<VariableDeclaratorSyntax> ParseVariableDeclarators()
+    /// <param name="allowReservedNames">
+    /// Accept a reserved word as the declared name. User-defined type fields need this — VB6
+    /// allows <c>Property As Boolean</c> inside <c>Type ... End Type</c>. Statement-level
+    /// declarations do not, because there the word still starts a statement.
+    /// </param>
+    private ImmutableArray<VariableDeclaratorSyntax> ParseVariableDeclarators(bool allowReservedNames = false)
     {
         var declarators = ImmutableArray.CreateBuilder<VariableDeclaratorSyntax>();
 
         while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.ColonToken and not SyntaxKind.EndOfFileToken)
         {
-            var identifier = MatchToken(SyntaxKind.IdentifierToken);
+            var identifier = allowReservedNames
+                ? MatchDeclarationName()
+                : MatchToken(SyntaxKind.IdentifierToken);
             var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
 
             SyntaxToken? asKeyword = null;
@@ -1661,6 +1668,21 @@ public sealed class Parser
 
     private static bool IsPhysicalLineTerminator(SyntaxKind kind) =>
         kind is SyntaxKind.NewLineToken or SyntaxKind.EndOfFileToken;
+
+    /// <summary>
+    /// Reads a declared name, accepting a reserved word and re-kinding it as an identifier so
+    /// that binder and code generator only ever see ordinary names. VISIA declares both
+    /// <c>Property As Boolean</c> and <c>Alias As String</c> as user-defined type fields.
+    /// </summary>
+    private SyntaxToken MatchDeclarationName()
+    {
+        if (SyntaxFacts.IsKeywordToken(Current))
+        {
+            return NextToken() with { Kind = SyntaxKind.IdentifierToken };
+        }
+
+        return MatchToken(SyntaxKind.IdentifierToken);
+    }
 
     private SyntaxToken MatchToken(SyntaxKind kind)
     {

@@ -67,4 +67,20 @@ public static class SyntaxFacts
         "IS" => SyntaxKind.IsKeyword,
         _ => SyntaxKind.IdentifierToken
     };
+
+    /// <summary>
+    /// Whether the lexer turned this token into a keyword purely because of its spelling.
+    ///
+    /// VB6 reserves these words in statement position but still allows them as declaration
+    /// names in places where the grammar cannot be ambiguous — a user-defined type may declare
+    /// <c>Property As Boolean</c> or <c>Alias As String</c>. The parser uses this to accept such
+    /// a token where it expects a name, instead of rejecting real legacy code.
+    /// </summary>
+    public static bool IsKeywordToken(SyntaxToken token)
+    {
+        ArgumentNullException.ThrowIfNull(token);
+        return token.Kind != SyntaxKind.IdentifierToken &&
+            token.Text.Length > 0 &&
+            GetKeywordKind(token.Text) == token.Kind;
+    }
 }
