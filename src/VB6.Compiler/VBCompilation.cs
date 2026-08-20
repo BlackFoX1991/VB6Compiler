@@ -31,6 +31,7 @@ public sealed class VBCompilation
                 parseResult.Diagnostics);
         }
 
+        var fileIoDiagnostics = FileIoSyntaxGuard.Validate(Text, parseResult.Root);
         var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
         var enumSymbols = VBEnumSymbols.Bind(new[] { implicitVariantRoot });
         using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
@@ -88,7 +89,8 @@ public sealed class VBCompilation
             .AddRange(forEachLowering.Diagnostics)
             .AddRange(semanticModel.Diagnostics)
             .AddRange(userDefinedTypeValueDiagnostics)
-            .AddRange(variantOperationDiagnostics);
+            .AddRange(variantOperationDiagnostics)
+            .AddRange(fileIoDiagnostics);
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
         {
