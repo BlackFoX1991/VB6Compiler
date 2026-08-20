@@ -704,6 +704,8 @@ public sealed class Parser
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
+            SyntaxKind.PrintKeyword when Peek(1).Kind == SyntaxKind.HashToken => ParseFileIoStatement(),
+            SyntaxKind.IdentifierToken when IsFileIoStatementStart(Current) => ParseFileIoStatement(),
             SyntaxKind.IdentifierToken when LooksLikeArrayElementAssignment() => ParseArrayElementAssignmentStatement(),
             SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.DotToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
@@ -711,6 +713,34 @@ public sealed class Parser
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
             _ => ParseSkippedStatement()
         };
+    }
+
+    private static bool IsFileIoStatementStart(SyntaxToken token)
+    {
+        if (token.Kind != SyntaxKind.IdentifierToken)
+        {
+            return false;
+        }
+
+        return token.Text.Equals("Open", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Get", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Put", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Close", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Seek", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Input", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Write", StringComparison.OrdinalIgnoreCase) ||
+               token.Text.Equals("Kill", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private FileIoStatementSyntax ParseFileIoStatement()
+    {
+        var tokens = ImmutableArray.CreateBuilder<SyntaxToken>();
+        while (!IsLineTerminator(Current.Kind))
+        {
+            tokens.Add(NextToken());
+        }
+
+        return new FileIoStatementSyntax(tokens.ToImmutable());
     }
 
     private bool LooksLikeArrayElementAssignment()
