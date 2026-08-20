@@ -1534,7 +1534,7 @@ public sealed class Parser
 
         if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.FloatingLiteralToken or SyntaxKind.StringLiteralToken or
             SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword or
-            SyntaxKind.EmptyKeyword or SyntaxKind.NullKeyword or SyntaxKind.NothingKeyword or SyntaxKind.MissingKeyword)
+            SyntaxKind.EmptyKeyword or SyntaxKind.NullKeyword or SyntaxKind.NothingKeyword)
         {
             return new LiteralExpressionSyntax(NextToken());
         }

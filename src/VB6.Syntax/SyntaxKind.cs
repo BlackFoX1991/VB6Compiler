@@ -62,7 +62,6 @@ public enum SyntaxKind
     EmptyKeyword,
     NullKeyword,
     NothingKeyword,
-    MissingKeyword,
     NotKeyword,
     AndKeyword,
     OrKeyword,

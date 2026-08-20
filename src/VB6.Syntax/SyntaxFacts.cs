@@ -36,7 +36,6 @@ public static class SyntaxFacts
         "EMPTY" => SyntaxKind.EmptyKeyword,
         "NULL" => SyntaxKind.NullKeyword,
         "NOTHING" => SyntaxKind.NothingKeyword,
-        "MISSING" => SyntaxKind.MissingKeyword,
         "NOT" => SyntaxKind.NotKeyword,
         "AND" => SyntaxKind.AndKeyword,
         "OR" => SyntaxKind.OrKeyword,

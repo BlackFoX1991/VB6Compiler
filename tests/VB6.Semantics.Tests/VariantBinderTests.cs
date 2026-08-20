@@ -17,13 +17,17 @@ public sealed class VariantBinderTests
                 Debug.Print IsEmpty(Empty)
                 Debug.Print IsNull(value)
                 Debug.Print IsError(CVErr(5))
-                Debug.Print IsMissing(Missing)
+                Debug.Print Probe()
                 Debug.Print IsNumeric(10)
             End Sub
+
+            Function Probe(Optional ByVal value) As Boolean
+                Probe = IsMissing(value)
+            End Function
             """);
 
         Assert.AreEqual(0, model.Diagnostics.Length, FormatDiagnostics(model));
-        var procedure = model.Procedures.Single();
+        var procedure = model.Procedures.First(candidate => candidate.Symbol.Name == "Main");
         Assert.AreEqual(TypeSymbol.Variant, procedure.Locals.Single().Type);
         var assignment = (BoundAssignmentStatement)procedure.Body.Statements[1];
         Assert.AreEqual(TypeSymbol.Variant, assignment.Expression.Type);
@@ -35,6 +39,7 @@ public sealed class VariantBinderTests
         Assert.AreEqual(TypeSymbol.Boolean, isNull.Expression.Type);
         var isError = (BoundDebugPrintStatement)procedure.Body.Statements[5];
         Assert.AreEqual(TypeSymbol.Boolean, isError.Expression.Type);
+        // IsMissing is reached through an omitted optional argument — VB6 has no Missing literal.
         var isMissing = (BoundDebugPrintStatement)procedure.Body.Statements[6];
         Assert.AreEqual(TypeSymbol.Boolean, isMissing.Expression.Type);
         var isNumeric = (BoundDebugPrintStatement)procedure.Body.Statements[7];

@@ -2197,8 +2197,6 @@ public sealed class Binder
                 new BoundLiteralExpression(VBVariantLiteral.Null, TypeSymbol.Variant),
             SyntaxKind.NothingKeyword =>
                 new BoundLiteralExpression(VBVariantLiteral.Nothing, TypeSymbol.Variant),
-            SyntaxKind.MissingKeyword =>
-                new BoundLiteralExpression(VBVariantLiteral.Missing, TypeSymbol.Variant),
             _ => new BoundErrorExpression()
         };
     }
