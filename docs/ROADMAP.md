@@ -30,6 +30,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M4 untypisierte Functions | **1473** | 466 | 62 | 945 | 0 von 27 |
 | M5 ByRef-Randfälle vorgezogen | **1064** | 466 | 62 | 536 | 0 von 27 |
 | ReDim-Recovery bei qualifizierten Zielen | **1052** | 454 | 62 | 536 | 0 von 27 |
+| M7 Datei-I/O-Syntax vorgezogen | **832** | 218 | 0 | 614 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -156,6 +157,21 @@ Parser 466 → 454.
 **Offen und bewusst nicht halb gebaut:** volle Unterstützung verlangt ein Zielausdruck statt
 eines Symbols in `BoundReDimStatement`, also Syntax, Binder und Codegen. Das ist der nächste
 große Array-Slice.
+
+Danach wurde die Datei-I/O-**Syntax** aus M7 vorgezogen, weil der Lexer an `#` scheiterte und
+ein kaputter Tokenstrom die teuerste Sorte Barriere ist. Die Wirkung ist entsprechend groß:
+**Lexerfehler verschwinden vollständig** (62 → 0) und die Parserfehler fallen von 454 auf 218 —
+die 62 gemeldeten Lexerfehler hatten also weit mehr als 200 Parserfehler nach sich gezogen.
+Gesamtsumme 1052 → 832.
+
+`Open`, `Close`, `Get`, `Put` und `Seek` werden **kontextuell** am Statement-Anfang erkannt, nicht
+global reserviert — dieselbe Lehre wie bei `Option Base`. Eine Zuweisung an eine Variable namens
+`Get` bleibt eine Zuweisung.
+
+**Nur Syntax, keine Runtime.** `VB6S0057` meldet jede der fünf Anweisungen. Das ist hier nicht
+kosmetisch: der Binder gibt für unbekannte Statements `null` zurück, die Anweisungen wären also
+kommentarlos aus dem erzeugten Programm gefallen — ein falsches Programm statt einer gemeldeten
+Lücke. Runtime, Bindung und Codegen sind der nächste Slice.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -364,7 +380,9 @@ einzeln absichern muss.
 Nach Korpusbedarf priorisiert:
 
 1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`. `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren bereits, sind aber über eine String-Ersetzung im generierten C# verdrahtet (`VBIntrinsicSymbols.RewriteGeneratedCalls`); vor dem Rest der Bibliothek gehört dort ein echter Bound-Knoten hin
-2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`
+2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`.
+   Lexer, Syntax und Parser für die Binärformen sind **vorgezogen und fertig**; Runtime, Bindung
+   und Codegen fehlen und werden als `VB6S0057` gemeldet
 3. `MsgBox`/`InputBox`
 4. Math, Konvertierung, vollständiges `Like` inklusive `Option Compare`
 5. Erst danach `Format$`, Datum/Zeit, Finanzfunktionen — im Korpus unbenutzt
