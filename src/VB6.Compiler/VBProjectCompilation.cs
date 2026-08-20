@@ -79,27 +79,33 @@ public sealed class VBProjectCompilation
                 semanticRoot));
         }
 
-        var parseableModules = parsedModules
-            .Where(module => !module.ParseResult.Diagnostics.Any(
-                diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            .ToImmutableArray();
-        var enumSymbols = VBEnumSymbols.Bind(parseableModules.Select(module => module.SemanticRoot));
+        var allParsedModules = parsedModules.ToImmutable();
+        var parseablePaths = allParsedModules
+            .Where(module => !HasParseErrors(module))
+            .Select(module => module.FilePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Declaration discovery is intentionally independent from body validity. A parser error in
+        // one procedure body must not erase valid Enum/UDT/procedure/module-variable declarations
+        // that were already recovered elsewhere in the same module.
+        var enumSymbols = VBEnumSymbols.Bind(allParsedModules.Select(module => module.SemanticRoot));
         using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
 
         var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
-            parseableModules.Select(module =>
+            allParsedModules.Select(module =>
                 new UserDefinedTypeModuleInput(module.Text, module.SemanticRoot)));
-        sourceDiagnostics.AddRange(userDefinedTypes.Diagnostics);
+        sourceDiagnostics.AddRange(userDefinedTypes.Diagnostics.Where(diagnostic =>
+            diagnostic.FilePath is null || parseablePaths.Contains(diagnostic.FilePath)));
         var userDefinedTypesByPath = userDefinedTypes.Modules.ToDictionary(
             module => module.Module.Text.FilePath ?? string.Empty,
             StringComparer.OrdinalIgnoreCase);
 
         var procedureSymbols = DeclareProjectProcedures(
-            parsedModules,
+            allParsedModules,
             userDefinedTypesByPath,
             projectDiagnostics);
         var moduleVariableSymbols = DeclareProjectModuleVariables(
-            parsedModules,
+            allParsedModules,
             userDefinedTypesByPath,
             projectDiagnostics);
         var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
@@ -108,9 +114,9 @@ public sealed class VBProjectCompilation
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         var moduleVariables = ImmutableArray.CreateBuilder<BoundModuleVariable>();
 
-        foreach (var module in parsedModules)
+        foreach (var module in allParsedModules)
         {
-            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            if (HasParseErrors(module))
             {
                 units.Add(new VBProjectCompilationUnit(
                     module.Item,
@@ -252,11 +258,6 @@ public sealed class VBProjectCompilation
 
         foreach (var module in modules)
         {
-            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            {
-                continue;
-            }
-
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
             ImmutableArray<ModuleVariableSymbol> symbols;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
@@ -266,6 +267,11 @@ public sealed class VBProjectCompilation
 
             foreach (var symbol in symbols)
             {
+                if (!IsBindableDeclarationType(symbol.Type))
+                {
+                    continue;
+                }
+
                 if (moduleVariables.TryAdd(symbol.Name, symbol))
                 {
                     origins.Add(symbol.Name, module.Item.RelativePath);
@@ -292,11 +298,6 @@ public sealed class VBProjectCompilation
 
         foreach (var module in modules)
         {
-            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            {
-                continue;
-            }
-
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
             using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
             foreach (var member in module.SemanticRoot.Members)
@@ -308,7 +309,7 @@ public sealed class VBProjectCompilation
                     _ => null
                 };
 
-                if (symbol is null)
+                if (symbol is null || !HasBindableSignature(symbol))
                 {
                     continue;
                 }
@@ -329,6 +330,17 @@ public sealed class VBProjectCompilation
         VBIntrinsicSymbols.AddTo(procedures);
         return procedures;
     }
+
+    private static bool HasBindableSignature(ProcedureSymbol procedure) =>
+        (procedure.ReturnType is null || IsBindableDeclarationType(procedure.ReturnType)) &&
+        procedure.Parameters.All(parameter => IsBindableDeclarationType(parameter.Type));
+
+    private static bool IsBindableDeclarationType(TypeSymbol type) =>
+        type != TypeSymbol.Error &&
+        (type is not ArrayTypeSymbol arrayType || IsBindableDeclarationType(arrayType.ElementType));
+
+    private static bool HasParseErrors(ParsedProjectModule module) =>
+        module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
     private static IReadOnlyDictionary<string, UserDefinedTypeSymbol> GetTypeScope(
         UserDefinedTypeModuleResult? moduleUserDefinedTypes) =>
