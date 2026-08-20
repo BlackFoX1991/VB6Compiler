@@ -713,6 +713,11 @@ public sealed class Parser
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
+            SyntaxKind.IdentifierToken when IsFileStatementKeyword("Open") => ParseOpenStatement(),
+            SyntaxKind.IdentifierToken when IsFileStatementKeyword("Close") => ParseCloseStatement(),
+            SyntaxKind.IdentifierToken when IsFileStatementKeyword("Get") => ParseGetOrPutStatement(isGet: true),
+            SyntaxKind.IdentifierToken when IsFileStatementKeyword("Put") => ParseGetOrPutStatement(isGet: false),
+            SyntaxKind.IdentifierToken when IsFileStatementKeyword("Seek") => ParseSeekStatement(),
             SyntaxKind.IdentifierToken when LooksLikeArrayElementAssignment() => ParseArrayElementAssignmentStatement(),
             SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.DotToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
@@ -853,6 +858,111 @@ public sealed class Parser
         }
 
         return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, declarators);
+    }
+
+    /// <summary>
+    /// File I/O statement words are recognized at statement position only. Reserving Open, Close,
+    /// Get, Put and Seek globally would repeat the mistake Option Base already taught: these are
+    /// ordinary identifiers everywhere else.
+    ///
+    /// A following '=' means an assignment to a variable of that name, which wins.
+    /// </summary>
+    private bool IsFileStatementKeyword(string keyword) =>
+        string.Equals(Current.Text, keyword, StringComparison.OrdinalIgnoreCase) &&
+        Peek(1).Kind is not SyntaxKind.EqualsToken and not SyntaxKind.DotToken;
+
+    private FileNumberSyntax ParseFileNumber()
+    {
+        SyntaxToken? hashToken = null;
+        if (Current.Kind == SyntaxKind.HashToken)
+        {
+            hashToken = NextToken();
+        }
+
+        return new FileNumberSyntax(hashToken, ParseExpression());
+    }
+
+    private OpenStatementSyntax ParseOpenStatement()
+    {
+        var openKeyword = NextToken();
+        var path = ParseExpression();
+        var forKeyword = MatchToken(SyntaxKind.ForKeyword);
+        var mode = NextToken();
+        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+        var fileNumber = ParseFileNumber();
+
+        SyntaxToken? lenKeyword = null;
+        SyntaxToken? lenEquals = null;
+        ExpressionSyntax? recordLength = null;
+        if (string.Equals(Current.Text, "Len", StringComparison.OrdinalIgnoreCase) &&
+            Peek(1).Kind == SyntaxKind.EqualsToken)
+        {
+            lenKeyword = NextToken();
+            lenEquals = NextToken();
+            recordLength = ParseExpression();
+        }
+
+        return new OpenStatementSyntax(
+            openKeyword,
+            path,
+            forKeyword,
+            mode,
+            asKeyword,
+            fileNumber,
+            lenKeyword,
+            lenEquals,
+            recordLength);
+    }
+
+    private CloseStatementSyntax ParseCloseStatement()
+    {
+        var closeKeyword = NextToken();
+        var fileNumbers = ImmutableArray.CreateBuilder<FileNumberSyntax>();
+
+        // Close without a file number closes every open file in VB6.
+        while (Current.Kind is not SyntaxKind.NewLineToken
+               and not SyntaxKind.ColonToken
+               and not SyntaxKind.EndOfFileToken)
+        {
+            fileNumbers.Add(ParseFileNumber());
+            if (Current.Kind != SyntaxKind.CommaToken)
+            {
+                break;
+            }
+
+            NextToken();
+        }
+
+        return new CloseStatementSyntax(closeKeyword, fileNumbers.ToImmutable());
+    }
+
+    private StatementSyntax ParseGetOrPutStatement(bool isGet)
+    {
+        var keyword = NextToken();
+        var fileNumber = ParseFileNumber();
+        MatchToken(SyntaxKind.CommaToken);
+
+        // Get #1, , target keeps the current file position.
+        ExpressionSyntax? recordPosition = null;
+        if (Current.Kind != SyntaxKind.CommaToken)
+        {
+            recordPosition = ParseExpression();
+        }
+
+        MatchToken(SyntaxKind.CommaToken);
+        var target = ParseExpression();
+
+        return isGet
+            ? new GetStatementSyntax(keyword, fileNumber, recordPosition, target)
+            : new PutStatementSyntax(keyword, fileNumber, recordPosition, target);
+    }
+
+    private SeekStatementSyntax ParseSeekStatement()
+    {
+        var seekKeyword = NextToken();
+        var fileNumber = ParseFileNumber();
+        MatchToken(SyntaxKind.CommaToken);
+        return new SeekStatementSyntax(seekKeyword, fileNumber, ParseExpression());
     }
 
     private EraseStatementSyntax ParseEraseStatement()
