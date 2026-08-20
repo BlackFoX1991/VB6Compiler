@@ -52,6 +52,110 @@ public static class VBStrings
     }
 
     /// <summary>
+    /// VB6 Left. A length beyond the end of the string returns the whole string rather than
+    /// failing, which is why this cannot be a plain Substring.
+    /// </summary>
+    public static string Left(string value, int length)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (length < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "VB6 Left requires a non-negative length.");
+        }
+
+        return length >= value.Length ? value : value[..length];
+    }
+
+    /// <summary>VB6 Right, clipped the same way Left is.</summary>
+    public static string Right(string value, int length)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (length < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "VB6 Right requires a non-negative length.");
+        }
+
+        return length >= value.Length ? value : value[^length..];
+    }
+
+    /// <summary>
+    /// VB6 UCase. Casing is invariant here for the same reason conversions are: a compiled program
+    /// has to behave identically on every machine.
+    /// </summary>
+    public static string UCase(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.ToUpperInvariant();
+    }
+
+    public static string LCase(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// VB6 Trim removes spaces, not every kind of whitespace, so a trailing tab survives it. Using
+    /// the .NET Trim here would quietly drop characters VB6 keeps.
+    /// </summary>
+    public static string Trim(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.Trim(' ');
+    }
+
+    public static string LTrim(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.TrimStart(' ');
+    }
+
+    public static string RTrim(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.TrimEnd(' ');
+    }
+
+    /// <summary>
+    /// VB6 Asc. Restricted to ASCII for the same reason Chr is: anything above 127 depends on the
+    /// active code page, which the compiler does not model yet.
+    /// </summary>
+    public static int Asc(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Length == 0)
+        {
+            throw new ArgumentException("VB6 Asc requires a non-empty string.", nameof(value));
+        }
+
+        var character = value[0];
+        if (character > 127)
+        {
+            throw new NotSupportedException(
+                "The current VB6 Asc subset supports ASCII character codes 0 through 127 only.");
+        }
+
+        return character;
+    }
+
+    /// <summary>
+    /// VB6 IsNumeric. It answers whether the value could be read as a number, which is true for
+    /// numeric strings and for every numeric subtype, and false for Empty and for text.
+    /// </summary>
+    public static bool IsNumeric(object? value) => value switch
+    {
+        null => false,
+        bool => true,
+        byte or short or int or long or float or double or decimal or VBCurrency => true,
+        string text => double.TryParse(
+            text.Trim(),
+            System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out _),
+        _ => false
+    };
+
+    /// <summary>
     /// Implements the ASCII subset of VB6 Chr that is reachable in the current corpus.
     /// Extended ANSI values depend on the active VB6 code page and remain an explicit runtime
     /// boundary until code-page handling is modeled by the compiler/runtime.
