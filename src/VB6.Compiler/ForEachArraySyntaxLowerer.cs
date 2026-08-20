@@ -267,11 +267,15 @@ internal sealed class ForEachArraySyntaxLowerer
             return ImmutableArray.Create<StatementSyntax>(syntax);
         }
 
-        if (arrayType.ElementType is UserDefinedTypeSymbol)
+        // See the matching check in Binder: VB6 rejects this, so the lowering must not desugar it
+        // into a loop that would quietly work.
+        if (arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
         {
             Report(
                 "VB6S0056",
-                "For Each over arrays of user-defined types is not supported.",
+                $"For Each cannot iterate an array of user-defined type '{elementUserDefinedType.Name}': " +
+                "VB6 coerces a user-defined type into the Variant control variable only for public " +
+                "types declared in public object modules.",
                 collectionName.IdentifierToken.Span);
             return ImmutableArray.Create<StatementSyntax>(syntax);
         }

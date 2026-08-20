@@ -903,11 +903,16 @@ public sealed class Binder
             arrayType = new ArrayTypeSymbol(TypeSymbol.Error);
         }
 
-        if (arrayType.ElementType is UserDefinedTypeSymbol)
+        // Not a compiler gap: For Each requires a Variant control variable, and VB6 coerces a
+        // user-defined type into a Variant only for public types declared in public object
+        // modules. A Type in a standard module never qualifies.
+        if (arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
         {
             Report(
                 "VB6S0056",
-                "For Each over arrays of user-defined types is not supported.",
+                $"For Each cannot iterate an array of user-defined type '{elementUserDefinedType.Name}': " +
+                "VB6 coerces a user-defined type into the Variant control variable only for public " +
+                "types declared in public object modules.",
                 syntax.InKeyword.Span);
         }
 
