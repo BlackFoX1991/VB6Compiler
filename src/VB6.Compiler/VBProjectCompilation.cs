@@ -147,10 +147,12 @@ public sealed class VBProjectCompilation
                     forEachLowering.Root,
                     moduleUserDefinedTypes.Types);
             var variantOperationDiagnostics = VariantOperationGuard.Validate(module.Text, semanticModel);
+            var fileIoDiagnostics = FileIoSyntaxGuard.Validate(module.Text, module.ParseResult.Root);
             sourceDiagnostics.AddRange(forEachLowering.Diagnostics);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
             sourceDiagnostics.AddRange(userDefinedTypeValueDiagnostics);
             sourceDiagnostics.AddRange(variantOperationDiagnostics);
+            sourceDiagnostics.AddRange(fileIoDiagnostics);
             procedures.AddRange(semanticModel.Procedures);
             moduleVariables.AddRange(semanticModel.ModuleVariables);
 
@@ -159,7 +161,8 @@ public sealed class VBProjectCompilation
                 .AddRange(forEachLowering.Diagnostics)
                 .AddRange(semanticModel.Diagnostics)
                 .AddRange(userDefinedTypeValueDiagnostics)
-                .AddRange(variantOperationDiagnostics);
+                .AddRange(variantOperationDiagnostics)
+                .AddRange(fileIoDiagnostics);
             var compilationAnalysis = new CompilationAnalysis(
                 module.ParseResult,
                 semanticModel,
