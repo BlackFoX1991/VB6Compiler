@@ -112,6 +112,7 @@ public sealed class Lexer
             ',' => SyntaxKind.CommaToken,
             '.' => SyntaxKind.DotToken,
             ':' => SyntaxKind.ColonToken,
+            '#' => SyntaxKind.HashToken,
             '<' when Peek(1) == '=' => SyntaxKind.LessOrEqualsToken,
             '<' when Peek(1) == '>' => SyntaxKind.LessGreaterToken,
             '<' => SyntaxKind.LessToken,
@@ -200,7 +201,8 @@ public sealed class Lexer
 
         var numericEnd = _position;
         var isCurrency = Current == '@';
-        if (isCurrency)
+        var isExplicitDouble = Current == '#';
+        if (isCurrency || isExplicitDouble)
         {
             isFloating = true;
             _position++;
