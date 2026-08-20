@@ -112,7 +112,7 @@ dotnet build VB6Compiler.sln -c Release
 Ein Worktree unterhalb von `%TEMP%` hilft nicht, dort tritt derselbe Fehler auf.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung: 361 Tests, alle grün, 0 Warnungen.
+Stand der letzten Prüfung: 366 Tests, alle grün, 0 Warnungen.
 
 CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
 

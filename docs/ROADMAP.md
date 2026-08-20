@@ -21,7 +21,8 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
 | M2 abgeschlossen (`Static`, `^`, `Like`, `Is`) | **2219** | 1758 | 68 | 393 | 0 von 27 |
 | M3 Array-Syntax/Runtime-Basis | **2105** | 1644 | 68 | 393 | 0 von 27 |
-| M3/M4/M5-Stand, `.cls` gelesen | **2488** | 1632 | 72 | 784 | **1 von 30** |
+| M3/M4/M5-Stand, `.cls` gelesen | **2488** | 1632 | 72 | 784 | 1 von 30 |
+| `RaiseEvent`-Guard (`VB6S0049`) | **2494** | 1632 | 72 | 790 | 0 von 30 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -64,8 +65,12 @@ und weil deutlich mehr Prozeduren den Binder erreichen: die Semantikfehler verdo
 nahezu auf 784, während die Parserfehler auf 1632 sinken. Genau der gewünschte Übergang von
 Syntaxkaskaden zu konkreten semantischen Lücken.
 
-**Erstmals analysiert eine Datei vollständig fehlerfrei — 1 von 30.** Die Zahl war seit M0
-konstant 0.
+Kurzzeitig analysierte damit erstmals eine Datei fehlerfrei — `Classes\cTabItem.cls`. Der
+`RaiseEvent`-Guard hat sie sofort wieder zurückgeholt: die Datei enthält genau sechs
+`RaiseEvent`-Statements und war nur deshalb sauber, weil der Binder sie lautlos verworfen hat.
+Das ist der Beleg dafür, dass die Kennzahl ohne den Guard zu gut aussah, nicht ein Rückschritt.
+`cTabItem.cls` ist damit die Datei, die als erste komplett durchgeht, sobald Event-Dispatch
+existiert.
 
 Vorsicht bei der UDT-Syntax: `Type ... End Type` und `Enum ... End Enum` haben Feldschleifen, die
 sich früher aufhängen konnten, weil `MatchToken` bei Mismatch ein Null-Längen-Token erzeugt, ohne
@@ -224,6 +229,7 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric`. `Missing` ist ein reiner Laufzeitwert für ausgelassene Optionals — VB6 kennt kein `Missing`-Literal, das Wort bleibt ein gewöhnlicher Bezeichner
 - [x] Untypisierte `Dim`-/Modul-/`Static`-Deklaratoren und untypisierte Parameter werden `VBVariant`; Defaultwert `Empty`, Primitive werden gewrappt
 - [x] Erste Variant-Operatoren fuer unary `-`/`Not`, `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, `&` und Vergleiche ueber gewrappte Primitive
+- [x] `+` addiert, sobald ein Operand numerisch ist, und konkateniert nur ohne numerischen Operanden; `Empty` bleibt dabei auf der Stringseite. `IsNumeric` akzeptiert numerische Strings, Radixliterale, `Boolean` und `Empty`
 - [x] Null-Tri-State fuer Variant-Vergleiche; `CBool(Null)` scheitert statt still `False` zu liefern
 - [x] Variant-`And`/`Or`/`Xor`/`Eqv`/`Imp`: numerische Bitlogik und Boolean-Null-Tri-State
 - [x] Erster Error-Variant-Slice: `CVErr`, `IsError`, `VarType` 10 und gesperrte primitive Konvertierung
@@ -249,7 +255,7 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [ ] Property-Aufrufe und Property-Dispatch auf dem echten Klassen-/Objekttypmodell
 - [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
 - [x] `Event`-Deklarationen und `RaiseEvent`-Statements parser-/binderseitig lesen
-- [ ] Event-Dispatch und `WithEvents`
+- [ ] Event-Dispatch und `WithEvents`; `RaiseEvent` wird bis dahin mit `VB6S0049` gestoppt statt lautlos verworfen
 - [x] `.cls` als Projektquelle lesen (hebt die Item-Abdeckung von 27 auf 30)
 
 ## Meilenstein 6 — IR und Fehlerbehandlung

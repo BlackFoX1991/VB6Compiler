@@ -24,8 +24,8 @@ Implemented so far:
 - cross-module Sub and Function resolution in `.vbp` projects
 - typed or implicit-Variant comma-separated local and module variable declarators; each declarator has its own optional `As Type`
 - first-class `VBVariant` storage for untyped local/module declarators and untyped parameters, initialized as `Empty` and wrapping assigned primitive values
-- Variant literals `Empty`, `Null`, and `Nothing`, plus `VarType`, `IsEmpty`, `IsNull`, `IsMissing`, and `IsNumeric`; VB6 has no `Missing` literal, so the word stays an ordinary identifier and the missing state is only reachable through an omitted optional argument
-- first Variant operator dispatch for unary `-`/`Not`, arithmetic `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, concatenation `&`, and comparison operators over wrapped primitive values; Variant comparisons preserve `Null`, and `CBool(Null)` fails instead of silently becoming `False`
+- Variant literals `Empty`, `Null`, and `Nothing`, plus `VarType`, `IsEmpty`, `IsNull`, `IsMissing`, and `IsNumeric`, which accepts numeric strings, `&H`/`&O` literals, `Boolean` and `Empty`; VB6 has no `Missing` literal, so the word stays an ordinary identifier and the missing state is only reachable through an omitted optional argument
+- first Variant operator dispatch for unary `-`/`Not`, arithmetic `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, concatenation `&`, and comparison operators over wrapped primitive values; Variant comparisons preserve `Null`, and `CBool(Null)` fails instead of silently becoming `False`; Variant `+` adds as soon as one operand is numeric and only concatenates when neither is, with `Empty` staying on the string side
 - Variant `And`, `Or`, `Xor`, `Eqv`, and `Imp` over numeric bitwise values plus Boolean Null tri-state behavior
 - first Error-Variant slice with `CVErr`, `IsError`, `VarType` 10, and blocked primitive conversions from error variants
 - additive first-class `Decimal` support via `As Decimal`, `CDec`, checked decimal arithmetic, decimal division, code generation, and Variant `VarType` 14
