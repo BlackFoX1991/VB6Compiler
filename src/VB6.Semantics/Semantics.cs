@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
+using VB6.Syntax.Nodes;
 
 namespace VB6.Semantics;
 
@@ -17,7 +18,10 @@ public record TypeSymbol(string Name) : Symbol(Name)
     public static readonly TypeSymbol String = new("String");
     public static readonly TypeSymbol Boolean = new("Boolean");
     public static readonly TypeSymbol Double = new("Double");
+    public static readonly TypeSymbol Decimal = new("Decimal");
     public static readonly TypeSymbol Currency = new("Currency");
+    public static readonly TypeSymbol Object = new("Object");
+    public static readonly TypeSymbol Variant = new("Variant");
 
     public static TypeSymbol? Lookup(string name) => name.ToUpperInvariant() switch
     {
@@ -30,7 +34,11 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "STRING" => String,
         "BOOLEAN" => Boolean,
         "DOUBLE" => Double,
+        "DECIMAL" => Decimal,
         "CURRENCY" => Currency,
+        "OLE_COLOR" => Long,
+        "OBJECT" => Object,
+        "VARIANT" => Variant,
         _ => null
     };
 }
@@ -69,6 +77,42 @@ public sealed record ArrayTypeSymbol : TypeSymbol
     }
 }
 
+public sealed record UserDefinedFieldSymbol(
+    string Name,
+    TypeSymbol Type,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions = default,
+    BoundExpression? FixedStringLength = null) : Symbol(Name);
+
+public sealed record UserDefinedTypeSymbol(
+    string TypeName,
+    ImmutableArray<UserDefinedFieldSymbol> Fields) : TypeSymbol(TypeName)
+{
+    public UserDefinedFieldSymbol? FindField(string name) =>
+        Fields.FirstOrDefault(field => string.Equals(field.Name, name, StringComparison.OrdinalIgnoreCase));
+}
+
+public sealed record EnumMemberSymbol(
+    string Name,
+    long? Value = null) : Symbol(Name);
+
+public sealed record EnumTypeSymbol(
+    string TypeName,
+    ImmutableArray<EnumMemberSymbol> Members) : TypeSymbol(TypeName)
+{
+    public EnumMemberSymbol? FindMember(string name) =>
+        Members.FirstOrDefault(member => string.Equals(member.Name, name, StringComparison.OrdinalIgnoreCase));
+}
+
+public sealed record ClassTypeSymbol(string TypeName) : TypeSymbol(TypeName);
+
+public enum VBVariantLiteral
+{
+    Empty,
+    Null,
+    Nothing,
+    Missing
+}
+
 public enum ParameterPassingMode
 {
     ByRef,
@@ -77,7 +121,11 @@ public enum ParameterPassingMode
 
 public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Name);
 
-public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
+public sealed record LocalVariableSymbol(
+    string Name,
+    TypeSymbol Type,
+    bool IsFixedArray = false,
+    bool IsStatic = false)
     : VariableSymbol(Name, Type);
 
 /// <summary>
@@ -85,13 +133,17 @@ public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
 /// the whole project; <c>Private</c> ones are module-local. The binder currently makes both
 /// visible everywhere, which accepts more than VB6 does but never miscompiles valid code.
 /// </summary>
-public sealed record ModuleVariableSymbol(string Name, TypeSymbol Type)
+public sealed record ModuleVariableSymbol(string Name, TypeSymbol Type, bool IsFixedArray = false)
     : VariableSymbol(Name, Type);
 
 public sealed record ParameterSymbol(
     string Name,
     TypeSymbol Type,
-    ParameterPassingMode PassingMode)
+    ParameterPassingMode PassingMode,
+    bool IsFixedArray = false,
+    bool IsOptional = false,
+    ExpressionSyntax? DefaultValueSyntax = null,
+    bool IsParamArray = false)
     : VariableSymbol(Name, Type);
 
 public sealed record ReturnValueSymbol(string Name, TypeSymbol Type)
@@ -126,10 +178,14 @@ public enum BoundNodeKind
     BlockStatement,
     VariableDeclarationStatement,
     AssignmentStatement,
+    ReDimStatement,
+    EraseStatement,
     IfStatement,
     ForStatement,
+    ForEachStatement,
     WhileStatement,
     DoStatement,
+    WithStatement,
     ExitLoopStatement,
     ReturnStatement,
     SelectCaseStatement,
@@ -137,7 +193,16 @@ public enum BoundNodeKind
     InvocationStatement,
     LiteralExpression,
     VariableExpression,
+    MemberAccessExpression,
+    MemberArrayElementExpression,
+    MemberAssignmentStatement,
+    MemberArrayElementAssignmentStatement,
+    ArrayElementExpression,
+    ArrayBoundExpression,
+    ArrayElementAssignmentStatement,
     InvocationExpression,
+    ParamArrayExpression,
+    VariantIntrinsicExpression,
     UnaryExpression,
     BinaryExpression,
     ConversionExpression,
@@ -151,11 +216,43 @@ public abstract record BoundExpression(BoundNodeKind Kind, TypeSymbol Type) : Bo
 public sealed record BoundBlockStatement(ImmutableArray<BoundStatement> Statements)
     : BoundStatement(BoundNodeKind.BlockStatement);
 
-public sealed record BoundVariableDeclarationStatement(LocalVariableSymbol Variable)
+public sealed record BoundArrayDimension(BoundExpression LowerBound, BoundExpression UpperBound);
+
+public sealed record BoundVariableDeclarationStatement(
+    LocalVariableSymbol Variable,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions = default)
     : BoundStatement(BoundNodeKind.VariableDeclarationStatement);
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
+
+public sealed record BoundMemberAssignmentStatement(
+    BoundExpression Target,
+    UserDefinedFieldSymbol Field,
+    BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.MemberAssignmentStatement);
+
+public sealed record BoundMemberArrayElementAssignmentStatement(
+    BoundExpression Target,
+    UserDefinedFieldSymbol Field,
+    ImmutableArray<BoundExpression> Indices,
+    BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.MemberArrayElementAssignmentStatement);
+
+public sealed record BoundArrayElementAssignmentStatement(
+    VariableSymbol Array,
+    ImmutableArray<BoundExpression> Indices,
+    BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.ArrayElementAssignmentStatement);
+
+public sealed record BoundReDimStatement(
+    VariableSymbol Array,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions,
+    bool Preserve)
+    : BoundStatement(BoundNodeKind.ReDimStatement);
+
+public sealed record BoundEraseStatement(ImmutableArray<VariableSymbol> Variables)
+    : BoundStatement(BoundNodeKind.EraseStatement);
 
 public sealed record BoundElseIfClause(
     BoundExpression Condition,
@@ -177,6 +274,14 @@ public sealed record BoundForStatement(
     BoundBlockStatement Body)
     : BoundStatement(BoundNodeKind.ForStatement);
 
+public sealed record BoundForEachStatement(
+    int LoopId,
+    VariableSymbol ControlVariable,
+    BoundExpression Collection,
+    TypeSymbol ElementType,
+    BoundBlockStatement Body)
+    : BoundStatement(BoundNodeKind.ForEachStatement);
+
 public sealed record BoundWhileStatement(
     BoundExpression Condition,
     BoundBlockStatement Body)
@@ -189,6 +294,11 @@ public sealed record BoundDoStatement(
     bool IsUntil,
     BoundBlockStatement Body)
     : BoundStatement(BoundNodeKind.DoStatement);
+
+public sealed record BoundWithStatement(
+    BoundExpression Target,
+    BoundBlockStatement Body)
+    : BoundStatement(BoundNodeKind.WithStatement);
 
 public sealed record BoundExitLoopStatement(
     BoundLoopKind LoopKind,
@@ -231,7 +341,9 @@ public sealed record BoundDebugPrintStatement(BoundExpression Expression)
 
 public sealed record BoundArgument(
     ParameterSymbol? Parameter,
-    BoundExpression Expression);
+    BoundExpression Expression,
+    bool IsByRefTemporary = false,
+    VariableSymbol? CopyBackTarget = null);
 
 public sealed record BoundInvocationStatement(
     ProcedureSymbol Procedure,
@@ -244,10 +356,45 @@ public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralTyp
 public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
 
+public sealed record BoundMemberAccessExpression(
+    BoundExpression Target,
+    UserDefinedFieldSymbol Field)
+    : BoundExpression(BoundNodeKind.MemberAccessExpression, Field.Type);
+
+public sealed record BoundMemberArrayElementExpression(
+    BoundExpression Target,
+    UserDefinedFieldSymbol Field,
+    ImmutableArray<BoundExpression> Indices,
+    TypeSymbol ElementType)
+    : BoundExpression(BoundNodeKind.MemberArrayElementExpression, ElementType);
+
+public sealed record BoundArrayElementExpression(
+    VariableSymbol Array,
+    ImmutableArray<BoundExpression> Indices,
+    TypeSymbol ElementType)
+    : BoundExpression(BoundNodeKind.ArrayElementExpression, ElementType);
+
+public sealed record BoundArrayBoundExpression(
+    VariableSymbol Array,
+    BoundExpression Dimension,
+    bool IsUpperBound)
+    : BoundExpression(BoundNodeKind.ArrayBoundExpression, TypeSymbol.Long);
+
 public sealed record BoundInvocationExpression(
     ProcedureSymbol Procedure,
     ImmutableArray<BoundArgument> Arguments)
     : BoundExpression(BoundNodeKind.InvocationExpression, Procedure.ReturnType ?? TypeSymbol.Error);
+
+public sealed record BoundParamArrayExpression(
+    ArrayTypeSymbol ArrayType,
+    ImmutableArray<BoundExpression> Values)
+    : BoundExpression(BoundNodeKind.ParamArrayExpression, ArrayType);
+
+public sealed record BoundVariantIntrinsicExpression(
+    string Name,
+    ImmutableArray<BoundExpression> Arguments,
+    TypeSymbol ResultType)
+    : BoundExpression(BoundNodeKind.VariantIntrinsicExpression, ResultType);
 
 public sealed record BoundUnaryExpression(SyntaxKind OperatorKind, BoundExpression Operand, TypeSymbol ResultType)
     : BoundExpression(BoundNodeKind.UnaryExpression, ResultType);
@@ -265,10 +412,15 @@ public sealed record BoundConversionExpression(TypeSymbol TargetType, BoundExpre
 public sealed record BoundErrorExpression()
     : BoundExpression(BoundNodeKind.ErrorExpression, TypeSymbol.Error);
 
+public sealed record BoundStaticLocal(
+    LocalVariableSymbol Symbol,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions = default);
+
 public sealed record BoundProcedure(
     ProcedureSymbol Symbol,
     ImmutableArray<LocalVariableSymbol> Locals,
-    BoundBlockStatement Body);
+    BoundBlockStatement Body,
+    ImmutableArray<BoundStaticLocal> StaticLocals = default);
 
 /// <summary>
 /// A module-level variable together with its initial value. Plain declarations have none;
@@ -277,7 +429,8 @@ public sealed record BoundProcedure(
 public sealed record BoundModuleVariable(
     ModuleVariableSymbol Symbol,
     BoundExpression? Initializer,
-    bool IsConstant);
+    bool IsConstant,
+    ImmutableArray<BoundArrayDimension> ArrayDimensions = default);
 
 public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,
@@ -285,4 +438,13 @@ public sealed record SemanticModel(
 {
     public ImmutableArray<BoundModuleVariable> ModuleVariables { get; init; } =
         ImmutableArray<BoundModuleVariable>.Empty;
+
+    public ImmutableArray<UserDefinedTypeSymbol> UserDefinedTypes { get; init; } =
+        ImmutableArray<UserDefinedTypeSymbol>.Empty;
+
+    public ImmutableArray<EnumTypeSymbol> EnumTypes { get; init; } =
+        ImmutableArray<EnumTypeSymbol>.Empty;
+
+    public ImmutableArray<ClassTypeSymbol> ClassTypes { get; init; } =
+        ImmutableArray<ClassTypeSymbol>.Empty;
 }

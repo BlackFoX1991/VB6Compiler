@@ -35,18 +35,31 @@ Parser zu entgleisen. `Static` entfernt weitere 4 Parserfehler und schließt M2 
 Parserfehlern ab. `^`, `Like` und expression-level `Is` ändern den aktuellen VISIA-Zähler nicht,
 sind aber regressionsgesichert.
 
-Der erste M3-Slice bewahrt jetzt feste, explizit begrenzte, mehrdimensionale und dynamische
+Der erste M3-Slice bewahrt feste, explizit begrenzte, mehrdimensionale und dynamische
 Arraydeklarationen sowie Arrayparameter im Syntaxbaum. Damit sinken die Parserfehler nochmals um
-114 auf 1644 und die Gesamtzahl auf 2105. `ArrayTypeSymbol` und die bounds-erhaltende
-`VBArray<T>`-Runtime sind als Fundament vorhanden und separat getestet. **Arrayvariablen und
-Arrayparameter werden im Binder aber weiterhin mit `VB6S0025` gestoppt**; `Option Base` wird also
-noch nicht semantisch auf Bound-Nodes angewendet und Arrayzugriffe werden noch nicht emittiert.
-Der zwischenzeitlich begonnene, aber unvollständig verdrahtete Codegen-Slice wurde mit
-`8e3a3a0` auf diesen kohärenten Stand zurückgenommen. Actions #700 bestätigt den Referenzstand
-mit 258 Tests, 0 Warnungen und 0 Buildfehlern. Der VISIA-Report läuft als eigener Schritt nach
+114 auf 1644 und die Gesamtzahl auf 2105. Actions #700 bestätigt diesen Referenzstand mit
+258 Tests, 0 Warnungen und 0 Buildfehlern. Der VISIA-Report läuft als eigener Schritt nach
 Build und Tests.
 
-Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
+Lokaler Folge-Stand: feste und dynamische Arraytypen werden gebunden, feste lokale und Modularrays
+werden mit `VBArray<T>` initialisiert, `Option Base` wird auf implizite Untergrenzen angewendet,
+Arrayelemente werden gelesen/geschrieben und emittiert, `ReDim`, `ReDim Preserve`, `Erase`,
+`LBound`, `UBound` und Array-`For Each` sind von Parser bis CLI-Smoke verdrahtet. Der erste
+UDT-Slice ist ebenfalls verdrahtet: `Type ... End Type`, skalare Felder, feste Arrayfelder,
+`String * n`-Feldnormalisierung, sequentielle Layout-Metadaten, `ByValTStr`-Metadaten für
+konstante feste Stringfelder, UDT-Variablen, verschachtelte Memberzugriffe, UDT-Wertkopien,
+UDT-`ByVal` und UDT-`With`-Blöcke. Vollständige Native-/COM-Interop und tiefere
+Objekt-/Klassenintegration bleiben offen. Der lokale M4-Stand ergaenzt `VBVariant`-Storage,
+Variant-Literale/-Builtins, untypisierte Deklaratoren/Parameter, einen ersten Operatorpfad
+fuer arithmetische Operatoren, `&`, Vergleiche, logische/bitweise Operatoren sowie unary `-`/`Not`
+ueber gewrappte Primitive, Null-Tri-State fuer Variant-Vergleiche und Boolean-Logik, `CVErr`/
+`IsError` als ersten Error-Variant-Slice und `Decimal` als additive Typerweiterung inklusive
+`CDec`, Runtime-Operatoren und Variant-Promotion.
+Vollstaendige VB6-Promotion, Objektvarianten, tiefere Error-Variant-Kanten und die restliche
+Null-Tri-State-Semantik bleiben offen.
+Der neue VISIA-Report ist noch nicht neu erhoben.
+
+`.bas` und `.cls` werden heute gelesen; `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
 
 Dass zunehmend *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
@@ -65,8 +78,9 @@ Konstrukts erst in einem späteren Meilenstein folgt.
 
 Nach `Enum` zeigte die Messung zudem, dass ein großer Teil der verbliebenen `AsKeyword`-Kaskaden
 nicht von Mehrfach-`Dim`, sondern von `Optional ... As ...` in realen Prozedurköpfen stammt.
-Deshalb wurde die `Optional`-**Syntax** nach M2 vorgezogen; Default-/Missing-Aufrufsemantik bleibt
-weiterhin M5.
+Deshalb wurde die `Optional`-**Syntax** nach M2 vorgezogen. Lokaler M5-Stand: ausgelassene
+`ByVal`-Optionals nutzen Default-Ausdruecke oder `Missing`; `ParamArray` packt Restargumente in
+zero-based `VBArray<T>`-Instanzen; ausgelassene `ByRef`-Optionals bleiben ein ByRef-Randfall.
 
 `Option Base` und `Option Compare` haben außerdem bestätigt, dass VB6-Kontextwörter nicht
 vorschnell global reserviert werden dürfen: `Base` wird im bestehenden Akzeptanzkorpus legal als
@@ -81,13 +95,14 @@ getrennt.
 
 Bei Mehrfachdeklarationen gilt die echte VB6-Regel **pro Deklarator**: `Dim a, b As Integer`
 macht nur `b` zu Integer; `a` bleibt Variant. Der Syntaxbaum speichert deshalb `As Type` an jedem
-Deklarator einzeln. Explizit typisierte Listen werden bereits vollständig gebunden und emittiert.
-Untypisierte Deklaratoren werden bis M4 als `VB6S0020` diagnostiziert, statt stillschweigend den
-Typ des Nachbarn zu erben. Actions #604 verifiziert das mit Parser-, Binder- und End-to-End-Tests.
+Deklarator einzeln. Explizit typisierte Listen und untypisierte Variant-Deklaratoren werden
+gebunden und emittiert; untypisierte Namen erben also nicht stillschweigend den Typ des Nachbarn.
+Actions #604 verifiziert den historischen Parser-/Binder-Stand; der lokale M4-Stand ersetzt die
+frühere `VB6S0020`-Diagnose durch `VBVariant`.
 
 `Static` verwendet dieselbe Deklaratorstruktur, aber einen eigenen Syntaxknoten. Der Binder macht
-die Namen für Folgeausdrücke sichtbar, emittiert sie jedoch **nicht** als normale Locals; bis die
-persistente Lebensdauer in M5 implementiert ist, verhindert `VB6S0021` eine falsche Absenkung.
+die Namen fuer Folgeausdruecke sichtbar und markiert sie als statische Locals; der C#-Generator
+emittiert prozedurbezogene static Fields, sodass Werte zwischen Aufrufen erhalten bleiben.
 `Like` und expression-level `Is` werden analog syntaktisch bewahrt, aber mit `VB6S0023` bzw.
 `VB6S0024` gestoppt, bis Pattern-/`Option Compare`- bzw. Objektidentitätssemantik existiert.
 `^` ist dagegen bereits vollständig von Lexer bis End-to-End-Ausführung implementiert. Actions
@@ -121,7 +136,7 @@ Business-Programm:
 | | | | |
 |---|---|---|---|
 | `&H`/`&O`-Literale | 892 ✅ | `Event`/`RaiseEvent` | 97 |
-| String-Funktionen | 337 | `Optional`/`ParamArray` | 77 (`Optional`-Syntax ✅) |
+| String-Funktionen | 337 | `Optional`/`ParamArray` | 77 (`Optional` + `ParamArray` basic ✅) |
 | `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
 | `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
 | `ReDim`/`Preserve` | 103 | `Type ... End Type` | 52 |
@@ -165,16 +180,16 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Const`, typisiert und aus dem Wert abgeleitet
 - [x] `Exit Sub` und `Exit Function`
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
-- [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; Binding bleibt später
-- [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
+- [x] `Enum ... End Enum` mit optionaler Sichtbarkeit, expliziten/impliziten Memberwerten, `EnumTypeSymbol` und Member-Konstanten
+- [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene `ByVal`-Argumente/Defaults sind M5, ausgelassene `ByRef`-Optionals bleiben ByRef-Randfall
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
 - [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, implizites Variant bleibt M4
-- [x] `Static`-Local-Syntax; statische Lebensdauer bleibt M5 und wird bis dahin als `VB6S0021` diagnostiziert
+- [x] `Static`-Local-Syntax; statische Lebensdauer ist im M5-Slice umgesetzt
 - [x] `^` vollständig; `Like`- und `Is`-Syntax mit Semantik-Guards bis M7 bzw. M5
 
-**Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
-brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
+`With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen) haben jetzt eine erste UDT-Basis.
+Objekt-/Klassenmember brauchen weiterhin das spätere Klassenmodell.
 
 ## Meilenstein 3 — Arrays und UDTs
 
@@ -183,25 +198,45 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] Array-Deklarationssyntax: `Dim x(10)`, `Dim x(1 To 10)`, mehrdimensional und dynamisch `Dim x()`; Grenzen werden verlustfrei im Syntaxbaum bewahrt
 - [x] Arrayparameter-Syntax wie `TheArray() As String`
 - [x] `ArrayTypeSymbol` als Typfundament und `VBArray<T>` in der Runtime mit Rang, expliziten Unter-/Obergrenzen, Indexprüfung sowie `LBound`/`UBound`-Grundlage
-- [ ] Arrayvariablen/-parameter echt binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben und emittieren; `Option Base` semantisch auf implizite Untergrenzen anwenden (bis dahin `VB6S0025`)
-- [ ] `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound` als Sprach-/Bibliothekszugriff, `For Each`
-- [ ] `Type ... End Type`, verschachtelt, mit festen Arrays und `String * n`; `UserDefinedTypeSymbol`
+- [x] Arrayvariablen/-parameter echt binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben und emittieren; `Option Base` semantisch auf implizite Untergrenzen anwenden
+- [x] `ReDim`, `ReDim Preserve`, `Erase`, `LBound`/`UBound` als Sprach-/Bibliothekszugriff; Array-`For Each`
+- [x] `Type ... End Type` mit skalaren Feldern, festen Arrayfeldern, `String * n`-Truncation/Padding, `UserDefinedTypeSymbol`, Memberzugriff und UDT-`With`
+- [x] UDT-Wertkopien, UDT-`ByVal`-Kopien und verschachtelte UDT-Memberzuweisungen
+- [x] UDT-Layout-Metadaten: `StructLayout(LayoutKind.Sequential)` und `MarshalAs(ByValTStr)` für konstante `String * n`-Felder
+- [ ] Vollständige UDT-Native-/COM-Interop und Objekt-/Klassenmember
 
 ## Meilenstein 4 — Variant
 
-- [ ] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`
-- [ ] Variant-Arithmetik mit VB6-Promotionsregeln, implizite Konvertierung
-- [ ] Untypisierte `Dim`-Deklaratoren und untypisierte `Optional`-Parameter werden Variant; bis dahin `VB6S0020`
-- [ ] Erstklassiges `Decimal` als additive Erweiterung
+- [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric`
+- [x] Untypisierte `Dim`-/Modul-/`Static`-Deklaratoren und untypisierte Parameter werden `VBVariant`; Defaultwert `Empty`, Primitive werden gewrappt
+- [x] Erste Variant-Operatoren fuer unary `-`/`Not`, `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, `&` und Vergleiche ueber gewrappte Primitive
+- [x] Null-Tri-State fuer Variant-Vergleiche; `CBool(Null)` scheitert statt still `False` zu liefern
+- [x] Variant-`And`/`Or`/`Xor`/`Eqv`/`Imp`: numerische Bitlogik und Boolean-Null-Tri-State
+- [x] Erster Error-Variant-Slice: `CVErr`, `IsError`, `VarType` 10 und gesperrte primitive Konvertierung
+- [x] Erstklassiges `Decimal` als additive Erweiterung mit `As Decimal`, `CDec`, Runtime-Arithmetik, Codegen und Variant-`VarType` 14
+- [ ] Vollstaendige Variant-Arithmetik mit VB6-Promotionsregeln, Objektvarianten, tieferen Error-Variant-Kanten und restlicher Null-Tri-State-Semantik
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
-- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Local-Lebensdauer, ByRef-Randfälle
+- [x] Ausgelassene optionale `ByVal`-Argumente: Default-Ausdruck oder `Missing` bei untypisiertem Variant
+- [x] `ParamArray`: variable Restargumente werden als zero-based `VBArray<T>` gebunden und emittiert, leere Aufrufe inklusive
+- [x] `Static`-Local-Lebensdauer: statische Locals werden pro Prozedur als persistente static Fields emittiert
+- [x] Parenthesized ByRef-Argumente in Statement-Calls: temporäre Werte ohne Copyback
+- [x] Call-site `ByVal` bei ByRef-Statement-Calls: temporäre Werte ohne Copyback
+- [x] Ausgelassene optionale `ByRef`-Argumente in Statement-Calls: Default/Missing als temporäre Werte ohne Copyback
+- [x] Function-Expression-Temporaries: ByRef-Temps werden in inline `System.Func<T>`-Ausdruecken gekapselt
+- [x] Skalare ByRef-Konvertierung mit Copyback: typabweichende skalare Variablen laufen über konvertierte Temps und schreiben nach dem Call zurück
+- [x] Exakte ByRef-Aliase für UDT-Felder, Arrayelemente und UDT-Arrayfelder
+- [ ] Weitere ByRef-Randfaelle: Objektmodell-Aliasing und nichtskalare Copyback-Regeln
 - [ ] `Is`-Objektreferenzidentität auf dem echten Klassen-/Objekttypmodell
-- [ ] `Property Get`/`Let`/`Set`
+- [x] Projektweite Declared-Type-Auflösung für UDT-/Enum-Namen aus analysierten Modulen und Klassen; `OLE_COLOR` als VB/OLE-Alias auf `Long`
+- [x] Klassenmodule als projektweite Typnamen (`ClassTypeSymbol`) binden; neutrale `object?`-Emission bis zur echten Klassen-Runtime
+- [x] `.cls`-Designer-Vorspann (`VERSION`/`BEGIN`/`END`) und `Property Get`/`Let`/`Set`-Deklarationen parser-/binderseitig lesen
+- [ ] Property-Aufrufe und Property-Dispatch auf dem echten Klassen-/Objekttypmodell
 - [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
-- [ ] `Event`/`RaiseEvent`, `WithEvents`
-- [ ] `.cls` als Projektquelle lesen (hebt die Item-Abdeckung von 27 auf 30)
+- [x] `Event`-Deklarationen und `RaiseEvent`-Statements parser-/binderseitig lesen
+- [ ] Event-Dispatch und `WithEvents`
+- [x] `.cls` als Projektquelle lesen (hebt die Item-Abdeckung von 27 auf 30)
 
 ## Meilenstein 6 — IR und Fehlerbehandlung
 

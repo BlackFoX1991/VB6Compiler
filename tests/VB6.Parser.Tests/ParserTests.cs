@@ -133,6 +133,26 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void Parse_RecognizesCallSiteByValArgument()
+    {
+        const string source = """
+            Sub Main()
+                Call Update(ByVal x)
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        Assert.AreEqual(0, result.Diagnostics.Length);
+
+        var main = (SubDeclarationSyntax)result.Root.Members.Single();
+        var invocation = (InvocationStatementSyntax)main.Statements.Single();
+        var argument = (CallSiteByValExpressionSyntax)invocation.Arguments.Single();
+
+        Assert.AreEqual(SyntaxKind.ByValKeyword, argument.ByValKeyword.Kind);
+        Assert.AreEqual("x", ((NameExpressionSyntax)argument.Expression).IdentifierToken.Text);
+    }
+
+    [TestMethod]
     public void Parse_RecognizesBareCallArguments()
     {
         const string source = """

@@ -13,9 +13,10 @@ public sealed class ConformanceCorpusTests
     private const string VisiaProject = "VISIA/4.8.7.1/prjVisia.vbp";
 
     /// <summary>
-    /// Modules the loader finds in the VISIA project. Update when the corpus changes.
+    /// Standard modules and class modules the project analysis currently reads from VISIA.
+    /// Update when the corpus changes or another item kind becomes analyzed.
     /// </summary>
-    private const int VisiaModuleCount = 27;
+    private const int VisiaAnalyzedSourceCount = 30;
 
     /// <summary>
     /// Modules that currently analyze without a single error.
@@ -34,7 +35,7 @@ public sealed class ConformanceCorpusTests
     {
         var report = AnalyzeCorpusProject(VisiaProject);
 
-        Assert.AreEqual(VisiaModuleCount, report.AnalyzedFileCount);
+        Assert.AreEqual(VisiaAnalyzedSourceCount, report.AnalyzedFileCount);
         Assert.AreEqual(40, report.TotalItemCount);
     }
 

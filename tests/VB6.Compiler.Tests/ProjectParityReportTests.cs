@@ -28,12 +28,14 @@ public sealed class ProjectParityReportTests
             var report = VBProjectParityReport.Create(VBProjectCompilation.Create(projectPath).Analyze());
 
             Assert.AreEqual(3, report.TotalItemCount);
-            Assert.AreEqual(1, report.AnalyzedFileCount);
+            Assert.AreEqual(2, report.AnalyzedFileCount);
 
             var module = report.ItemKinds.Single(kind => kind.Kind == VBProjectItemKind.Module);
             var @class = report.ItemKinds.Single(kind => kind.Kind == VBProjectItemKind.Class);
+            var form = report.ItemKinds.Single(kind => kind.Kind == VBProjectItemKind.Form);
             Assert.IsTrue(module.IsAnalyzed);
-            Assert.IsFalse(@class.IsAnalyzed);
+            Assert.IsTrue(@class.IsAnalyzed);
+            Assert.IsFalse(form.IsAnalyzed);
         }
         finally
         {
@@ -159,17 +161,19 @@ public sealed class ProjectParityReportTests
                 Name="Sample"
                 Module=modClean; modClean.bas
                 Class=cThing; cThing.cls
+                Form=frmMain.frm
                 """);
             File.WriteAllText(Path.Combine(directory, "modClean.bas"), CleanModule);
-            File.WriteAllText(Path.Combine(directory, "cThing.cls"), "' not read yet");
+            File.WriteAllText(Path.Combine(directory, "cThing.cls"), "' read as class source");
+            File.WriteAllText(Path.Combine(directory, "frmMain.frm"), "' not read yet");
 
             var rendered = VBProjectParityReport
                 .Create(VBProjectCompilation.Create(projectPath).Analyze())
                 .Render();
 
             StringAssert.Contains(rendered, "VB6 parity report for Sample");
-            StringAssert.Contains(rendered, "Analyzed 1 of 2 project items.");
-            StringAssert.Contains(rendered, "1 of 1 analyze without errors.");
+            StringAssert.Contains(rendered, "Analyzed 2 of 3 project items.");
+            StringAssert.Contains(rendered, "2 of 2 analyze without errors.");
             StringAssert.Contains(rendered, "not analyzed yet");
         }
         finally

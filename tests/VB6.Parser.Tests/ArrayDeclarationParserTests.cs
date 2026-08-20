@@ -17,7 +17,7 @@ public sealed class ArrayDeclarationParserTests
         Assert.AreEqual(0, parameter.Dimensions.Length);
         Assert.IsNotNull(parameter.OpenParenthesisToken);
         Assert.IsNotNull(parameter.CloseParenthesisToken);
-        Assert.AreEqual("String", parameter.TypeToken.Text);
+        Assert.AreEqual("String", parameter.TypeToken!.Text);
     }
 
     [TestMethod]
@@ -80,6 +80,66 @@ public sealed class ArrayDeclarationParserTests
         Assert.AreEqual(0, result.Diagnostics.Length, FormatDiagnostics(result));
         var declaration = (ModuleVariableDeclarationSyntax)result.Root.Members.Single();
         Assert.IsTrue(declaration.Declarators.Single().IsArray);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesArrayElementAssignment()
+    {
+        var source = """
+            Sub Main()
+                values(1, 2) = 42
+            End Sub
+            """;
+        var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, FormatDiagnostics(result));
+        var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
+        var assignment = (AssignmentStatementSyntax)procedure.Statements.Single();
+        Assert.IsTrue(assignment.IsIndexed);
+        Assert.AreEqual(2, assignment.Indices.Length);
+        Assert.AreEqual("42", ((LiteralExpressionSyntax)assignment.Expression).LiteralToken.Text);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesReDimAndEraseStatements()
+    {
+        var source = """
+            Sub Main()
+                ReDim values(1 To 3)
+                Erase values
+            End Sub
+            """;
+        var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, FormatDiagnostics(result));
+        var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
+        var redim = (ReDimStatementSyntax)procedure.Statements[0];
+        Assert.AreEqual("ReDim", redim.ReDimKeyword.Text);
+        Assert.AreEqual(1, redim.Declarators.Single().Dimensions.Length);
+        var erase = (EraseStatementSyntax)procedure.Statements[1];
+        Assert.AreEqual("values", erase.Identifiers.Single().Text);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesForEachArrayLoop()
+    {
+        var source = """
+            Sub Main()
+                For Each value In values
+                    Debug.Print value
+                Next value
+            End Sub
+            """;
+        var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, FormatDiagnostics(result));
+        var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
+        var loop = (ForEachStatementSyntax)procedure.Statements.Single();
+        Assert.AreEqual("Each", loop.EachKeyword.Text);
+        Assert.AreEqual("value", loop.Identifier.Text);
+        Assert.AreEqual("In", loop.InKeyword.Text);
+        Assert.AreEqual("values", ((NameExpressionSyntax)loop.Collection).IdentifierToken.Text);
+        Assert.AreEqual("value", loop.NextIdentifier!.Text);
     }
 
     private static FunctionDeclarationSyntax ParseFunction(string source)

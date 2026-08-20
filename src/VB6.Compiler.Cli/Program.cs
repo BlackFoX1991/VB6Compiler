@@ -86,7 +86,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     return 1;
 }
 
-var compilation = VBCompilation.Create(File.ReadAllText(path), path);
+var compilation = VBCompilation.Create(VB6SourceReader.ReadAllText(path), path);
 
 if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
 {

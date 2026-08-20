@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using VB6.ProjectSystem;
 using VB6.Semantics;
 
 namespace VB6.Compiler.Tests;
@@ -119,6 +120,164 @@ public sealed class ProjectCompilationTests
 
             Assert.IsFalse(analysis.Success);
             Assert.IsTrue(analysis.ProjectDiagnostics.Any(diagnostic => diagnostic.Code == "VB6PRJ0003"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ReadsClassModulesWithoutExportingThemAsStandardModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ClassSource.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ClassSource"
+                Module=MainModule; MainModule.bas
+                Class=Customer; Customer.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Sub Main()
+                    Debug.Print 1
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Customer.cls"), """
+                Private id As Long
+
+                Sub Configure()
+                    id = 10
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            Assert.AreEqual(2, analysis.Units.Length);
+            Assert.IsNotNull(analysis.SemanticModel);
+            Assert.AreEqual(1, analysis.SemanticModel!.Procedures.Length);
+            Assert.AreEqual("Main", analysis.SemanticModel.Procedures.Single().Symbol.Name);
+
+            var classUnit = analysis.Units.Single(unit => unit.Item.Kind == VBProjectItemKind.Class);
+            Assert.IsNotNull(classUnit.Analysis.SemanticModel);
+            Assert.AreEqual(1, classUnit.Analysis.SemanticModel!.Procedures.Length);
+            Assert.AreEqual("Configure", classUnit.Analysis.SemanticModel.Procedures.Single().Symbol.Name);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ResolvesProjectWideEnumTypesAndConstants()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ProjectEnums.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ProjectEnums"
+                Module=TypesModule; TypesModule.bas
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "TypesModule.bas"), """
+                Public Enum Alignment
+                    AlignLeft = 0
+                    AlignCenter = 2
+                End Enum
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Private Current As Alignment
+
+                Sub Main()
+                    Current = AlignCenter
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            Assert.AreEqual(1, analysis.SemanticModel!.EnumTypes.Length);
+            Assert.IsTrue(analysis.SemanticModel.ModuleVariables.Any(variable =>
+                variable.IsConstant && variable.Symbol.Name == "AlignCenter"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ResolvesClassModulesAsProjectTypes()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ClassTypes.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ClassTypes"
+                Module=MainModule; MainModule.bas
+                Class=Customer; Domain\Customer.cls
+                Class=Invoice.cls
+                """);
+            Directory.CreateDirectory(Path.Combine(directory, "Domain"));
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Private CurrentCustomer As Customer
+                Private CurrentInvoice As Invoice
+
+                Sub Main()
+                    Debug.Print 1
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Domain", "Customer.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Customer"
+
+                Private id As Long
+                """);
+            File.WriteAllText(Path.Combine(directory, "Invoice.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Invoice"
+
+                Private id As Long
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            Assert.IsNotNull(analysis.SemanticModel);
+            Assert.IsTrue(analysis.SemanticModel!.ClassTypes.Any(type => type.Name == "Customer"));
+            Assert.IsTrue(analysis.SemanticModel.ClassTypes.Any(type => type.Name == "Invoice"));
+
+            var customer = analysis.SemanticModel.ModuleVariables.Single(variable =>
+                variable.Symbol.Name == "CurrentCustomer");
+            var invoice = analysis.SemanticModel.ModuleVariables.Single(variable =>
+                variable.Symbol.Name == "CurrentInvoice");
+            Assert.IsInstanceOfType<ClassTypeSymbol>(customer.Symbol.Type);
+            Assert.AreEqual("Customer", customer.Symbol.Type.Name);
+            Assert.IsInstanceOfType<ClassTypeSymbol>(invoice.Symbol.Type);
+            Assert.AreEqual("Invoice", invoice.Symbol.Type.Name);
         }
         finally
         {

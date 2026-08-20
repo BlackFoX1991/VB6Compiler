@@ -44,6 +44,13 @@ public sealed record AttributeSyntax(
     ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.AttributeStatement);
 
 /// <summary>
+/// VB6 class files start with non-code designer metadata such as <c>VERSION 1.0 CLASS</c>
+/// and a <c>BEGIN</c>/<c>END</c> property block. The compiler preserves and ignores it.
+/// </summary>
+public sealed record ClassMetadataSyntax(
+    ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.ClassMetadataStatement);
+
+/// <summary>
 /// One dimension inside a VB6 array rank specifier. <c>x(10)</c> has only an upper bound;
 /// <c>x(1 To 10)</c> preserves both explicit bounds. The trailing comma belongs to this
 /// dimension so multidimensional source can be round-tripped without inventing separators.
@@ -65,6 +72,8 @@ public sealed record VariableDeclaratorSyntax(
     SyntaxToken? CloseParenthesisToken,
     SyntaxToken? AsKeyword,
     SyntaxToken? TypeToken,
+    SyntaxToken? FixedStringStarToken,
+    ExpressionSyntax? FixedStringLength,
     SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.VariableDeclarator)
 {
     public VariableDeclaratorSyntax(
@@ -79,6 +88,8 @@ public sealed record VariableDeclaratorSyntax(
             null,
             asKeyword,
             typeToken,
+            null,
+            null,
             commaToken)
     {
     }
@@ -145,11 +156,28 @@ public sealed record DeclareDeclarationSyntax(
     SyntaxToken? AsKeyword,
     SyntaxToken? ReturnTypeToken) : MemberSyntax(SyntaxKind.DeclareDeclaration);
 
+public sealed record TypeDeclarationSyntax(
+    SyntaxToken? VisibilityKeyword,
+    SyntaxToken TypeKeyword,
+    SyntaxToken Identifier,
+    ImmutableArray<VariableDeclaratorSyntax> Fields,
+    SyntaxToken EndKeyword,
+    SyntaxToken EndTypeKeyword) : MemberSyntax(SyntaxKind.TypeDeclaration);
+
+public sealed record EventDeclarationSyntax(
+    SyntaxToken? VisibilityKeyword,
+    SyntaxToken EventKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
+    SyntaxToken CloseParenthesisToken) : MemberSyntax(SyntaxKind.EventDeclaration);
+
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
     SyntaxToken Identifier,
-    SyntaxToken AsKeyword,
-    SyntaxToken TypeToken,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? TypeToken,
+    SyntaxToken? ParamArrayKeyword = null,
     SyntaxToken? OptionalKeyword = null,
     SyntaxToken? EqualsToken = null,
     ExpressionSyntax? DefaultValue = null,
@@ -158,6 +186,7 @@ public sealed record ParameterSyntax(
     SyntaxToken? CloseParenthesisToken = null) : SyntaxNode(SyntaxKind.Parameter)
 {
     public bool IsArray => OpenParenthesisToken is not null;
+    public bool IsParamArray => ParamArrayKeyword is not null;
 }
 
 public sealed record SubDeclarationSyntax(
@@ -184,6 +213,23 @@ public sealed record FunctionDeclarationSyntax(
     SyntaxToken EndFunctionKeyword,
     SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
 
+public sealed record PropertyDeclarationSyntax(
+    SyntaxToken? VisibilityKeyword,
+    SyntaxToken PropertyKeyword,
+    SyntaxToken AccessorKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
+    SyntaxToken CloseParenthesisToken,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? TypeToken,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken EndKeyword,
+    SyntaxToken EndPropertyKeyword) : MemberSyntax(SyntaxKind.PropertyDeclaration)
+{
+    public bool IsGet => string.Equals(AccessorKeyword.Text, "Get", StringComparison.OrdinalIgnoreCase);
+}
+
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,
     ImmutableArray<VariableDeclaratorSyntax> Declarators) : StatementSyntax(SyntaxKind.DimStatement)
@@ -207,8 +253,56 @@ public sealed record DimStatementSyntax(
 
 public sealed record AssignmentStatementSyntax(
     SyntaxToken Identifier,
+    SyntaxToken? DotToken,
+    SyntaxToken? MemberIdentifier,
+    SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Indices,
+    SyntaxToken? CloseParenthesisToken,
     SyntaxToken EqualsToken,
-    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.AssignmentStatement);
+    ExpressionSyntax Expression,
+    ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.AssignmentStatement)
+{
+    public AssignmentStatementSyntax(
+        SyntaxToken identifier,
+        SyntaxToken equalsToken,
+        ExpressionSyntax expression)
+        : this(
+            identifier,
+            null,
+            null,
+            null,
+            ImmutableArray<ExpressionSyntax>.Empty,
+            null,
+            equalsToken,
+            expression,
+            null)
+    {
+    }
+
+    public bool IsIndexed => OpenParenthesisToken is not null;
+    public bool IsMember => DotToken is not null;
+}
+
+public sealed record ReDimStatementSyntax(
+    SyntaxToken ReDimKeyword,
+    SyntaxToken? PreserveKeyword,
+    ImmutableArray<VariableDeclaratorSyntax> Declarators) : StatementSyntax(SyntaxKind.ReDimStatement);
+
+public sealed record EraseStatementSyntax(
+    SyntaxToken EraseKeyword,
+    ImmutableArray<SyntaxToken> Identifiers) : StatementSyntax(SyntaxKind.EraseStatement);
+
+public sealed record ImplicitMemberAssignmentStatementSyntax(
+    SyntaxToken DotToken,
+    SyntaxToken MemberIdentifier,
+    SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Indices,
+    SyntaxToken? CloseParenthesisToken,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.ImplicitMemberAssignmentStatement)
+{
+    public bool IsIndexed => OpenParenthesisToken is not null;
+}
 
 public sealed record ElseIfClauseSyntax(
     SyntaxToken ElseIfKeyword,
@@ -241,6 +335,16 @@ public sealed record ForStatementSyntax(
     SyntaxToken NextKeyword,
     SyntaxToken? NextIdentifier) : StatementSyntax(SyntaxKind.ForStatement);
 
+public sealed record ForEachStatementSyntax(
+    SyntaxToken ForKeyword,
+    SyntaxToken EachKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken InKeyword,
+    ExpressionSyntax Collection,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken NextKeyword,
+    SyntaxToken? NextIdentifier) : StatementSyntax(SyntaxKind.ForEachStatement);
+
 public sealed record WhileStatementSyntax(
     SyntaxToken WhileKeyword,
     ExpressionSyntax Condition,
@@ -255,6 +359,13 @@ public sealed record DoStatementSyntax(
     SyntaxToken LoopKeyword,
     SyntaxToken? PostConditionKeyword,
     ExpressionSyntax? PostCondition) : StatementSyntax(SyntaxKind.DoStatement);
+
+public sealed record WithStatementSyntax(
+    SyntaxToken WithKeyword,
+    ExpressionSyntax Target,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken EndKeyword,
+    SyntaxToken EndWithKeyword) : StatementSyntax(SyntaxKind.WithStatement);
 
 public sealed record ExitStatementSyntax(
     SyntaxToken ExitKeyword,
@@ -295,6 +406,13 @@ public sealed record DebugPrintStatementSyntax(
     SyntaxToken PrintKeyword,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugPrintStatement);
 
+public sealed record RaiseEventStatementSyntax(
+    SyntaxToken RaiseEventKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Arguments,
+    SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.RaiseEventStatement);
+
 public sealed record InvocationStatementSyntax(
     SyntaxToken? CallKeyword,
     SyntaxToken Identifier,
@@ -305,11 +423,46 @@ public sealed record InvocationStatementSyntax(
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
+public sealed record MemberAccessExpressionSyntax(
+    ExpressionSyntax Target,
+    SyntaxToken DotToken,
+    SyntaxToken Identifier,
+    SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Indices,
+    SyntaxToken? CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.MemberAccessExpression)
+{
+    public MemberAccessExpressionSyntax(
+        ExpressionSyntax target,
+        SyntaxToken dotToken,
+        SyntaxToken identifier)
+        : this(
+            target,
+            dotToken,
+            identifier,
+            null,
+            ImmutableArray<ExpressionSyntax>.Empty,
+            null)
+    {
+    }
+
+    public bool IsIndexed => OpenParenthesisToken is not null;
+}
+public sealed record ImplicitMemberAccessExpressionSyntax(
+    SyntaxToken DotToken,
+    SyntaxToken Identifier,
+    SyntaxToken? OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Indices,
+    SyntaxToken? CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ImplicitMemberAccessExpression)
+{
+    public bool IsIndexed => OpenParenthesisToken is not null;
+}
 public sealed record InvocationExpressionSyntax(
     SyntaxToken Identifier,
     SyntaxToken OpenParenthesisToken,
     ImmutableArray<ExpressionSyntax> Arguments,
     SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.InvocationExpression);
+public sealed record CallSiteByValExpressionSyntax(SyntaxToken ByValKeyword, ExpressionSyntax Expression)
+    : ExpressionSyntax(SyntaxKind.CallSiteByValExpression);
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
 public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);

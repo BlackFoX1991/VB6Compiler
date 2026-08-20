@@ -49,6 +49,26 @@ public sealed class ModuleMemberParserTests
     }
 
     [TestMethod]
+    public void Parse_SkipsClassDesignerMetadata()
+    {
+        var root = Parse("""
+            VERSION 1.0 CLASS
+            BEGIN
+              MultiUse = -1  'True
+              Persistable = 0
+            END
+            Attribute VB_Name = "Customer"
+            Option Explicit
+            """);
+
+        Assert.AreEqual(4, root.Members.Length);
+        Assert.IsInstanceOfType<ClassMetadataSyntax>(root.Members[0]);
+        Assert.IsInstanceOfType<ClassMetadataSyntax>(root.Members[1]);
+        Assert.IsInstanceOfType<AttributeSyntax>(root.Members[2]);
+        Assert.IsInstanceOfType<OptionExplicitSyntax>(root.Members[3]);
+    }
+
+    [TestMethod]
     public void Parse_AcceptsVisibilityModifiersOnProcedures()
     {
         var root = Parse("""
@@ -98,5 +118,37 @@ public sealed class ModuleMemberParserTests
 
         Assert.AreEqual(0, root.Members.OfType<ModuleVariableDeclarationSyntax>().Count());
         Assert.AreEqual(1, root.Members.OfType<DeclareDeclarationSyntax>().Count());
+    }
+
+    [TestMethod]
+    public void Parse_ReadsEventsAndPropertyAccessors()
+    {
+        var root = Parse("""
+            Public Event CaptionChanged(ByVal OldValue As String)
+
+            Public Property Get Caption() As String
+                Caption = m_caption
+                Exit Property
+            End Property
+
+            Public Property Let Caption(ByVal value As String)
+                m_caption = value
+                RaiseEvent CaptionChanged(value)
+            End Property
+            """);
+
+        Assert.AreEqual(3, root.Members.Length);
+        var eventDeclaration = (EventDeclarationSyntax)root.Members[0];
+        var getDeclaration = (PropertyDeclarationSyntax)root.Members[1];
+        var letDeclaration = (PropertyDeclarationSyntax)root.Members[2];
+
+        Assert.AreEqual("CaptionChanged", eventDeclaration.Identifier.Text);
+        Assert.AreEqual("Caption", getDeclaration.Identifier.Text);
+        Assert.AreEqual("Get", getDeclaration.AccessorKeyword.Text);
+        Assert.AreEqual("String", getDeclaration.TypeToken!.Text);
+        Assert.AreEqual(2, getDeclaration.Statements.Length);
+        Assert.AreEqual("Let", letDeclaration.AccessorKeyword.Text);
+        Assert.AreEqual(1, letDeclaration.Parameters.Length);
+        Assert.IsInstanceOfType<RaiseEventStatementSyntax>(letDeclaration.Statements[1]);
     }
 }

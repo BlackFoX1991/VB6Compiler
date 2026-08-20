@@ -41,14 +41,14 @@ public sealed class VBProjectCompilation
                 diagnostic.Line));
         }
 
-        foreach (var module in loadResult.Project.Modules)
+        foreach (var module in GetAnalyzedSourceItems(loadResult.Project))
         {
             var modulePath = module.GetFullPath(loadResult.Project.ProjectDirectory);
             if (!File.Exists(modulePath))
             {
                 projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
                     "VB6PRJ0001",
-                    $"Project module '{module.RelativePath}' was not found.",
+                    $"Project source item '{module.RelativePath}' was not found.",
                     modulePath));
                 continue;
             }
@@ -56,13 +56,13 @@ public sealed class VBProjectCompilation
             string source;
             try
             {
-                source = File.ReadAllText(modulePath);
+                source = VB6SourceReader.ReadAllText(modulePath);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
                     "VB6PRJ0002",
-                    $"Project module '{module.RelativePath}' could not be read: {exception.Message}",
+                    $"Project source item '{module.RelativePath}' could not be read: {exception.Message}",
                     modulePath));
                 continue;
             }
@@ -73,11 +73,18 @@ public sealed class VBProjectCompilation
             parsedModules.Add(new ParsedProjectModule(module, modulePath, text, parseResult));
         }
 
+        var declaredTypeSymbols = DeclareProjectDeclaredTypes(loadResult.Project, parsedModules);
         var procedureSymbols = DeclareProjectProcedures(parsedModules, projectDiagnostics);
-        var moduleVariableSymbols = DeclareProjectModuleVariables(parsedModules, projectDiagnostics);
+        var moduleVariableSymbols = DeclareProjectModuleVariables(
+            parsedModules,
+            declaredTypeSymbols,
+            projectDiagnostics);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         var moduleVariables = ImmutableArray.CreateBuilder<BoundModuleVariable>();
+        var userDefinedTypes = ImmutableArray.CreateBuilder<UserDefinedTypeSymbol>();
+        var enumTypes = ImmutableArray.CreateBuilder<EnumTypeSymbol>();
+        var classTypes = declaredTypeSymbols.Values.OfType<ClassTypeSymbol>().ToImmutableArray();
 
         foreach (var module in parsedModules)
         {
@@ -90,11 +97,16 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            var semanticModel = new Binder(module.Text)
+            var semanticModel = new Binder(module.Text, declaredTypeSymbols)
                 .BindCompilationUnit(module.ParseResult.Root, procedureSymbols, moduleVariableSymbols);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
-            procedures.AddRange(semanticModel.Procedures);
-            moduleVariables.AddRange(semanticModel.ModuleVariables);
+            if (module.Item.Kind == VBProjectItemKind.Module)
+            {
+                procedures.AddRange(semanticModel.Procedures);
+                moduleVariables.AddRange(semanticModel.ModuleVariables);
+                userDefinedTypes.AddRange(semanticModel.UserDefinedTypes);
+                enumTypes.AddRange(semanticModel.EnumTypes);
+            }
 
             var unitDiagnostics = module.ParseResult.Diagnostics.AddRange(semanticModel.Diagnostics);
             units.Add(new VBProjectCompilationUnit(
@@ -106,7 +118,10 @@ public sealed class VBProjectCompilation
         var combinedDiagnostics = sourceDiagnostics.ToImmutable();
         var combinedSemanticModel = new SemanticModel(procedures.ToImmutable(), combinedDiagnostics)
         {
-            ModuleVariables = moduleVariables.ToImmutable()
+            ModuleVariables = moduleVariables.ToImmutable(),
+            UserDefinedTypes = userDefinedTypes.ToImmutable(),
+            EnumTypes = enumTypes.ToImmutable(),
+            ClassTypes = classTypes
         };
         return new VBProjectCompilationAnalysis(
             loadResult.Project,
@@ -115,6 +130,47 @@ public sealed class VBProjectCompilation
             combinedDiagnostics,
             projectDiagnostics.ToImmutable());
     }
+
+    private static IEnumerable<VBProjectItem> GetAnalyzedSourceItems(VBProject project) =>
+        project.Items.Where(item =>
+            item.Kind == VBProjectItemKind.Module ||
+            item.Kind == VBProjectItemKind.Class);
+
+    private static Dictionary<string, TypeSymbol> DeclareProjectDeclaredTypes(
+        VBProject project,
+        IEnumerable<ParsedProjectModule> modules)
+    {
+        var declaredTypes = new Dictionary<string, TypeSymbol>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var classItem in project.Classes)
+        {
+            var typeName = GetProjectItemTypeName(classItem);
+            if (!string.IsNullOrWhiteSpace(typeName))
+            {
+                declaredTypes.TryAdd(typeName, new ClassTypeSymbol(typeName));
+            }
+        }
+
+        foreach (var module in modules)
+        {
+            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            {
+                continue;
+            }
+
+            foreach (var symbol in Binder.CreateDeclaredTypeSymbols(module.ParseResult.Root))
+            {
+                declaredTypes.TryAdd(symbol.Name, symbol);
+            }
+        }
+
+        return declaredTypes;
+    }
+
+    private static string GetProjectItemTypeName(VBProjectItem item) =>
+        !string.IsNullOrWhiteSpace(item.Name)
+            ? item.Name
+            : Path.GetFileNameWithoutExtension(item.RelativePath);
 
     public VBProjectCSharpGenerationResult GenerateCSharp()
     {
@@ -153,6 +209,7 @@ public sealed class VBProjectCompilation
     /// </summary>
     private static Dictionary<string, ModuleVariableSymbol> DeclareProjectModuleVariables(
         IEnumerable<ParsedProjectModule> modules,
+        IReadOnlyDictionary<string, TypeSymbol> declaredTypeSymbols,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
@@ -160,12 +217,20 @@ public sealed class VBProjectCompilation
 
         foreach (var module in modules)
         {
+            if (module.Item.Kind != VBProjectItemKind.Module)
+            {
+                continue;
+            }
+
             if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
             {
                 continue;
             }
 
-            foreach (var symbol in Binder.CreateModuleVariableSymbols(module.Text, module.ParseResult.Root))
+            foreach (var symbol in Binder.CreateModuleVariableSymbols(
+                module.Text,
+                module.ParseResult.Root,
+                declaredTypeSymbols))
             {
                 if (moduleVariables.TryAdd(symbol.Name, symbol))
                 {
@@ -192,25 +257,18 @@ public sealed class VBProjectCompilation
 
         foreach (var module in modules)
         {
+            if (module.Item.Kind != VBProjectItemKind.Module)
+            {
+                continue;
+            }
+
             if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
             {
                 continue;
             }
 
-            foreach (var member in module.ParseResult.Root.Members)
+            foreach (var symbol in Binder.CreateProcedureSymbols(module.Text, module.ParseResult.Root))
             {
-                ProcedureSymbol? symbol = member switch
-                {
-                    SubDeclarationSyntax sub => Binder.CreateProcedureSymbol(sub),
-                    FunctionDeclarationSyntax function => Binder.CreateProcedureSymbol(function),
-                    _ => null
-                };
-
-                if (symbol is null)
-                {
-                    continue;
-                }
-
                 if (procedures.TryAdd(symbol.Name, symbol))
                 {
                     origins.Add(symbol.Name, module.Item.RelativePath);

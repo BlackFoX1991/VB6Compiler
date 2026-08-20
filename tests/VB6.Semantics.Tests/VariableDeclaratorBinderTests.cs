@@ -25,7 +25,7 @@ public sealed class VariableDeclaratorBinderTests
     }
 
     [TestMethod]
-    public void Bind_DiagnosesImplicitVariantWithoutBorrowingTrailingType()
+    public void Bind_BindsImplicitVariantWithoutBorrowingTrailingType()
     {
         var model = BindSource("""
             Sub Main()
@@ -33,10 +33,9 @@ public sealed class VariableDeclaratorBinderTests
             End Sub
             """);
 
-        Assert.AreEqual(1, model.Diagnostics.Length);
-        Assert.AreEqual("VB6S0020", model.Diagnostics[0].Code);
+        Assert.AreEqual(0, model.Diagnostics.Length);
         var procedure = model.Procedures.Single();
-        Assert.AreEqual(TypeSymbol.Error, procedure.Locals.Single(local => local.Name == "implicitVariant").Type);
+        Assert.AreEqual(TypeSymbol.Variant, procedure.Locals.Single(local => local.Name == "implicitVariant").Type);
         Assert.AreEqual(TypeSymbol.Integer, procedure.Locals.Single(local => local.Name == "typed").Type);
     }
 
@@ -51,11 +50,10 @@ public sealed class VariableDeclaratorBinderTests
             End Sub
             """);
 
-        Assert.AreEqual(1, model.Diagnostics.Length);
-        Assert.AreEqual("VB6S0020", model.Diagnostics[0].Code);
+        Assert.AreEqual(0, model.Diagnostics.Length);
         Assert.AreEqual(TypeSymbol.Integer, model.ModuleVariables.Single(variable => variable.Symbol.Name == "Left").Symbol.Type);
         Assert.AreEqual(TypeSymbol.Long, model.ModuleVariables.Single(variable => variable.Symbol.Name == "Right").Symbol.Type);
-        Assert.AreEqual(TypeSymbol.Error, model.ModuleVariables.Single(variable => variable.Symbol.Name == "implicitVariant").Symbol.Type);
+        Assert.AreEqual(TypeSymbol.Variant, model.ModuleVariables.Single(variable => variable.Symbol.Name == "implicitVariant").Symbol.Type);
         Assert.AreEqual(TypeSymbol.Long, model.ModuleVariables.Single(variable => variable.Symbol.Name == "Count").Symbol.Type);
     }
 

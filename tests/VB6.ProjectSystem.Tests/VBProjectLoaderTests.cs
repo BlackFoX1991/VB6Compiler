@@ -74,4 +74,41 @@ public sealed class VBProjectLoaderTests
         Assert.AreEqual("VB6VBP0001", result.Diagnostics[0].Code);
         Assert.AreEqual(2, result.Diagnostics[0].Line);
     }
+
+    [TestMethod]
+    public void Parse_IgnoresVbpSectionHeaders()
+    {
+        const string source = """
+            Type=Exe
+            [MS Transaction Server]
+            Name="Project1"
+            """;
+
+        var result = new VBProjectLoader().Parse(source, Path.Combine(Path.GetTempPath(), "Project1.vbp"));
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("Project1", result.Project.Name);
+    }
+
+    [TestMethod]
+    public void ReadAllText_UsesWindows1252ForBomlessLegacyFilesAndHonorsUtf8Bom()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6ProjectSystemTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var ansiPath = Path.Combine(directory, "Ansi.bas");
+            File.WriteAllBytes(ansiPath, [0x4D, 0xFC, 0x6C, 0x6C, 0x65, 0x72]);
+            Assert.AreEqual("Müller", VB6SourceReader.ReadAllText(ansiPath));
+
+            var utf8BomPath = Path.Combine(directory, "Utf8.bas");
+            File.WriteAllBytes(utf8BomPath, [0xEF, 0xBB, 0xBF, 0x4D, 0xC3, 0xBC, 0x6C, 0x6C, 0x65, 0x72]);
+            Assert.AreEqual("Müller", VB6SourceReader.ReadAllText(utf8BomPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }

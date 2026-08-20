@@ -27,7 +27,7 @@ public sealed class OptionalParameterParserTests
         Assert.IsNull(function.Parameters[0].OptionalKeyword);
         Assert.AreEqual(SyntaxKind.OptionalKeyword, function.Parameters[1].OptionalKeyword!.Kind);
         Assert.IsNull(function.Parameters[1].PassingModeKeyword);
-        Assert.AreEqual("Boolean", function.Parameters[1].TypeToken.Text);
+        Assert.AreEqual("Boolean", function.Parameters[1].TypeToken!.Text);
         Assert.AreEqual(SyntaxKind.OptionalKeyword, function.Parameters[2].OptionalKeyword!.Kind);
         Assert.IsNull(function.Parameters[2].DefaultValue);
     }
@@ -58,5 +58,24 @@ public sealed class OptionalParameterParserTests
         Assert.IsNotNull(caption.EqualsToken);
         Assert.IsInstanceOfType<LiteralExpressionSyntax>(caption.DefaultValue);
         Assert.AreEqual("VISIA", ((LiteralExpressionSyntax)caption.DefaultValue!).LiteralToken.Value);
+    }
+
+    [TestMethod]
+    public void Parse_AllowsUntypedOptionalParameterAsVariantShape()
+    {
+        const string source = """
+            Sub Configure(Optional value)
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        var parameter = sub.Parameters.Single();
+        Assert.AreEqual(SyntaxKind.OptionalKeyword, parameter.OptionalKeyword!.Kind);
+        Assert.AreEqual("value", parameter.Identifier.Text);
+        Assert.IsNull(parameter.AsKeyword);
+        Assert.IsNull(parameter.TypeToken);
     }
 }

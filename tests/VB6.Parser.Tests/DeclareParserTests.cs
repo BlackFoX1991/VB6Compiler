@@ -33,8 +33,8 @@ public sealed class DeclareParserTests
         Assert.AreEqual("\"GetPropA\"", declaration.AliasName!.Text);
         Assert.AreEqual(2, declaration.Parameters.Length);
         Assert.AreEqual(SyntaxKind.ByValKeyword, declaration.Parameters[0].PassingModeKeyword!.Kind);
-        Assert.AreEqual("Long", declaration.Parameters[0].TypeToken.Text);
-        Assert.AreEqual("String", declaration.Parameters[1].TypeToken.Text);
+        Assert.AreEqual("Long", declaration.Parameters[0].TypeToken!.Text);
+        Assert.AreEqual("String", declaration.Parameters[1].TypeToken!.Text);
         Assert.AreEqual("Long", declaration.ReturnTypeToken!.Text);
     }
 
@@ -47,8 +47,8 @@ public sealed class DeclareParserTests
         Assert.AreEqual(SyntaxKind.SubKeyword, declaration.ProcedureKindKeyword.Kind);
         Assert.AreEqual(3, declaration.Parameters.Length);
         Assert.IsNull(declaration.Parameters[0].PassingModeKeyword);
-        Assert.AreEqual("Any", declaration.Parameters[0].TypeToken.Text);
-        Assert.AreEqual("Any", declaration.Parameters[1].TypeToken.Text);
+        Assert.AreEqual("Any", declaration.Parameters[0].TypeToken!.Text);
+        Assert.AreEqual("Any", declaration.Parameters[1].TypeToken!.Text);
         Assert.AreEqual(SyntaxKind.ByValKeyword, declaration.Parameters[2].PassingModeKeyword!.Kind);
         Assert.IsNull(declaration.AsKeyword);
         Assert.IsNull(declaration.ReturnTypeToken);

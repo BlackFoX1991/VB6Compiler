@@ -70,6 +70,27 @@ public sealed class ModuleVariableCodeGenTests
         StringAssert.Contains(source, "short __vb6_Value = 0;");
     }
 
+    [TestMethod]
+    public void Generate_EmitsEnumBackedValuesAsInt()
+    {
+        var source = Generate("""
+            Public Enum Alignment
+                AlignLeft = 0
+                AlignCenter = 2
+            End Enum
+
+            Private Current As Alignment
+
+            Sub Main()
+                Current = AlignCenter
+            End Sub
+            """);
+
+        StringAssert.Contains(source, "private static int __vb6_AlignCenter = VBConversions.CLng(");
+        StringAssert.Contains(source, "private static int __vb6_Current = 0;");
+        StringAssert.Contains(source, "__vb6_Current = VBConversions.CLng(__vb6_AlignCenter);");
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;

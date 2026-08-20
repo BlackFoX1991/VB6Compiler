@@ -153,6 +153,156 @@ public sealed class BinderTests
     }
 
     [TestMethod]
+    public void Bind_BindsScalarByRefTypeMismatchAsCopyBackTemporary()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim x As Long
+                Call Update(x)
+            End Sub
+
+            Sub Update(value As Integer)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements[1];
+        var argument = invocation.Arguments.Single();
+
+        Assert.AreEqual(ParameterPassingMode.ByRef, argument.Parameter!.PassingMode);
+        Assert.IsTrue(argument.IsByRefTemporary);
+        Assert.IsNotNull(argument.CopyBackTarget);
+        Assert.AreEqual(TypeSymbol.Long, argument.CopyBackTarget!.Type);
+        Assert.IsInstanceOfType<BoundConversionExpression>(argument.Expression);
+    }
+
+    [TestMethod]
+    public void Bind_BindsFieldAndArrayElementByRefArguments()
+    {
+        var model = BindSource("""
+            Type Point
+                X As Long
+            End Type
+
+            Sub Main()
+                Dim point As Point
+                Dim values(1 To 1) As Long
+                Call Update(point.X)
+                Call Update(values(1))
+            End Sub
+
+            Sub Update(value As Long)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var fieldCall = (BoundInvocationStatement)main.Body.Statements[2];
+        var arrayCall = (BoundInvocationStatement)main.Body.Statements[3];
+
+        Assert.IsInstanceOfType<BoundMemberAccessExpression>(fieldCall.Arguments.Single().Expression);
+        Assert.IsFalse(fieldCall.Arguments.Single().IsByRefTemporary);
+        Assert.IsInstanceOfType<BoundArrayElementExpression>(arrayCall.Arguments.Single().Expression);
+        Assert.IsFalse(arrayCall.Arguments.Single().IsByRefTemporary);
+    }
+
+    [TestMethod]
+    public void Bind_BindsUserDefinedTypeArrayFieldElementByRefArgument()
+    {
+        var model = BindSource("""
+            Type Point
+                Values(1 To 1) As Long
+            End Type
+
+            Sub Main()
+                Dim point As Point
+                Call Update(point.Values(1))
+            End Sub
+
+            Sub Update(value As Long)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements[1];
+
+        Assert.IsInstanceOfType<BoundMemberArrayElementExpression>(invocation.Arguments.Single().Expression);
+        Assert.IsFalse(invocation.Arguments.Single().IsByRefTemporary);
+    }
+
+    [TestMethod]
+    public void Bind_BindsParenthesizedByRefArgumentAsTemporaryForStatementCalls()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim x As Integer
+                Call Update((x))
+            End Sub
+
+            Sub Update(value As Integer)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements[1];
+        var argument = invocation.Arguments.Single();
+
+        Assert.AreEqual(ParameterPassingMode.ByRef, argument.Parameter!.PassingMode);
+        Assert.IsTrue(argument.IsByRefTemporary);
+    }
+
+    [TestMethod]
+    public void Bind_BindsCallSiteByValArgumentAsByRefTemporaryForStatementCalls()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim x As Integer
+                Call Update(ByVal x)
+            End Sub
+
+            Sub Update(value As Integer)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements[1];
+        var argument = invocation.Arguments.Single();
+
+        Assert.AreEqual(ParameterPassingMode.ByRef, argument.Parameter!.PassingMode);
+        Assert.IsTrue(argument.IsByRefTemporary);
+    }
+
+    [TestMethod]
+    public void Bind_BindsByRefTemporaryInFunctionCallExpression()
+    {
+        var model = BindSource("""
+            Function Identity(value As Integer) As Integer
+                Identity = value
+            End Function
+
+            Sub Main()
+                Dim x As Integer
+                x = Identity(ByVal x)
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var assignment = (BoundAssignmentStatement)main.Body.Statements[1];
+        var invocation = (BoundInvocationExpression)assignment.Expression;
+        Assert.IsTrue(invocation.Arguments.Single().IsByRefTemporary);
+    }
+
+    [TestMethod]
     public void Bind_ConvertsByValArguments()
     {
         var model = BindSource("""
@@ -173,6 +323,40 @@ public sealed class BinderTests
     }
 
     [TestMethod]
+    public void Bind_BindsPropertyAccessorBodies()
+    {
+        var model = BindSource("""
+            Private m_caption As String
+            Public Event CaptionChanged(ByVal OldValue As String)
+
+            Public Property Get Caption() As String
+                Caption = m_caption
+                Exit Property
+            End Property
+
+            Public Property Let Caption(ByVal value As String)
+                m_caption = value
+                RaiseEvent CaptionChanged(value)
+            End Property
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        Assert.AreEqual(2, model.Procedures.Length);
+
+        var getter = model.Procedures[0];
+        var setter = model.Procedures[1];
+        var returnAssignment = (BoundAssignmentStatement)getter.Body.Statements[0];
+        var fieldAssignment = (BoundAssignmentStatement)setter.Body.Statements[0];
+
+        Assert.IsTrue(getter.Symbol.IsFunction);
+        Assert.AreEqual("Caption", getter.Symbol.Name);
+        Assert.AreEqual(TypeSymbol.String, getter.Symbol.ReturnType);
+        Assert.IsInstanceOfType<ReturnValueSymbol>(returnAssignment.Variable);
+        Assert.IsFalse(setter.Symbol.IsFunction);
+        Assert.AreEqual("m_caption", fieldAssignment.Variable.Name);
+    }
+
+    [TestMethod]
     public void Bind_ReportsInvalidByRefArguments()
     {
         var literalModel = BindSource("""
@@ -186,9 +370,13 @@ public sealed class BinderTests
         Assert.IsTrue(literalModel.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0007"));
 
         var mismatchModel = BindSource("""
+            Type Point
+                X As Integer
+            End Type
+
             Sub Main()
-                Dim text As String
-                Call Update(text)
+                Dim point As Point
+                Call Update(point)
             End Sub
 
             Sub Update(value As Integer)

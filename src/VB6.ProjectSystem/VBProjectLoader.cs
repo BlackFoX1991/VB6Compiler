@@ -9,7 +9,7 @@ public sealed class VBProjectLoader
         ArgumentException.ThrowIfNullOrWhiteSpace(projectFilePath);
 
         var fullPath = Path.GetFullPath(projectFilePath);
-        var text = File.ReadAllText(fullPath);
+        var text = VB6SourceReader.ReadAllText(fullPath);
         return Parse(text, fullPath);
     }
 
@@ -40,6 +40,11 @@ public sealed class VBProjectLoader
             lineNumber++;
             var trimmed = line.Trim();
             if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (trimmed[0] == '[' && trimmed[^1] == ']')
             {
                 continue;
             }
