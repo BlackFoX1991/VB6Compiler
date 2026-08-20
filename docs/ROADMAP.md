@@ -29,6 +29,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | **1339** | 480 | 62 | 797 | 0 von 27 |
 | M4 untypisierte Functions | **1473** | 466 | 62 | 945 | 0 von 27 |
 | M5 ByRef-Randfälle vorgezogen | **1064** | 466 | 62 | 536 | 0 von 27 |
+| ReDim-Recovery bei qualifizierten Zielen | **1052** | 454 | 62 | 536 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -144,6 +145,17 @@ Klammern Auswertung zum Wert, der Aufgerufene kann also nicht zurückschreiben. 
 Parser, der `Foo (x)` und `Call Foo(x)` beide als Argumentliste las — nur ein `Call`-Statement
 hat aber eine geklammerte Argumentliste. Genau die Sorte Fehler, die die Projektregeln als
 schlimmer einstufen als eine Diagnose: falsches Ergebnis statt gemeldeter Lücke.
+
+`ReDim Section(0).Bytes(0)` — ein `ReDim` auf ein Arraymember innerhalb eines UDT-Elements — war
+danach der Ersterfehler in vier Modulen. Das gebundene Modell nimmt dort weiterhin ein einfaches
+`VariableSymbol`, die Konstruktion ist also noch nicht absenkbar; der unbehandelte Punkt riss
+aber die ganze restliche Prozedur mit. `VB6P0002` benennt sie jetzt und verwirft nur die Zeile,
+nach demselben Recovery-Muster wie bei den `Type`-Membern. 24 Kaskadenfehler weichen 12 präzisen,
+Parser 466 → 454.
+
+**Offen und bewusst nicht halb gebaut:** volle Unterstützung verlangt ein Zielausdruck statt
+eines Symbols in `BoundReDimStatement`, also Syntax, Binder und Codegen. Das ist der nächste
+große Array-Slice.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
