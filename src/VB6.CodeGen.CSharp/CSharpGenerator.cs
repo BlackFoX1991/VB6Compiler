@@ -344,6 +344,40 @@ public sealed class CSharpGenerator
                 EmitReDimStatement(reDim);
                 break;
 
+            case BoundOpenStatement open:
+                WriteLine($"VBFiles.OpenBinary({EmitExpression(open.FileNumber)}, {EmitExpression(open.Path)});");
+                break;
+
+            case BoundCloseStatement close:
+                if (close.FileNumbers.IsDefaultOrEmpty)
+                {
+                    WriteLine("VBFiles.CloseAll();");
+                    break;
+                }
+
+                foreach (var fileNumber in close.FileNumbers)
+                {
+                    WriteLine($"VBFiles.Close({EmitExpression(fileNumber)});");
+                }
+
+                break;
+
+            case BoundSeekStatement seek:
+                WriteLine($"VBFiles.Seek({EmitExpression(seek.FileNumber)}, {EmitExpression(seek.Position)});");
+                break;
+
+            case BoundGetStatement get:
+                WriteLine(
+                    $"{EmitExpression(get.Target)} = VBFiles.{GetFileReadMethod(get.Target.Type)}(" +
+                    $"{EmitExpression(get.FileNumber)}, {EmitFilePosition(get.Position)});");
+                break;
+
+            case BoundPutStatement put:
+                WriteLine(
+                    $"VBFiles.Put({EmitExpression(put.FileNumber)}, {EmitFilePosition(put.Position)}, " +
+                    $"{EmitExpression(put.Value)});");
+                break;
+
             case BoundEraseStatement erase:
             {
                 var variable = GetVariableName(erase.Array);
@@ -657,6 +691,29 @@ public sealed class CSharpGenerator
             SyntaxKind.GreaterOrEqualsToken => $"VBOperators.GreaterOrEqual({selectName}, {value})",
             _ => "false"
         };
+    }
+
+    /// <summary>An omitted record position continues at the current file position.</summary>
+    private string EmitFilePosition(BoundExpression? position) =>
+        position is null ? "null" : EmitExpression(position);
+
+    /// <summary>
+    /// Each VB6 type reads its own storage size, so the read is selected by type rather than by a
+    /// generic helper - four bytes for a Long, two for an Integer, and so on.
+    /// </summary>
+    private static string GetFileReadMethod(TypeSymbol type)
+    {
+        if (type == TypeSymbol.Byte) return "GetByte";
+        if (type == TypeSymbol.Integer) return "GetInteger";
+        if (type == TypeSymbol.Long) return "GetLong";
+        if (type == TypeSymbol.LongLong) return "GetLongLong";
+        if (type == TypeSymbol.Single) return "GetSingle";
+        if (type == TypeSymbol.Double) return "GetDouble";
+        if (type == TypeSymbol.Currency) return "GetCurrency";
+        if (type == TypeSymbol.Boolean) return "GetBoolean";
+
+        throw new InvalidOperationException(
+            $"The binder should have rejected a Get of type '{type.Name}'.");
     }
 
     private string EmitArguments(IEnumerable<BoundArgument> arguments) =>
