@@ -930,6 +930,11 @@ public sealed class Binder
         };
     }
 
+    /// <summary>
+    /// The statement is bound for its arguments only — event dispatch does not exist yet, so
+    /// there is nothing to emit. Dropping it silently would let a generated program run and
+    /// simply not raise the event, so it is reported instead, like Like and Is.
+    /// </summary>
     private BoundStatement? BindRaiseEvent(
         RaiseEventStatementSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
@@ -940,6 +945,10 @@ public sealed class Binder
             _ = BindExpression(argument, variables, procedures);
         }
 
+        Report(
+            "VB6S0049",
+            $"RaiseEvent '{syntax.Identifier.Text}' requires event dispatch, which is not implemented yet.",
+            syntax.RaiseEventKeyword.Span);
         return null;
     }
 

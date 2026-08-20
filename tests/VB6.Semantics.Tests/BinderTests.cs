@@ -336,7 +336,6 @@ public sealed class BinderTests
 
             Public Property Let Caption(ByVal value As String)
                 m_caption = value
-                RaiseEvent CaptionChanged(value)
             End Property
             """);
 
