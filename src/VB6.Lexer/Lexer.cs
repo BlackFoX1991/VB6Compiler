@@ -112,6 +112,9 @@ public sealed class Lexer
             ',' => SyntaxKind.CommaToken,
             '.' => SyntaxKind.DotToken,
             ':' => SyntaxKind.ColonToken,
+            // A '#' that reaches here is not an identifier type suffix - those are consumed with
+            // the identifier - so it introduces a file number, as in Open ... As #1 or Close #1.
+            '#' => SyntaxKind.HashToken,
             '<' when Peek(1) == '=' => SyntaxKind.LessOrEqualsToken,
             '<' when Peek(1) == '>' => SyntaxKind.LessGreaterToken,
             '<' => SyntaxKind.LessToken,

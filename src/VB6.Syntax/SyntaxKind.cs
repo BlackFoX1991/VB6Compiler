@@ -29,6 +29,7 @@ public enum SyntaxKind
     CommaToken,
     DotToken,
     ColonToken,
+    HashToken,
 
     OptionKeyword,
     ExplicitKeyword,
@@ -138,5 +139,11 @@ public enum SyntaxKind
     WithReceiverExpression,
     UnaryExpression,
     BinaryExpression,
-    ParenthesizedExpression
+    ParenthesizedExpression,
+    FileNumber,
+    OpenStatement,
+    CloseStatement,
+    GetStatement,
+    PutStatement,
+    SeekStatement
 }
