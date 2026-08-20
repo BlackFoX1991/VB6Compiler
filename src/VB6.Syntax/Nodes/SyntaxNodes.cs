@@ -315,6 +315,51 @@ public sealed record InvocationStatementSyntax(
     SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement);
 
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
+
+/// <summary>
+/// A VB6 file number, written <c>#1</c> or <c>#FileNum</c>. The hash is optional in VB6 for some
+/// statements, so it is kept separately rather than folded into the expression.
+/// </summary>
+public sealed record FileNumberSyntax(
+    SyntaxToken? HashToken,
+    ExpressionSyntax Expression) : SyntaxNode(SyntaxKind.FileNumber);
+
+public sealed record OpenStatementSyntax(
+    SyntaxToken OpenKeyword,
+    ExpressionSyntax PathExpression,
+    SyntaxToken ForKeyword,
+    SyntaxToken ModeToken,
+    SyntaxToken AsKeyword,
+    FileNumberSyntax FileNumber,
+    SyntaxToken? LenKeyword = null,
+    SyntaxToken? LenEqualsToken = null,
+    ExpressionSyntax? RecordLength = null) : StatementSyntax(SyntaxKind.OpenStatement);
+
+public sealed record CloseStatementSyntax(
+    SyntaxToken CloseKeyword,
+    ImmutableArray<FileNumberSyntax> FileNumbers) : StatementSyntax(SyntaxKind.CloseStatement);
+
+/// <summary>
+/// <c>Get #1, position, target</c> and <c>Put #1, position, target</c> share their shape. VB6
+/// allows the record position to be omitted, as in <c>Get #1, , target</c>, which then continues
+/// from the current file position.
+/// </summary>
+public sealed record GetStatementSyntax(
+    SyntaxToken GetKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax? RecordPosition,
+    ExpressionSyntax Target) : StatementSyntax(SyntaxKind.GetStatement);
+
+public sealed record PutStatementSyntax(
+    SyntaxToken PutKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax? RecordPosition,
+    ExpressionSyntax Target) : StatementSyntax(SyntaxKind.PutStatement);
+
+public sealed record SeekStatementSyntax(
+    SyntaxToken SeekKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax Position) : StatementSyntax(SyntaxKind.SeekStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
 public sealed record InvocationExpressionSyntax(
