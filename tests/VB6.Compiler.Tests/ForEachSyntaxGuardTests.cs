@@ -86,8 +86,13 @@ public sealed class ForEachSyntaxGuardTests
         StringAssert.Contains(generation.Source, "__vb6_values.EnumerateValues()");
     }
 
+    /// <summary>
+    /// VB6 rejects this too. For Each needs a Variant control variable, and a Type declared in a
+    /// standard module cannot be coerced into one - only public types in public object modules can.
+    /// The diagnostic therefore has to survive; it is not a placeholder for missing support.
+    /// </summary>
     [TestMethod]
-    public void Analyze_KeepsUdtElementArrayForEachGuarded()
+    public void Analyze_RejectsForEachOverUserDefinedTypeArray()
     {
         var analysis = VBCompilation.Create("""
             Type Record
@@ -103,6 +108,9 @@ public sealed class ForEachSyntaxGuardTests
             """, "test.bas").Analyze();
 
         Assert.IsFalse(analysis.Success);
-        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0056"));
+        var diagnostic = analysis.Diagnostics.SingleOrDefault(item => item.Code == "VB6S0056");
+        Assert.IsNotNull(diagnostic, "Expected VB6S0056 for a For Each over a user-defined type array.");
+        StringAssert.Contains(diagnostic.Message, "Record");
+        StringAssert.Contains(diagnostic.Message, "public object modules");
     }
 }
