@@ -337,6 +337,12 @@ public sealed record MemberAccessExpressionSyntax(
     SyntaxToken DotToken,
     SyntaxToken MemberToken) : ExpressionSyntax(SyntaxKind.MemberAccessExpression);
 
+public sealed record TypeOfExpressionSyntax(
+    SyntaxToken TypeOfToken,
+    ExpressionSyntax Expression,
+    SyntaxToken IsKeyword,
+    SyntaxToken TypeName) : ExpressionSyntax(SyntaxKind.TypeOfExpression);
+
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
 public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
