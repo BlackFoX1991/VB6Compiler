@@ -29,6 +29,22 @@ public sealed class ConformanceCorpusTests
     /// </summary>
     private const int VisiaCleanModuleBaseline = 0;
 
+    /// <summary>
+    /// Parser errors the corpus still produces.
+    ///
+    /// This is the ratchet that actually bites today. Clean files are stuck at zero and will
+    /// stay there for a while, because binding is project-wide and a file only counts as clean
+    /// once its whole dependency chain parses - so that baseline cannot catch a regression yet.
+    /// Parser errors can, and every slice so far has lowered them: 3183 at M0, 1758 at the M2
+    /// closeout, 1214 after the UDT type space, 480 after With and member access.
+    ///
+    /// Lower it whenever a slice lands. Raising it is not forbidden but must be deliberate: a
+    /// slice can legitimately expose parser gaps deeper in a file that used to derail at line 10
+    /// and never reach line 400. Raise it with a note saying which construct surfaced, the same
+    /// way the total error count is explained rather than asserted.
+    /// </summary>
+    private const int VisiaParserErrorBaseline = 480;
+
     [TestMethod]
     public void Analyze_SurvivesTheVisiaProject()
     {
@@ -56,6 +72,19 @@ public sealed class ConformanceCorpusTests
 
         StringAssert.Contains(rendered, "VB6 parity report for");
         StringAssert.Contains(rendered, "project items");
+    }
+
+    [TestMethod]
+    public void Analyze_DoesNotRegressOnVisiaParserErrors()
+    {
+        var report = AnalyzeCorpusProject(VisiaProject);
+        var parserErrors = report.DiagnosticCodes
+            .Where(code => code.Code.StartsWith("VB6P", StringComparison.Ordinal))
+            .Sum(code => code.Occurrences);
+
+        Assert.IsTrue(
+            parserErrors <= VisiaParserErrorBaseline,
+            $"Parity regressed: {parserErrors} parser errors, the baseline is {VisiaParserErrorBaseline}.");
     }
 
     private static VBProjectParityReport AnalyzeCorpusProject(string relativePath)

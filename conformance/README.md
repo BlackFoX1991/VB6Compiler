@@ -26,5 +26,10 @@ vb6c conformance/VISIA/4.8.7.1/prjVisia.vbp --report
 ```
 
 `ConformanceCorpusTests` runs the same analysis in CI. It asserts that the compiler survives the
-input and that the number of cleanly analyzed files never drops — see the comments there for why
-the total error count is deliberately not asserted.
+input, that the number of cleanly analyzed files never drops, and that parser errors never rise
+above their current baseline — see the comments there for why the total error count is
+deliberately not asserted.
+
+Clean files are the honest long-term metric but sit at zero until whole dependency chains parse,
+so parser errors carry the ratchet in the meantime. They have fallen at every slice so far: 3183
+at M0, 1758 at the M2 closeout, 1214 after the UDT type space, 480 after `With` and member access.
