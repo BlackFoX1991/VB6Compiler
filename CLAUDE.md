@@ -104,16 +104,19 @@ Get-WinEvent -LogName Microsoft-Windows-CodeIntegrity/Operational | Where-Object
 `VerifiedAndReputablePolicyState = 1` bedeutet Smart App Control aktiv; Event 3077 nennt die
 blockierte Datei. Smart App Control lässt sich nur abschalten, nicht wieder einschalten.
 
-Welche Datei betroffen ist, wechselt. Zeitweise waren es Projekt-DLLs wie `VB6.Semantics.dll` —
-das gab sich nach mehreren Builds von selbst. **Die E2E-Tests bleiben dauerhaft anfällig**, denn
-sie emittieren pro Lauf eine frische, unsignierte DLL nach `%TEMP%` und führen sie aus; so eine
-Datei hat per Definition keine Reputation. Erkennungsmerkmal: der Test scheitert mit Exitcode
-`-532462766` und der Meldung im Ausgabetext des Kindprozesses, nicht im Testhost. Aktuell trifft
-es reproduzierbar drei `EmitManagedApplication_*`-Tests. Das ist kein Compilerfehler — im Zweifel
-Devcontainer oder CI als Referenz nehmen.
+Welche Datei betroffen ist, wechselt. Projekt-DLLs wie `VB6.Semantics.dll` können es treffen;
+das gibt sich nach mehreren Builds oft von selbst. **Die E2E-Tests sind dagegen bauartbedingt
+anfällig**, denn sie emittieren pro Lauf eine frische, unsignierte DLL nach `%TEMP%` und führen
+sie aus — so eine Datei hat per Definition keine Reputation. Sie scheitern dann anders als die
+übrigen: mit Exitcode `-532462766` und der Meldung im Ausgabetext des Kindprozesses statt als
+Ausnahme im Testhost. Wer danach ohne diesen Hinweis sucht, verdächtigt den Codegenerator.
+
+Nichts davon ist ein Compilerfehler. Auf einer Maschine mit aktivem Smart App Control sind
+lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Referenz nehmen. Ist
+Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung: 478 Tests in 157 Testklassen.
+Stand der letzten Prüfung: 484 Tests in 158 Testklassen, alle grün.
 
 CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
 
