@@ -1316,7 +1316,16 @@ public sealed class Parser
                 break;
             }
 
-            arguments.Add(ParseExpression());
+            if (Current.Kind == SyntaxKind.ByValKeyword)
+            {
+                var byValKeyword = NextToken();
+                arguments.Add(new ByValArgumentExpressionSyntax(byValKeyword, ParseExpression()));
+            }
+            else
+            {
+                arguments.Add(ParseExpression());
+            }
+
             if (Current.Kind != SyntaxKind.CommaToken)
             {
                 break;
