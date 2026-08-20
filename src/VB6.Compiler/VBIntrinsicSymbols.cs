@@ -4,43 +4,36 @@ using VB6.Syntax.Nodes;
 
 namespace VB6.Compiler;
 
+/// <summary>
+/// VB6 language intrinsics made visible to the binder as ordinary procedures.
+///
+/// Each symbol carries the runtime method the backend calls, so an intrinsic travels the normal
+/// call path: the binder resolves it, checks the argument count, and converts the arguments like
+/// any other procedure, while only the backend knows the C# name. User declarations of the same
+/// name keep precedence, which is what VB6 does.
+/// </summary>
 internal static class VBIntrinsicSymbols
 {
-    private const string LenLookupName = "Len";
-    private const string LenGeneratedName = "__VB6_INTRINSIC_LEN";
-    private const string LenGeneratedCall = "__vb6___VB6_INTRINSIC_LEN(";
+    private static readonly ImmutableArray<ProcedureSymbol> Intrinsics = ImmutableArray.Create(
+        // Strings
+        Function("Len", "VBStrings.Len", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
+        Function(
+            "Mid",
+            "VBStrings.Mid",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Start", TypeSymbol.Long),
+            Parameter("Length", TypeSymbol.Long)),
+        Function("Chr", "VBStrings.Chr", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
 
-    private const string MidLookupName = "Mid";
-    private const string MidGeneratedName = "__VB6_INTRINSIC_MID";
-    private const string MidGeneratedCall = "__vb6___VB6_INTRINSIC_MID(";
-
-    private const string ChrLookupName = "Chr";
-    private const string ChrGeneratedName = "__VB6_INTRINSIC_CHR";
-    private const string ChrGeneratedCall = "__vb6___VB6_INTRINSIC_CHR(";
-
-    private static readonly ProcedureSymbol LenSymbol = new(
-        LenGeneratedName,
-        ImmutableArray.Create(new ParameterSymbol(
-            "Expression",
-            TypeSymbol.Variant,
-            ParameterPassingMode.ByVal)),
-        TypeSymbol.Long);
-
-    private static readonly ProcedureSymbol MidSymbol = new(
-        MidGeneratedName,
-        ImmutableArray.Create(
-            new ParameterSymbol("Expression", TypeSymbol.String, ParameterPassingMode.ByVal),
-            new ParameterSymbol("Start", TypeSymbol.Long, ParameterPassingMode.ByVal),
-            new ParameterSymbol("Length", TypeSymbol.Long, ParameterPassingMode.ByVal)),
-        TypeSymbol.String);
-
-    private static readonly ProcedureSymbol ChrSymbol = new(
-        ChrGeneratedName,
-        ImmutableArray.Create(new ParameterSymbol(
-            "CharCode",
-            TypeSymbol.Long,
-            ParameterPassingMode.ByVal)),
-        TypeSymbol.String);
+        // Conversions. VB6 spells the checked conversions the runtime already implements.
+        Function("CByte", "VBConversions.CByte", TypeSymbol.Byte, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CInt", "VBConversions.CInt", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CLng", "VBConversions.CLng", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CSng", "VBConversions.CSng", TypeSymbol.Single, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CDbl", "VBConversions.CDbl", TypeSymbol.Double, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CBool", "VBConversions.CBool", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CStr", "VBConversions.CStr", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)));
 
     public static Dictionary<string, ProcedureSymbol> CreateProcedureTable(CompilationUnitSyntax root)
     {
@@ -69,28 +62,24 @@ internal static class VBIntrinsicSymbols
     public static void AddTo(IDictionary<string, ProcedureSymbol> procedures)
     {
         ArgumentNullException.ThrowIfNull(procedures);
-        AddIfMissing(procedures, LenLookupName, LenSymbol);
-        AddIfMissing(procedures, MidLookupName, MidSymbol);
-        AddIfMissing(procedures, ChrLookupName, ChrSymbol);
-    }
 
-    public static string RewriteGeneratedCalls(string source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return source
-            .Replace(LenGeneratedCall, "VBStrings.Len(", StringComparison.Ordinal)
-            .Replace(MidGeneratedCall, "VBStrings.Mid(", StringComparison.Ordinal)
-            .Replace(ChrGeneratedCall, "VBStrings.Chr(", StringComparison.Ordinal);
-    }
-
-    private static void AddIfMissing(
-        IDictionary<string, ProcedureSymbol> procedures,
-        string name,
-        ProcedureSymbol symbol)
-    {
-        if (!procedures.ContainsKey(name))
+        foreach (var intrinsic in Intrinsics)
         {
-            procedures.Add(name, symbol);
+            // A user procedure of the same name wins, as it does in VB6.
+            if (!procedures.ContainsKey(intrinsic.Name))
+            {
+                procedures.Add(intrinsic.Name, intrinsic);
+            }
         }
     }
+
+    private static ProcedureSymbol Function(
+        string name,
+        string runtimeTarget,
+        TypeSymbol returnType,
+        params ParameterSymbol[] parameters) =>
+        new(name, parameters.ToImmutableArray(), returnType) { IntrinsicTarget = runtimeTarget };
+
+    private static ParameterSymbol Parameter(string name, TypeSymbol type) =>
+        new(name, type, ParameterPassingMode.ByVal);
 }

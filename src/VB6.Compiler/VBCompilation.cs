@@ -101,7 +101,6 @@ public sealed class VBCompilation
         }
 
         var source = new CSharpGenerator().Generate(analysis.SemanticModel);
-        source = VBIntrinsicSymbols.RewriteGeneratedCalls(source);
         return new CSharpGenerationResult(analysis, source);
     }
 
