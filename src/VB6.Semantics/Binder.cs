@@ -1284,6 +1284,9 @@ public sealed class Binder
             BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
             ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
             TypeOfExpressionSyntax typeOf => BindTypeOf(typeOf),
+            // The keyword only decides how the argument is passed; the value itself is the operand.
+            ArgumentPassingModeExpressionSyntax passingMode =>
+                BindExpression(passingMode.Expression, variables, procedures),
             _ => new BoundErrorExpression()
         };
     }
@@ -1489,13 +1492,22 @@ public sealed class Binder
             var parameter = index < procedure.Parameters.Length ? procedure.Parameters[index] : null;
 
             var requiresByRefTemporary = false;
+
+            // An explicit ByVal at the call site overrides a ByRef parameter, the same way
+            // parentheses do: CopyMemory dst, ByVal VarPtr(src), 4 hands over a value.
+            var forcedByValue = argumentSyntaxes[index] is ArgumentPassingModeExpressionSyntax
+            {
+                PassingModeKeyword.Kind: SyntaxKind.ByValKeyword
+            };
+
             if (parameter is not null)
             {
                 if (parameter.PassingMode == ParameterPassingMode.ByVal)
                 {
                     expression = BindConversion(expression, parameter.Type);
                 }
-                else if (argumentSyntaxes[index] is ParenthesizedExpressionSyntax ||
+                else if (forcedByValue ||
+                         argumentSyntaxes[index] is ParenthesizedExpressionSyntax ||
                          expression is not BoundVariableExpression &&
                          expression is not BoundArrayAccessExpression &&
                          expression is not BoundElementAccessExpression &&
