@@ -138,6 +138,7 @@ public enum SyntaxKind
     MemberAccessExpression,
     ElementAccessExpression,
     WithReceiverExpression,
+    TypeOfExpression,
     UnaryExpression,
     BinaryExpression,
     ParenthesizedExpression
