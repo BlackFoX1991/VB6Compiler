@@ -1,17 +1,18 @@
 namespace VB6.Compiler.Tests;
 
 /// <summary>
-/// The binary file statements parse but have no runtime yet. Binding returns null for statements
-/// it does not understand, which would drop them from the generated program silently - a wrong
-/// program rather than a reported gap. VB6S0057 keeps that from happening.
+/// Binding returns null for statements it does not understand, so a file statement that is neither
+/// lowered nor reported would vanish from the generated program without a word - a wrong program
+/// rather than a reported gap. These tests pin both directions: what is supported reaches the
+/// output, and what is not is named.
 /// </summary>
 [TestClass]
 public sealed class FileStatementGuardTests
 {
     [TestMethod]
-    public void Analyze_ReportsEveryUnimplementedFileStatement()
+    public void GenerateCSharp_EmitsEverySupportedFileStatement()
     {
-        var analysis = VBCompilation.Create("""
+        var generation = VBCompilation.Create("""
             Sub Main()
                 Dim buffer As Long
                 Open "data.bin" For Binary As #1
@@ -20,33 +21,52 @@ public sealed class FileStatementGuardTests
                 Get #1, 1, buffer
                 Close #1
             End Sub
-            """, "Module1.bas").Analyze();
+            """, "Module1.bas").GenerateCSharp();
 
-        Assert.IsFalse(analysis.Success);
-        var reported = analysis.Diagnostics
-            .Where(diagnostic => diagnostic.Code == "VB6S0057")
-            .Select(diagnostic => diagnostic.Message)
-            .ToArray();
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
 
-        Assert.AreEqual(5, reported.Length, string.Join(Environment.NewLine, reported));
-        foreach (var keyword in new[] { "Open", "Put", "Seek", "Get", "Close" })
+        foreach (var expected in new[]
+                 {
+                     "VBFiles.OpenBinary(",
+                     "VBFiles.Put(",
+                     "VBFiles.Seek(",
+                     "VBFiles.GetLong(",
+                     "VBFiles.Close("
+                 })
         {
-            Assert.IsTrue(
-                reported.Any(message => message.Contains($"'{keyword}'", StringComparison.Ordinal)),
-                $"Expected a report naming {keyword}.");
+            StringAssert.Contains(generation.Source, expected);
         }
     }
 
     [TestMethod]
-    public void GenerateCSharp_StopsRatherThanEmittingAProgramWithoutTheFileStatements()
+    public void GenerateCSharp_ClosesEveryFileForABareClose()
     {
         var generation = VBCompilation.Create("""
             Sub Main()
+                Close
+            End Sub
+            """, "Module1.bas").GenerateCSharp();
+
+        Assert.IsTrue(generation.Success);
+        StringAssert.Contains(generation.Source, "VBFiles.CloseAll();");
+    }
+
+    [TestMethod]
+    public void Analyze_StopsRatherThanEmittingAProgramMissingAnUnsupportedTransfer()
+    {
+        var generation = VBCompilation.Create("""
+            Sub Main()
+                Dim text As String
+                Open "a.bin" For Binary As #1
+                Put #1, 1, text
                 Close #1
             End Sub
             """, "Module1.bas").GenerateCSharp();
 
         Assert.IsFalse(generation.Success);
         Assert.IsNull(generation.Source);
+        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0058"));
     }
 }

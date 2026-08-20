@@ -1,0 +1,162 @@
+using System.Diagnostics;
+
+namespace VB6.Compiler.Tests;
+
+/// <summary>
+/// End to end binary file I/O: the generated program writes a file, seeks inside it, and reads the
+/// values back. The shapes come from the conformance corpus, which opens files with
+/// <c>Open ... For Binary As #FileNum</c> and reads with <c>Get #FileNum, , value</c>.
+/// </summary>
+[TestClass]
+public sealed class FileIoExecutionTests
+{
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsBinaryFiles()
+    {
+        Run("""
+            Attribute VB_Name = "Module1"
+            Option Explicit
+
+            Public Sub Main()
+                Dim path As String
+                Dim written As Long
+                Dim readBack As Long
+                Dim flag As Byte
+
+                path = "roundtrip.bin"
+                written = 123456
+
+                Open path For Binary As #1
+                Put #1, 1, written
+                Put #1, , flag
+                Close #1
+
+                Open path For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack
+            End Sub
+            """,
+            "123456");
+    }
+
+    /// <summary>Positions are one-based, and an omitted position continues where the last one stopped.</summary>
+    [TestMethod]
+    public void EmitManagedApplication_UsesOneBasedPositionsAndContinuesWhenOmitted()
+    {
+        Run("""
+            Attribute VB_Name = "Module1"
+            Option Explicit
+
+            Public Sub Main()
+                Dim first As Byte
+                Dim second As Byte
+
+                first = 10
+                second = 20
+
+                Open "bytes.bin" For Binary As #1
+                Put #1, 1, first
+                Put #1, 2, second
+                Close #1
+
+                first = 0
+                second = 0
+
+                Open "bytes.bin" For Binary As #1
+                Seek #1, 1
+                Get #1, , first
+                Get #1, , second
+                Close #1
+
+                Debug.Print first
+                Debug.Print second
+            End Sub
+            """,
+            "10",
+            "20");
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsTransfersThatHaveNoLayoutRuleYet()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Dim text As String
+                Open "a.bin" For Binary As #1
+                Get #1, 1, text
+                Close #1
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsFalse(analysis.Success);
+        var diagnostic = analysis.Diagnostics.Single(d => d.Code == "VB6S0058");
+        StringAssert.Contains(diagnostic.Message, "String");
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsOpenModesOtherThanBinary()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Open "a.txt" For Output As #1
+                Close #1
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(analysis.Diagnostics.Any(d => d.Code == "VB6S0057"));
+    }
+
+    private static void Run(string source, params string[] expectedLines)
+    {
+        var compilation = VBCompilation.Create(source, "Module1.bas");
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerFileIoTests",
+            Guid.NewGuid().ToString("N"));
+        var assemblyPath = Path.Combine(directory, "FileIoProgram.dll");
+
+        try
+        {
+            var result = compilation.EmitManagedApplication(assemblyPath);
+            var diagnostics = result.BackendResult is null
+                ? string.Join(Environment.NewLine, result.Diagnostics.Select(d => $"{d.Code}: {d.Message}"))
+                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(d =>
+                    $"{d.Id}: {d.Message}"));
+            Assert.IsTrue(result.Success, diagnostics);
+
+            var startInfo = new ProcessStartInfo("dotnet")
+            {
+                // The program writes relative paths, so it runs in its own directory.
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(result.AssemblyPath!);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start the generated application.");
+
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                expectedLines,
+                standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+                standardOutput);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+}
