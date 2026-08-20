@@ -577,29 +577,133 @@ public sealed class Binder
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
-            OpenStatementSyntax open => ReportUnimplementedFileStatement("Open", open.OpenKeyword.Span),
-            CloseStatementSyntax close => ReportUnimplementedFileStatement("Close", close.CloseKeyword.Span),
-            GetStatementSyntax get => ReportUnimplementedFileStatement("Get", get.GetKeyword.Span),
-            PutStatementSyntax put => ReportUnimplementedFileStatement("Put", put.PutKeyword.Span),
-            SeekStatementSyntax seek => ReportUnimplementedFileStatement("Seek", seek.SeekKeyword.Span),
+            OpenStatementSyntax open => BindOpen(open, variables, procedures),
+            CloseStatementSyntax close => BindClose(close, variables, procedures),
+            GetStatementSyntax get => BindGetOrPut(
+                get.FileNumber, get.RecordPosition, get.Target, get.GetKeyword, isGet: true, variables, procedures),
+            PutStatementSyntax put => BindGetOrPut(
+                put.FileNumber, put.RecordPosition, put.Target, put.PutKeyword, isGet: false, variables, procedures),
+            SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
             SkippedStatementSyntax => null,
             _ => null
         };
     }
 
-    /// <summary>
-    /// The file I/O statements parse but have no runtime behind them yet. Binding returns null for
-    /// anything it does not understand, which would drop them from the generated program without a
-    /// word - a wrong program rather than a reported gap.
-    /// </summary>
-    private BoundStatement? ReportUnimplementedFileStatement(string keyword, TextSpan span)
+    private BoundExpression BindFileNumber(
+        FileNumberSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures) =>
+        BindConversion(BindExpression(syntax.Expression, variables, procedures), TypeSymbol.Long);
+
+    private BoundStatement? BindOpen(
+        OpenStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        Report(
-            "VB6S0057",
-            $"File I/O statement '{keyword}' parses but has no runtime implementation yet.",
-            span);
-        return null;
+        if (!string.Equals(syntax.ModeToken.Text, "Binary", StringComparison.OrdinalIgnoreCase))
+        {
+            Report(
+                "VB6S0057",
+                $"Open mode '{syntax.ModeToken.Text}' is not implemented yet; only For Binary is.",
+                syntax.ModeToken.Span);
+            return null;
+        }
+
+        if (syntax.RecordLength is not null)
+        {
+            Report(
+                "VB6S0057",
+                "The Len clause of Open is not implemented yet.",
+                syntax.LenKeyword!.Span);
+            return null;
+        }
+
+        var path = BindConversion(
+            BindExpression(syntax.PathExpression, variables, procedures),
+            TypeSymbol.String);
+        return new BoundOpenStatement(BindFileNumber(syntax.FileNumber, variables, procedures), path);
     }
+
+    private BoundStatement BindClose(
+        CloseStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures) =>
+        new BoundCloseStatement(syntax.FileNumbers
+            .Select(fileNumber => BindFileNumber(fileNumber, variables, procedures))
+            .ToImmutableArray());
+
+    private BoundStatement BindSeek(
+        SeekStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures) =>
+        new BoundSeekStatement(
+            BindFileNumber(syntax.FileNumber, variables, procedures),
+            BindConversion(BindExpression(syntax.Position, variables, procedures), TypeSymbol.LongLong));
+
+    /// <summary>
+    /// Get and Put share their shape. Only the fixed-size numeric types are transferable so far: a
+    /// variable-length String is stored with a two-byte length prefix and a user-defined type in
+    /// its record layout, and neither rule is modelled yet.
+    /// </summary>
+    private BoundStatement? BindGetOrPut(
+        FileNumberSyntax fileNumberSyntax,
+        ExpressionSyntax? positionSyntax,
+        ExpressionSyntax targetSyntax,
+        SyntaxToken keyword,
+        bool isGet,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var fileNumber = BindFileNumber(fileNumberSyntax, variables, procedures);
+        var position = positionSyntax is null
+            ? null
+            : BindConversion(BindExpression(positionSyntax, variables, procedures), TypeSymbol.LongLong);
+        var target = BindExpression(targetSyntax, variables, procedures);
+
+        if (target.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        if (!IsTransferableFileType(target.Type))
+        {
+            Report(
+                "VB6S0058",
+                $"{keyword.Text} of type '{target.Type.Name}' is not implemented yet; only the " +
+                "fixed-size numeric types are transferable so far.",
+                keyword.Span);
+            return null;
+        }
+
+        if (!isGet)
+        {
+            return new BoundPutStatement(fileNumber, position, target);
+        }
+
+        if (target is not BoundVariableExpression
+            and not BoundArrayAccessExpression
+            and not BoundElementAccessExpression
+            and not BoundMemberAccessExpression)
+        {
+            Report(
+                "VB6S0059",
+                "Get requires a variable, array element, or user-defined type member to read into.",
+                keyword.Span);
+            return null;
+        }
+
+        return new BoundGetStatement(fileNumber, position, target);
+    }
+
+    private static bool IsTransferableFileType(TypeSymbol type) =>
+        type == TypeSymbol.Byte ||
+        type == TypeSymbol.Integer ||
+        type == TypeSymbol.Long ||
+        type == TypeSymbol.LongLong ||
+        type == TypeSymbol.Single ||
+        type == TypeSymbol.Double ||
+        type == TypeSymbol.Currency ||
+        type == TypeSymbol.Boolean;
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
         VariableDeclaratorSyntax syntax,
