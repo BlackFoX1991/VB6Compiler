@@ -172,8 +172,13 @@ public sealed class BinderTests
         Assert.IsInstanceOfType<BoundConversionExpression>(invocation.Arguments.Single().Expression);
     }
 
+    /// <summary>
+    /// The two halves of the VB6 rule. A literal has no storage, so VB6 supplies a temporary and
+    /// drops the write-back. A variable of the wrong type would need the write-back to go
+    /// somewhere, so VB6 reports a ByRef argument type mismatch instead of converting.
+    /// </summary>
     [TestMethod]
-    public void Bind_ReportsInvalidByRefArguments()
+    public void Bind_PassesNonVariableByRefArgumentsThroughATemporary()
     {
         var literalModel = BindSource("""
             Sub Main()
@@ -183,8 +188,16 @@ public sealed class BinderTests
             Sub Update(value As Integer)
             End Sub
             """);
-        Assert.IsTrue(literalModel.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0007"));
 
+        Assert.AreEqual(0, literalModel.Diagnostics.Length);
+        var main = literalModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+        Assert.IsTrue(invocation.Arguments.Single().RequiresByRefTemporary);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsByRefArgumentTypeMismatch()
+    {
         var mismatchModel = BindSource("""
             Sub Main()
                 Dim text As String
@@ -194,6 +207,7 @@ public sealed class BinderTests
             Sub Update(value As Integer)
             End Sub
             """);
+
         Assert.IsTrue(mismatchModel.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0008"));
     }
 
