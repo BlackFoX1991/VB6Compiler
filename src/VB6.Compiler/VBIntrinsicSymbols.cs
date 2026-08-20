@@ -25,6 +25,25 @@ internal static class VBIntrinsicSymbols
             Parameter("Start", TypeSymbol.Long),
             Parameter("Length", TypeSymbol.Long)),
         Function("Chr", "VBStrings.Chr", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
+        Function(
+            "Left",
+            "VBStrings.Left",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Length", TypeSymbol.Long)),
+        Function(
+            "Right",
+            "VBStrings.Right",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Length", TypeSymbol.Long)),
+        Function("UCase", "VBStrings.UCase", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
+        Function("LCase", "VBStrings.LCase", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
+        Function("Trim", "VBStrings.Trim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
+        Function("LTrim", "VBStrings.LTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
+        Function("RTrim", "VBStrings.RTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
+        Function("Asc", "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
+        Function("IsNumeric", "VBStrings.IsNumeric", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
 
         // Conversions. VB6 spells the checked conversions the runtime already implements.
         Function("CByte", "VBConversions.CByte", TypeSymbol.Byte, Parameter("Expression", TypeSymbol.Variant)),
