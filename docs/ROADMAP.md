@@ -88,6 +88,18 @@ Deshalb bleibt die Zahl fehlerfreier Dateien vorerst bei 0: gebunden wird projek
 kann eine Datei erst sauber sein, wenn auch ihre Abhängigkeiten parsen. Der Sprung kommt
 schlagartig, nicht schrittweise.
 
+### Die Semantikzahl ist überwiegend Kaskade
+
+Die 790 Semantikfehler sind kein Maß für fehlende Bindersemantik. **29 der 30 analysierten
+Dateien setzen `Option Explicit`** — die 192 × `VB6S0001` sind also keine impliziten Variablen,
+sondern `Dim`-Zeilen, die der Parser nie gelesen hat. Dasselbe bei `VB6S0005`: die gemeldete
+Prozedur `OptimizeAble` ist in `comOptimize.bas` sauber deklariert, nur wird die Datei nicht
+weit genug geparst, um das Symbol zu registrieren.
+
+Erwartung daraus: **die Semantikzahl fällt deutlich, sobald die Parserlücken geschlossen sind —
+ohne dass am Binder gearbeitet wird.** Umgekehrt heißt das, Binderarbeit vorzuziehen, solange
+der Parser noch entgleist, misst sich selbst nicht.
+
 ### Was die Messung an der Planung geändert hat
 
 Die Top-Blocker sind kleinteiliger und billiger als erwartet. Alle 27 Module scheiterten anfangs
@@ -132,34 +144,100 @@ Der nächste konkrete VISIA-Blocker in `envSort.bas` ist nun ein aufrufseitiges 
 bleibt trotzdem bei Arrays/UDTs, weil dieselbe Datei Arrayparameter und feste lokale Arrays enthält
 und Arrays/UDTs der geplante Strukturblock sind.
 
-Danach, nach betroffenen Dateien sortiert:
+Die Blockerliste aus der M2-Zeit ist abgearbeitet. Die Nachmessung am aktuellen Stand ergibt
+diese Ursachen, sortiert nach belegten Fehlern:
 
-| Blocker | Belege |
-|---|---|
-| `Attribute`-Kopfzeile | 27 von 27 Dateien |
-| Deklarationen auf Modulebene (`Public x As Long`) | 22 Dateien |
-| `Sub`/`Function` mit `Public`/`Private`-Modifizierer | 20 Dateien |
-| `With`-Blöcke (`.Feld`-Zugriff) | 19 Dateien, 629 Vorkommen |
-| Bezeichner-Typsuffixe | `Mid$` 110×, `ret&` 26×, `lphKey&` 10× |
-| `:` als Anweisungstrenner | `AppType = 0: pError = False` ✅ |
-| Datei-I/O mit Dateinummern | `Open ... For Binary As #1`, `Put #1`, `Close #1` |
+| Ursache | belegte Fehler | Aufwand | steht in |
+|---|---|---|---|
+| Memberketten `D(i).IT(j).Value` | 355 × `DotToken` plus der Großteil der Folgekaskaden | **klein** | M3 |
+| Nicht-Variablen an ByRef-Parameter | 101 × `VB6S0007` | **klein** | M5 |
+| Stringfunktionen | ~257 der 491 × `VB6S0005` | mittel | M7 |
+| Dateinummern `#1` | 72 × `VB6L0001` | mittel | M7 |
+| `Declare` → P/Invoke | Rest von `VB6S0005`; 38 `Declare` in analysierten Dateien | groß | M8 |
+| Klassen-/Objektmodell, Events | 6 × `VB6S0049`, vereinzelte Objektmember | groß | M5 |
+| `On Error`, `GoTo`, Labels | 16 / 26 / 22 Vorkommen | groß | M6 |
+| `With` | ~0 — 100 der 102 Vorkommen liegen in `.frm`/`.ctl` | — | erledigt |
 
-Konsequenz: Diese Punkte sind einzeln klein, betreffen aber viele Dateien und blockieren dadurch
-die Messung von allem Übrigen. Sie stehen deshalb vorn.
+Der Hebel liegt im Parser, nicht im Binder: die beiden obersten Zeilen sind zusammen kleiner
+Aufwand und lösen zusätzlich einen erheblichen Teil der Kaskade auf.
+
+### Der größte Blocker, genau lokalisiert
+
+Zwei kleine Defekte in `src/VB6.Parser/Parser.cs`, beide im M3-Gebiet:
+
+1. **Ausdrucksseite.** `Ident(args)` kehrt sofort als `InvocationExpressionSyntax` zurück, ohne
+   auf ein folgendes `.` zu prüfen. `D(i).Value` lässt den Punkt liegen — genau die gemeldeten
+   „`DotToken`, expected end of line / `ThenKeyword` / `CloseParenthesisToken`". Die reine
+   Namensform darunter hat die `while`-Schleife bereits.
+2. **Zuweisungsziel.** `ParseAssignmentStatement` hat ein einzelnes `if` für die Memberebene.
+   `LooksLikeAssignmentStatement` schaut mit `while` bereits korrekt voraus, nur das Parsen kommt
+   nicht nach. `D(DirID).IT(j).Value = v` scheitert am zweiten Punkt.
+
+Beleg: 340 solcher Ketten in 16 Dateien, praktisch deckungsgleich mit den `DotToken`-Meldungen.
+`comResources.bas` besteht streckenweise daraus:
+
+```vb
+D(DirID).IT(UBound(D(DirID).IT)).Value = Value
+ReDim Preserve D(DirID).IT(ItemID).RE(UBound(D(DirID).IT(ItemID).RE) + 1) As TYPE_RES_RESOURCE
+```
+
+## Arbeitsreihenfolge
+
+Die Meilensteinnummern sind Themenblöcke und bleiben stabil — Commits, Actions-Läufe und
+Formulierungen wie „M3-Stand" verweisen darauf. Gearbeitet wird in dieser Reihenfolge:
+
+| # | Schritt | Meilenstein | Begründung |
+|---|---|---|---|
+| 1 | Memberketten vervollständigen | M3 | 355 Fehler plus Kaskade, zwei kleine Parserdefekte — größter Hebel bei kleinstem Aufwand |
+| 2 | ByRef-Temporäre für beliebige Nicht-Variablen | M5 | 101 Fehler; verallgemeinert die schon vorhandenen Sonderfälle zur echten VB6-Regel |
+| 3 | Stringfunktionen | M7 | ~257 Aufrufe: `Mid` 113, `Len` 61, `Chr` 15, `UCase` 14, `Left` 12, `Trim` 10 |
+| 4 | Datei-I/O mit Dateinummern | M7 | 72 Lexerfehler; `#` ist dem Lexer unbekannt |
+| 5 | Lowered IR und Fehlerbehandlung | M6 | Architektur, nicht Kennzahl — siehe unten |
+| 6 | Klassen-/Objektmodell | M5 | Property-Dispatch, `New`/`Set`/`Implements`, `Is`, Event-Dispatch |
+| 7 | Interop | M8 | `Declare` → P/Invoke, COM |
+| 8 | Forms | M9 | Hebt die Analyse von 30 auf 40 Items |
+
+**Warum M6 nicht vorn steht.** Das Argument für ein frühes IR ist Schuldenabbau: der Generator
+lowert Control Flow heute selbst, und das trägt nicht mehr, sobald `On Error Resume Next` jede
+Anweisung einzeln absichern muss. Das bleibt richtig — nur sind die Schritte 1 bis 4 Ausdrücke,
+Aufrufe und Lexer. Sie schieben **nichts Zusätzliches in das Control-Flow-Lowering** und machen
+M6 damit nicht teurer. In den analysierten Dateien stehen 16 `On Error` gegen 355 Memberketten
+und 257 Bibliotheksaufrufe.
+
+**Warum M9 hinten steht, obwohl dort die meisten Vorkommen liegen.** Die rechte Spalte der
+Frequenztabelle unten ist verlockend, aber `.frm`/`.ctl` werden gar nicht gelesen — jede Arbeit
+daran ist erst messbar, wenn der Formularparser existiert. Bis dahin sind das Vorkommen ohne
+Fehlerbeitrag.
 
 ## Korpus-Frequenzen
 
 Häufig in VISIA — es ist ein Systemprogramm (Assembler, Linker, PE-Erzeugung), kein
-Business-Programm:
+Business-Programm.
 
-| | | | |
+**Die linke Spalte steuert die Priorität, nicht die rechte.** „analysiert" sind die 30 Module
+und Klassen, aus denen der Report seine Fehler zieht; „gesamt" zählt zusätzlich die 10 `.frm`-
+und `.ctl`-Items, die noch niemand liest. Wer die Gesamtspalte zur Priorisierung benutzt,
+priorisiert Dateien, die der Compiler nicht anfasst — genau das war bei `With` passiert.
+
+| Konstrukt | analysiert (30 Dateien) | gesamt (40 Items) | Stand |
 |---|---|---|---|
-| `&H`/`&O`-Literale | 892 ✅ | `Event`/`RaiseEvent` | 97 |
-| String-Funktionen | 337 | `Optional`/`ParamArray` | 77 (`Optional` + `ParamArray` basic ✅) |
-| `Declare` (Win32) | 234 | Datei-I/O (`For Binary`) | 76 |
-| `Property Get/Let/Set` | 209 | `On Error GoTo` / `Resume Next` | 34 / 31 |
-| `ReDim`/`Preserve` | 103 | `Type ... End Type` | 52 |
-| `With` | 102 | `Enum` | 44 ✅ Syntax |
+| `&H`/`&O`-Literale | 324 | 940 | ✅ |
+| String-Funktionen | ~257 | — | offen, M7 |
+| `Optional`/`ParamArray` | 68 | 94 | ✅ Grundfall |
+| `ReDim`/`Preserve` | 55 | 105 | ✅ |
+| `Property Get/Let/Set` | 43 | 209 | Syntax ✅, Dispatch offen |
+| `Declare` (Win32) | 38 | 236 | Syntax ✅, P/Invoke offen |
+| `Event`/`RaiseEvent` | 27 | 97 | Syntax ✅, Dispatch `VB6S0049` |
+| `Type ... End Type` | 19 | 52 | ✅ |
+| `On Error` | 16 | 68 | offen, M6 |
+| `Enum` | 8 | 44 | ✅ |
+| `With` | 2 | 102 | ✅ für UDT |
+| Datei-I/O (`#1`) | 32 Statements, 70 × `#` | — | offen, M7 |
+
+Die Spreizung ist der Punkt: `With` und `Declare` sehen gesamt dreistellig aus, sind in den
+tatsächlich analysierten Dateien aber 2 beziehungsweise 38. Umgekehrt taucht die
+Stringbibliothek in der alten Tabelle als „337" auf, ohne dass sichtbar war, dass davon ~257 in
+Dateien liegen, die der Compiler schon heute liest — und dort jeden Aufruf als `VB6S0005` melden.
 
 Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0, `Resume`-Statement 0. Da `Resume`
 fehlt, genügt `On Error GoTo` + `On Error Resume Next` + `Err` — kein voller
@@ -222,6 +300,7 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] `Type ... End Type` mit skalaren Feldern, festen Arrayfeldern, `String * n`-Truncation/Padding, `UserDefinedTypeSymbol`, Memberzugriff und UDT-`With`
 - [x] UDT-Wertkopien, UDT-`ByVal`-Kopien und verschachtelte UDT-Memberzuweisungen
 - [x] UDT-Layout-Metadaten: `StructLayout(LayoutKind.Sequential)` und `MarshalAs(ByValTStr)` für konstante `String * n`-Felder
+- [ ] **Verschachtelte Memberketten über Arrayelemente** — `D(i).IT(j).Value` in Ausdrücken *und* als Zuweisungsziel. Der derzeit größte Einzelblocker: 340 Vorkommen in 16 Dateien, 355 gemeldete Fehler plus Kaskade. Zwei Parserdefekte, danach Binder und Generator für Ketten beliebiger Tiefe
 - [ ] Vollständige UDT-Native-/COM-Interop und Objekt-/Klassenmember
 
 ## Meilenstein 4 — Variant
@@ -272,8 +351,13 @@ einzeln absichern muss.
 
 Nach Korpusbedarf priorisiert:
 
-1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`
-2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`
+1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`.
+   ~257 Aufrufe in den analysierten Dateien und damit rund die Hälfte aller `VB6S0005`:
+   `Mid` 113, `Len` 61, `Chr` 15, `UCase` 14, `Left` 12, `Trim` 10, `InStr`/`Asc` je 7,
+   `Right`/`Replace`/`LCase` je 5, `Space` 3. `Mid` zuerst — es allein trägt 113
+2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`.
+   Beginnt beim Lexer: `#` ist ihm unbekannt und erzeugt alle 72 × `VB6L0001`. Im Korpus
+   `Get #1` 16, `Close #1` 9, `Put #1` 4, `Seek #1` 3
 3. `MsgBox`/`InputBox`
 4. Math, Konvertierung, vollständiges `Like` inklusive `Option Compare`
 5. Erst danach `Format$`, Datum/Zeit, Finanzfunktionen — im Korpus unbenutzt
@@ -315,6 +399,12 @@ Inline-Diagnostics, WinForms-Designer mit verlustfreiem `.frm`-Roundtrip, Debugg
    Binder hat beide Seiten bereits angeglichen
 3. Integrale Literale direkt typisiert emittieren statt über `VBConversions.C*(object?)`; heute
    boxt jedes `1` zur Laufzeit, bei Zuweisungskonvertierung sogar doppelt (`CLng(CInt(1L))`)
+4. `Option Explicit` wird geparst, aber nicht ausgewertet — der Binder verlangt immer eine
+   Deklaration. Für den Korpus folgenlos (29 von 30 Dateien setzen es), gegen echtes VB6 aber
+   falsch: ohne die Direktive ist eine undeklarierte Variable ein implizites Variant
+5. `VBConversions` konvertiert mit `CurrentCulture`, `VBDebug.Format` gibt mit
+   `InvariantCulture` aus. `CDbl("1.5")` liefert auf einer deutschen Maschine also 15. Das
+   entspricht VB6, kollidiert aber mit der invarianten Ausgabe — braucht eine bewusste Entscheidung
 4. ~~`Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren~~ — erledigt:
    `Double` dominiert `Currency`, `Currency` dominiert die schmaleren Ganzzahltypen. Entspricht
    der VBA-Promotionstabelle und ist per Binder- und End-to-End-Test abgesichert.
