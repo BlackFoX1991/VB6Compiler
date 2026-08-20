@@ -130,6 +130,7 @@ public enum SyntaxKind
     CaseElseClause,
     DebugPrintStatement,
     InvocationStatement,
+    FileIoStatement,
     SkippedStatement,
     LiteralExpression,
     NameExpression,
