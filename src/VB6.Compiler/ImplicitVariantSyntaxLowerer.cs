@@ -30,10 +30,7 @@ internal static class ImplicitVariantSyntaxLowerer
         {
             Statements = LowerStatements(sub.Statements)
         },
-        FunctionDeclarationSyntax function => function with
-        {
-            Statements = LowerStatements(function.Statements)
-        },
+        FunctionDeclarationSyntax function => LowerFunction(function),
         _ => member
     };
 
@@ -88,6 +85,26 @@ internal static class ImplicitVariantSyntaxLowerer
         },
         _ => statement
     };
+
+    /// <summary>
+    /// A Function without an As clause returns Variant. Filling the clause in here keeps the rule
+    /// in one place instead of teaching the binder a second defaulting path.
+    /// </summary>
+    private static FunctionDeclarationSyntax LowerFunction(FunctionDeclarationSyntax function)
+    {
+        var lowered = function with { Statements = LowerStatements(function.Statements) };
+        if (lowered.ReturnTypeToken is not null)
+        {
+            return lowered;
+        }
+
+        var position = lowered.CloseParenthesisToken.Span.End;
+        return lowered with
+        {
+            AsKeyword = SyntheticToken(SyntaxKind.AsKeyword, "As", position),
+            ReturnTypeToken = SyntheticToken(SyntaxKind.IdentifierToken, "Variant", position)
+        };
+    }
 
     private static ImmutableArray<VariableDeclaratorSyntax> LowerDeclarators(
         ImmutableArray<VariableDeclaratorSyntax> declarators) =>

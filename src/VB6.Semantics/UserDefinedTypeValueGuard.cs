@@ -41,7 +41,9 @@ public static class UserDefinedTypeValueGuard
                     break;
 
                 case FunctionDeclarationSyntax declaration:
-                    if (RequiresStorageGuard(declaration.ReturnTypeToken.Text, types))
+                    // No As clause means Variant, which is never a user-defined type.
+                    if (declaration.ReturnTypeToken is not null &&
+                        RequiresStorageGuard(declaration.ReturnTypeToken.Text, types))
                     {
                         AddDiagnostic(text, declaration.Identifier.Text, declaration.ReturnTypeToken.Span, diagnostics);
                     }

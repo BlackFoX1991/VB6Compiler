@@ -31,10 +31,14 @@ public sealed class Binder
     public static ProcedureSymbol CreateProcedureSymbol(FunctionDeclarationSyntax declaration)
     {
         ArgumentNullException.ThrowIfNull(declaration);
+        // A missing As clause means Variant. ImplicitVariantSyntaxLowerer normally fills it in
+        // before binding; this keeps a directly bound tree on the same rule instead of failing.
         return new ProcedureSymbol(
             declaration.Identifier.Text,
             CreateParameterSymbols(declaration.Parameters),
-            TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error);
+            declaration.ReturnTypeToken is null
+                ? TypeSymbol.Variant
+                : TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error);
     }
 
     public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
@@ -85,7 +89,7 @@ public sealed class Binder
                 case FunctionDeclarationSyntax declaration:
                 {
                     var symbol = ResolveProcedureSymbol(declaration.Identifier.Text, declaration, availableProcedures);
-                    if (symbol.ReturnType == TypeSymbol.Error)
+                    if (symbol.ReturnType == TypeSymbol.Error && declaration.ReturnTypeToken is not null)
                     {
                         Report(
                             "VB6S0011",
