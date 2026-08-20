@@ -829,7 +829,30 @@ public sealed class Parser
             preserveKeyword = NextToken();
         }
 
-        return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, ParseVariableDeclarators());
+        var declarators = ParseVariableDeclarators();
+
+        // ReDim Section(0).Bytes(0) redimensions an array that lives inside a UDT element. The
+        // bound model still expects a plain variable, so the construct is reported and the rest of
+        // the line is discarded. Without this the dot derailed the statement loop and took the
+        // remainder of the procedure with it - it was the first error in four corpus modules.
+        if (Current.Kind == SyntaxKind.DotToken)
+        {
+            _diagnostics.Add(new Diagnostic(
+                "VB6P0002",
+                DiagnosticSeverity.Error,
+                "ReDim of a qualified target such as 'Item(0).Field(0)' is not implemented yet.",
+                Current.Span,
+                _text.FilePath));
+
+            while (Current.Kind is not SyntaxKind.NewLineToken
+                   and not SyntaxKind.ColonToken
+                   and not SyntaxKind.EndOfFileToken)
+            {
+                NextToken();
+            }
+        }
+
+        return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, declarators);
     }
 
     private EraseStatementSyntax ParseEraseStatement()
