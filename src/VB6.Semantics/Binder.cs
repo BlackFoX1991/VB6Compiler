@@ -577,9 +577,28 @@ public sealed class Binder
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
+            OpenStatementSyntax open => ReportUnimplementedFileStatement("Open", open.OpenKeyword.Span),
+            CloseStatementSyntax close => ReportUnimplementedFileStatement("Close", close.CloseKeyword.Span),
+            GetStatementSyntax get => ReportUnimplementedFileStatement("Get", get.GetKeyword.Span),
+            PutStatementSyntax put => ReportUnimplementedFileStatement("Put", put.PutKeyword.Span),
+            SeekStatementSyntax seek => ReportUnimplementedFileStatement("Seek", seek.SeekKeyword.Span),
             SkippedStatementSyntax => null,
             _ => null
         };
+    }
+
+    /// <summary>
+    /// The file I/O statements parse but have no runtime behind them yet. Binding returns null for
+    /// anything it does not understand, which would drop them from the generated program without a
+    /// word - a wrong program rather than a reported gap.
+    /// </summary>
+    private BoundStatement? ReportUnimplementedFileStatement(string keyword, TextSpan span)
+    {
+        Report(
+            "VB6S0057",
+            $"File I/O statement '{keyword}' parses but has no runtime implementation yet.",
+            span);
+        return null;
     }
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
