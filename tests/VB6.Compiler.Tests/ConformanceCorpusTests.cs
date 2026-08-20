@@ -36,14 +36,14 @@ public sealed class ConformanceCorpusTests
     /// stay there for a while, because binding is project-wide and a file only counts as clean
     /// once its whole dependency chain parses - so that baseline cannot catch a regression yet.
     /// Parser errors can, and every slice so far has lowered them: 3183 at M0, 1758 at the M2
-    /// closeout, 1214 after the UDT type space, 480 after With and member access, 466 with untyped functions, 454 once ReDim recovery stopped a cascade, 218 with file numbers lexed and the binary file statements parsed.
+    /// closeout, 1214 after the UDT type space, 480 after With and member access, 466 with untyped functions, 454 once ReDim recovery stopped a cascade, 218 with file numbers lexed and the binary file statements parsed, 122 once TypeOf parsed.
     ///
     /// Lower it whenever a slice lands. Raising it is not forbidden but must be deliberate: a
     /// slice can legitimately expose parser gaps deeper in a file that used to derail at line 10
     /// and never reach line 400. Raise it with a note saying which construct surfaced, the same
     /// way the total error count is explained rather than asserted.
     /// </summary>
-    private const int VisiaParserErrorBaseline = 218;
+    private const int VisiaParserErrorBaseline = 122;
 
     [TestMethod]
     public void Analyze_SurvivesTheVisiaProject()
