@@ -1,136 +1,139 @@
 # VB6Compiler
 
-VB6Compiler is an experimental Visual Basic 6 compatible compiler written in C#.
+VB6Compiler is an experimental Visual Basic 6 compatible compiler written in C# targeting .NET 10.
 
-The long-term goal is to compile existing VB6 projects to modern .NET executables and libraries while preserving VB6 language and runtime behavior as closely as practical.
+The long-term goal is to compile existing VB6 projects to modern .NET executables and libraries while preserving VB6 language and runtime behavior as closely as practical. Modern extensions are additive: they must not change the behavior of existing VB6 code.
 
 ## Current status
 
-The first end-to-end compiler path is working and is being expanded feature by feature. Milestones M0 through M2 are complete; M3 (arrays and UDTs) is in progress.
+The first end-to-end compiler path is working and the project is now driven primarily by measured compatibility gaps in real VB6 code rather than by a strictly linear milestone sequence.
 
-Implemented so far:
+At the current documentation head, Windows CI validates:
 
-- .NET 10 solution and command-line compiler entry point
-- source text and diagnostic infrastructure
-- case-insensitive VB6 lexer with trivia preservation
-- fault-tolerant parser for the current VB6 language subset
-- `Sub` and typed `Function` declarations and calls
-- explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` parameters
-- `Optional` parameter syntax with explicit `ByVal`/`ByRef` and optional default expressions; omitted-argument/default-value semantics remain a later procedure milestone and are still diagnosed
-- `Option Base 0` / `Option Base 1` and `Option Compare Text` / `Option Compare Binary` syntax; `Base` and `Compare` remain ordinary identifiers outside the directive context, while array-bound and string-comparison semantics remain later milestones
-- VB6 Function return semantics through assignment to the function name
-- cross-module Sub and Function resolution in `.vbp` projects
-- typed comma-separated local and module variable declarators; each declarator has its own optional `As Type`, while omitted types remain implicit Variant and diagnose until the Variant milestone
-- `Static` local declaration syntax with the same per-declarator typing rules as `Dim`; persistent lifetime semantics remain a later procedure milestone and are explicitly diagnosed instead of lowering as ordinary locals
-- unsigned 8-bit VB6 `Byte`
-- 16-bit VB6 `Integer` and 32-bit VB6 `Long`
-- modern signed 64-bit integer extension exposed as `LongLong` and `Int64` while keeping VB6 `Long` 32-bit
-- Integer-to-Long numeric promotion without incorrectly promoting pure Integer expressions from their assignment target
-- 64-bit integer literal inference beyond the signed 32-bit range and promotion into `LongLong`
-- `Single` and `Double` floating-point types with floating literals and numeric promotion
-- 64-bit scaled VB6 `Currency`, including `@` literals, four decimal places, Banker's rounding, and checked arithmetic
-- `True` and `False`, including VB numeric conversion behavior
-- logical operators `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp` on Boolean operands
-- bitwise `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp` on numeric operands
-- `&H` hexadecimal and `&O` octal literals with VB6 wrapping, plus the `&` and `%` integer type suffixes
-- `Attribute` metadata lines
-- `Public`, `Private`, `Friend` and `Global` on procedures and module-level declarations
-- module-level variables, shared across the standard modules of a project
-- `Const` declarations, typed or inferred from the value
-- line continuation with a trailing underscore
-- identifier type suffixes `$ % & ! # @`
-- `Exit Sub` and `Exit Function`
-- `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; native binding and P/Invoke emission remain in the interop milestone
-- `Enum ... End Enum` syntax with optional visibility plus explicit or implicit member values; enum type binding remains a later language milestone
-- arithmetic operators `+`, `-`, `*`, `/`, `\`, `Mod`, and `^`; exponentiation uses VB precedence/associativity and is implemented through binding, runtime, code generation, and generated-program execution
-- string concatenation with `&`
-- `Like` and `Is` expression syntax at comparison precedence; pattern matching/`Option Compare` and object-reference identity semantics remain later milestones and currently produce dedicated semantic diagnostics
-- VB-oriented operator precedence for the implemented expression subset
-- `If`, multiline `ElseIf` / `Else`, and single-line `If ... Then ... Else`
-- `For ... To ... Step ... Next` with Integer, Long, and LongLong control variables
-- `While ... Wend`
-- pre-test and post-test `Do While`, `Do Until`, `Loop While`, and `Loop Until`
-- unconditional `Do ... Loop`
-- `Exit For` and `Exit Do` with bound loop targets for nested-loop correctness
-- `Select Case` with value lists, ranges, relational clauses, and `Case Else`
-- VB6 array declaration syntax for fixed upper bounds, explicit `lower To upper` bounds, multidimensional arrays, and dynamic `()` declarations
-- array parameter syntax such as `values() As Long`
-- `ArrayTypeSymbol` as the semantic type-system foundation for element type and rank
-- `VBArray<T>` runtime storage that preserves explicit lower/upper bounds, rank, indexing checks, and the foundation for `LBound`/`UBound`
-- semantic binder with procedure, parameter, return-value, local-variable and primitive type symbols
-- explicit conversion nodes and typed arithmetic promotion
-- central `VBCompilation` analysis pipeline for individual source files
-- `VBProjectCompilation` for combining standard modules from `.vbp` projects
-- primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong/Currency arithmetic, exponentiation, comparisons, Boolean operations, concatenation, and `Debug.Print`
-- C# source generation from the bound scalar program
-- Roslyn-based managed assembly emission
-- runtime deployment files for emitted managed applications
-- end-to-end execution tests for generated single-file and multi-module managed applications
-- `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
-- unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
-- Codespaces development configuration
-- Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
+- warning-free Release build on .NET 10
+- **494 passing tests, 0 failed, 0 skipped**
+- VISIA 4.8.7.1: **27 of 40 project items analyzed**
+- VISIA: **1318 total compiler errors**
+  - **92 parser**
+  - **0 lexer**
+  - **1226 semantic**
+- the largest remaining diagnostic families are ByRef compatibility, unresolved procedures, and unresolved variables
 
-The current M3 array work is deliberately split into layers. Array declarations and array parameters are parsed without losing rank or bounds, and `ArrayTypeSymbol` plus `VBArray<T>` are tested foundations. **Array variables and parameters are still stopped in the binder with `VB6S0025`** until fixed/dynamic array binding, `Option Base`, array element access/assignment, and code generation are connected. This prevents a CLR-array approximation from silently changing VB6 lower-bound behavior.
+The current VISIA lexer frontier is therefore closed. Most remaining work is semantic/runtime compatibility, with a much smaller parser tail.
 
-Windows CI run #700 validates the current reference head on .NET 10 with a warning-free Release build and **258 passing tests**. Its VISIA report measures **2105 total errors**: **1644 parser**, **68 lexer**, and **393 semantic**. The array syntax slice reduces parser errors by 114 from the M2 closeout (1758 → 1644) while keeping semantic diagnostics stable. The project currently analyzes 27 of 40 VISIA project items; `.cls`, `.ctl`, and `.frm` are later milestones.
+## Implemented so far
 
-Windows CI run #662 closes the M2 parser/readability milestone with **243 passing tests** and **2219 total VISIA errors** (1758 parser, 68 lexer, 393 semantic). `Static` syntax, `^`, `Like`, and expression-level `Is` are regression-covered; unsupported `Static` lifetime, `Like` pattern matching/`Option Compare`, and `Is` object identity are guarded rather than approximated.
+### Compiler pipeline
+
+- source text, diagnostics, trivia-preserving case-insensitive lexer, and fault-tolerant parser
+- semantic binder with procedure, parameter, return-value, local/module-variable, array, Enum, Variant, and UDT type models
+- central `VBCompilation` and project-wide `VBProjectCompilation` analysis pipelines
+- C# generation, Roslyn managed assembly emission, runtime deployment files, and generated-program execution tests
+- `.vbp` loading for common project metadata, modules, classes, forms, controls, references, components, and standard bracketed project sections
+- Windows GitHub Actions restore/build/test workflow with VISIA parity reporting and preserved test artifacts
+
+### VB6 language and scalar runtime
+
+- `Sub` and `Function`, cross-module calls, VB6 Function return assignment, explicit/default `ByRef`, and explicit `ByVal`
+- VB6 `Byte`, 16-bit `Integer`, 32-bit `Long`, `Single`, `Double`, and scaled `Currency`
+- additive signed 64-bit `LongLong` / `Int64` extension without changing VB6 `Long`
+- checked arithmetic and VB-oriented promotion, including preservation of pure-Integer overflow behavior
+- `True` / `False`, logical and bitwise `Not`, `And`, `Or`, `Xor`, `Eqv`, and `Imp`
+- `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, comparisons, and string concatenation
+- `&H` / `&O` literals, numeric and identifier type suffixes, line continuation, and `:` statement separators
+- `If` / `ElseIf` / `Else`, `Select Case`, numeric `For`, `While`, all current `Do` / `Loop` forms, `Exit For`, `Exit Do`, `Exit Sub`, and `Exit Function`
+- module variables, `Const`, comma-separated declarators with VB6 per-declarator typing, `Attribute` lines, and visibility modifiers
+- `Declare Function` / `Declare Sub` syntax with `Lib`, contextual `Alias`, optional `Alias`, `As Any`, and VB6 parameter syntax
+- `Option Base 0/1` and `Option Compare Text/Binary` syntax; `Option Base` is wired into array bounds
+- `Optional` parameter syntax and `Static` local syntax with explicit diagnostics for semantics that are not implemented yet
+- `Like` and expression-level `Is` syntax with dedicated semantic boundaries
+- bracketed identifiers such as `[End]`
+
+### Arrays and user-defined types
+
+- fixed, explicitly bounded, multidimensional, and dynamic VB6 arrays
+- array parameters and project-wide array binding
+- `VBArray<T>` storage preserving rank and lower/upper bounds
+- array reads/writes, `Option Base`, ByRef array elements, `ReDim`, `ReDim Preserve`, `Erase`, `LBound`, and `UBound`
+- `For Each` over fixed arrays, dynamic/unknown-rank arrays, array parameters, and array-valued members
+- `Type ... End Type` with Public/Private scope, nested UDT identities, fixed-length `String * n`, and fixed/dynamic array members in the semantic model
+- UDT variables, parameters, function returns, managed storage, member reads/writes, `With`, ByRef members, and value-copy lowering
+- fixed primitive UDT array members, including copy-safe generated backing storage
+
+Some UDT layouts remain deliberately guarded, including dynamic array members, fixed-length-String array members, arrays of UDT elements, and recursive by-value layouts.
+
+### Variant and standard environment
+
+- explicit `Variant` storage for locals, arrays, ByVal parameters, and Function returns
+- implicit Variant lowering for untyped local/module/Static declarations and untyped Function returns
+- array `For Each` control variables using Variant value semantics
+- current corpus-reachable Variant multiplication, a limited numeric equality slice, and bound String concatenation through `&`
+- Long-backed Enum type aliases and module-level Enum member constants
+- built-in VB/VBA String constants including `vbCrLf`, `vbCr`, `vbLf`, `vbNewLine`, `vbTab`, `vbBack`, `vbFormFeed`, `vbVerticalTab`, `vbNullChar`, and `vbNullString`
+- corpus-reachable `Len`, three-argument `Mid` / `Mid$`, and ASCII `Chr`
+
+## Parsed but intentionally guarded
+
+VB6Compiler does not silently approximate behavior that is not implemented yet. The current frontend preserves several constructs and then emits a dedicated semantic diagnostic:
+
+- classic file-number and file-I/O syntax (`Open`, `Get`, `Put`, `Close`, `Seek`, `Input`, `Write`, `Kill`, `Print #`) -> `VB6S0057` until runtime semantics are wired
+- `TypeOf ... Is ...` -> `VB6S0058` until the object/class model can implement it correctly
+- call-site `ByVal` such as `CopyMemory x, ByVal y, 4` -> `VB6S0059` until VB6 temporary/ByRef call semantics are implemented
+- `Static` local lifetime, full `Like` / `Option Compare` behavior, and object-reference `Is` remain explicit compatibility boundaries
+- the full Variant operator/state matrix (`Null`, `Nothing`, `Missing`, broader promotions/comparisons, `VarType`, and related library behavior) remains incomplete
 
 ## Compatibility examples
 
-The compiler keeps VB6 `Integer` as a signed 16-bit type and `Long` as a signed 32-bit type:
-
-```vb
-Sub Main()
-    Dim value As Long
-    Dim i As Long
-
-    value = 40000 + 20000
-
-    For i = 1 To 3
-        value = value + 1
-    Next i
-
-    Debug.Print value
-End Sub
-```
-
-The generated application prints `60003`.
-
-Pure Integer expressions are intentionally not promoted merely because the destination is Long. For example, the multiplication in the following statement remains Integer arithmetic before the assignment conversion:
+VB6Compiler keeps VB6 `Integer` as a signed 16-bit type and `Long` as a signed 32-bit type. Pure Integer expressions are not promoted merely because the destination is Long:
 
 ```vb
 Dim value As Long
 value = 2000 * 365
 ```
 
-That distinction is important for preserving VB6 overflow behavior.
+The multiplication is still Integer arithmetic before the assignment conversion, preserving VB6 overflow behavior.
 
-VB6 variable types are attached to individual declarators, not to the whole comma-separated declaration. For example, in `Dim a, b As Integer`, only `b` is Integer; `a` is Variant. VB6Compiler preserves that distinction now. Until Variant is implemented, the untyped `a` is diagnosed instead of being silently treated as Integer.
+VB6 per-declarator typing is also preserved. In:
 
-Array syntax likewise preserves the distinction between implicit and explicit bounds instead of normalizing immediately to a zero-based CLR array:
+```vb
+Dim a, b As Integer
+```
+
+`a` is Variant while only `b` is Integer.
+
+Arrays preserve VB6 lower bounds instead of being normalized to zero-based CLR arrays:
 
 ```vb
 Option Base 1
 
 Sub Main()
-    Dim implicitBase(10) As Long
-    Dim explicitBounds(-2 To 5) As Long
-    Dim grid(1 To 4, 0 To 7) As Integer
+    Dim values(3) As Long
     Dim dynamicValues() As String
+
+    values(1) = 10
+    ReDim dynamicValues(2 To 4)
+    Debug.Print LBound(values), UBound(values)
 End Sub
 ```
 
-These declarations are currently represented faithfully in syntax, and the dedicated `VBArray<T>` runtime can represent their bounds. Binding and generated-program use of arrays is the next M3 slice.
+UDTs use managed value semantics rather than reference-like CLR approximations:
 
-Exponentiation is kept distinct from integer arithmetic. The compiler preserves VB precedence and evaluates repeated powers from left to right, so the generated acceptance program verifies `-2 ^ 2 = -4`, `3 ^ 3 ^ 3 = 19683`, and `2 ^ -3 = 0.125`.
+```vb
+Private Type Point
+    X As Long
+    Y As Long
+End Type
 
-For modern code that needs a signed 64-bit integer, VB6Compiler provides `LongLong` with `Int64` as an alias. This is a compiler extension and does not change the size of VB6 `Long`.
+Sub Main()
+    Dim p As Point
+    With p
+        .X = 10
+        .Y = 20
+    End With
+End Sub
+```
 
-`Byte` is emitted as .NET `System.Byte` and keeps the unsigned VB range from 0 through 255. Conversions and Byte arithmetic use checked runtime helpers so out-of-range results fail instead of silently wrapping.
-
-`Currency` uses a dedicated scaled 64-bit runtime value instead of binary floating point. Currency literals use the VB `@` suffix, arithmetic keeps four decimal places, and assignment/conversion paths use Banker's rounding.
+For modern code that needs a signed 64-bit integer, VB6Compiler provides `LongLong` with `Int64` as an alias. This extension does not change the size or semantics of VB6 `Long`.
 
 ## Command line
 
@@ -140,29 +143,22 @@ Analyze a VB6 source file:
 vb6c Module1.bas
 ```
 
-Inspect a VB6 project file:
+Inspect a VB6 project:
 
 ```text
 vb6c LegacyApp.vbp
 ```
 
-Measure how much of a project the compiler currently understands:
+Measure project compatibility:
 
 ```text
 vb6c LegacyApp.vbp --report
 ```
 
-The report lists project items by kind, counts analyzed/error-free sources, and ranks remaining gaps by affected files. `conformance/` holds real third-party VB6 projects used for this measurement; see `conformance/README.md`.
-
-Generate C# source from one source file:
+Generate C#:
 
 ```text
 vb6c Module1.bas --emit-csharp Module1.g.cs
-```
-
-Generate C# source from the standard modules in a project:
-
-```text
 vb6c LegacyApp.vbp --emit-csharp LegacyApp.g.cs
 ```
 
@@ -173,20 +169,22 @@ vb6c Module1.bas --emit-assembly Module1.dll
 vb6c LegacyApp.vbp --emit-assembly LegacyApp.dll
 ```
 
-The managed application output currently consists of the application DLL, its `.runtimeconfig.json`, and `VB6.Runtime.dll`.
+The managed output currently consists of the application DLL, its `.runtimeconfig.json`, and `VB6.Runtime.dll`.
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency. Array syntax is accepted but array binding/emission is not yet enabled.
+## Current project scope
 
-The current ByRef implementation requires a variable argument with an exactly matching type. VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+Project emission currently compiles standard `.bas` modules with a single `Sub Main` entry point and the implemented language/runtime subset above. Class modules, Forms, UserControls, COM references, native P/Invoke lowering, and a native Windows apphost remain later milestones even though the project loader already inventories those project items.
 
-## Next milestones
+The current ByRef implementation still requires an addressable argument of the expected type for ordinary ByRef binding. Parenthesized/temporary conversion cases and call-site `ByVal` semantics are tracked as explicit procedure-compatibility work rather than being approximated.
 
-The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate M3 order is:
+## Next work
 
-1. bind fixed/dynamic arrays and array parameters using `ArrayTypeSymbol`
-2. apply `Option Base` only to dimensions without an explicit lower bound
-3. bind and emit array element reads/writes against `VBArray<T>`
-4. add `ReDim` / `ReDim Preserve`, `Erase`, `LBound`/`UBound`, and `For Each`
-5. add `Type ... End Type`, then member access / `With`
+The measured plan is maintained in `docs/ROADMAP.md`. The immediate frontier is now:
 
-After M3: Variant, procedure/class semantics, lowered IR and error handling, standard library, native/COM interop, Forms/UserControls, and finally the IDE.
+1. reduce project-wide symbol fallout from modules that still contain parser errors
+2. implement the high-frequency ByRef/Optional-call compatibility cases
+3. finish the remaining parser tail without reintroducing lexer cascades
+4. expand the corpus-driven standard library and file-I/O runtime
+5. continue classes, error handling/IR, interop, Forms/UserControls, and finally the IDE
+
+`conformance/` contains real third-party VB6 projects used as measurement input; see `conformance/README.md`.

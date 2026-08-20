@@ -24,7 +24,7 @@ Daraus folgende Invarianten — nicht ohne ausdrückliche Entscheidung antasten:
 - Reine `Integer`-Ausdrücke werden **nicht** promoted, nur weil das Zuweisungsziel breiter ist (`value = 2000 * 365` überläuft, auch wenn `value As Long`).
 - `Currency` ist skalierter Int64 mit vier Nachkommastellen und Banker's Rounding.
 - Bezeichner sind case-insensitiv, Trivia bleibt im Lexer erhalten.
-- Wo VB6-Verhalten (noch) nicht implementiert ist: **Diagnostic mit Code melden**, nicht stillschweigend etwas Ähnliches tun. Siehe `VB6S0018` für bitweise Operatoren.
+- Wo VB6-Verhalten (noch) nicht implementiert ist: **Diagnostic mit Code melden**, nicht stillschweigend etwas Ähnliches tun. Aktuelle Beispiele sind die Guards für File-I/O (`VB6S0057`), `TypeOf` (`VB6S0058`) und call-site `ByVal` (`VB6S0059`).
 
 ## Architektur
 
@@ -92,7 +92,8 @@ langjährig grüne Tests fallen mit aus. Immer erst die Fehlermeldung lesen, bev
 angefasst wird.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung: 160 Tests, alle grün.
+Stand der letzten Referenzprüfung: **494 Tests, alle grün**; VISIA liegt auf diesem Head bei
+**1318 Fehlern (92 Parser, 0 Lexer, 1226 Semantik)** für 27 von 40 analysierten Projektitems.
 
 CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
 
@@ -100,5 +101,5 @@ CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main
 
 - **`Debug.Print` ist noch .NET-Formatierung**, nicht VB6 (kein führendes Vorzeichen-Leerzeichen, .NET-Shortest-Roundtrip statt 15 signifikanter Stellen). Die E2E-Tests vergleichen mit `.Trim()` und verdecken das. Beim Anfassen von Zahlenausgabe mitdenken.
 - **Vergleiche boxen**: `VBOperators.Equal(object?, object?)` für jeden Vergleich, obwohl der Binder beide Seiten bereits auf denselben Typ konvertiert hat.
-- **Der Generator lowert Control Flow selbst** (`Exit For` -> `goto __vb6_loop_exit_N`). Das trägt nur, solange C# das einzige Backend ist und es kein `On Error`/`GoSub` gibt. Siehe Roadmap-Phase C.
-- Die aktuelle ByRef-Implementierung verlangt eine Variable mit exakt passendem Typ. Geklammerte Argumente und temporäre ByRef-Konvertierungen fehlen.
+- **Der Generator lowert Control Flow selbst** (`Exit For` -> `goto __vb6_loop_exit_N`). Das trägt nur, solange C# das einzige Backend ist und es kein `On Error`/`GoSub` gibt. Siehe Roadmap-Meilenstein 6.
+- Die aktuelle ByRef-Implementierung verlangt eine Variable mit exakt passendem Typ. Geklammerte Argumente und temporäre ByRef-Konvertierungen fehlen; call-site `ByVal` wird inzwischen geparst, bleibt aber bis zur echten Semantik mit `VB6S0059` guarded.
