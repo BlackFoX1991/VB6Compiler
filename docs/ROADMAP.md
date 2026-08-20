@@ -34,6 +34,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M7 Datei-I/O-Runtime (numerisch) | **822** | 218 | 0 | 604 | 0 von 27 |
 | `TypeOf ... Is`-Syntax | **726** | 110 | 0 | 604 | 0 von 27 |
 | Aufrufseitiges `ByVal` | **724** | 71 | 0 | 641 | 0 von 27 |
+| Intrinsics umgebaut, Konvertierungen ergänzt | **717** | 71 | 0 | 634 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -399,7 +400,12 @@ einzeln absichern muss.
 
 Nach Korpusbedarf priorisiert:
 
-1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`. `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren bereits, sind aber über eine String-Ersetzung im generierten C# verdrahtet (`VBIntrinsicSymbols.RewriteGeneratedCalls`); vor dem Rest der Bibliothek gehört dort ein echter Bound-Knoten hin
+1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`.
+   `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. Die String-Ersetzung im generierten
+   C# ist **abgelöst**: `ProcedureSymbol.IntrinsicTarget` trägt das Runtime-Ziel, der Binder
+   behandelt Intrinsics wie normale Prozeduren, nur das Backend kennt den C#-Namen. Damit sind
+   weitere Bibliotheksfunktionen reine Tabelleneinträge
+1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
 2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`.
    Lexer, Syntax und Parser für die Binärformen sind **vorgezogen und fertig**; Runtime, Bindung
    und Codegen fehlen und werden als `VB6S0057` gemeldet
