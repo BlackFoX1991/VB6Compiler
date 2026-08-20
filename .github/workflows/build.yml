@@ -19,14 +19,15 @@ concurrency:
 
 jobs:
   apply-agent-patch:
-    if: github.ref == 'refs/heads/agent/m7-file-io-syntax'
+    if: github.ref == 'refs/heads/agent/m7-file-io-syntax' || github.head_ref == 'agent/m7-file-io-syntax'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout feature branch
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: agent/m7-file-io-syntax
 
       - name: Apply staged compiler patch
         shell: bash
@@ -59,7 +60,7 @@ jobs:
           git push origin HEAD:agent/m7-file-io-syntax
 
   build-windows:
-    if: github.ref != 'refs/heads/agent/m7-file-io-syntax'
+    if: github.ref != 'refs/heads/agent/m7-file-io-syntax' && github.head_ref != 'agent/m7-file-io-syntax'
     runs-on: windows-latest
 
     steps:
