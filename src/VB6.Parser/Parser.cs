@@ -1211,7 +1211,10 @@ public sealed class Parser
         SyntaxToken? closeParenthesis = null;
         ImmutableArray<ExpressionSyntax> arguments;
 
-        if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+        // Only a Call statement has a parenthesized argument list. Without Call, a leading
+        // parenthesis belongs to the first argument, which is what makes Foo (x) pass x by value
+        // in VB6 while Call Foo(x) passes it by reference.
+        if (callKeyword is not null && Current.Kind == SyntaxKind.OpenParenthesisToken)
         {
             openParenthesis = NextToken();
             arguments = ParseArguments(SyntaxKind.CloseParenthesisToken);
