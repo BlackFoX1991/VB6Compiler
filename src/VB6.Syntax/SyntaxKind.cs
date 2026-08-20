@@ -29,6 +29,7 @@ public enum SyntaxKind
     CommaToken,
     DotToken,
     ColonToken,
+    HashToken,
 
     OptionKeyword,
     ExplicitKeyword,
@@ -129,6 +130,7 @@ public enum SyntaxKind
     CaseElseClause,
     DebugPrintStatement,
     InvocationStatement,
+    FileIoStatement,
     SkippedStatement,
     LiteralExpression,
     NameExpression,
@@ -136,6 +138,8 @@ public enum SyntaxKind
     MemberAccessExpression,
     ElementAccessExpression,
     WithReceiverExpression,
+    TypeOfExpression,
+    ByValArgumentExpression,
     UnaryExpression,
     BinaryExpression,
     ParenthesizedExpression

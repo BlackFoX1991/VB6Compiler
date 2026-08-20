@@ -312,6 +312,12 @@ public sealed record InvocationStatementSyntax(
     ImmutableArray<ExpressionSyntax> Arguments,
     SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement);
 
+public sealed record FileIoStatementSyntax(
+    ImmutableArray<SyntaxToken> Tokens) : StatementSyntax(SyntaxKind.FileIoStatement)
+{
+    public SyntaxToken KeywordToken => Tokens[0];
+}
+
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
@@ -330,6 +336,16 @@ public sealed record MemberAccessExpressionSyntax(
     ExpressionSyntax Receiver,
     SyntaxToken DotToken,
     SyntaxToken MemberToken) : ExpressionSyntax(SyntaxKind.MemberAccessExpression);
+
+public sealed record TypeOfExpressionSyntax(
+    SyntaxToken TypeOfToken,
+    ExpressionSyntax Expression,
+    SyntaxToken IsKeyword,
+    SyntaxToken TypeName) : ExpressionSyntax(SyntaxKind.TypeOfExpression);
+
+public sealed record ByValArgumentExpressionSyntax(
+    SyntaxToken ByValKeyword,
+    ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.ByValArgumentExpression);
 
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
