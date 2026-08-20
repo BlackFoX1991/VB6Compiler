@@ -312,6 +312,12 @@ public sealed record InvocationStatementSyntax(
     ImmutableArray<ExpressionSyntax> Arguments,
     SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement);
 
+public sealed record FileIoStatementSyntax(
+    ImmutableArray<SyntaxToken> Tokens) : StatementSyntax(SyntaxKind.FileIoStatement)
+{
+    public SyntaxToken KeywordToken => Tokens[0];
+}
+
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
