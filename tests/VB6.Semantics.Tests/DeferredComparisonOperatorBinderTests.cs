@@ -40,6 +40,27 @@ public sealed class DeferredComparisonOperatorBinderTests
             model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
     }
 
+    /// <summary>
+    /// Event dispatch does not exist yet. Without a diagnostic the statement would vanish from
+    /// the bound tree and the generated program would run and quietly raise nothing.
+    /// </summary>
+    [TestMethod]
+    public void Bind_RaiseEventProducesDedicatedSemanticDiagnostic()
+    {
+        var model = BindSource("""
+            Public Event CaptionChanged(ByVal OldValue As String)
+
+            Sub Main()
+                Dim value As String
+                RaiseEvent CaptionChanged(value)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "VB6S0049" },
+            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");

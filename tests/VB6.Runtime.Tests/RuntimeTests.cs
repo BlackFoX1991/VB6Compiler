@@ -93,6 +93,50 @@ public sealed class RuntimeTests
         Assert.ThrowsException<InvalidOperationException>(() => VBConversions.CInt(VBVariantFunctions.CVErr(5)));
     }
 
+    /// <summary>
+    /// IsNumeric asks whether a value can be read as a number. Validating text is what legacy
+    /// code uses it for, so numeric strings must count.
+    /// </summary>
+    [TestMethod]
+    public void Variant_IsNumericAcceptsNumericStringsBooleansAndEmpty()
+    {
+        Assert.IsTrue(VBVariantFunctions.IsNumeric("123"));
+        Assert.IsTrue(VBVariantFunctions.IsNumeric("  -42  "));
+        Assert.IsTrue(VBVariantFunctions.IsNumeric(VBVariant.From("7")));
+        Assert.IsTrue(VBVariantFunctions.IsNumeric("&HFF"));
+        Assert.IsTrue(VBVariantFunctions.IsNumeric("&O17"));
+        Assert.IsTrue(VBVariantFunctions.IsNumeric(true));
+        Assert.IsTrue(VBVariantFunctions.IsNumeric(VBVariant.Empty));
+
+        Assert.IsFalse(VBVariantFunctions.IsNumeric("abc"));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric(string.Empty));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric("   "));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric("&HZZ"));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric("&O9"));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric(VBVariant.Null));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric(VBVariant.Nothing));
+        Assert.IsFalse(VBVariantFunctions.IsNumeric(VBVariantFunctions.CVErr(5)));
+    }
+
+    /// <summary>
+    /// VB6 '+' concatenates only when no operand is numeric. One number makes it an addition
+    /// and converts the string — 'Total = Total + Text1.Text' depends on it. Empty stays on the
+    /// string side and keeps concatenating.
+    /// </summary>
+    [TestMethod]
+    public void Variant_AddIsNumericWhenOneOperandIsANumber()
+    {
+        Assert.AreEqual(3d, VBVariantOperators.Add(VBVariant.From(1L), "2").Unwrap());
+        Assert.AreEqual(3d, VBVariantOperators.Add(VBVariant.From("1"), 2L).Unwrap());
+        Assert.AreEqual("12", VBVariantOperators.Add(VBVariant.From("1"), "2").Unwrap());
+        Assert.AreEqual("x", VBVariantOperators.Add(VBVariant.Empty, "x").Unwrap());
+        Assert.AreEqual((short)0, VBVariantOperators.Add(VBVariant.Empty, VBVariant.Empty).Unwrap());
+        Assert.IsTrue(VBVariantOperators.Add(VBVariant.Null, "1").IsNull);
+
+        // Concatenation is unaffected: '&' never adds.
+        Assert.AreEqual("12", VBVariantOperators.Concat(VBVariant.From(1L), 2L).Unwrap());
+    }
+
     [TestMethod]
     public void Variant_OperatorsUseRuntimePromotionAndNullPropagation()
     {
