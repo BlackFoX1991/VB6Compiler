@@ -27,6 +27,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M3 `Type ... End Type`-Syntax | **2034** | 1214 | 68 | 752 | 0 von 27 |
 | M3 UDT-Typraum / Scope-Bindung | **2034** | 1214 | 68 | 752 | 0 von 27 |
 | M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | **1339** | 480 | 62 | 797 | 0 von 27 |
+| M4 untypisierte Functions | **1473** | 466 | 62 | 945 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -122,6 +123,12 @@ Punkt in M5, sind mit 290 Vorkommen in 6 Dateien aber der zweitgrößte semantis
 Auslöser ist die in `CLAUDE.md` notierte Einschränkung: ByRef verlangt heute eine Variable mit
 exakt passendem Typ, also scheitern geklammerte Argumente und temporäre Konvertierungen. Das
 sollte vor dem Rest von M5 gezogen werden.
+
+Untypisierte `Function`-Deklarationen senken die Parserfehler danach von 480 auf 466. Die
+Gesamtsumme steigt dabei von 1339 auf 1473, weil 14 weitere Prozeduren nicht mehr an ihrem Kopf
+entgleisen und komplett in den Binder gelangen: `VB6S0007` springt von 290 auf 409, `VB6S0006`
+von 16 auf 36. Derselbe Übergang wie bei `Optional` — Parserkaskade raus, konkrete Semantiklücke
+rein. Er unterstreicht zugleich, wie dominant die ByRef-Randfälle inzwischen sind.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -298,6 +305,7 @@ Zwei Nachträge:
 
 - [x] Variant als semantischer Typ mit Speicherung und expliziten Konvertierungen
 - [x] Untypisierte `Dim`-, `Static`- und Modul-Deklaratoren werden vor dem Binden zu Variant normalisiert
+- [x] `Function` ohne `As`-Klausel liefert Variant — Syntax, Normalisierung, Bindung und Ausführung
 - [ ] Untypisierte `Optional`-Parameter werden Variant
 - [ ] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Heute sind `*`, `&` und eine numerische Gleichheits-Teilmenge implementiert; alles andere meldet `VB6S0053`. **Diese drei entstehen als Korrekturpass hinter dem Binder (`VariantMultiplyLowerer`) plus Sperre (`VariantOperationGuard`) — die vollständige Promotion gehört in den Binder selbst, und das Gerüst muss dabei zurückgebaut werden.**
