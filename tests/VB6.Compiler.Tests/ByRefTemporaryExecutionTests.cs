@@ -42,6 +42,43 @@ public sealed class ByRefTemporaryExecutionTests
             "11");
     }
 
+    /// <summary>
+    /// Parentheses force an argument to be evaluated to a value, so the callee cannot write back.
+    /// Only a Call statement has a parenthesized argument list, which is what separates
+    /// <c>Call Bump(keep)</c> from <c>Bump (keep)</c> and <c>Call Bump((keep))</c>.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_TreatsParenthesizedArgumentsAsByValue()
+    {
+        Run("""
+            Attribute VB_Name = "Module1"
+            Option Explicit
+
+            Private Sub Bump(Value As Long)
+                Value = Value + 1
+            End Sub
+
+            Public Sub Main()
+                Dim keep As Long
+
+                keep = 0
+                Call Bump(keep)
+                Debug.Print keep
+
+                keep = 0
+                Bump (keep)
+                Debug.Print keep
+
+                keep = 0
+                Call Bump((keep))
+                Debug.Print keep
+            End Sub
+            """,
+            "1",
+            "0",
+            "0");
+    }
+
     [TestMethod]
     public void GenerateCSharp_UsesATemporaryOnlyForNonVariableArguments()
     {
