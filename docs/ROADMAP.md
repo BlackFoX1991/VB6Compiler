@@ -26,6 +26,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M3 `Erase` / `LBound` / `UBound` | **2294** | 1474 | 68 | 752 | 0 von 27 |
 | M3 `Type ... End Type`-Syntax | **2034** | 1214 | 68 | 752 | 0 von 27 |
 | M3 UDT-Typraum / Scope-Bindung | **2034** | 1214 | 68 | 752 | 0 von 27 |
+| M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | nicht gemessen | – | – | – | – |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -92,6 +93,14 @@ im Analyseergebnis zurück; ungültige UDT-Deklarationen stoppen die Codegenerie
 **337 Tests**, 0 Warnungen und 0 Buildfehlern. Der VISIA-Zähler bleibt erwartungsgemäß bei
 2034 / 1214 Parser / 68 Lexer / 752 Semantik, weil UDT-Werte in Variablen und Parametern erst im
 nächsten Slice in den bestehenden Haupt-Binder integriert werden.
+
+Seitdem sind UDT-Werte in Locals/Parametern/Modulvariablen, `With`-Blöcke, `For Each` über feste,
+mehrdimensionale und dynamische Arrays, die Variant-Grundlage (Speicherung, Konvertierung,
+Multiplikation, `&`-Verkettung, eine Gleichheits-Teilmenge), das Enum-Binding, die eingebauten
+VB-String-Konstanten und die ersten String-Intrinsics (`Len`, `Mid`, `Chr`) gelandet. **Für diese
+Slices liegt noch keine VISIA-Messung vor.** Die Tabelle endet deshalb bewusst beim UDT-Typraum,
+statt Zahlen fortzuschreiben, die niemand erhoben hat; die nächste Messung gehört an den Abschluss
+von M3.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -212,7 +221,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Const`, typisiert und aus dem Wert abgeleitet
 - [x] `Exit Sub` und `Exit Function`
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
-- [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; Binding bleibt später
+- [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; inzwischen auch als Long-basierte Konstanten gebunden
 - [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
@@ -233,16 +242,20 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] Arrayvariablen/-parameter binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben/emittieren; `Option Base` auf implizite Untergrenzen anwenden; Arrayelemente ByRef weiterreichen
 - [x] `ReDim` / `ReDim Preserve` für explizit typisierte dynamische Arrays inklusive Bounds, Codegen, Runtime-Wertbewahrung und End-to-End-Ausführung
 - [x] `Erase`, `LBound` und `UBound` für typisierte Arrays inklusive Runtime-/Codegen-/End-to-End-Semantik
-- [ ] `For Each` über Arrays — vollständige VB6-Ausführung hängt am Variant-Fundament von M4
+- [x] `For Each` über feste, mehrdimensionale und dynamische Arrays inklusive implizitem Variant-Steuerelement; Arrays von UDTs bleiben als `VB6S0056` diagnostiziert
 - [x] `Type ... End Type`-Syntax mit Sichtbarkeit, skalaren/festen Arrayfeldern, verschachtelten Typnamen, Keyword-Feldnamen und `String * n`
 - [x] `UserDefinedTypeSymbol`, case-insensitive UDT-Member, Vorwärtsreferenzen, `String * n`-Typen sowie Public-/Private-Projekt- und Modul-Scope
-- [ ] UDT-Werte als Parameter/Locals/Modulvariablen binden; Layout, Memberzugriff/-zuweisung und Codegen
+- [x] UDT-Werte als Parameter/Locals/Modulvariablen binden; Memberzugriff/-zuweisung, Memberarrays, Wertkopie-Semantik und Codegen; nicht abbildbare Layouts melden `VB6S0046`
+- [x] `With`-Blöcke mit implizitem `.Member`-Zugriff über einen gebundenen Empfänger-Alias (aus M2 hierher verschoben)
+- [ ] Offen bis M3-Abschluss: `For Each` über Arrays von benutzerdefinierten Typen
 
 ## Meilenstein 4 — Variant
 
+- [x] Variant als semantischer Typ mit Speicherung und expliziten Konvertierungen
+- [x] Untypisierte `Dim`-, `Static`- und Modul-Deklaratoren werden vor dem Binden zu Variant normalisiert
+- [ ] Untypisierte `Optional`-Parameter werden Variant
 - [ ] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`
-- [ ] Variant-Arithmetik mit VB6-Promotionsregeln, implizite Konvertierung
-- [ ] Untypisierte `Dim`-Deklaratoren und untypisierte `Optional`-Parameter werden Variant; bis dahin `VB6S0020`
+- [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Heute sind `*`, `&` und eine numerische Gleichheits-Teilmenge implementiert; alles andere meldet `VB6S0053`. **Diese drei entstehen als Korrekturpass hinter dem Binder (`VariantMultiplyLowerer`) plus Sperre (`VariantOperationGuard`) — die vollständige Promotion gehört in den Binder selbst, und das Gerüst muss dabei zurückgebaut werden.**
 - [ ] Erstklassiges `Decimal` als additive Erweiterung
 
 ## Meilenstein 5 — Prozeduren und Klassen
@@ -268,7 +281,7 @@ einzeln absichern muss.
 
 Nach Korpusbedarf priorisiert:
 
-1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`
+1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`. `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren bereits, sind aber über eine String-Ersetzung im generierten C# verdrahtet (`VBIntrinsicSymbols.RewriteGeneratedCalls`); vor dem Rest der Bibliothek gehört dort ein echter Bound-Knoten hin
 2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`
 3. `MsgBox`/`InputBox`
 4. Math, Konvertierung, vollständiges `Like` inklusive `Option Compare`
@@ -310,3 +323,9 @@ Inline-Diagnostics, WinForms-Designer mit verlustfreiem `.frm`-Roundtrip, Debugg
 2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
    Binder hat beide Seiten bereits angeglichen
 3. `Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren
+4. **Locale-Entscheidung in `VB6.Runtime`.** `CDbl`/`CSng`/`CBool`/`CStr` konvertieren mit
+   `CultureInfo.CurrentCulture`. Unter `de-DE` wird daraus `"2.5" * 2 = 50`, und
+   `VariantMultiplyTests` fällt darüber. Echtes VB6 ist bei `CDbl` einer Zeichenkette
+   tatsächlich locale-abhängig, die Tests kodieren aber Invariant. Beides ist vertretbar,
+   aber es muss bewusst entschieden werden — sonst ist die Suite auf jeder nicht-englischen
+   Maschine rot, während CI (`en-US`) grün bleibt.

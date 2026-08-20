@@ -91,14 +91,29 @@ Erkennungsmerkmal: Die fehlschlagende Projektmenge wechselt von Lauf zu Lauf, un
 langjährig grüne Tests fallen mit aus. Immer erst die Fehlermeldung lesen, bevor Code
 angefasst wird.
 
+**Zweite, andere Ursache mit derselben Ausnahme:** `Eine Anwendungssteuerungsrichtlinie hat
+diese Datei blockiert. (0x800711C7)`. Das ist **Smart App Control / WDAC**, nicht der Build.
+Löschen von `bin`/`obj` hilft hier nicht — die Datei wird unabhängig vom Pfad blockiert, auch
+außerhalb des Repos und auch für `vb6c.exe`. Prüfen mit:
+
+```
+Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy | Select VerifiedAndReputablePolicyState
+Get-WinEvent -LogName Microsoft-Windows-CodeIntegrity/Operational | Where-Object Id -eq 3077
+```
+
+`VerifiedAndReputablePolicyState = 1` bedeutet Smart App Control aktiv; Event 3077 nennt die
+blockierte DLL. Solange das so steht, sind lokale Testläufe nicht aussagekräftig — Devcontainer
+oder CI verwenden. Smart App Control lässt sich nur abschalten, nicht wieder einschalten.
+
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung: 160 Tests, alle grün.
+Stand der letzten Prüfung: 478 Tests in 157 Testklassen.
 
 CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
 
 ## Fallen
 
 - **`Debug.Print` ist noch .NET-Formatierung**, nicht VB6 (kein führendes Vorzeichen-Leerzeichen, .NET-Shortest-Roundtrip statt 15 signifikanter Stellen). Die E2E-Tests vergleichen mit `.Trim()` und verdecken das. Beim Anfassen von Zahlenausgabe mitdenken.
+- **`VB6.Runtime` konvertiert mit `CultureInfo.CurrentCulture`** (`CDbl`, `CSng`, `CBool`, `CStr`). Damit hängt das Verhalten kompilierter Programme an der Maschinen-Locale: unter `de-DE` ergibt `"2.5" * 2` den Wert 50 statt 5, und `VariantMultiplyTests` schlägt genau daran fehl. CI läuft auf `en-US` und sieht es nie. Ob VB6-Locale-Treue oder Invariant gelten soll, ist noch nicht entschieden — siehe Roadmap-Abschnitt „Zusätzlich".
 - **Vergleiche boxen**: `VBOperators.Equal(object?, object?)` für jeden Vergleich, obwohl der Binder beide Seiten bereits auf denselben Typ konvertiert hat.
 - **Der Generator lowert Control Flow selbst** (`Exit For` -> `goto __vb6_loop_exit_N`). Das trägt nur, solange C# das einzige Backend ist und es kein `On Error`/`GoSub` gibt. Siehe Roadmap-Phase C.
 - Die aktuelle ByRef-Implementierung verlangt eine Variable mit exakt passendem Typ. Geklammerte Argumente und temporäre ByRef-Konvertierungen fehlen.
