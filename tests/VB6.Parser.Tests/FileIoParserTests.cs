@@ -53,4 +53,26 @@ public sealed class FileIoParserTests
         var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
         Assert.IsInstanceOfType<FileIoStatementSyntax>(procedure.Statements.Single());
     }
+
+    [TestMethod]
+    public void Parse_DoesNotStealUserProcedureNamedGet()
+    {
+        const string source = """
+            Sub Get(value As Long)
+            End Sub
+
+            Sub Main()
+                Get 42
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
+
+        Assert.AreEqual(
+            0,
+            result.Diagnostics.Length,
+            string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        var main = (SubDeclarationSyntax)result.Root.Members.Last();
+        Assert.IsInstanceOfType<InvocationStatementSyntax>(main.Statements.Single());
+    }
 }
