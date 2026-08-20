@@ -126,6 +126,44 @@ public sealed class ProjectCompilationTests
         }
     }
 
+    [TestMethod]
+    public void Analyze_ReportsDuplicateModuleVariablesAcrossModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "DuplicateVariable.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="DuplicateVariable"
+                Module=First; First.bas
+                Module=Second; Second.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "First.bas"), """
+                Public Counter As Long
+
+                Sub Main()
+                    Debug.Print 1
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Second.bas"), """
+                Public Counter As Long
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.ProjectDiagnostics.Any(diagnostic => diagnostic.Code == "VB6PRJ0006"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static string WriteProject(string directory)
     {
         Directory.CreateDirectory(directory);

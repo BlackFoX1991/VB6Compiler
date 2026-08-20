@@ -267,7 +267,7 @@ public sealed class VBProjectCompilation
                 }
 
                 projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
-                    "VB6PRJ0004",
+                    "VB6PRJ0006",
                     $"Module variable '{symbol.Name}' is declared in both '{origins[symbol.Name]}' and '{module.Item.RelativePath}'.",
                     module.FilePath));
             }
