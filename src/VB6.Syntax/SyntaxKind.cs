@@ -29,6 +29,7 @@ public enum SyntaxKind
     CommaToken,
     DotToken,
     ColonToken,
+    HashToken,
 
     OptionKeyword,
     ExplicitKeyword,
