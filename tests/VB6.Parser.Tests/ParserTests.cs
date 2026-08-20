@@ -169,7 +169,7 @@ public sealed class ParserTests
         var function = (FunctionDeclarationSyntax)result.Root.Members[0];
         Assert.AreEqual("Add", function.Identifier.Text);
         Assert.AreEqual(2, function.Parameters.Length);
-        Assert.AreEqual("Integer", function.ReturnTypeToken.Text);
+        Assert.AreEqual("Integer", function.ReturnTypeToken!.Text);
         Assert.IsInstanceOfType<AssignmentStatementSyntax>(function.Statements.Single());
 
         var main = (SubDeclarationSyntax)result.Root.Members[1];

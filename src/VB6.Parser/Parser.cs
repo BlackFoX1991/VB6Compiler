@@ -551,8 +551,17 @@ public sealed class Parser
         var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
         var parameters = ParseParameters();
         var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
-        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
-        var returnType = MatchTypeToken();
+
+        // Omitting As is legal and makes the function return Variant, exactly as Declare Function
+        // already allows. Requiring it here derailed every untyped Function in real code.
+        SyntaxToken? asKeyword = null;
+        SyntaxToken? returnType = null;
+        if (Current.Kind == SyntaxKind.AsKeyword)
+        {
+            asKeyword = NextToken();
+            returnType = MatchTypeToken();
+        }
+
         ConsumeLineTerminator();
         var statements = ParseProcedureStatements(SyntaxKind.FunctionKeyword);
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);

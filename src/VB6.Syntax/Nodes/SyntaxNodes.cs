@@ -177,8 +177,10 @@ public sealed record FunctionDeclarationSyntax(
     SyntaxToken OpenParenthesisToken,
     ImmutableArray<ParameterSyntax> Parameters,
     SyntaxToken CloseParenthesisToken,
-    SyntaxToken AsKeyword,
-    SyntaxToken ReturnTypeToken,
+    // A VB6 Function may omit its As clause, in which case it returns Variant. Both tokens are
+    // absent then, the same way DeclareDeclarationSyntax already models it.
+    SyntaxToken? AsKeyword,
+    SyntaxToken? ReturnTypeToken,
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
     SyntaxToken EndFunctionKeyword,
@@ -333,4 +335,4 @@ public sealed record MemberAccessExpressionSyntax(
 
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
-public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
+public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);

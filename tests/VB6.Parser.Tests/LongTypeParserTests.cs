@@ -25,7 +25,7 @@ public sealed class LongTypeParserTests
         var function = (FunctionDeclarationSyntax)result.Root.Members.Single();
         Assert.AreEqual(SyntaxKind.LongKeyword, function.Parameters[0].TypeToken.Kind);
         Assert.AreEqual(SyntaxKind.LongKeyword, function.Parameters[1].TypeToken.Kind);
-        Assert.AreEqual(SyntaxKind.LongKeyword, function.ReturnTypeToken.Kind);
+        Assert.AreEqual(SyntaxKind.LongKeyword, function.ReturnTypeToken!.Kind);
         Assert.AreEqual(SyntaxKind.LongKeyword, ((DimStatementSyntax)function.Statements[0]).TypeToken.Kind);
     }
 }
