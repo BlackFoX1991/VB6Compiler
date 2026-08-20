@@ -260,7 +260,7 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 **Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
 brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
 
-## Meilenstein 3 — Arrays und UDTs
+## Meilenstein 3 — Arrays und UDTs ✅
 
 Zusammen, weil Win32-Strukturen beides brauchen.
 
@@ -270,12 +270,29 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] Arrayvariablen/-parameter binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben/emittieren; `Option Base` auf implizite Untergrenzen anwenden; Arrayelemente ByRef weiterreichen
 - [x] `ReDim` / `ReDim Preserve` für explizit typisierte dynamische Arrays inklusive Bounds, Codegen, Runtime-Wertbewahrung und End-to-End-Ausführung
 - [x] `Erase`, `LBound` und `UBound` für typisierte Arrays inklusive Runtime-/Codegen-/End-to-End-Semantik
-- [x] `For Each` über feste, mehrdimensionale und dynamische Arrays inklusive implizitem Variant-Steuerelement; Arrays von UDTs bleiben als `VB6S0056` diagnostiziert
+- [x] `For Each` über feste, mehrdimensionale und dynamische Arrays inklusive implizitem Variant-Steuerelement
 - [x] `Type ... End Type`-Syntax mit Sichtbarkeit, skalaren/festen Arrayfeldern, verschachtelten Typnamen, Keyword-Feldnamen und `String * n`
 - [x] `UserDefinedTypeSymbol`, case-insensitive UDT-Member, Vorwärtsreferenzen, `String * n`-Typen sowie Public-/Private-Projekt- und Modul-Scope
 - [x] UDT-Werte als Parameter/Locals/Modulvariablen binden; Memberzugriff/-zuweisung, Memberarrays, Wertkopie-Semantik und Codegen; nicht abbildbare Layouts melden `VB6S0046`
 - [x] `With`-Blöcke mit implizitem `.Member`-Zugriff über einen gebundenen Empfänger-Alias (aus M2 hierher verschoben)
-- [ ] Offen bis M3-Abschluss: `For Each` über Arrays von benutzerdefinierten Typen
+- [x] `For Each` über Arrays von benutzerdefinierten Typen: **von VB6 nicht erlaubt**, daher
+      dauerhaft `VB6S0056` statt einer Implementierung
+
+### Warum `For Each` über UDT-Arrays nicht kommt
+
+`For Each` verlangt eine Variant-Steuervariable. VB6 coerct einen benutzerdefinierten Typ nur
+dann in eine Variant, wenn er public in einem *public object module* deklariert ist — ein `Type`
+in einer `.bas` erfüllt das nie und liefert in VB6 den Fehler „Only public user defined types
+defined in public object modules can be coerced to or from a variant". Der Punkt schließt sich
+damit durch Verifikation statt durch Implementierung: `VB6S0056` ist kein Platzhalter für eine
+Lücke, sondern die Regel.
+
+Zwei Nachträge:
+
+- Die Ausnahme (public UDT in einem public object module) wird erst relevant, wenn es
+  Klassenmodule gibt. Frühestens M5, praktisch mit ActiveX in M9.
+- **Gegen echtes VB6 verifizieren.** Die Regel stammt aus der dokumentierten VB6-Fehlermeldung,
+  nicht aus einem Lauf in der Original-IDE — dieselbe Vorsicht wie bei `Currency + Double`.
 
 ## Meilenstein 4 — Variant
 

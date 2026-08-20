@@ -6,7 +6,7 @@ The long-term goal is to compile existing VB6 projects to modern .NET executable
 
 ## Current status
 
-The first end-to-end compiler path is working and is being expanded feature by feature. Milestones M0 through M2 are complete. M3 (arrays and UDTs) is complete apart from `For Each` over arrays of user-defined types, and M4 (Variant) has started with Variant storage, conversions, and a first set of operators.
+The first end-to-end compiler path is working and is being expanded feature by feature. Milestones M0 through M3 are complete. M4 (Variant) has started with Variant storage, conversions, and a first set of operators.
 
 Implemented so far:
 
@@ -60,7 +60,7 @@ Implemented so far:
 - array variable, parameter, and element binding, with `Option Base` applied only to dimensions that have no explicit lower bound; single array elements can be passed as real ByRef arguments
 - `ReDim` and `ReDim Preserve` for dynamic arrays, including bounds checks, value preservation when the last dimension grows, and generated-program execution
 - `Erase`, `LBound`, and `UBound`; `Erase` resets fixed arrays to their VB6 initial values and deallocates dynamic ones
-- `For Each` over fixed, multidimensional, and dynamic arrays, including an implicit Variant control variable; arrays of user-defined types are still diagnosed rather than approximated
+- `For Each` over fixed, multidimensional, and dynamic arrays, including an implicit Variant control variable; arrays of user-defined types are rejected because VB6 rejects them too - the Variant control variable cannot hold a user-defined type declared in a standard module
 - `Type ... End Type` with visibility, scalar and fixed array members, nested type names, keyword member names, and `String * n`
 - `UserDefinedTypeSymbol` with case-insensitive member lookup, forward references, and Public project-wide versus Private module-local scope
 - user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, managed value-copy semantics at assignment boundaries, and code generation
@@ -199,8 +199,7 @@ The current ByRef implementation requires a variable argument with an exactly ma
 
 The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate order is:
 
-1. close the last M3 gap: `For Each` over arrays of user-defined types
-2. finish M4 Variant - `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`, `Empty`/`Null`/`Nothing`/`Missing`, and the full operator promotion matrix in the binder itself rather than in post-binding correction passes
-3. M5 procedures and classes - `Optional` defaults, `ParamArray`, `Static` lifetime, `Property Get`/`Let`/`Set`, class modules, and `.cls` as a project source
+1. finish M4 Variant - `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`, `Empty`/`Null`/`Nothing`/`Missing`, and the full operator promotion matrix in the binder itself rather than in post-binding correction passes
+2. M5 procedures and classes - `Optional` defaults, `ParamArray`, `Static` lifetime, `Property Get`/`Let`/`Set`, class modules, and `.cls` as a project source
 
 After that: lowered IR and error handling, the standard library, native and COM interop, Forms/UserControls, and finally the IDE.
