@@ -24,6 +24,10 @@ Daraus folgende Invarianten — nicht ohne ausdrückliche Entscheidung antasten:
 - Reine `Integer`-Ausdrücke werden **nicht** promoted, nur weil das Zuweisungsziel breiter ist (`value = 2000 * 365` überläuft, auch wenn `value As Long`).
 - `Currency` ist skalierter Int64 mit vier Nachkommastellen und Banker's Rounding.
 - Bezeichner sind case-insensitiv, Trivia bleibt im Lexer erhalten.
+- **Keine neuen global reservierten Wörter.** Ein Wort, das VB6 freilässt, darf der Lexer nicht
+  belegen — sonst hört Altcode auf zu parsen, der es als Bezeichner benutzt. VB6-Kontextwörter
+  nur dort erkennen, wo die Grammatik sie verlangt. Belege: `Base` und `Compare` nur direkt
+  hinter `Option`; `Missing` gar nicht (VB6 hat kein `Missing`-Literal, nur `IsMissing`).
 - Wo VB6-Verhalten (noch) nicht implementiert ist: **Diagnostic mit Code melden**, nicht stillschweigend etwas Ähnliches tun. Siehe `VB6S0018` für bitweise Operatoren.
 
 ## Architektur
@@ -88,11 +92,27 @@ rm -rf tests/VB6.Compiler.Tests/bin tests/VB6.Compiler.Tests/obj
 ```
 
 Erkennungsmerkmal: Die fehlschlagende Projektmenge wechselt von Lauf zu Lauf, und
-langjährig grüne Tests fallen mit aus. Immer erst die Fehlermeldung lesen, bevor Code
-angefasst wird.
+langjährig grüne Tests fallen mit aus. Auch die genannte DLL wechselt zwischen Läufen
+(`VB6.Semantics.dll`, dann `VB6.Syntax.dll`) — ein weiteres Zeichen dafür, dass es kein
+Codeproblem ist. Immer erst die Fehlermeldung lesen, bevor Code angefasst wird.
+
+Auslöser ist der **inkrementelle Rebuild über bestehende `bin`-Verzeichnisse**: ein Lauf direkt
+nach `dotnet build` auf einen schon gefüllten Ausgabeordner schlägt reproduzierbar fehl, ein
+Lauf nach vollständigem Löschen geht durch. Die Datei ist dabei nachweislich intakt — sie lässt
+sich exklusiv öffnen und komplett lesen; blockiert wird erst das Laden als Assembly. Auch die
+genannte DLL wechselt (`VB6.Semantics.dll`, dann `VB6.Syntax.dll`).
+
+Zuverlässig hilft nur das Löschen **aller** `bin`/`obj` unter `src` und `tests`:
+
+```
+find src tests -type d \( -name bin -o -name obj \) -exec rm -rf {} +
+dotnet build VB6Compiler.sln -c Release
+```
+
+Ein Worktree unterhalb von `%TEMP%` hilft nicht, dort tritt derselbe Fehler auf.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung: 160 Tests, alle grün.
+Stand der letzten Prüfung: 361 Tests, alle grün, 0 Warnungen.
 
 CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
 
@@ -101,4 +121,5 @@ CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main
 - **`Debug.Print` ist noch .NET-Formatierung**, nicht VB6 (kein führendes Vorzeichen-Leerzeichen, .NET-Shortest-Roundtrip statt 15 signifikanter Stellen). Die E2E-Tests vergleichen mit `.Trim()` und verdecken das. Beim Anfassen von Zahlenausgabe mitdenken.
 - **Vergleiche boxen**: `VBOperators.Equal(object?, object?)` für jeden Vergleich, obwohl der Binder beide Seiten bereits auf denselben Typ konvertiert hat.
 - **Der Generator lowert Control Flow selbst** (`Exit For` -> `goto __vb6_loop_exit_N`). Das trägt nur, solange C# das einzige Backend ist und es kein `On Error`/`GoSub` gibt. Siehe Roadmap-Phase C.
-- Die aktuelle ByRef-Implementierung verlangt eine Variable mit exakt passendem Typ. Geklammerte Argumente und temporäre ByRef-Konvertierungen fehlen.
+- **ByRef trägt für Skalare, UDT-Felder und Arrayelemente**, inklusive Copyback bei Typabweichung sowie geklammerten und call-site-`ByVal`-Argumenten. Offen bleiben Objektmodell-Aliasing und nichtskalare Copyback-Regeln — siehe Roadmap M5.
+- **Integrale Literale werden über die Runtime konvertiert**: `EmitLiteral` erzeugt für `1` den Ausdruck `VBConversions.CInt(1L)`, also einen `object?`-Aufruf mit Boxing für eine Compile-Zeit-Konstante. In Kombination mit einer Zuweisungskonvertierung entsteht `CLng(CInt(1L))`. `Decimal` macht es bereits direkt richtig und zeigt das Zielbild.

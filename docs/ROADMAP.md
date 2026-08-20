@@ -21,6 +21,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
 | M2 abgeschlossen (`Static`, `^`, `Like`, `Is`) | **2219** | 1758 | 68 | 393 | 0 von 27 |
 | M3 Array-Syntax/Runtime-Basis | **2105** | 1644 | 68 | 393 | 0 von 27 |
+| M3/M4/M5-Stand, `.cls` gelesen | **2488** | 1632 | 72 | 784 | **1 von 30** |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -57,7 +58,20 @@ ueber gewrappte Primitive, Null-Tri-State fuer Variant-Vergleiche und Boolean-Lo
 `CDec`, Runtime-Operatoren und Variant-Promotion.
 Vollstaendige VB6-Promotion, Objektvarianten, tiefere Error-Variant-Kanten und die restliche
 Null-Tri-State-Semantik bleiben offen.
-Der neue VISIA-Report ist noch nicht neu erhoben.
+Der VISIA-Report ist neu erhoben (Tabellenzeile „M3/M4/M5-Stand"). Die Gesamtzahl steigt von
+2105 auf 2488, weil jetzt auch die drei Klassenmodule analysiert werden (30 statt 27 Dateien)
+und weil deutlich mehr Prozeduren den Binder erreichen: die Semantikfehler verdoppeln sich
+nahezu auf 784, während die Parserfehler auf 1632 sinken. Genau der gewünschte Übergang von
+Syntaxkaskaden zu konkreten semantischen Lücken.
+
+**Erstmals analysiert eine Datei vollständig fehlerfrei — 1 von 30.** Die Zahl war seit M0
+konstant 0.
+
+Vorsicht bei der UDT-Syntax: `Type ... End Type` und `Enum ... End Enum` haben Feldschleifen, die
+sich früher aufhängen konnten, weil `MatchToken` bei Mismatch ein Null-Längen-Token erzeugt, ohne
+zu konsumieren. Beide Schleifen haben jetzt dieselbe Fortschrittsgarantie wie
+`ParseCompilationUnit`. Zusätzlich akzeptieren UDT-Felder reservierte Wörter als Namen —
+VISIA deklariert `Property As Boolean` und `Alias As String`.
 
 `.bas` und `.cls` werden heute gelesen; `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -207,7 +221,7 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 
 ## Meilenstein 4 — Variant
 
-- [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric`
+- [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric`. `Missing` ist ein reiner Laufzeitwert für ausgelassene Optionals — VB6 kennt kein `Missing`-Literal, das Wort bleibt ein gewöhnlicher Bezeichner
 - [x] Untypisierte `Dim`-/Modul-/`Static`-Deklaratoren und untypisierte Parameter werden `VBVariant`; Defaultwert `Empty`, Primitive werden gewrappt
 - [x] Erste Variant-Operatoren fuer unary `-`/`Not`, `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, `&` und Vergleiche ueber gewrappte Primitive
 - [x] Null-Tri-State fuer Variant-Vergleiche; `CBool(Null)` scheitert statt still `False` zu liefern
@@ -293,4 +307,8 @@ Inline-Diagnostics, WinForms-Designer mit verlustfreiem `.frm`-Roundtrip, Debugg
    Stellen); danach `.Trim()` aus den E2E-Tests entfernen
 2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
    Binder hat beide Seiten bereits angeglichen
-3. `Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren
+3. Integrale Literale direkt typisiert emittieren statt über `VBConversions.C*(object?)`; heute
+   boxt jedes `1` zur Laufzeit, bei Zuweisungskonvertierung sogar doppelt (`CLng(CInt(1L))`)
+4. ~~`Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren~~ — erledigt:
+   `Double` dominiert `Currency`, `Currency` dominiert die schmaleren Ganzzahltypen. Entspricht
+   der VBA-Promotionstabelle und ist per Binder- und End-to-End-Test abgesichert.

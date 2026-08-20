@@ -24,7 +24,7 @@ Implemented so far:
 - cross-module Sub and Function resolution in `.vbp` projects
 - typed or implicit-Variant comma-separated local and module variable declarators; each declarator has its own optional `As Type`
 - first-class `VBVariant` storage for untyped local/module declarators and untyped parameters, initialized as `Empty` and wrapping assigned primitive values
-- Variant literals `Empty`, `Null`, `Nothing`, and `Missing`, plus `VarType`, `IsEmpty`, `IsNull`, `IsMissing`, and `IsNumeric`
+- Variant literals `Empty`, `Null`, and `Nothing`, plus `VarType`, `IsEmpty`, `IsNull`, `IsMissing`, and `IsNumeric`; VB6 has no `Missing` literal, so the word stays an ordinary identifier and the missing state is only reachable through an omitted optional argument
 - first Variant operator dispatch for unary `-`/`Not`, arithmetic `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, concatenation `&`, and comparison operators over wrapped primitive values; Variant comparisons preserve `Null`, and `CBool(Null)` fails instead of silently becoming `False`
 - Variant `And`, `Or`, `Xor`, `Eqv`, and `Imp` over numeric bitwise values plus Boolean Null tri-state behavior
 - first Error-Variant slice with `CVErr`, `IsError`, `VarType` 10, and blocked primitive conversions from error variants
@@ -66,7 +66,7 @@ Implemented so far:
 - `ArrayTypeSymbol` as the semantic type-system foundation for element type and rank
 - `VBArray<T>` runtime storage that preserves explicit lower/upper bounds, rank, indexing checks, `Clear`, and `LBound`/`UBound`
 - binding and C# emission for fixed and dynamic arrays, array parameters, `Option Base` implicit lower bounds, array element reads/writes, `ReDim`, `ReDim Preserve`, `Erase`, `LBound`, `UBound`, and array `For Each`
-- `Type ... End Type` declarations with scalar fields, fixed `String * n` truncation/padding for UDT fields, generated sequential layout metadata, `ByValTStr` metadata for constant fixed-string fields, fixed array fields, UDT variables, member reads/writes, nested member assignment, member array element access, UDT value copies, UDT `ByVal` copies, and `With ... End With` implicit member access for UDT targets
+- `Type ... End Type` declarations with reserved words allowed as field names (`Property As Boolean`), scalar fields, fixed `String * n` truncation/padding for UDT fields, generated sequential layout metadata, `ByValTStr` metadata for constant fixed-string fields, fixed array fields, UDT variables, member reads/writes, nested member assignment, member array element access, UDT value copies, UDT `ByVal` copies, and `With ... End With` implicit member access for UDT targets
 - semantic binder with procedure, parameter, return-value, local-variable and primitive type symbols
 - explicit conversion nodes and typed arithmetic promotion
 - central `VBCompilation` analysis pipeline for individual source files
