@@ -2,27 +2,29 @@ using System.Diagnostics;
 
 namespace VB6.Compiler.Tests;
 
+/// <summary>
+/// VB6 types a plain decimal literal by its magnitude, so 30000 is an Integer. An expression
+/// built only from Integer operands stays Integer arithmetic — a wider assignment target does
+/// not promote it. The overflow is therefore observable VB6 behaviour, not a compiler bug.
+/// </summary>
 [TestClass]
-public sealed class CurrencyExecutionTests
+public sealed class IntegerLiteralExecutionTests
 {
     [TestMethod]
-    public void EmitManagedApplication_ExecutesCurrencyArithmetic()
+    public void EmitManagedApplication_OverflowsPureIntegerExpressionAssignedToLong()
     {
         var compilation = VBCompilation.Create("""
             Sub Main()
-                Dim amount As Currency
-                amount = 1.2345
-                amount = amount * 1.2345
-
-                If amount = 1.524 Then
-                    Debug.Print 1
-                Else
-                    Debug.Print 0
-                End If
+                Dim value As Long
+                value = 30000 + 30000
+                Debug.Print value
             End Sub
             """, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerCurrencyTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, "CurrencyProgram.dll");
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerIntegerLiteralTests",
+            Guid.NewGuid().ToString("N"));
+        var assemblyPath = Path.Combine(directory, "IntegerLiteralProgram.dll");
 
         try
         {
@@ -45,14 +47,15 @@ public sealed class CurrencyExecutionTests
             startInfo.ArgumentList.Add(result.AssemblyPath!);
 
             using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated Currency application.");
+                ?? throw new InvalidOperationException("Failed to start the generated Integer literal application.");
 
             var standardOutput = process.StandardOutput.ReadToEnd();
             var standardError = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            Assert.AreEqual("1", standardOutput.Trim());
+            // Unlike every other execution test, the generated program is expected to fail.
+            Assert.AreNotEqual(0, process.ExitCode, $"Expected an overflow, got output '{standardOutput.Trim()}'.");
+            StringAssert.Contains(standardError, nameof(OverflowException));
         }
         finally
         {
@@ -63,23 +66,23 @@ public sealed class CurrencyExecutionTests
         }
     }
 
-    /// <summary>
-    /// VB6 promotion: Double wins over Currency, so 'amount + 0.00005' is a Double expression.
-    /// The added value is deliberately smaller than the Currency scale — a Currency addition
-    /// would round it away at four decimal places and print 1.25 instead.
-    /// </summary>
     [TestMethod]
-    public void EmitManagedApplication_PromotesCurrencyAndDoubleToDouble()
+    public void EmitManagedApplication_KeepsWideningExplicitWhenAnOperandIsLong()
     {
         var compilation = VBCompilation.Create("""
             Sub Main()
-                Dim amount As Currency
-                amount = 1.25
-                Debug.Print amount + 0.00005
+                Dim wide As Long
+                Dim value As Long
+                wide = 30000
+                value = wide + 30000
+                Debug.Print value
             End Sub
             """, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerCurrencyTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, "CurrencyPromotionProgram.dll");
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerIntegerLiteralTests",
+            Guid.NewGuid().ToString("N"));
+        var assemblyPath = Path.Combine(directory, "LongWideningProgram.dll");
 
         try
         {
@@ -102,14 +105,14 @@ public sealed class CurrencyExecutionTests
             startInfo.ArgumentList.Add(result.AssemblyPath!);
 
             using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated Currency promotion application.");
+                ?? throw new InvalidOperationException("Failed to start the generated Long widening application.");
 
             var standardOutput = process.StandardOutput.ReadToEnd();
             var standardError = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
             Assert.AreEqual(0, process.ExitCode, standardError);
-            Assert.AreEqual("1.25005", standardOutput.Trim());
+            Assert.AreEqual("60000", standardOutput.Trim());
         }
         finally
         {
