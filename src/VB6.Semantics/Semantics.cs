@@ -295,7 +295,15 @@ public sealed record BoundDebugPrintStatement(BoundExpression Expression)
 
 public sealed record BoundArgument(
     ParameterSymbol? Parameter,
-    BoundExpression Expression);
+    BoundExpression Expression)
+{
+    /// <summary>
+    /// True when a ByRef parameter received something that is not a variable. VB6 passes a
+    /// temporary there and discards the write-back, so the backend has to materialize storage
+    /// instead of taking a reference to the argument itself.
+    /// </summary>
+    public bool RequiresByRefTemporary { get; init; }
+}
 
 public sealed record BoundInvocationStatement(
     ProcedureSymbol Procedure,

@@ -1350,6 +1350,7 @@ public sealed class Binder
             var expression = BindExpression(argumentSyntaxes[index], variables, procedures);
             var parameter = index < procedure.Parameters.Length ? procedure.Parameters[index] : null;
 
+            var requiresByRefTemporary = false;
             if (parameter is not null)
             {
                 if (parameter.PassingMode == ParameterPassingMode.ByVal)
@@ -1361,15 +1362,19 @@ public sealed class Binder
                          expression is not BoundElementAccessExpression &&
                          expression is not BoundMemberAccessExpression)
                 {
-                    Report(
-                        "VB6S0007",
-                        $"ByRef argument for parameter '{parameter.Name}' must be a variable in the current compiler subset.",
-                        invocationIdentifier.Span);
+                    // Not an error: VB6 accepts a literal, an expression, or a function result for
+                    // a ByRef parameter by passing a temporary of the parameter type and throwing
+                    // the write-back away. The conversion is the same one ByVal would apply.
+                    expression = BindConversion(expression, parameter.Type);
+                    requiresByRefTemporary = true;
                 }
                 else if (!AreByRefTypesCompatible(expression.Type, parameter.Type) &&
                          expression.Type != TypeSymbol.Error &&
                          parameter.Type != TypeSymbol.Error)
                 {
+                    // A variable of the wrong type stays an error. VB6 reports "ByRef argument type
+                    // mismatch" here rather than silently converting, because the write-back would
+                    // have nowhere to go.
                     Report(
                         "VB6S0008",
                         $"ByRef argument type '{expression.Type.Name}' does not match parameter type '{parameter.Type.Name}'.",
@@ -1377,7 +1382,10 @@ public sealed class Binder
                 }
             }
 
-            arguments.Add(new BoundArgument(parameter, expression));
+            arguments.Add(new BoundArgument(parameter, expression)
+            {
+                RequiresByRefTemporary = requiresByRefTemporary
+            });
         }
 
         return arguments.ToImmutable();
