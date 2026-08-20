@@ -23,7 +23,9 @@ public sealed class CurrencyTypeCodeGenTests
 
         StringAssert.Contains(source, "VBCurrency __vb6_amount = default;");
         StringAssert.Contains(source, "VBConversions.CCur(1.25d)");
-        StringAssert.Contains(source, "VBOperators.AddCurrency(__vb6_amount, VBConversions.CCur(2.5d))");
+        // 2.5 is a Double literal, and Double dominates Currency — the addition runs in Double
+        // and only the assignment converts back to Currency.
+        StringAssert.Contains(source, "VBConversions.CCur(VBOperators.AddDouble(VBConversions.CDbl(__vb6_amount), 2.5d))");
         StringAssert.Contains(source, "VBOperators.MultiplyCurrency(__vb6_amount, VBConversions.CCur(VBConversions.CInt(2L)))");
         StringAssert.Contains(source, "VBOperators.DivideDouble(VBConversions.CDbl(__vb6_amount), VBConversions.CDbl(VBConversions.CInt(2L)))");
     }

@@ -27,13 +27,19 @@ public sealed class CurrencyTypeBinderTests
         Assert.AreEqual(TypeSymbol.Double, conversion.Expression.Type);
     }
 
+    /// <summary>
+    /// VB6 promotion around Currency: Currency wins over the narrower integer types, but Double
+    /// wins over Currency. An unsuffixed floating literal such as 2.5 is Double, so
+    /// 'amount + 2.5' is a Double expression even though amount is Currency.
+    /// </summary>
     [TestMethod]
-    public void Bind_CurrencyDominatesRegularArithmeticButDivisionIsDouble()
+    public void Bind_CurrencyDominatesIntegersButDoubleDominatesCurrency()
     {
         var model = BindSource("""
             Sub Main()
                 Dim amount As Currency
                 amount = 1.25
+                Debug.Print amount * 2
                 Debug.Print amount + 2.5
                 Debug.Print amount / 2
                 Debug.Print amount \ 2
@@ -43,17 +49,22 @@ public sealed class CurrencyTypeBinderTests
         Assert.AreEqual(0, model.Diagnostics.Length);
         var statements = model.Procedures.Single().Body.Statements;
 
-        var add = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[2]).Expression;
-        Assert.AreEqual(TypeSymbol.Currency, add.Type);
-        Assert.AreEqual(TypeSymbol.Currency, add.Left.Type);
-        Assert.AreEqual(TypeSymbol.Currency, add.Right.Type);
+        var multiply = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[2]).Expression;
+        Assert.AreEqual(TypeSymbol.Currency, multiply.Type);
+        Assert.AreEqual(TypeSymbol.Currency, multiply.Left.Type);
+        Assert.AreEqual(TypeSymbol.Currency, multiply.Right.Type);
 
-        var divide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[3]).Expression;
+        var add = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[3]).Expression;
+        Assert.AreEqual(TypeSymbol.Double, add.Type);
+        Assert.AreEqual(TypeSymbol.Double, add.Left.Type);
+        Assert.AreEqual(TypeSymbol.Double, add.Right.Type);
+
+        var divide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[4]).Expression;
         Assert.AreEqual(TypeSymbol.Double, divide.Type);
         Assert.AreEqual(TypeSymbol.Double, divide.Left.Type);
         Assert.AreEqual(TypeSymbol.Double, divide.Right.Type);
 
-        var integerDivide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[4]).Expression;
+        var integerDivide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[5]).Expression;
         Assert.AreEqual(TypeSymbol.Long, integerDivide.Type);
         Assert.AreEqual(TypeSymbol.Long, integerDivide.Left.Type);
         Assert.AreEqual(TypeSymbol.Long, integerDivide.Right.Type);

@@ -63,10 +63,14 @@ public sealed class CSharpGeneratorTests
                 Debug.Print IsEmpty(emptyValue)
                 Debug.Print IsNull(Null)
                 Debug.Print IsError(CVErr(5))
-                Debug.Print IsMissing(Missing)
+                Debug.Print Probe()
                 Debug.Print IsNumeric(localValue)
                 Debug.Print VarType(moduleValue)
             End Sub
+
+            Function Probe(Optional ByVal value) As Boolean
+                Probe = IsMissing(value)
+            End Function
             """, "Module1.bas").Analyze();
 
         Assert.IsTrue(
@@ -76,13 +80,14 @@ public sealed class CSharpGeneratorTests
 
         StringAssert.Contains(source, "private static VBVariant __vb6_moduleValue = VBVariant.Empty;");
         StringAssert.Contains(source, "VBVariant __vb6_localValue = VBVariant.Empty;");
-        StringAssert.Contains(source, "__vb6_localValue = VBVariant.From(10L);");
-        StringAssert.Contains(source, "__vb6_emptyValue = VBVariant.From(VBVariant.Empty);");
+        StringAssert.Contains(source, "__vb6_localValue = VBVariant.From(VBConversions.CInt(10L));");
+        StringAssert.Contains(source, "__vb6_emptyValue = VBVariant.Empty;");
         StringAssert.Contains(source, "__vb6_moduleValue = VBVariant.From(\"ok\");");
         StringAssert.Contains(source, "VBVariantFunctions.IsEmpty(__vb6_emptyValue)");
         StringAssert.Contains(source, "VBVariantFunctions.IsNull(VBVariant.Null)");
-        StringAssert.Contains(source, "VBVariantFunctions.IsError(VBVariantFunctions.CVErr(5L))");
-        StringAssert.Contains(source, "VBVariantFunctions.IsMissing(VBVariant.Missing)");
+        StringAssert.Contains(source, "VBVariantFunctions.IsError(VBVariantFunctions.CVErr(VBConversions.CInt(5L)))");
+        StringAssert.Contains(source, "VBVariantFunctions.IsMissing(__vb6_arg_value)");
+        StringAssert.Contains(source, "__vb6_Probe(VBVariant.Missing)");
         StringAssert.Contains(source, "VBVariantFunctions.IsNumeric(__vb6_localValue)");
         StringAssert.Contains(source, "VBVariantFunctions.VarType(__vb6_moduleValue)");
     }
@@ -108,12 +113,12 @@ public sealed class CSharpGeneratorTests
             string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
 
-        StringAssert.Contains(source, "VBVariantOperators.Add(__vb6_value, 3L)");
+        StringAssert.Contains(source, "VBVariantOperators.Add(__vb6_value, VBConversions.CInt(3L))");
         StringAssert.Contains(source, "VBVariantOperators.Concat(__vb6_value, \"x\")");
-        StringAssert.Contains(source, "VBVariantOperators.Equal(__vb6_value, 2L)");
-        StringAssert.Contains(source, "VBVariantOperators.And(__vb6_value, 3L)");
-        StringAssert.Contains(source, "VBVariantOperators.Or(__vb6_value, 1L)");
-        StringAssert.Contains(source, "VBVariantOperators.Imp(__vb6_value, 0L)");
+        StringAssert.Contains(source, "VBVariantOperators.Equal(__vb6_value, VBConversions.CInt(2L))");
+        StringAssert.Contains(source, "VBVariantOperators.And(__vb6_value, VBConversions.CInt(3L))");
+        StringAssert.Contains(source, "VBVariantOperators.Or(__vb6_value, VBConversions.CInt(1L))");
+        StringAssert.Contains(source, "VBVariantOperators.Imp(__vb6_value, VBConversions.CInt(0L))");
     }
 
     [TestMethod]
@@ -412,7 +417,7 @@ public sealed class CSharpGeneratorTests
         var source = new CSharpGenerator().Generate(analysis.SemanticModel!);
 
         StringAssert.Contains(source, "private static int __vb6_static_NextValue_count = 0;");
-        StringAssert.Contains(source, "__vb6_static_NextValue_count = VBOperators.AddLong(__vb6_static_NextValue_count, VBConversions.CLng(1L));");
+        StringAssert.Contains(source, "__vb6_static_NextValue_count = VBOperators.AddLong(__vb6_static_NextValue_count, VBConversions.CLng(VBConversions.CInt(1L)));");
         StringAssert.Contains(source, "__vb6_return = __vb6_static_NextValue_count;");
         Assert.IsFalse(source.Contains("int __vb6_count = 0;", StringComparison.Ordinal));
     }
