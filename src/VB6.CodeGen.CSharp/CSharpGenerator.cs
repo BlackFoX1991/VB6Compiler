@@ -1070,10 +1070,17 @@ public sealed class CSharpGenerator
         return "default";
     }
 
-    private static string GetProcedureName(ProcedureSymbol procedure) =>
-        !procedure.IsFunction && string.Equals(procedure.Name, "Main", StringComparison.OrdinalIgnoreCase)
+    private static string GetProcedureName(ProcedureSymbol procedure)
+    {
+        if (procedure.IntrinsicTarget is not null)
+        {
+            return procedure.IntrinsicTarget;
+        }
+
+        return !procedure.IsFunction && string.Equals(procedure.Name, "Main", StringComparison.OrdinalIgnoreCase)
             ? "Main"
             : $"__vb6_{SanitizeIdentifier(procedure.Name)}";
+    }
 
     private static string GetVariableName(VariableSymbol variable) => variable switch
     {

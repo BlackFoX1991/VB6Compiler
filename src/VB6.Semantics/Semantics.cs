@@ -116,6 +116,17 @@ public sealed record ProcedureSymbol(
     ImmutableArray<ParameterSymbol> Parameters,
     TypeSymbol? ReturnType) : Symbol(Name)
 {
+    /// <summary>
+    /// For a VB6 language intrinsic, the runtime method the backend calls, such as
+    /// <c>VBStrings.Len</c>. Null for procedures declared in source.
+    ///
+    /// Carrying the target on the symbol keeps the intrinsic inside the normal call path: the
+    /// binder resolves and checks it like any other procedure, and only the backend knows the C#
+    /// name. It replaces a string rewrite over the generated source, which broke that layering and
+    /// leaked its placeholder names into diagnostics.
+    /// </summary>
+    public string? IntrinsicTarget { get; init; }
+
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {
