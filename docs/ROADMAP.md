@@ -31,6 +31,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M5 ByRef-Randfälle vorgezogen | **1064** | 466 | 62 | 536 | 0 von 27 |
 | ReDim-Recovery bei qualifizierten Zielen | **1052** | 454 | 62 | 536 | 0 von 27 |
 | M7 Datei-I/O-Syntax vorgezogen | **832** | 218 | 0 | 614 | 0 von 27 |
+| M7 Datei-I/O-Runtime (numerisch) | **822** | 218 | 0 | 604 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -168,10 +169,16 @@ Gesamtsumme 1052 → 832.
 global reserviert — dieselbe Lehre wie bei `Option Base`. Eine Zuweisung an eine Variable namens
 `Get` bleibt eine Zuweisung.
 
-**Nur Syntax, keine Runtime.** `VB6S0057` meldet jede der fünf Anweisungen. Das ist hier nicht
-kosmetisch: der Binder gibt für unbekannte Statements `null` zurück, die Anweisungen wären also
+Der Binder gibt für unbekannte Statements `null` zurück; ohne Guard wären die Anweisungen also
 kommentarlos aus dem erzeugten Programm gefallen — ein falsches Programm statt einer gemeldeten
-Lücke. Runtime, Bindung und Codegen sind der nächste Slice.
+Lücke.
+
+Der Folgeslice hat Runtime, Bindung und Codegen nachgezogen: `VB6Files` bildet die prozessweite
+Dateinummerntabelle nach, Positionen sind einsbasiert, jeder Typ liest und schreibt seine exakte
+VB6-Speichergröße, und `Currency` geht als skalierter Int64 auf die Platte. Damit kompilieren 11
+der 17 I/O-Anweisungen im Korpus. **Offen bleiben Transfers von `String` und UDT-Werten**
+(`VB6S0058`, 6 Vorkommen): der eine braucht das Zwei-Byte-Längenpräfix, der andere ein
+Record-Layout — beides eigene Regeln, die hier nicht geraten werden.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
