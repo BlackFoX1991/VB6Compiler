@@ -79,5 +79,5 @@ public readonly struct VBCurrency : IComparable, IComparable<VBCurrency>, IEquat
 
     public override int GetHashCode() => ScaledValue.GetHashCode();
 
-    public override string ToString() => ToDecimal().ToString("0.####", CultureInfo.CurrentCulture);
+    public override string ToString() => ToDecimal().ToString("0.####", CultureInfo.InvariantCulture);
 }

@@ -112,7 +112,7 @@ public static partial class VBOperators
             string text when double.TryParse(
                 text,
                 NumberStyles.Float | NumberStyles.AllowThousands,
-                CultureInfo.CurrentCulture,
+                CultureInfo.InvariantCulture,
                 out _) => VariantNumericKind.Double,
             string => throw new InvalidCastException("VB6 Variant string is not numeric."),
             _ => throw new InvalidCastException(

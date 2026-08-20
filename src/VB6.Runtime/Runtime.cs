@@ -2,6 +2,14 @@ using System.Globalization;
 
 namespace VB6.Runtime;
 
+/// <summary>
+/// VB6 conversions between strings and numbers use the invariant culture, so a compiled
+/// program produces the same values on every machine. Classic VB6 resolved these against the
+/// active locale, which would make <c>"2.5" * 2</c> yield 50 under a comma-decimal locale and 5
+/// under a point-decimal one; determinism is worth more here than reproducing that. Anything
+/// that genuinely needs locale-aware formatting belongs in the later <c>Format$</c> work, where
+/// the locale is an explicit input rather than ambient thread state.
+/// </summary>
 public static class VBConversions
 {
     public static byte CByte(object? value)
@@ -13,7 +21,7 @@ public static class VBConversions
 
         return value is bool boolean
             ? boolean ? byte.MaxValue : byte.MinValue
-            : Convert.ToByte(value, CultureInfo.CurrentCulture);
+            : Convert.ToByte(value, CultureInfo.InvariantCulture);
     }
 
     public static short CInt(object? value)
@@ -25,7 +33,7 @@ public static class VBConversions
 
         return value is bool boolean
             ? (short)(boolean ? -1 : 0)
-            : Convert.ToInt16(value, CultureInfo.CurrentCulture);
+            : Convert.ToInt16(value, CultureInfo.InvariantCulture);
     }
 
     public static int CLng(object? value)
@@ -37,7 +45,7 @@ public static class VBConversions
 
         return value is bool boolean
             ? boolean ? -1 : 0
-            : Convert.ToInt32(value, CultureInfo.CurrentCulture);
+            : Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }
 
     public static long CLngLng(object? value)
@@ -49,7 +57,7 @@ public static class VBConversions
 
         return value is bool boolean
             ? boolean ? -1L : 0L
-            : Convert.ToInt64(value, CultureInfo.CurrentCulture);
+            : Convert.ToInt64(value, CultureInfo.InvariantCulture);
     }
 
     public static VBCurrency CCur(object? value)
@@ -64,7 +72,7 @@ public static class VBConversions
             return VBCurrency.FromScaled(boolean ? -VBCurrency.Scale : 0L);
         }
 
-        var decimalValue = Convert.ToDecimal(value, CultureInfo.CurrentCulture);
+        var decimalValue = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
         return VBCurrency.FromDecimal(decimalValue);
     }
 
@@ -74,7 +82,7 @@ public static class VBConversions
         {
             VBCurrency currency => currency.ToSingle(),
             bool boolean => boolean ? -1f : 0f,
-            _ => Convert.ToSingle(value, CultureInfo.CurrentCulture)
+            _ => Convert.ToSingle(value, CultureInfo.InvariantCulture)
         };
         return CheckSingle(result);
     }
@@ -83,16 +91,16 @@ public static class VBConversions
     {
         VBCurrency currency => currency.ToDouble(),
         bool boolean => boolean ? -1d : 0d,
-        _ => Convert.ToDouble(value, CultureInfo.CurrentCulture)
+        _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
     };
 
     public static bool CBool(object? value) => value is VBCurrency currency
         ? currency.ScaledValue != 0
-        : Convert.ToBoolean(value, CultureInfo.CurrentCulture);
+        : Convert.ToBoolean(value, CultureInfo.InvariantCulture);
 
     public static string CStr(object? value) => value is VBCurrency currency
         ? currency.ToString()
-        : Convert.ToString(value, CultureInfo.CurrentCulture) ?? string.Empty;
+        : Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
 
     private static float CheckSingle(float value)
     {
@@ -344,5 +352,5 @@ public static partial class VBOperators
 
 public static class VBDebug
 {
-    public static void Print(object? value) => Console.WriteLine(value);
+    public static void Print(object? value) => Console.WriteLine(VBConversions.CStr(value));
 }
