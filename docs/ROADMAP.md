@@ -28,6 +28,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M3 UDT-Typraum / Scope-Bindung | **2034** | 1214 | 68 | 752 | 0 von 27 |
 | M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | **1339** | 480 | 62 | 797 | 0 von 27 |
 | M4 untypisierte Functions | **1473** | 466 | 62 | 945 | 0 von 27 |
+| M5 ByRef-Randfälle vorgezogen | **1064** | 466 | 62 | 536 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -129,6 +130,20 @@ Gesamtsumme steigt dabei von 1339 auf 1473, weil 14 weitere Prozeduren nicht meh
 entgleisen und komplett in den Binder gelangen: `VB6S0007` springt von 290 auf 409, `VB6S0006`
 von 16 auf 36. Derselbe Übergang wie bei `Optional` — Parserkaskade raus, konkrete Semantiklücke
 rein. Er unterstreicht zugleich, wie dominant die ByRef-Randfälle inzwischen sind.
+
+Danach wurden die ByRef-Randfälle aus M5 vorgezogen — nach demselben Kriterium wie damals
+`Optional`: gemessene Blockerbreite schlägt Meilensteinreihenfolge. `VB6S0007` verschwindet
+vollständig, alle 409 Vorkommen, und die Gesamtsumme fällt von 1473 auf **1064**. Das war kein
+implementierter Sonderfall, sondern eine falsche Annahme: VB6 akzeptiert Literale, Ausdrücke und
+Funktionsergebnisse an ByRef-Parametern, indem es einen Temporary übergibt und das Rückschreiben
+verwirft. Nur eine *Variable* falschen Typs bleibt ein Fehler (`VB6S0008`), weil das
+Rückschreiben dort ein Ziel hätte.
+
+Im selben Zug fiel eine stille Abweichung: `Foo (x)` hat `x` verändert. In VB6 erzwingen
+Klammern Auswertung zum Wert, der Aufgerufene kann also nicht zurückschreiben. Ursache war der
+Parser, der `Foo (x)` und `Call Foo(x)` beide als Argumentliste las — nur ein `Call`-Statement
+hat aber eine geklammerte Argumentliste. Genau die Sorte Fehler, die die Projektregeln als
+schlimmer einstufen als eine Diagnose: falsches Ergebnis statt gemeldeter Lücke.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -313,7 +328,9 @@ Zwei Nachträge:
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
-- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Local-Lebensdauer, ByRef-Randfälle
+- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Local-Lebensdauer
+- [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
+      Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
 - [ ] `Is`-Objektreferenzidentität auf dem echten Klassen-/Objekttypmodell
 - [ ] `Property Get`/`Let`/`Set`
 - [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
