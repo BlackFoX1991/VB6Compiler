@@ -102,8 +102,15 @@ Get-WinEvent -LogName Microsoft-Windows-CodeIntegrity/Operational | Where-Object
 ```
 
 `VerifiedAndReputablePolicyState = 1` bedeutet Smart App Control aktiv; Event 3077 nennt die
-blockierte DLL. Solange das so steht, sind lokale Testläufe nicht aussagekräftig — Devcontainer
-oder CI verwenden. Smart App Control lässt sich nur abschalten, nicht wieder einschalten.
+blockierte Datei. Smart App Control lässt sich nur abschalten, nicht wieder einschalten.
+
+Welche Datei betroffen ist, wechselt. Zeitweise waren es Projekt-DLLs wie `VB6.Semantics.dll` —
+das gab sich nach mehreren Builds von selbst. **Die E2E-Tests bleiben dauerhaft anfällig**, denn
+sie emittieren pro Lauf eine frische, unsignierte DLL nach `%TEMP%` und führen sie aus; so eine
+Datei hat per Definition keine Reputation. Erkennungsmerkmal: der Test scheitert mit Exitcode
+`-532462766` und der Meldung im Ausgabetext des Kindprozesses, nicht im Testhost. Aktuell trifft
+es reproduzierbar drei `EmitManagedApplication_*`-Tests. Das ist kein Compilerfehler — im Zweifel
+Devcontainer oder CI als Referenz nehmen.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 Stand der letzten Prüfung: 478 Tests in 157 Testklassen.
