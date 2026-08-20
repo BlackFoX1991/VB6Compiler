@@ -235,6 +235,7 @@ public sealed class Parser
                 continue;
             }
 
+            var start = _position;
             var memberIdentifier = MatchToken(SyntaxKind.IdentifierToken);
             SyntaxToken? equalsToken = null;
             ExpressionSyntax? value = null;
@@ -246,6 +247,13 @@ public sealed class Parser
 
             ConsumeLineTerminator();
             members.Add(new EnumMemberSyntax(memberIdentifier, equalsToken, value));
+
+            // MatchToken fabricates a zero-width token without consuming, so a member line the
+            // parser cannot read would otherwise spin here forever.
+            if (_position == start)
+            {
+                NextToken();
+            }
         }
 
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
@@ -275,8 +283,16 @@ public sealed class Parser
                 continue;
             }
 
+            var start = _position;
             fields.AddRange(ParseVariableDeclarators());
             ConsumeLineTerminator();
+
+            // MatchToken fabricates a zero-width token without consuming, so a field line the
+            // parser cannot read would otherwise spin here forever.
+            if (_position == start)
+            {
+                NextToken();
+            }
         }
 
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
