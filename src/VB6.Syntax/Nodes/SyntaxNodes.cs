@@ -343,6 +343,10 @@ public sealed record TypeOfExpressionSyntax(
     SyntaxToken IsKeyword,
     SyntaxToken TypeName) : ExpressionSyntax(SyntaxKind.TypeOfExpression);
 
+public sealed record ByValArgumentExpressionSyntax(
+    SyntaxToken ByValKeyword,
+    ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.ByValArgumentExpression);
+
 public sealed record UnaryExpressionSyntax(SyntaxToken OperatorToken, ExpressionSyntax Operand) : ExpressionSyntax(SyntaxKind.UnaryExpression);
 public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken OperatorToken, ExpressionSyntax Right) : ExpressionSyntax(SyntaxKind.BinaryExpression);
 public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
