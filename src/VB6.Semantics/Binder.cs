@@ -1357,7 +1357,8 @@ public sealed class Binder
                 {
                     expression = BindConversion(expression, parameter.Type);
                 }
-                else if (expression is not BoundVariableExpression &&
+                else if (argumentSyntaxes[index] is ParenthesizedExpressionSyntax ||
+                         expression is not BoundVariableExpression &&
                          expression is not BoundArrayAccessExpression &&
                          expression is not BoundElementAccessExpression &&
                          expression is not BoundMemberAccessExpression)
@@ -1365,6 +1366,10 @@ public sealed class Binder
                     // Not an error: VB6 accepts a literal, an expression, or a function result for
                     // a ByRef parameter by passing a temporary of the parameter type and throwing
                     // the write-back away. The conversion is the same one ByVal would apply.
+                    //
+                    // Parentheses around an argument do the same thing on purpose - Foo (x) forces
+                    // x to be evaluated to a value, so the callee cannot write back to it. That is
+                    // decided on the syntax because BindExpression unwraps the parentheses.
                     expression = BindConversion(expression, parameter.Type);
                     requiresByRefTemporary = true;
                 }
