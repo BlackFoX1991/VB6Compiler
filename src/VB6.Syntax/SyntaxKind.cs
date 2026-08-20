@@ -142,6 +142,7 @@ public enum SyntaxKind
     BinaryExpression,
     ParenthesizedExpression,
     TypeOfExpression,
+    ArgumentPassingModeExpression,
     FileNumber,
     OpenStatement,
     CloseStatement,

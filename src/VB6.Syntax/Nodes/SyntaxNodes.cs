@@ -383,6 +383,15 @@ public sealed record BinaryExpressionSyntax(ExpressionSyntax Left, SyntaxToken O
 public sealed record ParenthesizedExpressionSyntax(SyntaxToken OpenParenthesisToken, ExpressionSyntax Expression, SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.ParenthesizedExpression);
 
 /// <summary>
+/// An argument written <c>ByVal expr</c> or <c>ByRef expr</c> at the call site. VB6 uses this to
+/// override how a parameter would be passed, most often against a Declare with an As Any
+/// parameter, as in <c>CopyMemory dst, ByVal VarPtr(src), 4</c>.
+/// </summary>
+public sealed record ArgumentPassingModeExpressionSyntax(
+    SyntaxToken PassingModeKeyword,
+    ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.ArgumentPassingModeExpression);
+
+/// <summary>
 /// <c>TypeOf ctlControl Is CheckBox</c>. The type name is a plain token because resolving it
 /// needs the object model, which does not exist yet.
 /// </summary>

@@ -1366,6 +1366,22 @@ public sealed class Parser
             closeParenthesis);
     }
 
+    /// <summary>
+    /// A call site may override how an argument is passed, as in
+    /// <c>CopyMemory dst, ByVal VarPtr(src), 4</c>. The keyword belongs to the argument, not to
+    /// the expression, so it is preserved rather than skipped.
+    /// </summary>
+    private ExpressionSyntax ParseArgument()
+    {
+        if (Current.Kind is SyntaxKind.ByValKeyword or SyntaxKind.ByRefKeyword)
+        {
+            var passingMode = NextToken();
+            return new ArgumentPassingModeExpressionSyntax(passingMode, ParseExpression());
+        }
+
+        return ParseExpression();
+    }
+
     private ImmutableArray<ExpressionSyntax> ParseArguments(SyntaxKind? terminator)
     {
         var arguments = ImmutableArray.CreateBuilder<ExpressionSyntax>();
@@ -1387,7 +1403,7 @@ public sealed class Parser
                 break;
             }
 
-            arguments.Add(ParseExpression());
+            arguments.Add(ParseArgument());
             if (Current.Kind != SyntaxKind.CommaToken)
             {
                 break;
