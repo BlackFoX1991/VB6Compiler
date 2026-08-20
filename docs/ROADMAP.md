@@ -35,6 +35,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `TypeOf ... Is`-Syntax | **726** | 110 | 0 | 604 | 0 von 27 |
 | Aufrufseitiges `ByVal` | **724** | 71 | 0 | 641 | 0 von 27 |
 | Intrinsics umgebaut, Konvertierungen ergänzt | **717** | 71 | 0 | 634 | 0 von 27 |
+| String-Funktionen | **692** | 71 | 0 | 609 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -406,6 +407,11 @@ Nach Korpusbedarf priorisiert:
    behandelt Intrinsics wie normale Prozeduren, nur das Backend kennt den C#-Namen. Damit sind
    weitere Bibliotheksfunktionen reine Tabelleneinträge
 1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
+1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
+    VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
+    zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.
+    **Offen:** `InStr` und zweiargumentiges `Mid` brauchen optionale Parameter an Intrinsics —
+    das ist ein eigener Mechanismus und Vorarbeit für die `Optional`-Aufrufsemantik in M5
 2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`.
    Lexer, Syntax und Parser für die Binärformen sind **vorgezogen und fertig**; Runtime, Bindung
    und Codegen fehlen und werden als `VB6S0057` gemeldet
