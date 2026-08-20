@@ -26,7 +26,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M3 `Erase` / `LBound` / `UBound` | **2294** | 1474 | 68 | 752 | 0 von 27 |
 | M3 `Type ... End Type`-Syntax | **2034** | 1214 | 68 | 752 | 0 von 27 |
 | M3 UDT-Typraum / Scope-Bindung | **2034** | 1214 | 68 | 752 | 0 von 27 |
-| M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | nicht gemessen | – | – | – | – |
+| M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | **1339** | 480 | 62 | 797 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -94,13 +94,34 @@ im Analyseergebnis zurück; ungültige UDT-Deklarationen stoppen die Codegenerie
 2034 / 1214 Parser / 68 Lexer / 752 Semantik, weil UDT-Werte in Variablen und Parametern erst im
 nächsten Slice in den bestehenden Haupt-Binder integriert werden.
 
-Seitdem sind UDT-Werte in Locals/Parametern/Modulvariablen, `With`-Blöcke, `For Each` über feste,
+Danach sind UDT-Werte in Locals/Parametern/Modulvariablen, `With`-Blöcke, `For Each` über feste,
 mehrdimensionale und dynamische Arrays, die Variant-Grundlage (Speicherung, Konvertierung,
 Multiplikation, `&`-Verkettung, eine Gleichheits-Teilmenge), das Enum-Binding, die eingebauten
-VB-String-Konstanten und die ersten String-Intrinsics (`Len`, `Mid`, `Chr`) gelandet. **Für diese
-Slices liegt noch keine VISIA-Messung vor.** Die Tabelle endet deshalb bewusst beim UDT-Typraum,
-statt Zahlen fortzuschreiben, die niemand erhoben hat; die nächste Messung gehört an den Abschluss
-von M3.
+VB-String-Konstanten und die ersten String-Intrinsics (`Len`, `Mid`, `Chr`) gelandet. Die Messung
+dazu ergibt **1339** Gesamtfehler: **480 Parser**, **62 Lexer**, **797 Semantik**.
+
+Der Parserzähler fällt damit von 1214 auf 480 — mit −734 der mit Abstand größte Einzelsprung der
+bisherigen Historie, und der erste, bei dem die Gesamtsumme trotz steigender Semantik deutlich
+mitfällt (2034 → 1339). Der Grund steht seit M0 in der Blockertabelle: `With` kommt in 19 Dateien
+629-mal vor, und ohne Memberzugriff entgleiste dort jede Folgezeile. Die Semantik steigt
+erwartungsgemäß von 752 auf 797.
+
+Die Rangfolge der Blocker hat sich dadurch verschoben:
+
+| Code | Vorkommen | Dateien | Bedeutung |
+|---|---|---|---|
+| `VB6P0001` | 480 | 15 | verbleibende Parserlücken |
+| `VB6S0005` | 342 | 10 | Prozedur nicht deklariert — überwiegend Folge nicht parsender Module und fehlender Bibliotheksfunktionen |
+| `VB6S0007` | 290 | 6 | ByRef-Argument muss eine Variable sein |
+| `VB6S0001` | 147 | 9 | Variable nicht deklariert |
+| `VB6L0001` | 62 | 6 | `#` — Dateinummern der Datei-I/O |
+| `VB6S0006` | 16 | 4 | falsche Argumentanzahl |
+
+**`VB6S0007` ist die Überraschung dieser Messung.** Die ByRef-Randfälle stehen bisher als kleiner
+Punkt in M5, sind mit 290 Vorkommen in 6 Dateien aber der zweitgrößte semantische Blocker. Der
+Auslöser ist die in `CLAUDE.md` notierte Einschränkung: ByRef verlangt heute eine Variable mit
+exakt passendem Typ, also scheitern geklammerte Argumente und temporäre Konvertierungen. Das
+sollte vor dem Rest von M5 gezogen werden.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
