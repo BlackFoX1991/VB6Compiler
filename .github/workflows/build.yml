@@ -11,56 +11,14 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apply-agent-patch:
-    if: github.ref == 'refs/heads/agent/m7-file-io-syntax' || github.head_ref == 'agent/m7-file-io-syntax'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout feature branch
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: agent/m7-file-io-syntax
-
-      - name: Apply staged compiler patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply --check .github/patches/m7-file-io-syntax.patch
-          git apply .github/patches/m7-file-io-syntax.patch
-          git checkout 741a272c1554a21d9b0428fa44ee974de8eaf5d0 -- .github/workflows/build.yml
-          rm .github/patches/m7-file-io-syntax.patch
-          rmdir .github/patches 2>/dev/null || true
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -- \
-            src/VB6.Syntax/SyntaxKind.cs \
-            src/VB6.Syntax/Nodes/SyntaxNodes.cs \
-            src/VB6.Lexer/Lexer.cs \
-            src/VB6.Parser/Parser.cs \
-            src/VB6.Semantics/Binder.cs \
-            tests/VB6.Lexer.Tests/FileNumberLexerTests.cs \
-            tests/VB6.Parser.Tests/FileIoParserTests.cs \
-            tests/VB6.Semantics.Tests/FileIoBinderTests.cs \
-            .github/workflows/build.yml \
-            .github/patches/m7-file-io-syntax.patch
-
-          git diff --cached --check
-          git status --short
-          git commit -m "Parse VB6 file-number syntax"
-          git push origin HEAD:agent/m7-file-io-syntax
-
   build-windows:
-    if: github.ref != 'refs/heads/agent/m7-file-io-syntax' && github.head_ref != 'agent/m7-file-io-syntax'
     runs-on: windows-latest
 
     steps:
