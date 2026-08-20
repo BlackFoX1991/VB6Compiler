@@ -146,6 +146,15 @@ internal static class TypeOfSyntaxGuard
                     text.FilePath));
                 VisitExpression(text, typeOf.Expression, diagnostics);
                 break;
+            case ByValArgumentExpressionSyntax byVal:
+                diagnostics.Add(new Diagnostic(
+                    "VB6S0059",
+                    DiagnosticSeverity.Error,
+                    "Call-site ByVal override semantics are parsed but not implemented yet.",
+                    byVal.ByValKeyword.Span,
+                    text.FilePath));
+                VisitExpression(text, byVal.Expression, diagnostics);
+                break;
             case UnaryExpressionSyntax unary:
                 VisitExpression(text, unary.Operand, diagnostics);
                 break;
