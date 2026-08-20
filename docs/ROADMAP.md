@@ -195,6 +195,13 @@ Resume-Zustandsautomat.
   (`MSComDlg.CommonDialog`, `MSComctlLib`, `RichTextLib`), die ein 64-Bit-Prozess nicht
   in-process laden kann. „64 Bit" gilt für Sprache und Typen, nicht zwingend für den Prozess.
   Muss vor Meilenstein 8 endgültig entschieden sein, weil Marshalling-Code davon abhängt.
+- **Zahlkonvertierung ist invariant, nicht locale-abhängig.** `VB6.Runtime` konvertiert zwischen
+  Strings und Zahlen ausschließlich mit `CultureInfo.InvariantCulture`. Klassisches VB6 wertete
+  `CDbl("2.5")` gegen die aktive Locale aus, sodass derselbe Quelltext je nach Maschine 2,5 oder
+  25 ergab. Für einen Compiler wiegt Determinismus schwerer als diese Treue: das Kompilat soll
+  überall dasselbe tun. Echte locale-abhängige Ausgabe gehört später zu `Format$`, wo die Locale
+  ein expliziter Parameter ist statt ambienter Thread-Zustand. Dies ist eine der wenigen
+  Stellen, an denen bewusst von VB6 abgewichen wird.
 - **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
   Es liegt versioniert unter `conformance/VISIA/` und wird von `ConformanceCorpusTests` in CI
   mitgemessen. Herkunft und Zweck: `conformance/README.md`.
@@ -323,9 +330,6 @@ Inline-Diagnostics, WinForms-Designer mit verlustfreiem `.frm`-Roundtrip, Debugg
 2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
    Binder hat beide Seiten bereits angeglichen
 3. `Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren
-4. **Locale-Entscheidung in `VB6.Runtime`.** `CDbl`/`CSng`/`CBool`/`CStr` konvertieren mit
-   `CultureInfo.CurrentCulture`. Unter `de-DE` wird daraus `"2.5" * 2 = 50`, und
-   `VariantMultiplyTests` fällt darüber. Echtes VB6 ist bei `CDbl` einer Zeichenkette
-   tatsächlich locale-abhängig, die Tests kodieren aber Invariant. Beides ist vertretbar,
-   aber es muss bewusst entschieden werden — sonst ist die Suite auf jeder nicht-englischen
-   Maschine rot, während CI (`en-US`) grün bleibt.
+4. `Debug.Print` formatiert Zahlen jetzt invariant, aber weiterhin nach .NET-Regeln — die
+   VB6-Formatierung (führendes Vorzeichen-Leerzeichen, 15 signifikante Stellen) steht
+   unverändert unter Punkt 1
