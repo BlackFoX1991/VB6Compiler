@@ -695,6 +695,20 @@ public sealed class Binder
         return new BoundGetStatement(fileNumber, position, target);
     }
 
+    /// <summary>
+    /// <c>TypeOf x Is T</c> asks whether an object reference has a given class, so it needs the
+    /// object model that class modules and controls will bring. Guarded rather than approximated,
+    /// the same way binary <c>Is</c> is.
+    /// </summary>
+    private BoundExpression BindTypeOf(TypeOfExpressionSyntax syntax)
+    {
+        Report(
+            "VB6S0060",
+            $"TypeOf ... Is '{syntax.TypeToken.Text}' needs the object type model, which is not implemented yet.",
+            syntax.TypeOfKeyword.Span);
+        return new BoundErrorExpression();
+    }
+
     private static bool IsTransferableFileType(TypeSymbol type) =>
         type == TypeSymbol.Byte ||
         type == TypeSymbol.Integer ||
@@ -1269,6 +1283,7 @@ public sealed class Binder
             UnaryExpressionSyntax unary => BindUnary(unary, variables, procedures),
             BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
             ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
+            TypeOfExpressionSyntax typeOf => BindTypeOf(typeOf),
             _ => new BoundErrorExpression()
         };
     }
