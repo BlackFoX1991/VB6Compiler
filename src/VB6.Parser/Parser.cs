@@ -1397,7 +1397,12 @@ public sealed class Parser
     private ExpressionSyntax ParsePrimaryExpression()
     {
         ExpressionSyntax expression;
-        if (Current.Kind == SyntaxKind.DotToken)
+        if (Current.Kind == SyntaxKind.IdentifierToken &&
+            string.Equals(Current.Text, "TypeOf", StringComparison.OrdinalIgnoreCase))
+        {
+            expression = ParseTypeOfExpression();
+        }
+        else if (Current.Kind == SyntaxKind.DotToken)
         {
             expression = new WithReceiverExpressionSyntax();
         }
@@ -1453,6 +1458,15 @@ public sealed class Parser
         }
 
         return expression;
+    }
+
+    private TypeOfExpressionSyntax ParseTypeOfExpression()
+    {
+        var typeOfToken = NextToken();
+        var expression = ParsePrimaryExpression();
+        var isKeyword = MatchToken(SyntaxKind.IsKeyword);
+        var typeName = MatchTypeMemberName();
+        return new TypeOfExpressionSyntax(typeOfToken, expression, isKeyword, typeName);
     }
 
     private SyntaxToken MatchTypeToken()
