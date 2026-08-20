@@ -666,7 +666,11 @@ public sealed class CSharpGenerator
     {
         if (argument.Parameter?.PassingMode == ParameterPassingMode.ByRef)
         {
-            return $"ref {EmitExpression(argument.Expression)}";
+            // The callee still takes a reference; only the storage differs. VBByRef.Temp keeps the
+            // reference valid for the call and drops the write-back afterwards, matching VB6.
+            return argument.RequiresByRefTemporary
+                ? $"ref VBByRef.Temp<{GetTypeName(argument.Parameter.Type)}>({EmitExpression(argument.Expression)})"
+                : $"ref {EmitExpression(argument.Expression)}";
         }
 
         return argument.Parameter?.PassingMode == ParameterPassingMode.ByVal
