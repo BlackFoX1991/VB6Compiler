@@ -152,6 +152,11 @@ public enum BoundNodeKind
     SelectCaseStatement,
     DebugPrintStatement,
     InvocationStatement,
+    OpenStatement,
+    CloseStatement,
+    SeekStatement,
+    GetStatement,
+    PutStatement,
     LiteralExpression,
     VariableExpression,
     ArrayAccessExpression,
@@ -292,6 +297,35 @@ public sealed record BoundSelectCaseStatement(
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
+
+/// <summary>
+/// <c>Open path For Binary As #n</c>. Only Binary reaches binding; the other modes are reported,
+/// because Input, Output and Append carry text semantics this runtime does not implement.
+/// </summary>
+public sealed record BoundOpenStatement(
+    BoundExpression FileNumber,
+    BoundExpression Path) : BoundStatement(BoundNodeKind.OpenStatement);
+
+/// <summary>An empty file number list means the bare <c>Close</c>, which closes every open file.</summary>
+public sealed record BoundCloseStatement(
+    ImmutableArray<BoundExpression> FileNumbers) : BoundStatement(BoundNodeKind.CloseStatement);
+
+public sealed record BoundSeekStatement(
+    BoundExpression FileNumber,
+    BoundExpression Position) : BoundStatement(BoundNodeKind.SeekStatement);
+
+/// <summary>
+/// A null position continues at the current file position, which is what <c>Get #1, , x</c> means.
+/// </summary>
+public sealed record BoundGetStatement(
+    BoundExpression FileNumber,
+    BoundExpression? Position,
+    BoundExpression Target) : BoundStatement(BoundNodeKind.GetStatement);
+
+public sealed record BoundPutStatement(
+    BoundExpression FileNumber,
+    BoundExpression? Position,
+    BoundExpression Value) : BoundStatement(BoundNodeKind.PutStatement);
 
 public sealed record BoundArgument(
     ParameterSymbol? Parameter,
