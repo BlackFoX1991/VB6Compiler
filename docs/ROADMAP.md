@@ -33,6 +33,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M7 Datei-I/O-Syntax vorgezogen | **832** | 218 | 0 | 614 | 0 von 27 |
 | M7 Datei-I/O-Runtime (numerisch) | **822** | 218 | 0 | 604 | 0 von 27 |
 | `TypeOf ... Is`-Syntax | **726** | 110 | 0 | 604 | 0 von 27 |
+| Aufrufseitiges `ByVal` | **724** | 71 | 0 | 641 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -185,6 +186,12 @@ Record-Layout — beides eigene Regeln, die hier nicht geraten werden.
 den Rest der Datei mit: allein `envBorders.bas` verlor 72 Parserfehler daran. Die Syntax wird
 jetzt bewahrt, die Semantik als `VB6S0060` gemeldet — sie braucht das Objektmodell aus M5/M9.
 Parser 218 → 110, Gesamtsumme 822 → 726.
+
+Aufrufseitiges `ByVal` — in der Blockertabelle seit M0 als `CopyMemory SwpVal, ByVal
+VarPtr(String1), 4` notiert — senkt die Parserfehler von 110 auf 71. Die Bindung fiel dabei
+billig aus: explizites `ByVal` überschreibt einen ByRef-Parameter genau wie Klammern und nutzt
+denselben Temporary. Die Semantik steigt von 604 auf 641, weil wieder mehr Code den Binder
+erreicht.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
