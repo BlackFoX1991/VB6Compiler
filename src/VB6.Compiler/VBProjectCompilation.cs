@@ -127,16 +127,13 @@ public sealed class VBProjectCompilation
                     .BindCompilationUnit(module.SemanticRoot, procedureSymbols, moduleVariableSymbols);
             }
 
-            var forEachLowering = ForEachArraySyntaxLowerer.Lower(
-                module.Text,
-                module.SemanticRoot,
-                preliminaryModel);
+            var forEachRoot = ForEachArraySyntaxLowerer.Lower(module.SemanticRoot, preliminaryModel);
 
             SemanticModel semanticModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
                 semanticModel = new Binder(module.Text)
-                    .BindCompilationUnit(forEachLowering.Root, procedureSymbols, moduleVariableSymbols);
+                    .BindCompilationUnit(forEachRoot, procedureSymbols, moduleVariableSymbols);
             }
             semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
 
@@ -144,10 +141,9 @@ public sealed class VBProjectCompilation
                 ? ImmutableArray<Diagnostic>.Empty
                 : UserDefinedTypeValueGuard.Validate(
                     module.Text,
-                    forEachLowering.Root,
+                    forEachRoot,
                     moduleUserDefinedTypes.Types);
             var variantOperationDiagnostics = VariantOperationGuard.Validate(module.Text, semanticModel);
-            sourceDiagnostics.AddRange(forEachLowering.Diagnostics);
             sourceDiagnostics.AddRange(semanticModel.Diagnostics);
             sourceDiagnostics.AddRange(userDefinedTypeValueDiagnostics);
             sourceDiagnostics.AddRange(variantOperationDiagnostics);
@@ -156,7 +152,6 @@ public sealed class VBProjectCompilation
 
             var unitDiagnostics = module.ParseResult.Diagnostics
                 .AddRange(moduleUserDefinedTypes?.Diagnostics ?? ImmutableArray<Diagnostic>.Empty)
-                .AddRange(forEachLowering.Diagnostics)
                 .AddRange(semanticModel.Diagnostics)
                 .AddRange(userDefinedTypeValueDiagnostics)
                 .AddRange(variantOperationDiagnostics);

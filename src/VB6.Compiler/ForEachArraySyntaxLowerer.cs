@@ -8,44 +8,36 @@ using VB6.Syntax.Text;
 
 namespace VB6.Compiler;
 
-internal sealed record ForEachArrayLoweringResult(
-    CompilationUnitSyntax Root,
-    ImmutableArray<Diagnostic> Diagnostics);
-
 /// <summary>
 /// Desugars supported VB6 array For Each loops into the compiler's already-tested numeric For and
 /// array-indexing syntax. A preliminary semantic model supplies the declared control/collection
 /// types and fixed array rank. The generated loops enumerate dimension 1 outermost and the
 /// rightmost dimension innermost, matching VB6 array iteration order.
-/// Dynamic/unknown-rank arrays and non-name collection expressions are deliberately left in syntax
-/// form for direct semantic lowering.
+///
+/// Anything this pass cannot desugar - dynamic/unknown-rank arrays, non-name collection
+/// expressions, user-defined element types, and every malformed loop - is handed to the binder
+/// unchanged. The binder is the single owner of For Each diagnostics; reporting here as well
+/// surfaced each of those errors twice.
 /// </summary>
 internal sealed class ForEachArraySyntaxLowerer
 {
-    private readonly SourceText _text;
     private readonly SemanticModel _model;
-    private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private int _nextLoopId;
 
-    private ForEachArraySyntaxLowerer(SourceText text, SemanticModel model)
+    private ForEachArraySyntaxLowerer(SemanticModel model)
     {
-        _text = text;
         _model = model;
     }
 
-    public static ForEachArrayLoweringResult Lower(
-        SourceText text,
-        CompilationUnitSyntax root,
-        SemanticModel model)
+    public static CompilationUnitSyntax Lower(CompilationUnitSyntax root, SemanticModel model)
     {
-        ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(model);
 
-        return new ForEachArraySyntaxLowerer(text, model).LowerCompilationUnit(root);
+        return new ForEachArraySyntaxLowerer(model).LowerCompilationUnit(root);
     }
 
-    private ForEachArrayLoweringResult LowerCompilationUnit(CompilationUnitSyntax root)
+    private CompilationUnitSyntax LowerCompilationUnit(CompilationUnitSyntax root)
     {
         var members = ImmutableArray.CreateBuilder<MemberSyntax>(root.Members.Length);
         foreach (var member in root.Members)
@@ -58,9 +50,7 @@ internal sealed class ForEachArraySyntaxLowerer
             });
         }
 
-        return new ForEachArrayLoweringResult(
-            new CompilationUnitSyntax(members.ToImmutable(), root.EndOfFileToken),
-            _diagnostics.ToImmutable());
+        return new CompilationUnitSyntax(members.ToImmutable(), root.EndOfFileToken);
     }
 
     private SubDeclarationSyntax LowerSub(SubDeclarationSyntax syntax)
@@ -221,66 +211,34 @@ internal sealed class ForEachArraySyntaxLowerer
             });
         }
 
-        var valid = true;
+        var lowerable = true;
         if (!scope.TryGetValue(syntax.Identifier.Text, out var controlVariable))
         {
-            Report(
-                "VB6S0001",
-                $"Variable '{syntax.Identifier.Text}' is not declared.",
-                syntax.Identifier.Span);
-            valid = false;
+            lowerable = false;
         }
         else if (controlVariable.Type != TypeSymbol.Variant && controlVariable.Type != TypeSymbol.Error)
         {
-            Report(
-                "VB6S0054",
-                $"For Each control variable '{syntax.Identifier.Text}' must be Variant when iterating an array.",
-                syntax.Identifier.Span);
-            valid = false;
+            lowerable = false;
         }
 
         if (syntax.NextIdentifier is not null &&
             !string.Equals(syntax.NextIdentifier.Text, syntax.Identifier.Text, StringComparison.OrdinalIgnoreCase))
         {
-            Report(
-                "VB6S0013",
-                $"Next variable '{syntax.NextIdentifier.Text}' does not match For variable '{syntax.Identifier.Text}'.",
-                syntax.NextIdentifier.Span);
-            valid = false;
+            lowerable = false;
         }
 
-        if (!scope.TryGetValue(collectionName.IdentifierToken.Text, out var collectionVariable))
+        // A user-defined element type stops the desugaring for a semantic reason, not a technical
+        // one: VB6 rejects For Each there because the Variant control variable cannot hold a UDT
+        // from a standard module. Lowering it to a plain indexed loop would quietly make it work.
+        if (!scope.TryGetValue(collectionName.IdentifierToken.Text, out var collectionVariable) ||
+            collectionVariable.Type is not ArrayTypeSymbol arrayType ||
+            arrayType.Rank is not int rank ||
+            arrayType.ElementType is UserDefinedTypeSymbol)
         {
-            Report(
-                "VB6S0001",
-                $"Variable '{collectionName.IdentifierToken.Text}' is not declared.",
-                collectionName.IdentifierToken.Span);
             return ImmutableArray.Create<StatementSyntax>(syntax);
         }
 
-        if (collectionVariable.Type is not ArrayTypeSymbol arrayType || arrayType.Rank is not int rank)
-        {
-            Report(
-                "VB6S0055",
-                $"For Each collection '{collectionName.IdentifierToken.Text}' must be a fixed-rank array in the current compiler subset.",
-                collectionName.IdentifierToken.Span);
-            return ImmutableArray.Create<StatementSyntax>(syntax);
-        }
-
-        // See the matching check in Binder: VB6 rejects this, so the lowering must not desugar it
-        // into a loop that would quietly work.
-        if (arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
-        {
-            Report(
-                "VB6S0056",
-                $"For Each cannot iterate an array of user-defined type '{elementUserDefinedType.Name}': " +
-                "VB6 coerces a user-defined type into the Variant control variable only for public " +
-                "types declared in public object modules.",
-                collectionName.IdentifierToken.Span);
-            return ImmutableArray.Create<StatementSyntax>(syntax);
-        }
-
-        if (!valid)
+        if (!lowerable)
         {
             return ImmutableArray.Create<StatementSyntax>(syntax);
         }
@@ -543,13 +501,4 @@ internal sealed class ForEachArraySyntaxLowerer
         object? value = null) =>
         new(kind, new TextSpan(position, 0), text, value, ImmutableArray<SyntaxTrivia>.Empty);
 
-    private void Report(string code, string message, TextSpan span)
-    {
-        _diagnostics.Add(new Diagnostic(
-            code,
-            DiagnosticSeverity.Error,
-            message,
-            span,
-            _text.FilePath));
-    }
 }

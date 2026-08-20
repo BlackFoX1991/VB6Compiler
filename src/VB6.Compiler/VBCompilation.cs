@@ -52,19 +52,16 @@ public sealed class VBCompilation
                 .BindCompilationUnit(implicitVariantRoot, procedureSymbols, moduleVariableSymbols);
         }
 
-        var forEachLowering = ForEachArraySyntaxLowerer.Lower(
-            Text,
-            implicitVariantRoot,
-            preliminaryModel);
+        var forEachRoot = ForEachArraySyntaxLowerer.Lower(implicitVariantRoot, preliminaryModel);
 
         SemanticModel semanticModel;
         ImmutableArray<Diagnostic> duplicateProcedureDiagnostics;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
             semanticModel = new Binder(Text)
-                .BindCompilationUnit(forEachLowering.Root, procedureSymbols, moduleVariableSymbols);
+                .BindCompilationUnit(forEachRoot, procedureSymbols, moduleVariableSymbols);
             duplicateProcedureDiagnostics = new Binder(Text)
-                .BindCompilationUnit(forEachLowering.Root)
+                .BindCompilationUnit(forEachRoot)
                 .Diagnostics
                 .Where(diagnostic => diagnostic.Code == "VB6S0004")
                 .ToImmutableArray();
@@ -80,12 +77,11 @@ public sealed class VBCompilation
 
         var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
             Text,
-            forEachLowering.Root,
+            forEachRoot,
             userDefinedTypes.Types);
         var variantOperationDiagnostics = VariantOperationGuard.Validate(Text, semanticModel);
         var diagnostics = parseResult.Diagnostics
             .AddRange(userDefinedTypes.Diagnostics)
-            .AddRange(forEachLowering.Diagnostics)
             .AddRange(semanticModel.Diagnostics)
             .AddRange(userDefinedTypeValueDiagnostics)
             .AddRange(variantOperationDiagnostics);
