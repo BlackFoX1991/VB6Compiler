@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../VB6.CodeGen.CSharp/VB6.CodeGen.CSharp.csproj" />
+    <ProjectReference Include="../VB6.Emit.Managed/VB6.Emit.Managed.csproj" />
+    <ProjectReference Include="../VB6.IR/VB6.IR.csproj" />
     <ProjectReference Include="../VB6.Parser/VB6.Parser.csproj" />
     <ProjectReference Include="../VB6.ProjectSystem/VB6.ProjectSystem.csproj" />
     <ProjectReference Include="../VB6.Runtime/VB6.Runtime.csproj" />
