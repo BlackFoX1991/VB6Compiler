@@ -649,7 +649,7 @@ public sealed class Binder
         var token = SyntaxNavigator.GetFirstToken(statement);
         return token is null
             ? bound
-            : bound with { SourceLocation = new SourceLocation(_text.FilePath, token.Span) };
+            : bound with { SourceLocation = new SourceLocation(_text.FilePath, token.Span, _text.GetLinePositionSpan(token.Span)) };
     }
 
     private BoundStatement? BindStatementCore(

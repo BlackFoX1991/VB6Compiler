@@ -4,7 +4,12 @@ using VB6.Syntax.Text;
 
 namespace VB6.IR;
 
-public sealed record IrSourceLocation(string FilePath, TextSpan Span);
+/// <summary>
+/// Where the statement an instruction came from was written. Lines and columns are carried
+/// alongside the offsets because that is the form debug information needs and the source text is
+/// no longer available at this layer.
+/// </summary>
+public sealed record IrSourceLocation(string FilePath, TextSpan Span, LinePositionSpan Lines = default);
 
 public abstract record IrNode
 {

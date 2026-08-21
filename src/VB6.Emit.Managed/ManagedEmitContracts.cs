@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using VB6.IR;
+using VB6.Syntax.Text;
 
 namespace VB6.Emit.Managed;
 
@@ -36,8 +38,26 @@ public sealed record ManagedEmitOptions(
 
 public sealed record ManagedEmitDiagnostic(string Code, string Message);
 
+/// <summary>
+/// One statement's start in a method body: the IL offset the statement's code begins at and the
+/// source it was written as. This is what a debugger steps between, and only the emitter knows
+/// the offset, so it has to travel out of the emit rather than be reconstructed from the image.
+/// </summary>
+public sealed record ManagedSequencePoint(
+    int IlOffset,
+    string FilePath,
+    LinePositionSpan Lines);
+
 public sealed record ManagedEmitResult(
     bool Success,
     ImmutableArray<ManagedEmitDiagnostic> Diagnostics,
     byte[]? PeImage,
-    byte[]? PdbImage);
+    byte[]? PdbImage)
+{
+    /// <summary>
+    /// Statement starts per emitted method, in IL order. Empty when the IR carried no source
+    /// positions - a program lowered from synthesized input has nothing to point at.
+    /// </summary>
+    public ImmutableDictionary<IrProcedure, ImmutableArray<ManagedSequencePoint>> SequencePoints { get; init; } =
+        ImmutableDictionary.Create<IrProcedure, ImmutableArray<ManagedSequencePoint>>(ReferenceEqualityComparer.Instance);
+}

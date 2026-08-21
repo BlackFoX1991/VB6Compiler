@@ -213,7 +213,12 @@ public enum BoundNodeKind
     ErrorExpression
 }
 
-public sealed record SourceLocation(string? FilePath, TextSpan Span);
+/// <summary>
+/// Where a bound node was written. The line/column range travels with the offsets because only
+/// the binder still has the <see cref="SourceText"/> that can resolve one into the other, and
+/// debug information is expressed in lines and columns.
+/// </summary>
+public sealed record SourceLocation(string? FilePath, TextSpan Span, LinePositionSpan Lines = default);
 
 public abstract record BoundNode(BoundNodeKind Kind)
 {

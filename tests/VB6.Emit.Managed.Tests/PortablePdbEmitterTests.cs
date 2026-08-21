@@ -79,4 +79,47 @@ public sealed class PortablePdbEmitterTests
             new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!)
         });
     }
+
+    /// <summary>
+    /// The point of debug information: a debugger can map IL back to the statement that produced
+    /// it. Reading the sequence points back proves the encoding, not just that a blob was written.
+    /// </summary>
+    [TestMethod]
+    public void Emit_MapsEveryStatementToItsSourceLine()
+    {
+        const string source = """
+            Sub Main()
+                Dim total As Long
+                total = 42
+                Debug.Print total
+            End Sub
+            """;
+        var program = Lower(source);
+        var checksum = ImmutableArray.CreateRange(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+        var options = new ManagedEmitOptions("SequencePoints", EmitPortablePdb: true)
+        {
+            SourceDocuments = ImmutableArray.Create(new ManagedSourceDocument("Module1.bas", checksum))
+        };
+        var peResult = new ManagedEmitter().Emit(program, options);
+        Assert.IsTrue(peResult.Success, string.Join(Environment.NewLine, peResult.Diagnostics));
+
+        var pdb = PortablePdbEmitter.Emit(program, peResult.PeImage!, options, peResult.SequencePoints);
+        using var stream = new MemoryStream(pdb, writable: false);
+        using var provider = MetadataReaderProvider.FromPortablePdbStream(stream);
+        var reader = provider.GetMetadataReader();
+
+        var debugInformation = reader.GetMethodDebugInformation(reader.MethodDebugInformation.Single());
+        var points = debugInformation.GetSequencePoints().ToArray();
+
+        // A Dim without an initializer produces no code, so the points are the two statements
+        // that do: the assignment and the Debug.Print, in source order and each on its own line.
+        Assert.AreEqual(2, points.Length);
+        CollectionAssert.AreEqual(new[] { 3, 4 }, points.Select(point => point.StartLine).ToArray());
+        Assert.IsFalse(points.Any(point => point.IsHidden));
+        Assert.IsTrue(points.All(point => point.EndLine == point.StartLine));
+        Assert.IsTrue(points.All(point => point.EndColumn > point.StartColumn));
+        CollectionAssert.AreEqual(
+            points.Select(point => point.Offset).OrderBy(offset => offset).ToArray(),
+            points.Select(point => point.Offset).ToArray());
+    }
 }

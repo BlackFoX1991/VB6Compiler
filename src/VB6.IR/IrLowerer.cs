@@ -241,6 +241,9 @@ public static class IrLowerer
         private IrLocal? _returnLocal;
         private int _nextLocalId;
 
+        /// <summary>Where the statement being lowered was written; stamped onto its instructions.</summary>
+        private IrSourceLocation? _location;
+
         public ProcedureLowerer(ProgramLoweringState program, BoundProcedure procedure)
         {
             _program = program;
@@ -343,7 +346,31 @@ public static class IrLowerer
             }
         }
 
+        /// <summary>
+        /// Lowers one statement, stamping every instruction it produces with the statement's
+        /// source position. One statement becomes many instructions - and nested statements bring
+        /// their own position - so the previous value is restored on the way out.
+        /// </summary>
         private void LowerStatement(BoundStatement statement)
+        {
+            var enclosing = _location;
+            _location = ToIrLocation(statement.SourceLocation) ?? enclosing;
+            try
+            {
+                LowerStatementCore(statement);
+            }
+            finally
+            {
+                _location = enclosing;
+            }
+        }
+
+        private static IrSourceLocation? ToIrLocation(SourceLocation? location) =>
+            location?.FilePath is null
+                ? null
+                : new IrSourceLocation(location.FilePath, location.Span, location.Lines);
+
+        private void LowerStatementCore(BoundStatement statement)
         {
             switch (statement)
             {
@@ -1177,14 +1204,20 @@ public static class IrLowerer
             {
                 _current = NewBlock("unreachable");
             }
-            _current.Instructions.Add(instruction);
+
+            _current.Instructions.Add(
+                instruction.SourceLocation is null && _location is not null
+                    ? instruction with { SourceLocation = _location }
+                    : instruction);
         }
 
         private void Terminate(IrTerminator terminator)
         {
             if (!_current.HasTerminator)
             {
-                _current.Terminator = terminator;
+                _current.Terminator = terminator.SourceLocation is null && _location is not null
+                    ? terminator with { SourceLocation = _location }
+                    : terminator;
             }
         }
 

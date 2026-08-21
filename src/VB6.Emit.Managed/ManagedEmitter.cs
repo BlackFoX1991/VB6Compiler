@@ -68,6 +68,9 @@ public sealed class ManagedEmitter
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<string, MemberReferenceHandle> _memberReferences = new(StringComparer.Ordinal);
         private readonly Dictionary<string, EntityHandle> _methodSpecifications = new(StringComparer.Ordinal);
+        private readonly ImmutableDictionary<IrProcedure, ImmutableArray<ManagedSequencePoint>>.Builder _sequencePoints =
+            ImmutableDictionary.CreateBuilder<IrProcedure, ImmutableArray<ManagedSequencePoint>>(
+                ReferenceEqualityComparer.Instance);
         private readonly Dictionary<Type, TypeReferenceHandle> _reflectionTypeRefs = new();
         private readonly Dictionary<string, TypeReferenceHandle> _namedTypeRefs = new(StringComparer.Ordinal);
         private readonly List<TypePlan> _typePlans = new();
@@ -128,7 +131,10 @@ public sealed class ManagedEmitter
                 true,
                 ImmutableArray<ManagedEmitDiagnostic>.Empty,
                 peBlob.ToArray(),
-                null);
+                null)
+            {
+                SequencePoints = _sequencePoints.ToImmutable()
+            };
         }
 
         private void AddAssemblyAndModuleMetadata()
@@ -342,6 +348,7 @@ public sealed class ManagedEmitter
                 var code = new BlobBuilder();
                 var flow = new ControlFlowBuilder();
                 var encoder = new InstructionEncoder(code, flow);
+                var sequencePoints = ImmutableArray.CreateBuilder<ManagedSequencePoint>();
                 var blockLabels = procedure.Blocks.ToDictionary(block => block.Id, _ => encoder.DefineLabel());
                 var entry = procedure.Blocks.FirstOrDefault(block => block.Label.EndsWith("_entry", StringComparison.Ordinal))
                             ?? procedure.Blocks.FirstOrDefault();
@@ -357,8 +364,11 @@ public sealed class ManagedEmitter
                         encoder.MarkLabel(blockLabels[block.Id]);
                         foreach (var instruction in block.Instructions)
                         {
+                            RecordSequencePoint(sequencePoints, encoder, instruction.SourceLocation);
                             EmitInstruction(encoder, procedure, instruction);
                         }
+
+                        RecordSequencePoint(sequencePoints, encoder, block.Terminator.SourceLocation);
                         EmitTerminator(encoder, procedure, block.Terminator, blockLabels);
                     }
                 }
@@ -370,8 +380,44 @@ public sealed class ManagedEmitter
                     localVariablesSignature: localSignature,
                     attributes: MethodBodyAttributes.InitLocals);
                 result.Add(procedure, offset);
+                if (sequencePoints.Count > 0)
+                {
+                    _sequencePoints.Add(procedure, sequencePoints.ToImmutable());
+                }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Notes that the code about to be emitted starts a new statement. Consecutive
+        /// instructions from one statement share its position, and only the first of them is a
+        /// place a debugger should stop at.
+        /// </summary>
+        private static void RecordSequencePoint(
+            ImmutableArray<ManagedSequencePoint>.Builder sequencePoints,
+            InstructionEncoder encoder,
+            IrSourceLocation? location)
+        {
+            if (location is null)
+            {
+                return;
+            }
+
+            var offset = encoder.Offset;
+            if (sequencePoints.Count > 0)
+            {
+                var previous = sequencePoints[^1];
+
+                // Two points may not share an offset, and repeating a position adds nothing: the
+                // remaining instructions of a statement belong to the point already written.
+                if (previous.IlOffset == offset ||
+                    (previous.FilePath == location.FilePath && previous.Lines == location.Lines))
+                {
+                    return;
+                }
+            }
+
+            sequencePoints.Add(new ManagedSequencePoint(offset, location.FilePath, location.Lines));
         }
 
         private void EmitInstruction(InstructionEncoder encoder, IrProcedure procedure, IrInstruction instruction)

@@ -179,7 +179,7 @@ public static class DirectManagedCompilation
 
         try
         {
-            var pdbImage = PortablePdbEmitter.Emit(program, backend.PeImage, options);
+            var pdbImage = PortablePdbEmitter.Emit(program, backend.PeImage, options, backend.SequencePoints);
             return backend with { PdbImage = pdbImage };
         }
         catch (Exception exception)
