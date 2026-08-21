@@ -689,9 +689,24 @@ public sealed class ManagedEmitter
 
         private void EmitProcedureCall(InstructionEncoder encoder, IrProcedure procedure, IrProcedureCallExpression call)
         {
-            foreach (var argument in call.Arguments)
+            for (var index = 0; index < call.Arguments.Length; index++)
             {
-                EmitExpression(encoder, procedure, argument.Expression);
+                var argument = call.Arguments[index];
+
+                // A ByRef argument passes an address, which is already the parameter's type - only
+                // a by-value argument can need the boxing that a Variant parameter asks for.
+                if (argument.Kind == IrCallArgumentKind.Address ||
+                    index >= call.Procedure.Parameters.Length)
+                {
+                    EmitExpression(encoder, procedure, argument.Expression);
+                    continue;
+                }
+
+                EmitExpressionWithAssignmentConversion(
+                    encoder,
+                    procedure,
+                    argument.Expression,
+                    call.Procedure.Parameters[index].Type);
             }
             if (!_procedureSymbolHandles.TryGetValue(call.Procedure, out var target))
             {
