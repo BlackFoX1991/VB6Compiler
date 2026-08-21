@@ -317,6 +317,21 @@ public sealed record InvocationStatementSyntax(
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 
 /// <summary>
+/// A method call on an object, as in <c>frmMain.SelectObjectObject "Frames"</c>. The receiver
+/// keeps its full member chain.
+/// </summary>
+public sealed record QualifiedInvocationStatementSyntax(
+    ExpressionSyntax Target,
+    ImmutableArray<ExpressionSyntax> Arguments) : StatementSyntax(SyntaxKind.QualifiedInvocationStatement);
+
+/// <summary>
+/// An argument left out of a call, as in <c>List.Add , , "General"</c>. It keeps its place so the
+/// arguments after it stay at the position VB6 gives them.
+/// </summary>
+public sealed record OmittedArgumentExpressionSyntax()
+    : ExpressionSyntax(SyntaxKind.OmittedArgumentExpression);
+
+/// <summary>
 /// <c>On Error GoTo Handler</c>, <c>On Error GoTo 0</c> and <c>On Error Resume Next</c>. The
 /// action keyword tells the three apart and the target carries the label, the zero, or Next.
 /// </summary>

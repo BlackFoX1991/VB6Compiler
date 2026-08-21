@@ -725,6 +725,7 @@ public sealed class Parser
             SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.DotToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeQualifiedCall() => ParseQualifiedInvocationStatement(),
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
             _ => ParseSkippedStatement()
         };
@@ -820,6 +821,40 @@ public sealed class Parser
         }
 
         return sawMember && Peek(offset).Kind == SyntaxKind.EqualsToken;
+    }
+
+    /// <summary>
+    /// A method call on an object, as in <c>frmMain.SelectObjectObject "Frames"</c>. It looks like
+    /// a member assignment up to the point where the equals sign would be; anything else on the
+    /// line is an argument list.
+    /// </summary>
+    private bool LooksLikeQualifiedCall()
+    {
+        if (Current.Kind != SyntaxKind.IdentifierToken || LooksLikeMemberAssignment())
+        {
+            return false;
+        }
+
+        // The dot has to follow the receiver directly. Searching the whole line would swallow an
+        // ordinary call whose argument happens to be qualified, as in Consume record.Value.
+        //
+        // Whitespace decides the remaining ambiguity, as it does in VB6: frmMain.Select is a member
+        // call, while Consume .Value inside a With passes the With member as an argument.
+        var next = Peek(1);
+        return next.Kind == SyntaxKind.DotToken && next.LeadingTrivia.IsDefaultOrEmpty;
+    }
+
+    /// <summary>
+    /// Parses <c>receiver.Member arg, arg</c>. The receiver keeps its full member chain, and the
+    /// arguments follow the same rules as any other call statement.
+    /// </summary>
+    private QualifiedInvocationStatementSyntax ParseQualifiedInvocationStatement()
+    {
+        var target = ParsePrimaryExpression();
+        var arguments = IsLineTerminator(Current.Kind)
+            ? ImmutableArray<ExpressionSyntax>.Empty
+            : ParseArguments(null);
+        return new QualifiedInvocationStatementSyntax(target, arguments);
     }
 
     private DimStatementSyntax ParseDimStatement()
@@ -1444,7 +1479,9 @@ public sealed class Parser
                 break;
             }
 
-            arguments.Add(ParseArgument());
+            arguments.Add(Current.Kind == SyntaxKind.CommaToken
+                ? new OmittedArgumentExpressionSyntax()
+                : ParseArgument());
             if (Current.Kind != SyntaxKind.CommaToken)
             {
                 break;

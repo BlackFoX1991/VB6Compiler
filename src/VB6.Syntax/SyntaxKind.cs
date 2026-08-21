@@ -147,6 +147,8 @@ public enum SyntaxKind
     ParenthesizedExpression,
     TypeOfExpression,
     ArgumentPassingModeExpression,
+    QualifiedInvocationStatement,
+    OmittedArgumentExpression,
     OnErrorStatement,
     GoToStatement,
     LabelStatement,
