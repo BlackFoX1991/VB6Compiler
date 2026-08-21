@@ -40,6 +40,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Qualifizierte Aufrufe | **784** | 12 | 0 | 760 | 0 von 27 |
 | Sichtbare Deklarationen aus fehlerhaften Modulen | **489** | 12 | 0 | 465 | 0 von 27 |
 | Sichtbare Typen aus fehlerhaften Modulen | **416** | 12 | 0 | 392 | **1 von 27** |
+| Qualifiziertes `ReDim`, `UBound` auf Ausdrücken, dynamische UDT-Member | **459** | 12 | 0 | 447 | 1 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -234,6 +235,16 @@ allem aber: **die erste Datei analysiert fehlerfrei** (`envVirtualFiles.bas`). G
 vorhergesagt kam dieser Sprung schlagartig, nicht schrittweise — weil projektweit gebunden wird
 und eine Datei erst sauber sein kann, wenn ihre Abhängigkeiten es sind. Der Ratchet steht
 entsprechend auf 1.
+
+`ReDim Section(0).Bytes(0)` ist damit echt implementiert statt abgefangen; `VB6P0002` entfällt.
+Die Modellgrenze war, dass `BoundReDimStatement` und `BoundArrayBoundExpression` ein
+`VariableSymbol` trugen — ein Array in einem UDT-Element hat aber kein eigenes Symbol. Beide
+nehmen jetzt den Ausdruck, der es lokalisiert.
+
+Zwei Folgearbeiten fielen dabei an, beide von der Messung erzwungen: die wiederholte
+Elementtypangabe (`... As Byte`), und `UBound` auf einem Arrayausdruck statt nur auf einem Namen
+— letzteres allein 48 Diagnosen. Zuletzt konnte der Layout-Guard für **dynamische Arraymember**
+gelöst werden: der Generator konnte sie längst, er wurde nur nicht gelassen.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
