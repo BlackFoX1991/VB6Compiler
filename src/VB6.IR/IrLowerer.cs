@@ -32,6 +32,8 @@ public static class IrLowerer
         private readonly ImmutableArray<BoundModuleVariable> _additionalGlobals;
         private readonly Dictionary<ModuleVariableSymbol, IrGlobal> _globals =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ModuleVariableSymbol, BoundExpression> _constantValues =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<UserDefinedTypeSymbol, IrTypeDefinition> _types =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<UserDefinedTypeMemberSymbol, IrField> _fields =
@@ -109,6 +111,12 @@ public static class IrLowerer
                     continue;
                 }
 
+                if (variable.IsConstant && variable.Initializer is not null)
+                {
+                    _constantValues.Add(variable.Symbol, variable.Initializer);
+                    continue;
+                }
+
                 _globals.Add(variable.Symbol, new IrGlobal(
                     variable.Symbol,
                     Mangle(variable.Symbol.Name),
@@ -117,6 +125,10 @@ public static class IrLowerer
                     variable.IsConstant));
             }
         }
+
+        /// <summary>The bound value of a module-level constant, which is substituted at each read.</summary>
+        public bool TryGetConstantValue(ModuleVariableSymbol symbol, out BoundExpression value) =>
+            _constantValues.TryGetValue(symbol, out value!);
 
         private void PredeclareTypes()
         {
@@ -815,7 +827,7 @@ public static class IrLowerer
             return expression switch
             {
                 BoundLiteralExpression literal => new IrConstantExpression(literal.Value, literal.LiteralType),
-                BoundVariableExpression variable => new IrLoadExpression(LowerVariablePlace(variable.Variable)),
+                BoundVariableExpression variable => LowerVariableRead(variable.Variable),
                 BoundArrayAccessExpression array => new IrLoadExpression(new IrArrayElementPlace(
                     new IrLoadExpression(LowerVariablePlace(array.Array)),
                     array.Indices.Select(LowerExpression).ToImmutableArray(),
@@ -870,6 +882,23 @@ public static class IrLowerer
             }
 
             return new IrIndirectPlace(new IrLocalAddressExpression(address), expression.ReceiverType);
+        }
+
+        /// <summary>
+        /// Reads a variable. A VB6 <c>Const</c> - and the built-in and Enum constants, which are
+        /// modelled the same way - is not storage: it is the only module-level declaration that
+        /// carries an initializer, and nothing ever assigns to it. So its value is substituted
+        /// here instead of being emitted as a field that would need a module initializer to fill.
+        /// </summary>
+        private IrExpression LowerVariableRead(VariableSymbol symbol)
+        {
+            if (symbol is ModuleVariableSymbol module &&
+                _program.TryGetConstantValue(module, out var value))
+            {
+                return LowerExpression(value);
+            }
+
+            return new IrLoadExpression(LowerVariablePlace(symbol));
         }
 
         private IrPlace LowerVariablePlace(VariableSymbol symbol)
