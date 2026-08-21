@@ -23,7 +23,7 @@ public sealed class ReDimBinderTests
         Assert.IsFalse(reDim.Preserve);
         Assert.AreEqual(1, reDim.ArrayDimensions.Length);
         AssertBound(reDim.ArrayDimensions[0], 1, 3);
-        Assert.IsNull(((ArrayTypeSymbol)reDim.Array.Type).Rank);
+        Assert.IsNull(((ArrayTypeSymbol)reDim.Target.Type).Rank);
     }
 
     [TestMethod]

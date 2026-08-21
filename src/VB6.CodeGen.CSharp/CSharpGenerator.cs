@@ -469,12 +469,13 @@ public sealed class CSharpGenerator
 
     private void EmitReDimStatement(BoundReDimStatement statement)
     {
-        if (statement.Array.Type is not ArrayTypeSymbol arrayType)
+        if (statement.Target.Type is not ArrayTypeSymbol arrayType)
         {
             return;
         }
 
-        var variable = GetVariableName(statement.Array);
+        // Any assignable location works here, which is what lets a UDT member array be resized.
+        var variable = EmitExpression(statement.Target);
         var bounds = EmitArrayBounds(statement.ArrayDimensions);
         if (statement.Preserve)
         {
@@ -757,7 +758,7 @@ public sealed class CSharpGenerator
             BoundElementAccessExpression elementAccess =>
                 $"{EmitExpression(elementAccess.Receiver)}[{EmitIndices(elementAccess.Indices)}]",
             BoundArrayBoundExpression arrayBound =>
-                $"{GetVariableName(arrayBound.Array)}.{(arrayBound.IsUpperBound ? "UBound" : "LBound")}({EmitExpression(arrayBound.Dimension)})",
+                $"{EmitExpression(arrayBound.Array)}.{(arrayBound.IsUpperBound ? "UBound" : "LBound")}({EmitExpression(arrayBound.Dimension)})",
             BoundInvocationExpression invocation =>
                 $"{GetProcedureName(invocation.Procedure)}({EmitArguments(invocation.Arguments)})",
             BoundMemberAccessExpression memberAccess =>

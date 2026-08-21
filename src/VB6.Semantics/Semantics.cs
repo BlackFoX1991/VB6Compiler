@@ -220,8 +220,12 @@ public sealed record BoundVariableDeclarationStatement(
 /// A bound resize of a dynamic VB6 array. ReDim without Preserve replaces storage; Preserve uses
 /// the runtime's VB6-compatible last-dimension preservation rules.
 /// </summary>
+/// <summary>
+/// The target is an expression rather than a symbol so that an array inside a user-defined type
+/// element can be redimensioned: <c>ReDim Section(0).Bytes(0)</c>.
+/// </summary>
 public sealed record BoundReDimStatement(
-    VariableSymbol Array,
+    BoundExpression Target,
     ImmutableArray<BoundArrayDimension> ArrayDimensions,
     bool Preserve)
     : BoundStatement(BoundNodeKind.ReDimStatement);
@@ -387,7 +391,7 @@ public sealed record BoundArrayAccessExpression(
 /// one in the binder. Runtime range validation stays centralized in VBArray&lt;T&gt;.
 /// </summary>
 public sealed record BoundArrayBoundExpression(
-    VariableSymbol Array,
+    BoundExpression Array,
     BoundExpression Dimension,
     bool IsUpperBound)
     : BoundExpression(BoundNodeKind.ArrayBoundExpression, TypeSymbol.Long);
