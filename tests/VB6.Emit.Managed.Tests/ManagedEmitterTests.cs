@@ -23,12 +23,13 @@ public sealed class ManagedEmitterTests
 
         Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
         Assert.IsNotNull(result.PeImage);
-        using var stream = new MemoryStream(result.PeImage);
+        using var stream = new MemoryStream(result.PeImage!);
         using var pe = new PEReader(stream);
-        Assert.IsTrue((pe.PEHeaders.CorHeader!.Flags & CorFlags.ILOnly) != 0);
-        Assert.IsTrue((pe.PEHeaders.CorHeader.Flags & CorFlags.Requires32Bit) == 0);
-        Assert.IsTrue((pe.PEHeaders.CorHeader.Flags & CorFlags.Prefers32Bit) == 0);
-        Assert.AreNotEqual(0, pe.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
+        var corHeader = pe.PEHeaders.CorHeader!;
+        Assert.IsTrue((corHeader.Flags & CorFlags.ILOnly) != 0);
+        Assert.IsTrue((corHeader.Flags & CorFlags.Requires32Bit) == 0);
+        Assert.IsTrue((corHeader.Flags & CorFlags.Prefers32Bit) == 0);
+        Assert.AreNotEqual(0, corHeader.EntryPointTokenOrRelativeVirtualAddress);
     }
 
     [TestMethod]
