@@ -585,9 +585,33 @@ public sealed class Binder
             PutStatementSyntax put => BindGetOrPut(
                 put.FileNumber, put.RecordPosition, put.Target, put.PutKeyword, isGet: false, variables, procedures),
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
+            OnErrorStatementSyntax onError => ReportControlFlowGap(
+                $"On Error {onError.ActionKeyword.Text} {onError.TargetToken.Text}",
+                onError.OnKeyword.Span),
+            GoToStatementSyntax goTo => ReportControlFlowGap(
+                $"GoTo {goTo.LabelToken.Text}",
+                goTo.GoToKeyword.Span),
+            LabelStatementSyntax label => ReportControlFlowGap(
+                $"Label '{label.Identifier.Text}'",
+                label.Identifier.Span),
             SkippedStatementSyntax => null,
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Jumps and error handling need the lowered IR with basic blocks: the backend still lowers
+    /// control flow while emitting, which cannot express a jump into the middle of a block or a
+    /// handler that guards every statement. Reported rather than dropped, because binding returns
+    /// null for what it does not understand and the statement would vanish silently.
+    /// </summary>
+    private BoundStatement? ReportControlFlowGap(string construct, TextSpan span)
+    {
+        Report(
+            "VB6S0061",
+            $"{construct} needs the lowered control flow representation, which is not implemented yet.",
+            span);
+        return null;
     }
 
     private BoundExpression BindFileNumber(
