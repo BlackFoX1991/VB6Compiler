@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Security.Cryptography;
+using System.Text;
 using VB6.Emit.Managed;
 using VB6.IR;
 using VB6.Runtime;
@@ -71,7 +73,10 @@ public static class DirectManagedCompilation
             return new DirectManagedApplicationEmitResult(lowering, null, null, null, null, null);
         }
 
-        return WriteArtifacts(lowering, lowering.Program, outputPath, options);
+        var documents = ImmutableArray.Create(CreateSourceDocument(
+            compilation.Text.FilePath ?? "Module1.bas",
+            Encoding.UTF8.GetBytes(compilation.Text.ToString())));
+        return WriteArtifacts(lowering, lowering.Program, outputPath, options, documents);
     }
 
     public static DirectManagedProjectApplicationEmitResult EmitManaged(
@@ -95,13 +100,11 @@ public static class DirectManagedCompilation
             assemblyName = "VB6Program";
         }
 
-        var actualOptions = options ?? new ManagedEmitOptions(assemblyName, EmitPortablePdb: true);
-        if (!string.Equals(actualOptions.AssemblyName, assemblyName, StringComparison.Ordinal))
-        {
-            actualOptions = actualOptions with { AssemblyName = assemblyName };
-        }
-
-        var backend = new ManagedEmitter().Emit(lowering.Program, actualOptions);
+        var actualOptions = PrepareOptions(
+            options,
+            assemblyName,
+            CreateProjectSourceDocuments(lowering.Analysis));
+        var backend = EmitBackend(lowering.Program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {
             return new DirectManagedProjectApplicationEmitResult(lowering, backend, null, null, null, null);
@@ -121,7 +124,8 @@ public static class DirectManagedCompilation
         DirectManagedLoweringResult lowering,
         IrProgram program,
         string outputPath,
-        ManagedEmitOptions? options)
+        ManagedEmitOptions? options,
+        ImmutableArray<ManagedSourceDocument> sourceDocuments)
     {
         var fullOutputPath = Path.GetFullPath(outputPath);
         var assemblyName = Path.GetFileNameWithoutExtension(fullOutputPath);
@@ -130,13 +134,8 @@ public static class DirectManagedCompilation
             assemblyName = "VB6Program";
         }
 
-        var actualOptions = options ?? new ManagedEmitOptions(assemblyName, EmitPortablePdb: true);
-        if (!string.Equals(actualOptions.AssemblyName, assemblyName, StringComparison.Ordinal))
-        {
-            actualOptions = actualOptions with { AssemblyName = assemblyName };
-        }
-
-        var backend = new ManagedEmitter().Emit(program, actualOptions);
+        var actualOptions = PrepareOptions(options, assemblyName, sourceDocuments);
+        var backend = EmitBackend(program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {
             return new DirectManagedApplicationEmitResult(lowering, backend, null, null, null, null);
@@ -150,6 +149,70 @@ public static class DirectManagedCompilation
             artifacts.PdbPath,
             artifacts.RuntimeAssemblyPath,
             artifacts.RuntimeConfigPath);
+    }
+
+    private static ManagedEmitOptions PrepareOptions(
+        ManagedEmitOptions? options,
+        string assemblyName,
+        ImmutableArray<ManagedSourceDocument> sourceDocuments)
+    {
+        var actualOptions = options ?? new ManagedEmitOptions(assemblyName, EmitPortablePdb: true);
+        if (!string.Equals(actualOptions.AssemblyName, assemblyName, StringComparison.Ordinal))
+        {
+            actualOptions = actualOptions with { AssemblyName = assemblyName };
+        }
+
+        if (actualOptions.SourceDocuments.IsDefaultOrEmpty)
+        {
+            actualOptions = actualOptions with { SourceDocuments = sourceDocuments };
+        }
+
+        return actualOptions;
+    }
+
+    private static ManagedEmitResult EmitBackend(IrProgram program, ManagedEmitOptions options)
+    {
+        var backend = new ManagedEmitter().Emit(program, options);
+        if (!backend.Success || backend.PeImage is null || !options.EmitPortablePdb)
+        {
+            return backend;
+        }
+
+        try
+        {
+            var pdbImage = PortablePdbEmitter.Emit(program, backend.PeImage, options);
+            return backend with { PdbImage = pdbImage };
+        }
+        catch (Exception exception)
+        {
+            return new ManagedEmitResult(
+                false,
+                backend.Diagnostics.Add(new ManagedEmitDiagnostic("VB6E0002", exception.Message)),
+                backend.PeImage,
+                null);
+        }
+    }
+
+    private static ManagedSourceDocument CreateSourceDocument(string filePath, byte[] bytes) =>
+        new(
+            filePath,
+            ImmutableArray.CreateRange(SHA256.HashData(bytes)));
+
+    private static ImmutableArray<ManagedSourceDocument> CreateProjectSourceDocuments(
+        VBProjectCompilationAnalysis analysis)
+    {
+        var documents = ImmutableArray.CreateBuilder<ManagedSourceDocument>();
+        foreach (var unit in analysis.Units)
+        {
+            if (!File.Exists(unit.FilePath))
+            {
+                continue;
+            }
+
+            documents.Add(CreateSourceDocument(unit.FilePath, File.ReadAllBytes(unit.FilePath)));
+        }
+
+        return documents.ToImmutable();
     }
 
     private static ImmutableArray<VBProjectCompilationDiagnostic> ValidateProjectEntryPoint(
