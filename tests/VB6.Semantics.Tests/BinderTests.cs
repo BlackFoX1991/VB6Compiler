@@ -345,6 +345,37 @@ public sealed class BinderTests
         Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0015"));
     }
 
+    /// <summary>
+    /// When the caller supplies a module variable table, the bound model has to report those very
+    /// symbols. Procedure bodies bind against the caller's table, so returning equal-looking copies
+    /// leaves the two halves of the model unmatchable by identity - which a name-based backend
+    /// never notices and an identity-based one breaks on.
+    /// </summary>
+    [TestMethod]
+    public void Bind_ReusesTheSuppliedModuleVariableSymbols()
+    {
+        var text = SourceText.From("""
+            Dim Counter As Long
+
+            Sub Main()
+                Counter = 1
+            End Sub
+            """, "test.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+        Assert.AreEqual(0, parseResult.Diagnostics.Length);
+
+        var supplied = Binder.CreateModuleVariableSymbols(text, parseResult.Root)
+            .ToDictionary(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
+        var model = new Binder(text).BindCompilationUnit(
+            parseResult.Root,
+            new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase),
+            supplied);
+
+        var reported = model.ModuleVariables.Single(variable =>
+            string.Equals(variable.Symbol.Name, "Counter", StringComparison.OrdinalIgnoreCase));
+        Assert.AreSame(supplied["Counter"], reported.Symbol);
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
@@ -352,5 +383,41 @@ public sealed class BinderTests
         Assert.AreEqual(0, parseResult.Diagnostics.Length);
 
         return new Binder(text).BindCompilationUnit(parseResult.Root);
+    }
+
+    /// <summary>
+    /// Every bound statement carries where it was written. The mapping is referential - the
+    /// position travels with the node the binder produced - so it cannot drift the way a later
+    /// pass that re-derives positions by walking the tree in parallel would.
+    /// </summary>
+    [TestMethod]
+    public void Bind_AttachesTheSourcePositionOfEveryStatement()
+    {
+        var text = SourceText.From("""
+            Sub Main()
+                Dim value As Long
+                value = 1
+                Debug.Print value
+            End Sub
+            """, "Module1.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+
+        var model = new Binder(text).BindCompilationUnit(parseResult.Root);
+
+        var statements = model.Procedures.Single().Body.Statements;
+        Assert.AreEqual(3, statements.Length);
+        foreach (var statement in statements)
+        {
+            Assert.IsNotNull(statement.SourceLocation, $"{statement.Kind} has no source location.");
+            Assert.AreEqual("Module1.bas", statement.SourceLocation!.FilePath);
+        }
+
+        // Each position names the statement's own first token, in source order.
+        var source = text.ToString();
+        var starts = statements.Select(statement => statement.SourceLocation!.Span.Start).ToArray();
+        CollectionAssert.AreEqual(starts.OrderBy(start => start).ToArray(), starts);
+        StringAssert.StartsWith(source[starts[0]..], "Dim value");
+        StringAssert.StartsWith(source[starts[1]..], "value = 1");
+        StringAssert.StartsWith(source[starts[2]..], "Debug.Print");
     }
 }

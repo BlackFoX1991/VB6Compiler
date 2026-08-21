@@ -25,6 +25,41 @@ public sealed class SourceText
 
     public string ToString(TextSpan span) => _text.Substring(span.Start, span.Length);
 
+    /// <summary>
+    /// Translates a character offset into a zero-based line and column. Debug information is
+    /// expressed in lines and columns, and this is the only place that knows where the lines are.
+    /// </summary>
+    public LinePosition GetLinePosition(int position)
+    {
+        if (position < 0 || position > Length)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(position),
+                position,
+                $"Position is outside the source text 0..{Length}.");
+        }
+
+        var low = 0;
+        var high = Lines.Length - 1;
+        while (low < high)
+        {
+            var middle = low + ((high - low + 1) / 2);
+            if (Lines[middle].Start > position)
+            {
+                high = middle - 1;
+            }
+            else
+            {
+                low = middle;
+            }
+        }
+
+        return new LinePosition(low, position - Lines[low].Start);
+    }
+
+    public LinePositionSpan GetLinePositionSpan(TextSpan span) =>
+        new(GetLinePosition(span.Start), GetLinePosition(span.End));
+
     public override string ToString() => _text;
 
     private static ImmutableArray<TextLine> ParseLines(string text)
@@ -87,3 +122,9 @@ public readonly record struct TextLine(int Start, int Length, int LengthIncludin
 
     public TextSpan SpanIncludingLineBreak => new(Start, LengthIncludingLineBreak);
 }
+
+/// <summary>A zero-based position in a source file.</summary>
+public readonly record struct LinePosition(int Line, int Character);
+
+/// <summary>A zero-based line/column range, the form debug information is written in.</summary>
+public readonly record struct LinePositionSpan(LinePosition Start, LinePosition End);

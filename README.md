@@ -6,7 +6,7 @@ The long-term goal is to compile existing VB6 projects to modern .NET executable
 
 ## Current status
 
-The first end-to-end compiler path is working and is being expanded feature by feature. Milestones M0 through M3 are complete. M4 (Variant) has started with Variant storage, conversions, and a first set of operators.
+The first end-to-end compiler path is working and is being expanded feature by feature. Milestones M0 through M3 are complete. M4 (Variant) has started with Variant storage, conversions, and a first set of operators. The backend is no longer a C# code generator: the bound program is lowered to an IR of basic blocks and emitted directly as CIL, which is the M6 groundwork for `On Error` and the other VB6 control flow that C# cannot express.
 
 Implemented so far:
 
@@ -67,7 +67,7 @@ Implemented so far:
 - `For Each` over fixed, multidimensional, and dynamic arrays, including an implicit Variant control variable; arrays of user-defined types are rejected because VB6 rejects them too - the Variant control variable cannot hold a user-defined type declared in a standard module
 - `Type ... End Type` with visibility, scalar and fixed array members, nested type names, keyword member names, and `String * n`
 - `UserDefinedTypeSymbol` with case-insensitive member lookup, forward references, and Public project-wide versus Private module-local scope
-- user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, managed value-copy semantics at assignment boundaries, and code generation
+- user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, managed value-copy semantics at every value boundary - assignment, array element, member, ByVal argument and function result - including the arrays a copied value owns
 - `With` blocks with implicit `.Member` access, bound through a receiver alias
 - `Variant` as a semantic type with storage and explicit conversions; multiplication follows the VB6 promotion rules, `&` concatenation and a numeric equality subset are lowered, and every remaining Variant operator is reported as `VB6S0053` instead of being approximated with scalar rules
 - VB built-in string constants such as `vbCrLf`, `vbTab`, and `vbNullChar`, which user declarations of the same name still override
@@ -78,18 +78,19 @@ Implemented so far:
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
 - primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong/Currency arithmetic, exponentiation, comparisons, Boolean operations, concatenation, and `Debug.Print`
-- C# source generation from the bound scalar program
-- Roslyn-based managed assembly emission
+- lowering of the bound program to an IR of basic blocks with explicit jumps (`VB6.IR`), inspectable with `--dump-ir`
+- direct managed emission from that IR: CIL, metadata and a Portable PDB written by `VB6.Emit.Managed`, with no C# or Roslyn in between
+- debug information that maps back to VB6 source: documents, user-visible locals, and a sequence point per statement, carried referentially from the binder through the IR into the PDB
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
-- unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
+- unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. What is still guarded is narrower and each case has its own diagnostic: `For Each` over arrays of user-defined types (`VB6S0056`), `Erase` on an array parameter (`VB6S0036`), and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
-The suite currently holds **478 tests** across 157 test classes, and the Release build is warning-free. The current VISIA parity measurement is **322 total errors** - **12 parser**, **0 lexer**, **310 semantic** - across 27 of 40 VISIA project items, and **four modules analyze without a single error**. Parser errors are down from 480 at the start of this work. Parser errors are down from 480 at the start of this work; the total moves the other way because modules that used to derail now reach the binder and surface the semantic gaps behind them. The total rose with the last step because modules that used to derail in the parser now reach the binder in full, which surfaces the semantic gaps behind them. Lexer errors are gone entirely: the 62 reported ones came from `#` in file numbers and had dragged more than 200 parser errors along with them. Parser errors fell from 1214 to 480 with the `With` and member-access work, the largest single drop so far, and to 466 with untyped functions. The total rose in that last step because procedures that used to derail at their header now reach the binder in full, which is progress rather than regression. `docs/ROADMAP.md` keeps the measured history and the current blocker ranking.
+The suite currently holds **525 tests** across 159 test classes, and the Release build is warning-free. The current VISIA parity measurement is **304 total errors** - **12 parser**, **0 lexer**, **292 semantic** - across 27 of 40 VISIA project items, and **five modules analyze without a single error**. Lexer errors are gone entirely: the 62 reported ones came from `#` in file numbers and had dragged more than 200 parser errors along with them. Parser errors fell from 1214 to 480 with the `With` and member-access work, the largest single drop so far, and stand at 12 today. The total does not fall monotonically, and that is expected: teaching the parser a construct lets it reach further into a file and surface the semantic gaps that the earlier cascade hid, so a real improvement can raise the count. Cleanly analyzed files can only grow, which makes them the honest metric - and the one `ConformanceCorpusTests` ratchets. `docs/ROADMAP.md` keeps the measured history and the current blocker ranking.
 
 Windows CI run #700 validated the array syntax slice on .NET 10 with a warning-free Release build and **258 passing tests**. Its VISIA report measures **2105 total errors**: **1644 parser**, **68 lexer**, and **393 semantic**. The array syntax slice reduces parser errors by 114 from the M2 closeout (1758 → 1644) while keeping semantic diagnostics stable. The project currently analyzes 27 of 40 VISIA project items; `.cls`, `.ctl`, and `.frm` are later milestones.
 
@@ -174,16 +175,12 @@ vb6c LegacyApp.vbp --report
 
 The report lists project items by kind, counts analyzed/error-free sources, and ranks remaining gaps by affected files. `conformance/` holds real third-party VB6 projects used for this measurement; see `conformance/README.md`.
 
-Generate C# source from one source file:
+Print the lowered IR - basic blocks, instructions and terminators - for one source file or for
+every standard module of a project. Without an output file the dump goes to standard output:
 
 ```text
-vb6c Module1.bas --emit-csharp Module1.g.cs
-```
-
-Generate C# source from the standard modules in a project:
-
-```text
-vb6c LegacyApp.vbp --emit-csharp LegacyApp.g.cs
+vb6c Module1.bas --dump-ir
+vb6c LegacyApp.vbp --dump-ir LegacyApp.ir.txt
 ```
 
 Generate a managed application assembly:

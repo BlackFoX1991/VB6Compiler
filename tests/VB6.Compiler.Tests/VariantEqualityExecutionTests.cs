@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using VB6.IR;
 
 namespace VB6.Compiler.Tests;
 
@@ -19,11 +19,11 @@ public sealed class VariantEqualityExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "VariantEqualityProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "True", "True", "False" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
@@ -42,32 +42,33 @@ public sealed class VariantEqualityExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "VariantReturnEqualityProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "42" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
     [TestMethod]
-    public void GenerateCSharp_LowersVariantLeftIntegerEqualityThroughDoubleConversions()
+    public void Lower_LowersVariantLeftIntegerEqualityThroughDoubleConversions()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim value As Variant
                 If value = 0 Then
                     Debug.Print 1
                 End If
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(generation.Source);
-        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
-        StringAssert.Contains(generation.Source, "VBOperators.Equal(VBConversions.CDbl(__vb6_value), VBConversions.CDbl(");
+        // Both sides go through Double so the comparison has one defined numeric meaning rather
+        // than depending on what the Variant currently holds.
+        var equality = VB6TestIr.Expressions(program)
+            .OfType<IrRuntimeCallExpression>()
+            .Single(call => call.Method == IrRuntimeMethod.Equal);
+        Assert.IsTrue(equality.Arguments.All(argument =>
+            argument.Expression is IrRuntimeCallExpression { Method: IrRuntimeMethod.CDbl }));
     }
 
     [TestMethod]
@@ -104,52 +105,4 @@ public sealed class VariantEqualityExecutionTests
             "VB6S0053");
     }
 
-    private static string EmitAndRun(string source, string assemblyName)
-    {
-        var compilation = VBCompilation.Create(source, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerVariantEqualityTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, assemblyName);
-
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            var diagnostics = result.BackendResult is null
-                ? string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Code}: {diagnostic.Message}"))
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Id}: {diagnostic.Message}"));
-            Assert.IsTrue(result.Success, diagnostics);
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated Variant equality application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            return standardOutput;
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    private static string[] SplitLines(string output) =>
-        output.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray();
 }

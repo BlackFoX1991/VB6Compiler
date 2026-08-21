@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using VB6.CodeGen.CSharp;
 using VB6.Parser;
 using VB6.ProjectSystem;
 using VB6.Semantics;
@@ -192,37 +191,12 @@ public sealed class VBProjectCompilation
         };
     }
 
-    public VBProjectCSharpGenerationResult GenerateCSharp()
-    {
-        var analysis = ValidateEntryPoint(Analyze());
-        if (!analysis.Success || analysis.SemanticModel is null)
-        {
-            return new VBProjectCSharpGenerationResult(analysis, null);
-        }
+    /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
+    public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
-        var source = new CSharpGenerator().Generate(analysis.SemanticModel);
-        return new VBProjectCSharpGenerationResult(analysis, source);
-    }
-
-    public VBProjectManagedApplicationEmitResult EmitManagedApplication(string outputPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-
-        var generation = GenerateCSharp();
-        if (!generation.Success || generation.Source is null)
-        {
-            return new VBProjectManagedApplicationEmitResult(generation, null, null, null, null);
-        }
-
-        var artifacts = ManagedApplicationWriter.Emit(generation.Source, outputPath);
-        return new VBProjectManagedApplicationEmitResult(
-            generation,
-            artifacts.BackendResult,
-            artifacts.AssemblyPath,
-            artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath);
-    }
-
+    /// <summary>Emits an executable assembly, its debug information and its runtime files.</summary>
+    public VBProjectManagedApplicationEmitResult EmitManagedApplication(string outputPath) =>
+        DirectManagedCompilation.EmitManaged(this, outputPath);
     /// <summary>
     /// VB6 <c>Public</c> module variables are visible project-wide, so they are declared across
     /// all modules before any module is bound - the same way procedures already are. The type
@@ -319,7 +293,12 @@ public sealed class VBProjectCompilation
         moduleUserDefinedTypes?.Types ??
         ImmutableDictionary.Create<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase);
 
-    private static VBProjectCompilationAnalysis ValidateEntryPoint(VBProjectCompilationAnalysis analysis)
+    /// <summary>
+    /// Adds the diagnostics that only emission cares about: VB6 allows a project without a
+    /// <c>Sub Main</c>, an executable does not. Shared with the direct managed backend so both
+    /// entry points into emission reject the same projects.
+    /// </summary>
+    internal static VBProjectCompilationAnalysis ValidateEntryPoint(VBProjectCompilationAnalysis analysis)
     {
         if (!analysis.Success || analysis.SemanticModel is null)
         {
@@ -400,19 +379,3 @@ public sealed record VBProjectCompilationAnalysis(
         Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
 
-public sealed record VBProjectCSharpGenerationResult(
-    VBProjectCompilationAnalysis Analysis,
-    string? Source)
-{
-    public bool Success => Analysis.Success && Source is not null;
-}
-
-public sealed record VBProjectManagedApplicationEmitResult(
-    VBProjectCSharpGenerationResult Generation,
-    AssemblyEmitResult? BackendResult,
-    string? AssemblyPath,
-    string? RuntimeAssemblyPath,
-    string? RuntimeConfigPath)
-{
-    public bool Success => Generation.Success && BackendResult?.Success == true && AssemblyPath is not null;
-}

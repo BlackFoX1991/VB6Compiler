@@ -66,6 +66,12 @@ public sealed class VBArray<T>
     public ref T this[params int[] indices] => ref _items[GetOffset(indices)];
 
     /// <summary>
+    /// Returns one value by physical array order. The IR uses this for For Each so enumeration can
+    /// be lowered to ordinary basic blocks without making IEnumerable an IR-level concept.
+    /// </summary>
+    public T GetValueAtFlatIndex(int index) => _items[index];
+
+    /// <summary>
     /// Reinitializes every element while preserving rank and bounds. This is the runtime operation
     /// used by VB6 <c>Erase</c> for fixed-size arrays. Dynamic-array Erase deallocates the variable
     /// itself and is emitted by the compiler instead.
@@ -211,5 +217,55 @@ public sealed class VBArray<T>
         }
 
         return offset;
+    }
+}
+
+/// <summary>
+/// Storage helpers for fixed-size arrays declared inside a user-defined type.
+///
+/// A VB6 <c>Type</c> member such as <c>Values(1 To 2) As Long</c> has its bounds fixed by the
+/// declaration, but the storage cannot be created with the enclosing value: a UDT is a struct, so
+/// every default instance - including each element of an array of that type - starts with a null
+/// member. The array is therefore created on first access, against the declared bounds.
+/// </summary>
+public static class VBTypeStorage
+{
+    /// <summary>
+    /// Returns the array held by a fixed UDT array member, creating it on first access. The
+    /// storage is passed by reference so the created array is kept in the member itself rather
+    /// than in a copy of the enclosing value.
+    /// </summary>
+    public static VBArray<T> EnsureArray<T>(ref VBArray<T>? storage, params VBArrayBound[] bounds)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+        return storage ??= new VBArray<T>(bounds);
+    }
+
+    /// <summary>
+    /// Copies a fixed UDT array member. Assigning a VB6 user-defined type copies it by value, and
+    /// that includes its arrays - the CLR struct copy only duplicates the reference, which would
+    /// leave both values sharing one array.
+    /// </summary>
+    public static VBArray<T> CopyArray<T>(VBArray<T>? source, params VBArrayBound[] bounds)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+        return source is null ? new VBArray<T>(bounds) : source.Clone();
+    }
+
+    /// <summary>
+    /// Reads a <c>String * n</c> member. Such a member always has exactly n characters, so an
+    /// untouched one reads as n spaces rather than as the CLR null a default struct starts with.
+    /// </summary>
+    public static string ReadFixedString(string? storage, int length) =>
+        storage ?? new string(' ', length);
+
+    /// <summary>
+    /// Stores into a <c>String * n</c> member. VB6 keeps the declared width: a longer value is
+    /// truncated, a shorter one padded with spaces.
+    /// </summary>
+    public static string WriteFixedString(string? value, int length)
+    {
+        var text = value ?? string.Empty;
+        return text.Length >= length ? text[..length] : text.PadRight(length);
     }
 }

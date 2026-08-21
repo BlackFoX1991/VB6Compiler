@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
+using VB6.Syntax.Text;
 
 namespace VB6.Semantics;
 
@@ -108,44 +109,54 @@ public sealed record ParameterSymbol(
     ParameterPassingMode PassingMode)
     : VariableSymbol(Name, Type)
 {
-    /// <summary>Whether the call site may leave this argument out.</summary>
     public bool IsOptional { get; init; }
-
-    /// <summary>
-    /// The value an omitted argument takes. Null on a parameter declared <c>Optional</c> without
-    /// <c>= value</c>, which then gets the default of its type - False, zero, or the empty string.
-    /// </summary>
     public object? DefaultValue { get; init; }
 }
 
 public sealed record ReturnValueSymbol(string Name, TypeSymbol Type)
     : VariableSymbol(Name, Type);
 
+public enum VBIntrinsicKind
+{
+    Len,
+    Mid,
+    Chr,
+    Left,
+    Right,
+    UCase,
+    LCase,
+    Trim,
+    LTrim,
+    RTrim,
+    Asc,
+    IsNumeric,
+    FreeFile,
+    LOF,
+    EOF,
+    Seek,
+    CByte,
+    CInt,
+    CLng,
+    CSng,
+    CDbl,
+    CBool,
+    CStr
+}
+
 public sealed record ProcedureSymbol(
     string Name,
     ImmutableArray<ParameterSymbol> Parameters,
     TypeSymbol? ReturnType) : Symbol(Name)
 {
+    /// <summary>Backend-independent identity for a VB6 language intrinsic.</summary>
+    public VBIntrinsicKind? IntrinsicKind { get; init; }
+
     /// <summary>
-    /// For a VB6 language intrinsic, the runtime method the backend calls, such as
-    /// <c>VBStrings.Len</c>. Null for procedures declared in source.
-    ///
-    /// Carrying the target on the symbol keeps the intrinsic inside the normal call path: the
-    /// binder resolves and checks it like any other procedure, and only the backend knows the C#
-    /// name. It replaces a string rewrite over the generated source, which broke that layering and
-    /// leaked its placeholder names into diagnostics.
+    /// Transitional compatibility field for the retiring C# backend. New lowering and emit code
+    /// must use <see cref="IntrinsicKind"/> instead. Removed at the backend cutover.
     /// </summary>
     public string? IntrinsicTarget { get; init; }
 
-    /// <summary>
-    /// How many arguments an intrinsic needs at minimum. VB6 lets trailing arguments be omitted -
-    /// <c>Mid(s, 3)</c> runs to the end of the string - and the runtime supplies an overload for
-    /// each accepted arity, so the backend emits exactly what the call site wrote.
-    ///
-    /// Null means every parameter is required, which is the case for a procedure from source.
-    /// A leading optional argument, as in <c>InStr(start, a, b)</c>, needs real overload
-    /// resolution and waits for the Optional call semantics.
-    /// </summary>
     public int? IntrinsicMinimumArguments { get; init; }
 
     public ProcedureSymbol(string name)
@@ -202,17 +213,24 @@ public enum BoundNodeKind
     ErrorExpression
 }
 
-public abstract record BoundNode(BoundNodeKind Kind);
+/// <summary>
+/// Where a bound node was written. The line/column range travels with the offsets because only
+/// the binder still has the <see cref="SourceText"/> that can resolve one into the other, and
+/// debug information is expressed in lines and columns.
+/// </summary>
+public sealed record SourceLocation(string? FilePath, TextSpan Span, LinePositionSpan Lines = default);
+
+public abstract record BoundNode(BoundNodeKind Kind)
+{
+    public SourceLocation? SourceLocation { get; init; }
+}
+
 public abstract record BoundStatement(BoundNodeKind Kind) : BoundNode(Kind);
 public abstract record BoundExpression(BoundNodeKind Kind, TypeSymbol Type) : BoundNode(Kind);
 
 public sealed record BoundBlockStatement(ImmutableArray<BoundStatement> Statements)
     : BoundStatement(BoundNodeKind.BlockStatement);
 
-/// <summary>
-/// One bound VB6 array dimension. Bounds are inclusive and normalized to VB6 Long so the
-/// runtime and later code generation can preserve non-zero lower bounds exactly.
-/// </summary>
 public sealed record BoundArrayDimension(
     BoundExpression LowerBound,
     BoundExpression UpperBound);
@@ -228,24 +246,12 @@ public sealed record BoundVariableDeclarationStatement(
     }
 }
 
-/// <summary>
-/// A bound resize of a dynamic VB6 array. ReDim without Preserve replaces storage; Preserve uses
-/// the runtime's VB6-compatible last-dimension preservation rules.
-/// </summary>
-/// <summary>
-/// The target is an expression rather than a symbol so that an array inside a user-defined type
-/// element can be redimensioned: <c>ReDim Section(0).Bytes(0)</c>.
-/// </summary>
 public sealed record BoundReDimStatement(
     BoundExpression Target,
     ImmutableArray<BoundArrayDimension> ArrayDimensions,
     bool Preserve)
     : BoundStatement(BoundNodeKind.ReDimStatement);
 
-/// <summary>
-/// VB6 Erase either reinitializes a fixed array while preserving its bounds or deallocates a
-/// dynamic array. The binder records which operation applies so code generation never guesses.
-/// </summary>
 public sealed record BoundEraseStatement(
     VariableSymbol Array,
     bool Deallocate)
@@ -254,10 +260,6 @@ public sealed record BoundEraseStatement(
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
 
-/// <summary>
-/// Assignment to one element of a VB6 array. Indices are normalized to VB6 Long by the binder;
-/// the runtime remains responsible for lower/upper-bound checks.
-/// </summary>
 public sealed record BoundArrayElementAssignmentStatement(
     VariableSymbol Array,
     ImmutableArray<BoundExpression> Indices,
@@ -302,10 +304,6 @@ public sealed record BoundExitLoopStatement(
     int TargetLoopId)
     : BoundStatement(BoundNodeKind.ExitLoopStatement);
 
-/// <summary>
-/// <c>Exit Sub</c> and <c>Exit Function</c>: leave the procedure, returning whatever has been
-/// assigned to the function name so far.
-/// </summary>
 public sealed record BoundReturnStatement()
     : BoundStatement(BoundNodeKind.ReturnStatement);
 
@@ -336,24 +334,14 @@ public sealed record BoundSelectCaseStatement(
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
 
-/// <summary>
-/// A jump target and an unconditional jump to it. Both are restricted to the statement list of
-/// the procedure itself: the backend maps them onto C# labels and goto, and C# refuses a jump
-/// into a block. Lifting that restriction is what the lowered representation is for.
-/// </summary>
 public sealed record BoundLabelStatement(string Name) : BoundStatement(BoundNodeKind.LabelStatement);
 
 public sealed record BoundGoToStatement(string Name) : BoundStatement(BoundNodeKind.GoToStatement);
 
-/// <summary>
-/// <c>Open path For Binary As #n</c>. Only Binary reaches binding; the other modes are reported,
-/// because Input, Output and Append carry text semantics this runtime does not implement.
-/// </summary>
 public sealed record BoundOpenStatement(
     BoundExpression FileNumber,
     BoundExpression Path) : BoundStatement(BoundNodeKind.OpenStatement);
 
-/// <summary>An empty file number list means the bare <c>Close</c>, which closes every open file.</summary>
 public sealed record BoundCloseStatement(
     ImmutableArray<BoundExpression> FileNumbers) : BoundStatement(BoundNodeKind.CloseStatement);
 
@@ -361,9 +349,6 @@ public sealed record BoundSeekStatement(
     BoundExpression FileNumber,
     BoundExpression Position) : BoundStatement(BoundNodeKind.SeekStatement);
 
-/// <summary>
-/// A null position continues at the current file position, which is what <c>Get #1, , x</c> means.
-/// </summary>
 public sealed record BoundGetStatement(
     BoundExpression FileNumber,
     BoundExpression? Position,
@@ -378,11 +363,6 @@ public sealed record BoundArgument(
     ParameterSymbol? Parameter,
     BoundExpression Expression)
 {
-    /// <summary>
-    /// True when a ByRef parameter received something that is not a variable. VB6 passes a
-    /// temporary there and discards the write-back, so the backend has to materialize storage
-    /// instead of taking a reference to the argument itself.
-    /// </summary>
     public bool RequiresByRefTemporary { get; init; }
 }
 
@@ -397,20 +377,12 @@ public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralTyp
 public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
 
-/// <summary>
-/// Read of one VB6 array element. The expression type is the array's element type, not the array
-/// type itself, which keeps later conversion and operator binding identical to scalar values.
-/// </summary>
 public sealed record BoundArrayAccessExpression(
     VariableSymbol Array,
     ImmutableArray<BoundExpression> Indices,
     TypeSymbol ElementType)
     : BoundExpression(BoundNodeKind.ArrayAccessExpression, ElementType);
 
-/// <summary>
-/// Bound LBound/UBound access. The optional dimension is normalized to VB6 Long and defaults to
-/// one in the binder. Runtime range validation stays centralized in VBArray&lt;T&gt;.
-/// </summary>
 public sealed record BoundArrayBoundExpression(
     BoundExpression Array,
     BoundExpression Dimension,
@@ -443,11 +415,6 @@ public sealed record BoundProcedure(
     ImmutableArray<LocalVariableSymbol> Locals,
     BoundBlockStatement Body);
 
-/// <summary>
-/// A module-level variable together with its initial value. Plain declarations have none;
-/// constants always do. Fixed arrays carry their declaration bounds; dynamic arrays have an
-/// array type but an empty bound list until ReDim allocates them.
-/// </summary>
 public sealed record BoundModuleVariable(
     ModuleVariableSymbol Symbol,
     BoundExpression? Initializer,

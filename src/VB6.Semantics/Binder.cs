@@ -71,7 +71,7 @@ public sealed class Binder
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
         ApplyModuleOptions(root);
-        var declared = DeclareModuleVariables(root);
+        var declared = DeclareModuleVariables(root, availableModuleVariables);
         var moduleVariables = availableModuleVariables ?? declared.Scope;
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         foreach (var member in root.Members)
@@ -227,12 +227,30 @@ public sealed class Binder
         return true;
     }
 
+    /// <summary>
+    /// Declares the module-level variables of <paramref name="root"/>.
+    ///
+    /// When the caller already holds a symbol table - the project pipeline builds one up front so
+    /// that Public variables are shared across modules - the existing symbol has to be reused
+    /// rather than replaced by an equal-looking new one. Procedure bodies bind against the
+    /// caller's table, so a fresh instance here would leave the bound model referring to symbols
+    /// that no consumer can match by identity.
+    /// </summary>
     private (Dictionary<string, ModuleVariableSymbol> Scope, ImmutableArray<BoundModuleVariable> Bound)
-        DeclareModuleVariables(CompilationUnitSyntax root)
+        DeclareModuleVariables(
+            CompilationUnitSyntax root,
+            IReadOnlyDictionary<string, ModuleVariableSymbol>? existingSymbols = null)
     {
         var scope = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
         var bound = ImmutableArray.CreateBuilder<BoundModuleVariable>();
         var noProcedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
+
+        ModuleVariableSymbol Declare(string name, TypeSymbol type) =>
+            existingSymbols is not null &&
+            existingSymbols.TryGetValue(name, out var existing) &&
+            existing.Type == type
+                ? existing
+                : new ModuleVariableSymbol(name, type);
 
         foreach (var member in root.Members)
         {
@@ -248,7 +266,7 @@ public sealed class Binder
                             StringComparer.OrdinalIgnoreCase);
                         var type = ResolveVariableDeclaratorType(declarator);
                         var dimensions = BindArrayDimensions(declarator, visible, noProcedures);
-                        var symbol = new ModuleVariableSymbol(declarator.Identifier.Text, type);
+                        var symbol = Declare(declarator.Identifier.Text, type);
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
                             bound.Add(new BoundModuleVariable(
@@ -272,7 +290,7 @@ public sealed class Binder
                     var type = declaration.TypeToken is null
                         ? value.Type
                         : ResolveDeclaredType(declaration.TypeToken);
-                    var symbol = new ModuleVariableSymbol(declaration.Identifier.Text, type);
+                    var symbol = Declare(declaration.Identifier.Text, type);
                     if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
                     {
                         bound.Add(new BoundModuleVariable(
@@ -533,11 +551,16 @@ public sealed class Binder
 
         foreach (var statement in statements)
         {
+            // Dim, ReDim and Erase each bind one statement into several bound statements, one per
+            // declarator or identifier. They all share the position of the statement they were
+            // written as, which is what a debugger steps to.
             if (statement is DimStatementSyntax dim)
             {
                 foreach (var declarator in dim.Declarators)
                 {
-                    bound.Add(BindVariableDeclaration(declarator, variables, procedures));
+                    bound.Add(WithLocation(
+                        BindVariableDeclaration(declarator, variables, procedures),
+                        statement));
                 }
                 continue;
             }
@@ -546,11 +569,13 @@ public sealed class Binder
             {
                 foreach (var declarator in reDim.Declarators)
                 {
-                    bound.Add(BindReDim(
-                        declarator,
-                        reDim.PreserveKeyword is not null,
-                        variables,
-                        procedures));
+                    bound.Add(WithLocation(
+                        BindReDim(
+                            declarator,
+                            reDim.PreserveKeyword is not null,
+                            variables,
+                            procedures),
+                        statement));
                 }
 
                 foreach (var target in reDim.QualifiedTargets)
@@ -562,7 +587,7 @@ public sealed class Binder
                         procedures);
                     if (boundTarget is not null)
                     {
-                        bound.Add(boundTarget);
+                        bound.Add(WithLocation(boundTarget, statement));
                     }
                 }
                 continue;
@@ -572,7 +597,7 @@ public sealed class Binder
             {
                 foreach (var eraseIdentifier in erase.Identifiers)
                 {
-                    bound.Add(BindErase(eraseIdentifier, variables));
+                    bound.Add(WithLocation(BindErase(eraseIdentifier, variables), statement));
                 }
                 continue;
             }
@@ -596,7 +621,38 @@ public sealed class Binder
         return new BoundBlockStatement(bound.ToImmutable());
     }
 
+    /// <summary>
+    /// Binds one statement and records where it came from. Every bound statement passes through
+    /// here, so attaching the position once covers the whole language - and it is attached
+    /// referentially, to the node the statement produced, rather than by counting lines later.
+    /// </summary>
     private BoundStatement? BindStatement(
+        StatementSyntax statement,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var bound = BindStatementCore(statement, variables, procedures);
+        return bound is null ? null : WithLocation(bound, statement);
+    }
+
+    /// <summary>
+    /// Attaches the source position of <paramref name="statement"/> unless the bound node already
+    /// carries one - a lowering pass that rewrote the statement knows better where it belongs.
+    /// </summary>
+    private BoundStatement WithLocation(BoundStatement bound, StatementSyntax statement)
+    {
+        if (bound.SourceLocation is not null)
+        {
+            return bound;
+        }
+
+        var token = SyntaxNavigator.GetFirstToken(statement);
+        return token is null
+            ? bound
+            : bound with { SourceLocation = new SourceLocation(_text.FilePath, token.Span, _text.GetLinePositionSpan(token.Span)) };
+    }
+
+    private BoundStatement? BindStatementCore(
         StatementSyntax statement,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)

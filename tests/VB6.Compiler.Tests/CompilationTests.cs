@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -57,23 +55,58 @@ public sealed class CompilationTests
         Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0001"));
     }
 
+    /// <summary>
+    /// A duplicate name has to stay a reported diagnostic. Binding keeps both declarations after
+    /// reporting VB6S0004, so anything downstream that keys procedures by name sees the name twice
+    /// - which is how a source-location pass once turned this into an unhandled ArgumentException.
+    /// </summary>
     [TestMethod]
-    public void GenerateCSharp_ReturnsGeneratedSource()
+    public void Analyze_ReportsDuplicateProcedureInsteadOfThrowing()
     {
         var compilation = VBCompilation.Create("""
+            Sub Foo()
+                Debug.Print 1
+            End Sub
+
+            Sub Foo()
+                Debug.Print 2
+            End Sub
+
             Sub Main()
-                Dim x As Integer
-                x = 10
+                Foo
             End Sub
             """, "Module1.bas");
 
-        var generation = compilation.GenerateCSharp();
+        var analysis = compilation.Analyze();
 
-        Assert.IsTrue(generation.Success);
-        Assert.IsNotNull(generation.Source);
-        StringAssert.Contains(generation.Source!, "public static void Main()");
-        StringAssert.Contains(generation.Source!, "VBConversions.CInt(10L)");
+        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0004"));
     }
+
+    /// <summary>A Sub and a Function may not share a name either, and must not crash the analysis.</summary>
+    [TestMethod]
+    public void Analyze_ReportsSubAndFunctionSharingAName()
+    {
+        var compilation = VBCompilation.Create("""
+            Sub Foo()
+                Debug.Print 1
+            End Sub
+
+            Function Foo() As Long
+                Foo = 2
+            End Function
+
+            Sub Main()
+                Debug.Print Foo()
+            End Sub
+            """, "Module1.bas");
+
+        var analysis = compilation.Analyze();
+
+        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0004"));
+    }
+
 
     [TestMethod]
     public void EmitManagedApplication_WritesRequiredFiles()
@@ -100,39 +133,9 @@ public sealed class CompilationTests
     [TestMethod]
     public void EmitManagedApplication_ExecutesGeneratedProgram()
     {
-        var compilation = CreatePrintableCompilation();
-        var directory = CreateTemporaryDirectory();
-        var assemblyPath = Path.Combine(directory, "GeneratedProgram.dll");
+        var standardOutput = VB6TestProgram.Run(CreatePrintableCompilation());
 
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            AssertSuccessfulEmit(result);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            Assert.AreEqual("10", standardOutput.Trim());
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-        }
+        Assert.AreEqual("10", standardOutput.Trim());
     }
 
     private static VBCompilation CreatePrintableCompilation() => VBCompilation.Create("""
@@ -152,7 +155,7 @@ public sealed class CompilationTests
             ? string.Empty
             : string.Join(
                 Environment.NewLine,
-                result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}"));
+                result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}"));
 
         Assert.IsTrue(result.Success, backendDiagnostics);
         Assert.IsNotNull(result.AssemblyPath);

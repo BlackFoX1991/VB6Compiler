@@ -53,9 +53,9 @@ public sealed class ImplicitVariantAnalysisTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_EmitsImplicitVariantStorageAndArrays()
+    public void EmitManagedApplication_ExecutesImplicitVariantStorageAndArrays()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim value
                 Dim values(1 To 2)
@@ -63,22 +63,24 @@ public sealed class ImplicitVariantAnalysisTests
                 values(1) = value
                 Debug.Print values(1)
             End Sub
-            """, "test.bas").GenerateCSharp();
+            """, "test.bas");
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(generation.Source);
-        StringAssert.Contains(generation.Source, "object? __vb6_value = default;");
-        StringAssert.Contains(generation.Source, "VBArray<object?> __vb6_values = new VBArray<object?>");
+        var main = VB6TestIr.Procedures(program).Single(procedure => procedure.Name == "Main");
+        Assert.AreSame(TypeSymbol.Variant, main.Locals.Single(local => local.Name == "value").Type);
+        Assert.AreSame(
+            TypeSymbol.Variant,
+            ((ArrayTypeSymbol)main.Locals.Single(local => local.Name == "values").Type).ElementType);
 
-        using var peStream = new MemoryStream();
-        var emitResult = new VB6.CodeGen.CSharp.CSharpAssemblyEmitter().Emit(
-            generation.Source,
-            "GeneratedImplicitVariantProgram",
-            peStream);
-        Assert.IsTrue(
-            emitResult.Success,
-            string.Join(Environment.NewLine, emitResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}")));
+        // An untyped declaration has to survive all the way into a running program, not just into
+        // the type table: Variant storage is where a wrong element type shows up as a crash.
+        Assert.AreEqual("42", VB6TestProgram.Run("""
+            Sub Main()
+                Dim value
+                Dim values(1 To 2)
+                value = 42
+                values(1) = value
+                Debug.Print values(1)
+            End Sub
+            """, "test.bas").Trim());
     }
 }

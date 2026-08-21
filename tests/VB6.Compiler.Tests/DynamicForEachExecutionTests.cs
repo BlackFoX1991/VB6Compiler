@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -23,11 +21,11 @@ public sealed class DynamicForEachExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "DynamicForEachProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "20", "30", "40" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
@@ -53,60 +51,12 @@ public sealed class DynamicForEachExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "ArrayParameterForEachProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "50" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
-    private static string EmitAndRun(string source, string assemblyName)
-    {
-        var compilation = VBCompilation.Create(source, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerDynamicForEachTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, assemblyName);
-
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            var diagnostics = result.BackendResult is null
-                ? string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Code}: {diagnostic.Message}"))
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Id}: {diagnostic.Message}"));
-            Assert.IsTrue(result.Success, diagnostics);
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated dynamic For Each application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            return standardOutput;
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    private static string[] SplitLines(string output) =>
-        output.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray();
 }

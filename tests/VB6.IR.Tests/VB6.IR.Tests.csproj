@@ -3,15 +3,13 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="MSTest.TestAdapter" Version="3.8.3" />
     <PackageReference Include="MSTest.TestFramework" Version="3.8.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="../../src/VB6.CodeGen.CSharp/VB6.CodeGen.CSharp.csproj" />
     <ProjectReference Include="../../src/VB6.Compiler/VB6.Compiler.csproj" />
+    <ProjectReference Include="../../src/VB6.IR/VB6.IR.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,63 @@
+using System.Collections.Immutable;
+using VB6.IR;
+using VB6.Syntax.Text;
+
+namespace VB6.Emit.Managed;
+
+public enum ManagedOutputKind
+{
+    Application,
+    Library
+}
+
+public enum ManagedPlatform
+{
+    AnyCpu,
+    X86,
+    X64
+}
+
+/// <summary>
+/// Stable source-document input used by Portable PDB emission. The path is the logical path stored
+/// in the PDB, not an absolute build-machine path. Checksum is SHA-256 over the exact source bytes.
+/// </summary>
+public sealed record ManagedSourceDocument(
+    string FilePath,
+    ImmutableArray<byte> Checksum);
+
+public sealed record ManagedEmitOptions(
+    string AssemblyName,
+    ManagedOutputKind OutputKind = ManagedOutputKind.Application,
+    ManagedPlatform Platform = ManagedPlatform.AnyCpu,
+    string? PdbPath = null,
+    bool EmitPortablePdb = true)
+{
+    public ImmutableArray<ManagedSourceDocument> SourceDocuments { get; init; } =
+        ImmutableArray<ManagedSourceDocument>.Empty;
+}
+
+public sealed record ManagedEmitDiagnostic(string Code, string Message);
+
+/// <summary>
+/// One statement's start in a method body: the IL offset the statement's code begins at and the
+/// source it was written as. This is what a debugger steps between, and only the emitter knows
+/// the offset, so it has to travel out of the emit rather than be reconstructed from the image.
+/// </summary>
+public sealed record ManagedSequencePoint(
+    int IlOffset,
+    string FilePath,
+    LinePositionSpan Lines);
+
+public sealed record ManagedEmitResult(
+    bool Success,
+    ImmutableArray<ManagedEmitDiagnostic> Diagnostics,
+    byte[]? PeImage,
+    byte[]? PdbImage)
+{
+    /// <summary>
+    /// Statement starts per emitted method, in IL order. Empty when the IR carried no source
+    /// positions - a program lowered from synthesized input has nothing to point at.
+    /// </summary>
+    public ImmutableDictionary<IrProcedure, ImmutableArray<ManagedSequencePoint>> SequencePoints { get; init; } =
+        ImmutableDictionary.Create<IrProcedure, ImmutableArray<ManagedSequencePoint>>(ReferenceEqualityComparer.Instance);
+}

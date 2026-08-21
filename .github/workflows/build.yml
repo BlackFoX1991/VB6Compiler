@@ -9,9 +9,11 @@ on:
   pull_request:
     branches:
       - main
+      - agent/**
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
@@ -43,7 +45,7 @@ jobs:
           $failed = $false
           Get-ChildItem tests -Filter *.csproj -Recurse | Sort-Object FullName | ForEach-Object {
             $projectName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-            dotnet test $_.FullName --configuration Release --no-build --no-restore --logger "trx;LogFileName=$projectName.trx" --results-directory artifacts/test-results
+            dotnet test $_.FullName --configuration Release --logger "trx;LogFileName=$projectName.trx" --results-directory artifacts/test-results
             if ($LASTEXITCODE -ne 0) {
               $failed = $true
             }
@@ -84,3 +86,15 @@ jobs:
           name: vb6c-net10
           path: artifacts/vb6c/**
           if-no-files-found: error
+
+      - name: Publish migration commit status
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" `
+            -f state="$env:RESULT_STATE" `
+            -f context="direct-managed-backend/ci" `
+            -f description="Direct managed backend CI: $env:RESULT_STATE"

@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
-using VB6.CodeGen.CSharp;
 using VB6.Parser;
 using VB6.Semantics;
 using VB6.Syntax.Diagnostics;
+using VB6.Syntax.Nodes;
 using VB6.Syntax.Text;
 using ParserType = VB6.Parser.Parser;
 
@@ -92,36 +92,12 @@ public sealed class VBCompilation
         };
     }
 
-    public CSharpGenerationResult GenerateCSharp()
-    {
-        var analysis = Analyze();
-        if (!analysis.Success || analysis.SemanticModel is null)
-        {
-            return new CSharpGenerationResult(analysis, null);
-        }
+    /// <summary>Lowers the bound tree to the IR the managed backend emits from.</summary>
+    public LoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
-        var source = new CSharpGenerator().Generate(analysis.SemanticModel);
-        return new CSharpGenerationResult(analysis, source);
-    }
-
-    public ManagedApplicationEmitResult EmitManagedApplication(string outputPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-
-        var generation = GenerateCSharp();
-        if (!generation.Success || generation.Source is null)
-        {
-            return new ManagedApplicationEmitResult(generation, null, null, null, null);
-        }
-
-        var artifacts = ManagedApplicationWriter.Emit(generation.Source, outputPath);
-        return new ManagedApplicationEmitResult(
-            generation,
-            artifacts.BackendResult,
-            artifacts.AssemblyPath,
-            artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath);
-    }
+    /// <summary>Emits an executable assembly, its debug information and its runtime files.</summary>
+    public ManagedApplicationEmitResult EmitManagedApplication(string outputPath) =>
+        DirectManagedCompilation.EmitManaged(this, outputPath);
 }
 
 public sealed record CompilationAnalysis(
@@ -134,21 +110,3 @@ public sealed record CompilationAnalysis(
     public bool Success => Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
 
-public sealed record CSharpGenerationResult(
-    CompilationAnalysis Analysis,
-    string? Source)
-{
-    public bool Success => Analysis.Success && Source is not null;
-    public ImmutableArray<Diagnostic> Diagnostics => Analysis.Diagnostics;
-}
-
-public sealed record ManagedApplicationEmitResult(
-    CSharpGenerationResult Generation,
-    AssemblyEmitResult? BackendResult,
-    string? AssemblyPath,
-    string? RuntimeAssemblyPath,
-    string? RuntimeConfigPath)
-{
-    public bool Success => Generation.Success && BackendResult?.Success == true && AssemblyPath is not null;
-    public ImmutableArray<Diagnostic> Diagnostics => Generation.Diagnostics;
-}

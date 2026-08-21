@@ -1,3 +1,5 @@
+using VB6.IR;
+
 namespace VB6.Compiler.Tests;
 
 /// <summary>
@@ -26,26 +28,26 @@ public sealed class IntrinsicSymbolTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_CallsTheRuntimeDirectly()
+    public void Lower_CallsTheRuntimeDirectly()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim n As Integer
                 n = CInt(42)
                 Debug.Print CStr(n)
                 Debug.Print Len("abc")
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-        StringAssert.Contains(generation.Source, "VBConversions.CInt(");
-        StringAssert.Contains(generation.Source, "VBConversions.CStr(");
-        StringAssert.Contains(generation.Source, "VBStrings.Len(");
+        // An intrinsic is a runtime operation, not a call into a generated procedure: nothing
+        // named after the placeholder may survive lowering.
+        CollectionAssert.IsSubsetOf(
+            new[] { IrRuntimeMethod.CInt, IrRuntimeMethod.CStr, IrRuntimeMethod.StringLen },
+            VB6TestIr.RuntimeCalls(program).ToArray());
         Assert.IsFalse(
-            generation.Source!.Contains("__VB6_INTRINSIC", StringComparison.Ordinal),
-            "No placeholder should survive into the generated source.");
+            VB6TestIr.Procedures(program).Any(procedure =>
+                procedure.Name.Contains("__VB6_INTRINSIC", StringComparison.Ordinal)),
+            "No placeholder should survive into the lowered program.");
     }
 
     /// <summary>
@@ -53,20 +55,18 @@ public sealed class IntrinsicSymbolTests
     /// site wrote and the runtime carries an overload per arity, so no filler argument is invented.
     /// </summary>
     [TestMethod]
-    public void GenerateCSharp_AcceptsAnOmittedTrailingIntrinsicArgument()
+    public void EmitManagedApplication_AcceptsAnOmittedTrailingIntrinsicArgument()
     {
-        var generation = VBCompilation.Create("""
+        var lines = VB6TestProgram.RunLines("""
             Sub Main()
                 Dim s As String
                 s = "abcdef"
                 Debug.Print Mid(s, 2)
                 Debug.Print Mid(s, 2, 3)
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+        CollectionAssert.AreEqual(new[] { "bcdef", "bcd" }, lines);
     }
 
     [TestMethod]
@@ -85,9 +85,9 @@ public sealed class IntrinsicSymbolTests
 
     /// <summary>A user procedure of the same name wins, as it does in VB6.</summary>
     [TestMethod]
-    public void GenerateCSharp_LetsUserDeclarationsShadowIntrinsics()
+    public void EmitManagedApplication_LetsUserDeclarationsShadowIntrinsics()
     {
-        var generation = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Function CInt(ByVal Value As Long) As Long
                 CInt = Value + 1
             End Function
@@ -95,9 +95,8 @@ public sealed class IntrinsicSymbolTests
             Sub Main()
                 Debug.Print CInt(1)
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(generation.Success);
-        StringAssert.Contains(generation.Source, "__vb6_CInt(");
+        Assert.AreEqual("2", output.Trim());
     }
 }

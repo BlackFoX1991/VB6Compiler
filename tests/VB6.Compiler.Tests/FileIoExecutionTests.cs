@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 /// <summary>
@@ -146,51 +144,10 @@ public sealed class FileIoExecutionTests
     private static void Run(string source, params string[] expectedLines)
     {
         var compilation = VBCompilation.Create(source, "Module1.bas");
-        var directory = Path.Combine(
-            Path.GetTempPath(),
-            "VB6CompilerFileIoTests",
-            Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, "FileIoProgram.dll");
-
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            var diagnostics = result.BackendResult is null
-                ? string.Join(Environment.NewLine, result.Diagnostics.Select(d => $"{d.Code}: {d.Message}"))
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(d =>
-                    $"{d.Id}: {d.Message}"));
-            Assert.IsTrue(result.Success, diagnostics);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                // The program writes relative paths, so it runs in its own directory.
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            CollectionAssert.AreEqual(
-                expectedLines,
-                standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
-                standardOutput);
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
+        var standardOutput = VB6TestProgram.Run(compilation);
+        CollectionAssert.AreEqual(
+            expectedLines,
+            standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+            standardOutput);
     }
 }

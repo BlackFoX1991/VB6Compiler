@@ -1,8 +1,9 @@
 using VB6.Compiler;
+using VB6.IR;
 using VB6.ProjectSystem;
 
 const string usage =
-    "Usage: vb6c <source-file|project.vbp> [--emit-csharp <output-file> | --emit-assembly <output-file>]\n" +
+    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> | --dump-ir [output-file]]\n" +
     "       vb6c <project.vbp> --report";
 
 if (args.Length == 0)
@@ -50,25 +51,23 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return 0;
     }
 
-    if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
     {
-        var generation = projectCompilation.GenerateCSharp();
-        PrintProjectDiagnostics(generation.Analysis);
+        var lowering = projectCompilation.Lower();
+        PrintProjectDiagnostics(lowering.Analysis);
 
-        if (!generation.Success || generation.Source is null)
+        if (!lowering.Success || lowering.Program is null)
         {
             return 1;
         }
 
-        File.WriteAllText(args[2], generation.Source);
-        Console.WriteLine($"Generated project C# source: {args[2]}");
-        return 0;
+        return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
     }
 
     if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
         var emitResult = projectCompilation.EmitManagedApplication(args[2]);
-        PrintProjectDiagnostics(emitResult.Generation.Analysis);
+        PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
 
         if (!emitResult.Success)
@@ -77,6 +76,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         }
 
         Console.WriteLine($"Generated managed project assembly: {emitResult.AssemblyPath}");
+        PrintDebugInformation(emitResult.PdbPath);
         Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
         Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
         return 0;
@@ -88,22 +88,20 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
 
 var compilation = VBCompilation.Create(File.ReadAllText(path), path);
 
-if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
+if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
 {
-    var generation = compilation.GenerateCSharp();
-    foreach (var diagnostic in generation.Diagnostics)
+    var lowering = compilation.Lower();
+    foreach (var diagnostic in lowering.Diagnostics)
     {
         Console.Error.WriteLine(diagnostic);
     }
 
-    if (!generation.Success || generation.Source is null)
+    if (!lowering.Success || lowering.Program is null)
     {
         return 1;
     }
 
-    File.WriteAllText(args[2], generation.Source);
-    Console.WriteLine($"Generated C# source: {args[2]}");
-    return 0;
+    return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
 }
 
 if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
@@ -122,6 +120,7 @@ if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparis
     }
 
     Console.WriteLine($"Generated managed assembly: {emitResult.AssemblyPath}");
+    PrintDebugInformation(emitResult.PdbPath);
     Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
     Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
     return 0;
@@ -148,6 +147,27 @@ if (analysis.SemanticModel is not null)
 
 return analysis.Success ? 0 : 1;
 
+static int WriteIr(string dump, string? outputPath)
+{
+    if (outputPath is null)
+    {
+        Console.Write(dump);
+        return 0;
+    }
+
+    File.WriteAllText(outputPath, dump);
+    Console.WriteLine($"Generated IR dump: {outputPath}");
+    return 0;
+}
+
+static void PrintDebugInformation(string? pdbPath)
+{
+    if (pdbPath is not null)
+    {
+        Console.WriteLine($"Debug information: {pdbPath}");
+    }
+}
+
 static void PrintProjectDiagnostics(VBProjectCompilationAnalysis analysis)
 {
     foreach (var diagnostic in analysis.ProjectDiagnostics)
@@ -161,7 +181,7 @@ static void PrintProjectDiagnostics(VBProjectCompilationAnalysis analysis)
     }
 }
 
-static void PrintBackendDiagnostics(VB6.CodeGen.CSharp.AssemblyEmitResult? backendResult)
+static void PrintBackendDiagnostics(VB6.Emit.Managed.ManagedEmitResult? backendResult)
 {
     if (backendResult is null)
     {
@@ -170,6 +190,6 @@ static void PrintBackendDiagnostics(VB6.CodeGen.CSharp.AssemblyEmitResult? backe
 
     foreach (var diagnostic in backendResult.Diagnostics)
     {
-        Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}");
+        Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
     }
 }

@@ -1,3 +1,5 @@
+using VB6.IR;
+
 namespace VB6.Compiler.Tests;
 
 /// <summary>
@@ -10,9 +12,9 @@ namespace VB6.Compiler.Tests;
 public sealed class FileStatementGuardTests
 {
     [TestMethod]
-    public void GenerateCSharp_EmitsEverySupportedFileStatement()
+    public void Lower_LowersEverySupportedFileStatement()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim buffer As Long
                 Open "data.bin" For Binary As #1
@@ -21,52 +23,46 @@ public sealed class FileStatementGuardTests
                 Get #1, 1, buffer
                 Close #1
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-
-        foreach (var expected in new[]
-                 {
-                     "VBFiles.OpenBinary(",
-                     "VBFiles.Put(",
-                     "VBFiles.Seek(",
-                     "VBFiles.GetLong(",
-                     "VBFiles.Close("
-                 })
-        {
-            StringAssert.Contains(generation.Source, expected);
-        }
+        CollectionAssert.IsSubsetOf(
+            new[]
+            {
+                IrRuntimeMethod.FileOpenBinary,
+                IrRuntimeMethod.FilePut,
+                IrRuntimeMethod.FileSeek,
+                IrRuntimeMethod.FileGetLong,
+                IrRuntimeMethod.FileClose
+            },
+            VB6TestIr.RuntimeCalls(program).ToArray());
     }
 
     [TestMethod]
-    public void GenerateCSharp_ClosesEveryFileForABareClose()
+    public void Lower_ClosesEveryFileForABareClose()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Close
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(generation.Success);
-        StringAssert.Contains(generation.Source, "VBFiles.CloseAll();");
+        CollectionAssert.Contains(VB6TestIr.RuntimeCalls(program).ToArray(), IrRuntimeMethod.FileCloseAll);
     }
 
     [TestMethod]
-    public void Analyze_StopsRatherThanEmittingAProgramMissingAnUnsupportedTransfer()
+    public void Lower_StopsRatherThanEmittingAProgramMissingAnUnsupportedTransfer()
     {
-        var generation = VBCompilation.Create("""
+        var lowering = VBCompilation.Create("""
             Sub Main()
                 Dim text As String
                 Open "a.bin" For Binary As #1
                 Put #1, 1, text
                 Close #1
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """, "Module1.bas").Lower();
 
-        Assert.IsFalse(generation.Success);
-        Assert.IsNull(generation.Source);
-        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0058"));
+        Assert.IsFalse(lowering.Success);
+        Assert.IsNull(lowering.Program);
+        Assert.IsTrue(lowering.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0058"));
     }
 }
