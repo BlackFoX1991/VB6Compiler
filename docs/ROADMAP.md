@@ -37,6 +37,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Intrinsics umgebaut, Konvertierungen ergänzt | **717** | 71 | 0 | 634 | 0 von 27 |
 | String-Funktionen | **692** | 71 | 0 | 609 | 0 von 27 |
 | M6 Kontrollfluss-Syntax vorgezogen | **752** | 37 | 0 | 703 | 0 von 27 |
+| Qualifizierte Aufrufe | **784** | 12 | 0 | 760 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -205,6 +206,16 @@ auf, weil `envBorders.bas` zum ersten Mal den Binder erreicht.
 Ein Label wird nur erkannt, wenn es allein auf seiner Zeile steht. `Foo: Bar` ist in VB6 ein
 parameterloser Aufruf plus Anweisungstrenner; es als Label zu lesen würde den Aufruf still
 verschlucken. Alle 21 Labels im Korpus stehen auf eigenen Zeilen.
+
+Qualifizierte Aufrufe (`frmMain.SelectObjectObject "Frames"`) und ausgelassene Argumente
+(`List.Add , , "General"`) waren die letzte breite Parserlücke. Damit fällt der Parserzähler auf
+**12** — von 480 zu Beginn dieser Arbeit, also 97 %.
+
+Zwei Regeln halten den Lookahead ehrlich, beide von Tests erzwungen, die zuerst brachen: der
+Punkt muss direkt auf den Empfänger folgen, sonst wird `Consume record.Value` als Memberaufruf
+gelesen; und das Leerzeichen entscheidet den Rest, weil `Consume .Value` innerhalb eines `With`
+das With-Member als Argument übergibt. VB6 zieht dieselbe Grenze — und der trivia-erhaltende
+Lexer macht sie überhaupt erst sichtbar.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
