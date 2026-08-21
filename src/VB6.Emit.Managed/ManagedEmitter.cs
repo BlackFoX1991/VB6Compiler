@@ -709,6 +709,7 @@ public sealed class ManagedEmitter
                 "get_Item",
                 element.ElementType,
                 returnByRef: true,
+                returnUsesTypeParameter: true,
                 typeof(int[])));
         }
 
@@ -727,10 +728,19 @@ public sealed class ManagedEmitter
             var member = call.Operation switch
             {
                 IrArrayOperation.Clear => GetArrayMemberReference(arrayType.ElementType, "Clear", null),
-                IrArrayOperation.LBound => GetArrayMemberReference(arrayType.ElementType, "LBound", TypeSymbol.Long, false, typeof(int)),
-                IrArrayOperation.UBound => GetArrayMemberReference(arrayType.ElementType, "UBound", TypeSymbol.Long, false, typeof(int)),
-                IrArrayOperation.Length => GetArrayMemberReference(arrayType.ElementType, "get_Length", TypeSymbol.Long),
-                IrArrayOperation.GetFlatValue => GetArrayMemberReference(arrayType.ElementType, "GetValueAtFlatIndex", arrayType.ElementType, false, typeof(int)),
+                IrArrayOperation.LBound => GetArrayMemberReference(
+                    arrayType.ElementType, "LBound", TypeSymbol.Long, false, false, typeof(int)),
+                IrArrayOperation.UBound => GetArrayMemberReference(
+                    arrayType.ElementType, "UBound", TypeSymbol.Long, false, false, typeof(int)),
+                IrArrayOperation.Length => GetArrayMemberReference(
+                    arrayType.ElementType, "get_Length", TypeSymbol.Long),
+                IrArrayOperation.GetFlatValue => GetArrayMemberReference(
+                    arrayType.ElementType,
+                    "GetValueAtFlatIndex",
+                    arrayType.ElementType,
+                    returnByRef: false,
+                    returnUsesTypeParameter: true,
+                    typeof(int)),
                 _ => throw new NotSupportedException($"Array operation '{call.Operation}' is not supported yet.")
             };
             encoder.Call(member);
@@ -752,7 +762,8 @@ public sealed class ManagedEmitter
                 expression.ArrayType.ElementType,
                 "ReDimPreserve",
                 expression.ArrayType,
-                false,
+                returnByRef: false,
+                returnUsesTypeParameter: true,
                 typeof(VBArrayBound[])));
         }
 
@@ -874,6 +885,39 @@ public sealed class ManagedEmitter
                 return;
             }
             throw new NotSupportedException($"Managed type mapping does not support '{type.Name}'.");
+        }
+
+        /// <summary>
+        /// Encodes the return type inside the signature of a <c>VBArray&lt;T&gt;</c> member
+        /// reference. Such a reference names a constructed type through its TypeSpec, but ECMA-335
+        /// requires the signature of the generic *definition* - so wherever the member returns T,
+        /// the signature has to say <c>!0</c> rather than the substituted element type. Encoding
+        /// the concrete type makes the runtime look for a member that does not exist.
+        ///
+        /// Which members those are is passed in rather than inferred: <c>LBound</c> on a
+        /// <c>VBArray&lt;Long&gt;</c> returns a plain Int32 that happens to equal the element type,
+        /// so comparing types would rewrite it to <c>!0</c> and break it.
+        /// </summary>
+        private void EncodeArrayMemberReturnType(
+            SignatureTypeEncoder encoder,
+            TypeSymbol type,
+            bool usesTypeParameter)
+        {
+            if (!usesTypeParameter)
+            {
+                EncodeType(encoder, type);
+                return;
+            }
+
+            // VBArray<T> itself, as returned by ReDimPreserve and Clone.
+            if (type is ArrayTypeSymbol)
+            {
+                var arguments = encoder.GenericInstantiation(_vbArray, 1, isValueType: false);
+                arguments.AddArgument().GenericTypeParameter(0);
+                return;
+            }
+
+            encoder.GenericTypeParameter(0);
         }
 
         private EntityHandle GetTypeEntityHandle(TypeSymbol type)
@@ -1089,11 +1133,12 @@ public sealed class ManagedEmitter
             string name,
             TypeSymbol? returnType,
             bool returnByRef = false,
+            bool returnUsesTypeParameter = false,
             params Type[] parameterTypes)
         {
             var key = "VBArray<" + elementType.Name + ">::" + name + "(" +
                       string.Join(",", parameterTypes.Select(type => type.FullName)) + ")->" +
-                      returnType?.Name + ":" + returnByRef;
+                      returnType?.Name + ":" + returnByRef + ":" + returnUsesTypeParameter;
             if (_memberReferences.TryGetValue(key, out var cached)) return cached;
 
             var blob = new BlobBuilder();
@@ -1102,7 +1147,10 @@ public sealed class ManagedEmitter
                 returnEncoder =>
                 {
                     if (returnType is null) returnEncoder.Void();
-                    else EncodeType(returnEncoder.Type(returnByRef), returnType);
+                    else EncodeArrayMemberReturnType(
+                        returnEncoder.Type(returnByRef),
+                        returnType,
+                        returnUsesTypeParameter);
                 },
                 parameters =>
                 {
@@ -1180,9 +1228,12 @@ public sealed class ManagedEmitter
 
             var operatorName = RuntimeName(m);
             var scalar = RuntimeScalarType(call.Arguments.FirstOrDefault()?.Expression.Type ?? call.ResultType);
-            if (m.ToString().StartsWith("Not", StringComparison.Ordinal))
-                return Static(typeof(VBOperators), operatorName, scalar);
-            return Static(typeof(VBOperators), operatorName, scalar, scalar);
+            // Not and Negate are the unary operators; every other one takes both operands.
+            var isUnary = m.ToString().StartsWith("Not", StringComparison.Ordinal) ||
+                m.ToString().StartsWith("Negate", StringComparison.Ordinal);
+            return isUnary
+                ? Static(typeof(VBOperators), operatorName, scalar)
+                : Static(typeof(VBOperators), operatorName, scalar, scalar);
         }
 
         private MethodInfo ResolveFileMethod(IrRuntimeCallExpression call, out int skippedArgument)
