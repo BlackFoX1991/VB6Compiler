@@ -63,6 +63,14 @@ public static class IrLowerer
                     .ToImmutableArray();
 
                 var procedures = ImmutableArray.CreateBuilder<IrProcedure>();
+                var moduleInitializers = input.SemanticModel.ModuleVariables
+                    .Where(NeedsModuleInitialization)
+                    .ToImmutableArray();
+                if (!moduleInitializers.IsDefaultOrEmpty)
+                {
+                    procedures.Add(LowerModuleInitializer(moduleInitializers));
+                }
+
                 foreach (var procedure in input.SemanticModel.Procedures)
                 {
                     var lowered = new ProcedureLowerer(this, procedure).Lower();
@@ -85,7 +93,15 @@ public static class IrLowerer
                 .ToImmutableArray();
             if (!extraGlobals.IsDefaultOrEmpty)
             {
-                modules.Add(new IrModule("__CompilerGlobals", null, extraGlobals, ImmutableArray<IrProcedure>.Empty));
+                var extraInitializers = _additionalGlobals
+                    .Where(NeedsModuleInitialization)
+                    .Where(variable =>
+                        _globals.TryGetValue(variable.Symbol, out var global) && extraGlobals.Contains(global))
+                    .ToImmutableArray();
+                var extraProcedures = extraInitializers.IsDefaultOrEmpty
+                    ? ImmutableArray<IrProcedure>.Empty
+                    : ImmutableArray.Create(LowerModuleInitializer(extraInitializers));
+                modules.Add(new IrModule("__CompilerGlobals", null, extraGlobals, extraProcedures));
             }
 
             return new IrProgram(modules.ToImmutable(), _types.Values.ToImmutableArray(), entryPoint);
@@ -125,6 +141,21 @@ public static class IrLowerer
                     variable.IsConstant));
             }
         }
+
+        private IrProcedure LowerModuleInitializer(ImmutableArray<BoundModuleVariable> variables)
+        {
+            var symbol = new ProcedureSymbol(".cctor", ImmutableArray<ParameterSymbol>.Empty, null);
+            var procedure = new BoundProcedure(
+                symbol,
+                ImmutableArray<LocalVariableSymbol>.Empty,
+                new BoundBlockStatement(ImmutableArray<BoundStatement>.Empty));
+            return new ProcedureLowerer(this, procedure, variables).Lower();
+        }
+
+        private static bool NeedsModuleInitialization(BoundModuleVariable variable) =>
+            !variable.IsConstant &&
+            (variable.Symbol.Type == TypeSymbol.String ||
+             variable.Symbol.Type is ArrayTypeSymbol && !variable.ArrayDimensions.IsDefaultOrEmpty);
 
         /// <summary>The bound value of a module-level constant, which is substituted at each read.</summary>
         public bool TryGetConstantValue(ModuleVariableSymbol symbol, out BoundExpression value) =>
@@ -228,6 +259,7 @@ public static class IrLowerer
     {
         private readonly ProgramLoweringState _program;
         private readonly BoundProcedure _procedure;
+        private readonly ImmutableArray<BoundModuleVariable> _moduleInitializers;
         private readonly Dictionary<LocalVariableSymbol, IrLocal> _locals =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ParameterSymbol, IrParameter> _parameters =
@@ -244,11 +276,19 @@ public static class IrLowerer
         /// <summary>Where the statement being lowered was written; stamped onto its instructions.</summary>
         private IrSourceLocation? _location;
 
-        public ProcedureLowerer(ProgramLoweringState program, BoundProcedure procedure)
+        public ProcedureLowerer(
+            ProgramLoweringState program,
+            BoundProcedure procedure,
+            ImmutableArray<BoundModuleVariable> moduleInitializers = default)
         {
             _program = program;
             _procedure = procedure;
+            _moduleInitializers = moduleInitializers.IsDefault
+                ? ImmutableArray<BoundModuleVariable>.Empty
+                : moduleInitializers;
         }
+
+        private bool IsModuleInitializer => !_moduleInitializers.IsDefaultOrEmpty;
 
         public IrProcedure Lower()
         {
@@ -276,7 +316,14 @@ public static class IrLowerer
 
             PredeclareLabels(_procedure.Body);
             _current = NewBlock("entry");
-            EmitProcedurePrologue();
+            if (IsModuleInitializer)
+            {
+                EmitModuleInitializers();
+            }
+            else
+            {
+                EmitProcedurePrologue();
+            }
             LowerBlock(_procedure.Body);
             if (!_current.HasTerminator)
             {
@@ -289,15 +336,18 @@ public static class IrLowerer
             }
 
             return new IrProcedure(
-                _procedure.Symbol,
-                string.Equals(_procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase) &&
-                    !_procedure.Symbol.IsFunction
-                    ? "Main"
-                    : $"__vb6_{Mangle(_procedure.Symbol.Name)}",
+                IsModuleInitializer ? null : _procedure.Symbol,
+                IsModuleInitializer
+                    ? ".cctor"
+                    : string.Equals(_procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase) &&
+                        !_procedure.Symbol.IsFunction
+                        ? "Main"
+                        : $"__vb6_{Mangle(_procedure.Symbol.Name)}",
                 _procedure.Symbol.ReturnType,
                 _parameters.Values.OrderBy(parameter => parameter.Index).ToImmutableArray(),
                 _allLocals.ToImmutableArray(),
-                _blocks.Select(block => block.Build()).ToImmutableArray());
+                _blocks.Select(block => block.Build()).ToImmutableArray(),
+                IsCompilerGenerated: IsModuleInitializer);
         }
 
         private void PredeclareLabels(BoundBlockStatement block)
@@ -499,6 +549,28 @@ public static class IrLowerer
                         put.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(put.Position),
                         LowerExpression(put.Value))));
                     break;
+            }
+        }
+
+        private void EmitModuleInitializers()
+        {
+            foreach (var variable in _moduleInitializers)
+            {
+                var target = new IrGlobalPlace(_program.GetGlobal(variable.Symbol));
+                if (variable.Symbol.Type is ArrayTypeSymbol arrayType && !variable.ArrayDimensions.IsDefaultOrEmpty)
+                {
+                    Emit(new IrStoreInstruction(
+                        target,
+                        new IrNewVBArrayExpression(arrayType, LowerBounds(variable.ArrayDimensions))));
+                    continue;
+                }
+
+                if (variable.Symbol.Type == TypeSymbol.String)
+                {
+                    Emit(new IrStoreInstruction(
+                        target,
+                        new IrConstantExpression(string.Empty, TypeSymbol.String)));
+                }
             }
         }
 
