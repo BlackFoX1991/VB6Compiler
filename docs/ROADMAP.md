@@ -36,6 +36,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Aufrufseitiges `ByVal` | **724** | 71 | 0 | 641 | 0 von 27 |
 | Intrinsics umgebaut, Konvertierungen ergänzt | **717** | 71 | 0 | 634 | 0 von 27 |
 | String-Funktionen | **692** | 71 | 0 | 609 | 0 von 27 |
+| M6 Kontrollfluss-Syntax vorgezogen | **752** | 37 | 0 | 703 | 0 von 27 |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -194,6 +195,16 @@ VarPtr(String1), 4` notiert — senkt die Parserfehler von 110 auf 71. Die Bindu
 billig aus: explizites `ByVal` überschreibt einen ByRef-Parameter genau wie Klammern und nutzt
 denselben Temporary. Die Semantik steigt von 604 auf 641, weil wieder mehr Code den Binder
 erreicht.
+
+`On Error GoTo` blieb der Ersterfehler in sieben Modulen, deshalb wurde die **M6-Syntax**
+vorgezogen: `On Error GoTo <Label>`, `On Error GoTo 0`, `On Error Resume Next`, `GoTo` und
+Labels. Parser 71 → 37. Die Gesamtsumme steigt dabei von 692 auf 752 — der inzwischen vertraute
+Übergang, hier besonders deutlich: `VB6S0060` (TypeOf) taucht mit 24 Vorkommen überhaupt erst
+auf, weil `envBorders.bas` zum ersten Mal den Binder erreicht.
+
+Ein Label wird nur erkannt, wenn es allein auf seiner Zeile steht. `Foo: Bar` ist in VB6 ein
+parameterloser Aufruf plus Anweisungstrenner; es als Label zu lesen würde den Aufruf still
+verschlucken. Alle 21 Labels im Korpus stehen auf eigenen Zeilen.
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -394,7 +405,8 @@ direkt beim Emittieren; das trägt nicht mehr, sobald `On Error Resume Next` jed
 einzeln absichern muss.
 
 - [ ] Lowered IR mit Basic Blocks und expliziten Sprüngen
-- [ ] `GoTo`, Labels, Zeilennummern, `On ... GoTo`, `GoSub`/`Return`
+- [x] Syntax für `GoTo`, Labels, `On Error GoTo`/`GoTo 0`/`Resume Next` — vorgezogen, Semantik als `VB6S0061` gemeldet
+- [ ] Zeilennummern, `On ... GoTo`, `GoSub`/`Return`
 - [ ] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt
 
 ## Meilenstein 7 — Standardbibliothek
