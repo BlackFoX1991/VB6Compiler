@@ -58,6 +58,7 @@ public sealed class ManagedEmitter
         private readonly Dictionary<TypeSymbol, TypeSpecificationHandle> _arrayTypeSpecs =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<string, MemberReferenceHandle> _memberReferences = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, EntityHandle> _methodSpecifications = new(StringComparer.Ordinal);
         private readonly Dictionary<Type, TypeReferenceHandle> _reflectionTypeRefs = new();
         private readonly Dictionary<string, TypeReferenceHandle> _namedTypeRefs = new(StringComparer.Ordinal);
         private readonly List<TypePlan> _typePlans = new();
@@ -452,6 +453,9 @@ public sealed class ManagedEmitter
                 case IrNewVBArrayExpression newArray:
                     EmitNewArray(encoder, procedure, newArray);
                     break;
+                case IrEnsureArrayExpression ensureArray:
+                    EmitEnsureArray(encoder, procedure, ensureArray);
+                    break;
                 case IrReDimPreserveExpression preserve:
                     EmitReDimPreserve(encoder, procedure, preserve);
                     break;
@@ -759,6 +763,19 @@ public sealed class ManagedEmitter
                 _ => throw new NotSupportedException($"Array operation '{call.Operation}' is not supported yet.")
             };
             encoder.Call(member);
+        }
+
+        private void EmitEnsureArray(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrEnsureArrayExpression expression)
+        {
+            // The storage is passed by reference, so a created array is stored back into the
+            // member rather than into a copy of the enclosing value.
+            EmitAddress(encoder, procedure, expression.Storage);
+            EmitVBArrayBounds(encoder, procedure, expression.Bounds);
+            encoder.OpCode(ILOpCode.Call);
+            encoder.Token(GetEnsureArrayReference(expression.ArrayType.ElementType));
         }
 
         private void EmitNewArray(InstructionEncoder encoder, IrProcedure procedure, IrNewVBArrayExpression expression)
@@ -1180,6 +1197,57 @@ public sealed class ManagedEmitter
                 _metadata.GetOrAddBlob(blob));
             _memberReferences.Add(key, handle);
             return handle;
+        }
+
+        /// <summary>
+        /// References <c>VBTypeStorage.EnsureArray&lt;T&gt;</c> for one element type. The method is
+        /// generic, so the member reference carries the open signature - where the type parameter
+        /// is <c>!!0</c> - and a method specification supplies the concrete instantiation.
+        /// </summary>
+        private EntityHandle GetEnsureArrayReference(TypeSymbol elementType)
+        {
+            var specKey = "VBTypeStorage::EnsureArray<" + elementType.Name + ">";
+            if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
+            {
+                return cachedSpec;
+            }
+
+            const string definitionKey = "VBTypeStorage::EnsureArray";
+            if (!_memberReferences.TryGetValue(definitionKey, out var definition))
+            {
+                var blob = new BlobBuilder();
+                new BlobEncoder(blob)
+                    .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
+                    .Parameters(
+                        2,
+                        returnType => EncodeOpenVBArray(returnType.Type()),
+                        parameters =>
+                        {
+                            EncodeOpenVBArray(parameters.AddParameter().Type(isByRef: true));
+                            parameters.AddParameter().Type().SZArray().Type(_vbArrayBound, isValueType: true);
+                        });
+                definition = _metadata.AddMemberReference(
+                    GetReflectionTypeReference(typeof(VBTypeStorage)),
+                    _metadata.GetOrAddString("EnsureArray"),
+                    _metadata.GetOrAddBlob(blob));
+                _memberReferences.Add(definitionKey, definition);
+            }
+
+            var specBlob = new BlobBuilder();
+            var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
+            EncodeType(arguments.AddArgument(), elementType);
+            var spec = (EntityHandle)_metadata.AddMethodSpecification(
+                definition,
+                _metadata.GetOrAddBlob(specBlob));
+            _methodSpecifications.Add(specKey, spec);
+            return spec;
+        }
+
+        /// <summary>Encodes <c>VBArray&lt;!!0&gt;</c>, the generic method's own type parameter.</summary>
+        private void EncodeOpenVBArray(SignatureTypeEncoder encoder)
+        {
+            var arguments = encoder.GenericInstantiation(_vbArray, 1, isValueType: false);
+            arguments.AddArgument().GenericMethodTypeParameter(0);
         }
 
         private MemberReferenceHandle GetVBArrayBoundConstructor()

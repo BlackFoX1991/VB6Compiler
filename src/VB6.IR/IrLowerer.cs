@@ -836,7 +836,7 @@ public static class IrLowerer
                     LowerExpression(element.Receiver),
                     element.Indices.Select(LowerExpression).ToImmutableArray(),
                     element.ElementType)),
-                BoundMemberAccessExpression member => new IrLoadExpression(LowerMemberPlace(member)),
+                BoundMemberAccessExpression member => LowerMemberRead(member),
                 BoundWithReceiverExpression with => new IrLoadExpression(LowerWithPlace(with)),
                 BoundArrayBoundExpression bound => new IrArrayCallExpression(
                     bound.IsUpperBound ? IrArrayOperation.UBound : IrArrayOperation.LBound,
@@ -867,6 +867,31 @@ public static class IrLowerer
             BoundWithReceiverExpression with => LowerWithPlace(with),
             _ => throw new InvalidOperationException($"Bound expression '{expression.GetType().Name}' is not an addressable place.")
         };
+
+        /// <summary>
+        /// Reads a UDT member. A member declared with fixed array bounds has no storage until it
+        /// is first touched, so reading it goes through <see cref="IrEnsureArrayExpression"/>
+        /// rather than loading the field directly. Element reads and writes both arrive here,
+        /// because the member is the receiver they index into - and the array is a reference, so
+        /// one substitution covers both.
+        /// </summary>
+        private IrExpression LowerMemberRead(BoundMemberAccessExpression expression)
+        {
+            var place = LowerMemberPlace(expression);
+            if (expression.Member.HasArrayBounds && expression.Member.Type is ArrayTypeSymbol arrayType)
+            {
+                return new IrEnsureArrayExpression(
+                    place,
+                    arrayType,
+                    expression.Member.ArrayBounds
+                        .Select(bound => new IrArrayBound(
+                            new IrConstantExpression(bound.Lower, TypeSymbol.Long),
+                            new IrConstantExpression(bound.Upper, TypeSymbol.Long)))
+                        .ToImmutableArray());
+            }
+
+            return new IrLoadExpression(place);
+        }
 
         private IrPlace LowerMemberPlace(BoundMemberAccessExpression expression)
         {

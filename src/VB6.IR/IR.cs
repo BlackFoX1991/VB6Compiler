@@ -168,6 +168,19 @@ public sealed record IrReDimPreserveExpression(
     ImmutableArray<IrArrayBound> Bounds)
     : IrExpression(ArrayType);
 
+/// <summary>
+/// Reads a fixed-size array member of a user-defined type, creating its storage on first access.
+/// A UDT is a struct, so a default instance - including every element of an array of that type -
+/// starts with a null member; the declared bounds are the only place the size is known.
+/// <see cref="Storage"/> is addressed rather than loaded so the created array lands in the member
+/// itself instead of a copy.
+/// </summary>
+public sealed record IrEnsureArrayExpression(
+    IrPlace Storage,
+    ArrayTypeSymbol ArrayType,
+    ImmutableArray<IrArrayBound> Bounds)
+    : IrExpression(ArrayType);
+
 public sealed record IrArrayBound(IrExpression Lower, IrExpression Upper);
 
 public enum IrCallArgumentKind

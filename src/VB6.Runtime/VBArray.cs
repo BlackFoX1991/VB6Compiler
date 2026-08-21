@@ -219,3 +219,25 @@ public sealed class VBArray<T>
         return offset;
     }
 }
+
+/// <summary>
+/// Storage helpers for fixed-size arrays declared inside a user-defined type.
+///
+/// A VB6 <c>Type</c> member such as <c>Values(1 To 2) As Long</c> has its bounds fixed by the
+/// declaration, but the storage cannot be created with the enclosing value: a UDT is a struct, so
+/// every default instance - including each element of an array of that type - starts with a null
+/// member. The array is therefore created on first access, against the declared bounds.
+/// </summary>
+public static class VBTypeStorage
+{
+    /// <summary>
+    /// Returns the array held by a fixed UDT array member, creating it on first access. The
+    /// storage is passed by reference so the created array is kept in the member itself rather
+    /// than in a copy of the enclosing value.
+    /// </summary>
+    public static VBArray<T> EnsureArray<T>(ref VBArray<T>? storage, params VBArrayBound[] bounds)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+        return storage ??= new VBArray<T>(bounds);
+    }
+}
