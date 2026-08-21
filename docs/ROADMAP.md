@@ -489,9 +489,10 @@ Blockstruktur, nicht mehr des Textgenerators.
 - [ ] Zeilennummern, `On ... GoTo`, `GoSub`/`Return`
 - [ ] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt — `VB6S0061`,
       26 Vorkommen im Korpus; der größte verbliebene Einzelposten nach den Bibliotheksfunktionen
-- [ ] Quellpositionen: Binder setzt `SourceLocation`, `IrLowerer` reicht sie durch,
-      `PortablePdbEmitter` schreibt Sequenzpunkte. Die PDB entsteht bereits, enthält aber nur
-      Dokumentnamen und Locals
+- [x] Quellpositionen: der Binder hängt `SourceLocation` referenziell an jede gebundene Anweisung,
+      `IrLowerer` stempelt sie auf die entstehenden Instruktionen, der Emitter merkt sich die
+      IL-Offsets und `PortablePdbEmitter` schreibt daraus Sequenzpunkte. Die PDB trägt damit
+      Dokumente, Locals und Anweisungsgrenzen. **Offen:** Prozedurgrenzen und `Debug.Assert`
 
 ## Meilenstein 7 — Standardbibliothek
 
