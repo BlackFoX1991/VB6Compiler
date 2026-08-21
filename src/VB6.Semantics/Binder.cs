@@ -307,13 +307,23 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        if (!declarator.IsArray || declarator.Dimensions.IsDefaultOrEmpty)
+        return !declarator.IsArray || declarator.Dimensions.IsDefaultOrEmpty
+            ? ImmutableArray<BoundArrayDimension>.Empty
+            : BindArrayDimensionList(declarator.Dimensions, variables, procedures);
+    }
+
+    private ImmutableArray<BoundArrayDimension> BindArrayDimensionList(
+        ImmutableArray<ArrayDimensionSyntax> syntaxes,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (syntaxes.IsDefaultOrEmpty)
         {
             return ImmutableArray<BoundArrayDimension>.Empty;
         }
 
-        var dimensions = ImmutableArray.CreateBuilder<BoundArrayDimension>(declarator.Dimensions.Length);
-        foreach (var dimension in declarator.Dimensions)
+        var dimensions = ImmutableArray.CreateBuilder<BoundArrayDimension>(syntaxes.Length);
+        foreach (var dimension in syntaxes)
         {
             var lowerBound = dimension.LowerBound is null
                 ? new BoundLiteralExpression((long)_optionBase, TypeSymbol.Long)
@@ -525,6 +535,19 @@ public sealed class Binder
                         reDim.PreserveKeyword is not null,
                         variables,
                         procedures));
+                }
+
+                foreach (var target in reDim.QualifiedTargets)
+                {
+                    var boundTarget = BindQualifiedReDim(
+                        target,
+                        reDim.PreserveKeyword is not null,
+                        variables,
+                        procedures);
+                    if (boundTarget is not null)
+                    {
+                        bound.Add(boundTarget);
+                    }
                 }
                 continue;
             }
@@ -815,7 +838,7 @@ public sealed class Binder
                 $"Variable '{syntax.Identifier.Text}' is not declared.",
                 syntax.Identifier.Span);
             variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
-            return new BoundReDimStatement(variable, dimensions, preserve);
+            return new BoundReDimStatement(new BoundVariableExpression(variable), dimensions, preserve);
         }
 
         if (variable.Type is not ArrayTypeSymbol arrayType)
@@ -824,7 +847,7 @@ public sealed class Binder
                 "VB6S0029",
                 $"ReDim target '{syntax.Identifier.Text}' is not a dynamic array.",
                 syntax.Identifier.Span);
-            return new BoundReDimStatement(variable, dimensions, preserve);
+            return new BoundReDimStatement(new BoundVariableExpression(variable), dimensions, preserve);
         }
 
         if (arrayType.HasKnownRank)
@@ -855,7 +878,67 @@ public sealed class Binder
             }
         }
 
-        return new BoundReDimStatement(variable, dimensions, preserve);
+        return new BoundReDimStatement(new BoundVariableExpression(variable), dimensions, preserve);
+    }
+
+    /// <summary>
+    /// <c>ReDim Section(0).Bytes(0)</c>. The receiver is bound like any other expression, so the
+    /// element selection on the way in already works; only the array it lands on has to be dynamic.
+    /// </summary>
+    private BoundReDimStatement? BindQualifiedReDim(
+        ReDimQualifiedTargetSyntax syntax,
+        bool preserve,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var target = BindExpression(syntax.Target, variables, procedures);
+        if (target.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        var dimensions = BindArrayDimensionList(syntax.Dimensions, variables, procedures);
+
+        if (target.Type is not ArrayTypeSymbol arrayType)
+        {
+            Report(
+                "VB6S0029",
+                $"ReDim target of type '{target.Type.Name}' is not a dynamic array.",
+                syntax.OpenParenthesisToken.Span);
+            return null;
+        }
+
+        if (arrayType.HasKnownRank)
+        {
+            Report(
+                "VB6S0029",
+                "ReDim target is a fixed array.",
+                syntax.OpenParenthesisToken.Span);
+        }
+
+        if (dimensions.IsDefaultOrEmpty)
+        {
+            Report(
+                "VB6S0030",
+                "ReDim target requires at least one dimension.",
+                syntax.OpenParenthesisToken.Span);
+        }
+
+        // The element type may be restated, as in ReDim Preserve Section(2).Bytes(n) As Byte, but
+        // it cannot be changed.
+        if (syntax.TypeToken is not null)
+        {
+            var restated = ResolveDeclaredType(syntax.TypeToken);
+            if (restated != TypeSymbol.Error && restated != arrayType.ElementType)
+            {
+                Report(
+                    "VB6S0031",
+                    $"ReDim cannot change the element type from '{arrayType.ElementType.Name}' to '{restated.Name}'.",
+                    syntax.TypeToken.Span);
+            }
+        }
+
+        return new BoundReDimStatement(target, dimensions, preserve);
     }
 
     private BoundEraseStatement BindErase(
@@ -1500,30 +1583,20 @@ public sealed class Binder
             return new BoundErrorExpression();
         }
 
-        if (syntax.Arguments[0] is not NameExpressionSyntax arrayName)
+        // Any array-valued expression works, not just a bare name: UBound(Section(2).Bytes) asks for
+        // the bounds of an array that lives inside a user-defined type element.
+        var array = BindExpression(syntax.Arguments[0], variables, procedures);
+        if (array.Type == TypeSymbol.Error)
+        {
+            return new BoundErrorExpression();
+        }
+
+        if (array.Type is not ArrayTypeSymbol)
         {
             Report(
                 "VB6S0035",
-                $"{syntax.Identifier.Text} requires an array variable.",
+                $"{syntax.Identifier.Text} requires an array, but '{array.Type.Name}' was supplied.",
                 syntax.Identifier.Span);
-            return new BoundErrorExpression();
-        }
-
-        if (!variables.TryGetValue(arrayName.IdentifierToken.Text, out var arrayVariable))
-        {
-            Report(
-                "VB6S0001",
-                $"Variable '{arrayName.IdentifierToken.Text}' is not declared.",
-                arrayName.IdentifierToken.Span);
-            return new BoundErrorExpression();
-        }
-
-        if (arrayVariable.Type is not ArrayTypeSymbol)
-        {
-            Report(
-                "VB6S0035",
-                $"{syntax.Identifier.Text} requires an array variable.",
-                arrayName.IdentifierToken.Span);
             return new BoundErrorExpression();
         }
 
@@ -1532,7 +1605,7 @@ public sealed class Binder
             : new BoundLiteralExpression(1L, TypeSymbol.Long);
 
         return new BoundArrayBoundExpression(
-            arrayVariable,
+            array,
             dimension,
             IsUpperBound: string.Equals(syntax.Identifier.Text, "UBound", StringComparison.OrdinalIgnoreCase));
     }
