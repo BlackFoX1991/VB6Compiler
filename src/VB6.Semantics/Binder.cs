@@ -12,6 +12,11 @@ public sealed class Binder
     private readonly SourceText _text;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly List<LoopBindingContext> _loopStack = new();
+    /// <summary>
+    /// Labels declared directly in the current procedure body. Only these can be jumped to, so a
+    /// label nested inside an If or a loop never enters the set and its jumps stay reported.
+    /// </summary>
+    private readonly HashSet<string> _procedureLabels = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<WithBindingContext> _withStack = new();
     private int _nextLoopId;
     private int _nextSelectId;
@@ -437,6 +442,13 @@ public sealed class Binder
         }
 
         PredeclareLocals(statements, locals, variables);
+
+        _procedureLabels.Clear();
+        foreach (var statement in statements.OfType<LabelStatementSyntax>())
+        {
+            _procedureLabels.Add(statement.Identifier.Text);
+        }
+
         var body = BindStatements(statements, variables, procedures);
 
         return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
@@ -618,12 +630,16 @@ public sealed class Binder
             OnErrorStatementSyntax onError => ReportControlFlowGap(
                 $"On Error {onError.ActionKeyword.Text} {onError.TargetToken.Text}",
                 onError.OnKeyword.Span),
-            GoToStatementSyntax goTo => ReportControlFlowGap(
-                $"GoTo {goTo.LabelToken.Text}",
-                goTo.GoToKeyword.Span),
-            LabelStatementSyntax label => ReportControlFlowGap(
-                $"Label '{label.Identifier.Text}'",
-                label.Identifier.Span),
+            GoToStatementSyntax goTo => _procedureLabels.Contains(goTo.LabelToken.Text)
+                ? new BoundGoToStatement(goTo.LabelToken.Text)
+                : ReportControlFlowGap(
+                    $"GoTo {goTo.LabelToken.Text}",
+                    goTo.GoToKeyword.Span),
+            LabelStatementSyntax label => _procedureLabels.Contains(label.Identifier.Text)
+                ? new BoundLabelStatement(label.Identifier.Text)
+                : ReportControlFlowGap(
+                    $"Label '{label.Identifier.Text}'",
+                    label.Identifier.Span),
             SkippedStatementSyntax => null,
             _ => null
         };
