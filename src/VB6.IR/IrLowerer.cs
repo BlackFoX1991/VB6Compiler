@@ -276,6 +276,7 @@ public static class IrLowerer
 
             PredeclareLabels(_procedure.Body);
             _current = NewBlock("entry");
+            EmitProcedurePrologue();
             LowerBlock(_procedure.Body);
             if (!_current.HasTerminator)
             {
@@ -374,8 +375,9 @@ public static class IrLowerer
         {
             switch (statement)
             {
-                case BoundVariableDeclarationStatement declaration:
-                    LowerVariableDeclaration(declaration);
+                case BoundVariableDeclarationStatement:
+                    // Locals have procedure lifetime in VB6. Storage that differs from the CLR
+                    // zero value is initialized once in the entry prologue, not at the Dim site.
                     break;
                 case BoundAssignmentStatement assignment:
                     Emit(new IrStoreInstruction(LowerVariablePlace(assignment.Variable), LowerValueCopy(assignment.Expression)));
@@ -500,7 +502,100 @@ public static class IrLowerer
             }
         }
 
-        private void LowerVariableDeclaration(BoundVariableDeclarationStatement declaration)
+        /// <summary>
+        /// Initializes procedure-lifetime storage before user control flow starts. CLR InitLocals
+        /// already gives numeric/value locals their VB6 zero value; only storage whose VB6 default
+        /// differs from the CLR default needs explicit IR here.
+        /// </summary>
+        private void EmitProcedurePrologue()
+        {
+            foreach (var declaration in EnumerateVariableDeclarations(_procedure.Body))
+            {
+                InitializeVariableDeclaration(declaration);
+            }
+
+            if (_returnLocal is not null && _procedure.Symbol.ReturnType == TypeSymbol.String)
+            {
+                Emit(new IrStoreInstruction(
+                    new IrLocalPlace(_returnLocal),
+                    new IrConstantExpression(string.Empty, TypeSymbol.String)));
+            }
+        }
+
+        private static IEnumerable<BoundVariableDeclarationStatement> EnumerateVariableDeclarations(
+            BoundBlockStatement block)
+        {
+            foreach (var statement in block.Statements)
+            {
+                switch (statement)
+                {
+                    case BoundVariableDeclarationStatement declaration:
+                        yield return declaration;
+                        break;
+                    case BoundIfStatement @if:
+                        foreach (var declaration in EnumerateVariableDeclarations(@if.Body))
+                        {
+                            yield return declaration;
+                        }
+                        foreach (var clause in @if.ElseIfClauses)
+                        {
+                            foreach (var declaration in EnumerateVariableDeclarations(clause.Body))
+                            {
+                                yield return declaration;
+                            }
+                        }
+                        if (@if.ElseBody is not null)
+                        {
+                            foreach (var declaration in EnumerateVariableDeclarations(@if.ElseBody))
+                            {
+                                yield return declaration;
+                            }
+                        }
+                        break;
+                    case BoundForStatement @for:
+                        foreach (var declaration in EnumerateVariableDeclarations(@for.Body))
+                        {
+                            yield return declaration;
+                        }
+                        break;
+                    case BoundForEachStatement forEach:
+                        foreach (var declaration in EnumerateVariableDeclarations(forEach.Body))
+                        {
+                            yield return declaration;
+                        }
+                        break;
+                    case BoundWhileStatement @while:
+                        foreach (var declaration in EnumerateVariableDeclarations(@while.Body))
+                        {
+                            yield return declaration;
+                        }
+                        break;
+                    case BoundDoStatement @do:
+                        foreach (var declaration in EnumerateVariableDeclarations(@do.Body))
+                        {
+                            yield return declaration;
+                        }
+                        break;
+                    case BoundWithStatement with:
+                        foreach (var declaration in EnumerateVariableDeclarations(with.Body))
+                        {
+                            yield return declaration;
+                        }
+                        break;
+                    case BoundSelectCaseStatement select:
+                        foreach (var @case in select.Cases)
+                        {
+                            foreach (var declaration in EnumerateVariableDeclarations(@case.Body))
+                            {
+                                yield return declaration;
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+
+        private void InitializeVariableDeclaration(BoundVariableDeclarationStatement declaration)
         {
             var target = LowerVariablePlace(declaration.Variable);
             if (declaration.Variable.Type is ArrayTypeSymbol arrayType && !declaration.ArrayDimensions.IsDefaultOrEmpty)
