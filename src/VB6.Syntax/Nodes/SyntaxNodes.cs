@@ -317,6 +317,29 @@ public sealed record InvocationStatementSyntax(
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 
 /// <summary>
+/// <c>On Error GoTo Handler</c>, <c>On Error GoTo 0</c> and <c>On Error Resume Next</c>. The
+/// action keyword tells the three apart and the target carries the label, the zero, or Next.
+/// </summary>
+public sealed record OnErrorStatementSyntax(
+    SyntaxToken OnKeyword,
+    SyntaxToken ErrorKeyword,
+    SyntaxToken ActionKeyword,
+    SyntaxToken TargetToken) : StatementSyntax(SyntaxKind.OnErrorStatement);
+
+public sealed record GoToStatementSyntax(
+    SyntaxToken GoToKeyword,
+    SyntaxToken LabelToken) : StatementSyntax(SyntaxKind.GoToStatement);
+
+/// <summary>
+/// A jump target such as <c>LinkFail:</c>. Only a label that stands alone on its line is
+/// recognized, because an identifier followed by a colon is otherwise a parameterless call
+/// followed by the statement separator - <c>Foo: Bar</c> is two statements in VB6.
+/// </summary>
+public sealed record LabelStatementSyntax(
+    SyntaxToken Identifier,
+    SyntaxToken ColonToken) : StatementSyntax(SyntaxKind.LabelStatement);
+
+/// <summary>
 /// A VB6 file number, written <c>#1</c> or <c>#FileNum</c>. The hash is optional in VB6 for some
 /// statements, so it is kept separately rather than folded into the expression.
 /// </summary>

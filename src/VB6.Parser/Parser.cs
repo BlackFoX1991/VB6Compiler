@@ -713,6 +713,9 @@ public sealed class Parser
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
+            SyntaxKind.OnKeyword => ParseOnErrorStatement(),
+            SyntaxKind.GoToKeyword => ParseGoToStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Open") => ParseOpenStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Close") => ParseCloseStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Get") => ParseGetOrPutStatement(isGet: true),
@@ -858,6 +861,44 @@ public sealed class Parser
         }
 
         return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, declarators);
+    }
+
+    /// <summary>
+    /// A label is an identifier followed by a colon and nothing else on the line. The stricter rule
+    /// is deliberate: <c>Foo: Bar</c> is a parameterless call and a statement separator in VB6, not
+    /// a label, and the corpus writes every one of its 21 labels on a line of its own.
+    /// </summary>
+    private bool LooksLikeLabel() =>
+        Peek(1).Kind == SyntaxKind.ColonToken &&
+        Peek(2).Kind is SyntaxKind.NewLineToken or SyntaxKind.EndOfFileToken;
+
+    private LabelStatementSyntax ParseLabelStatement()
+    {
+        var identifier = NextToken();
+        var colon = MatchToken(SyntaxKind.ColonToken);
+        return new LabelStatementSyntax(identifier, colon);
+    }
+
+    private GoToStatementSyntax ParseGoToStatement()
+    {
+        var goToKeyword = NextToken();
+        return new GoToStatementSyntax(goToKeyword, MatchToken(SyntaxKind.IdentifierToken));
+    }
+
+    private OnErrorStatementSyntax ParseOnErrorStatement()
+    {
+        var onKeyword = NextToken();
+        var errorKeyword = MatchToken(SyntaxKind.ErrorKeyword);
+        var action = NextToken();
+
+        // GoTo takes a label or the literal 0 that clears the handler; Resume takes Next.
+        var target = action.Kind == SyntaxKind.GoToKeyword && Current.Kind == SyntaxKind.IntegerLiteralToken
+            ? NextToken()
+            : action.Kind == SyntaxKind.ResumeKeyword
+                ? MatchToken(SyntaxKind.NextKeyword)
+                : MatchToken(SyntaxKind.IdentifierToken);
+
+        return new OnErrorStatementSyntax(onKeyword, errorKeyword, action, target);
     }
 
     /// <summary>
