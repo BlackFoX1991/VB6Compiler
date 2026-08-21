@@ -872,31 +872,133 @@ public sealed class Parser
             preserveKeyword = NextToken();
         }
 
-        var declarators = ParseVariableDeclarators();
-
-        // ReDim Section(0).Bytes(0) redimensions an array that lives inside a UDT element. The
-        // bound model still expects a plain variable, so the construct is reported and the rest of
-        // the line is discarded. Without this the dot derailed the statement loop and took the
-        // remainder of the procedure with it - it was the first error in four corpus modules.
-        if (Current.Kind == SyntaxKind.DotToken)
+        // ReDim Section(0).Bytes(0) reaches into a user-defined type element, so there is no name to
+        // declare and the ordinary declarator shape does not fit.
+        if (LooksLikeQualifiedReDimTarget())
         {
-            _diagnostics.Add(new Diagnostic(
-                "VB6P0002",
-                DiagnosticSeverity.Error,
-                "ReDim of a qualified target such as 'Item(0).Field(0)' is not implemented yet.",
-                Current.Span,
-                _text.FilePath));
-
-            while (Current.Kind is not SyntaxKind.NewLineToken
-                   and not SyntaxKind.ColonToken
-                   and not SyntaxKind.EndOfFileToken)
-            {
-                NextToken();
-            }
+            return new ReDimStatementSyntax(
+                reDimKeyword,
+                preserveKeyword,
+                ImmutableArray<VariableDeclaratorSyntax>.Empty,
+                ParseQualifiedReDimTargets());
         }
 
-        return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, declarators);
+        return new ReDimStatementSyntax(reDimKeyword, preserveKeyword, ParseVariableDeclarators());
     }
+
+    /// <summary>A dot anywhere before the end of the statement means the target is qualified.</summary>
+    private bool LooksLikeQualifiedReDimTarget()
+    {
+        for (var offset = 0; ; offset++)
+        {
+            switch (Peek(offset).Kind)
+            {
+                case SyntaxKind.DotToken:
+                    return true;
+                case SyntaxKind.NewLineToken:
+                case SyntaxKind.ColonToken:
+                case SyntaxKind.EndOfFileToken:
+                    return false;
+            }
+        }
+    }
+
+    private ImmutableArray<ReDimQualifiedTargetSyntax> ParseQualifiedReDimTargets()
+    {
+        var targets = ImmutableArray.CreateBuilder<ReDimQualifiedTargetSyntax>();
+        while (true)
+        {
+            var target = ParseQualifiedReDimTarget();
+            if (Current.Kind != SyntaxKind.CommaToken)
+            {
+                targets.Add(target);
+                break;
+            }
+
+            targets.Add(target with { CommaToken = NextToken() });
+        }
+
+        return targets.ToImmutable();
+    }
+
+    /// <summary>
+    /// Parses a target such as <c>Section(0).Bytes(0)</c>. Every parenthesized list except the last
+    /// selects an element on the way in; the final one carries the new bounds.
+    /// </summary>
+    private ReDimQualifiedTargetSyntax ParseQualifiedReDimTarget()
+    {
+        ExpressionSyntax receiver = new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
+        SyntaxToken? openParenthesis = null;
+        SyntaxToken? closeParenthesis = null;
+        var dimensions = ImmutableArray<ArrayDimensionSyntax>.Empty;
+
+        while (true)
+        {
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                // Hold the list until it is clear whether a member follows, which would make it an
+                // index rather than the bounds.
+                if (openParenthesis is not null)
+                {
+                    receiver = ToElementAccess(receiver, openParenthesis, dimensions, closeParenthesis!);
+                }
+
+                var (open, parsed, close) = ParseArrayDimensions();
+                openParenthesis = open;
+                dimensions = parsed;
+                closeParenthesis = close;
+                continue;
+            }
+
+            if (Current.Kind == SyntaxKind.DotToken)
+            {
+                if (openParenthesis is not null)
+                {
+                    receiver = ToElementAccess(receiver, openParenthesis, dimensions, closeParenthesis!);
+                    openParenthesis = null;
+                    closeParenthesis = null;
+                    dimensions = ImmutableArray<ArrayDimensionSyntax>.Empty;
+                }
+
+                var dotToken = NextToken();
+                receiver = new MemberAccessExpressionSyntax(receiver, dotToken, NextToken());
+                continue;
+            }
+
+            break;
+        }
+
+        // ReDim Preserve Section(2).Bytes(n) As Byte restates the element type, as the plain form does.
+        SyntaxToken? asKeyword = null;
+        SyntaxToken? typeToken = null;
+        if (Current.Kind == SyntaxKind.AsKeyword)
+        {
+            asKeyword = NextToken();
+            typeToken = MatchTypeToken();
+        }
+
+        return new ReDimQualifiedTargetSyntax(
+            receiver,
+            openParenthesis ?? MatchToken(SyntaxKind.OpenParenthesisToken),
+            dimensions,
+            closeParenthesis ?? MatchToken(SyntaxKind.CloseParenthesisToken),
+            asKeyword,
+            typeToken);
+    }
+
+    /// <summary>
+    /// Turns a held parenthesized list back into the element selection it turned out to be.
+    /// </summary>
+    private static ExpressionSyntax ToElementAccess(
+        ExpressionSyntax receiver,
+        SyntaxToken openParenthesis,
+        ImmutableArray<ArrayDimensionSyntax> dimensions,
+        SyntaxToken closeParenthesis) =>
+        new ElementAccessExpressionSyntax(
+            receiver,
+            openParenthesis,
+            dimensions.Select(dimension => dimension.UpperBound).ToImmutableArray(),
+            closeParenthesis);
 
     /// <summary>
     /// A label is an identifier followed by a colon and nothing else on the line. The stricter rule

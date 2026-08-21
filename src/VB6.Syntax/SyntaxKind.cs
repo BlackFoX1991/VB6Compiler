@@ -101,6 +101,7 @@ public enum SyntaxKind
     OptionCompareStatement,
     AttributeStatement,
     ArrayDimension,
+    ReDimQualifiedTarget,
     VariableDeclarator,
     ModuleVariableDeclaration,
     ConstDeclaration,
