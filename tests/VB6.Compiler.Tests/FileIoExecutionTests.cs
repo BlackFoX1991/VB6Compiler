@@ -78,6 +78,40 @@ public sealed class FileIoExecutionTests
             "20");
     }
 
+    /// <summary>
+    /// The file functions, including <c>FreeFile</c> written without parentheses - which is how VB6
+    /// calls a function that takes no arguments.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_UsesFreeFileLofAndEof()
+    {
+        Run("""
+            Attribute VB_Name = "Module1"
+            Option Explicit
+
+            Public Sub Main()
+                Dim FileNum As Long
+                Dim value As Long
+
+                FileNum = FreeFile
+                Debug.Print FileNum
+
+                Open "counted.bin" For Binary As #FileNum
+                value = 42
+                Put #FileNum, 1, value
+                Debug.Print LOF(FileNum)
+                Debug.Print EOF(FileNum)
+                Seek #FileNum, 1
+                Debug.Print EOF(FileNum)
+                Close #FileNum
+            End Sub
+            """,
+            "1",
+            "4",
+            "True",
+            "False");
+    }
+
     [TestMethod]
     public void Analyze_ReportsTransfersThatHaveNoLayoutRuleYet()
     {
