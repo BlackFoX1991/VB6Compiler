@@ -79,15 +79,14 @@ public sealed class VBProjectCompilation
                 semanticRoot));
         }
 
-        var parseableModules = parsedModules
-            .Where(module => !module.ParseResult.Diagnostics.Any(
-                diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            .ToImmutableArray();
-        var enumSymbols = VBEnumSymbols.Bind(parseableModules.Select(module => module.SemanticRoot));
+        // Types are collected from every module that produced a tree, for the same reason
+        // procedures and variables are: comLinker.bas declares ENUM_APP_TYPE and has three syntax
+        // errors, and hiding its enums made every variable typed with them undeclared elsewhere.
+        var enumSymbols = VBEnumSymbols.Bind(parsedModules.Select(module => module.SemanticRoot));
         using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
 
         var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
-            parseableModules.Select(module =>
+            parsedModules.Select(module =>
                 new UserDefinedTypeModuleInput(module.Text, module.SemanticRoot)));
         sourceDiagnostics.AddRange(userDefinedTypes.Diagnostics);
         var userDefinedTypesByPath = userDefinedTypes.Modules.ToDictionary(
