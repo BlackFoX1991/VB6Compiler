@@ -133,6 +133,11 @@ public static class IrLowerer
         private void PredeclareTypes()
         {
             var seen = new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance);
+
+            // A Private Type shadows a Public one of the same name, so a project can hold several
+            // distinct types called Point. Each needs its own storage name - two definitions under
+            // one name produce an assembly the runtime rejects as having a duplicate type.
+            var namesInUse = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var type in EnumerateTypes())
             {
                 if (!seen.Add(type))
@@ -148,10 +153,22 @@ public static class IrLowerer
                 }).ToImmutableArray();
                 _types.Add(type, new IrTypeDefinition(
                     type,
-                    $"__vb6_udt_{Mangle(type.Name)}",
+                    UniqueTypeName($"__vb6_udt_{Mangle(type.Name)}", namesInUse),
                     fields,
                     ImmutableArray<IrProcedure>.Empty));
             }
+        }
+
+        private static string UniqueTypeName(string name, Dictionary<string, int> namesInUse)
+        {
+            if (namesInUse.TryGetValue(name, out var used))
+            {
+                namesInUse[name] = used + 1;
+                return $"{name}_{used + 1}";
+            }
+
+            namesInUse.Add(name, 1);
+            return name;
         }
 
         private IEnumerable<UserDefinedTypeSymbol> EnumerateTypes()

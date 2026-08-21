@@ -147,7 +147,7 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_UsesDistinctStorageTypesForPrivateUdtShadowing()
+    public void Lower_UsesDistinctStorageTypesForPrivateUdtShadowing()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -177,14 +177,19 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
                 End Sub
                 """);
 
-            var generation = VBProjectCompilation.Create(projectPath).GenerateCSharp();
+            var program = VB6TestIr.LowerProject(projectPath);
 
-            Assert.IsTrue(generation.Success, FormatDiagnostics(generation.Analysis));
-            Assert.IsNotNull(generation.Source);
-            StringAssert.Contains(generation.Source, "private struct __vb6_udt_Point");
-            StringAssert.Contains(generation.Source, "private struct __vb6_udt_Point_2");
-            StringAssert.Contains(generation.Source, "private static void __vb6_UsePublic(ref __vb6_udt_Point __vb6_arg_value)");
-            StringAssert.Contains(generation.Source, "private static void __vb6_UsePrivate(ref __vb6_udt_Point_2 __vb6_arg_value)");
+            // Both declarations are named Point but are different types, so each one needs its own
+            // storage: a single shared definition would silently give one module the other's
+            // member widths.
+            var points = program.TypeDefinitions.Where(type => type.Symbol.Name == "Point").ToArray();
+            Assert.AreEqual(2, points.Length);
+            Assert.AreNotSame(points[0].Symbol, points[1].Symbol);
+            Assert.AreEqual(2, points.Select(type => type.Name).Distinct(StringComparer.Ordinal).Count());
+
+            var usePublic = VB6TestIr.Procedures(program).Single(procedure => procedure.Symbol?.Name == "UsePublic");
+            var usePrivate = VB6TestIr.Procedures(program).Single(procedure => procedure.Symbol?.Name == "UsePrivate");
+            Assert.AreNotSame(usePublic.Parameters.Single().Type, usePrivate.Parameters.Single().Type);
         }
         finally
         {
