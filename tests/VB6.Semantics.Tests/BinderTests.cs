@@ -384,4 +384,40 @@ public sealed class BinderTests
 
         return new Binder(text).BindCompilationUnit(parseResult.Root);
     }
+
+    /// <summary>
+    /// Every bound statement carries where it was written. The mapping is referential - the
+    /// position travels with the node the binder produced - so it cannot drift the way a later
+    /// pass that re-derives positions by walking the tree in parallel would.
+    /// </summary>
+    [TestMethod]
+    public void Bind_AttachesTheSourcePositionOfEveryStatement()
+    {
+        var text = SourceText.From("""
+            Sub Main()
+                Dim value As Long
+                value = 1
+                Debug.Print value
+            End Sub
+            """, "Module1.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+
+        var model = new Binder(text).BindCompilationUnit(parseResult.Root);
+
+        var statements = model.Procedures.Single().Body.Statements;
+        Assert.AreEqual(3, statements.Length);
+        foreach (var statement in statements)
+        {
+            Assert.IsNotNull(statement.SourceLocation, $"{statement.Kind} has no source location.");
+            Assert.AreEqual("Module1.bas", statement.SourceLocation!.FilePath);
+        }
+
+        // Each position names the statement's own first token, in source order.
+        var source = text.ToString();
+        var starts = statements.Select(statement => statement.SourceLocation!.Span.Start).ToArray();
+        CollectionAssert.AreEqual(starts.OrderBy(start => start).ToArray(), starts);
+        StringAssert.StartsWith(source[starts[0]..], "Dim value");
+        StringAssert.StartsWith(source[starts[1]..], "value = 1");
+        StringAssert.StartsWith(source[starts[2]..], "Debug.Print");
+    }
 }

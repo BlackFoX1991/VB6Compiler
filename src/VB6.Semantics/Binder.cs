@@ -551,11 +551,16 @@ public sealed class Binder
 
         foreach (var statement in statements)
         {
+            // Dim, ReDim and Erase each bind one statement into several bound statements, one per
+            // declarator or identifier. They all share the position of the statement they were
+            // written as, which is what a debugger steps to.
             if (statement is DimStatementSyntax dim)
             {
                 foreach (var declarator in dim.Declarators)
                 {
-                    bound.Add(BindVariableDeclaration(declarator, variables, procedures));
+                    bound.Add(WithLocation(
+                        BindVariableDeclaration(declarator, variables, procedures),
+                        statement));
                 }
                 continue;
             }
@@ -564,11 +569,13 @@ public sealed class Binder
             {
                 foreach (var declarator in reDim.Declarators)
                 {
-                    bound.Add(BindReDim(
-                        declarator,
-                        reDim.PreserveKeyword is not null,
-                        variables,
-                        procedures));
+                    bound.Add(WithLocation(
+                        BindReDim(
+                            declarator,
+                            reDim.PreserveKeyword is not null,
+                            variables,
+                            procedures),
+                        statement));
                 }
 
                 foreach (var target in reDim.QualifiedTargets)
@@ -580,7 +587,7 @@ public sealed class Binder
                         procedures);
                     if (boundTarget is not null)
                     {
-                        bound.Add(boundTarget);
+                        bound.Add(WithLocation(boundTarget, statement));
                     }
                 }
                 continue;
@@ -590,7 +597,7 @@ public sealed class Binder
             {
                 foreach (var eraseIdentifier in erase.Identifiers)
                 {
-                    bound.Add(BindErase(eraseIdentifier, variables));
+                    bound.Add(WithLocation(BindErase(eraseIdentifier, variables), statement));
                 }
                 continue;
             }
@@ -614,7 +621,38 @@ public sealed class Binder
         return new BoundBlockStatement(bound.ToImmutable());
     }
 
+    /// <summary>
+    /// Binds one statement and records where it came from. Every bound statement passes through
+    /// here, so attaching the position once covers the whole language - and it is attached
+    /// referentially, to the node the statement produced, rather than by counting lines later.
+    /// </summary>
     private BoundStatement? BindStatement(
+        StatementSyntax statement,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var bound = BindStatementCore(statement, variables, procedures);
+        return bound is null ? null : WithLocation(bound, statement);
+    }
+
+    /// <summary>
+    /// Attaches the source position of <paramref name="statement"/> unless the bound node already
+    /// carries one - a lowering pass that rewrote the statement knows better where it belongs.
+    /// </summary>
+    private BoundStatement WithLocation(BoundStatement bound, StatementSyntax statement)
+    {
+        if (bound.SourceLocation is not null)
+        {
+            return bound;
+        }
+
+        var token = SyntaxNavigator.GetFirstToken(statement);
+        return token is null
+            ? bound
+            : bound with { SourceLocation = new SourceLocation(_text.FilePath, token.Span) };
+    }
+
+    private BoundStatement? BindStatementCore(
         StatementSyntax statement,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
