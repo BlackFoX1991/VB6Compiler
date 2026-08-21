@@ -26,8 +26,13 @@ public sealed class UserDefinedTypeFixedArrayGuardTests
         Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
     }
 
+    /// <summary>
+    /// A dynamic array member is allocated by ReDim rather than by the enclosing value, so it is a
+    /// plain field that starts out unallocated - and the clone deep-copies it, because VB6 copies a
+    /// user-defined type by value.
+    /// </summary>
     [TestMethod]
-    public void GenerateCSharp_KeepsDynamicUdtArrayMemberGuarded()
+    public void GenerateCSharp_AllowsDynamicArrayMember()
     {
         var generation = VBCompilation.Create("""
             Type Record
@@ -36,11 +41,16 @@ public sealed class UserDefinedTypeFixedArrayGuardTests
 
             Sub Main()
                 Dim value As Record
+                ReDim value.Values(1 To 2)
+                value.Values(1) = 10
+                Debug.Print value.Values(1)
             End Sub
             """, "test.bas").GenerateCSharp();
 
-        Assert.IsFalse(generation.Success);
-        Assert.IsTrue(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+        StringAssert.Contains(generation.Source, "public VBArray<int> __vb6_member_Values;");
     }
 
     [TestMethod]
