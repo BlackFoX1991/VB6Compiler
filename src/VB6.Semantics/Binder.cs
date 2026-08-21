@@ -585,6 +585,9 @@ public sealed class Binder
             PutStatementSyntax put => BindGetOrPut(
                 put.FileNumber, put.RecordPosition, put.Target, put.PutKeyword, isGet: false, variables, procedures),
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
+            QualifiedInvocationStatementSyntax qualified => ReportObjectModelGap(
+                "Calling a method on an object",
+                GetSpan(qualified.Target)),
             OnErrorStatementSyntax onError => ReportControlFlowGap(
                 $"On Error {onError.ActionKeyword.Text} {onError.TargetToken.Text}",
                 onError.OnKeyword.Span),
@@ -605,6 +608,28 @@ public sealed class Binder
     /// handler that guards every statement. Reported rather than dropped, because binding returns
     /// null for what it does not understand and the statement would vanish silently.
     /// </summary>
+    /// <summary>
+    /// Calls and arguments that need the object model. Reported rather than dropped, for the same
+    /// reason every other unbound statement is.
+    /// </summary>
+    private BoundStatement? ReportObjectModelGap(string construct, TextSpan span)
+    {
+        Report(
+            "VB6S0062",
+            $"{construct} needs the object type model, which is not implemented yet.",
+            span);
+        return null;
+    }
+
+    /// <summary>Best-effort span for an expression, used only to place a diagnostic.</summary>
+    private static TextSpan GetSpan(ExpressionSyntax expression) => expression switch
+    {
+        NameExpressionSyntax name => name.IdentifierToken.Span,
+        MemberAccessExpressionSyntax member => member.MemberToken.Span,
+        InvocationExpressionSyntax invocation => invocation.Identifier.Span,
+        _ => new TextSpan(0, 0)
+    };
+
     private BoundStatement? ReportControlFlowGap(string construct, TextSpan span)
     {
         Report(
@@ -725,6 +750,21 @@ public sealed class Binder
     /// object model that class modules and controls will bring. Guarded rather than approximated,
     /// the same way binary <c>Is</c> is.
     /// </summary>
+    /// <summary>
+    /// <c>List.Add , , "General"</c> leaves arguments out for Optional parameters. Without the
+    /// Optional call semantics there is nothing to put in their place, and inventing a zero would
+    /// change what the callee sees.
+    /// </summary>
+    private BoundExpression BindOmittedArgument(OmittedArgumentExpressionSyntax syntax)
+    {
+        _ = syntax;
+        Report(
+            "VB6S0063",
+            "An omitted argument needs the Optional parameter semantics, which are not implemented yet.",
+            new TextSpan(0, 0));
+        return new BoundErrorExpression();
+    }
+
     private BoundExpression BindTypeOf(TypeOfExpressionSyntax syntax)
     {
         Report(
@@ -1309,6 +1349,8 @@ public sealed class Binder
             BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
             ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
             TypeOfExpressionSyntax typeOf => BindTypeOf(typeOf),
+            // An omitted argument is only meaningful once Optional parameters carry defaults.
+            OmittedArgumentExpressionSyntax omitted => BindOmittedArgument(omitted),
             // The keyword only decides how the argument is passed; the value itself is the operand.
             ArgumentPassingModeExpressionSyntax passingMode =>
                 BindExpression(passingMode.Expression, variables, procedures),
