@@ -144,7 +144,11 @@ public sealed class Binder
                     type,
                     parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
                         ? ParameterPassingMode.ByVal
-                        : ParameterPassingMode.ByRef);
+                        : ParameterPassingMode.ByRef)
+                {
+                    IsOptional = parameter.OptionalKeyword is not null,
+                    DefaultValue = (parameter.DefaultValue as LiteralExpressionSyntax)?.LiteralToken.Value
+                };
             })
             .ToImmutableArray();
 
@@ -1617,7 +1621,9 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var minimumArguments = procedure.IntrinsicMinimumArguments ?? procedure.Parameters.Length;
+        // Optional parameters may be left out at the call site, so the accepted count is a range.
+        var minimumArguments = procedure.IntrinsicMinimumArguments
+            ?? procedure.Parameters.Count(parameter => !parameter.IsOptional);
         if (argumentSyntaxes.Length > procedure.Parameters.Length ||
             argumentSyntaxes.Length < minimumArguments)
         {
@@ -1689,8 +1695,59 @@ public sealed class Binder
             });
         }
 
+        // Fill in the Optional parameters the call site left out. A missing default means the
+        // default of the type, which is what VB6 hands the callee. The value is a temporary, so a
+        // ByRef Optional parameter has nowhere to write back to - exactly as in VB6.
+        for (var index = argumentSyntaxes.Length; index < procedure.Parameters.Length; index++)
+        {
+            var parameter = procedure.Parameters[index];
+            if (!parameter.IsOptional)
+            {
+                break;
+            }
+
+            arguments.Add(new BoundArgument(parameter, CreateDefaultArgument(parameter))
+            {
+                RequiresByRefTemporary = parameter.PassingMode == ParameterPassingMode.ByRef
+            });
+        }
+
         return arguments.ToImmutable();
     }
+
+    /// <summary>
+    /// The value an omitted Optional argument carries: the declared default, or the default of the
+    /// parameter type when the declaration gave none.
+    /// </summary>
+    private BoundExpression CreateDefaultArgument(ParameterSymbol parameter)
+    {
+        if (parameter.DefaultValue is not null)
+        {
+            return BindConversion(
+                new BoundLiteralExpression(parameter.DefaultValue, InferLiteralType(parameter.DefaultValue)),
+                parameter.Type);
+        }
+
+        if (parameter.Type == TypeSymbol.String)
+        {
+            return new BoundLiteralExpression(string.Empty, TypeSymbol.String);
+        }
+
+        if (parameter.Type == TypeSymbol.Boolean)
+        {
+            return new BoundLiteralExpression(false, TypeSymbol.Boolean);
+        }
+
+        return BindConversion(new BoundLiteralExpression(0L, TypeSymbol.Long), parameter.Type);
+    }
+
+    private static TypeSymbol InferLiteralType(object value) => value switch
+    {
+        string => TypeSymbol.String,
+        bool => TypeSymbol.Boolean,
+        double => TypeSymbol.Double,
+        _ => TypeSymbol.Long
+    };
 
     private static bool AreByRefTypesCompatible(TypeSymbol argumentType, TypeSymbol parameterType)
     {
