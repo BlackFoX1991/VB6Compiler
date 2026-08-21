@@ -57,6 +57,58 @@ public sealed class CompilationTests
         Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0001"));
     }
 
+    /// <summary>
+    /// A duplicate name has to stay a reported diagnostic. Binding keeps both declarations after
+    /// reporting VB6S0004, so anything downstream that keys procedures by name sees the name twice
+    /// - which is how a source-location pass once turned this into an unhandled ArgumentException.
+    /// </summary>
+    [TestMethod]
+    public void Analyze_ReportsDuplicateProcedureInsteadOfThrowing()
+    {
+        var compilation = VBCompilation.Create("""
+            Sub Foo()
+                Debug.Print 1
+            End Sub
+
+            Sub Foo()
+                Debug.Print 2
+            End Sub
+
+            Sub Main()
+                Foo
+            End Sub
+            """, "Module1.bas");
+
+        var analysis = compilation.Analyze();
+
+        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0004"));
+    }
+
+    /// <summary>A Sub and a Function may not share a name either, and must not crash the analysis.</summary>
+    [TestMethod]
+    public void Analyze_ReportsSubAndFunctionSharingAName()
+    {
+        var compilation = VBCompilation.Create("""
+            Sub Foo()
+                Debug.Print 1
+            End Sub
+
+            Function Foo() As Long
+                Foo = 2
+            End Function
+
+            Sub Main()
+                Debug.Print Foo()
+            End Sub
+            """, "Module1.bas");
+
+        var analysis = compilation.Analyze();
+
+        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0004"));
+    }
+
     [TestMethod]
     public void GenerateCSharp_ReturnsGeneratedSource()
     {

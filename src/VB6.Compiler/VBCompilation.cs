@@ -29,10 +29,7 @@ public sealed class VBCompilation
             return new CompilationAnalysis(
                 parseResult,
                 null,
-                parseResult.Diagnostics)
-            {
-                SemanticRoot = parseResult.Root
-            };
+                parseResult.Diagnostics);
         }
 
         var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
@@ -78,7 +75,6 @@ public sealed class VBCompilation
                 .AddRange(visibleBuiltInConstants)
         };
         semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
-        semanticModel = BoundSourceLocationMapper.Attach(Text, forEachRoot, semanticModel);
 
         var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
             Text,
@@ -93,8 +89,7 @@ public sealed class VBCompilation
 
         return new CompilationAnalysis(parseResult, semanticModel, diagnostics)
         {
-            UserDefinedTypes = userDefinedTypes,
-            SemanticRoot = forEachRoot
+            UserDefinedTypes = userDefinedTypes
         };
     }
 
@@ -146,9 +141,6 @@ public sealed record CompilationAnalysis(
     ImmutableArray<Diagnostic> Diagnostics)
 {
     public UserDefinedTypeDeclarationResult? UserDefinedTypes { get; init; }
-
-    /// <summary>The final syntax root that produced the bound model after frontend normalization.</summary>
-    public CompilationUnitSyntax? SemanticRoot { get; init; }
 
     public bool Success => Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
