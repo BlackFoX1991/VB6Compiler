@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
@@ -84,3 +85,15 @@ jobs:
           name: vb6c-net10
           path: artifacts/vb6c/**
           if-no-files-found: error
+
+      - name: Publish migration commit status
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" `
+            -f state="$env:RESULT_STATE" `
+            -f context="direct-managed-backend/ci" `
+            -f description="Direct managed backend CI: $env:RESULT_STATE"
