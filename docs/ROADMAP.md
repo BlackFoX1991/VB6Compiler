@@ -42,6 +42,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Sichtbare Typen aus fehlerhaften Modulen | **416** | 12 | 0 | 392 | **1 von 27** |
 | Qualifiziertes `ReDim`, `UBound` auf Ausdrücken, dynamische UDT-Member | **459** | 12 | 0 | 447 | 1 von 27 |
 | M5 `Optional`-Aufrufsemantik vorgezogen | **367** | 12 | 0 | 355 | **3 von 27** |
+| Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -254,6 +255,20 @@ Typs, wenn die Deklaration keinen nennt. Ein ausgelassener ByRef-`Optional` beko
 Temporary und hat damit kein Ziel zum Zurückschreiben, wie in VB6.
 
 Gesamtsumme 459 → **367**, und die Zahl fehlerfreier Dateien steigt von 1 auf **3**.
+
+`FileNum = FreeFile` ist in VB6 ein Funktionsaufruf; ein nackter Name suchte aber nur nach einer
+Variablen. Zusammen mit `FreeFile`, `LOF`, `EOF` und der `Seek`-Funktion — die Runtime hatte alle
+bis auf `EOF` bereits, sie waren nur nicht freigegeben — sinkt die Summe auf **322** bei
+**4 von 27** fehlerfreien Dateien.
+
+**Damit sind die billigen Hebel erschöpft.** Was bleibt, hängt an den großen Meilensteinen:
+
+| Code | Anzahl | wartet auf |
+|---|---|---|
+| `VB6S0005` / `VB6S0001` | 104 / 83 | überwiegend `frmMain` (54 Vorkommen, ein Formular) sowie `App` und `Err` — M9 bzw. M6 |
+| `VB6S0061` | 44 | `On Error`/`GoTo`, braucht das lowered IR aus M6 |
+| `VB6S0060` / `VB6S0062` | je 24 | `TypeOf` und Memberaufrufe, brauchen das Objektmodell aus M5/M9 |
+| `VB6P0001` | 12 | verstreute Parserreste |
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
