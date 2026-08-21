@@ -1058,11 +1058,19 @@ public sealed class ManagedEmitter
         {
             foreach (var procedure in AllProcedures())
             {
-                var visibility = procedure == _program.EntryPoint
-                    ? MethodAttributes.Public
-                    : MethodAttributes.Assembly;
+                var isTypeInitializer = IsTypeInitializer(procedure);
+                var visibility = isTypeInitializer
+                    ? MethodAttributes.Private
+                    : procedure == _program.EntryPoint
+                        ? MethodAttributes.Public
+                        : MethodAttributes.Assembly;
                 var attributes = visibility | MethodAttributes.HideBySig;
                 if (procedure.IsStatic) attributes |= MethodAttributes.Static;
+                if (isTypeInitializer)
+                {
+                    attributes |= MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
+                }
+
                 var actual = _metadata.AddMethodDefinition(
                     attributes,
                     MethodImplAttributes.IL | MethodImplAttributes.Managed,
@@ -1101,10 +1109,16 @@ public sealed class ManagedEmitter
                 }
                 else
                 {
+                    var attributes = TypeAttributes.NotPublic | TypeAttributes.Abstract | TypeAttributes.Sealed;
+                    if (!plan.Module!.Procedures.Any(IsTypeInitializer))
+                    {
+                        attributes |= TypeAttributes.BeforeFieldInit;
+                    }
+
                     actual = _metadata.AddTypeDefinition(
-                        TypeAttributes.NotPublic | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
+                        attributes,
                         _metadata.GetOrAddString("VB6.Generated"),
-                        _metadata.GetOrAddString("__vb6_module_" + Sanitize(plan.Module!.Name)),
+                        _metadata.GetOrAddString("__vb6_module_" + Sanitize(plan.Module.Name)),
                         _systemObject,
                         plan.FirstField,
                         plan.FirstMethod);
@@ -1112,6 +1126,13 @@ public sealed class ManagedEmitter
                 EnsureHandle(actual, plan.TypeHandle, "type");
             }
         }
+
+        private static bool IsTypeInitializer(IrProcedure procedure) =>
+            procedure.IsCompilerGenerated &&
+            procedure.IsStatic &&
+            procedure.Parameters.IsDefaultOrEmpty &&
+            procedure.ReturnType is null &&
+            string.Equals(procedure.Name, ".cctor", StringComparison.Ordinal);
 
         private MethodDefinitionHandle ResolveEntryPoint()
         {
