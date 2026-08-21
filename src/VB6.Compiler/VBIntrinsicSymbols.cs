@@ -17,13 +17,14 @@ internal static class VBIntrinsicSymbols
     private static readonly ImmutableArray<ProcedureSymbol> Intrinsics = ImmutableArray.Create(
         // Strings
         Function("Len", "VBStrings.Len", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
+        // Mid(s, start) runs to the end of the string; the runtime carries an overload for each arity.
         Function(
             "Mid",
             "VBStrings.Mid",
             TypeSymbol.String,
             Parameter("Expression", TypeSymbol.String),
             Parameter("Start", TypeSymbol.Long),
-            Parameter("Length", TypeSymbol.Long)),
+            Parameter("Length", TypeSymbol.Long)) with { IntrinsicMinimumArguments = 2 },
         Function("Chr", "VBStrings.Chr", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
         Function(
             "Left",

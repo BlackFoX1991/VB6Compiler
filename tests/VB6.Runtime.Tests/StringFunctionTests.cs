@@ -6,6 +6,16 @@ namespace VB6.Runtime.Tests;
 [TestClass]
 public sealed class StringFunctionTests
 {
+    /// <summary>VB6 lets the length be omitted, which then runs to the end of the string.</summary>
+    [TestMethod]
+    public void Mid_WithoutALengthRunsToTheEnd()
+    {
+        Assert.AreEqual("cdef", VBStrings.Mid("abcdef", 3));
+        Assert.AreEqual("abcdef", VBStrings.Mid("abcdef", 1));
+        Assert.AreEqual(string.Empty, VBStrings.Mid("abcdef", 7), "A start past the end returns an empty string.");
+        Assert.AreEqual("cd", VBStrings.Mid("abcdef", 3, 2));
+    }
+
     [TestMethod]
     public void LeftAndRight_ClipInsteadOfFailing()
     {

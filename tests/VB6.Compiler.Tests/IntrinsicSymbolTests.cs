@@ -14,7 +14,7 @@ public sealed class IntrinsicSymbolTests
         var analysis = VBCompilation.Create("""
             Sub Main()
                 Dim s As String
-                Debug.Print Mid(s, 3)
+                Debug.Print Mid(s)
             End Sub
             """, "Module1.bas").Analyze();
 
@@ -46,6 +46,41 @@ public sealed class IntrinsicSymbolTests
         Assert.IsFalse(
             generation.Source!.Contains("__VB6_INTRINSIC", StringComparison.Ordinal),
             "No placeholder should survive into the generated source.");
+    }
+
+    /// <summary>
+    /// VB6 lets trailing intrinsic arguments be omitted. The backend emits exactly what the call
+    /// site wrote and the runtime carries an overload per arity, so no filler argument is invented.
+    /// </summary>
+    [TestMethod]
+    public void GenerateCSharp_AcceptsAnOmittedTrailingIntrinsicArgument()
+    {
+        var generation = VBCompilation.Create("""
+            Sub Main()
+                Dim s As String
+                s = "abcdef"
+                Debug.Print Mid(s, 2)
+                Debug.Print Mid(s, 2, 3)
+            End Sub
+            """, "Module1.bas").GenerateCSharp();
+
+        Assert.IsTrue(
+            generation.Success,
+            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsTheAcceptedRangeWhenTheArityIsWrong()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Dim s As String
+                Debug.Print Mid(s)
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        var diagnostic = analysis.Diagnostics.Single(d => d.Code == "VB6S0006");
+        StringAssert.Contains(diagnostic.Message, "2 to 3");
     }
 
     /// <summary>A user procedure of the same name wins, as it does in VB6.</summary>
