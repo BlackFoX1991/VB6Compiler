@@ -43,6 +43,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Qualifiziertes `ReDim`, `UBound` auf Ausdrücken, dynamische UDT-Member | **459** | 12 | 0 | 447 | 1 von 27 |
 | M5 `Optional`-Aufrufsemantik vorgezogen | **367** | 12 | 0 | 355 | **3 von 27** |
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
+| Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -261,14 +262,18 @@ Variablen. Zusammen mit `FreeFile`, `LOF`, `EOF` und der `Seek`-Funktion — die
 bis auf `EOF` bereits, sie waren nur nicht freigegeben — sinkt die Summe auf **322** bei
 **4 von 27** fehlerfreien Dateien.
 
-**Damit sind die billigen Hebel erschöpft.** Was bleibt, hängt an den großen Meilensteinen:
+**Die billigen Hebel sind dünner geworden, aber nicht erschöpft.** Stand nach dem
+Backend-Cutover: **304 Fehler**, davon 12 Parser, 0 Lexer, 292 Semantik, bei **5 von 27**
+fehlerfreien Dateien.
 
 | Code | Anzahl | wartet auf |
 |---|---|---|
-| `VB6S0005` / `VB6S0001` | 104 / 83 | überwiegend `frmMain` (54 Vorkommen, ein Formular) sowie `App` und `Err` — M9 bzw. M6 |
-| `VB6S0061` | 44 | `On Error`/`GoTo`, braucht das lowered IR aus M6 |
+| `VB6S0005` / `VB6S0001` | 104 / 83 | zum größeren Teil Tabelleneinträge nach dem `IntrinsicKind`-Muster: `DoEvents` (12), `Kill` (5), `Dir` (4), `MsgBox` (4), `Split`, `InStrRev`, `LSet`, `CopyMemory`. Echt blockiert sind `frmMain` (25, M9) sowie `App` und `Err` (M6) |
+| `VB6S0061` | 26 | `On Error`; das lowered IR aus M6 steht inzwischen, die Handler-Semantik fehlt |
 | `VB6S0060` / `VB6S0062` | je 24 | `TypeOf` und Memberaufrufe, brauchen das Objektmodell aus M5/M9 |
 | `VB6P0001` | 12 | verstreute Parserreste |
+| `VB6S0012` | 8 | verbliebene Typkonvertierungen |
+| `VB6S0058` | 6 | Datei-I/O-Formen jenseits der numerischen Binärtransfers |
 
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
@@ -373,6 +378,14 @@ Resume-Zustandsautomat.
 - **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
   Es liegt versioniert unter `conformance/VISIA/` und wird von `ConformanceCorpusTests` in CI
   mitgemessen. Herkunft und Zweck: `conformance/README.md`.
+- **Direkte Managed-Emission statt C#-Zwischencode.** Der Weg `Bound Tree -> C#-Quelltext ->
+  Roslyn -> Assembly` ist abgeschafft; `VB6.CodeGen.CSharp` und `Microsoft.CodeAnalysis` sind
+  aus dem Build entfernt. Stattdessen lowert `VB6.IR` in Basic Blocks und `VB6.Emit.Managed`
+  schreibt CIL, Metadaten und eine Portable PDB direkt. Gründe: C# kann VB6-Kontrollfluss
+  (`On Error Resume Next`, `GoSub`/`Return`, Zeilennummern) nicht ohne Verrenkungen ausdrücken,
+  jede Semantikfrage wurde zweimal beantwortet — einmal in der Bindung, einmal in der
+  Textausgabe —, und der Roslyn-Aufruf dominierte die Übersetzungszeit. Der Preis ist, dass es
+  kein lesbares Zwischenprodukt mehr gibt; dafür gibt es `vb6c --dump-ir`.
 
 ---
 
@@ -465,33 +478,43 @@ Zwei Nachträge:
 
 ## Meilenstein 6 — IR und Fehlerbehandlung
 
-Hier muss das Lowering aus dem Generator heraus. Heute erzeugt `CSharpGenerator` Sprungmarken
-direkt beim Emittieren; das trägt nicht mehr, sobald `On Error Resume Next` jede Anweisung
-einzeln absichern muss.
+Das Lowering ist aus dem Backend heraus: `VB6.IR` erzeugt Basic Blocks mit expliziten Sprüngen,
+`VB6.Emit.Managed` emittiert daraus CIL. Damit ist die Voraussetzung erfüllt, an der
+`On Error Resume Next` bisher hing — jede Anweisung einzeln abzusichern ist eine Frage der
+Blockstruktur, nicht mehr des Textgenerators.
 
-- [ ] Lowered IR mit Basic Blocks und expliziten Sprüngen
+- [x] Lowered IR mit Basic Blocks und expliziten Sprüngen — `VB6.IR`, inspizierbar mit `vb6c --dump-ir`
 - [x] Syntax für `GoTo`, Labels, `On Error GoTo`/`GoTo 0`/`Resume Next` — vorgezogen, Semantik als `VB6S0061` gemeldet
+- [x] `GoTo` und Labels vollständig: gebunden, gelowert und E2E ausgeführt
 - [ ] Zeilennummern, `On ... GoTo`, `GoSub`/`Return`
-- [ ] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt
+- [ ] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt — `VB6S0061`,
+      26 Vorkommen im Korpus; der größte verbliebene Einzelposten nach den Bibliotheksfunktionen
+- [ ] Quellpositionen: Binder setzt `SourceLocation`, `IrLowerer` reicht sie durch,
+      `PortablePdbEmitter` schreibt Sequenzpunkte. Die PDB entsteht bereits, enthält aber nur
+      Dokumentnamen und Locals
 
 ## Meilenstein 7 — Standardbibliothek
 
 Nach Korpusbedarf priorisiert:
 
 1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`.
-   `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. Die String-Ersetzung im generierten
-   C# ist **abgelöst**: `ProcedureSymbol.IntrinsicTarget` trägt das Runtime-Ziel, der Binder
-   behandelt Intrinsics wie normale Prozeduren, nur das Backend kennt den C#-Namen. Damit sind
-   weitere Bibliotheksfunktionen reine Tabelleneinträge
+   `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. `ProcedureSymbol.IntrinsicKind`
+   trägt die backendunabhängige Identität, der Binder behandelt Intrinsics wie normale
+   Prozeduren, und `IrRuntimeMethod` benennt die Runtime-Operation. Damit sind weitere
+   Bibliotheksfunktionen reine Tabelleneinträge — das gilt auch für `DoEvents`, `Kill`, `Dir`,
+   `MsgBox`, `Split`, `InStrRev`, `LSet` und `CopyMemory`, zusammen der größte Posten der
+   Restfehler. Wirklich an spätere Meilensteine gebunden sind nur `frmMain` (25×, M9), `App`
+   und `Err` (M6)
 1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
 1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
     VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.
-    **Offen:** `InStr` und zweiargumentiges `Mid` brauchen optionale Parameter an Intrinsics —
-    das ist ein eigener Mechanismus und Vorarbeit für die `Optional`-Aufrufsemantik in M5
-2. Datei-I/O — `Open For Binary`/`For Output`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close`.
-   Lexer, Syntax und Parser für die Binärformen sind **vorgezogen und fertig**; Runtime, Bindung
-   und Codegen fehlen und werden als `VB6S0057` gemeldet
+    **Offen:** `InStr` und zweiargumentiges `Mid` — die `Optional`-Aufrufsemantik dafür steht
+    seit M5, es sind jetzt gewöhnliche Tabelleneinträge
+2. Datei-I/O — `Open For Binary`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close` ✅ für die
+   numerischen Binärformen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und
+   E2E-Tests schreiben und lesen echte Dateien. **Offen:** Textmodi, die `Len`-Klausel sowie
+   `String`- und UDT-Transfers — gemeldet als `VB6S0058`, 6 Vorkommen im Korpus
 3. `MsgBox`/`InputBox`
 4. Math, Konvertierung, vollständiges `Like` inklusive `Option Compare`
 5. Erst danach `Format$`, Datum/Zeit, Finanzfunktionen — im Korpus unbenutzt
