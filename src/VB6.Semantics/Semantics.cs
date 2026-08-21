@@ -127,6 +127,17 @@ public sealed record ProcedureSymbol(
     /// </summary>
     public string? IntrinsicTarget { get; init; }
 
+    /// <summary>
+    /// How many arguments an intrinsic needs at minimum. VB6 lets trailing arguments be omitted -
+    /// <c>Mid(s, 3)</c> runs to the end of the string - and the runtime supplies an overload for
+    /// each accepted arity, so the backend emits exactly what the call site wrote.
+    ///
+    /// Null means every parameter is required, which is the case for a procedure from source.
+    /// A leading optional argument, as in <c>InStr(start, a, b)</c>, needs real overload
+    /// resolution and waits for the Optional call semantics.
+    /// </summary>
+    public int? IntrinsicMinimumArguments { get; init; }
+
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {

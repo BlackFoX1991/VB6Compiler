@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.Immutable;
 using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
@@ -1477,11 +1478,17 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        if (argumentSyntaxes.Length != procedure.Parameters.Length)
+        var minimumArguments = procedure.IntrinsicMinimumArguments ?? procedure.Parameters.Length;
+        if (argumentSyntaxes.Length > procedure.Parameters.Length ||
+            argumentSyntaxes.Length < minimumArguments)
         {
+            var expected = minimumArguments == procedure.Parameters.Length
+                ? procedure.Parameters.Length.ToString(CultureInfo.InvariantCulture)
+                : $"{minimumArguments.ToString(CultureInfo.InvariantCulture)} to " +
+                  procedure.Parameters.Length.ToString(CultureInfo.InvariantCulture);
             Report(
                 "VB6S0006",
-                $"Procedure '{procedure.Name}' expects {procedure.Parameters.Length} argument(s), but {argumentSyntaxes.Length} were supplied.",
+                $"Procedure '{procedure.Name}' expects {expected} argument(s), but {argumentSyntaxes.Length} were supplied.",
                 invocationIdentifier.Span);
         }
 
