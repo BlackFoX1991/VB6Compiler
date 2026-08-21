@@ -1,8 +1,9 @@
 using VB6.Compiler;
+using VB6.IR;
 using VB6.ProjectSystem;
 
 const string usage =
-    "Usage: vb6c <source-file|project.vbp> [--emit-csharp <output-file> | --emit-assembly <output-file>]\n" +
+    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> | --dump-ir [output-file]]\n" +
     "       vb6c <project.vbp> --report";
 
 if (args.Length == 0)
@@ -50,19 +51,17 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return 0;
     }
 
-    if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
     {
-        var generation = projectCompilation.GenerateCSharp();
-        PrintProjectDiagnostics(generation.Analysis);
+        var lowering = projectCompilation.Lower();
+        PrintProjectDiagnostics(lowering.Analysis);
 
-        if (!generation.Success || generation.Source is null)
+        if (!lowering.Success || lowering.Program is null)
         {
             return 1;
         }
 
-        File.WriteAllText(args[2], generation.Source);
-        Console.WriteLine($"Generated project C# source: {args[2]}");
-        return 0;
+        return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
     }
 
     if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
@@ -89,22 +88,20 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
 
 var compilation = VBCompilation.Create(File.ReadAllText(path), path);
 
-if (args.Length == 3 && string.Equals(args[1], "--emit-csharp", StringComparison.OrdinalIgnoreCase))
+if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
 {
-    var generation = compilation.GenerateCSharp();
-    foreach (var diagnostic in generation.Diagnostics)
+    var lowering = compilation.Lower();
+    foreach (var diagnostic in lowering.Diagnostics)
     {
         Console.Error.WriteLine(diagnostic);
     }
 
-    if (!generation.Success || generation.Source is null)
+    if (!lowering.Success || lowering.Program is null)
     {
         return 1;
     }
 
-    File.WriteAllText(args[2], generation.Source);
-    Console.WriteLine($"Generated C# source: {args[2]}");
-    return 0;
+    return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
 }
 
 if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
@@ -149,6 +146,19 @@ if (analysis.SemanticModel is not null)
 }
 
 return analysis.Success ? 0 : 1;
+
+static int WriteIr(string dump, string? outputPath)
+{
+    if (outputPath is null)
+    {
+        Console.Write(dump);
+        return 0;
+    }
+
+    File.WriteAllText(outputPath, dump);
+    Console.WriteLine($"Generated IR dump: {outputPath}");
+    return 0;
+}
 
 static void PrintDebugInformation(string? pdbPath)
 {

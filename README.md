@@ -174,16 +174,12 @@ vb6c LegacyApp.vbp --report
 
 The report lists project items by kind, counts analyzed/error-free sources, and ranks remaining gaps by affected files. `conformance/` holds real third-party VB6 projects used for this measurement; see `conformance/README.md`.
 
-Generate C# source from one source file:
+Print the lowered IR - basic blocks, instructions and terminators - for one source file or for
+every standard module of a project. Without an output file the dump goes to standard output:
 
 ```text
-vb6c Module1.bas --emit-csharp Module1.g.cs
-```
-
-Generate C# source from the standard modules in a project:
-
-```text
-vb6c LegacyApp.vbp --emit-csharp LegacyApp.g.cs
+vb6c Module1.bas --dump-ir
+vb6c LegacyApp.vbp --dump-ir LegacyApp.ir.txt
 ```
 
 Generate a managed application assembly:
