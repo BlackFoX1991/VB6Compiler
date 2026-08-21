@@ -14,7 +14,7 @@ public readonly struct VBCurrency : IComparable, IComparable<VBCurrency>, IEquat
 
     internal long ScaledValue { get; }
 
-    internal static VBCurrency FromScaled(long scaledValue) => new(scaledValue);
+    public static VBCurrency FromScaled(long scaledValue) => new(scaledValue);
 
     internal static VBCurrency FromDecimal(decimal value)
     {
