@@ -110,23 +110,33 @@ public sealed class VBCompilation
         return new CSharpGenerationResult(analysis, source);
     }
 
+    /// <summary>
+    /// Compatibility facade used by the established execution suite. Assembly emission is already
+    /// routed through lowered IR and the direct managed backend; the C# generation result remains
+    /// only until the public API cutover removes the old result types.
+    /// </summary>
     public ManagedApplicationEmitResult EmitManagedApplication(string outputPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var generation = GenerateCSharp();
-        if (!generation.Success || generation.Source is null)
-        {
-            return new ManagedApplicationEmitResult(generation, null, null, null, null);
-        }
-
-        var artifacts = ManagedApplicationWriter.Emit(generation.Source, outputPath);
+        var direct = DirectManagedCompilation.EmitManaged(this, outputPath);
+        var generation = new CSharpGenerationResult(
+            direct.Lowering.Analysis,
+            direct.Lowering.Success ? "<direct-managed-backend>" : null);
+        var backend = direct.BackendResult is null
+            ? null
+            : new AssemblyEmitResult(
+                direct.BackendResult.Success,
+                direct.BackendResult.Diagnostics.Select(diagnostic => new AssemblyEmitDiagnostic(
+                    diagnostic.Code,
+                    Microsoft.CodeAnalysis.DiagnosticSeverity.Error,
+                    diagnostic.Message)).ToImmutableArray());
         return new ManagedApplicationEmitResult(
             generation,
-            artifacts.BackendResult,
-            artifacts.AssemblyPath,
-            artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath);
+            backend,
+            direct.AssemblyPath,
+            direct.RuntimeAssemblyPath,
+            direct.RuntimeConfigPath);
     }
 }
 
