@@ -32,14 +32,14 @@ public sealed class ModuleTypeInitializerTests
         var moduleTypeHandle = reader.TypeDefinitions.Single(handle =>
             reader.GetString(reader.GetTypeDefinition(handle).Name) == "__vb6_module_Module1");
         var moduleType = reader.GetTypeDefinition(moduleTypeHandle);
-        Assert.AreEqual(0, moduleType.Attributes & TypeAttributes.BeforeFieldInit);
+        Assert.AreEqual(TypeAttributes.NotPublic, moduleType.Attributes & TypeAttributes.BeforeFieldInit);
 
         var cctorHandle = moduleType.GetMethods().Single(handle =>
             reader.GetString(reader.GetMethodDefinition(handle).Name) == ".cctor");
         var cctor = reader.GetMethodDefinition(cctorHandle);
         Assert.AreEqual(MethodAttributes.Private, cctor.Attributes & MethodAttributes.MemberAccessMask);
-        Assert.AreNotEqual(0, cctor.Attributes & MethodAttributes.Static);
-        Assert.AreNotEqual(0, cctor.Attributes & MethodAttributes.SpecialName);
-        Assert.AreNotEqual(0, cctor.Attributes & MethodAttributes.RTSpecialName);
+        Assert.AreNotEqual(MethodAttributes.Private, cctor.Attributes & MethodAttributes.Static);
+        Assert.AreNotEqual(MethodAttributes.Private, cctor.Attributes & MethodAttributes.SpecialName);
+        Assert.AreNotEqual(MethodAttributes.Private, cctor.Attributes & MethodAttributes.RTSpecialName);
     }
 }
