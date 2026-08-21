@@ -114,7 +114,10 @@ public sealed class VBProjectCompilation
                 units.Add(new VBProjectCompilationUnit(
                     module.Item,
                     module.FilePath,
-                    new CompilationAnalysis(module.ParseResult, null, module.ParseResult.Diagnostics)));
+                    new CompilationAnalysis(module.ParseResult, null, module.ParseResult.Diagnostics)
+                    {
+                        SemanticRoot = module.SemanticRoot
+                    }));
                 continue;
             }
 
@@ -135,6 +138,7 @@ public sealed class VBProjectCompilation
                     .BindCompilationUnit(forEachRoot, procedureSymbols, moduleVariableSymbols);
             }
             semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
+            semanticModel = BoundSourceLocationMapper.Attach(module.Text, forEachRoot, semanticModel);
 
             var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
                 ? ImmutableArray<Diagnostic>.Empty
@@ -157,7 +161,10 @@ public sealed class VBProjectCompilation
             var compilationAnalysis = new CompilationAnalysis(
                 module.ParseResult,
                 semanticModel,
-                unitDiagnostics);
+                unitDiagnostics)
+            {
+                SemanticRoot = forEachRoot
+            };
             if (moduleUserDefinedTypes is not null)
             {
                 compilationAnalysis = compilationAnalysis with
