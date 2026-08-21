@@ -164,6 +164,57 @@ public sealed class ProjectCompilationTests
         }
     }
 
+    /// <summary>
+    /// A module with a syntax error still declares its procedures. The parser is fault-tolerant on
+    /// purpose, so a procedure whose own header parsed is a real declaration - and hiding it turns
+    /// one parser gap into a "not declared" error at every call site. In the conformance corpus a
+    /// single syntax error suppressed one procedure and produced 30 such errors across seven files.
+    /// </summary>
+    [TestMethod]
+    public void Analyze_DeclaresProceduresFromModulesThatStillHaveSyntaxErrors()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Partial.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Partial"
+                Module=Broken; Broken.bas
+                Module=Caller; Caller.bas
+                """);
+
+            // The helper parses cleanly; only the statement below it does not.
+            File.WriteAllText(Path.Combine(directory, "Broken.bas"), """
+                Sub Helper()
+                    Debug.Print 1
+                End Sub
+
+                Sub Damaged()
+                    ReDim Item(0).Field(0)
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Caller.bas"), """
+                Sub Main()
+                    Helper
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsFalse(
+                analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0005"),
+                "Helper is declared, so calling it must not be reported as undeclared.");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static string WriteProject(string directory)
     {
         Directory.CreateDirectory(directory);
