@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../VB6.IR/VB6.IR.csproj" />
+    <ProjectReference Include="../VB6.Runtime/VB6.Runtime.csproj" />
+    <ProjectReference Include="../VB6.Semantics/VB6.Semantics.csproj" />
+  </ItemGroup>
+</Project>
