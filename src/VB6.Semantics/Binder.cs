@@ -1428,7 +1428,7 @@ public sealed class Binder
         return syntax switch
         {
             LiteralExpressionSyntax literal => BindLiteral(literal),
-            NameExpressionSyntax name => BindName(name, variables),
+            NameExpressionSyntax name => BindName(name, variables, procedures),
             InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
             MemberAccessExpressionSyntax memberAccess => BindMemberAccess(memberAccess, variables, procedures),
             ElementAccessExpressionSyntax elementAccess => BindElementAccess(elementAccess, variables, procedures),
@@ -1807,11 +1807,22 @@ public sealed class Binder
 
     private BoundExpression BindName(
         NameExpressionSyntax syntax,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         if (variables.TryGetValue(syntax.IdentifierToken.Text, out var variable))
         {
             return new BoundVariableExpression(variable);
+        }
+
+        // A bare name is also how VB6 calls a function that takes no arguments, as in
+        // FileNum = FreeFile. A variable of that name would have won above, which is the right
+        // precedence.
+        if (procedures.TryGetValue(syntax.IdentifierToken.Text, out var procedure) &&
+            procedure.IsFunction &&
+            procedure.Parameters.IsDefaultOrEmpty)
+        {
+            return new BoundInvocationExpression(procedure, ImmutableArray<BoundArgument>.Empty);
         }
 
         Report(
