@@ -181,6 +181,18 @@ public sealed record IrEnsureArrayExpression(
     ImmutableArray<IrArrayBound> Bounds)
     : IrExpression(ArrayType);
 
+/// <summary>
+/// Duplicates the array held by a fixed array member of a user-defined type. Assigning a VB6 UDT
+/// copies it by value, but the CLR struct copy only duplicates the array reference - both values
+/// would keep indexing the same array. The declared bounds travel along because a member that was
+/// never touched has no storage to take them from.
+/// </summary>
+public sealed record IrCopyArrayExpression(
+    IrExpression Source,
+    ArrayTypeSymbol ArrayType,
+    ImmutableArray<IrArrayBound> Bounds)
+    : IrExpression(ArrayType);
+
 public sealed record IrArrayBound(IrExpression Lower, IrExpression Upper);
 
 public enum IrCallArgumentKind
@@ -315,5 +327,8 @@ public enum IrRuntimeMethod
     ArrayClear,
     ArrayLBound,
     ArrayUBound,
-    ArrayEnumerateValues
+    ArrayEnumerateValues,
+
+    FixedStringRead,
+    FixedStringWrite
 }

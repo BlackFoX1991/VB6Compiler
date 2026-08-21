@@ -456,6 +456,9 @@ public sealed class ManagedEmitter
                 case IrEnsureArrayExpression ensureArray:
                     EmitEnsureArray(encoder, procedure, ensureArray);
                     break;
+                case IrCopyArrayExpression copyArray:
+                    EmitCopyArray(encoder, procedure, copyArray);
+                    break;
                 case IrReDimPreserveExpression preserve:
                     EmitReDimPreserve(encoder, procedure, preserve);
                     break;
@@ -775,7 +778,18 @@ public sealed class ManagedEmitter
             EmitAddress(encoder, procedure, expression.Storage);
             EmitVBArrayBounds(encoder, procedure, expression.Bounds);
             encoder.OpCode(ILOpCode.Call);
-            encoder.Token(GetEnsureArrayReference(expression.ArrayType.ElementType));
+            encoder.Token(GetTypeStorageArrayReference("EnsureArray", expression.ArrayType.ElementType, storageByRef: true));
+        }
+
+        private void EmitCopyArray(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrCopyArrayExpression expression)
+        {
+            EmitExpression(encoder, procedure, expression.Source);
+            EmitVBArrayBounds(encoder, procedure, expression.Bounds);
+            encoder.OpCode(ILOpCode.Call);
+            encoder.Token(GetTypeStorageArrayReference("CopyArray", expression.ArrayType.ElementType, storageByRef: false));
         }
 
         private void EmitNewArray(InstructionEncoder encoder, IrProcedure procedure, IrNewVBArrayExpression expression)
@@ -1200,19 +1214,21 @@ public sealed class ManagedEmitter
         }
 
         /// <summary>
-        /// References <c>VBTypeStorage.EnsureArray&lt;T&gt;</c> for one element type. The method is
-        /// generic, so the member reference carries the open signature - where the type parameter
-        /// is <c>!!0</c> - and a method specification supplies the concrete instantiation.
+        /// References one of the <c>VBTypeStorage</c> array helpers for a single element type. Both
+        /// take the member storage plus its declared bounds and return the array; only whether the
+        /// storage is passed by reference differs. The helpers are generic, so the member reference
+        /// carries the open signature - where the type parameter is <c>!!0</c> - and a method
+        /// specification supplies the concrete instantiation.
         /// </summary>
-        private EntityHandle GetEnsureArrayReference(TypeSymbol elementType)
+        private EntityHandle GetTypeStorageArrayReference(string name, TypeSymbol elementType, bool storageByRef)
         {
-            var specKey = "VBTypeStorage::EnsureArray<" + elementType.Name + ">";
+            var specKey = "VBTypeStorage::" + name + "<" + elementType.Name + ">";
             if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
             {
                 return cachedSpec;
             }
 
-            const string definitionKey = "VBTypeStorage::EnsureArray";
+            var definitionKey = "VBTypeStorage::" + name;
             if (!_memberReferences.TryGetValue(definitionKey, out var definition))
             {
                 var blob = new BlobBuilder();
@@ -1223,12 +1239,12 @@ public sealed class ManagedEmitter
                         returnType => EncodeOpenVBArray(returnType.Type()),
                         parameters =>
                         {
-                            EncodeOpenVBArray(parameters.AddParameter().Type(isByRef: true));
+                            EncodeOpenVBArray(parameters.AddParameter().Type(isByRef: storageByRef));
                             parameters.AddParameter().Type().SZArray().Type(_vbArrayBound, isValueType: true);
                         });
                 definition = _metadata.AddMemberReference(
                     GetReflectionTypeReference(typeof(VBTypeStorage)),
-                    _metadata.GetOrAddString("EnsureArray"),
+                    _metadata.GetOrAddString(name),
                     _metadata.GetOrAddBlob(blob));
                 _memberReferences.Add(definitionKey, definition);
             }
@@ -1290,6 +1306,11 @@ public sealed class ManagedEmitter
                 return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.Power) return Static(typeof(VBOperators), "Power", typeof(double), typeof(double));
             if (m == IrRuntimeMethod.MultiplyVariant) return Static(typeof(VBOperators), "MultiplyInteger", typeof(object), typeof(object));
+
+            if (m == IrRuntimeMethod.FixedStringRead)
+                return Static(typeof(VBTypeStorage), "ReadFixedString", typeof(string), typeof(int));
+            if (m == IrRuntimeMethod.FixedStringWrite)
+                return Static(typeof(VBTypeStorage), "WriteFixedString", typeof(string), typeof(int));
 
             if (m.ToString().StartsWith("String", StringComparison.Ordinal))
             {

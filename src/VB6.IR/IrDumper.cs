@@ -75,6 +75,8 @@ public static class IrDumper
         IrProcedureCallExpression call => $"call {call.Procedure.Name}(...) ",
         IrSyntheticCallExpression call => $"call {call.Procedure.Name}(...) ",
         IrNewVBArrayExpression => "new VBArray(...) ",
+        IrEnsureArrayExpression ensure => $"ensure-array {FormatPlace(ensure.Storage)}",
+        IrCopyArrayExpression copy => $"copy-array {FormatExpression(copy.Source)}",
         IrReDimPreserveExpression => "redim-preserve(...) ",
         _ => "<expr>"
     };

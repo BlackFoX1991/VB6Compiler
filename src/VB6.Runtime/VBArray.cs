@@ -240,4 +240,32 @@ public static class VBTypeStorage
         ArgumentNullException.ThrowIfNull(bounds);
         return storage ??= new VBArray<T>(bounds);
     }
+
+    /// <summary>
+    /// Copies a fixed UDT array member. Assigning a VB6 user-defined type copies it by value, and
+    /// that includes its arrays - the CLR struct copy only duplicates the reference, which would
+    /// leave both values sharing one array.
+    /// </summary>
+    public static VBArray<T> CopyArray<T>(VBArray<T>? source, params VBArrayBound[] bounds)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+        return source is null ? new VBArray<T>(bounds) : source.Clone();
+    }
+
+    /// <summary>
+    /// Reads a <c>String * n</c> member. Such a member always has exactly n characters, so an
+    /// untouched one reads as n spaces rather than as the CLR null a default struct starts with.
+    /// </summary>
+    public static string ReadFixedString(string? storage, int length) =>
+        storage ?? new string(' ', length);
+
+    /// <summary>
+    /// Stores into a <c>String * n</c> member. VB6 keeps the declared width: a longer value is
+    /// truncated, a shorter one padded with spaces.
+    /// </summary>
+    public static string WriteFixedString(string? value, int length)
+    {
+        var text = value ?? string.Empty;
+        return text.Length >= length ? text[..length] : text.PadRight(length);
+    }
 }

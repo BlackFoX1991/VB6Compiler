@@ -345,8 +345,13 @@ public static class IrLowerer
                         LowerValueCopy(assignment.Expression)));
                     break;
                 case BoundMemberAssignmentStatement assignment:
-                    Emit(new IrStoreInstruction(LowerPlace(assignment.Target), LowerValueCopy(assignment.Expression)));
+                {
+                    var memberTarget = LowerPlace(assignment.Target);
+                    Emit(new IrStoreInstruction(
+                        memberTarget,
+                        LowerFixedStringWrite(memberTarget.Type, LowerValueCopy(assignment.Expression))));
                     break;
+                }
                 case BoundReDimStatement reDim:
                     LowerReDim(reDim);
                     break;
@@ -875,19 +880,36 @@ public static class IrLowerer
         /// because the member is the receiver they index into - and the array is a reference, so
         /// one substitution covers both.
         /// </summary>
+        /// <summary>
+        /// A <c>String * n</c> member keeps its declared width, so a stored value is truncated or
+        /// padded on the way in. Other targets pass through unchanged.
+        /// </summary>
+        private static IrExpression LowerFixedStringWrite(TypeSymbol targetType, IrExpression value) =>
+            targetType is FixedLengthStringTypeSymbol fixedString
+                ? new IrRuntimeCallExpression(
+                    IrRuntimeMethod.FixedStringWrite,
+                    ImmutableArray.Create(
+                        new IrCallArgument(value),
+                        new IrCallArgument(new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))),
+                    TypeSymbol.String)
+                : value;
+
         private IrExpression LowerMemberRead(BoundMemberAccessExpression expression)
         {
             var place = LowerMemberPlace(expression);
+            if (expression.Member.Type is FixedLengthStringTypeSymbol fixedString)
+            {
+                return new IrRuntimeCallExpression(
+                    IrRuntimeMethod.FixedStringRead,
+                    ImmutableArray.Create(
+                        new IrCallArgument(new IrLoadExpression(place)),
+                        new IrCallArgument(new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))),
+                    TypeSymbol.String);
+            }
+
             if (expression.Member.HasArrayBounds && expression.Member.Type is ArrayTypeSymbol arrayType)
             {
-                return new IrEnsureArrayExpression(
-                    place,
-                    arrayType,
-                    expression.Member.ArrayBounds
-                        .Select(bound => new IrArrayBound(
-                            new IrConstantExpression(bound.Lower, TypeSymbol.Long),
-                            new IrConstantExpression(bound.Upper, TypeSymbol.Long)))
-                        .ToImmutableArray());
+                return new IrEnsureArrayExpression(place, arrayType, MemberArrayBounds(expression.Member));
             }
 
             return new IrLoadExpression(place);
@@ -981,10 +1003,63 @@ public static class IrLowerer
 
         private IrExpression LowerValueCopy(BoundExpression expression)
         {
-            // CLR value types already copy scalar UDT storage. Managed members that require a deep
-            // VB6 copy are synthesized as IR helper methods in the UDT parity slice.
-            return LowerExpression(expression);
+            var value = LowerExpression(expression);
+            if (expression.Type is not UserDefinedTypeSymbol udt || !RequiresDeepCopy(udt))
+            {
+                return value;
+            }
+
+            // The CLR struct copy duplicates the scalar members, but an array member is a
+            // reference: source and copy would keep indexing one array. Copying through a
+            // temporary and re-creating its arrays makes the result an independent VB6 value
+            // wherever the caller stores it.
+            var temp = new IrLocalPlace(NewLocal($"__vb6_udt_copy_{_nextLocalId}", udt, compilerGenerated: true));
+            Emit(new IrStoreInstruction(temp, value));
+            EmitArrayMemberCopies(temp, udt);
+            return new IrLoadExpression(temp);
         }
+
+        /// <summary>
+        /// Reports whether copying a value of this type needs more than the CLR struct copy - that
+        /// is, whether it holds a fixed array member anywhere in its member tree.
+        /// </summary>
+        private static bool RequiresDeepCopy(UserDefinedTypeSymbol type) =>
+            type.Members.Any(member =>
+                (member.HasArrayBounds && member.Type is ArrayTypeSymbol) ||
+                (member.Type is UserDefinedTypeSymbol nested && RequiresDeepCopy(nested)));
+
+        /// <summary>
+        /// Gives every fixed array member below <paramref name="place"/> its own storage. Array
+        /// elements of a UDT element type keep sharing their own arrays for now; VB6 copies those
+        /// too, but that needs an element-wise copy the runtime only exposes as a callback.
+        /// </summary>
+        private void EmitArrayMemberCopies(IrPlace place, UserDefinedTypeSymbol type)
+        {
+            foreach (var member in type.Members)
+            {
+                var field = new IrFieldPlace(place, _program.GetField(member));
+                if (member.HasArrayBounds && member.Type is ArrayTypeSymbol arrayType)
+                {
+                    Emit(new IrStoreInstruction(
+                        field,
+                        new IrCopyArrayExpression(
+                            new IrLoadExpression(field),
+                            arrayType,
+                            MemberArrayBounds(member))));
+                }
+                else if (member.Type is UserDefinedTypeSymbol nested && RequiresDeepCopy(nested))
+                {
+                    EmitArrayMemberCopies(field, nested);
+                }
+            }
+        }
+
+        private static ImmutableArray<IrArrayBound> MemberArrayBounds(UserDefinedTypeMemberSymbol member) =>
+            member.ArrayBounds
+                .Select(bound => new IrArrayBound(
+                    new IrConstantExpression(bound.Lower, TypeSymbol.Long),
+                    new IrConstantExpression(bound.Upper, TypeSymbol.Long)))
+                .ToImmutableArray();
 
         private IrExpression LowerConversion(BoundConversionExpression conversion)
         {
