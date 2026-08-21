@@ -106,7 +106,17 @@ public sealed record ParameterSymbol(
     string Name,
     TypeSymbol Type,
     ParameterPassingMode PassingMode)
-    : VariableSymbol(Name, Type);
+    : VariableSymbol(Name, Type)
+{
+    /// <summary>Whether the call site may leave this argument out.</summary>
+    public bool IsOptional { get; init; }
+
+    /// <summary>
+    /// The value an omitted argument takes. Null on a parameter declared <c>Optional</c> without
+    /// <c>= value</c>, which then gets the default of its type - False, zero, or the empty string.
+    /// </summary>
+    public object? DefaultValue { get; init; }
+}
 
 public sealed record ReturnValueSymbol(string Name, TypeSymbol Type)
     : VariableSymbol(Name, Type);
