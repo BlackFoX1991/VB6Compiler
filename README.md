@@ -78,12 +78,12 @@ Implemented so far:
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
 - primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong/Currency arithmetic, exponentiation, comparisons, Boolean operations, concatenation, and `Debug.Print`
-- C# source generation from the bound scalar program
-- Roslyn-based managed assembly emission
+- lowering of the bound program to an IR of basic blocks with explicit jumps (`VB6.IR`), inspectable with `--dump-ir`
+- direct managed emission from that IR: CIL, metadata and a Portable PDB written by `VB6.Emit.Managed`, with no C# or Roslyn in between
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
-- unit tests for syntax, lexer, parser, semantics, runtime, code generation, project loading, and compiler orchestration
+- unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 

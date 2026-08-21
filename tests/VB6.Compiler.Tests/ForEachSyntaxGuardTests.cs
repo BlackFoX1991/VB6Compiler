@@ -1,3 +1,5 @@
+using VB6.IR;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -25,9 +27,9 @@ public sealed class ForEachSyntaxGuardTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_LowersFixedArrayForEachThroughExistingNumericLoopBackend()
+    public void Lower_LowersFixedArrayForEachThroughExistingNumericLoopBackend()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim item As Variant
                 Dim values(1 To 2) As Long
@@ -35,16 +37,16 @@ public sealed class ForEachSyntaxGuardTests
                     Debug.Print item
                 Next item
             End Sub
-            """, "test.bas").GenerateCSharp();
+            """, "test.bas");
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(generation.Source);
-        StringAssert.Contains(generation.Source, "__vb6_for_each_index_0_1");
-        StringAssert.Contains(generation.Source, ".LBound(");
-        StringAssert.Contains(generation.Source, ".UBound(");
-        StringAssert.Contains(generation.Source, "__vb6_item = __vb6_values[");
+        var arrayCalls = VB6TestIr.ArrayCalls(program);
+
+        // The declared bounds are known, so the loop counts from LBound to UBound and indexes the
+        // array; nothing enumerates it.
+        CollectionAssert.IsSubsetOf(
+            new[] { IrArrayOperation.LBound, IrArrayOperation.UBound },
+            arrayCalls.ToArray());
+        CollectionAssert.DoesNotContain(arrayCalls.ToArray(), IrArrayOperation.GetFlatValue);
     }
 
     [TestMethod]
@@ -64,9 +66,9 @@ public sealed class ForEachSyntaxGuardTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_BindsUnknownRankArrayForEachToRuntimeEnumeration()
+    public void Lower_BindsUnknownRankArrayForEachToRuntimeEnumeration()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim item As Variant
                 Dim values() As Long
@@ -75,15 +77,13 @@ public sealed class ForEachSyntaxGuardTests
                     Debug.Print item
                 Next item
             End Sub
-            """, "test.bas").GenerateCSharp();
+            """, "test.bas");
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(generation.Source);
-        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0055"));
-        StringAssert.Contains(generation.Source, "foreach (var __vb6_for_each_item_");
-        StringAssert.Contains(generation.Source, "__vb6_values.EnumerateValues()");
+        // Bounds a ReDim decides at runtime cannot drive a counted loop, so the array is walked in
+        // storage order instead - which is also the order VB6 enumerates in.
+        CollectionAssert.IsSubsetOf(
+            new[] { IrArrayOperation.Length, IrArrayOperation.GetFlatValue },
+            VB6TestIr.ArrayCalls(program).ToArray());
     }
 
     /// <summary>

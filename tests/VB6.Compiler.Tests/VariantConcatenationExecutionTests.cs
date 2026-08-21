@@ -1,3 +1,5 @@
+using VB6.IR;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -26,22 +28,20 @@ public sealed class VariantConcatenationExecutionTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_AllowsOnlyBoundAmpersandStringPath()
+    public void Lower_AllowsOnlyBoundAmpersandStringPath()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim value As Variant
                 Debug.Print value & "x"
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(generation.Source);
-        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
-        StringAssert.Contains(generation.Source, "VBOperators.Concat(");
-        StringAssert.Contains(generation.Source, "VBConversions.CStr(__vb6_value)");
+        // & is the one Variant operator with a defined path today: both sides become strings and
+        // the runtime concatenates them. Anything else stays guarded by VB6S0053.
+        CollectionAssert.IsSubsetOf(
+            new[] { IrRuntimeMethod.Concat, IrRuntimeMethod.CStr },
+            VB6TestIr.RuntimeCalls(program).ToArray());
     }
 
     [TestMethod]

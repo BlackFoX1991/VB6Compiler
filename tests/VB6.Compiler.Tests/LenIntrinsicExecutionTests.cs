@@ -25,23 +25,10 @@ public sealed class LenIntrinsicExecutionTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_RewritesBuiltInLenToRuntimeWithoutTouchingUserFunction()
+    /// <summary>A user-defined Len shadows the intrinsic, exactly as in VB6.</summary>
+    public void EmitManagedApplication_PrefersAUserFunctionOverTheIntrinsicLen()
     {
-        var builtIn = VBCompilation.Create("""
-            Sub Main()
-                Debug.Print Len("abc")
-            End Sub
-            """, "Module1.bas").GenerateCSharp();
-
-        Assert.IsTrue(
-            builtIn.Success,
-            string.Join(Environment.NewLine, builtIn.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(builtIn.Source);
-        StringAssert.Contains(builtIn.Source, "VBStrings.Len(\"abc\")");
-        Assert.IsFalse(builtIn.Diagnostics.Any(diagnostic =>
-            diagnostic.Code == "VB6S0005" && diagnostic.Message.Contains("Len", StringComparison.OrdinalIgnoreCase)));
-
-        var userDefined = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Function Len(ByVal value As Long) As Long
                 Len = 99
             End Function
@@ -49,14 +36,9 @@ public sealed class LenIntrinsicExecutionTests
             Sub Main()
                 Debug.Print Len(1)
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            userDefined.Success,
-            string.Join(Environment.NewLine, userDefined.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(userDefined.Source);
-        StringAssert.Contains(userDefined.Source, "__vb6_Len(");
-        Assert.IsFalse(userDefined.Source.Contains("VBStrings.Len(", StringComparison.Ordinal));
+        Assert.AreEqual("99", output.Trim());
     }
 
     [TestMethod]

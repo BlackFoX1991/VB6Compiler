@@ -18,22 +18,14 @@ public sealed class ChrIntrinsicExecutionTests
         CollectionAssert.AreEqual(new[] { "\"", "A" }, VB6TestProgram.SplitLines(output), output);
     }
 
+    /// <summary>
+    /// A user-defined procedure of the same name shadows the intrinsic, exactly as in VB6. What
+    /// the program prints is the only reliable evidence for which of the two was called.
+    /// </summary>
     [TestMethod]
-    public void GenerateCSharp_RewritesBuiltInChrButPreservesUserFunction()
+    public void EmitManagedApplication_PrefersAUserFunctionOverTheIntrinsicChr()
     {
-        var builtIn = VBCompilation.Create("""
-            Sub Main()
-                Debug.Print Chr(34)
-            End Sub
-            """, "Module1.bas").GenerateCSharp();
-
-        Assert.IsTrue(builtIn.Success, string.Join(Environment.NewLine, builtIn.Diagnostics));
-        Assert.IsNotNull(builtIn.Source);
-        StringAssert.Contains(builtIn.Source, "VBStrings.Chr(");
-        Assert.IsFalse(builtIn.Diagnostics.Any(diagnostic =>
-            diagnostic.Code == "VB6S0005" && diagnostic.Message.Contains("Chr", StringComparison.OrdinalIgnoreCase)));
-
-        var userDefined = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Function Chr(ByVal value As Long) As String
                 Chr = "custom"
             End Function
@@ -41,12 +33,9 @@ public sealed class ChrIntrinsicExecutionTests
             Sub Main()
                 Debug.Print Chr(34)
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(userDefined.Success, string.Join(Environment.NewLine, userDefined.Diagnostics));
-        Assert.IsNotNull(userDefined.Source);
-        StringAssert.Contains(userDefined.Source, "__vb6_Chr(");
-        Assert.IsFalse(userDefined.Source.Contains("VBStrings.Chr(", StringComparison.Ordinal));
+        Assert.AreEqual("custom", output.Trim());
     }
 
 }

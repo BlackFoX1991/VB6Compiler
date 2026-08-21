@@ -1,10 +1,12 @@
+using VB6.IR;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
 public sealed class VariantMultiplyProjectCompilationTests
 {
     [TestMethod]
-    public void GenerateCSharp_ProjectPathLowersVariantMultiply()
+    public void Lower_ProjectPathLowersVariantMultiply()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -18,14 +20,15 @@ public sealed class VariantMultiplyProjectCompilationTests
                 End Sub
                 """);
 
-            var generation = VBProjectCompilation.Create(projectPath).GenerateCSharp();
+            var program = VB6TestIr.LowerProject(projectPath);
 
-            Assert.IsTrue(
-                generation.Success,
-                FormatDiagnostics(generation.Analysis));
-            Assert.IsNotNull(generation.Source);
-            Assert.IsFalse(generation.Analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
-            StringAssert.Contains(generation.Source, "VBOperators.MultiplyInteger(__vb6_value, VBConversions.CInt(4L))");
+            // Multiplying a Variant is a defined runtime operation rather than a reported gap. It
+            // stays a Variant multiply: which numeric width applies depends on what the Variant
+            // holds, and VB6 widens on overflow, so the decision belongs to run time.
+            CollectionAssert.Contains(
+                VB6TestIr.RuntimeCalls(program).ToArray(),
+                IrRuntimeMethod.MultiplyVariant);
+            Assert.AreEqual("12", VB6TestProgram.RunProject(projectPath).Trim());
         }
         finally
         {
@@ -34,7 +37,7 @@ public sealed class VariantMultiplyProjectCompilationTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_ProjectPathKeepsVariantPlusGuarded()
+    public void Lower_ProjectPathKeepsVariantPlusGuarded()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -48,11 +51,11 @@ public sealed class VariantMultiplyProjectCompilationTests
                 End Sub
                 """);
 
-            var generation = VBProjectCompilation.Create(projectPath).GenerateCSharp();
+            var lowering = VBProjectCompilation.Create(projectPath).Lower();
 
-            Assert.IsFalse(generation.Success);
-            Assert.IsNull(generation.Source);
-            Assert.IsTrue(generation.Analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
+            Assert.IsFalse(lowering.Success);
+            Assert.IsNull(lowering.Program);
+            Assert.IsTrue(lowering.Analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
         }
         finally
         {

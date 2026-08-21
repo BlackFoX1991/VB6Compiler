@@ -77,27 +77,6 @@ public sealed class ByRefTemporaryExecutionTests
             "0");
     }
 
-    [TestMethod]
-    public void GenerateCSharp_UsesATemporaryOnlyForNonVariableArguments()
-    {
-        var generation = VBCompilation.Create("""
-            Sub Bump(Value As Long)
-                Value = Value + 1
-            End Sub
-
-            Sub Main()
-                Dim keep As Long
-                Bump keep
-                Bump 5
-            End Sub
-            """, "Module1.bas").GenerateCSharp();
-
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-        StringAssert.Contains(generation.Source, "__vb6_Bump(ref __vb6_keep);");
-        StringAssert.Contains(generation.Source, "__vb6_Bump(ref VBByRef.Temp<int>(");
-    }
 
     [TestMethod]
     public void Analyze_KeepsByRefTypeMismatchAnError()

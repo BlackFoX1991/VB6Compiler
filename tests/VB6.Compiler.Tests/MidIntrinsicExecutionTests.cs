@@ -18,20 +18,11 @@ public sealed class MidIntrinsicExecutionTests
         CollectionAssert.AreEqual(new[] { "bcd", "ef" }, VB6TestProgram.SplitLines(output), output);
     }
 
+    /// <summary>A user-defined Mid shadows the intrinsic, exactly as in VB6.</summary>
     [TestMethod]
-    public void GenerateCSharp_RewritesBuiltInMidButPreservesUserFunction()
+    public void EmitManagedApplication_PrefersAUserFunctionOverTheIntrinsicMid()
     {
-        var builtIn = VBCompilation.Create("""
-            Sub Main()
-                Debug.Print Mid("abc", 2, 1)
-            End Sub
-            """, "Module1.bas").GenerateCSharp();
-
-        Assert.IsTrue(builtIn.Success, string.Join(Environment.NewLine, builtIn.Diagnostics));
-        Assert.IsNotNull(builtIn.Source);
-        StringAssert.Contains(builtIn.Source, "VBStrings.Mid(\"abc\"");
-
-        var userDefined = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Function Mid(ByVal value As String, ByVal start As Long, ByVal length As Long) As String
                 Mid = "custom"
             End Function
@@ -39,12 +30,9 @@ public sealed class MidIntrinsicExecutionTests
             Sub Main()
                 Debug.Print Mid("abc", 1, 1)
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(userDefined.Success, string.Join(Environment.NewLine, userDefined.Diagnostics));
-        Assert.IsNotNull(userDefined.Source);
-        StringAssert.Contains(userDefined.Source, "__vb6_Mid(");
-        Assert.IsFalse(userDefined.Source.Contains("VBStrings.Mid(", StringComparison.Ordinal));
+        Assert.AreEqual("custom", output.Trim());
     }
 
 }

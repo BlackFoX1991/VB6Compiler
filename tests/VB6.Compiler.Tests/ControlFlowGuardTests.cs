@@ -53,16 +53,16 @@ public sealed class ControlFlowGuardTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_StopsRatherThanEmittingAProgramWithoutTheHandler()
+    public void Lower_StopsRatherThanEmittingAProgramWithoutTheHandler()
     {
-        var generation = VBCompilation.Create("""
+        var lowering = VBCompilation.Create("""
             Sub Main()
                 On Error Resume Next
                 Debug.Print 1
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """, "Module1.bas").Lower();
 
-        Assert.IsFalse(generation.Success);
-        Assert.IsNull(generation.Source);
+        Assert.IsFalse(lowering.Success);
+        Assert.IsNull(lowering.Program);
     }
 }

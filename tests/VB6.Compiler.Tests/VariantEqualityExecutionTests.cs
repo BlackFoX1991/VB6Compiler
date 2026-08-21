@@ -1,3 +1,5 @@
+using VB6.IR;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -49,23 +51,24 @@ public sealed class VariantEqualityExecutionTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_LowersVariantLeftIntegerEqualityThroughDoubleConversions()
+    public void Lower_LowersVariantLeftIntegerEqualityThroughDoubleConversions()
     {
-        var generation = VBCompilation.Create("""
+        var program = VB6TestIr.Lower("""
             Sub Main()
                 Dim value As Variant
                 If value = 0 Then
                     Debug.Print 1
                 End If
             End Sub
-            """, "Module1.bas").GenerateCSharp();
+            """);
 
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => diagnostic.ToString())));
-        Assert.IsNotNull(generation.Source);
-        Assert.IsFalse(generation.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
-        StringAssert.Contains(generation.Source, "VBOperators.Equal(VBConversions.CDbl(__vb6_value), VBConversions.CDbl(");
+        // Both sides go through Double so the comparison has one defined numeric meaning rather
+        // than depending on what the Variant currently holds.
+        var equality = VB6TestIr.Expressions(program)
+            .OfType<IrRuntimeCallExpression>()
+            .Single(call => call.Method == IrRuntimeMethod.Equal);
+        Assert.IsTrue(equality.Arguments.All(argument =>
+            argument.Expression is IrRuntimeCallExpression { Method: IrRuntimeMethod.CDbl }));
     }
 
     [TestMethod]

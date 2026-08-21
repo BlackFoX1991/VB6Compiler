@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using VB6.CodeGen.CSharp;
 using VB6.Parser;
 using VB6.ProjectSystem;
 using VB6.Semantics;
@@ -192,18 +191,6 @@ public sealed class VBProjectCompilation
         };
     }
 
-    public VBProjectCSharpGenerationResult GenerateCSharp()
-    {
-        var analysis = ValidateEntryPoint(Analyze());
-        if (!analysis.Success || analysis.SemanticModel is null)
-        {
-            return new VBProjectCSharpGenerationResult(analysis, null);
-        }
-
-        var source = new CSharpGenerator().Generate(analysis.SemanticModel);
-        return new VBProjectCSharpGenerationResult(analysis, source);
-    }
-
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
@@ -390,12 +377,5 @@ public sealed record VBProjectCompilationAnalysis(
     public bool Success =>
         ProjectDiagnostics.Length == 0 &&
         Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
-}
-
-public sealed record VBProjectCSharpGenerationResult(
-    VBProjectCompilationAnalysis Analysis,
-    string? Source)
-{
-    public bool Success => Analysis.Success && Source is not null;
 }
 

@@ -36,23 +36,21 @@ public sealed class CallSiteByValExecutionTests
     }
 
     [TestMethod]
-    public void GenerateCSharp_ByRefAtTheCallSiteKeepsTheReference()
+    public void EmitManagedApplication_ByRefAtTheCallSiteKeepsTheReference()
     {
-        var generation = VBCompilation.Create("""
+        Run("""
             Sub Bump(Value As Long)
                 Value = Value + 1
             End Sub
 
             Sub Main()
                 Dim keep As Long
+                keep = 0
                 Bump ByRef keep
+                Debug.Print keep
             End Sub
-            """, "Module1.bas").GenerateCSharp();
-
-        Assert.IsTrue(
-            generation.Success,
-            string.Join(Environment.NewLine, generation.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-        StringAssert.Contains(generation.Source, "__vb6_Bump(ref __vb6_keep);");
+            """,
+            "1");
     }
 
     private static void Run(string source, params string[] expectedLines)
