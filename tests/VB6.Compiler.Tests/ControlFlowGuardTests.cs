@@ -9,8 +9,12 @@ namespace VB6.Compiler.Tests;
 [TestClass]
 public sealed class ControlFlowGuardTests
 {
+    /// <summary>
+    /// GoTo and labels are lowered now; only the error handling still waits for the lowered
+    /// representation, because a handler has to guard every statement rather than sit at one point.
+    /// </summary>
     [TestMethod]
-    public void Analyze_ReportsErrorHandlingAndJumps()
+    public void Analyze_ReportsOnlyTheErrorHandling()
     {
         var analysis = VBCompilation.Create("""
             Sub Main()
@@ -30,10 +34,8 @@ public sealed class ControlFlowGuardTests
             .Select(d => d.Message)
             .ToArray();
 
-        Assert.AreEqual(5, reported.Length, string.Join(Environment.NewLine, reported));
-        Assert.IsTrue(reported.Any(m => m.Contains("On Error GoTo Failed", StringComparison.Ordinal)));
-        Assert.IsTrue(reported.Any(m => m.Contains("GoTo Done", StringComparison.Ordinal)));
-        Assert.IsTrue(reported.Any(m => m.Contains("Label 'Failed'", StringComparison.Ordinal)));
+        Assert.AreEqual(2, reported.Length, string.Join(Environment.NewLine, reported));
+        Assert.IsTrue(reported.All(m => m.Contains("On Error", StringComparison.Ordinal)));
     }
 
     [TestMethod]
