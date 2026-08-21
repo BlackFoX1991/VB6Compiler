@@ -96,6 +96,16 @@ public static class VBFiles
         throw new InvalidOperationException("No VB6 file number is available.");
     }
 
+    /// <summary>
+    /// The VB6 <c>EOF</c> function: true once the position has passed the last byte. VB6 answers
+    /// this for the next read, so a file whose position sits exactly at its length is at the end.
+    /// </summary>
+    public static bool EndOfFile(int fileNumber)
+    {
+        var stream = GetStream(fileNumber);
+        return stream.Position >= stream.Length;
+    }
+
     public static byte GetByte(int fileNumber, long? position) => Read(fileNumber, position, 1)[0];
 
     public static short GetInteger(int fileNumber, long? position) =>

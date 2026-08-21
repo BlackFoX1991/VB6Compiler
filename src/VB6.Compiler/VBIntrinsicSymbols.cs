@@ -46,6 +46,12 @@ internal static class VBIntrinsicSymbols
         Function("Asc", "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Function("IsNumeric", "VBStrings.IsNumeric", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
 
+        // File functions. FreeFile takes no arguments and is usually written without parentheses.
+        Function("FreeFile", "VBFiles.FreeFile", TypeSymbol.Long),
+        Function("LOF", "VBFiles.Length", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
+        Function("EOF", "VBFiles.EndOfFile", TypeSymbol.Boolean, Parameter("FileNumber", TypeSymbol.Long)),
+        Function("Seek", "VBFiles.Position", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
+
         // Conversions. VB6 spells the checked conversions the runtime already implements.
         Function("CByte", "VBConversions.CByte", TypeSymbol.Byte, Parameter("Expression", TypeSymbol.Variant)),
         Function("CInt", "VBConversions.CInt", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
