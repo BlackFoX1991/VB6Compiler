@@ -175,7 +175,10 @@ public static class UserDefinedTypeValueGuard
         {
             if (member.Type is ArrayTypeSymbol arrayType)
             {
-                if (!member.HasArrayBounds || !IsSupportedFixedArrayElementType(arrayType.ElementType))
+                // A member without bounds is a dynamic array, allocated by ReDim rather than by the
+                // enclosing value. The backend already emits it as a plain field and deep-copies it
+                // in the clone, so only the element type still has to be one it can lay out.
+                if (!IsSupportedArrayElementType(arrayType.ElementType))
                 {
                     activePath.Remove(type);
                     return true;
@@ -196,7 +199,7 @@ public static class UserDefinedTypeValueGuard
         return false;
     }
 
-    private static bool IsSupportedFixedArrayElementType(TypeSymbol type) =>
+    private static bool IsSupportedArrayElementType(TypeSymbol type) =>
         type == TypeSymbol.Byte ||
         type == TypeSymbol.Integer ||
         type == TypeSymbol.Long ||
