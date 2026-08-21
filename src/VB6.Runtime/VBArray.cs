@@ -66,6 +66,12 @@ public sealed class VBArray<T>
     public ref T this[params int[] indices] => ref _items[GetOffset(indices)];
 
     /// <summary>
+    /// Returns one value by physical array order. The IR uses this for For Each so enumeration can
+    /// be lowered to ordinary basic blocks without making IEnumerable an IR-level concept.
+    /// </summary>
+    public T GetValueAtFlatIndex(int index) => _items[index];
+
+    /// <summary>
     /// Reinitializes every element while preserving rank and bounds. This is the runtime operation
     /// used by VB6 <c>Erase</c> for fixed-size arrays. Dynamic-array Erase deallocates the variable
     /// itself and is emitted by the compiler instead.
