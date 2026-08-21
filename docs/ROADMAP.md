@@ -41,6 +41,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Sichtbare Deklarationen aus fehlerhaften Modulen | **489** | 12 | 0 | 465 | 0 von 27 |
 | Sichtbare Typen aus fehlerhaften Modulen | **416** | 12 | 0 | 392 | **1 von 27** |
 | Qualifiziertes `ReDim`, `UBound` auf Ausdrücken, dynamische UDT-Member | **459** | 12 | 0 | 447 | 1 von 27 |
+| M5 `Optional`-Aufrufsemantik vorgezogen | **367** | 12 | 0 | 355 | **3 von 27** |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -246,6 +247,14 @@ Elementtypangabe (`... As Byte`), und `UBound` auf einem Arrayausdruck statt nur
 — letzteres allein 48 Diagnosen. Zuletzt konnte der Layout-Guard für **dynamische Arraymember**
 gelöst werden: der Generator konnte sie längst, er wurde nur nicht gelassen.
 
+Die `Optional`-Aufrufsemantik aus M5 war danach der größte Einzelposten hinter `VB6S0006`:
+`AddSymbol` deklariert fünf Parameter, zwei davon `Optional`, und jeder Aufruf liefert vier.
+Ein ausgelassenes Argument trägt jetzt seinen deklarierten Default — oder den Default seines
+Typs, wenn die Deklaration keinen nennt. Ein ausgelassener ByRef-`Optional` bekommt einen
+Temporary und hat damit kein Ziel zum Zurückschreiben, wie in VB6.
+
+Gesamtsumme 459 → **367**, und die Zahl fehlerfreier Dateien steigt von 1 auf **3**.
+
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
 
@@ -429,7 +438,8 @@ Zwei Nachträge:
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
-- [ ] `Optional`-Aufrufsemantik/Defaults, `ParamArray`, `Static`-Local-Lebensdauer
+- [x] `Optional`-Aufrufsemantik/Defaults **vorgezogen**: ausgelassene Argumente erhalten den deklarierten Default oder den Typdefault
+- [ ] `ParamArray`, `Static`-Local-Lebensdauer
 - [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
       Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
 - [ ] `Is`-Objektreferenzidentität auf dem echten Klassen-/Objekttypmodell
