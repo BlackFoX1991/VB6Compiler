@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -24,15 +25,23 @@ public sealed class ManagedEmitter
             var context = new EmitContext(program, options);
             return context.Emit();
         }
+        catch (NotSupportedException exception)
+        {
+            // The one expected failure: the IR contains something this backend cannot emit yet.
+            // Every such site names the construct, so the message alone is a usable report.
+            return Failed("VB6E0001", exception.Message);
+        }
         catch (Exception exception)
         {
-            return new ManagedEmitResult(
-                false,
-                ImmutableArray.Create(new ManagedEmitDiagnostic("VB6E0001", exception.Message)),
-                null,
-                null);
+            // Anything else is a defect in the emitter rather than a gap in its coverage. This is
+            // the only channel out of metadata emission, so it has to carry enough to find the
+            // cause - the bare message of, say, a NullReferenceException identifies nothing.
+            return Failed("VB6E0003", $"Managed emit failed unexpectedly: {exception}");
         }
     }
+
+    private static ManagedEmitResult Failed(string code, string message) =>
+        new(false, ImmutableArray.Create(new ManagedEmitDiagnostic(code, message)), null, null);
 
     private sealed class EmitContext
     {
@@ -471,37 +480,37 @@ public sealed class ManagedEmitter
         {
             if (constant.ConstantType == TypeSymbol.String)
             {
-                encoder.LoadString(_metadata.GetOrAddUserString(Convert.ToString(constant.Value) ?? string.Empty));
+                encoder.LoadString(_metadata.GetOrAddUserString(Convert.ToString(constant.Value, CultureInfo.InvariantCulture) ?? string.Empty));
                 return;
             }
             if (constant.ConstantType == TypeSymbol.Boolean)
             {
-                encoder.LoadConstantI4(Convert.ToBoolean(constant.Value) ? 1 : 0);
+                encoder.LoadConstantI4(Convert.ToBoolean(constant.Value, CultureInfo.InvariantCulture) ? 1 : 0);
                 return;
             }
             if (constant.ConstantType == TypeSymbol.Byte || constant.ConstantType == TypeSymbol.Integer || constant.ConstantType == TypeSymbol.Long)
             {
-                encoder.LoadConstantI4(Convert.ToInt32(constant.Value));
+                encoder.LoadConstantI4(Convert.ToInt32(constant.Value, CultureInfo.InvariantCulture));
                 return;
             }
             if (constant.ConstantType == TypeSymbol.LongLong)
             {
-                encoder.LoadConstantI8(Convert.ToInt64(constant.Value));
+                encoder.LoadConstantI8(Convert.ToInt64(constant.Value, CultureInfo.InvariantCulture));
                 return;
             }
             if (constant.ConstantType == TypeSymbol.Single)
             {
-                encoder.LoadConstantR4(Convert.ToSingle(constant.Value));
+                encoder.LoadConstantR4(Convert.ToSingle(constant.Value, CultureInfo.InvariantCulture));
                 return;
             }
             if (constant.ConstantType == TypeSymbol.Double)
             {
-                encoder.LoadConstantR8(Convert.ToDouble(constant.Value));
+                encoder.LoadConstantR8(Convert.ToDouble(constant.Value, CultureInfo.InvariantCulture));
                 return;
             }
             if (constant.ConstantType == TypeSymbol.Currency)
             {
-                var value = Convert.ToDecimal(constant.Value);
+                var value = Convert.ToDecimal(constant.Value, CultureInfo.InvariantCulture);
                 var scaled = checked((long)(decimal.Round(value, 4, MidpointRounding.ToEven) * 10_000m));
                 encoder.LoadConstantI8(scaled);
                 encoder.Call(GetRuntimeMethodReference(

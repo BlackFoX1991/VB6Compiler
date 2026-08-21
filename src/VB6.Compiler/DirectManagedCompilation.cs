@@ -184,9 +184,14 @@ public static class DirectManagedCompilation
         }
         catch (Exception exception)
         {
+            // Debug information has no partial form: either the PDB matches the emitted assembly
+            // or there is none. The origin travels with the diagnostic because every failure here
+            // is a defect rather than an unsupported construct.
             return new ManagedEmitResult(
                 false,
-                backend.Diagnostics.Add(new ManagedEmitDiagnostic("VB6E0002", exception.Message)),
+                backend.Diagnostics.Add(new ManagedEmitDiagnostic(
+                    "VB6E0002",
+                    $"Portable PDB emission failed: {exception}")),
                 backend.PeImage,
                 null);
         }
