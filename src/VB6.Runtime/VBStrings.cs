@@ -52,6 +52,20 @@ public static class VBStrings
     }
 
     /// <summary>
+    /// The two-argument VB6 Mid, which returns everything from <paramref name="start"/> onwards.
+    /// </summary>
+    public static string Mid(string value, int start)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (start < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "VB6 Mid requires a one-based start position.");
+        }
+
+        return start > value.Length ? string.Empty : value[(start - 1)..];
+    }
+
+    /// <summary>
     /// VB6 Left. A length beyond the end of the string returns the whole string rather than
     /// failing, which is why this cannot be a plain Substring.
     /// </summary>
