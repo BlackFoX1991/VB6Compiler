@@ -38,6 +38,8 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | String-Funktionen | **692** | 71 | 0 | 609 | 0 von 27 |
 | M6 Kontrollfluss-Syntax vorgezogen | **752** | 37 | 0 | 703 | 0 von 27 |
 | Qualifizierte Aufrufe | **784** | 12 | 0 | 760 | 0 von 27 |
+| Sichtbare Deklarationen aus fehlerhaften Modulen | **489** | 12 | 0 | 465 | 0 von 27 |
+| Sichtbare Typen aus fehlerhaften Modulen | **416** | 12 | 0 | 392 | **1 von 27** |
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -217,15 +219,31 @@ gelesen; und das Leerzeichen entscheidet den Rest, weil `Consume .Value` innerha
 das With-Member als Argument übergibt. VB6 zieht dieselbe Grenze — und der trivia-erhaltende
 Lexer macht sie überhaupt erst sichtbar.
 
+Der größte Sprung dieser Reihe kam dann nicht aus einem Sprachfeature, sondern aus der
+Projekt-Pipeline. Sie sammelte Deklarationen — Prozeduren, Modulvariablen, Enums, UDTs —
+ausschließlich aus Modulen **ohne** Parserfehler. Ein Modul mit einem einzigen Syntaxfehler war
+damit projektweit unsichtbar, und jeder Aufruf hinein wurde „nicht deklariert".
+
+Das widersprach dem eigenen Entwurf: der Parser ist ausdrücklich fehlertolerant, damit er trotz
+Fehlern einen brauchbaren Baum liefert. `comSummary.bas` hat genau einen Parserfehler und
+beherbergt `ErrMessage` (30 Aufrufe aus sieben Dateien); `comLinker.bas` hat drei und deklariert
+`ENUM_APP_TYPE` und `ENUM_SECTION_TYPE`. Acht der 27 Module waren betroffen.
+
+Gesamtsumme 784 → 489 → **416**, `VB6S0005` von 364 auf 94, `VB6S0001` von 179 auf 119. Vor
+allem aber: **die erste Datei analysiert fehlerfrei** (`envVirtualFiles.bas`). Genau wie oben
+vorhergesagt kam dieser Sprung schlagartig, nicht schrittweise — weil projektweit gebunden wird
+und eine Datei erst sauber sein kann, wenn ihre Abhängigkeiten es sind. Der Ratchet steht
+entsprechend auf 1.
+
 Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
 daher 27 von 40 Items.
 
 Dass zunehmend *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
 bis zum Binder durch, statt schon im Parser zu entgleisen.
 
-Deshalb bleibt die Zahl fehlerfreier Dateien vorerst bei 0: gebunden wird projektweit, also
-kann eine Datei erst sauber sein, wenn auch ihre Abhängigkeiten parsen. Der Sprung kommt
-schlagartig, nicht schrittweise.
+Die Zahl fehlerfreier Dateien blieb lange bei 0: gebunden wird projektweit, also kann eine Datei
+erst sauber sein, wenn auch ihre Abhängigkeiten parsen. Der Sprung kam schlagartig, wie
+erwartet — siehe die Zeile mit 1 von 27 oben.
 
 ### Was die Messung an der Planung geändert hat
 
