@@ -345,6 +345,37 @@ public sealed class BinderTests
         Assert.IsTrue(model.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0015"));
     }
 
+    /// <summary>
+    /// When the caller supplies a module variable table, the bound model has to report those very
+    /// symbols. Procedure bodies bind against the caller's table, so returning equal-looking copies
+    /// leaves the two halves of the model unmatchable by identity - which a name-based backend
+    /// never notices and an identity-based one breaks on.
+    /// </summary>
+    [TestMethod]
+    public void Bind_ReusesTheSuppliedModuleVariableSymbols()
+    {
+        var text = SourceText.From("""
+            Dim Counter As Long
+
+            Sub Main()
+                Counter = 1
+            End Sub
+            """, "test.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+        Assert.AreEqual(0, parseResult.Diagnostics.Length);
+
+        var supplied = Binder.CreateModuleVariableSymbols(text, parseResult.Root)
+            .ToDictionary(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
+        var model = new Binder(text).BindCompilationUnit(
+            parseResult.Root,
+            new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase),
+            supplied);
+
+        var reported = model.ModuleVariables.Single(variable =>
+            string.Equals(variable.Symbol.Name, "Counter", StringComparison.OrdinalIgnoreCase));
+        Assert.AreSame(supplied["Counter"], reported.Symbol);
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
