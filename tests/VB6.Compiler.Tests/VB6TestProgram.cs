@@ -24,7 +24,7 @@ internal static class VB6TestProgram
     public static string Run(VBCompilation compilation)
     {
         ArgumentNullException.ThrowIfNull(compilation);
-        return Execute(directory => Emit(compilation, directory));
+        return RunEmitted(directory => Emit(compilation, directory));
     }
 
     /// <summary>Runs one source file and returns its standard output as trimmed lines.</summary>
@@ -37,13 +37,13 @@ internal static class VB6TestProgram
     /// keeps the backend covered on its own API.
     /// </summary>
     public static string[] RunDirectLines(string source, string fileName = "Module1.bas") =>
-        SplitLines(Execute(directory => EmitDirect(VBCompilation.Create(source, fileName), directory)));
+        SplitLines(RunEmitted(directory => EmitDirect(VBCompilation.Create(source, fileName), directory)));
 
     /// <summary>Runs a project and returns its standard output verbatim.</summary>
     public static string RunProject(string projectPath)
     {
         ArgumentNullException.ThrowIfNull(projectPath);
-        return Execute(directory => Emit(VBProjectCompilation.Create(projectPath), directory));
+        return RunEmitted(directory => Emit(VBProjectCompilation.Create(projectPath), directory));
     }
 
     /// <summary>Runs a project and returns its standard output as trimmed lines.</summary>
@@ -66,8 +66,14 @@ internal static class VB6TestProgram
                 .ToArray();
     }
 
-    private static string Execute(Func<string, string> emit)
+    /// <summary>
+    /// Runs a program emitted by the caller. <paramref name="emit"/> receives the temporary output
+    /// directory and returns the assembly to start, which lets a test assert on the emit result
+    /// itself - artifact paths, diagnostics - while the process handling and cleanup stay here.
+    /// </summary>
+    public static string RunEmitted(Func<string, string> emit)
     {
+        ArgumentNullException.ThrowIfNull(emit);
         var directory = Path.Combine(
             Path.GetTempPath(),
             "VB6CompilerExecutionTests",

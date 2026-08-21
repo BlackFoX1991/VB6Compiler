@@ -204,23 +204,37 @@ public sealed class VBProjectCompilation
         return new VBProjectCSharpGenerationResult(analysis, source);
     }
 
+    /// <summary>
+    /// Compatibility facade used by the established project suite. Assembly emission is routed
+    /// through lowered IR and the direct managed backend; the C# generation result remains only
+    /// until the public API cutover removes the old result types.
+    /// </summary>
     public VBProjectManagedApplicationEmitResult EmitManagedApplication(string outputPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var generation = GenerateCSharp();
-        if (!generation.Success || generation.Source is null)
+        var direct = DirectManagedCompilation.EmitManaged(this, outputPath);
+        var analysis = direct.Lowering.Analysis with
         {
-            return new VBProjectManagedApplicationEmitResult(generation, null, null, null, null);
-        }
-
-        var artifacts = ManagedApplicationWriter.Emit(generation.Source, outputPath);
+            ProjectDiagnostics = direct.Lowering.ProjectDiagnostics
+        };
+        var generation = new VBProjectCSharpGenerationResult(
+            analysis,
+            direct.Lowering.Success ? "<direct-managed-backend>" : null);
+        var backend = direct.BackendResult is null
+            ? null
+            : new AssemblyEmitResult(
+                direct.BackendResult.Success,
+                direct.BackendResult.Diagnostics.Select(diagnostic => new AssemblyEmitDiagnostic(
+                    diagnostic.Code,
+                    Microsoft.CodeAnalysis.DiagnosticSeverity.Error,
+                    diagnostic.Message)).ToImmutableArray());
         return new VBProjectManagedApplicationEmitResult(
             generation,
-            artifacts.BackendResult,
-            artifacts.AssemblyPath,
-            artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath);
+            backend,
+            direct.AssemblyPath,
+            direct.RuntimeAssemblyPath,
+            direct.RuntimeConfigPath);
     }
 
     /// <summary>
@@ -319,7 +333,12 @@ public sealed class VBProjectCompilation
         moduleUserDefinedTypes?.Types ??
         ImmutableDictionary.Create<string, UserDefinedTypeSymbol>(StringComparer.OrdinalIgnoreCase);
 
-    private static VBProjectCompilationAnalysis ValidateEntryPoint(VBProjectCompilationAnalysis analysis)
+    /// <summary>
+    /// Adds the diagnostics that only emission cares about: VB6 allows a project without a
+    /// <c>Sub Main</c>, an executable does not. Shared with the direct managed backend so both
+    /// entry points into emission reject the same projects.
+    /// </summary>
+    internal static VBProjectCompilationAnalysis ValidateEntryPoint(VBProjectCompilationAnalysis analysis)
     {
         if (!analysis.Success || analysis.SemanticModel is null)
         {

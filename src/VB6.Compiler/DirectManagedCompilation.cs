@@ -39,13 +39,12 @@ public static class DirectManagedCompilation
     public static DirectManagedProjectLoweringResult Lower(VBProjectCompilation compilation)
     {
         ArgumentNullException.ThrowIfNull(compilation);
-        var analysis = compilation.Analyze();
-        var projectDiagnostics = ValidateProjectEntryPoint(analysis);
-        if (!analysis.Success ||
-            projectDiagnostics.Any(diagnostic => diagnostic.Code is "VB6PRJ0004" or "VB6PRJ0005") ||
-            analysis.SemanticModel is null)
+        // Success already accounts for the project diagnostics, and the entry-point check adds
+        // to exactly that list, so nothing beyond it has to be inspected here.
+        var analysis = VBProjectCompilation.ValidateEntryPoint(compilation.Analyze());
+        if (!analysis.Success || analysis.SemanticModel is null)
         {
-            return new DirectManagedProjectLoweringResult(analysis, projectDiagnostics, null);
+            return new DirectManagedProjectLoweringResult(analysis, analysis.ProjectDiagnostics, null);
         }
 
         var modules = analysis.Units
@@ -56,7 +55,7 @@ public static class DirectManagedCompilation
                 unit.Analysis.SemanticModel!))
             .ToImmutableArray();
         var program = IrLowerer.Lower(modules, analysis.SemanticModel.ModuleVariables);
-        return new DirectManagedProjectLoweringResult(analysis, projectDiagnostics, program);
+        return new DirectManagedProjectLoweringResult(analysis, analysis.ProjectDiagnostics, program);
     }
 
     public static DirectManagedApplicationEmitResult EmitManaged(
@@ -215,41 +214,6 @@ public static class DirectManagedCompilation
         return documents.ToImmutable();
     }
 
-    private static ImmutableArray<VBProjectCompilationDiagnostic> ValidateProjectEntryPoint(
-        VBProjectCompilationAnalysis analysis)
-    {
-        var diagnostics = analysis.ProjectDiagnostics.ToBuilder();
-        if (!analysis.Success || analysis.SemanticModel is null)
-        {
-            return diagnostics.ToImmutable();
-        }
-
-        var startupObject = analysis.Project.StartupObject;
-        if (!string.IsNullOrWhiteSpace(startupObject) &&
-            !string.Equals(startupObject, "Sub Main", StringComparison.OrdinalIgnoreCase))
-        {
-            diagnostics.Add(new VBProjectCompilationDiagnostic(
-                "VB6PRJ0004",
-                $"Startup object '{startupObject}' is not supported by project emission yet. Only 'Sub Main' is supported.",
-                analysis.Project.FilePath));
-            return diagnostics.ToImmutable();
-        }
-
-        var mainCount = analysis.SemanticModel.Procedures.Count(procedure =>
-            !procedure.Symbol.IsFunction &&
-            string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
-        if (mainCount != 1)
-        {
-            diagnostics.Add(new VBProjectCompilationDiagnostic(
-                "VB6PRJ0005",
-                mainCount == 0
-                    ? "Project emission requires a Sub Main entry point."
-                    : "Project emission found more than one Sub Main entry point.",
-                analysis.Project.FilePath));
-        }
-
-        return diagnostics.ToImmutable();
-    }
 }
 
 public sealed record DirectManagedLoweringResult(
