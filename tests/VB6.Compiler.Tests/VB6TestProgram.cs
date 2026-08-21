@@ -1,5 +1,6 @@
 using System.Diagnostics;
-using VB6.CodeGen.CSharp;
+using VB6.Emit.Managed;
+using VB6.Syntax.Diagnostics;
 
 namespace VB6.Compiler.Tests;
 
@@ -111,26 +112,15 @@ internal static class VB6TestProgram
         }
     }
 
-    private static string Emit(VBCompilation compilation, string directory)
-    {
-        var result = compilation.EmitManagedApplication(Path.Combine(directory, "Program.dll"));
-        Assert.IsTrue(
-            result.Success,
-            Join(
-                result.Diagnostics.Select(diagnostic => diagnostic.ToString()),
-                Backend(result.BackendResult)));
-        Assert.IsNotNull(result.AssemblyPath);
-        return result.AssemblyPath!;
-    }
+    private static string Emit(VBCompilation compilation, string directory) =>
+        AssemblyOf(compilation.EmitManagedApplication(Path.Combine(directory, "Program.dll")));
 
-    private static string EmitDirect(VBCompilation compilation, string directory)
+    private static string EmitDirect(VBCompilation compilation, string directory) =>
+        AssemblyOf(DirectManagedCompilation.EmitManaged(compilation, Path.Combine(directory, "Program.dll")));
+
+    private static string AssemblyOf(ManagedApplicationEmitResult result)
     {
-        var result = DirectManagedCompilation.EmitManaged(compilation, Path.Combine(directory, "Program.dll"));
-        Assert.IsTrue(
-            result.Success,
-            Join(
-                result.Diagnostics.Select(diagnostic => diagnostic.ToString()),
-                result.BackendResult?.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}") ?? []));
+        Assert.IsTrue(result.Success, Join(Front(result.Diagnostics), Backend(result.BackendResult)));
         Assert.IsNotNull(result.AssemblyPath);
         return result.AssemblyPath!;
     }
@@ -141,8 +131,8 @@ internal static class VB6TestProgram
         Assert.IsTrue(
             result.Success,
             Join(
-                result.Generation.Analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString()),
-                result.Generation.Analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()),
+                result.Lowering.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString()),
+                Front(result.Lowering.Analysis.Diagnostics),
                 Backend(result.BackendResult)));
         Assert.IsNotNull(result.AssemblyPath);
         return result.AssemblyPath!;
@@ -152,9 +142,11 @@ internal static class VB6TestProgram
     /// Renders whatever stopped the emit as the assertion message. Front-end and backend
     /// diagnostics are separate lists, and a failure shows up in exactly one of them.
     /// </summary>
-    private static IEnumerable<string> Backend(AssemblyEmitResult? result) =>
-        result?.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}") ?? [];
+    private static IEnumerable<string> Front(IEnumerable<Diagnostic> diagnostics) =>
+        diagnostics.Select(diagnostic => diagnostic.ToString());
 
+    private static IEnumerable<string> Backend(ManagedEmitResult? result) =>
+        result?.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}") ?? [];
     private static string Join(params IEnumerable<string>[] parts) =>
         string.Join(Environment.NewLine, parts.SelectMany(part => part));
 }

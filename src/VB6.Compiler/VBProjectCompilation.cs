@@ -204,39 +204,12 @@ public sealed class VBProjectCompilation
         return new VBProjectCSharpGenerationResult(analysis, source);
     }
 
-    /// <summary>
-    /// Compatibility facade used by the established project suite. Assembly emission is routed
-    /// through lowered IR and the direct managed backend; the C# generation result remains only
-    /// until the public API cutover removes the old result types.
-    /// </summary>
-    public VBProjectManagedApplicationEmitResult EmitManagedApplication(string outputPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+    /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
+    public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
-        var direct = DirectManagedCompilation.EmitManaged(this, outputPath);
-        var analysis = direct.Lowering.Analysis with
-        {
-            ProjectDiagnostics = direct.Lowering.ProjectDiagnostics
-        };
-        var generation = new VBProjectCSharpGenerationResult(
-            analysis,
-            direct.Lowering.Success ? "<direct-managed-backend>" : null);
-        var backend = direct.BackendResult is null
-            ? null
-            : new AssemblyEmitResult(
-                direct.BackendResult.Success,
-                direct.BackendResult.Diagnostics.Select(diagnostic => new AssemblyEmitDiagnostic(
-                    diagnostic.Code,
-                    Microsoft.CodeAnalysis.DiagnosticSeverity.Error,
-                    diagnostic.Message)).ToImmutableArray());
-        return new VBProjectManagedApplicationEmitResult(
-            generation,
-            backend,
-            direct.AssemblyPath,
-            direct.RuntimeAssemblyPath,
-            direct.RuntimeConfigPath);
-    }
-
+    /// <summary>Emits an executable assembly, its debug information and its runtime files.</summary>
+    public VBProjectManagedApplicationEmitResult EmitManagedApplication(string outputPath) =>
+        DirectManagedCompilation.EmitManaged(this, outputPath);
     /// <summary>
     /// VB6 <c>Public</c> module variables are visible project-wide, so they are declared across
     /// all modules before any module is bound - the same way procedures already are. The type
@@ -426,12 +399,3 @@ public sealed record VBProjectCSharpGenerationResult(
     public bool Success => Analysis.Success && Source is not null;
 }
 
-public sealed record VBProjectManagedApplicationEmitResult(
-    VBProjectCSharpGenerationResult Generation,
-    AssemblyEmitResult? BackendResult,
-    string? AssemblyPath,
-    string? RuntimeAssemblyPath,
-    string? RuntimeConfigPath)
-{
-    public bool Success => Generation.Success && BackendResult?.Success == true && AssemblyPath is not null;
-}

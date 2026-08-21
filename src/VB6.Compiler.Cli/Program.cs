@@ -68,7 +68,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
         var emitResult = projectCompilation.EmitManagedApplication(args[2]);
-        PrintProjectDiagnostics(emitResult.Generation.Analysis);
+        PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
 
         if (!emitResult.Success)
@@ -77,6 +77,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         }
 
         Console.WriteLine($"Generated managed project assembly: {emitResult.AssemblyPath}");
+        PrintDebugInformation(emitResult.PdbPath);
         Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
         Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
         return 0;
@@ -122,6 +123,7 @@ if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparis
     }
 
     Console.WriteLine($"Generated managed assembly: {emitResult.AssemblyPath}");
+    PrintDebugInformation(emitResult.PdbPath);
     Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
     Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
     return 0;
@@ -148,6 +150,14 @@ if (analysis.SemanticModel is not null)
 
 return analysis.Success ? 0 : 1;
 
+static void PrintDebugInformation(string? pdbPath)
+{
+    if (pdbPath is not null)
+    {
+        Console.WriteLine($"Debug information: {pdbPath}");
+    }
+}
+
 static void PrintProjectDiagnostics(VBProjectCompilationAnalysis analysis)
 {
     foreach (var diagnostic in analysis.ProjectDiagnostics)
@@ -161,7 +171,7 @@ static void PrintProjectDiagnostics(VBProjectCompilationAnalysis analysis)
     }
 }
 
-static void PrintBackendDiagnostics(VB6.CodeGen.CSharp.AssemblyEmitResult? backendResult)
+static void PrintBackendDiagnostics(VB6.Emit.Managed.ManagedEmitResult? backendResult)
 {
     if (backendResult is null)
     {
@@ -170,6 +180,6 @@ static void PrintBackendDiagnostics(VB6.CodeGen.CSharp.AssemblyEmitResult? backe
 
     foreach (var diagnostic in backendResult.Diagnostics)
     {
-        Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}");
+        Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
     }
 }

@@ -105,34 +105,12 @@ public sealed class VBCompilation
         return new CSharpGenerationResult(analysis, source);
     }
 
-    /// <summary>
-    /// Compatibility facade used by the established execution suite. Assembly emission is already
-    /// routed through lowered IR and the direct managed backend; the C# generation result remains
-    /// only until the public API cutover removes the old result types.
-    /// </summary>
-    public ManagedApplicationEmitResult EmitManagedApplication(string outputPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+    /// <summary>Lowers the bound tree to the IR the managed backend emits from.</summary>
+    public LoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
-        var direct = DirectManagedCompilation.EmitManaged(this, outputPath);
-        var generation = new CSharpGenerationResult(
-            direct.Lowering.Analysis,
-            direct.Lowering.Success ? "<direct-managed-backend>" : null);
-        var backend = direct.BackendResult is null
-            ? null
-            : new AssemblyEmitResult(
-                direct.BackendResult.Success,
-                direct.BackendResult.Diagnostics.Select(diagnostic => new AssemblyEmitDiagnostic(
-                    diagnostic.Code,
-                    Microsoft.CodeAnalysis.DiagnosticSeverity.Error,
-                    diagnostic.Message)).ToImmutableArray());
-        return new ManagedApplicationEmitResult(
-            generation,
-            backend,
-            direct.AssemblyPath,
-            direct.RuntimeAssemblyPath,
-            direct.RuntimeConfigPath);
-    }
+    /// <summary>Emits an executable assembly, its debug information and its runtime files.</summary>
+    public ManagedApplicationEmitResult EmitManagedApplication(string outputPath) =>
+        DirectManagedCompilation.EmitManaged(this, outputPath);
 }
 
 public sealed record CompilationAnalysis(
@@ -153,13 +131,3 @@ public sealed record CSharpGenerationResult(
     public ImmutableArray<Diagnostic> Diagnostics => Analysis.Diagnostics;
 }
 
-public sealed record ManagedApplicationEmitResult(
-    CSharpGenerationResult Generation,
-    AssemblyEmitResult? BackendResult,
-    string? AssemblyPath,
-    string? RuntimeAssemblyPath,
-    string? RuntimeConfigPath)
-{
-    public bool Success => Generation.Success && BackendResult?.Success == true && AssemblyPath is not null;
-    public ImmutableArray<Diagnostic> Diagnostics => Generation.Diagnostics;
-}

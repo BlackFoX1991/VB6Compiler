@@ -172,7 +172,7 @@ public sealed class CompilationTests
             ? string.Empty
             : string.Join(
                 Environment.NewLine,
-                result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.Message}"));
+                result.BackendResult.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}"));
 
         Assert.IsTrue(result.Success, backendDiagnostics);
         Assert.IsNotNull(result.AssemblyPath);

@@ -16,13 +16,13 @@ namespace VB6.Compiler;
 /// </summary>
 public static class DirectManagedCompilation
 {
-    public static DirectManagedLoweringResult Lower(VBCompilation compilation)
+    public static LoweringResult Lower(VBCompilation compilation)
     {
         ArgumentNullException.ThrowIfNull(compilation);
         var analysis = compilation.Analyze();
         if (!analysis.Success || analysis.SemanticModel is null)
         {
-            return new DirectManagedLoweringResult(analysis, null);
+            return new LoweringResult(analysis, null);
         }
 
         var sourcePath = compilation.Text.FilePath;
@@ -33,10 +33,10 @@ public static class DirectManagedCompilation
         {
             new IrModuleInput(moduleName, sourcePath, analysis.SemanticModel)
         });
-        return new DirectManagedLoweringResult(analysis, program);
+        return new LoweringResult(analysis, program);
     }
 
-    public static DirectManagedProjectLoweringResult Lower(VBProjectCompilation compilation)
+    public static VBProjectLoweringResult Lower(VBProjectCompilation compilation)
     {
         ArgumentNullException.ThrowIfNull(compilation);
         // Success already accounts for the project diagnostics, and the entry-point check adds
@@ -44,7 +44,7 @@ public static class DirectManagedCompilation
         var analysis = VBProjectCompilation.ValidateEntryPoint(compilation.Analyze());
         if (!analysis.Success || analysis.SemanticModel is null)
         {
-            return new DirectManagedProjectLoweringResult(analysis, analysis.ProjectDiagnostics, null);
+            return new VBProjectLoweringResult(analysis, null);
         }
 
         var modules = analysis.Units
@@ -55,10 +55,10 @@ public static class DirectManagedCompilation
                 unit.Analysis.SemanticModel!))
             .ToImmutableArray();
         var program = IrLowerer.Lower(modules, analysis.SemanticModel.ModuleVariables);
-        return new DirectManagedProjectLoweringResult(analysis, analysis.ProjectDiagnostics, program);
+        return new VBProjectLoweringResult(analysis, program);
     }
 
-    public static DirectManagedApplicationEmitResult EmitManaged(
+    public static ManagedApplicationEmitResult EmitManaged(
         VBCompilation compilation,
         string outputPath,
         ManagedEmitOptions? options = null)
@@ -69,7 +69,7 @@ public static class DirectManagedCompilation
         var lowering = Lower(compilation);
         if (!lowering.Success || lowering.Program is null)
         {
-            return new DirectManagedApplicationEmitResult(lowering, null, null, null, null, null);
+            return new ManagedApplicationEmitResult(lowering, null, null, null, null, null);
         }
 
         var documents = ImmutableArray.Create(CreateSourceDocument(
@@ -78,7 +78,7 @@ public static class DirectManagedCompilation
         return WriteArtifacts(lowering, lowering.Program, outputPath, options, documents);
     }
 
-    public static DirectManagedProjectApplicationEmitResult EmitManaged(
+    public static VBProjectManagedApplicationEmitResult EmitManaged(
         VBProjectCompilation compilation,
         string outputPath,
         ManagedEmitOptions? options = null)
@@ -89,7 +89,7 @@ public static class DirectManagedCompilation
         var lowering = Lower(compilation);
         if (!lowering.Success || lowering.Program is null)
         {
-            return new DirectManagedProjectApplicationEmitResult(lowering, null, null, null, null, null);
+            return new VBProjectManagedApplicationEmitResult(lowering, null, null, null, null, null);
         }
 
         var fullOutputPath = Path.GetFullPath(outputPath);
@@ -106,11 +106,11 @@ public static class DirectManagedCompilation
         var backend = EmitBackend(lowering.Program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {
-            return new DirectManagedProjectApplicationEmitResult(lowering, backend, null, null, null, null);
+            return new VBProjectManagedApplicationEmitResult(lowering, backend, null, null, null, null);
         }
 
         var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath);
-        return new DirectManagedProjectApplicationEmitResult(
+        return new VBProjectManagedApplicationEmitResult(
             lowering,
             backend,
             artifacts.AssemblyPath,
@@ -119,8 +119,8 @@ public static class DirectManagedCompilation
             artifacts.RuntimeConfigPath);
     }
 
-    private static DirectManagedApplicationEmitResult WriteArtifacts(
-        DirectManagedLoweringResult lowering,
+    private static ManagedApplicationEmitResult WriteArtifacts(
+        LoweringResult lowering,
         IrProgram program,
         string outputPath,
         ManagedEmitOptions? options,
@@ -137,11 +137,11 @@ public static class DirectManagedCompilation
         var backend = EmitBackend(program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {
-            return new DirectManagedApplicationEmitResult(lowering, backend, null, null, null, null);
+            return new ManagedApplicationEmitResult(lowering, backend, null, null, null, null);
         }
 
         var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath);
-        return new DirectManagedApplicationEmitResult(
+        return new ManagedApplicationEmitResult(
             lowering,
             backend,
             artifacts.AssemblyPath,
@@ -216,7 +216,7 @@ public static class DirectManagedCompilation
 
 }
 
-public sealed record DirectManagedLoweringResult(
+public sealed record LoweringResult(
     CompilationAnalysis Analysis,
     IrProgram? Program)
 {
@@ -224,19 +224,22 @@ public sealed record DirectManagedLoweringResult(
     public ImmutableArray<Diagnostic> Diagnostics => Analysis.Diagnostics;
 }
 
-public sealed record DirectManagedProjectLoweringResult(
+public sealed record VBProjectLoweringResult(
     VBProjectCompilationAnalysis Analysis,
-    ImmutableArray<VBProjectCompilationDiagnostic> ProjectDiagnostics,
     IrProgram? Program)
 {
-    public bool Success =>
-        Analysis.Diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error) &&
-        ProjectDiagnostics.Length == 0 &&
-        Program is not null;
+    /// <summary>
+    /// Problems with the project itself rather than with a source file - a missing module, a
+    /// startup object that is not <c>Sub Main</c>. They are reported separately because they have
+    /// no source span to point at.
+    /// </summary>
+    public ImmutableArray<VBProjectCompilationDiagnostic> ProjectDiagnostics => Analysis.ProjectDiagnostics;
+
+    public bool Success => Analysis.Success && Program is not null;
 }
 
-public sealed record DirectManagedApplicationEmitResult(
-    DirectManagedLoweringResult Lowering,
+public sealed record ManagedApplicationEmitResult(
+    LoweringResult Lowering,
     ManagedEmitResult? BackendResult,
     string? AssemblyPath,
     string? PdbPath,
@@ -247,8 +250,8 @@ public sealed record DirectManagedApplicationEmitResult(
     public ImmutableArray<Diagnostic> Diagnostics => Lowering.Diagnostics;
 }
 
-public sealed record DirectManagedProjectApplicationEmitResult(
-    DirectManagedProjectLoweringResult Lowering,
+public sealed record VBProjectManagedApplicationEmitResult(
+    VBProjectLoweringResult Lowering,
     ManagedEmitResult? BackendResult,
     string? AssemblyPath,
     string? PdbPath,
