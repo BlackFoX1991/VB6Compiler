@@ -184,6 +184,8 @@ public enum BoundNodeKind
     SelectCaseStatement,
     DebugPrintStatement,
     InvocationStatement,
+    LabelStatement,
+    GoToStatement,
     OpenStatement,
     CloseStatement,
     SeekStatement,
@@ -333,6 +335,15 @@ public sealed record BoundSelectCaseStatement(
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
+
+/// <summary>
+/// A jump target and an unconditional jump to it. Both are restricted to the statement list of
+/// the procedure itself: the backend maps them onto C# labels and goto, and C# refuses a jump
+/// into a block. Lifting that restriction is what the lowered representation is for.
+/// </summary>
+public sealed record BoundLabelStatement(string Name) : BoundStatement(BoundNodeKind.LabelStatement);
+
+public sealed record BoundGoToStatement(string Name) : BoundStatement(BoundNodeKind.GoToStatement);
 
 /// <summary>
 /// <c>Open path For Binary As #n</c>. Only Binary reaches binding; the other modes are reported,
