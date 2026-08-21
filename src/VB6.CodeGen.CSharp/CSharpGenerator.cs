@@ -344,6 +344,16 @@ public sealed class CSharpGenerator
                 EmitReDimStatement(reDim);
                 break;
 
+            case BoundLabelStatement label:
+                // C# needs a statement after a label, and a VB6 label may sit at the very end of a
+                // procedure, so an empty one is always written.
+                WriteLine($"{GetLabelName(label.Name)}: ;");
+                break;
+
+            case BoundGoToStatement goTo:
+                WriteLine($"goto {GetLabelName(goTo.Name)};");
+                break;
+
             case BoundOpenStatement open:
                 WriteLine($"VBFiles.OpenBinary({EmitExpression(open.FileNumber)}, {EmitExpression(open.Path)});");
                 break;
@@ -619,6 +629,9 @@ public sealed class CSharpGenerator
         WriteLine($"{GetLoopExitLabel(loopId)}:");
         WriteLine(";");
     }
+
+    /// <summary>VB6 labels share a namespace with nothing in C#, so they are prefixed like everything else.</summary>
+    private static string GetLabelName(string name) => $"__vb6_label_{SanitizeIdentifier(name)}";
 
     private static string GetLoopExitLabel(int loopId) => $"__vb6_loop_exit_{loopId}";
 
