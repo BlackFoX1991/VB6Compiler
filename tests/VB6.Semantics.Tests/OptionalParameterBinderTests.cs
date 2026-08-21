@@ -7,7 +7,7 @@ namespace VB6.Semantics.Tests;
 public sealed class OptionalParameterBinderTests
 {
     [TestMethod]
-    public void Bind_DiagnosesOmittedOptionalArgumentUntilDefaultSemanticsAreImplemented()
+    public void Bind_FillsAnOmittedOptionalArgumentWithItsDeclaredDefault()
     {
         const string source = """
             Sub Configure(Optional retries As Long = 3)
@@ -24,8 +24,15 @@ public sealed class OptionalParameterBinderTests
 
         var model = new Binder(text).BindCompilationUnit(parseResult.Root);
 
-        Assert.AreEqual(1, model.Diagnostics.Length);
-        Assert.AreEqual("VB6S0006", model.Diagnostics[0].Code);
-        StringAssert.Contains(model.Diagnostics[0].Message, "expects 1 argument(s), but 0 were supplied");
+        Assert.AreEqual(0, model.Diagnostics.Length, string.Join(", ", model.Diagnostics.Select(d => d.Message)));
+
+        // The call carries the declared default rather than nothing at all.
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+        var argument = invocation.Arguments.Single();
+        Assert.IsTrue(argument.Parameter!.IsOptional);
+        Assert.AreEqual(3L, Convert.ToInt64(((BoundLiteralExpression)Unwrap(argument.Expression)).Value));
     }
+    private static BoundExpression Unwrap(BoundExpression expression) =>
+        expression is BoundConversionExpression conversion ? Unwrap(conversion.Expression) : expression;
 }
