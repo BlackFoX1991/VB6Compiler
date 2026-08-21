@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -15,9 +13,9 @@ public sealed class MidIntrinsicExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "MidIntrinsicProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
-        CollectionAssert.AreEqual(new[] { "bcd", "ef" }, SplitLines(output), output);
+        CollectionAssert.AreEqual(new[] { "bcd", "ef" }, VB6TestProgram.SplitLines(output), output);
     }
 
     [TestMethod]
@@ -49,50 +47,4 @@ public sealed class MidIntrinsicExecutionTests
         Assert.IsFalse(userDefined.Source.Contains("VBStrings.Mid(", StringComparison.Ordinal));
     }
 
-    private static string EmitAndRun(string source, string assemblyName)
-    {
-        var compilation = VBCompilation.Create(source, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerMidTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, assemblyName);
-
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            var diagnostics = result.BackendResult is null
-                ? string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.ToString()))
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Id}: {diagnostic.Message}"));
-            Assert.IsTrue(result.Success, diagnostics);
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start generated Mid application.");
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            return standardOutput;
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    private static string[] SplitLines(string output) =>
-        output.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray();
 }

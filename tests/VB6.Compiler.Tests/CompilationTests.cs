@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -152,39 +150,9 @@ public sealed class CompilationTests
     [TestMethod]
     public void EmitManagedApplication_ExecutesGeneratedProgram()
     {
-        var compilation = CreatePrintableCompilation();
-        var directory = CreateTemporaryDirectory();
-        var assemblyPath = Path.Combine(directory, "GeneratedProgram.dll");
+        var standardOutput = VB6TestProgram.Run(CreatePrintableCompilation());
 
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            AssertSuccessfulEmit(result);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            Assert.AreEqual("10", standardOutput.Trim());
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-        }
+        Assert.AreEqual("10", standardOutput.Trim());
     }
 
     private static VBCompilation CreatePrintableCompilation() => VBCompilation.Create("""

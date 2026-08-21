@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -19,11 +17,11 @@ public sealed class VariantEqualityExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "VariantEqualityProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "True", "True", "False" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
@@ -42,11 +40,11 @@ public sealed class VariantEqualityExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "VariantReturnEqualityProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "42" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
@@ -104,52 +102,4 @@ public sealed class VariantEqualityExecutionTests
             "VB6S0053");
     }
 
-    private static string EmitAndRun(string source, string assemblyName)
-    {
-        var compilation = VBCompilation.Create(source, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerVariantEqualityTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, assemblyName);
-
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            var diagnostics = result.BackendResult is null
-                ? string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Code}: {diagnostic.Message}"))
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Id}: {diagnostic.Message}"));
-            Assert.IsTrue(result.Success, diagnostics);
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated Variant equality application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            return standardOutput;
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    private static string[] SplitLines(string output) =>
-        output.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray();
 }

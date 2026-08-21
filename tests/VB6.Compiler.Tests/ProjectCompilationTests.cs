@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using VB6.Semantics;
 
 namespace VB6.Compiler.Tests;
@@ -55,31 +54,7 @@ public sealed class ProjectCompilationTests
         try
         {
             var projectPath = WriteProject(directory);
-            var outputDirectory = Path.Combine(directory, "bin");
-            var assemblyPath = Path.Combine(outputDirectory, "MultiModule.dll");
-
-            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(assemblyPath);
-            Assert.IsTrue(result.Success, FormatDiagnostics(result));
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = outputDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated project application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
             Assert.AreEqual("12", standardOutput.Trim());
         }
         finally
@@ -314,22 +289,6 @@ public sealed class ProjectCompilationTests
         var projectDiagnostics = analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString());
         var sourceDiagnostics = analysis.Diagnostics.Select(diagnostic => diagnostic.ToString());
         return string.Join(Environment.NewLine, projectDiagnostics.Concat(sourceDiagnostics));
-    }
-
-    private static string FormatDiagnostics(VBProjectManagedApplicationEmitResult result)
-    {
-        var diagnostics = new List<string>
-        {
-            FormatDiagnostics(result.Generation.Analysis)
-        };
-
-        if (result.BackendResult is not null)
-        {
-            diagnostics.AddRange(result.BackendResult.Diagnostics.Select(diagnostic =>
-                $"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}"));
-        }
-
-        return string.Join(Environment.NewLine, diagnostics.Where(value => value.Length != 0));
     }
 
     private static string CreateTemporaryDirectory() =>

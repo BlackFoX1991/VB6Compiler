@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -18,11 +16,11 @@ public sealed class LenIntrinsicExecutionTests
             End Sub
             """;
 
-        var output = EmitAndRun(source, "LenIntrinsicProgram.dll");
+        var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
             new[] { "5", "0", "2" },
-            SplitLines(output),
+            VB6TestProgram.SplitLines(output),
             output);
     }
 
@@ -87,34 +85,10 @@ public sealed class LenIntrinsicExecutionTests
                 End Sub
                 """);
 
-            var outputDirectory = Path.Combine(directory, "bin");
-            var assemblyPath = Path.Combine(outputDirectory, "LenProject.dll");
-            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(assemblyPath);
-
-            Assert.IsTrue(result.Success, FormatDiagnostics(result));
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = outputDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated Len project application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
             CollectionAssert.AreEqual(
                 new[] { "7", "0" },
-                SplitLines(standardOutput),
+                VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }
         finally
@@ -126,68 +100,4 @@ public sealed class LenIntrinsicExecutionTests
         }
     }
 
-    private static string EmitAndRun(string source, string assemblyName)
-    {
-        var compilation = VBCompilation.Create(source, "Module1.bas");
-        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerLenTests", Guid.NewGuid().ToString("N"));
-        var assemblyPath = Path.Combine(directory, assemblyName);
-
-        try
-        {
-            var result = compilation.EmitManagedApplication(assemblyPath);
-            var diagnostics = result.BackendResult is null
-                ? string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Code}: {diagnostic.Message}"))
-                : string.Join(Environment.NewLine, result.BackendResult.Diagnostics.Select(diagnostic =>
-                    $"{diagnostic.Id}: {diagnostic.Message}"));
-            Assert.IsTrue(result.Success, diagnostics);
-            Assert.IsNotNull(result.AssemblyPath);
-
-            var startInfo = new ProcessStartInfo("dotnet")
-            {
-                WorkingDirectory = directory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add(result.AssemblyPath!);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start the generated Len application.");
-
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            return standardOutput;
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    private static string FormatDiagnostics(VBProjectManagedApplicationEmitResult result)
-    {
-        var diagnostics = result.Generation.Analysis.Diagnostics
-            .Select(diagnostic => diagnostic.ToString())
-            .ToList();
-        diagnostics.AddRange(result.Generation.Analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString()));
-
-        if (result.BackendResult is not null)
-        {
-            diagnostics.AddRange(result.BackendResult.Diagnostics.Select(diagnostic =>
-                $"{diagnostic.Severity} {diagnostic.Id}: {diagnostic.Message}"));
-        }
-
-        return string.Join(Environment.NewLine, diagnostics);
-    }
-
-    private static string[] SplitLines(string output) =>
-        output.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray();
 }
