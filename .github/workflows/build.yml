@@ -45,7 +45,7 @@ jobs:
           $failed = $false
           Get-ChildItem tests -Filter *.csproj -Recurse | Sort-Object FullName | ForEach-Object {
             $projectName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-            dotnet test $_.FullName --configuration Release --no-build --no-restore --logger "trx;LogFileName=$projectName.trx" --results-directory artifacts/test-results
+            dotnet test $_.FullName --configuration Release --logger "trx;LogFileName=$projectName.trx" --results-directory artifacts/test-results
             if ($LASTEXITCODE -ne 0) {
               $failed = $true
             }
