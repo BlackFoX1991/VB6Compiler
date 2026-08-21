@@ -238,13 +238,10 @@ public sealed class VBProjectCompilation
         var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
         var origins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        // Same reasoning as for procedures: a module with a syntax error still declares its
+        // variables, and hiding them turns one parser gap into many name resolution errors.
         foreach (var module in modules)
         {
-            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            {
-                continue;
-            }
-
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
             ImmutableArray<ModuleVariableSymbol> symbols;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
@@ -278,13 +275,13 @@ public sealed class VBProjectCompilation
         var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
         var origins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        // Declarations are collected from every module that produced a tree, including modules that
+        // still have syntax errors. The parser is fault-tolerant on purpose, so a procedure whose
+        // own header parsed is a real declaration - and skipping the whole module would hide it
+        // from every caller. One syntax error in comSummary.bas suppressed ErrMessage and produced
+        // 30 "not declared" errors across seven other files.
         foreach (var module in modules)
         {
-            if (module.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            {
-                continue;
-            }
-
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
             using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
             foreach (var member in module.SemanticRoot.Members)
