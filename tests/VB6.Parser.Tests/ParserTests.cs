@@ -105,6 +105,25 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void Parse_RecognizesParenthesizedArgumentsWithoutCallKeyword()
+    {
+        const string source = """
+            Sub Main()
+                Helper(1, value)
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source)).ParseCompilationUnit();
+        var invocation = (InvocationStatementSyntax)((SubDeclarationSyntax)result.Root.Members.Single()).Statements.Single();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.IsNull(invocation.CallKeyword);
+        Assert.IsNotNull(invocation.OpenParenthesisToken);
+        Assert.AreEqual(2, invocation.Arguments.Length);
+        Assert.IsNotNull(invocation.CloseParenthesisToken);
+    }
+
+    [TestMethod]
     public void Parse_RecognizesParametersAndArguments()
     {
         const string source = """

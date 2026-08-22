@@ -41,6 +41,15 @@ public sealed class QualifiedCallParserTests
         Assert.AreEqual(0, statement.Arguments.Length);
     }
 
+    [TestMethod]
+    public void Parse_QualifiedCallWithParenthesizedArguments()
+    {
+        var statement = (QualifiedInvocationStatementSyntax)ParseSingleStatement("frmMain.Refresh(1)");
+
+        Assert.AreEqual(1, statement.Arguments.Length);
+        Assert.IsInstanceOfType<MemberAccessExpressionSyntax>(statement.Target);
+    }
+
     /// <summary>
     /// An ordinary call whose argument happens to be qualified must stay an ordinary call, or the
     /// receiver would be mistaken for the callee.

@@ -1017,6 +1017,15 @@ public sealed class Parser
     private QualifiedInvocationStatementSyntax ParseQualifiedInvocationStatement()
     {
         var target = ParsePrimaryExpression();
+        if (target is ElementAccessExpressionSyntax
+            {
+                Receiver: MemberAccessExpressionSyntax memberTarget,
+                OpenParenthesisToken.LeadingTrivia.IsDefaultOrEmpty: true
+            } elementCall)
+        {
+            return new QualifiedInvocationStatementSyntax(memberTarget, elementCall.Indices);
+        }
+
         var arguments = IsLineTerminator(Current.Kind)
             ? ImmutableArray<ExpressionSyntax>.Empty
             : ParseArguments(null);
@@ -1816,10 +1825,11 @@ public sealed class Parser
         SyntaxToken? closeParenthesis = null;
         ImmutableArray<ExpressionSyntax> arguments;
 
-        // Only a Call statement has a parenthesized argument list. Without Call, a leading
-        // parenthesis belongs to the first argument, which is what makes Foo (x) pass x by value
-        // in VB6 while Call Foo(x) passes it by reference.
-        if (callKeyword is not null && Current.Kind == SyntaxKind.OpenParenthesisToken)
+        // With Call, parentheses always delimit the argument list. Without Call, the absence of
+        // whitespace distinguishes Foo(x) from Foo (x): the latter keeps the parenthesized
+        // expression as the first ByVal argument in VB6.
+        if (Current.Kind == SyntaxKind.OpenParenthesisToken &&
+            (callKeyword is not null || Current.LeadingTrivia.IsDefaultOrEmpty))
         {
             openParenthesis = NextToken();
             arguments = ParseArguments(SyntaxKind.CloseParenthesisToken);

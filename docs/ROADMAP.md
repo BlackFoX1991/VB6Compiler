@@ -55,7 +55,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
-| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **185** | **104** | **0** | **81** | **21 von 40** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **180** | **99** | **0** | **81** | **21 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -123,6 +123,12 @@ explizitem oder inferiertem Typ. Ihre Werte werden als lokale Initializer in den
 überführt, sodass reale Muster wie `Const ProcName = "..."` nicht nur syntaktisch, sondern auch
 bei der Ausführung korrekt bleiben. Damit fällt der Parserzähler auf **104** und der Gesamtstand
 auf **185** Fehler bei weiterhin **21 von 40** fehlerfreien Dateien.
+
+Der Aufrufparser akzeptiert nun auch `Foo(arg1, arg2)` ohne das optionale `Call` sowie
+qualifizierte Aufrufe wie `object.Method(value)`. Die VB6-Unterscheidung zu `Foo (value)` bleibt
+erhalten: ein Leerzeichen vor der Klammer markiert weiterhin den ByVal-Ausdruck. Damit sinkt die
+Parserdiagnostik auf **99** und der Gesamtstand auf **180** Fehler; die acht neuen Regressionstests
+heben die Suite auf **652 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
