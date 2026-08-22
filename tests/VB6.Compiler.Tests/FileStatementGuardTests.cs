@@ -89,7 +89,7 @@ public sealed class FileStatementGuardTests
     {
         var lowering = VBCompilation.Create("""
             Type Record
-                Text As String
+                Value As Variant
             End Type
 
             Sub Main()

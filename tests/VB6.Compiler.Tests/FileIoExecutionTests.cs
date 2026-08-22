@@ -427,6 +427,40 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsVariableStringUdtFieldsWithDescriptor()
+    {
+        Run("""
+            Type Record
+                Code As Long
+                Text As String
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                written.Code = 42
+                written.Text = "Hi"
+
+                Open "variable-string-record.bin" For Binary As #1
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "variable-string-record.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack.Code
+                Debug.Print readBack.Text
+            End Sub
+            """,
+            "10",
+            "42",
+            "Hi");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsRandomFixedStringUdtRecords()
     {
         Run("""
@@ -543,7 +577,7 @@ public sealed class FileIoExecutionTests
     {
         var analysis = VBCompilation.Create("""
             Type Record
-                Text As String
+                Value As Variant
             End Type
 
             Sub Main()
