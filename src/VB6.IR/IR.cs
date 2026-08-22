@@ -295,6 +295,7 @@ public enum IrRuntimeMethod
     CInt,
     CLng,
     CDec,
+    CDate,
     CLngLng,
     VariantToBoolean,
     CCur,

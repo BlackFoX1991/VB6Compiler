@@ -76,6 +76,7 @@ public static class UserDefinedTypeFileLayout
         type == TypeSymbol.Long ||
         type == TypeSymbol.LongLong ||
         type == TypeSymbol.Single ||
+        type == TypeSymbol.Date ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Currency ||
         type == TypeSymbol.Boolean ||

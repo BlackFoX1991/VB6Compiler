@@ -88,8 +88,9 @@ zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten
 übertragen außerhalb eines UDT nur ihre elementweise Payload ohne äußeren Descriptor. Dynamische
 UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
 als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
-Weitere zusammengesetzte String-/Random-Layouts, `As Any`-Marshalling, COM, native LLVM-Emission und
-Forms bleiben bewusst offen.
+Date-Werte werden als OLE-Automation-Doubles übertragen und bei `Input #` konvertiert. Weitere
+zusammengesetzte String-/Random-Layouts, `As Any`-Marshalling, COM, native LLVM-Emission und Forms
+bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -581,8 +582,8 @@ Nach Korpusbedarf priorisiert:
    `Len`-Klausel und Defaultlänge 128 sind ergänzt; dynamische UDT-Arraymember in Records tragen
    ihren Descriptor und werden elementweise übertragen, eigenständige Arrays unterstützter UDT-
    Elemente übertragen ihre Payload ohne äußeren Descriptor, variable Stringfelder tragen ihr
-   2-Byte-Längenpräfix. Datums-Konvertierung und weitere zusammengesetzte Random-Record-Layouts
-   bleiben offen.
+   2-Byte-Längenpräfix, und Date-Ziele werden bei `Input #` in OLE-Automation-Doubles konvertiert.
+   Weitere zusammengesetzte Random-Record-Layouts bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere

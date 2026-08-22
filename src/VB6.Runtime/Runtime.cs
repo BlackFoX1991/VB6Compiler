@@ -114,6 +114,25 @@ public static class VBConversions
         _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
     };
 
+    public static double CDate(object? value)
+    {
+        if (value is DateTime dateTime)
+        {
+            return dateTime.ToOADate();
+        }
+
+        if (value is string text)
+        {
+            return DateTime.Parse(
+                    text,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal)
+                .ToOADate();
+        }
+
+        return Convert.ToDouble(value, CultureInfo.InvariantCulture);
+    }
+
     public static bool CBool(object? value) => value is VBCurrency currency
         ? currency.ScaledValue != 0
         : Convert.ToBoolean(value, CultureInfo.InvariantCulture);

@@ -132,7 +132,7 @@ internal static class VBIntrinsicSymbols
             OptionalParameter("HelpFile", TypeSymbol.String, string.Empty),
             OptionalParameter("Context", TypeSymbol.Long, 0L)),
         Function("FileLen", VBIntrinsicKind.FileLen, "VBFiles.FileLength", TypeSymbol.LongLong, Parameter("Path", TypeSymbol.String)),
-        Function("Now", VBIntrinsicKind.Now, "VBDateTime.Now", TypeSymbol.Double),
+        Function("Now", VBIntrinsicKind.Now, "VBDateTime.Now", TypeSymbol.Date),
         Sub("Load", VBIntrinsicKind.Load, "VBInteraction.Load", Parameter("Object", TypeSymbol.Variant)),
         Sub("Unload", VBIntrinsicKind.Unload, "VBInteraction.Unload", Parameter("Object", TypeSymbol.Variant)),
         Function("VarPtr", VBIntrinsicKind.VarPtr, "VBMemory.VarPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),

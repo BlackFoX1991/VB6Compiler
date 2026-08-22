@@ -15,6 +15,7 @@ public record TypeSymbol(string Name) : Symbol(Name)
     public static readonly TypeSymbol Long = new("Long");
     public static readonly TypeSymbol LongLong = new("LongLong");
     public static readonly TypeSymbol Single = new("Single");
+    public static readonly TypeSymbol Date = new("Date");
     public static readonly TypeSymbol String = new("String");
     public static readonly TypeSymbol Boolean = new("Boolean");
     public static readonly TypeSymbol Double = new("Double");
@@ -29,6 +30,7 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "LONGLONG" => LongLong,
         "INT64" => LongLong,
         "SINGLE" => Single,
+        "DATE" => Date,
         "STRING" => String,
         "BOOLEAN" => Boolean,
         "DOUBLE" => Double,

@@ -2443,6 +2443,7 @@ public static class IrLowerer
                 : conversion.TargetType == TypeSymbol.Long ? IrRuntimeMethod.CLng
                 : conversion.TargetType == TypeSymbol.LongLong ? IrRuntimeMethod.CLngLng
                 : conversion.TargetType == TypeSymbol.Currency ? IrRuntimeMethod.CCur
+                : conversion.TargetType == TypeSymbol.Date ? IrRuntimeMethod.CDate
                 : conversion.TargetType == TypeSymbol.Single ? IrRuntimeMethod.CSng
                 : conversion.TargetType == TypeSymbol.Double ? IrRuntimeMethod.CDbl
                 : conversion.TargetType == TypeSymbol.Boolean ? IrRuntimeMethod.CBool
@@ -2460,6 +2461,7 @@ public static class IrLowerer
                 : targetType == TypeSymbol.Long ? IrRuntimeMethod.CLng
                 : targetType == TypeSymbol.LongLong ? IrRuntimeMethod.CLngLng
                 : targetType == TypeSymbol.Currency ? IrRuntimeMethod.CCur
+                : targetType == TypeSymbol.Date ? IrRuntimeMethod.CDate
                 : targetType == TypeSymbol.Single ? IrRuntimeMethod.CSng
                 : targetType == TypeSymbol.Double ? IrRuntimeMethod.CDbl
                 : targetType == TypeSymbol.Boolean ? IrRuntimeMethod.CBool
@@ -2722,6 +2724,7 @@ public static class IrLowerer
             : type == TypeSymbol.Long ? IrRuntimeMethod.FileGetLong
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.FileGetLongLong
             : type == TypeSymbol.Single ? IrRuntimeMethod.FileGetSingle
+            : type == TypeSymbol.Date ? IrRuntimeMethod.FileGetDouble
             : type == TypeSymbol.Double ? IrRuntimeMethod.FileGetDouble
             : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetCurrency
             : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetBoolean
@@ -2733,6 +2736,7 @@ public static class IrLowerer
             : type == TypeSymbol.Long ? IrRuntimeMethod.FileGetRawLong
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.FileGetRawLongLong
             : type == TypeSymbol.Single ? IrRuntimeMethod.FileGetRawSingle
+            : type == TypeSymbol.Date ? IrRuntimeMethod.FileGetRawDouble
             : type == TypeSymbol.Double ? IrRuntimeMethod.FileGetRawDouble
             : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetRawCurrency
             : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetRawBoolean
@@ -2803,6 +2807,7 @@ public static class IrLowerer
             "VBConversions.CInt" => IrRuntimeMethod.CInt,
             "VBConversions.CLng" => IrRuntimeMethod.CLng,
             "VBConversions.CDec" => IrRuntimeMethod.CDec,
+            "VBConversions.CDate" => IrRuntimeMethod.CDate,
             "VBConversions.CSng" => IrRuntimeMethod.CSng,
             "VBConversions.CDbl" => IrRuntimeMethod.CDbl,
             "VBConversions.CBool" => IrRuntimeMethod.CBool,

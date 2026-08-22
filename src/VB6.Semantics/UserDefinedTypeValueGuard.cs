@@ -206,6 +206,7 @@ public static class UserDefinedTypeValueGuard
         type == TypeSymbol.Long ||
         type == TypeSymbol.LongLong ||
         type == TypeSymbol.Single ||
+        type == TypeSymbol.Date ||
         type == TypeSymbol.String ||
         type is FixedLengthStringTypeSymbol ||
         type == TypeSymbol.Boolean ||

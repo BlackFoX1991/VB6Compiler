@@ -461,6 +461,57 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsDateUdtFieldsAsOleDoubles()
+    {
+        Run("""
+            Type Record
+                When As Date
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                written.When = 43832
+
+                Open "date-record.bin" For Binary As #1
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "date-record.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print CDbl(readBack.When)
+            End Sub
+            """,
+            "8",
+            "43832");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ConvertsInputDateFieldsToOleDoubles()
+    {
+        Run("""
+            Sub Main()
+                Dim value As Date
+
+                Open "date-input.txt" For Output As #1
+                Print #1, "2020-01-02"
+                Close #1
+
+                Open "date-input.txt" For Input As #1
+                Input #1, value
+                Close #1
+
+                Debug.Print CDbl(value)
+            End Sub
+            """,
+            "43832");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsRandomFixedStringUdtRecords()
     {
         Run("""

@@ -1509,6 +1509,7 @@ public sealed class ManagedEmitter
             if (type == TypeSymbol.Long) { encoder.Int32(); return; }
             if (type == TypeSymbol.LongLong) { encoder.Int64(); return; }
             if (type == TypeSymbol.Single) { encoder.Single(); return; }
+            if (type == TypeSymbol.Date) { encoder.Double(); return; }
             if (type == TypeSymbol.Double) { encoder.Double(); return; }
             if (type == TypeSymbol.Boolean) { encoder.Boolean(); return; }
             if (type == TypeSymbol.String || type is FixedLengthStringTypeSymbol) { encoder.String(); return; }
@@ -1577,6 +1578,7 @@ public sealed class ManagedEmitter
             if (type == TypeSymbol.Long) return GetReflectionTypeReference(typeof(int));
             if (type == TypeSymbol.LongLong) return GetReflectionTypeReference(typeof(long));
             if (type == TypeSymbol.Single) return GetReflectionTypeReference(typeof(float));
+            if (type == TypeSymbol.Date) return GetReflectionTypeReference(typeof(double));
             if (type == TypeSymbol.Double) return GetReflectionTypeReference(typeof(double));
             if (type == TypeSymbol.Boolean) return GetReflectionTypeReference(typeof(bool));
             if (type == TypeSymbol.String || type is FixedLengthStringTypeSymbol) return GetReflectionTypeReference(typeof(string));
@@ -1905,6 +1907,7 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Long ||
             type == TypeSymbol.LongLong ||
             type == TypeSymbol.Single ||
+            type == TypeSymbol.Date ||
             type == TypeSymbol.Double ||
             type == TypeSymbol.Boolean ||
             type == TypeSymbol.String;
@@ -2203,6 +2206,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CInt) return Static(typeof(VBConversions), "CInt", typeof(object));
             if (m == IrRuntimeMethod.CLng) return Static(typeof(VBConversions), "CLng", typeof(object));
             if (m == IrRuntimeMethod.CDec) return Static(typeof(VBConversions), "CDec", typeof(object));
+            if (m == IrRuntimeMethod.CDate) return Static(typeof(VBConversions), "CDate", typeof(object));
             if (m == IrRuntimeMethod.CLngLng) return Static(typeof(VBConversions), "CLngLng", typeof(object));
             if (m == IrRuntimeMethod.CCur) return Static(typeof(VBConversions), "CCur", typeof(object));
             if (m == IrRuntimeMethod.CSng) return Static(typeof(VBConversions), "CSng", typeof(object));
@@ -2429,6 +2433,7 @@ public sealed class ManagedEmitter
             : type == TypeSymbol.Long ? typeof(int)
             : type == TypeSymbol.LongLong ? typeof(long)
             : type == TypeSymbol.Single ? typeof(float)
+            : type == TypeSymbol.Date ? typeof(double)
             : type == TypeSymbol.Double ? typeof(double)
             : type == TypeSymbol.Boolean ? typeof(bool)
             : type == TypeSymbol.String || type is FixedLengthStringTypeSymbol ? typeof(string)

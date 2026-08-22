@@ -1320,6 +1320,7 @@ public sealed class Binder
         type == TypeSymbol.Long ||
         type == TypeSymbol.LongLong ||
         type == TypeSymbol.Single ||
+        type == TypeSymbol.Date ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Boolean ||
         type == TypeSymbol.Currency;
@@ -1441,6 +1442,7 @@ public sealed class Binder
         type == TypeSymbol.Long ||
         type == TypeSymbol.LongLong ||
         type == TypeSymbol.Single ||
+        type == TypeSymbol.Date ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Currency ||
         type == TypeSymbol.Boolean ||
