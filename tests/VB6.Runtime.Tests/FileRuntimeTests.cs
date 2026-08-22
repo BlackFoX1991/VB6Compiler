@@ -63,6 +63,29 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void TextModes_CreateTruncateAppendAndWriteVb6Lines()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Print(1, "hello");
+            VBFiles.Print(1, 42);
+            VBFiles.Close(1);
+
+            Assert.AreEqual("hello\r\n 42\r\n", File.ReadAllText(path, System.Text.Encoding.UTF8));
+
+            VBFiles.OpenAppend(1, path);
+            VBFiles.Print(1, "tail");
+            VBFiles.Close(1);
+            Assert.AreEqual("hello\r\n 42\r\ntail\r\n", File.ReadAllText(path, System.Text.Encoding.UTF8));
+
+            VBFiles.OpenInput(1, path);
+            Assert.AreEqual(18L, VBFiles.Length(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void PutAndGet_RoundTripVariableLengthStringAndContinueFromPrefixPayload()
     {
         WithTemporaryFile(path =>

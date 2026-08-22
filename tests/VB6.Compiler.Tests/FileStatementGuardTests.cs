@@ -38,6 +38,33 @@ public sealed class FileStatementGuardTests
     }
 
     [TestMethod]
+    public void Lower_LowersTextOpenModesAndFilePrint()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Open "text.txt" For Output As #1
+                Print #1, "hello"
+                Close #1
+                Open "text.txt" For Append As #1
+                Print #1, "world"
+                Close #1
+                Open "text.txt" For Input As #1
+                Close #1
+            End Sub
+            """);
+
+        CollectionAssert.IsSubsetOf(
+            new[]
+            {
+                IrRuntimeMethod.FileOpenOutput,
+                IrRuntimeMethod.FileOpenAppend,
+                IrRuntimeMethod.FileOpenInput,
+                IrRuntimeMethod.FilePrint
+            },
+            VB6TestIr.RuntimeCalls(program).ToArray());
+    }
+
+    [TestMethod]
     public void Lower_ClosesEveryFileForABareClose()
     {
         var program = VB6TestIr.Lower("""

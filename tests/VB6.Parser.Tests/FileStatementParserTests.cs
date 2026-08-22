@@ -5,9 +5,8 @@ using ParserType = VB6.Parser.Parser;
 namespace VB6.Parser.Tests;
 
 /// <summary>
-/// The binary file statements the conformance corpus uses. Open, Close, Get, Put and Seek are
-/// recognized at statement position only - reserving them globally would repeat what Option Base
-/// already taught about VB6 context words.
+/// File statements are recognized at statement position only - reserving Open, Close, Get, Put,
+/// Print and Seek globally would repeat what Option Base already taught about VB6 context words.
 /// </summary>
 [TestClass]
 public sealed class FileStatementParserTests
@@ -35,6 +34,17 @@ public sealed class FileStatementParserTests
 
         Assert.IsNotNull(open.LenKeyword);
         Assert.IsNotNull(open.RecordLength);
+    }
+
+    [TestMethod]
+    public void Parse_TextOpenModesAndFilePrint()
+    {
+        var open = (OpenStatementSyntax)ParseSingleStatement("Open sFile For Append As #1");
+        Assert.AreEqual("Append", open.ModeToken.Text);
+
+        var print = (FilePrintStatementSyntax)ParseSingleStatement("Print #1, value");
+        Assert.IsNotNull(print.FileNumber.HashToken);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(print.Expression);
     }
 
     [TestMethod]

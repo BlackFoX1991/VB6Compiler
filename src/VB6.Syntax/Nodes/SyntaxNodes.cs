@@ -354,6 +354,11 @@ public sealed record DebugPrintStatementSyntax(
     SyntaxToken PrintKeyword,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugPrintStatement);
 
+public sealed record FilePrintStatementSyntax(
+    SyntaxToken PrintKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.FilePrintStatement);
+
 public sealed record InvocationStatementSyntax(
     SyntaxToken? CallKeyword,
     SyntaxToken Identifier,

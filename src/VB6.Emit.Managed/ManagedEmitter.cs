@@ -2222,6 +2222,10 @@ public sealed class ManagedEmitter
             return call.Method switch
             {
                 IrRuntimeMethod.FileOpenBinary => Static(typeof(VBFiles), "OpenBinary", typeof(int), typeof(string)),
+                IrRuntimeMethod.FileOpenInput => Static(typeof(VBFiles), "OpenInput", typeof(int), typeof(string)),
+                IrRuntimeMethod.FileOpenOutput => Static(typeof(VBFiles), "OpenOutput", typeof(int), typeof(string)),
+                IrRuntimeMethod.FileOpenAppend => Static(typeof(VBFiles), "OpenAppend", typeof(int), typeof(string)),
+                IrRuntimeMethod.FilePrint => Static(typeof(VBFiles), "Print", typeof(int), typeof(object)),
                 IrRuntimeMethod.FileClose => Static(typeof(VBFiles), "Close", typeof(int)),
                 IrRuntimeMethod.FileCloseAll => Static(typeof(VBFiles), "CloseAll"),
                 IrRuntimeMethod.FileSeek => Static(typeof(VBFiles), "Seek", typeof(int), typeof(long)),

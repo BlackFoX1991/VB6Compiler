@@ -437,6 +437,10 @@ public enum IrRuntimeMethod
     VariantVarType,
 
     FileOpenBinary,
+    FileOpenInput,
+    FileOpenOutput,
+    FileOpenAppend,
+    FilePrint,
     FileClose,
     FileCloseAll,
     FileSeek,

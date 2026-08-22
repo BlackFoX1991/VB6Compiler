@@ -36,6 +36,7 @@ public static class SyntaxNavigator
             SelectCaseStatementSyntax select => select.SelectKeyword,
             WithStatementSyntax with => with.WithKeyword,
             DebugPrintStatementSyntax debugPrint => debugPrint.DebugKeyword,
+            FilePrintStatementSyntax filePrint => filePrint.PrintKeyword,
             InvocationStatementSyntax invocation => invocation.CallKeyword ?? invocation.Identifier,
             QualifiedInvocationStatementSyntax invocation => GetFirstToken(invocation.Target),
             GoToStatementSyntax @goto => @goto.GoToKeyword,

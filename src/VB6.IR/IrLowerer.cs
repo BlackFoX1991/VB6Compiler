@@ -917,6 +917,13 @@ public static class IrLowerer
                         TypeSymbol.Error,
                         LowerExpression(print.Expression))));
                     break;
+                case BoundFilePrintStatement print:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.FilePrint,
+                        TypeSymbol.Error,
+                        LowerExpression(print.FileNumber),
+                        LowerExpression(print.Expression))));
+                    break;
                 case BoundInvocationStatement invocation:
                     Emit(new IrEvaluateInstruction(LowerCall(invocation.Procedure, invocation.Arguments)));
                     break;
@@ -944,8 +951,16 @@ public static class IrLowerer
                     _current = NewBlock("after_goto");
                     break;
                 case BoundOpenStatement open:
+                    var openMethod = open.Mode switch
+                    {
+                        BoundFileOpenMode.Binary => IrRuntimeMethod.FileOpenBinary,
+                        BoundFileOpenMode.Input => IrRuntimeMethod.FileOpenInput,
+                        BoundFileOpenMode.Output => IrRuntimeMethod.FileOpenOutput,
+                        BoundFileOpenMode.Append => IrRuntimeMethod.FileOpenAppend,
+                        _ => throw new InvalidOperationException($"Unknown file open mode '{open.Mode}'.")
+                    };
                     Emit(new IrEvaluateInstruction(Runtime(
-                        IrRuntimeMethod.FileOpenBinary,
+                        openMethod,
                         TypeSymbol.Error,
                         LowerExpression(open.FileNumber),
                         LowerExpression(open.Path))));

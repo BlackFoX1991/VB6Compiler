@@ -856,6 +856,7 @@ public sealed class Parser
             SyntaxKind.ExitKeyword => ParseExitStatement(),
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
+            SyntaxKind.PrintKeyword when IsFileStatementKeyword("Print") => ParseFilePrintStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.OnKeyword when Peek(1).Kind == SyntaxKind.ErrorKeyword => ParseOnErrorStatement(),
             SyntaxKind.OnKeyword => ParseOnBranchStatement(),
@@ -1248,8 +1249,8 @@ public sealed class Parser
 
     /// <summary>
     /// File I/O statement words are recognized at statement position only. Reserving Open, Close,
-    /// Get, Put and Seek globally would repeat the mistake Option Base already taught: these are
-    /// ordinary identifiers everywhere else.
+    /// Get, Put, Print and Seek globally would repeat the mistake Option Base already taught:
+    /// these are ordinary identifiers everywhere else.
     ///
     /// A following '=' means an assignment to a variable of that name, which wins.
     /// </summary>
@@ -1298,6 +1299,14 @@ public sealed class Parser
             lenKeyword,
             lenEquals,
             recordLength);
+    }
+
+    private FilePrintStatementSyntax ParseFilePrintStatement()
+    {
+        var printKeyword = NextToken();
+        var fileNumber = ParseFileNumber();
+        MatchToken(SyntaxKind.CommaToken);
+        return new FilePrintStatementSyntax(printKeyword, fileNumber, ParseExpression());
     }
 
     private CloseStatementSyntax ParseCloseStatement()

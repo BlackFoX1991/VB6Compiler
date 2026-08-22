@@ -279,6 +279,7 @@ public enum BoundNodeKind
     ReturnStatement,
     SelectCaseStatement,
     DebugPrintStatement,
+    FilePrintStatement,
     InvocationStatement,
     LabelStatement,
     GoToStatement,
@@ -428,6 +429,11 @@ public sealed record BoundSelectCaseStatement(
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
 
+public sealed record BoundFilePrintStatement(
+    BoundExpression FileNumber,
+    BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.FilePrintStatement);
+
 public sealed record BoundLabelStatement(string Name) : BoundStatement(BoundNodeKind.LabelStatement);
 
 public sealed record BoundGoToStatement(string Name) : BoundStatement(BoundNodeKind.GoToStatement);
@@ -457,9 +463,18 @@ public sealed record BoundResumeStatement(
     string? TargetLabel = null)
     : BoundStatement(BoundNodeKind.ResumeStatement);
 
+public enum BoundFileOpenMode
+{
+    Binary,
+    Input,
+    Output,
+    Append
+}
+
 public sealed record BoundOpenStatement(
     BoundExpression FileNumber,
-    BoundExpression Path) : BoundStatement(BoundNodeKind.OpenStatement);
+    BoundExpression Path,
+    BoundFileOpenMode Mode) : BoundStatement(BoundNodeKind.OpenStatement);
 
 public sealed record BoundCloseStatement(
     ImmutableArray<BoundExpression> FileNumbers) : BoundStatement(BoundNodeKind.CloseStatement);

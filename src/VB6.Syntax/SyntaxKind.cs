@@ -143,6 +143,7 @@ public enum SyntaxKind
     CaseRelationalClause,
     CaseElseClause,
     DebugPrintStatement,
+    FilePrintStatement,
     InvocationStatement,
     SkippedStatement,
     LiteralExpression,

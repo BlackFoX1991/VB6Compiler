@@ -40,6 +40,27 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesTextOpenModesAndPrint()
+    {
+        Run("""
+            Sub Main()
+                Open "text.txt" For Output As #1
+                Print #1, "hello"
+                Close #1
+
+                Open "text.txt" For Append As #1
+                Print #1, "world"
+                Close #1
+
+                Open "text.txt" For Input As #1
+                Debug.Print LOF(1)
+                Close #1
+            End Sub
+            """,
+            "14");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsScalarUdtRecords()
     {
         Run("""
@@ -173,11 +194,11 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
-    public void Analyze_ReportsOpenModesOtherThanBinary()
+    public void Analyze_ReportsOpenModesOutsideTheTextAndBinarySubset()
     {
         var analysis = VBCompilation.Create("""
             Sub Main()
-                Open "a.txt" For Output As #1
+                Open "a.dat" For Random As #1 Len = 128
                 Close #1
             End Sub
             """, "Module1.bas").Analyze();

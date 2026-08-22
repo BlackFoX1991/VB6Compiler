@@ -381,7 +381,7 @@ Danach, nach betroffenen Dateien sortiert:
 | `With`-Blöcke (`.Feld`-Zugriff) | 19 Dateien, 629 Vorkommen |
 | Bezeichner-Typsuffixe | `Mid$` 110×, `ret&` 26×, `lphKey&` 10× |
 | `:` als Anweisungstrenner | `AppType = 0: pError = False` ✅ |
-| Datei-I/O mit Dateinummern | `Open ... For Binary As #1`, `Put #1`, `Close #1` |
+| Datei-I/O mit Dateinummern | `Open ... For Binary/Input/Output/Append As #1`, `Get #1`, `Put #1`, `Print #1`, `Close #1` |
 
 Konsequenz: Diese Punkte sind einzeln klein, betreffen aber viele Dateien und blockieren dadurch
 die Messung von allem Übrigen. Sie stehen deshalb vorn.
@@ -562,10 +562,11 @@ Nach Korpusbedarf priorisiert:
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.
     `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
     End-to-End-Tests verdrahtet.
-2. Datei-I/O — `Open For Binary`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close` ✅ für die
-   numerischen Binärformen und skalare UDT-Records: Lexer, Syntax, Parser, Runtime, Bindung und
-   Emission stehen, und E2E-Tests schreiben und lesen echte Dateien. Variable `String`-Transfers
-   sind ergänzt; UDT-Arrays, variable Stringfelder, Textmodi und die `Len`-Klausel bleiben offen.
+2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Seek`, `LOF`,
+   `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records und grundlegende
+   Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben
+   und lesen echte Dateien. Variable `String`-Transfers sind ergänzt; Text-Eingabeanweisungen,
+   UDT-Arrays, variable Stringfelder, Random-Records und die `Len`-Klausel bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge; `InputBox` liefert im headless Runtime-Profil den
    Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere

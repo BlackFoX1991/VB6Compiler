@@ -4,16 +4,17 @@ using System.Text;
 namespace VB6.Runtime;
 
 /// <summary>
-/// VB6 binary file I/O addressed by file number.
+/// VB6 file I/O addressed by file number.
 ///
 /// File numbers are a process-wide table in VB6, not handles the program carries around, so the
 /// same table shape is kept here. Positions are one-based byte offsets: <c>Get #1, 1, b</c> reads
 /// the first byte of the file. Omitting the position continues where the previous operation
 /// stopped, which is why the core operations take a nullable position.
 ///
-/// Fixed-size numeric types and variable-length Strings are supported. A String is stored with a
-/// two-byte character-count prefix followed by UTF-16LE characters, matching the BSTR-oriented
-/// VB6 binary transfer contract. User-defined types still require an explicit record layout.
+/// Fixed-size numeric types, variable-length binary Strings, and basic text output are supported.
+/// A binary String is stored with a two-byte character-count prefix followed by UTF-16LE
+/// characters, matching the BSTR-oriented VB6 transfer contract. User-defined types still require
+/// an explicit record layout.
 /// </summary>
 public static class VBFiles
 {
@@ -65,6 +66,34 @@ public static class VBFiles
 
     public static void OpenBinary(int fileNumber, string path)
     {
+        OpenFile(fileNumber, path, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+    }
+
+    public static void OpenInput(int fileNumber, string path)
+    {
+        OpenFile(fileNumber, path, FileMode.Open, FileAccess.Read);
+    }
+
+    public static void OpenOutput(int fileNumber, string path)
+    {
+        OpenFile(fileNumber, path, FileMode.Create, FileAccess.Write);
+    }
+
+    public static void OpenAppend(int fileNumber, string path)
+    {
+        OpenFile(fileNumber, path, FileMode.Append, FileAccess.Write);
+    }
+
+    public static void Print(int fileNumber, object? value)
+    {
+        var stream = GetStream(fileNumber);
+        var bytes = Encoding.UTF8.GetBytes(VBDebug.Format(value) + "\r\n");
+        stream.Write(bytes, 0, bytes.Length);
+        stream.Flush();
+    }
+
+    private static void OpenFile(int fileNumber, string path, FileMode mode, FileAccess access)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ValidateFileNumber(fileNumber);
 
@@ -76,8 +105,8 @@ public static class VBFiles
 
         OpenFiles.Add(fileNumber, new FileStream(
             path,
-            FileMode.OpenOrCreate,
-            FileAccess.ReadWrite,
+            mode,
+            access,
             FileShare.ReadWrite));
     }
 

@@ -1014,6 +1014,9 @@ public sealed class Binder
             SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
+            FilePrintStatementSyntax filePrint => new BoundFilePrintStatement(
+                BindFileNumber(filePrint.FileNumber, variables, procedures),
+                BindExpression(filePrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
             OpenStatementSyntax open => BindOpen(open, variables, procedures),
             CloseStatementSyntax close => BindClose(close, variables, procedures),
@@ -1195,11 +1198,19 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        if (!string.Equals(syntax.ModeToken.Text, "Binary", StringComparison.OrdinalIgnoreCase))
+        var mode = syntax.ModeToken.Text.ToUpperInvariant() switch
+        {
+            "BINARY" => BoundFileOpenMode.Binary,
+            "INPUT" => BoundFileOpenMode.Input,
+            "OUTPUT" => BoundFileOpenMode.Output,
+            "APPEND" => BoundFileOpenMode.Append,
+            _ => (BoundFileOpenMode?)null
+        };
+        if (mode is null)
         {
             Report(
                 "VB6S0057",
-                $"Open mode '{syntax.ModeToken.Text}' is not implemented yet; only For Binary is.",
+                $"Open mode '{syntax.ModeToken.Text}' is not implemented yet; use For Binary, Input, Output, or Append.",
                 syntax.ModeToken.Span);
             return null;
         }
@@ -1216,7 +1227,10 @@ public sealed class Binder
         var path = BindConversion(
             BindExpression(syntax.PathExpression, variables, procedures),
             TypeSymbol.String);
-        return new BoundOpenStatement(BindFileNumber(syntax.FileNumber, variables, procedures), path);
+        return new BoundOpenStatement(
+            BindFileNumber(syntax.FileNumber, variables, procedures),
+            path,
+            mode.Value);
     }
 
     private BoundStatement BindClose(
