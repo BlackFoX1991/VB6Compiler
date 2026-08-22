@@ -6,10 +6,9 @@ using VB6.Syntax.Text;
 namespace VB6.Semantics;
 
 /// <summary>
-/// Scalar UDT values and fixed arrays of supported primitive or non-recursive UDT values can be
-/// lowered as managed value types. This validator keeps dynamic UDT arrays, fixed-length String
-/// arrays, and recursive by-value UDT layouts guarded until their VB6 storage semantics are
-/// represented explicitly.
+/// Scalar UDT values and fixed arrays of supported primitive, fixed-length String, or non-recursive
+/// UDT values can be lowered as managed value types. Dynamic UDT arrays and recursive by-value UDT
+/// layouts remain guarded until their VB6 storage semantics are represented explicitly.
 /// </summary>
 public static class UserDefinedTypeValueGuard
 {
@@ -209,6 +208,7 @@ public static class UserDefinedTypeValueGuard
         type == TypeSymbol.LongLong ||
         type == TypeSymbol.Single ||
         type == TypeSymbol.String ||
+        type is FixedLengthStringTypeSymbol ||
         type == TypeSymbol.Boolean ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Currency ||

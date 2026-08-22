@@ -288,6 +288,7 @@ public sealed class FileIoExecutionTests
             Type Record
                 Code As Integer
                 Name As String * 5
+                Names(1 To 2) As String * 3
             End Type
 
             Sub Main()
@@ -296,23 +297,29 @@ public sealed class FileIoExecutionTests
 
                 written.Code = 42
                 written.Name = "Hi"
+                written.Names(1) = "X"
+                written.Names(2) = "YZ"
 
-                Open "random-fixed-string-record.bin" For Random As #1 Len = 7
+                Open "random-fixed-string-record.bin" For Random As #1 Len = 13
                 Put #1, 1, written
                 Debug.Print LOF(1)
                 Close #1
 
-                Open "random-fixed-string-record.bin" For Random As #1 Len = 7
+                Open "random-fixed-string-record.bin" For Random As #1 Len = 13
                 Get #1, 1, readBack
                 Close #1
 
                 Debug.Print readBack.Code
                 Debug.Print "[" & readBack.Name & "]"
+                Debug.Print "[" & readBack.Names(1) & "]"
+                Debug.Print "[" & readBack.Names(2) & "]"
             End Sub
             """,
-            "7",
+            "13",
             "42",
-            "[Hi   ]");
+            "[Hi   ]",
+            "[X  ]",
+            "[YZ ]");
     }
 
     /// <summary>Positions are one-based, and an omitted position continues where the last one stopped.</summary>

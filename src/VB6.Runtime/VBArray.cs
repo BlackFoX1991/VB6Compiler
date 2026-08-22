@@ -332,7 +332,7 @@ public static class VBTypeStorage
     /// untouched one reads as n spaces rather than as the CLR null a default struct starts with.
     /// </summary>
     public static string ReadFixedString(string? storage, int length) =>
-        storage ?? new string(' ', length);
+        storage is null ? new string(' ', length) : WriteFixedString(storage, length);
 
     /// <summary>
     /// Stores into a <c>String * n</c> member. VB6 keeps the declared width: a longer value is

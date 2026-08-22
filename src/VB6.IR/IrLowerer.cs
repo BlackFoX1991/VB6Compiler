@@ -799,12 +799,13 @@ public static class IrLowerer
                     LowerWithEventsSubscriptions(assignment.Variable);
                     break;
                 case BoundArrayElementAssignmentStatement assignment:
+                    var arrayType = (ArrayTypeSymbol)assignment.Array.Type;
                     Emit(new IrStoreInstruction(
                         new IrArrayElementPlace(
                             new IrLoadExpression(LowerVariablePlace(assignment.Array)),
                             assignment.Indices.Select(LowerExpression).ToImmutableArray(),
-                            ((ArrayTypeSymbol)assignment.Array.Type).ElementType),
-                        LowerValueCopy(assignment.Expression)));
+                            arrayType.ElementType),
+                        LowerFixedStringWrite(arrayType.ElementType, LowerValueCopy(assignment.Expression))));
                     break;
                 case BoundMemberAssignmentStatement assignment:
                 {
@@ -1781,15 +1782,19 @@ public static class IrLowerer
                     LowerExpression(typeOf.Expression),
                     typeOf.TargetType),
                 BoundVariableExpression variable => LowerVariableRead(variable.Variable),
-                BoundArrayAccessExpression array => new IrLoadExpression(new IrArrayElementPlace(
-                    new IrLoadExpression(LowerVariablePlace(array.Array)),
-                    array.Indices.Select(LowerExpression).ToImmutableArray(),
-                    array.ElementType)),
+                BoundArrayAccessExpression array => LowerFixedStringRead(
+                    array.ElementType,
+                    new IrLoadExpression(new IrArrayElementPlace(
+                        new IrLoadExpression(LowerVariablePlace(array.Array)),
+                        array.Indices.Select(LowerExpression).ToImmutableArray(),
+                        array.ElementType))),
                 BoundArrayLiteralExpression array => LowerArrayLiteral(array),
-                BoundElementAccessExpression element => new IrLoadExpression(new IrArrayElementPlace(
-                    LowerExpression(element.Receiver),
-                    element.Indices.Select(LowerExpression).ToImmutableArray(),
-                    element.ElementType)),
+                BoundElementAccessExpression element => LowerFixedStringRead(
+                    element.ElementType,
+                    new IrLoadExpression(new IrArrayElementPlace(
+                        LowerExpression(element.Receiver),
+                        element.Indices.Select(LowerExpression).ToImmutableArray(),
+                        element.ElementType))),
                 BoundVariantArrayAccessExpression variantElement => new IrVariantArrayCallExpression(
                     IrVariantArrayOperation.GetElement,
                     LowerExpression(variantElement.Receiver),
@@ -1884,6 +1889,16 @@ public static class IrLowerer
             targetType is FixedLengthStringTypeSymbol fixedString
                 ? new IrRuntimeCallExpression(
                     IrRuntimeMethod.FixedStringWrite,
+                    ImmutableArray.Create(
+                        new IrCallArgument(value),
+                        new IrCallArgument(new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))),
+                    TypeSymbol.String)
+                : value;
+
+        private static IrExpression LowerFixedStringRead(TypeSymbol sourceType, IrExpression value) =>
+            sourceType is FixedLengthStringTypeSymbol fixedString
+                ? new IrRuntimeCallExpression(
+                    IrRuntimeMethod.FixedStringRead,
                     ImmutableArray.Create(
                         new IrCallArgument(value),
                         new IrCallArgument(new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))),

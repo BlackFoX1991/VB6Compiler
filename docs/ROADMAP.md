@@ -84,8 +84,7 @@ UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste 
 skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
 `Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
 deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, dynamische/eigenständige UDT-Arrays,
-feste String-Arrays, variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission und Forms
-bleiben bewusst offen.
+variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -569,7 +568,8 @@ Nach Korpusbedarf priorisiert:
     `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
     End-to-End-Tests verdrahtet.
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Seek`, `LOF`,
-   `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records und grundlegende
+   `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
+   String-Arrayfelder mit `String * n` und grundlegende
    Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben
    und lesen echte Dateien. Variable `String`-Transfers, `Line Input`, grundlegende Stringfelder und
    typisierte numerische, Boolean- und Currency-Ziele für `Input #` sowie skalare Random-Records mit

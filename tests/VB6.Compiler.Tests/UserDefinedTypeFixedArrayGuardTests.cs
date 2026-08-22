@@ -2,8 +2,9 @@ namespace VB6.Compiler.Tests;
 
 /// <summary>
 /// A fixed array member is created against its declared bounds when the member is first touched.
-/// That only works for element types whose storage the backend can produce on its own, so the
-/// remaining cases stay reported as VB6S0046 rather than silently compiling to something else.
+/// That only works for element types whose storage the backend can produce on its own, so dynamic
+/// UDT arrays and recursive layouts stay reported as VB6S0046 rather than silently compiling to
+/// something else.
 /// </summary>
 [TestClass]
 public sealed class UserDefinedTypeFixedArrayGuardTests
@@ -50,20 +51,24 @@ public sealed class UserDefinedTypeFixedArrayGuardTests
     }
 
     [TestMethod]
-    public void Lower_KeepsFixedLengthStringArrayMemberGuarded()
+    public void EmitManagedApplication_AllowsFixedLengthStringArrayMember()
     {
-        var lowering = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Type Record
                 Names(1 To 2) As String * 5
             End Type
 
             Sub Main()
                 Dim value As Record
+                Debug.Print "[" & value.Names(1) & "]"
+                value.Names(1) = "Hi"
+                value.Names(2) = "ABCDEFG"
+                Debug.Print "[" & value.Names(1) & "]"
+                Debug.Print "[" & value.Names(2) & "]"
             End Sub
-            """, "test.bas").Lower();
+            """, "test.bas");
 
-        Assert.IsFalse(lowering.Success);
-        Assert.IsTrue(lowering.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        CollectionAssert.AreEqual(new[] { "[     ]", "[Hi   ]", "[ABCDE]" }, VB6TestProgram.SplitLines(output), output);
     }
 
     [TestMethod]
