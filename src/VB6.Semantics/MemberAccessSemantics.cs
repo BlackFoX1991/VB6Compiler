@@ -31,3 +31,13 @@ public sealed record BoundMemberInvocationExpression(
     ProcedureSymbol Procedure,
     ImmutableArray<BoundArgument> Arguments)
     : BoundExpression(BoundNodeKind.InvocationExpression, Procedure.ReturnType ?? TypeSymbol.Error);
+
+/// <summary>
+/// An indexed property access. It stays distinct from a method call because an assignment to the
+/// same syntax must retain the index arguments while invoking the matching Let/Set accessor.
+/// </summary>
+public sealed record BoundPropertyInvocationExpression(
+    BoundExpression Receiver,
+    PropertySymbol Property,
+    ImmutableArray<BoundArgument> Arguments)
+    : BoundExpression(BoundNodeKind.PropertyAccessExpression, Property.Type);

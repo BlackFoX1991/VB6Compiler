@@ -1513,6 +1513,7 @@ public static class IrLowerer
                     TypeSymbol.Variant),
                 BoundMemberAccessExpression member => LowerMemberRead(member),
                 BoundPropertyAccessExpression property => LowerPropertyRead(property),
+                BoundPropertyInvocationExpression propertyInvocation => LowerPropertyInvocation(propertyInvocation),
                 BoundMemberInvocationExpression memberInvocation => LowerMemberCall(
                     memberInvocation.Receiver,
                     memberInvocation.Procedure,
@@ -1577,9 +1578,10 @@ public static class IrLowerer
                 element.ElementType),
             BoundVariantArrayAccessExpression => throw new InvalidOperationException(
                 "A Variant array element is not addressable until Variant array write-back semantics are lowered."),
-            BoundMemberAccessExpression member => LowerMemberPlace(member),
-            BoundPropertyAccessExpression property => LowerPropertyPlace(property),
-            BoundWithReceiverExpression with => LowerWithPlace(with),
+                BoundMemberAccessExpression member => LowerMemberPlace(member),
+                BoundPropertyAccessExpression property => LowerPropertyPlace(property),
+                BoundPropertyInvocationExpression propertyInvocation => LowerPropertyPlace(propertyInvocation),
+                BoundWithReceiverExpression with => LowerWithPlace(with),
             _ => throw new InvalidOperationException($"Bound expression '{expression.GetType().Name}' is not an addressable place.")
         };
 
@@ -1644,6 +1646,25 @@ public static class IrLowerer
                 LowerExpression(expression.Receiver));
         }
 
+        private IrExpression LowerPropertyInvocation(BoundPropertyInvocationExpression expression)
+        {
+            if (expression.Receiver.Type is not ClassTypeSymbol classType ||
+                !_program.TryGetClassProcedure(
+                    classType,
+                    expression.Property.Name,
+                    PropertyAccessorKind.Get,
+                    out var getter))
+            {
+                throw new NotSupportedException(
+                    $"Indexed property '{expression.Property.Name}' has no emitted Get accessor.");
+            }
+
+            return LowerCall(
+                getter,
+                expression.Arguments,
+                LowerExpression(expression.Receiver));
+        }
+
         private IrExpression LowerMemberCall(
             BoundExpression receiver,
             ProcedureSymbol requested,
@@ -1661,32 +1682,49 @@ public static class IrLowerer
 
         private IrAccessorPlace LowerPropertyPlace(BoundPropertyAccessExpression expression)
         {
-            if (expression.Receiver.Type is not ClassTypeSymbol classType)
+            return LowerPropertyPlace(
+                expression.Receiver,
+                expression.Property,
+                ImmutableArray<BoundArgument>.Empty);
+        }
+
+        private IrAccessorPlace LowerPropertyPlace(BoundPropertyInvocationExpression expression)
+        {
+            return LowerPropertyPlace(expression.Receiver, expression.Property, expression.Arguments);
+        }
+
+        private IrAccessorPlace LowerPropertyPlace(
+            BoundExpression receiver,
+            PropertySymbol property,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            if (receiver.Type is not ClassTypeSymbol classType)
             {
                 throw new NotSupportedException(
-                    $"Property receiver '{expression.Receiver.Type.Name}' is not a class type.");
+                    $"Property receiver '{receiver.Type.Name}' is not a class type.");
             }
 
             _program.TryGetClassProcedure(
                 classType,
-                expression.Property.Name,
+                property.Name,
                 PropertyAccessorKind.Get,
                 out var getter);
             _program.TryGetClassProcedure(
                 classType,
-                expression.Property.Name,
-                expression.Property.Accessor,
+                property.Name,
+                property.Accessor,
                 out var setter);
-            if (expression.Property.Accessor is not (PropertyAccessorKind.Let or PropertyAccessorKind.Set))
+            if (property.Accessor is not (PropertyAccessorKind.Let or PropertyAccessorKind.Set))
             {
                 setter = null;
             }
 
             return new IrAccessorPlace(
-                LowerExpression(expression.Receiver),
+                LowerExpression(receiver),
                 getter,
                 setter,
-                expression.Property.Type);
+                property.Type,
+                arguments.Select(argument => LowerValueCopy(argument.Expression)).ToImmutableArray());
         }
 
         private IrPlace LowerMemberPlace(BoundMemberAccessExpression expression)

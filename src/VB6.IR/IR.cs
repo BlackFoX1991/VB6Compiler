@@ -187,7 +187,8 @@ public sealed record IrAccessorPlace(
     IrExpression? Receiver,
     ProcedureSymbol? Getter,
     ProcedureSymbol? Setter,
-    TypeSymbol ValueType) : IrPlace(ValueType);
+    TypeSymbol ValueType,
+    ImmutableArray<IrExpression> Arguments = default) : IrPlace(ValueType);
 
 public abstract record IrExpression(TypeSymbol Type) : IrNode;
 

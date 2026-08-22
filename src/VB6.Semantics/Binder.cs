@@ -1570,9 +1570,14 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var target = syntax.Target is MemberAccessExpressionSyntax memberAccess
-            ? BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Set)
-            : BindExpression(syntax.Target, variables, procedures);
+        var target = syntax.Target switch
+        {
+            MemberAccessExpressionSyntax memberAccess =>
+                BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Set),
+            ElementAccessExpressionSyntax elementAccess =>
+                BindElementAccess(elementAccess, variables, procedures, PropertyAccessorKind.Set),
+            _ => BindExpression(syntax.Target, variables, procedures)
+        };
         var expression = BindExpression(syntax.Expression, variables, procedures);
         if (target is BoundVariableExpression variable)
         {
@@ -1587,14 +1592,19 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var target = syntax.Target is MemberAccessExpressionSyntax memberAccess
-            ? BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Let)
-            : BindExpression(syntax.Target, variables, procedures);
+        var target = syntax.Target switch
+        {
+            MemberAccessExpressionSyntax memberAccess =>
+                BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Let),
+            ElementAccessExpressionSyntax elementAccess =>
+                BindElementAccess(elementAccess, variables, procedures, PropertyAccessorKind.Let),
+            _ => BindExpression(syntax.Target, variables, procedures)
+        };
         var expression = BindExpression(syntax.Expression, variables, procedures);
         return new BoundMemberAssignmentStatement(target, BindConversion(expression, target.Type));
     }
 
-    private BoundArrayElementAssignmentStatement BindArrayElementAssignment(
+    private BoundStatement BindArrayElementAssignment(
         ArrayElementAssignmentStatementSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
@@ -1616,6 +1626,22 @@ public sealed class Binder
 
         if (variable.Type is not ArrayTypeSymbol arrayType)
         {
+            if (variable.Type is ClassTypeSymbol classType &&
+                (classType.TryGetProperty("Item", PropertyAccessorKind.Let, out _) ||
+                 classType.TryGetProperty("Item", PropertyAccessorKind.Set, out _)))
+            {
+                var target = BindDefaultPropertyInvocation(
+                    new BoundVariableExpression(variable),
+                    syntax.Identifier,
+                    syntax.Indices,
+                    variables,
+                    procedures,
+                    PropertyAccessorKind.Let);
+                return new BoundMemberAssignmentStatement(
+                    target,
+                    BindConversion(expression, target.Type));
+            }
+
             Report(
                 "VB6S0026",
                 $"Variable '{syntax.Identifier.Text}' is not an array.",
@@ -2292,7 +2318,8 @@ public sealed class Binder
     private BoundExpression BindElementAccess(
         ElementAccessExpressionSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
-        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
         if (syntax.Receiver is MemberAccessExpressionSyntax memberAccess)
         {
@@ -2305,7 +2332,8 @@ public sealed class Binder
                     memberAccess,
                     syntax.Indices,
                     variables,
-                    procedures);
+                    procedures,
+                    accessor);
             }
         }
 
@@ -2316,22 +2344,15 @@ public sealed class Binder
         }
 
         if (receiver.Type is ClassTypeSymbol collectionType &&
-            collectionType.TryGetProperty("Item", PropertyAccessorKind.Get, out var defaultProperty))
+            collectionType.TryGetProperty("Item", accessor, out var defaultProperty))
         {
-            var defaultProcedure = new ProcedureSymbol(
-                defaultProperty.Name,
-                defaultProperty.Parameters,
-                defaultProperty.Type)
-            {
-                PropertyAccessor = PropertyAccessorKind.Get
-            };
-            return new BoundMemberInvocationExpression(
+            return new BoundPropertyInvocationExpression(
                 receiver,
-                defaultProcedure,
-                BindArguments(
+                defaultProperty,
+                BindPropertyArguments(
                     SyntaxNavigator.GetFirstToken(syntax.Receiver) ?? syntax.OpenParenthesisToken,
                     syntax.Indices,
-                    defaultProcedure,
+                    defaultProperty,
                     variables,
                     procedures));
         }
@@ -2409,20 +2430,13 @@ public sealed class Binder
             variable.Type is ClassTypeSymbol defaultPropertyType &&
             defaultPropertyType.TryGetProperty("Item", PropertyAccessorKind.Get, out var defaultProperty))
         {
-            var defaultProcedure = new ProcedureSymbol(
-                defaultProperty.Name,
-                defaultProperty.Parameters,
-                defaultProperty.Type)
-            {
-                PropertyAccessor = PropertyAccessorKind.Get
-            };
-            return new BoundMemberInvocationExpression(
+            return new BoundPropertyInvocationExpression(
                 new BoundVariableExpression(variable),
-                defaultProcedure,
-                BindArguments(
+                defaultProperty,
+                BindPropertyArguments(
                     syntax.Identifier,
                     syntax.Arguments,
-                    defaultProcedure,
+                    defaultProperty,
                     variables,
                     procedures));
         }
@@ -2471,7 +2485,8 @@ public sealed class Binder
         MemberAccessExpressionSyntax target,
         ImmutableArray<ExpressionSyntax> argumentSyntaxes,
         Dictionary<string, VariableSymbol> variables,
-        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
         var receiver = target.Receiver is WithReceiverExpressionSyntax
             ? BindWithReceiver(target.DotToken)
@@ -2507,15 +2522,17 @@ public sealed class Binder
         {
             procedure = method;
         }
-        else if (classType.TryGetProperty(
-                     target.MemberToken.Text,
-                     PropertyAccessorKind.Get,
-                     out var property))
+        else if (classType.TryGetProperty(target.MemberToken.Text, accessor, out var property))
         {
-            procedure = new ProcedureSymbol(property.Name, property.Parameters, property.Type)
-            {
-                PropertyAccessor = PropertyAccessorKind.Get
-            };
+            return new BoundPropertyInvocationExpression(
+                receiver,
+                property,
+                BindPropertyArguments(
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    property,
+                    variables,
+                    procedures));
         }
 
         if (procedure is null)
@@ -2545,6 +2562,54 @@ public sealed class Binder
                 procedure,
                 variables,
                 procedures));
+    }
+
+    private ImmutableArray<BoundArgument> BindPropertyArguments(
+        SyntaxToken anchor,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        PropertySymbol property,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var parameters = property.Accessor is PropertyAccessorKind.Let or PropertyAccessorKind.Set &&
+            property.Parameters.Length > 0
+            ? property.Parameters.RemoveAt(property.Parameters.Length - 1)
+            : property.Parameters;
+        var procedure = new ProcedureSymbol(
+            property.Name,
+            parameters,
+            property.Accessor == PropertyAccessorKind.Get ? property.Type : null)
+        {
+            PropertyAccessor = property.Accessor
+        };
+        return BindArguments(anchor, argumentSyntaxes, procedure, variables, procedures);
+    }
+
+    private BoundPropertyInvocationExpression BindDefaultPropertyInvocation(
+        BoundExpression receiver,
+        SyntaxToken anchor,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        PropertyAccessorKind accessor)
+    {
+        if (receiver.Type is not ClassTypeSymbol classType ||
+            !classType.TryGetProperty("Item", accessor, out var property))
+        {
+            return new BoundPropertyInvocationExpression(
+                receiver,
+                new PropertySymbol(
+                    "Item",
+                    accessor,
+                    TypeSymbol.Error,
+                    ImmutableArray<ParameterSymbol>.Empty),
+                ImmutableArray<BoundArgument>.Empty);
+        }
+
+        return new BoundPropertyInvocationExpression(
+            receiver,
+            property,
+            BindPropertyArguments(anchor, argumentSyntaxes, property, variables, procedures));
     }
 
     private static bool IsLateBoundObjectType(ClassTypeSymbol type) =>

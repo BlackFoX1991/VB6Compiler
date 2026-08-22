@@ -1052,6 +1052,11 @@ public sealed class ManagedEmitter
                 EmitExpression(encoder, procedure, accessor.Receiver);
             }
 
+            foreach (var argument in accessor.Arguments)
+            {
+                EmitExpression(encoder, procedure, argument);
+            }
+
             if (!_procedureSymbolHandles.TryGetValue(accessor.Getter, out var target))
             {
                 throw new InvalidOperationException(
@@ -1075,6 +1080,11 @@ public sealed class ManagedEmitter
             if (accessor.Receiver is not null)
             {
                 EmitExpression(encoder, procedure, accessor.Receiver);
+            }
+
+            foreach (var argument in accessor.Arguments)
+            {
+                EmitExpression(encoder, procedure, argument);
             }
 
             var valueType = accessor.Setter.Parameters.LastOrDefault()?.Type ?? accessor.ValueType;

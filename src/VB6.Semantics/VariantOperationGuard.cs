@@ -271,6 +271,14 @@ public static class VariantOperationGuard
             case BoundPropertyAccessExpression propertyAccess:
                 VisitExpression(text, propertyAccess.Receiver, diagnostics);
                 break;
+
+            case BoundPropertyInvocationExpression propertyInvocation:
+                VisitExpression(text, propertyInvocation.Receiver, diagnostics);
+                foreach (var argument in propertyInvocation.Arguments)
+                {
+                    VisitExpression(text, argument.Expression, diagnostics);
+                }
+                break;
         }
     }
 

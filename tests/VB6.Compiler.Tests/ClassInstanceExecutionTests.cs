@@ -109,4 +109,69 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesIndexedPropertyArgumentsForReadsAndWrites()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerIndexedPropertyTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "IndexedProperty.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="IndexedProperty"
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Private values(0 To 3) As Long
+
+                Public Property Get Item(ByVal index As Long) As Long
+                    Item = values(index)
+                End Property
+
+                Public Property Let Item(ByVal index As Long, ByVal newValue As Long)
+                    values(index) = newValue
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim bag As Bag
+                    Set bag = New Bag
+                    bag.Item(2) = 41
+                    Debug.Print bag.Item(2)
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+            CollectionAssert.AreEqual(
+                new[] { "41" },
+                standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
