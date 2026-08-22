@@ -371,15 +371,35 @@ public sealed class ManagedEmitter
             {
                 var first = MetadataTokens.ParameterHandle(_metadata.GetRowCount(TableIndex.Param) + 1);
                 result.Add(procedure, first);
+                if (procedure.IsExternal && procedure.ReturnType == TypeSymbol.String)
+                {
+                    var returnParameter = _metadata.AddParameter(
+                        ParameterAttributes.None,
+                        default,
+                        sequenceNumber: 0);
+                    AddAnsiStringMarshalling(returnParameter);
+                }
+
                 foreach (var parameter in procedure.Parameters.OrderBy(parameter => parameter.Index))
                 {
-                    _metadata.AddParameter(
+                    var parameterHandle = _metadata.AddParameter(
                         ParameterAttributes.None,
                         _metadata.GetOrAddString(parameter.Name),
                         parameter.Index + 1);
+                    if (procedure.IsExternal && parameter.Type == TypeSymbol.String)
+                    {
+                        AddAnsiStringMarshalling(parameterHandle);
+                    }
                 }
             }
             return result;
+        }
+
+        private void AddAnsiStringMarshalling(ParameterHandle parameter)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte(0x14); // NATIVE_TYPE_LPSTR
+            _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
         }
 
         private Dictionary<IrProcedure, int> EmitMethodBodies()
@@ -1841,7 +1861,8 @@ public sealed class ManagedEmitter
             type == TypeSymbol.LongLong ||
             type == TypeSymbol.Single ||
             type == TypeSymbol.Double ||
-            type == TypeSymbol.Boolean;
+            type == TypeSymbol.Boolean ||
+            type == TypeSymbol.String;
 
         private MethodDefinitionHandle ResolveEntryPoint()
         {

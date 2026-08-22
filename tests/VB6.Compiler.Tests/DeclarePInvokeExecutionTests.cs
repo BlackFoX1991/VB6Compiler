@@ -121,10 +121,10 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_RejectsUnspecifiedDeclareStringMarshalling()
+    public void EmitManagedApplication_AcceptsAnsiDeclareStringMarshalling()
     {
         var result = VBCompilation.Create("""
-            Private Declare Function GetModuleName Lib "kernel32" (ByVal value As String) As Long
+            Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal moduleName As String) As Long
 
             Sub Main()
                 Debug.Print 1
@@ -132,9 +132,20 @@ public sealed class DeclarePInvokeExecutionTests
             """).EmitManagedApplication(
                 Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeTests", Guid.NewGuid().ToString("N"), "Program.dll"));
 
-        Assert.IsFalse(result.Success);
-        Assert.IsTrue(
-            result.BackendResult!.Diagnostics.Any(diagnostic =>
-                diagnostic.Message.Contains("native marshalling contract", StringComparison.Ordinal)));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_InvokesAnsiDeclareString()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Function NativeStringLength Lib "kernel32" Alias "lstrlenA" (ByVal value As String) As Long
+
+            Sub Main()
+                Debug.Print NativeStringLength("abc")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "3" }, VB6TestProgram.SplitLines(output), output);
     }
 }

@@ -77,9 +77,10 @@ binärem `Get`/`Put` mit Zwei-Byte-Längenpräfix sowie `Debug.Print` mit VB6-na
 Formatierung. `InStr`, `InStrRev`, zweiargumentiges `Mid`, `MsgBox`/`InputBox` als hostfähige headless
 Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfalls über Symbol,
 IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
-Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. Skalare UDT-Records werden
-bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; UDT-Arrays und variable
-Stringfelder, ANSI-String-/`As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
+Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. ANSI-String-Marshalling in
+`Declare` ist über `CharSetAnsi` und echte Windows-E2E-Aufrufe abgedeckt. Skalare UDT-Records werden
+bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; UDT-Arrays, `As Any`-Marshalling,
+COM, native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -581,7 +582,7 @@ Durch `Declare` (234) deutlich früher als ursprünglich geplant; ab Meilenstein
 beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 - [~] `Declare` -> P/Invoke für skalare Signaturen mit `Lib`/`Alias` und echter Managed-
-      Invocation; `As Any` sowie ANSI-String-Marshalling bleiben offen
+      Invocation; ANSI-String-Marshalling steht, `As Any` bleibt offen
 - [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
