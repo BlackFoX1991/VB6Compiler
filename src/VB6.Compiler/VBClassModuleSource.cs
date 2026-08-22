@@ -36,7 +36,11 @@ internal static class VBClassModuleSource
                 attributesStarted = true;
             }
 
-            if (attributesStarted && !trimmed.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase))
+            if (IsDefaultPropertyAttribute(trimmed))
+            {
+                builder.Append(line);
+            }
+            else if (attributesStarted && !trimmed.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase))
             {
                 builder.Append(line);
             }
@@ -69,6 +73,11 @@ internal static class VBClassModuleSource
 
         return builder.ToString();
     }
+
+    private static bool IsDefaultPropertyAttribute(string line) =>
+        line.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase) &&
+        line.Contains(".VB_UserMemId", StringComparison.OrdinalIgnoreCase) &&
+        line.Contains("= 0", StringComparison.OrdinalIgnoreCase);
 
     private static bool LooksLikeDesignerModule(string source)
     {

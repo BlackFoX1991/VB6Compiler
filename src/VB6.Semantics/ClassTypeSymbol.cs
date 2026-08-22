@@ -37,6 +37,9 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public bool TryGetProperty(string name, PropertyAccessorKind accessor, out PropertySymbol property) =>
         _definition.PropertyMap.TryGetValue(new PropertyKey(name, accessor), out property!);
 
+    public bool TryGetDefaultProperty(PropertyAccessorKind accessor, out PropertySymbol property) =>
+        TryGetProperty(_definition.DefaultPropertyName ?? "Item", accessor, out property);
+
     public bool TryGetEvent(string name, out EventSymbol @event) =>
         _definition.EventMap.TryGetValue(name, out @event!);
 
@@ -109,6 +112,12 @@ public sealed record ClassTypeSymbol : TypeSymbol
             .ToImmutableArray();
     }
 
+    public void SetDefaultPropertyName(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _definition.DefaultPropertyName = name;
+    }
+
     public void MarkAsInterfaceContract() => _definition.IsInterfaceContract = true;
 
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
@@ -118,6 +127,7 @@ public sealed record ClassTypeSymbol : TypeSymbol
         public ImmutableArray<ProcedureSymbol> Procedures { get; set; } = ImmutableArray<ProcedureSymbol>.Empty;
         public ImmutableArray<PropertySymbol> Properties { get; set; } = ImmutableArray<PropertySymbol>.Empty;
         public ImmutableArray<EventSymbol> Events { get; set; } = ImmutableArray<EventSymbol>.Empty;
+        public string? DefaultPropertyName { get; set; }
         public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces { get; set; } =
             ImmutableArray<ClassTypeSymbol>.Empty;
         public bool IsInterfaceContract { get; set; }

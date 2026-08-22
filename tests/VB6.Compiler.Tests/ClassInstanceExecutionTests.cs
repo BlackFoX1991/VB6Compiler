@@ -422,4 +422,62 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesVBUserMemIdForANamedDefaultProperty()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerNamedDefaultPropertyTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "NamedDefaultProperty.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="NamedDefaultProperty"
+                Class=Bucket; Bucket.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bucket.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Bucket"
+                Attribute Text.VB_UserMemId = 0
+
+                Private stored As String
+
+                Public Property Get Text(ByVal index As Long) As String
+                    Text = stored
+                End Property
+
+                Public Property Let Text(ByVal index As Long, ByVal newValue As String)
+                    stored = newValue
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim bucket As Bucket
+                    Set bucket = New Bucket
+                    bucket(3) = "metadata"
+                    Debug.Print bucket(3)
+                End Sub
+                """);
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+            CollectionAssert.AreEqual(new[] { "metadata" }, VB6TestProgram.SplitLines(standardOutput));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

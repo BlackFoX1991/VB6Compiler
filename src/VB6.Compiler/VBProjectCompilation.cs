@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using VB6.Parser;
 using VB6.ProjectSystem;
 using VB6.Semantics;
+using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Nodes;
 using VB6.Syntax.Text;
@@ -423,6 +424,11 @@ public sealed class VBProjectCompilation
                     $"Class module '{classType.Name}' declares duplicate member '{duplicateMemberName}'.",
                     module.FilePath));
             }
+
+            if (TryReadDefaultPropertyName(module.SemanticRoot) is { } defaultPropertyName)
+            {
+                classType.SetDefaultPropertyName(defaultPropertyName);
+            }
         }
 
         foreach (var relation in interfaceRelations)
@@ -455,6 +461,25 @@ public sealed class VBProjectCompilation
                 interfaceType,
                 relation.FilePath,
                 projectDiagnostics);
+        }
+
+        static string? TryReadDefaultPropertyName(CompilationUnitSyntax root)
+        {
+            foreach (var attribute in root.Members.OfType<AttributeSyntax>())
+            {
+                var tokens = attribute.Tokens;
+                if (tokens.Length >= 5 &&
+                    tokens[0].Kind == SyntaxKind.IdentifierToken &&
+                    tokens[1].Kind == SyntaxKind.DotToken &&
+                    string.Equals(tokens[2].Text, "VB_UserMemId", StringComparison.OrdinalIgnoreCase) &&
+                    tokens[3].Kind == SyntaxKind.EqualsToken &&
+                    string.Equals(tokens[4].Text, "0", StringComparison.Ordinal))
+                {
+                    return tokens[0].Text;
+                }
+            }
+
+            return null;
         }
 
         static void ValidateInterfaceContract(

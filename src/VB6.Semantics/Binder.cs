@@ -1695,8 +1695,8 @@ public sealed class Binder
         if (variable.Type is not ArrayTypeSymbol arrayType)
         {
             if (variable.Type is ClassTypeSymbol classType &&
-                (classType.TryGetProperty("Item", PropertyAccessorKind.Let, out _) ||
-                 classType.TryGetProperty("Item", PropertyAccessorKind.Set, out _)))
+                (classType.TryGetDefaultProperty(PropertyAccessorKind.Let, out _) ||
+                 classType.TryGetDefaultProperty(PropertyAccessorKind.Set, out _)))
             {
                 var target = BindDefaultPropertyInvocation(
                     new BoundVariableExpression(variable),
@@ -2421,7 +2421,7 @@ public sealed class Binder
         }
 
         if (receiver.Type is ClassTypeSymbol collectionType &&
-            collectionType.TryGetProperty("Item", accessor, out var defaultProperty))
+            collectionType.TryGetDefaultProperty(accessor, out var defaultProperty))
         {
             return new BoundPropertyInvocationExpression(
                 receiver,
@@ -2505,7 +2505,7 @@ public sealed class Binder
 
         if (variables.TryGetValue(syntax.Identifier.Text, out variable) &&
             variable.Type is ClassTypeSymbol defaultPropertyType &&
-            defaultPropertyType.TryGetProperty("Item", PropertyAccessorKind.Get, out var defaultProperty))
+            defaultPropertyType.TryGetDefaultProperty(PropertyAccessorKind.Get, out var defaultProperty))
         {
             return new BoundPropertyInvocationExpression(
                 new BoundVariableExpression(variable),
@@ -2671,7 +2671,7 @@ public sealed class Binder
         PropertyAccessorKind accessor)
     {
         if (receiver.Type is not ClassTypeSymbol classType ||
-            !classType.TryGetProperty("Item", accessor, out var property))
+            !classType.TryGetDefaultProperty(accessor, out var property))
         {
             return new BoundPropertyInvocationExpression(
                 receiver,

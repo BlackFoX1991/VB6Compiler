@@ -517,7 +517,7 @@ Zwei Nachträge:
 - [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
       Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
 - [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-Identität/Interop bleibt offen
-- [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let stehen; `VB_UserMemId`, vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
+- [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; vollständiger Host-/COM-Event-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
