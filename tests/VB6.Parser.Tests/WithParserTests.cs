@@ -93,6 +93,27 @@ public sealed class WithParserTests
         Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(assignmentTarget.Receiver);
     }
 
+    [TestMethod]
+    public void Parse_RecognizesLeadingDotMethodCallInsideWith()
+    {
+        var procedure = ParseProcedure("""
+            Sub Main()
+                With dialog
+                    .ShowOpen
+                End With
+            End Sub
+            """);
+
+        var withStatement = procedure.Statements.OfType<WithStatementSyntax>().Single();
+        var invocation = withStatement.Statements.Single() as QualifiedInvocationStatementSyntax;
+        Assert.IsNotNull(invocation);
+        var target = invocation.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(target);
+        Assert.IsInstanceOfType<WithReceiverExpressionSyntax>(target.Receiver);
+        Assert.AreEqual("ShowOpen", target.MemberToken.Text);
+        Assert.AreEqual(0, invocation.Arguments.Length);
+    }
+
     private static SubDeclarationSyntax ParseProcedure(string source)
     {
         var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();

@@ -878,6 +878,7 @@ public sealed class Parser
             SyntaxKind.IdentifierToken when LooksLikeArrayElementAssignment() => ParseArrayElementAssignmentStatement(),
             SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.DotToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
+            SyntaxKind.DotToken when LooksLikeQualifiedCall() => ParseQualifiedInvocationStatement(),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
             SyntaxKind.IdentifierToken when LooksLikeQualifiedCall() => ParseQualifiedInvocationStatement(),
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
@@ -989,6 +990,11 @@ public sealed class Parser
     /// </summary>
     private bool LooksLikeQualifiedCall()
     {
+        if (Current.Kind == SyntaxKind.DotToken)
+        {
+            return !LooksLikeMemberAssignment();
+        }
+
         if (Current.Kind != SyntaxKind.IdentifierToken || LooksLikeMemberAssignment())
         {
             return false;
@@ -1690,6 +1696,7 @@ public sealed class Parser
         var caseKeyword = MatchToken(SyntaxKind.CaseKeyword);
         var expression = ParseExpression();
         ConsumeLineTerminator();
+        SkipNewLines();
 
         var cases = ImmutableArray.CreateBuilder<CaseBlockSyntax>();
         while (Current.Kind == SyntaxKind.CaseKeyword)

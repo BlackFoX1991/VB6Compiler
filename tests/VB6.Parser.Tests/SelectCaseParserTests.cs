@@ -70,4 +70,26 @@ public sealed class SelectCaseParserTests
         Assert.IsInstanceOfType<IfStatementSyntax>(select.Cases[0].Statements.Single());
         Assert.IsInstanceOfType<DoStatementSyntax>(select.Cases[1].Statements.Single());
     }
+
+    [TestMethod]
+    public void Parse_AllowsBlankAndCommentLinesBeforeFirstCase()
+    {
+        const string source = """
+            Sub Main()
+                Select Case value
+
+                    ' Keep the case block readable.
+                    Case 1
+                        Debug.Print 1
+                End Select
+            End Sub
+            """;
+
+        var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(Environment.NewLine, result.Diagnostics));
+        var sub = (SubDeclarationSyntax)result.Root.Members.Single();
+        var select = (SelectCaseStatementSyntax)sub.Statements.Single();
+        Assert.AreEqual(1, select.Cases.Length);
+    }
 }
