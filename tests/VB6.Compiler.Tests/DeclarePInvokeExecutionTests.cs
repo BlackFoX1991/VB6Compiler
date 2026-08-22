@@ -140,12 +140,14 @@ public sealed class DeclarePInvokeExecutionTests
     {
         var output = VB6TestProgram.Run("""
             Private Declare Function NativeStringLength Lib "kernel32" Alias "lstrlenA" (ByVal value As String) As Long
+            Private Declare Function NativeCommandLine Lib "kernel32" Alias "GetCommandLineA" () As String
 
             Sub Main()
                 Debug.Print NativeStringLength("abc")
+                Debug.Print Len(NativeCommandLine()) > 0
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "3" }, VB6TestProgram.SplitLines(output), output);
+        CollectionAssert.AreEqual(new[] { "3", "True" }, VB6TestProgram.SplitLines(output), output);
     }
 }
