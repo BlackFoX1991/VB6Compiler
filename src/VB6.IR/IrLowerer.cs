@@ -1610,6 +1610,12 @@ public static class IrLowerer
         private void InitializeVariableDeclaration(BoundVariableDeclarationStatement declaration)
         {
             var target = LowerVariablePlace(declaration.Variable);
+            if (declaration.Initializer is not null)
+            {
+                Emit(new IrStoreInstruction(target, LowerValueCopy(declaration.Initializer)));
+                return;
+            }
+
             if (declaration.Variable.Type is ArrayTypeSymbol arrayType && !declaration.ArrayDimensions.IsDefaultOrEmpty)
             {
                 Emit(new IrStoreInstruction(target, new IrNewVBArrayExpression(

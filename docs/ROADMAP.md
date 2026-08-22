@@ -55,7 +55,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
-| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **205** | **124** | **0** | **81** | **21 von 40** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **185** | **104** | **0** | **81** | **21 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -117,6 +117,12 @@ beiden Syntax-Slices sind mit Parser-Regressionstests abgesichert; dadurch sinkt
 Messpunkt auf **205 Gesamtfehler**, davon **124 Parser**, **0 Lexer** und **81 Semantik**. Die
 Zahl der fehlerfrei analysierten Dateien bleibt bei **21 von 40**, weil die verbleibenden Blocker
 überwiegend in Binder- und Objektverträgen liegen.
+
+Zusätzlich akzeptiert und bindet der Compiler nun procedure-level `Const`-Deklarationen mit
+explizitem oder inferiertem Typ. Ihre Werte werden als lokale Initializer in den Managed-IR-Prolog
+überführt, sodass reale Muster wie `Const ProcName = "..."` nicht nur syntaktisch, sondern auch
+bei der Ausführung korrekt bleiben. Damit fällt der Parserzähler auf **104** und der Gesamtstand
+auf **185** Fehler bei weiterhin **21 von 40** fehlerfreien Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

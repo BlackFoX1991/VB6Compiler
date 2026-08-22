@@ -121,6 +121,7 @@ public enum SyntaxKind
     ImplementsStatement,
     Parameter,
     DimStatement,
+    ConstStatement,
     ReDimStatement,
     EraseStatement,
     StaticStatement,

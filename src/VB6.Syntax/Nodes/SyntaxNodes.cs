@@ -247,6 +247,15 @@ public sealed record DimStatementSyntax(
     public SyntaxToken TypeToken => FirstDeclarator.TypeToken!;
 }
 
+/// <summary>A procedure-level constant, such as <c>Const RetryCount As Long = 3</c>.</summary>
+public sealed record ConstStatementSyntax(
+    SyntaxToken ConstKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? TypeToken,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax Value) : StatementSyntax(SyntaxKind.ConstStatement);
+
 public sealed record AssignmentStatementSyntax(
     SyntaxToken Identifier,
     SyntaxToken EqualsToken,

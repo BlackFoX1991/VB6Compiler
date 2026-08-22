@@ -29,6 +29,7 @@ public sealed class Binder
     private readonly List<WithBindingContext> _withStack = new();
     private ClassTypeSymbol? _containingClass;
     private Dictionary<string, LocalVariableSymbol>? _activeLocals;
+    private Dictionary<string, BoundExpression>? _activeConstantInitializers;
     private bool _optionExplicit;
     private int _nextLoopId;
     private int _nextSelectId;
@@ -742,6 +743,7 @@ public sealed class Binder
             }
         }
 
+        _activeConstantInitializers = new Dictionary<string, BoundExpression>(StringComparer.OrdinalIgnoreCase);
         PredeclareLocals(statements, locals, variables, procedures, identifier.Text);
 
         _procedureLabels.Clear();
@@ -759,6 +761,7 @@ public sealed class Binder
         finally
         {
             _activeLocals = null;
+            _activeConstantInitializers = null;
         }
 
         return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
@@ -777,6 +780,9 @@ public sealed class Binder
             {
                 case DimStatementSyntax dim:
                     PredeclareLocalDeclarators(dim.Declarators, locals, variables);
+                    break;
+                case ConstStatementSyntax constant:
+                    PredeclareLocalConstant(constant, locals, variables, procedures);
                     break;
                 case StaticStatementSyntax staticStatement:
                     PredeclareStaticDeclarators(
@@ -839,6 +845,31 @@ public sealed class Binder
         }
     }
 
+    private void PredeclareLocalConstant(
+        ConstStatementSyntax syntax,
+        Dictionary<string, LocalVariableSymbol> locals,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var value = BindExpression(syntax.Value, variables, procedures);
+        var type = syntax.TypeToken is null
+            ? value.Type
+            : ResolveDeclaredType(syntax.TypeToken);
+        var variable = new LocalVariableSymbol(syntax.Identifier.Text, type);
+
+        if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
+        {
+            Report(
+                "VB6S0002",
+                $"Local variable '{variable.Name}' is already declared.",
+                syntax.Identifier.Span);
+            return;
+        }
+
+        locals.Add(variable.Name, variable);
+        _activeConstantInitializers![variable.Name] = BindConversion(value, type);
+    }
+
     private void PredeclareStaticDeclarators(
         ImmutableArray<VariableDeclaratorSyntax> declarators,
         string procedureName,
@@ -878,6 +909,24 @@ public sealed class Binder
             // Dim, ReDim and Erase each bind one statement into several bound statements, one per
             // declarator or identifier. They all share the position of the statement they were
             // written as, which is what a debugger steps to.
+            if (statement is ConstStatementSyntax constant)
+            {
+                if (variables.TryGetValue(constant.Identifier.Text, out var variable) &&
+                    variable is LocalVariableSymbol local &&
+                    _activeConstantInitializers is not null &&
+                    _activeConstantInitializers.TryGetValue(local.Name, out var initializer))
+                {
+                    bound.Add(WithLocation(
+                        new BoundVariableDeclarationStatement(
+                            local,
+                            ImmutableArray<BoundArrayDimension>.Empty,
+                            initializer),
+                        statement));
+                }
+
+                continue;
+            }
+
             if (statement is DimStatementSyntax dim)
             {
                 foreach (var declarator in dim.Declarators)

@@ -844,6 +844,7 @@ public sealed class Parser
         return Current.Kind switch
         {
             SyntaxKind.DimKeyword => ParseDimStatement(),
+            SyntaxKind.ConstKeyword => ParseConstStatement(),
             SyntaxKind.ReDimKeyword => ParseReDimStatement(),
             SyntaxKind.EraseKeyword => ParseEraseStatement(),
             SyntaxKind.StaticKeyword => ParseStaticStatement(),
@@ -1026,6 +1027,31 @@ public sealed class Parser
     {
         var dimKeyword = MatchToken(SyntaxKind.DimKeyword);
         return new DimStatementSyntax(dimKeyword, ParseVariableDeclarators());
+    }
+
+    private ConstStatementSyntax ParseConstStatement()
+    {
+        var constKeyword = MatchToken(SyntaxKind.ConstKeyword);
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+
+        SyntaxToken? asKeyword = null;
+        SyntaxToken? typeToken = null;
+        if (Current.Kind == SyntaxKind.AsKeyword)
+        {
+            asKeyword = NextToken();
+            typeToken = MatchTypeToken();
+        }
+
+        var equalsToken = MatchToken(SyntaxKind.EqualsToken);
+        var value = ParseExpression();
+
+        return new ConstStatementSyntax(
+            constKeyword,
+            identifier,
+            asKeyword,
+            typeToken,
+            equalsToken,
+            value);
     }
 
     private ReDimStatementSyntax ParseReDimStatement()

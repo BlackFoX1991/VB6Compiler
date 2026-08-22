@@ -21,6 +21,7 @@ public static class SyntaxNavigator
         return statement switch
         {
             DimStatementSyntax dim => dim.DimKeyword,
+            ConstStatementSyntax constant => constant.ConstKeyword,
             StaticStatementSyntax @static => @static.StaticKeyword,
             ReDimStatementSyntax reDim => reDim.ReDimKeyword,
             EraseStatementSyntax erase => erase.EraseKeyword,

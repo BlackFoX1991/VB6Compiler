@@ -24,6 +24,19 @@ public sealed class ConstAndExitProcedureExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesProcedureConstants()
+    {
+        Run("""
+            Sub Main()
+                Const Prefix As String = "Value:"
+                Const Amount As Long = 3
+                Debug.Print Prefix & Amount
+            End Sub
+            """,
+            "Value:3");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_LeavesProcedureOnExitSub()
     {
         Run("""

@@ -344,7 +344,8 @@ public sealed record BoundArrayDimension(
 
 public sealed record BoundVariableDeclarationStatement(
     LocalVariableSymbol Variable,
-    ImmutableArray<BoundArrayDimension> ArrayDimensions)
+    ImmutableArray<BoundArrayDimension> ArrayDimensions,
+    BoundExpression? Initializer = null)
     : BoundStatement(BoundNodeKind.VariableDeclarationStatement)
 {
     public BoundVariableDeclarationStatement(LocalVariableSymbol variable)
