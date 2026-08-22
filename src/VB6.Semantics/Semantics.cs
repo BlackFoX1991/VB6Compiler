@@ -470,13 +470,15 @@ public enum BoundFileOpenMode
     Binary,
     Input,
     Output,
-    Append
+    Append,
+    Random
 }
 
 public sealed record BoundOpenStatement(
     BoundExpression FileNumber,
     BoundExpression Path,
-    BoundFileOpenMode Mode) : BoundStatement(BoundNodeKind.OpenStatement);
+    BoundFileOpenMode Mode,
+    BoundExpression? RecordLength = null) : BoundStatement(BoundNodeKind.OpenStatement);
 
 public sealed record BoundCloseStatement(
     ImmutableArray<BoundExpression> FileNumbers) : BoundStatement(BoundNodeKind.CloseStatement);

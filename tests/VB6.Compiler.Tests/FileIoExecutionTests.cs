@@ -166,6 +166,77 @@ public sealed class FileIoExecutionTests
             "321");
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsRandomScalarRecords()
+    {
+        Run("""
+            Sub Main()
+                Dim first As Long
+                Dim second As Long
+
+                Open "random.bin" For Random As #1 Len = 8
+                first = 10
+                second = 20
+                Put #1, 1, first
+                Put #1, , second
+                Debug.Print LOF(1)
+                Debug.Print Seek(1)
+                Close #1
+
+                Open "random.bin" For Random As #1 Len = 8
+                Get #1, 1, first
+                Get #1, , second
+                Debug.Print first
+                Debug.Print second
+                Debug.Print Seek(1)
+                Close #1
+            End Sub
+            """,
+            "16",
+            "3",
+            "10",
+            "20",
+            "3");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsRandomScalarUdtRecords()
+    {
+        Run("""
+            Type Header
+                Code As Integer
+            End Type
+
+            Type Record
+                Number As Long
+                Meta As Header
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                written.Number = 123456
+                written.Meta.Code = 321
+
+                Open "random-record.bin" For Random As #1 Len = 6
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "random-record.bin" For Random As #1 Len = 6
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack.Number
+                Debug.Print readBack.Meta.Code
+            End Sub
+            """,
+            "6",
+            "123456",
+            "321");
+    }
+
     /// <summary>Positions are one-based, and an omitted position continues where the last one stopped.</summary>
     [TestMethod]
     public void EmitManagedApplication_UsesOneBasedPositionsAndContinuesWhenOmitted()
@@ -259,17 +330,19 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
-    public void Analyze_ReportsOpenModesOutsideTheTextAndBinarySubset()
+    public void EmitManagedApplication_UsesTheDefaultRandomRecordLength()
     {
-        var analysis = VBCompilation.Create("""
+        Run("""
             Sub Main()
-                Open "a.dat" For Random As #1 Len = 128
+                Dim value As Byte
+
+                Open "a.dat" For Random As #1
+                Put #1, 1, value
+                Debug.Print LOF(1)
                 Close #1
             End Sub
-            """, "Module1.bas").Analyze();
-
-        Assert.IsFalse(analysis.Success);
-        Assert.IsTrue(analysis.Diagnostics.Any(d => d.Code == "VB6S0057"));
+            """,
+            "128");
     }
 
     private static void Run(string source, params string[] expectedLines)

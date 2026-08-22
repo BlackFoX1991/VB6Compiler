@@ -2246,6 +2246,9 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileOpenInput => Static(typeof(VBFiles), "OpenInput", typeof(int), typeof(string)),
                 IrRuntimeMethod.FileOpenOutput => Static(typeof(VBFiles), "OpenOutput", typeof(int), typeof(string)),
                 IrRuntimeMethod.FileOpenAppend => Static(typeof(VBFiles), "OpenAppend", typeof(int), typeof(string)),
+                IrRuntimeMethod.FileOpenRandom => Static(typeof(VBFiles), "OpenRandom", typeof(int), typeof(string), typeof(int)),
+                IrRuntimeMethod.FileRecordStart => ResolveFileRecordStart(call, out skippedArgument),
+                IrRuntimeMethod.FileRecordEnd => Static(typeof(VBFiles), "EndRecord", typeof(int), typeof(bool)),
                 IrRuntimeMethod.FilePrint => Static(typeof(VBFiles), "Print", typeof(int), typeof(object)),
                 IrRuntimeMethod.FileClose => Static(typeof(VBFiles), "Close", typeof(int)),
                 IrRuntimeMethod.FileCloseAll => Static(typeof(VBFiles), "CloseAll"),
@@ -2258,6 +2261,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileDir => Static(typeof(VBFiles), "Dir", typeof(string), typeof(int)),
                 IrRuntimeMethod.FileLengthByPath => Static(typeof(VBFiles), "Length", typeof(string)),
                 IrRuntimeMethod.FilePut => ResolveFilePut(call, out skippedArgument),
+                IrRuntimeMethod.FilePutRaw => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int)),
                 IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
@@ -2267,11 +2271,26 @@ public sealed class ManagedEmitter
         private MethodInfo ResolveFileGet(IrRuntimeCallExpression call, out int skippedArgument)
         {
             var name = call.Method.ToString()["File".Length..];
+            if (name.StartsWith("GetRaw", StringComparison.Ordinal))
+            {
+                skippedArgument = -1;
+                return Static(typeof(VBFiles), name, typeof(int));
+            }
+
             var omitted = call.Arguments.Length > 1 && call.Arguments[1].Expression is IrNullExpression;
             skippedArgument = omitted ? 1 : -1;
             return omitted
                 ? Static(typeof(VBFiles), name, typeof(int))
                 : Static(typeof(VBFiles), name, typeof(int), typeof(long));
+        }
+
+        private MethodInfo ResolveFileRecordStart(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            var omitted = call.Arguments[1].Expression is IrNullExpression;
+            skippedArgument = omitted ? 1 : -1;
+            return omitted
+                ? Static(typeof(VBFiles), "BeginRecord", typeof(int))
+                : Static(typeof(VBFiles), "BeginRecord", typeof(int), typeof(long));
         }
 
         private MethodInfo ResolveFilePut(IrRuntimeCallExpression call, out int skippedArgument)
@@ -2282,6 +2301,13 @@ public sealed class ManagedEmitter
             return omitted
                 ? Static(typeof(VBFiles), "Put", typeof(int), valueType)
                 : Static(typeof(VBFiles), "Put", typeof(int), typeof(long), valueType);
+        }
+
+        private MethodInfo ResolveFilePutRaw(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            skippedArgument = -1;
+            var valueType = RuntimeScalarType(call.Arguments[1].Expression.Type);
+            return Static(typeof(VBFiles), "PutRaw", typeof(int), valueType);
         }
 
         private static string RuntimeName(IrRuntimeMethod method) => method switch

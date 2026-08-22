@@ -1206,22 +1206,26 @@ public sealed class Binder
             "INPUT" => BoundFileOpenMode.Input,
             "OUTPUT" => BoundFileOpenMode.Output,
             "APPEND" => BoundFileOpenMode.Append,
+            "RANDOM" => BoundFileOpenMode.Random,
             _ => (BoundFileOpenMode?)null
         };
         if (mode is null)
         {
             Report(
                 "VB6S0057",
-                $"Open mode '{syntax.ModeToken.Text}' is not implemented yet; use For Binary, Input, Output, or Append.",
+                $"Open mode '{syntax.ModeToken.Text}' is not implemented yet; use For Binary, Input, Output, Append, or Random.",
                 syntax.ModeToken.Span);
             return null;
         }
 
-        if (syntax.RecordLength is not null)
+        if (syntax.RecordLength is not null &&
+            (mode == BoundFileOpenMode.Input ||
+             mode == BoundFileOpenMode.Output ||
+             mode == BoundFileOpenMode.Append))
         {
             Report(
                 "VB6S0057",
-                "The Len clause of Open is not implemented yet.",
+                "The Len clause is only supported for Random access in the current compiler profile.",
                 syntax.LenKeyword!.Span);
             return null;
         }
@@ -1229,10 +1233,18 @@ public sealed class Binder
         var path = BindConversion(
             BindExpression(syntax.PathExpression, variables, procedures),
             TypeSymbol.String);
+        var recordLength = mode == BoundFileOpenMode.Random
+            ? syntax.RecordLength is null
+                ? new BoundLiteralExpression(128L, TypeSymbol.Long)
+                : BindConversion(
+                    BindExpression(syntax.RecordLength, variables, procedures),
+                    TypeSymbol.Long)
+            : null;
         return new BoundOpenStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
             path,
-            mode.Value);
+            mode.Value,
+            recordLength);
     }
 
     private BoundStatement BindClose(

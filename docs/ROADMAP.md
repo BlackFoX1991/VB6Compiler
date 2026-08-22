@@ -79,8 +79,9 @@ Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfall
 IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
 Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. ANSI-String-Marshalling in
 `Declare` ist über `CharSetAnsi` und echte Windows-E2E-Aufrufe abgedeckt. Skalare UDT-Records werden
-bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; UDT-Arrays, `As Any`-Marshalling,
-COM, native LLVM-Emission und Forms bleiben bewusst offen.
+bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; skalare Random-Records
+respektieren `Len`, Recordgrenzen und die Defaultlänge 128. UDT-Arrays, `As Any`-Marshalling, COM,
+native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -567,8 +568,9 @@ Nach Korpusbedarf priorisiert:
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records und grundlegende
    Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben
    und lesen echte Dateien. Variable `String`-Transfers, `Line Input`, grundlegende Stringfelder und
-   typisierte numerische, Boolean- und Currency-Ziele für `Input #` sind ergänzt; Datums-Konvertierung,
-   UDT-Arrays, variable Stringfelder, Random-Records und die `Len`-Klausel bleiben offen.
+   typisierte numerische, Boolean- und Currency-Ziele für `Input #` sowie skalare Random-Records mit
+   `Len`-Klausel und Defaultlänge 128 sind ergänzt; Datums-Konvertierung, UDT-Arrays, variable
+   Stringfelder und zusammengesetzte Random-Record-Layouts bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere

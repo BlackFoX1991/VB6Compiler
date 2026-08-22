@@ -63,6 +63,28 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void RandomRecords_UseFixedBoundariesAndOneBasedRecordPositions()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenRandom(1, path, 8);
+            VBFiles.Put(1, 1, 10);
+            Assert.AreEqual(2L, VBFiles.Position(1));
+            VBFiles.Put(1, null, 20);
+            Assert.AreEqual(3L, VBFiles.Position(1));
+            Assert.AreEqual(16L, VBFiles.Length(1));
+            VBFiles.Close(1);
+
+            VBFiles.OpenRandom(1, path, 8);
+            Assert.AreEqual(10, VBFiles.GetLong(1, 1));
+            Assert.AreEqual(20, VBFiles.GetLong(1, null));
+            Assert.AreEqual(3L, VBFiles.Position(1));
+            Assert.ThrowsException<InvalidOperationException>(() => VBFiles.Put(1, 3, "too long"));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void TextModes_CreateTruncateAppendAndWriteVb6Lines()
     {
         WithTemporaryFile(path =>

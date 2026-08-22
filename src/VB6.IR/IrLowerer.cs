@@ -957,13 +957,25 @@ public static class IrLowerer
                         BoundFileOpenMode.Input => IrRuntimeMethod.FileOpenInput,
                         BoundFileOpenMode.Output => IrRuntimeMethod.FileOpenOutput,
                         BoundFileOpenMode.Append => IrRuntimeMethod.FileOpenAppend,
+                        BoundFileOpenMode.Random => IrRuntimeMethod.FileOpenRandom,
                         _ => throw new InvalidOperationException($"Unknown file open mode '{open.Mode}'.")
                     };
+                    var openArguments = open.Mode == BoundFileOpenMode.Random
+                        ? new[]
+                        {
+                            LowerExpression(open.FileNumber),
+                            LowerExpression(open.Path),
+                            LowerExpression(open.RecordLength!)
+                        }
+                        : new[]
+                        {
+                            LowerExpression(open.FileNumber),
+                            LowerExpression(open.Path)
+                        };
                     Emit(new IrEvaluateInstruction(Runtime(
                         openMethod,
                         TypeSymbol.Error,
-                        LowerExpression(open.FileNumber),
-                        LowerExpression(open.Path))));
+                        openArguments)));
                     break;
                 case BoundCloseStatement close:
                     if (close.FileNumbers.IsDefaultOrEmpty)
@@ -1054,9 +1066,19 @@ public static class IrLowerer
             var target = LowerPlace(get.Target);
             var fileNumber = MaterializeFileArgument(get.FileNumber, TypeSymbol.Long, "__file_get_number");
             var position = get.Position is null
-                ? null
+                ? new IrNullExpression(TypeSymbol.LongLong)
                 : MaterializeFileArgument(get.Position, TypeSymbol.LongLong, "__file_get_position");
-            EmitBinaryRecordGetFields(target, type, fileNumber, ref position);
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordStart,
+                TypeSymbol.Error,
+                fileNumber,
+                position)));
+            EmitBinaryRecordGetFields(target, type, fileNumber);
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordEnd,
+                TypeSymbol.Error,
+                fileNumber,
+                new IrConstantExpression(false, TypeSymbol.Boolean))));
         }
 
         private void LowerBinaryRecordPut(BoundPutStatement put, UserDefinedTypeSymbol type)
@@ -1064,11 +1086,21 @@ public static class IrLowerer
             EnsureBinaryRecordLayout(type);
             var fileNumber = MaterializeFileArgument(put.FileNumber, TypeSymbol.Long, "__file_put_number");
             var position = put.Position is null
-                ? null
+                ? new IrNullExpression(TypeSymbol.LongLong)
                 : MaterializeFileArgument(put.Position, TypeSymbol.LongLong, "__file_put_position");
             var source = NewLocal("__file_put_record", type, compilerGenerated: true);
             Emit(new IrStoreInstruction(new IrLocalPlace(source), LowerValueCopy(put.Value)));
-            EmitBinaryRecordPutFields(new IrLocalPlace(source), type, fileNumber, ref position);
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordStart,
+                TypeSymbol.Error,
+                fileNumber,
+                position)));
+            EmitBinaryRecordPutFields(new IrLocalPlace(source), type, fileNumber);
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordEnd,
+                TypeSymbol.Error,
+                fileNumber,
+                new IrConstantExpression(true, TypeSymbol.Boolean))));
         }
 
         private IrExpression MaterializeFileArgument(
@@ -1084,51 +1116,45 @@ public static class IrLowerer
         private void EmitBinaryRecordGetFields(
             IrPlace target,
             UserDefinedTypeSymbol type,
-            IrExpression fileNumber,
-            ref IrExpression? position)
+            IrExpression fileNumber)
         {
             foreach (var member in type.Members)
             {
                 var field = new IrFieldPlace(target, _program.GetField(member));
                 if (member.Type is UserDefinedTypeSymbol nested)
                 {
-                    EmitBinaryRecordGetFields(field, nested, fileNumber, ref position);
+                    EmitBinaryRecordGetFields(field, nested, fileNumber);
                     continue;
                 }
 
                 Emit(new IrStoreInstruction(
                     field,
                     Runtime(
-                        FileGetMethod(member.Type),
+                        FileGetRawMethod(member.Type),
                         member.Type,
-                        fileNumber,
-                        position ?? new IrNullExpression(TypeSymbol.LongLong))));
-                position = null;
+                        fileNumber)));
             }
         }
 
         private void EmitBinaryRecordPutFields(
             IrPlace source,
             UserDefinedTypeSymbol type,
-            IrExpression fileNumber,
-            ref IrExpression? position)
+            IrExpression fileNumber)
         {
             foreach (var member in type.Members)
             {
                 var field = new IrFieldPlace(source, _program.GetField(member));
                 if (member.Type is UserDefinedTypeSymbol nested)
                 {
-                    EmitBinaryRecordPutFields(field, nested, fileNumber, ref position);
+                    EmitBinaryRecordPutFields(field, nested, fileNumber);
                     continue;
                 }
 
                 Emit(new IrEvaluateInstruction(Runtime(
-                    IrRuntimeMethod.FilePut,
+                    IrRuntimeMethod.FilePutRaw,
                     TypeSymbol.Error,
                     fileNumber,
-                    position ?? new IrNullExpression(TypeSymbol.LongLong),
                     new IrLoadExpression(field))));
-                position = null;
             }
         }
 
@@ -2369,6 +2395,17 @@ public static class IrLowerer
             : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetCurrency
             : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetBoolean
             : type == TypeSymbol.String ? IrRuntimeMethod.FileGetString
+            : throw new NotSupportedException($"File Get type '{type.Name}' is not supported by IR lowering.");
+
+        private static IrRuntimeMethod FileGetRawMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.FileGetRawByte
+            : type == TypeSymbol.Integer ? IrRuntimeMethod.FileGetRawInteger
+            : type == TypeSymbol.Long ? IrRuntimeMethod.FileGetRawLong
+            : type == TypeSymbol.LongLong ? IrRuntimeMethod.FileGetRawLongLong
+            : type == TypeSymbol.Single ? IrRuntimeMethod.FileGetRawSingle
+            : type == TypeSymbol.Double ? IrRuntimeMethod.FileGetRawDouble
+            : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetRawCurrency
+            : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetRawBoolean
+            : type == TypeSymbol.String ? IrRuntimeMethod.FileGetRawString
             : throw new NotSupportedException($"File Get type '{type.Name}' is not supported by IR lowering.");
 
         private static IrRuntimeMethod IntrinsicMethod(string target) => target switch

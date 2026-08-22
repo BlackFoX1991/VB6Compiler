@@ -11,7 +11,8 @@ namespace VB6.Runtime;
 /// the first byte of the file. Omitting the position continues where the previous operation
 /// stopped, which is why the core operations take a nullable position.
 ///
-/// Fixed-size numeric types, variable-length binary Strings, and basic text output are supported.
+/// Fixed-size numeric types, variable-length binary Strings, basic text output, and scalar Random
+/// records are supported.
 /// A binary String is stored with a two-byte character-count prefix followed by UTF-16LE
 /// characters, matching the BSTR-oriented VB6 transfer contract. User-defined types still require
 /// an explicit record layout.
@@ -63,26 +64,54 @@ public static class VBFiles
     private const int MaximumFileNumber = 511;
 
     private static readonly Dictionary<int, FileStream> OpenFiles = new();
+    private static readonly Dictionary<int, int?> RecordLengths = new();
+    private static readonly Dictionary<int, long> RecordStarts = new();
 
     public static void OpenBinary(int fileNumber, string path)
     {
-        OpenFile(fileNumber, path, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+        OpenFile(fileNumber, path, FileMode.OpenOrCreate, FileAccess.ReadWrite, recordLength: null);
     }
 
     public static void OpenInput(int fileNumber, string path)
     {
-        OpenFile(fileNumber, path, FileMode.Open, FileAccess.Read);
+        OpenFile(fileNumber, path, FileMode.Open, FileAccess.Read, recordLength: null);
     }
 
     public static void OpenOutput(int fileNumber, string path)
     {
-        OpenFile(fileNumber, path, FileMode.Create, FileAccess.Write);
+        OpenFile(fileNumber, path, FileMode.Create, FileAccess.Write, recordLength: null);
     }
 
     public static void OpenAppend(int fileNumber, string path)
     {
-        OpenFile(fileNumber, path, FileMode.Append, FileAccess.Write);
+        OpenFile(fileNumber, path, FileMode.Append, FileAccess.Write, recordLength: null);
     }
+
+    public static void OpenRandom(int fileNumber, string path, int recordLength)
+    {
+        if (recordLength is < 1 or > 32767)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(recordLength),
+                "VB6 Random record lengths must be between 1 and 32767 bytes.");
+        }
+
+        OpenFile(fileNumber, path, FileMode.OpenOrCreate, FileAccess.ReadWrite, recordLength);
+    }
+
+    public static void BeginRecord(int fileNumber, long? position)
+    {
+        var stream = GetStream(fileNumber);
+        if (position is not null)
+        {
+            Seek(fileNumber, position.Value);
+        }
+
+        RecordStarts[fileNumber] = stream.Position;
+    }
+
+    public static void BeginRecord(int fileNumber) => BeginRecord(fileNumber, null);
+    public static void BeginRecord(int fileNumber, long position) => BeginRecord(fileNumber, (long?)position);
 
     public static void Print(int fileNumber, object? value)
     {
@@ -228,7 +257,12 @@ public static class VBFiles
         stream.Position = 0;
     }
 
-    private static void OpenFile(int fileNumber, string path, FileMode mode, FileAccess access)
+    private static void OpenFile(
+        int fileNumber,
+        string path,
+        FileMode mode,
+        FileAccess access,
+        int? recordLength)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ValidateFileNumber(fileNumber);
@@ -244,6 +278,7 @@ public static class VBFiles
             mode,
             access,
             FileShare.ReadWrite));
+        RecordLengths.Add(fileNumber, recordLength);
     }
 
     public static void Close(int fileNumber)
@@ -255,6 +290,8 @@ public static class VBFiles
         }
 
         stream.Dispose();
+        RecordLengths.Remove(fileNumber);
+        RecordStarts.Remove(fileNumber);
     }
 
     public static void CloseAll()
@@ -265,6 +302,22 @@ public static class VBFiles
         }
 
         OpenFiles.Clear();
+        RecordLengths.Clear();
+        RecordStarts.Clear();
+    }
+
+    public static void EndRecord(int fileNumber, bool forWrite)
+    {
+        var stream = GetStream(fileNumber);
+        if (RecordStarts.Remove(fileNumber, out var recordStart))
+        {
+            AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite);
+        }
+
+        if (forWrite)
+        {
+            stream.Flush();
+        }
     }
 
     public static void Seek(int fileNumber, long position)
@@ -277,10 +330,18 @@ public static class VBFiles
                 "VB6 file positions are one-based.");
         }
 
-        stream.Position = position - 1;
+        stream.Position = GetRecordLength(fileNumber) is int recordLength
+            ? checked((position - 1) * recordLength)
+            : position - 1;
     }
 
-    public static long Position(int fileNumber) => GetStream(fileNumber).Position + 1;
+    public static long Position(int fileNumber)
+    {
+        var stream = GetStream(fileNumber);
+        return GetRecordLength(fileNumber) is int recordLength
+            ? checked(stream.Position / recordLength + 1)
+            : stream.Position + 1;
+    }
 
     public static long Length(int fileNumber) => GetStream(fileNumber).Length;
 
@@ -328,13 +389,20 @@ public static class VBFiles
 
     public static string GetString(int fileNumber, long? position)
     {
-        var characterCount = BitConverter.ToUInt16(Read(fileNumber, position, 2));
+        var stream = Seek(fileNumber, position);
+        var recordStart = stream.Position;
+        EnsureRecordFits(fileNumber, sizeof(ushort));
+        var characterCount = BitConverter.ToUInt16(ReadRaw(stream, 2));
+        var byteCount = checked(characterCount * sizeof(char));
+        EnsureRecordFits(fileNumber, byteCount + sizeof(ushort));
         if (characterCount == 0)
         {
+            AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
             return string.Empty;
         }
 
-        var bytes = Read(fileNumber, null, checked(characterCount * sizeof(char)));
+        var bytes = ReadRaw(stream, byteCount);
+        AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
         return Encoding.Unicode.GetString(bytes);
     }
 
@@ -358,6 +426,23 @@ public static class VBFiles
     public static bool GetBoolean(int fileNumber, long position) => GetBoolean(fileNumber, (long?)position);
     public static string GetString(int fileNumber) => GetString(fileNumber, null);
     public static string GetString(int fileNumber, long position) => GetString(fileNumber, (long?)position);
+
+    public static byte GetRawByte(int fileNumber) => ReadRecordRaw(fileNumber, 1)[0];
+    public static short GetRawInteger(int fileNumber) => BitConverter.ToInt16(ReadRecordRaw(fileNumber, 2));
+    public static int GetRawLong(int fileNumber) => BitConverter.ToInt32(ReadRecordRaw(fileNumber, 4));
+    public static long GetRawLongLong(int fileNumber) => BitConverter.ToInt64(ReadRecordRaw(fileNumber, 8));
+    public static float GetRawSingle(int fileNumber) => BitConverter.ToSingle(ReadRecordRaw(fileNumber, 4));
+    public static double GetRawDouble(int fileNumber) => BitConverter.ToDouble(ReadRecordRaw(fileNumber, 8));
+    public static VBCurrency GetRawCurrency(int fileNumber) =>
+        VBCurrency.FromScaled(BitConverter.ToInt64(ReadRecordRaw(fileNumber, 8)));
+    public static bool GetRawBoolean(int fileNumber) => BitConverter.ToInt16(ReadRecordRaw(fileNumber, 2)) != 0;
+
+    public static string GetRawString(int fileNumber)
+    {
+        var characterCount = BitConverter.ToUInt16(ReadRecordRaw(fileNumber, 2));
+        var bytes = ReadRecordRaw(fileNumber, checked(characterCount * sizeof(char)));
+        return Encoding.Unicode.GetString(bytes);
+    }
 
     public static void Put(int fileNumber, long? position, byte value) =>
         Write(fileNumber, position, new[] { value });
@@ -417,26 +502,128 @@ public static class VBFiles
     public static void Put(int fileNumber, string value) => Put(fileNumber, null, value);
     public static void Put(int fileNumber, long position, string value) => Put(fileNumber, (long?)position, value);
 
+    public static void PutRaw(int fileNumber, byte value) => WriteRecordRaw(fileNumber, new[] { value });
+    public static void PutRaw(int fileNumber, short value) => WriteRecordRaw(fileNumber, BitConverter.GetBytes(value));
+    public static void PutRaw(int fileNumber, int value) => WriteRecordRaw(fileNumber, BitConverter.GetBytes(value));
+    public static void PutRaw(int fileNumber, long value) => WriteRecordRaw(fileNumber, BitConverter.GetBytes(value));
+    public static void PutRaw(int fileNumber, float value) => WriteRecordRaw(fileNumber, BitConverter.GetBytes(value));
+    public static void PutRaw(int fileNumber, double value) => WriteRecordRaw(fileNumber, BitConverter.GetBytes(value));
+    public static void PutRaw(int fileNumber, VBCurrency value) =>
+        WriteRecordRaw(fileNumber, BitConverter.GetBytes(value.ScaledValue));
+    public static void PutRaw(int fileNumber, bool value) =>
+        WriteRecordRaw(fileNumber, BitConverter.GetBytes(value ? (short)-1 : (short)0));
+
+    public static void PutRaw(int fileNumber, string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Length > ushort.MaxValue)
+        {
+            throw new OverflowException("VB6 binary String transfers support at most 65535 characters.");
+        }
+
+        var payload = Encoding.Unicode.GetBytes(value);
+        var bytes = new byte[sizeof(ushort) + payload.Length];
+        BitConverter.GetBytes((ushort)value.Length).CopyTo(bytes, 0);
+        payload.CopyTo(bytes, sizeof(ushort));
+        WriteRecordRaw(fileNumber, bytes);
+    }
+
     private static byte[] Read(int fileNumber, long? position, int count)
     {
         var stream = Seek(fileNumber, position);
-        var buffer = new byte[count];
-        var read = stream.ReadAtLeast(buffer, count, throwOnEndOfStream: false);
-        if (read < count)
-        {
-            throw new EndOfStreamException(
-                $"VB6 file number {fileNumber.ToString(CultureInfo.InvariantCulture)} has fewer than " +
-                $"{count.ToString(CultureInfo.InvariantCulture)} bytes left to read.");
-        }
-
+        EnsureRecordFits(fileNumber, count);
+        var recordStart = stream.Position;
+        var buffer = ReadRaw(stream, count, fileNumber);
+        AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
         return buffer;
+    }
+
+    private static byte[] ReadRecordRaw(int fileNumber, int count)
+    {
+        var stream = GetStream(fileNumber);
+        EnsureRecordFieldFits(fileNumber, stream.Position, count);
+        return ReadRaw(stream, count, fileNumber);
     }
 
     private static void Write(int fileNumber, long? position, byte[] bytes)
     {
         var stream = Seek(fileNumber, position);
+        EnsureRecordFits(fileNumber, bytes.Length);
+        var recordStart = stream.Position;
+        stream.Write(bytes, 0, bytes.Length);
+        AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: true);
+        stream.Flush();
+    }
+
+    private static void WriteRecordRaw(int fileNumber, byte[] bytes)
+    {
+        var stream = GetStream(fileNumber);
+        EnsureRecordFieldFits(fileNumber, stream.Position, bytes.Length);
         stream.Write(bytes, 0, bytes.Length);
         stream.Flush();
+    }
+
+    private static byte[] ReadRaw(FileStream stream, int count, int? fileNumber = null)
+    {
+        var buffer = new byte[count];
+        var read = stream.ReadAtLeast(buffer, count, throwOnEndOfStream: false);
+        if (read < count)
+        {
+            var prefix = fileNumber is null
+                ? "The file"
+                : $"VB6 file number {fileNumber.Value.ToString(CultureInfo.InvariantCulture)}";
+            throw new EndOfStreamException(
+                $"{prefix} has fewer than {count.ToString(CultureInfo.InvariantCulture)} bytes left to read.");
+        }
+
+        return buffer;
+    }
+
+    private static void EnsureRecordFits(int fileNumber, int count)
+    {
+        if (GetRecordLength(fileNumber) is int recordLength && count > recordLength)
+        {
+            throw new InvalidOperationException(
+                $"The value requires {count.ToString(CultureInfo.InvariantCulture)} bytes, but the " +
+                $"Random record length is only {recordLength.ToString(CultureInfo.InvariantCulture)}.");
+        }
+    }
+
+    private static void EnsureRecordFieldFits(int fileNumber, long position, int count)
+    {
+        if (GetRecordLength(fileNumber) is not int recordLength ||
+            !RecordStarts.TryGetValue(fileNumber, out var recordStart))
+        {
+            return;
+        }
+
+        var consumed = checked(position - recordStart + count);
+        if (consumed > recordLength)
+        {
+            throw new InvalidOperationException(
+                $"The record requires {consumed.ToString(CultureInfo.InvariantCulture)} bytes, but the " +
+                $"Random record length is only {recordLength.ToString(CultureInfo.InvariantCulture)}.");
+        }
+    }
+
+    private static void AdvanceRandomRecord(
+        int fileNumber,
+        FileStream stream,
+        long recordStart,
+        bool forWrite)
+    {
+        if (GetRecordLength(fileNumber) is not int recordLength)
+        {
+            return;
+        }
+
+        var recordEnd = checked(recordStart + recordLength);
+        if (forWrite && stream.Length < recordEnd)
+        {
+            stream.SetLength(recordEnd);
+        }
+
+        stream.Position = recordEnd;
     }
 
     private static FileStream Seek(int fileNumber, long? position)
@@ -461,6 +648,9 @@ public static class VBFiles
 
         return stream;
     }
+
+    private static int? GetRecordLength(int fileNumber) =>
+        RecordLengths.TryGetValue(fileNumber, out var recordLength) ? recordLength : null;
 
     private static void ValidateFileNumber(int fileNumber)
     {
