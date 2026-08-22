@@ -42,6 +42,7 @@ public sealed class FileStatementGuardTests
     {
         var program = VB6TestIr.Lower("""
             Sub Main()
+                Dim count As Long
                 Dim line As String
                 Dim first As String
                 Dim second As String
@@ -53,7 +54,7 @@ public sealed class FileStatementGuardTests
                 Close #1
                 Open "text.txt" For Input As #1
                 Line Input #1, line
-                Input #1, first, second
+                Input #1, first, second, count
                 Close #1
             End Sub
             """);

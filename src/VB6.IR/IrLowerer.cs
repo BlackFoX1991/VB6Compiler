@@ -1034,12 +1034,15 @@ public static class IrLowerer
                         "__file_input_number");
                     foreach (var inputTarget in fileInput.Targets)
                     {
+                        var targetPlace = LowerPlace(inputTarget);
                         Emit(new IrStoreInstruction(
-                            LowerPlace(inputTarget),
-                            Runtime(
-                                IrRuntimeMethod.FileInputField,
-                                TypeSymbol.String,
-                                fileInputNumber)));
+                            targetPlace,
+                            LowerFileInputValue(
+                                Runtime(
+                                    IrRuntimeMethod.FileInputField,
+                                    TypeSymbol.String,
+                                    fileInputNumber),
+                                targetPlace.Type)));
                     }
                     break;
             }
@@ -2091,6 +2094,22 @@ public static class IrLowerer
             return method is null
                 ? operand
                 : Runtime(method.Value, conversion.TargetType, operand);
+        }
+
+        private IrExpression LowerFileInputValue(IrExpression field, TypeSymbol targetType)
+        {
+            var method = targetType == TypeSymbol.Byte ? IrRuntimeMethod.CByte
+                : targetType == TypeSymbol.Integer ? IrRuntimeMethod.CInt
+                : targetType == TypeSymbol.Long ? IrRuntimeMethod.CLng
+                : targetType == TypeSymbol.LongLong ? IrRuntimeMethod.CLngLng
+                : targetType == TypeSymbol.Currency ? IrRuntimeMethod.CCur
+                : targetType == TypeSymbol.Single ? IrRuntimeMethod.CSng
+                : targetType == TypeSymbol.Double ? IrRuntimeMethod.CDbl
+                : targetType == TypeSymbol.Boolean ? IrRuntimeMethod.CBool
+                : (IrRuntimeMethod?)null;
+            return method is null
+                ? field
+                : Runtime(method.Value, targetType, field);
         }
 
         private IrExpression LowerUnary(BoundUnaryExpression unary)

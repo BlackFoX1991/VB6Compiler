@@ -93,6 +93,39 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ReadsInputFieldsIntoScalarTargets()
+    {
+        Run("""
+            Sub Main()
+                Dim count As Long
+                Dim ratio As Double
+                Dim enabled As Boolean
+                Dim amount As Currency
+
+                Open "scalars.txt" For Output As #1
+                Print #1, 42
+                Print #1, 1.25
+                Print #1, True
+                Print #1, 12.5
+                Close #1
+
+                Open "scalars.txt" For Input As #1
+                Input #1, count, ratio, enabled, amount
+                Close #1
+
+                Debug.Print count
+                Debug.Print ratio
+                Debug.Print enabled
+                Debug.Print amount
+            End Sub
+            """,
+            "42",
+            "1.25",
+            "True",
+            "12.5");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsScalarUdtRecords()
     {
         Run("""

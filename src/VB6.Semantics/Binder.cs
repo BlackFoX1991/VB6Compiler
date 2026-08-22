@@ -1283,7 +1283,7 @@ public sealed class Binder
         var targets = syntax.Targets
             .Select(target => BindExpression(target, variables, procedures))
             .ToImmutableArray();
-        if (targets.Any(target => target.Type != TypeSymbol.String || target is not (
+        if (targets.Any(target => !IsSupportedFileInputType(target.Type) || target is not (
                 BoundVariableExpression or
                 BoundArrayAccessExpression or
                 BoundElementAccessExpression or
@@ -1291,7 +1291,7 @@ public sealed class Binder
         {
             Report(
                 "VB6S0062",
-                "Input # currently requires String variables, array elements, or user-defined type members.",
+                "Input # requires String, numeric, Boolean, or Currency variables, array elements, or user-defined type members.",
                 syntax.InputKeyword.Span);
             return null;
         }
@@ -1300,6 +1300,17 @@ public sealed class Binder
             BindFileNumber(syntax.FileNumber, variables, procedures),
             targets);
     }
+
+    private static bool IsSupportedFileInputType(TypeSymbol type) =>
+        type == TypeSymbol.String ||
+        type == TypeSymbol.Byte ||
+        type == TypeSymbol.Integer ||
+        type == TypeSymbol.Long ||
+        type == TypeSymbol.LongLong ||
+        type == TypeSymbol.Single ||
+        type == TypeSymbol.Double ||
+        type == TypeSymbol.Boolean ||
+        type == TypeSymbol.Currency;
 
     /// <summary>
     /// Get and Put share their shape. Fixed-size numeric types and variable-length Strings are
