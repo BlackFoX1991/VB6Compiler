@@ -56,10 +56,15 @@ public sealed class ClassInstanceExecutionTests
                 Option Explicit
 
                 Private WithEvents source As Counter
+                Private retained As Counter
 
                 Public Sub Run()
                     Set source = New Counter
                     source.Value = 22
+                    Set retained = source
+                    Set source = New Counter
+                    retained.Value = 44
+                    source.Value = 33
                 End Sub
 
                 Private Sub source_Changed(ByVal value As Long)
@@ -98,7 +103,7 @@ public sealed class ClassInstanceExecutionTests
 
             var standardOutput = VB6TestProgram.RunProject(projectPath);
             CollectionAssert.AreEqual(
-                new[] { "7", "7", "15", "15", "True", "True", "False", "22" },
+                new[] { "7", "7", "15", "15", "True", "True", "False", "22", "33" },
                 standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray());
         }
         finally
