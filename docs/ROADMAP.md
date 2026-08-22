@@ -83,8 +83,10 @@ bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; skala
 UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste UDT-Arrayfelder mit
 skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
 `Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
-deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, dynamische/eigenständige UDT-Arrays,
-variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
+deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, dynamische/eigenständige UDT-Arrays
+in Dateirecords sowie dynamische UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen
+laufen im Managed-Wertepfad. Variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission
+und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 

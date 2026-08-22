@@ -2,9 +2,8 @@ namespace VB6.Compiler.Tests;
 
 /// <summary>
 /// A fixed array member is created against its declared bounds when the member is first touched.
-/// That only works for element types whose storage the backend can produce on its own, so dynamic
-/// UDT arrays and recursive layouts stay reported as VB6S0046 rather than silently compiling to
-/// something else.
+/// That only works for element types whose storage the backend can produce on its own, so recursive
+/// layouts stay reported as VB6S0046 rather than silently compiling to something else.
 /// </summary>
 [TestClass]
 public sealed class UserDefinedTypeFixedArrayGuardTests

@@ -6,9 +6,9 @@ using VB6.Syntax.Text;
 namespace VB6.Semantics;
 
 /// <summary>
-/// Scalar UDT values and fixed arrays of supported primitive, fixed-length String, or non-recursive
-/// UDT values can be lowered as managed value types. Dynamic UDT arrays and recursive by-value UDT
-/// layouts remain guarded until their VB6 storage semantics are represented explicitly.
+/// Scalar UDT values and arrays of supported primitive, fixed-length String, or non-recursive UDT
+/// values can be lowered as managed value types. Unsupported element layouts and recursive by-value
+/// UDT layouts remain guarded until their VB6 storage semantics are represented explicitly.
 /// </summary>
 public static class UserDefinedTypeValueGuard
 {
@@ -175,10 +175,9 @@ public static class UserDefinedTypeValueGuard
             if (member.Type is ArrayTypeSymbol arrayType)
             {
                 // A member without bounds is a dynamic array, allocated by ReDim rather than by the
-                // enclosing value. The backend already emits it as a plain field and deep-copies it
-                // in the clone, so only the element type still has to be one it can lay out.
-                if (!IsSupportedArrayElementType(arrayType.ElementType, activePath) ||
-                    (!member.HasArrayBounds && arrayType.ElementType is UserDefinedTypeSymbol))
+                // enclosing value. The backend emits it as a plain field, so only the element type
+                // still has to be one it can lay out.
+                if (!IsSupportedArrayElementType(arrayType.ElementType, activePath))
                 {
                     activePath.Remove(type);
                     return true;
