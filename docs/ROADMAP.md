@@ -83,10 +83,11 @@ bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; skala
 UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste UDT-Arrayfelder mit
 skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
 `Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
-deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, dynamische/eigenständige UDT-Arrays
-in Dateirecords sowie dynamische UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen
-laufen im Managed-Wertepfad. Variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission
-und Forms bleiben bewusst offen.
+deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, eigenständige UDT-Arrays als
+`Get`/`Put`-Variablen und nicht unterstützte zusammengesetzte Layouts bleiben offen. Dynamische
+UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
+als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
+Variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -575,8 +576,9 @@ Nach Korpusbedarf priorisiert:
    Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben
    und lesen echte Dateien. Variable `String`-Transfers, `Line Input`, grundlegende Stringfelder und
    typisierte numerische, Boolean- und Currency-Ziele für `Input #` sowie skalare Random-Records mit
-   `Len`-Klausel und Defaultlänge 128 sind ergänzt; Datums-Konvertierung, dynamische/eigenständige
-   UDT-Arrays, variable Stringfelder und weitere zusammengesetzte Random-Record-Layouts bleiben offen.
+   `Len`-Klausel und Defaultlänge 128 sind ergänzt; dynamische UDT-Arraymember in Records tragen
+   ihren Descriptor und werden elementweise übertragen. Datums-Konvertierung, eigenständige UDT-
+   Arraytransfers, variable Stringfelder und weitere zusammengesetzte Random-Record-Layouts bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere

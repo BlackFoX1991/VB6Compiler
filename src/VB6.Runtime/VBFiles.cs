@@ -456,6 +456,36 @@ public static class VBFiles
         return FixedStringEncoding.GetString(ReadRecordRaw(fileNumber, length));
     }
 
+    /// <summary>
+    /// Reads the descriptor that VB6 stores before an array member of a user-defined type. The
+    /// descriptor contains a two-byte rank followed by one 32-bit lower/upper bound pair per
+    /// dimension. A zero rank represents an unallocated dynamic array.
+    /// </summary>
+    public static VBArray<T>? GetDynamicArray<T>(int fileNumber)
+    {
+        var rank = GetRawInteger(fileNumber);
+        if (rank == 0)
+        {
+            return null;
+        }
+
+        if (rank is < 0 or > 60)
+        {
+            throw new InvalidDataException(
+                $"The dynamic UDT array descriptor has an invalid rank of {rank.ToString(CultureInfo.InvariantCulture)}.");
+        }
+
+        var bounds = new VBArrayBound[rank];
+        for (var dimension = 0; dimension < rank; dimension++)
+        {
+            bounds[dimension] = new VBArrayBound(
+                GetRawLong(fileNumber),
+                GetRawLong(fileNumber));
+        }
+
+        return new VBArray<T>(bounds);
+    }
+
     public static void Put(int fileNumber, long? position, byte value) =>
         Write(fileNumber, position, new[] { value });
 
@@ -546,6 +576,31 @@ public static class VBFiles
         ValidateFixedStringLength(length);
         var fixedValue = VBTypeStorage.WriteFixedString(value, length);
         WriteRecordRaw(fileNumber, FixedStringEncoding.GetBytes(fixedValue));
+    }
+
+    /// <summary>
+    /// Writes the descriptor that VB6 prefixes to an array member of a user-defined type. The
+    /// element payload is emitted separately so nested UDT members can use the same record walker.
+    /// </summary>
+    public static void PutDynamicArrayDescriptor<T>(int fileNumber, VBArray<T>? value)
+    {
+        var rank = value?.Rank ?? 0;
+        if (rank > 60)
+        {
+            throw new InvalidDataException("Dynamic UDT arrays support at most 60 dimensions.");
+        }
+
+        PutRaw(fileNumber, checked((short)rank));
+        if (value is null)
+        {
+            return;
+        }
+
+        for (var dimension = 1; dimension <= rank; dimension++)
+        {
+            PutRaw(fileNumber, value.LBound(dimension));
+            PutRaw(fileNumber, value.UBound(dimension));
+        }
     }
 
     private static byte[] Read(int fileNumber, long? position, int count)

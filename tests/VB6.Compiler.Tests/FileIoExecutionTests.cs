@@ -282,6 +282,79 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsDynamicUdtArrayMembers()
+    {
+        Run("""
+            Type Child
+                Value As Long
+            End Type
+
+            Type Record
+                Children() As Child
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                ReDim written.Children(1 To 2)
+                written.Children(1).Value = 100
+                written.Children(2).Value = 200
+
+                Open "dynamic-array-record.bin" For Binary As #1
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "dynamic-array-record.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print LBound(readBack.Children)
+                Debug.Print UBound(readBack.Children)
+                Debug.Print readBack.Children(1).Value
+                Debug.Print readBack.Children(2).Value
+            End Sub
+            """,
+            "18",
+            "1",
+            "2",
+            "100",
+            "200");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsUnallocatedDynamicUdtArrayMembers()
+    {
+        Run("""
+            Type Record
+                Values() As Long
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                Open "empty-dynamic-array-record.bin" For Binary As #1
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "empty-dynamic-array-record.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Open "empty-dynamic-array-record.bin" For Binary As #1
+                Put #1, 1, readBack
+                Debug.Print LOF(1)
+                Close #1
+            End Sub
+            """,
+            "2",
+            "2");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsRandomFixedStringUdtRecords()
     {
         Run("""

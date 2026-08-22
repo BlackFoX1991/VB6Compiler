@@ -91,6 +91,12 @@ public sealed class VBArray<T> : IVBArray
     /// </summary>
     public T GetValueAtFlatIndex(int index) => _items[index];
 
+    /// <summary>
+    /// Returns a writable reference by physical array order. Record I/O uses this when a dynamic
+    /// array member has to be populated element by element after its descriptor is read.
+    /// </summary>
+    public ref T GetReferenceAtFlatIndex(int index) => ref _items[index];
+
     object? IVBArray.GetObjectValue(int[] indices) => this[indices];
 
     void IVBArray.SetObjectValue(int[] indices, object? value)
@@ -279,6 +285,8 @@ public sealed class VBArray<T> : IVBArray
 /// <summary>Late-bound array operations for Variant values.</summary>
 public static class VBArrayOperations
 {
+    public static bool IsAllocated(object? value) => value is IVBArray;
+
     public static int LBound(object? value, int dimension = 1) => GetArray(value).LBound(dimension);
 
     public static int UBound(object? value, int dimension = 1) => GetArray(value).UBound(dimension);

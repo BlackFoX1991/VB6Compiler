@@ -79,6 +79,7 @@ public static class IrDumper
         IrGlobalPlace global => $"global::{global.Global.Name}",
         IrFieldPlace field => $"{FormatPlace(field.Receiver)}.{field.Field.Name}",
         IrArrayElementPlace element => $"{FormatExpression(element.Array)}[...]",
+        IrArrayFlatElementPlace element => $"{FormatExpression(element.Array)}[flat]",
         IrIndirectPlace indirect => $"*{FormatExpression(indirect.Address)}",
         IrThisPlace thisPlace => $"this<{thisPlace.ClassType.Name}>",
         IrAccessorPlace => "<accessor>",

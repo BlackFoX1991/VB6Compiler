@@ -163,6 +163,10 @@ internal static class VB6TestIr
                 }
 
                 break;
+            case IrArrayFlatElementPlace element:
+                Visit(element.Array, collected);
+                Visit(element.Index, collected);
+                break;
             case IrIndirectPlace indirect:
                 Visit(indirect.Address, collected);
                 break;

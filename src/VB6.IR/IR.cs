@@ -180,6 +180,11 @@ public sealed record IrArrayElementPlace(
     ImmutableArray<IrExpression> Indices,
     TypeSymbol ElementType) : IrPlace(ElementType);
 
+public sealed record IrArrayFlatElementPlace(
+    IrExpression Array,
+    IrExpression Index,
+    TypeSymbol ElementType) : IrPlace(ElementType);
+
 public sealed record IrIndirectPlace(
     IrExpression Address,
     TypeSymbol ElementType) : IrPlace(ElementType);
@@ -466,9 +471,11 @@ public enum IrRuntimeMethod
     FileGetRawBoolean,
     FileGetRawString,
     FileGetRawFixedString,
+    FileGetDynamicArray,
     FilePut,
     FilePutRaw,
     FilePutRawFixedString,
+    FilePutDynamicArrayDescriptor,
     FileLineInput,
     FileInputField,
     FileFreeFile,
@@ -502,6 +509,7 @@ public enum IrRuntimeMethod
     ArrayClear,
     ArrayLBound,
     ArrayUBound,
+    ArrayIsAllocated,
     ArrayEnumerateValues,
 
     FixedStringRead,

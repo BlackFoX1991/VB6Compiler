@@ -1124,6 +1124,12 @@ public static class IrLowerer
                 var field = new IrFieldPlace(target, _program.GetField(member));
                 if (member.Type is ArrayTypeSymbol array)
                 {
+                    if (!member.HasArrayBounds)
+                    {
+                        EmitBinaryRecordGetDynamicArray(field, array, fileNumber);
+                        continue;
+                    }
+
                     var arrayExpression = new IrEnsureArrayExpression(
                         field,
                         array,
@@ -1188,6 +1194,12 @@ public static class IrLowerer
                 var field = new IrFieldPlace(source, _program.GetField(member));
                 if (member.Type is ArrayTypeSymbol array)
                 {
+                    if (!member.HasArrayBounds)
+                    {
+                        EmitBinaryRecordPutDynamicArray(field, array, fileNumber);
+                        continue;
+                    }
+
                     var arrayExpression = new IrEnsureArrayExpression(
                         field,
                         array,
@@ -1238,6 +1250,110 @@ public static class IrLowerer
                 TypeSymbol.Error,
                 fileNumber,
                 new IrLoadExpression(source))));
+        }
+
+        private void EmitBinaryRecordGetDynamicArray(
+            IrPlace field,
+            ArrayTypeSymbol arrayType,
+            IrExpression fileNumber)
+        {
+            Emit(new IrStoreInstruction(
+                field,
+                Runtime(IrRuntimeMethod.FileGetDynamicArray, arrayType, fileNumber)));
+
+            var array = NewLocal("__file_get_dynamic_array", arrayType, compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(array),
+                new IrLoadExpression(field)));
+            EmitDynamicArrayRecordElements(array, arrayType, fileNumber, forWrite: false);
+        }
+
+        private void EmitBinaryRecordPutDynamicArray(
+            IrPlace field,
+            ArrayTypeSymbol arrayType,
+            IrExpression fileNumber)
+        {
+            var array = NewLocal("__file_put_dynamic_array", arrayType, compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(array),
+                new IrLoadExpression(field)));
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FilePutDynamicArrayDescriptor,
+                TypeSymbol.Error,
+                fileNumber,
+                new IrLoadExpression(new IrLocalPlace(array)))));
+            EmitDynamicArrayRecordElements(array, arrayType, fileNumber, forWrite: true);
+        }
+
+        private void EmitDynamicArrayRecordElements(
+            IrLocal array,
+            ArrayTypeSymbol arrayType,
+            IrExpression fileNumber,
+            bool forWrite)
+        {
+            var allocated = NewBlock(forWrite ? "record_put_array_allocated" : "record_get_array_allocated");
+            var exit = NewBlock(forWrite ? "record_put_array_exit" : "record_get_array_exit");
+            Terminate(new IrConditionalTerminator(
+                Runtime(
+                    IrRuntimeMethod.ArrayIsAllocated,
+                    TypeSymbol.Boolean,
+                    new IrLoadExpression(new IrLocalPlace(array))),
+                allocated.Id,
+                exit.Id));
+
+            _current = allocated;
+            var index = NewLocal(
+                forWrite ? "__file_put_array_index" : "__file_get_array_index",
+                TypeSymbol.Long,
+                compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(index),
+                new IrConstantExpression(0, TypeSymbol.Long)));
+
+            var test = NewBlock(forWrite ? "record_put_array_test" : "record_get_array_test");
+            var body = NewBlock(forWrite ? "record_put_array_body" : "record_get_array_body");
+            var increment = NewBlock(forWrite ? "record_put_array_increment" : "record_get_array_increment");
+            Terminate(new IrGotoTerminator(test.Id));
+
+            _current = test;
+            Terminate(new IrConditionalTerminator(
+                Runtime(
+                    IrRuntimeMethod.Less,
+                    TypeSymbol.Boolean,
+                    new IrLoadExpression(new IrLocalPlace(index)),
+                    new IrArrayCallExpression(
+                        IrArrayOperation.Length,
+                        new IrLoadExpression(new IrLocalPlace(array)),
+                        ImmutableArray<IrExpression>.Empty,
+                        TypeSymbol.Long)),
+                body.Id,
+                exit.Id));
+
+            _current = body;
+            var element = new IrArrayFlatElementPlace(
+                new IrLoadExpression(new IrLocalPlace(array)),
+                new IrLoadExpression(new IrLocalPlace(index)),
+                arrayType.ElementType);
+            if (forWrite)
+            {
+                EmitBinaryRecordPutElement(element, arrayType.ElementType, fileNumber);
+            }
+            else
+            {
+                EmitBinaryRecordGetElement(element, arrayType.ElementType, fileNumber);
+            }
+            GotoIfOpen(increment.Id);
+
+            _current = increment;
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(index),
+                Runtime(
+                    IrRuntimeMethod.AddLong,
+                    TypeSymbol.Long,
+                    new IrLoadExpression(new IrLocalPlace(index)),
+                    new IrConstantExpression(1, TypeSymbol.Long))));
+            Terminate(new IrGotoTerminator(test.Id));
+            _current = exit;
         }
 
         private static void EnsureBinaryRecordLayout(UserDefinedTypeSymbol type)

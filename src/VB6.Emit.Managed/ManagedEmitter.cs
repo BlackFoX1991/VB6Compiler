@@ -888,6 +888,10 @@ public sealed class ManagedEmitter
                     EmitArrayElementAddress(encoder, procedure, element);
                     EmitLoadIndirect(encoder, element.ElementType);
                     break;
+                case IrArrayFlatElementPlace element:
+                    EmitArrayFlatElementAddress(encoder, procedure, element);
+                    EmitLoadIndirect(encoder, element.ElementType);
+                    break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
                     EmitLoadIndirect(encoder, indirect.ElementType);
@@ -930,6 +934,11 @@ public sealed class ManagedEmitter
                     break;
                 case IrArrayElementPlace element:
                     EmitArrayElementAddress(encoder, procedure, element);
+                    EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
+                    EmitStoreIndirect(encoder, element.ElementType);
+                    break;
+                case IrArrayFlatElementPlace element:
+                    EmitArrayFlatElementAddress(encoder, procedure, element);
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
                     EmitStoreIndirect(encoder, element.ElementType);
                     break;
@@ -978,6 +987,9 @@ public sealed class ManagedEmitter
                 case IrArrayElementPlace element:
                     EmitArrayElementAddress(encoder, procedure, element);
                     break;
+                case IrArrayFlatElementPlace element:
+                    EmitArrayFlatElementAddress(encoder, procedure, element);
+                    break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
                     break;
@@ -1002,6 +1014,23 @@ public sealed class ManagedEmitter
 
         private void EmitRuntimeCall(InstructionEncoder encoder, IrProcedure procedure, IrRuntimeCallExpression call)
         {
+            if (call.Method is IrRuntimeMethod.FileGetDynamicArray or IrRuntimeMethod.FilePutDynamicArrayDescriptor)
+            {
+                foreach (var argument in call.Arguments)
+                {
+                    EmitExpression(encoder, procedure, argument.Expression);
+                }
+
+                var arrayType = call.Method == IrRuntimeMethod.FileGetDynamicArray
+                    ? (ArrayTypeSymbol)call.ResultType
+                    : (ArrayTypeSymbol)call.Arguments[1].Expression.Type;
+                var methodName = call.Method == IrRuntimeMethod.FileGetDynamicArray
+                    ? "GetDynamicArray"
+                    : "PutDynamicArrayDescriptor";
+                encoder.Call(GetFileDynamicArrayReference(methodName, arrayType.ElementType));
+                return;
+            }
+
             var info = ResolveRuntimeMethod(call, out var skippedArgument);
             var parameters = info.GetParameters();
             var emittedIndex = 0;
@@ -1250,6 +1279,22 @@ public sealed class ManagedEmitter
                 returnByRef: true,
                 returnUsesTypeParameter: true,
                 typeof(int[])));
+        }
+
+        private void EmitArrayFlatElementAddress(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrArrayFlatElementPlace element)
+        {
+            EmitExpression(encoder, procedure, element.Array);
+            EmitExpression(encoder, procedure, element.Index);
+            encoder.Call(GetArrayMemberReference(
+                ((ArrayTypeSymbol)element.Array.Type).ElementType,
+                "GetReferenceAtFlatIndex",
+                element.ElementType,
+                returnByRef: true,
+                returnUsesTypeParameter: true,
+                typeof(int)));
         }
 
         private void EmitArrayCall(InstructionEncoder encoder, IrProcedure procedure, IrArrayCallExpression call)
@@ -2069,6 +2114,58 @@ public sealed class ManagedEmitter
             return spec;
         }
 
+        private EntityHandle GetFileDynamicArrayReference(string name, TypeSymbol elementType)
+        {
+            var specKey = "VBFiles::" + name + "<" + elementType.Name + ">";
+            if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
+            {
+                return cachedSpec;
+            }
+
+            var definitionKey = "VBFiles::" + name;
+            if (!_memberReferences.TryGetValue(definitionKey, out var definition))
+            {
+                var blob = new BlobBuilder();
+                new BlobEncoder(blob)
+                    .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
+                    .Parameters(
+                        name == "GetDynamicArray" ? 1 : 2,
+                        returnType =>
+                        {
+                            if (name == "GetDynamicArray")
+                            {
+                                EncodeOpenVBArray(returnType.Type());
+                            }
+                            else
+                            {
+                                returnType.Void();
+                            }
+                        },
+                        parameters =>
+                        {
+                            parameters.AddParameter().Type().Int32();
+                            if (name != "GetDynamicArray")
+                            {
+                                EncodeOpenVBArray(parameters.AddParameter().Type());
+                            }
+                        });
+                definition = _metadata.AddMemberReference(
+                    GetReflectionTypeReference(typeof(VBFiles)),
+                    _metadata.GetOrAddString(name),
+                    _metadata.GetOrAddBlob(blob));
+                _memberReferences.Add(definitionKey, definition);
+            }
+
+            var specBlob = new BlobBuilder();
+            var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
+            EncodeType(arguments.AddArgument(), elementType);
+            var spec = (EntityHandle)_metadata.AddMethodSpecification(
+                definition,
+                _metadata.GetOrAddBlob(specBlob));
+            _methodSpecifications.Add(specKey, spec);
+            return spec;
+        }
+
         /// <summary>Encodes <c>VBArray&lt;!!0&gt;</c>, the generic method's own type parameter.</summary>
         private void EncodeOpenVBArray(SignatureTypeEncoder encoder)
         {
@@ -2133,6 +2230,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ErrorRaise) return Static(typeof(VBErrors), nameof(VBErrors.Raise), typeof(int), typeof(string), typeof(string), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.FunctionTypeName) return Static(typeof(VBFunctions), nameof(VBFunctions.TypeName), typeof(object));
             if (m == IrRuntimeMethod.FunctionSwitch) return Static(typeof(VBFunctions), nameof(VBFunctions.Switch), typeof(VBArray<object>));
+            if (m == IrRuntimeMethod.ArrayIsAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.IsAllocated), typeof(object));
 
             if (m is IrRuntimeMethod.Equal or IrRuntimeMethod.NotEqual or IrRuntimeMethod.Less or IrRuntimeMethod.LessOrEqual or IrRuntimeMethod.Greater or IrRuntimeMethod.GreaterOrEqual or IrRuntimeMethod.Concat)
                 return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));

@@ -106,6 +106,41 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void DynamicUdtArrayDescriptors_RoundTripRankBoundsAndPayloadShape()
+    {
+        WithTemporaryFile(path =>
+        {
+            var written = new VBArray<int>(
+                new VBArrayBound(1, 2),
+                new VBArrayBound(-1, 0));
+            written[1, -1] = 10;
+            written[2, 0] = 40;
+
+            VBFiles.OpenBinary(1, path);
+            VBFiles.PutDynamicArrayDescriptor(1, written);
+            foreach (var value in written.EnumerateValues())
+            {
+                VBFiles.PutRaw(1, value);
+            }
+            VBFiles.Close(1);
+
+            VBFiles.OpenBinary(1, path);
+            var readBack = VBFiles.GetDynamicArray<int>(1);
+            Assert.IsNotNull(readBack);
+            Assert.AreEqual(2, readBack.Rank);
+            Assert.AreEqual(1, readBack.LBound(1));
+            Assert.AreEqual(2, readBack.UBound(1));
+            Assert.AreEqual(-1, readBack.LBound(2));
+            Assert.AreEqual(0, readBack.UBound(2));
+            Assert.AreEqual(10, VBFiles.GetRawLong(1));
+            Assert.AreEqual(0, VBFiles.GetRawLong(1));
+            Assert.AreEqual(0, VBFiles.GetRawLong(1));
+            Assert.AreEqual(40, VBFiles.GetRawLong(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void TextModes_CreateTruncateAppendAndWriteVb6Lines()
     {
         WithTemporaryFile(path =>
