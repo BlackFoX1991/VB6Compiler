@@ -2,7 +2,8 @@ namespace VB6.Semantics;
 
 /// <summary>
 /// Describes the subset of UDT layouts that can be transferred by VB6 binary Get/Put without
-/// depending on CLR padding, references, or a native ABI.
+/// depending on CLR padding, references, or a native ABI. Fixed array members are expanded by the
+/// IR lowerer; dynamic arrays and unsupported element layouts remain outside this contract.
 /// </summary>
 public static class UserDefinedTypeFileLayout
 {
@@ -23,10 +24,15 @@ public static class UserDefinedTypeFileLayout
 
         foreach (var member in type.Members)
         {
-            if (member.HasArrayBounds || member.Type is ArrayTypeSymbol)
+            if (member.Type is ArrayTypeSymbol array)
             {
-                activePath.Remove(type);
-                return false;
+                if (!member.HasArrayBounds || !IsBinaryTransferableElement(array.ElementType, activePath))
+                {
+                    activePath.Remove(type);
+                    return false;
+                }
+
+                continue;
             }
 
             if (member.Type is UserDefinedTypeSymbol nested &&
@@ -46,6 +52,13 @@ public static class UserDefinedTypeFileLayout
         activePath.Remove(type);
         return true;
     }
+
+    private static bool IsBinaryTransferableElement(
+        TypeSymbol type,
+        HashSet<UserDefinedTypeSymbol> activePath) =>
+        type is UserDefinedTypeSymbol nested
+            ? IsBinaryTransferable(nested, activePath)
+            : IsBinaryScalar(type);
 
     private static bool IsBinaryScalar(TypeSymbol type) =>
         type == TypeSymbol.Byte ||

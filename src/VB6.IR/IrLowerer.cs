@@ -1121,19 +1121,48 @@ public static class IrLowerer
             foreach (var member in type.Members)
             {
                 var field = new IrFieldPlace(target, _program.GetField(member));
+                if (member.Type is ArrayTypeSymbol array)
+                {
+                    var arrayExpression = new IrEnsureArrayExpression(
+                        field,
+                        array,
+                        MemberArrayBounds(member));
+                    foreach (var indices in EnumerateArrayIndices(member.ArrayBounds))
+                    {
+                        var element = new IrArrayElementPlace(arrayExpression, indices, array.ElementType);
+                        EmitBinaryRecordGetElement(element, array.ElementType, fileNumber);
+                    }
+
+                    continue;
+                }
+
                 if (member.Type is UserDefinedTypeSymbol nested)
                 {
                     EmitBinaryRecordGetFields(field, nested, fileNumber);
                     continue;
                 }
 
-                Emit(new IrStoreInstruction(
-                    field,
-                    Runtime(
-                        FileGetRawMethod(member.Type),
-                        member.Type,
-                        fileNumber)));
+                EmitBinaryRecordGetElement(field, member.Type, fileNumber);
             }
+        }
+
+        private void EmitBinaryRecordGetElement(
+            IrPlace target,
+            TypeSymbol type,
+            IrExpression fileNumber)
+        {
+            if (type is UserDefinedTypeSymbol nested)
+            {
+                EmitBinaryRecordGetFields(target, nested, fileNumber);
+                return;
+            }
+
+            Emit(new IrStoreInstruction(
+                target,
+                Runtime(
+                    FileGetRawMethod(type),
+                    type,
+                    fileNumber)));
         }
 
         private void EmitBinaryRecordPutFields(
@@ -1144,18 +1173,47 @@ public static class IrLowerer
             foreach (var member in type.Members)
             {
                 var field = new IrFieldPlace(source, _program.GetField(member));
+                if (member.Type is ArrayTypeSymbol array)
+                {
+                    var arrayExpression = new IrEnsureArrayExpression(
+                        field,
+                        array,
+                        MemberArrayBounds(member));
+                    foreach (var indices in EnumerateArrayIndices(member.ArrayBounds))
+                    {
+                        var element = new IrArrayElementPlace(arrayExpression, indices, array.ElementType);
+                        EmitBinaryRecordPutElement(element, array.ElementType, fileNumber);
+                    }
+
+                    continue;
+                }
+
                 if (member.Type is UserDefinedTypeSymbol nested)
                 {
                     EmitBinaryRecordPutFields(field, nested, fileNumber);
                     continue;
                 }
 
-                Emit(new IrEvaluateInstruction(Runtime(
-                    IrRuntimeMethod.FilePutRaw,
-                    TypeSymbol.Error,
-                    fileNumber,
-                    new IrLoadExpression(field))));
+                EmitBinaryRecordPutElement(field, member.Type, fileNumber);
             }
+        }
+
+        private void EmitBinaryRecordPutElement(
+            IrPlace source,
+            TypeSymbol type,
+            IrExpression fileNumber)
+        {
+            if (type is UserDefinedTypeSymbol nested)
+            {
+                EmitBinaryRecordPutFields(source, nested, fileNumber);
+                return;
+            }
+
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FilePutRaw,
+                TypeSymbol.Error,
+                fileNumber,
+                new IrLoadExpression(source))));
         }
 
         private static void EnsureBinaryRecordLayout(UserDefinedTypeSymbol type)
@@ -2096,6 +2154,61 @@ public static class IrLowerer
                     new IrConstantExpression(bound.Lower, TypeSymbol.Long),
                     new IrConstantExpression(bound.Upper, TypeSymbol.Long)))
                 .ToImmutableArray();
+
+        private static IEnumerable<ImmutableArray<IrExpression>> EnumerateArrayIndices(
+            ImmutableArray<UserDefinedTypeArrayBound> bounds)
+        {
+            if (bounds.IsDefaultOrEmpty)
+            {
+                yield break;
+            }
+
+            var indices = new long[bounds.Length];
+            foreach (var combination in EnumerateArrayIndices(bounds, indices, 0))
+            {
+                yield return combination;
+            }
+        }
+
+        private static IEnumerable<ImmutableArray<IrExpression>> EnumerateArrayIndices(
+            ImmutableArray<UserDefinedTypeArrayBound> bounds,
+            long[] indices,
+            int dimension)
+        {
+            if (dimension == bounds.Length)
+            {
+                yield return indices
+                    .Select(index => (IrExpression)new IrConstantExpression(index, TypeSymbol.Long))
+                    .ToImmutableArray();
+                yield break;
+            }
+
+            var bound = bounds[dimension];
+            if (bound.Upper < bound.Lower)
+            {
+                throw new NotSupportedException("UDT array bounds must be non-empty for binary transfer.");
+            }
+
+            var count = checked(bound.Upper - bound.Lower + 1);
+            if (count > int.MaxValue)
+            {
+                throw new NotSupportedException("UDT array dimensions are too large for managed record emission.");
+            }
+
+            for (var index = bound.Lower; ; index++)
+            {
+                indices[dimension] = index;
+                foreach (var combination in EnumerateArrayIndices(bounds, indices, dimension + 1))
+                {
+                    yield return combination;
+                }
+
+                if (index == bound.Upper)
+                {
+                    break;
+                }
+            }
+        }
 
         private IrExpression LowerConversion(BoundConversionExpression conversion)
         {

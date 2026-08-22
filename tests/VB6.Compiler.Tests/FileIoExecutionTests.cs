@@ -237,6 +237,50 @@ public sealed class FileIoExecutionTests
             "321");
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsRandomUdtArrayMembers()
+    {
+        Run("""
+            Type Child
+                Value As Long
+            End Type
+
+            Type Record
+                Values(0 To 1, 1 To 2) As Integer
+                Children(1 To 2) As Child
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                written.Values(0, 1) = 10
+                written.Values(1, 2) = 40
+                written.Children(1).Value = 100
+                written.Children(2).Value = 200
+
+                Open "random-array-record.bin" For Random As #1 Len = 16
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "random-array-record.bin" For Random As #1 Len = 16
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack.Values(0, 1)
+                Debug.Print readBack.Values(1, 2)
+                Debug.Print readBack.Children(1).Value
+                Debug.Print readBack.Children(2).Value
+            End Sub
+            """,
+            "16",
+            "10",
+            "40",
+            "100",
+            "200");
+    }
+
     /// <summary>Positions are one-based, and an omitted position continues where the last one stopped.</summary>
     [TestMethod]
     public void EmitManagedApplication_UsesOneBasedPositionsAndContinuesWhenOmitted()

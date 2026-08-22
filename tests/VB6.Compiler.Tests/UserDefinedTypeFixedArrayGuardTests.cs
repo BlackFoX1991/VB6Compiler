@@ -67,7 +67,7 @@ public sealed class UserDefinedTypeFixedArrayGuardTests
     }
 
     [TestMethod]
-    public void Lower_KeepsFixedUdtElementArrayMemberGuarded()
+    public void Lower_AllowsFixedUdtElementArrayMember()
     {
         var lowering = VBCompilation.Create("""
             Type Child
@@ -83,7 +83,8 @@ public sealed class UserDefinedTypeFixedArrayGuardTests
             End Sub
             """, "test.bas").Lower();
 
-        Assert.IsFalse(lowering.Success);
-        Assert.IsTrue(lowering.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0046"));
+        Assert.IsTrue(
+            lowering.Success,
+            string.Join(Environment.NewLine, lowering.Diagnostics.Select(diagnostic => diagnostic.ToString())));
     }
 }

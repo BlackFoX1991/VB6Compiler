@@ -6,10 +6,10 @@ using VB6.Syntax.Text;
 namespace VB6.Semantics;
 
 /// <summary>
-/// Scalar UDT values and fixed arrays of supported primitive values can be lowered as managed
-/// value types. This validator keeps dynamic arrays, fixed-length String arrays, arrays of UDTs,
-/// and recursive by-value UDT layouts guarded until their VB6 storage semantics are represented
-/// explicitly.
+/// Scalar UDT values and fixed arrays of supported primitive or non-recursive UDT values can be
+/// lowered as managed value types. This validator keeps dynamic UDT arrays, fixed-length String
+/// arrays, and recursive by-value UDT layouts guarded until their VB6 storage semantics are
+/// represented explicitly.
 /// </summary>
 public static class UserDefinedTypeValueGuard
 {
@@ -178,7 +178,8 @@ public static class UserDefinedTypeValueGuard
                 // A member without bounds is a dynamic array, allocated by ReDim rather than by the
                 // enclosing value. The backend already emits it as a plain field and deep-copies it
                 // in the clone, so only the element type still has to be one it can lay out.
-                if (!IsSupportedArrayElementType(arrayType.ElementType))
+                if (!IsSupportedArrayElementType(arrayType.ElementType, activePath) ||
+                    (!member.HasArrayBounds && arrayType.ElementType is UserDefinedTypeSymbol))
                 {
                     activePath.Remove(type);
                     return true;
@@ -199,7 +200,9 @@ public static class UserDefinedTypeValueGuard
         return false;
     }
 
-    private static bool IsSupportedArrayElementType(TypeSymbol type) =>
+    private static bool IsSupportedArrayElementType(
+        TypeSymbol type,
+        HashSet<UserDefinedTypeSymbol> activePath) =>
         type == TypeSymbol.Byte ||
         type == TypeSymbol.Integer ||
         type == TypeSymbol.Long ||
@@ -208,7 +211,8 @@ public static class UserDefinedTypeValueGuard
         type == TypeSymbol.String ||
         type == TypeSymbol.Boolean ||
         type == TypeSymbol.Double ||
-        type == TypeSymbol.Currency;
+        type == TypeSymbol.Currency ||
+        type is UserDefinedTypeSymbol nested && !RequiresStorageGuard(nested, activePath);
 
     private static void AddDiagnostic(
         SourceText text,
