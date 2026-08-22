@@ -74,7 +74,7 @@ Seit dem Messpunkt sind mehrere bisher offene, backendunabhängige Kernpfade imp
 regressionsgesichert: `Like` mit `Option Compare Binary/Text` (Wildcard-, Zeichenlisten- und
 Bereichsmuster), `Is` für Variant-/Hostobjektreferenzidentität, variable String-Transfers bei
 binärem `Get`/`Put` mit Zwei-Byte-Längenpräfix sowie `Debug.Print` mit VB6-naher numerischer
-Formatierung. `InStr`, `InStrRev`, zweiargumentiges `Mid`, `InputBox` als hostfähiger headless
+Formatierung. `InStr`, `InStrRev`, zweiargumentiges `Mid`, `MsgBox`/`InputBox` als hostfähige headless
 Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfalls über Symbol,
 IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
 Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. Skalare UDT-Records werden
@@ -568,8 +568,8 @@ Nach Korpusbedarf priorisiert:
    und lesen echte Dateien. Variable `String`-Transfers, `Line Input`, grundlegende Stringfelder und
    typisierte numerische, Boolean- und Currency-Ziele für `Input #` sind ergänzt; Datums-Konvertierung,
    UDT-Arrays, variable Stringfelder, Random-Records und die `Len`-Klausel bleiben offen.
-3. `MsgBox`/`InputBox` als hostfähige Verträge; `InputBox` liefert im headless Runtime-Profil den
-   Defaultwert
+3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
+   `InputBox` im headless Runtime-Profil den Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere
    Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
    für den aktuellen String-/Variant-Subset implementiert.
