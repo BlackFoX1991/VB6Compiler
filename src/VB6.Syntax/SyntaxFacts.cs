@@ -70,6 +70,7 @@ public static class SyntaxFacts
         "WITH" => SyntaxKind.WithKeyword,
         "IS" => SyntaxKind.IsKeyword,
         "TYPEOF" => SyntaxKind.TypeOfKeyword,
+        "IMPLEMENTS" => SyntaxKind.ImplementsKeyword,
         _ => SyntaxKind.IdentifierToken
     };
 }

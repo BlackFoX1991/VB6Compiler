@@ -174,4 +174,111 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void AnalyzeProject_ResolvesImplementsContractsAndPrefixedMembers()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerImplementsTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Implements.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Implements"
+                Class=IWorker; IWorker.cls
+                Class=Worker; Worker.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "IWorker.cls"), """
+                Option Explicit
+
+                Public Sub Run(ByVal value As Long)
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Worker.cls"), """
+                Option Explicit
+
+                Implements IWorker
+
+                Private Sub IWorker_Run(ByVal value As Long)
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+            var worker = analysis.SemanticModel!.ClassTypes.Single(type => type.Name == "Worker");
+            CollectionAssert.AreEqual(
+                new[] { "IWorker" },
+                worker.ImplementedInterfaces.Select(type => type.Name).ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AnalyzeProjectReportsMissingImplementsMember()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerMissingImplementsTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "MissingImplements.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="MissingImplements"
+                Class=IWorker; IWorker.cls
+                Class=Worker; Worker.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "IWorker.cls"), """
+                Public Sub Run()
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Worker.cls"), """
+                Implements IWorker
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Sub Main()
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.ProjectDiagnostics.Any(diagnostic => diagnostic.Code == "VB6PRJ0012"));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

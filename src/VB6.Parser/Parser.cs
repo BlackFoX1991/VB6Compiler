@@ -73,6 +73,11 @@ public sealed class Parser
             return ParseOptionCompare();
         }
 
+        if (Current.Kind == SyntaxKind.ImplementsKeyword)
+        {
+            return ParseImplementsStatement();
+        }
+
         if (Current.Kind == SyntaxKind.DeclareKeyword)
         {
             return ParseDeclareDeclaration(null);
@@ -699,6 +704,14 @@ public sealed class Parser
             parameters,
             closeParenthesis,
             visibilityKeyword);
+    }
+
+    private ImplementsStatementSyntax ParseImplementsStatement()
+    {
+        var implementsKeyword = MatchToken(SyntaxKind.ImplementsKeyword);
+        var typeToken = MatchToken(SyntaxKind.IdentifierToken);
+        ConsumeLineTerminator();
+        return new ImplementsStatementSyntax(implementsKeyword, typeToken);
     }
 
     private ImmutableArray<StatementSyntax> ParseProcedureStatements(SyntaxKind endingKeyword) =>

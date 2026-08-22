@@ -37,4 +37,18 @@ public sealed class ClassMemberParserTests
         Assert.AreEqual(1, get.Statements.Length);
     }
 
+    [TestMethod]
+    public void Parse_PreservesImplementsContract()
+    {
+        var result = new Parser(SourceText.From(
+            "Implements IWorker\r\n",
+            "Worker.cls")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Count(diagnostic =>
+            diagnostic.Severity == VB6.Syntax.Diagnostics.DiagnosticSeverity.Error));
+        var implements = (ImplementsStatementSyntax)result.Root.Members[0];
+        Assert.AreEqual("Implements", implements.ImplementsKeyword.Text);
+        Assert.AreEqual("IWorker", implements.TypeToken.Text);
+    }
+
 }

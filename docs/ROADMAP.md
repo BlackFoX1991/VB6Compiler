@@ -516,13 +516,13 @@ Zwei Nachträge:
       Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
 - [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-Identität/Interop bleibt offen
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission steht; indexierte Property-Lese-/Schreibzugriffe sind emittiert, vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
-- [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements`, COM und Forms bleiben offen
+- [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements`-Vertragsprüfung steht, CLR-/COM-Dispatch und Forms bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag steht; vollständiger Sink-Lifecycle, Umverdrahtung und COM-Events bleiben offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
 
 `[~]` kennzeichnet einen begonnenen, teilweise ausgabefähigen Slice. Der Managed-Kern ist jetzt
-ausgabefähig; als nächste Klassenstufe folgen `Implements`, COM-Identität/Dispatch, vollständige
-Event-Sink-Lebenszyklen sowie vollständige Default-Property-Regeln.
+ausgabefähig; als nächste Klassenstufe folgen CLR-/COM-Dispatch, vollständige Event-Sink-
+Lebenszyklen sowie vollständige Default-Property-Regeln.
 
 ## Meilenstein 6 — IR und Fehlerbehandlung
 

@@ -27,6 +27,7 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public ImmutableArray<ProcedureSymbol> Procedures => _definition.Procedures;
     public ImmutableArray<PropertySymbol> Properties => _definition.Properties;
     public ImmutableArray<EventSymbol> Events => _definition.Events;
+    public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces => _definition.ImplementedInterfaces;
     public bool MembersDefined => _definition.IsDefined;
 
     public bool TryGetProcedure(string name, out ProcedureSymbol procedure) =>
@@ -99,6 +100,14 @@ public sealed record ClassTypeSymbol : TypeSymbol
         return true;
     }
 
+    public void SetImplementedInterfaces(IEnumerable<ClassTypeSymbol> interfaces)
+    {
+        ArgumentNullException.ThrowIfNull(interfaces);
+        _definition.ImplementedInterfaces = interfaces
+            .Distinct()
+            .ToImmutableArray();
+    }
+
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
 
     private sealed class ClassTypeDefinition
@@ -106,6 +115,8 @@ public sealed record ClassTypeSymbol : TypeSymbol
         public ImmutableArray<ProcedureSymbol> Procedures { get; set; } = ImmutableArray<ProcedureSymbol>.Empty;
         public ImmutableArray<PropertySymbol> Properties { get; set; } = ImmutableArray<PropertySymbol>.Empty;
         public ImmutableArray<EventSymbol> Events { get; set; } = ImmutableArray<EventSymbol>.Empty;
+        public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces { get; set; } =
+            ImmutableArray<ClassTypeSymbol>.Empty;
         public ImmutableDictionary<string, ProcedureSymbol> ProcedureMap { get; set; } =
             ImmutableDictionary.Create<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
         public ImmutableDictionary<PropertyKey, PropertySymbol> PropertyMap { get; set; } =

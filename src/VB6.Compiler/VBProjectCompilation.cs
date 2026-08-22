@@ -364,6 +364,7 @@ public sealed class VBProjectCompilation
         IReadOnlyDictionary<string, ClassTypeSymbol> classTypes,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
+        var interfaceRelations = new List<(ClassTypeSymbol Implementor, ImplementsStatementSyntax Declaration, string FilePath)>();
         foreach (var module in modules.Where(module => module.Item.Kind is
                      VBProjectItemKind.Class or VBProjectItemKind.Form or VBProjectItemKind.UserControl))
         {
@@ -410,6 +411,11 @@ public sealed class VBProjectCompilation
                 .OfType<EventDeclarationSyntax>()
                 .Select(Binder.CreateEventSymbol);
 
+            foreach (var declaration in module.SemanticRoot.Members.OfType<ImplementsStatementSyntax>())
+            {
+                interfaceRelations.Add((classType, declaration, module.FilePath));
+            }
+
             if (!classType.TryDefineMembers(procedures, properties, events, out var duplicateMemberName))
             {
                 projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
@@ -418,6 +424,87 @@ public sealed class VBProjectCompilation
                     module.FilePath));
             }
         }
+
+        foreach (var relation in interfaceRelations)
+        {
+            if (!classTypes.TryGetValue(relation.Declaration.TypeToken.Text, out var interfaceType))
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0010",
+                    $"Class '{relation.Implementor.Name}' implements unknown class '{relation.Declaration.TypeToken.Text}'.",
+                    relation.FilePath));
+                continue;
+            }
+
+            if (ReferenceEquals(relation.Implementor, interfaceType))
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0011",
+                    $"Class '{relation.Implementor.Name}' cannot implement itself.",
+                    relation.FilePath));
+                continue;
+            }
+
+            relation.Implementor.SetImplementedInterfaces(
+                relation.Implementor.ImplementedInterfaces
+                    .Append(interfaceType)
+                    .Distinct());
+            ValidateInterfaceContract(
+                relation.Implementor,
+                interfaceType,
+                relation.FilePath,
+                projectDiagnostics);
+        }
+
+        static void ValidateInterfaceContract(
+            ClassTypeSymbol implementor,
+            ClassTypeSymbol interfaceType,
+            string filePath,
+            ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
+        {
+            foreach (var procedure in interfaceType.Procedures)
+            {
+                var implementationName = interfaceType.Name + "_" + procedure.Name;
+                if (!implementor.TryGetProcedure(implementationName, out var implementation) ||
+                    !HaveSameProcedureSignature(procedure, implementation))
+                {
+                    projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                        "VB6PRJ0012",
+                        $"Class '{implementor.Name}' does not provide a compatible implementation for '{implementationName}'.",
+                        filePath));
+                }
+            }
+
+            foreach (var property in interfaceType.Properties)
+            {
+                var implementationName = interfaceType.Name + "_" + property.Name;
+                if (!implementor.TryGetProperty(implementationName, property.Accessor, out var implementation) ||
+                    !HaveSamePropertySignature(property, implementation))
+                {
+                    projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                        "VB6PRJ0012",
+                        $"Class '{implementor.Name}' does not provide a compatible implementation for " +
+                        $"'{implementationName}' ({property.Accessor}).",
+                        filePath));
+                }
+            }
+        }
+
+        static bool HaveSameProcedureSignature(ProcedureSymbol expected, ProcedureSymbol actual) =>
+            expected.ReturnType == actual.ReturnType &&
+            HaveSameParameters(expected.Parameters, actual.Parameters);
+
+        static bool HaveSamePropertySignature(PropertySymbol expected, PropertySymbol actual) =>
+            expected.Type == actual.Type &&
+            HaveSameParameters(expected.Parameters, actual.Parameters);
+
+        static bool HaveSameParameters(
+            ImmutableArray<ParameterSymbol> expected,
+            ImmutableArray<ParameterSymbol> actual) =>
+            expected.Length == actual.Length &&
+            expected.Zip(actual).All(pair =>
+                pair.First.Type == pair.Second.Type &&
+                pair.First.PassingMode == pair.Second.PassingMode);
 
         static void AddReadWriteProperty(List<PropertySymbol> properties, string name, TypeSymbol type)
         {

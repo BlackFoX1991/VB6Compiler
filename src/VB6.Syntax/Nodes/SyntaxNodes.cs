@@ -221,6 +221,11 @@ public sealed record EventDeclarationSyntax(
     SyntaxToken CloseParenthesisToken,
     SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.EventDeclaration);
 
+/// <summary>A class contract declaration such as <c>Implements IFormatter</c>.</summary>
+public sealed record ImplementsStatementSyntax(
+    SyntaxToken ImplementsKeyword,
+    SyntaxToken TypeToken) : MemberSyntax(SyntaxKind.ImplementsStatement);
+
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,
     ImmutableArray<VariableDeclaratorSyntax> Declarators) : StatementSyntax(SyntaxKind.DimStatement)
