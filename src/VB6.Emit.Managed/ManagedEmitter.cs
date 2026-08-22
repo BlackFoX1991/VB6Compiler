@@ -1189,6 +1189,17 @@ public sealed class ManagedEmitter
                     $"Interface contract '{expression.ClassType.Name}' cannot be instantiated.");
             }
 
+            if (ReferenceEquals(expression.ClassType, VBStandardTypes.Collection))
+            {
+                encoder.Call(GetRuntimeMethodReference(
+                    typeof(VBCollection).GetMethod(
+                        nameof(VBCollection.Create),
+                        BindingFlags.Public | BindingFlags.Static,
+                        Type.EmptyTypes)
+                    ?? throw new MissingMethodException("VBCollection.Create is required.")));
+                return;
+            }
+
             if (!_classConstructorHandles.TryGetValue(expression.ClassType, out var constructor))
             {
                 throw new NotSupportedException(
@@ -1260,7 +1271,7 @@ public sealed class ManagedEmitter
         {
             EmitExpression(encoder, procedure, expression.Expression);
             encoder.OpCode(ILOpCode.Ldtoken);
-            encoder.Token(_classSymbolHandles[expression.TargetType]);
+            encoder.Token(GetTypeEntityHandle(expression.TargetType));
             encoder.Call(GetRuntimeMethodReference(
                 typeof(Type).GetMethod(
                     nameof(Type.GetTypeFromHandle),
@@ -1539,6 +1550,12 @@ public sealed class ManagedEmitter
             }
             if (type is ClassTypeSymbol classType)
             {
+                if (ReferenceEquals(classType, VBStandardTypes.Collection))
+                {
+                    encoder.Type(GetReflectionTypeReference(typeof(VBCollection)), isValueType: false);
+                    return;
+                }
+
                 encoder.Type(_classSymbolHandles[classType], isValueType: false);
                 return;
             }
@@ -1588,6 +1605,7 @@ public sealed class ManagedEmitter
         {
             if (type == TypeSymbol.Currency) return _vbCurrency;
             if (type is UserDefinedTypeSymbol udt) return _udtSymbolHandles[udt];
+            if (ReferenceEquals(type, VBStandardTypes.Collection)) return GetReflectionTypeReference(typeof(VBCollection));
             if (type is ClassTypeSymbol classType) return _classSymbolHandles[classType];
             if (type is ArrayTypeSymbol array) return GetArrayTypeSpecification(array);
             if (type == TypeSymbol.Byte) return GetReflectionTypeReference(typeof(byte));
@@ -2245,6 +2263,11 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryLSet) return Static(typeof(VBMemory), nameof(VBMemory.LSet), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.CollectionCreate) return Static(typeof(VBCollection), nameof(VBCollection.Create));
+            if (m == IrRuntimeMethod.CollectionCount) return Static(typeof(VBCollection), nameof(VBCollection.CountValue), typeof(VBCollection));
+            if (m == IrRuntimeMethod.CollectionItem) return Static(typeof(VBCollection), nameof(VBCollection.ItemValue), typeof(VBCollection), typeof(object));
+            if (m == IrRuntimeMethod.CollectionAdd) return Static(typeof(VBCollection), nameof(VBCollection.AddValue), typeof(VBCollection), typeof(object), typeof(object), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.CollectionRemove) return Static(typeof(VBCollection), nameof(VBCollection.RemoveValue), typeof(VBCollection), typeof(object));
             if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
             if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
             if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));

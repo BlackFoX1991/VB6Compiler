@@ -2108,9 +2108,18 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyRead(BoundPropertyAccessExpression expression)
         {
-            if (expression.Receiver.Type is not ClassTypeSymbol classType ||
+            if (expression.Receiver.Type is ClassTypeSymbol classType &&
+                ReferenceEquals(classType, VBStandardTypes.Collection))
+            {
+                return LowerCollectionProperty(
+                    expression.Property,
+                    expression.Receiver,
+                    ImmutableArray<BoundArgument>.Empty);
+            }
+
+            if (expression.Receiver.Type is not ClassTypeSymbol classTypeForProcedure ||
                 !_program.TryGetClassProcedure(
-                    classType,
+                    classTypeForProcedure,
                     expression.Property.Name,
                     PropertyAccessorKind.Get,
                     out var getter))
@@ -2127,6 +2136,15 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyInvocation(BoundPropertyInvocationExpression expression)
         {
+            if (expression.Receiver.Type is ClassTypeSymbol collectionType &&
+                ReferenceEquals(collectionType, VBStandardTypes.Collection))
+            {
+                return LowerCollectionProperty(
+                    expression.Property,
+                    expression.Receiver,
+                    expression.Arguments);
+            }
+
             if (expression.Receiver.Type is not ClassTypeSymbol classType ||
                 !_program.TryGetClassProcedure(
                     classType,
@@ -2149,6 +2167,12 @@ public static class IrLowerer
             ProcedureSymbol requested,
             ImmutableArray<BoundArgument> arguments)
         {
+            if (receiver.Type is ClassTypeSymbol collectionType &&
+                ReferenceEquals(collectionType, VBStandardTypes.Collection))
+            {
+                return LowerCollectionProcedure(requested, receiver, arguments);
+            }
+
             if (receiver.Type is not ClassTypeSymbol classType)
             {
                 throw new NotSupportedException(
@@ -2177,6 +2201,13 @@ public static class IrLowerer
             PropertySymbol property,
             ImmutableArray<BoundArgument> arguments)
         {
+            if (receiver.Type is ClassTypeSymbol collectionType &&
+                ReferenceEquals(collectionType, VBStandardTypes.Collection))
+            {
+                throw new NotSupportedException(
+                    $"Collection property '{property.Name}' is read-only in the current runtime slice.");
+            }
+
             if (receiver.Type is not ClassTypeSymbol classType)
             {
                 throw new NotSupportedException(
@@ -2204,6 +2235,49 @@ public static class IrLowerer
                 setter,
                 property.Type,
                 arguments.Select(argument => LowerValueCopy(argument.Expression)).ToImmutableArray());
+        }
+
+        private IrExpression LowerCollectionProperty(
+            PropertySymbol property,
+            BoundExpression receiver,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            var method = property.Name.Equals("Count", StringComparison.OrdinalIgnoreCase)
+                ? IrRuntimeMethod.CollectionCount
+                : property.Name.Equals("Item", StringComparison.OrdinalIgnoreCase)
+                ? IrRuntimeMethod.CollectionItem
+                : throw new NotSupportedException(
+                    $"Collection property '{property.Name}' has no managed runtime implementation.");
+
+            if (method == IrRuntimeMethod.CollectionCount && !arguments.IsDefaultOrEmpty)
+            {
+                throw new NotSupportedException("Collection.Count does not accept index arguments.");
+            }
+
+            var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.Length + 1);
+            lowered.Add(new IrCallArgument(LowerExpression(receiver)));
+            lowered.AddRange(arguments.Select(argument =>
+                new IrCallArgument(LowerValueCopy(argument.Expression))));
+            return new IrRuntimeCallExpression(method, lowered.ToImmutable(), property.Type);
+        }
+
+        private IrExpression LowerCollectionProcedure(
+            ProcedureSymbol procedure,
+            BoundExpression receiver,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            var method = procedure.Name.Equals("Add", StringComparison.OrdinalIgnoreCase)
+                ? IrRuntimeMethod.CollectionAdd
+                : procedure.Name.Equals("Remove", StringComparison.OrdinalIgnoreCase)
+                ? IrRuntimeMethod.CollectionRemove
+                : throw new NotSupportedException(
+                    $"Collection procedure '{procedure.Name}' has no managed runtime implementation.");
+
+            var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.Length + 1);
+            lowered.Add(new IrCallArgument(LowerExpression(receiver)));
+            lowered.AddRange(arguments.Select(argument =>
+                new IrCallArgument(LowerValueCopy(argument.Expression))));
+            return new IrRuntimeCallExpression(method, lowered.ToImmutable(), procedure.ReturnType ?? TypeSymbol.Error);
         }
 
         private IrPlace LowerMemberPlace(BoundMemberAccessExpression expression)

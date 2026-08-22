@@ -86,6 +86,7 @@ Implemented so far:
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
+- the standard `Collection` object on the managed backend: `New Collection`, one-based and keyed `Item`, `Count`, `Add` with `Key`/`Before`, and `Remove`
 - unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
@@ -196,7 +197,7 @@ The managed application output currently consists of the application DLL, its `.
 
 Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, `Optional` and `ParamArray` calls, persistent `Static` locals, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
 
-The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, implicit `Item` and `VB_UserMemId`-named default-property Get/Let dispatch, `Class_Initialize`/`Class_Terminate`, events, simple `WithEvents` sinks with reassignment cleanup, and `Implements` as CLR interfaces with virtual method/property dispatch. COM identity/dispatch, Forms/controls and the remaining full default-property rules remain open. The LLVM backend currently validates x86/x64 target selection and reports unsupported IR operations; native instruction emission and a native Windows apphost remain open. The MSBuild SDK and diagnostic LSP are now available as compiler-facing integration layers.
+The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, implicit `Item` and `VB_UserMemId`-named default-property Get/Let dispatch, `Class_Initialize`/`Class_Terminate`, events, simple `WithEvents` sinks with reassignment cleanup, `Implements` as CLR interfaces with virtual method/property dispatch, and the standard `Collection` object with one-based/keyed lookup. COM identity/dispatch, Forms/controls and the remaining full default-property rules remain open. The LLVM backend currently validates x86/x64 target selection and reports unsupported IR operations; native instruction emission and a native Windows apphost remain open. The MSBuild SDK and diagnostic LSP are now available as compiler-facing integration layers.
 
 ## Next milestones
 

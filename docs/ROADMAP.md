@@ -95,8 +95,11 @@ Ablegen typisierter Date-Werte in Variant bleibt der Date-Subtype `VarType = 7` 
 Richtungstests und die Date-OLE-Darstellung laufen dabei typisiert durch Binder, IR und Managed-
 Emitter. Scalar-
 Pointer-Transfers für `Declare ... As Any` inklusive `ByVal VarPtr(...)` sind über `IntPtr`
-abgedeckt. Weitere zusammengesetzte String-/Random-Layouts, komplexes `As Any`-Marshalling, COM,
-native LLVM-Emission und Forms bleiben bewusst offen.
+abgedeckt. Die semantisch vorhandene Standard-`Collection` besitzt jetzt ebenfalls eine echte
+Managed-Runtime: `New Collection`, one-based und schlüsselbasierter `Item`-Zugriff, `Count`,
+`Add` mit `Key`/`Before` sowie `Remove` laufen über eigene IR-Runtime-IDs und werden im Managed-
+Emitter typkorrekt auf `VBCollection` abgebildet. Weitere zusammengesetzte String-/Random-Layouts,
+komplexes `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -536,6 +539,7 @@ Zwei Nachträge:
 - [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-Identität/Interop bleibt offen
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
+- [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove` mit one-based und keyed lookup stehen; `For Each`, vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; vollständiger Host-/COM-Event-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
 
