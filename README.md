@@ -2,11 +2,11 @@
 
 VB6Compiler is an experimental Visual Basic 6 compatible compiler written in C#.
 
-The long-term goal is to compile existing VB6 projects to modern .NET executables and libraries while preserving VB6 language and runtime behavior as closely as practical.
+The long-term goal is a modern, highly compatible VB6 compiler with one language/runtime contract and multiple backends: native Windows x86/x64 and .NET. COM/ActiveX compatibility, standard VB6 projects and Visual Studio/LSP consumption are compiler requirements; the IDE and WinForms designer are later products.
 
 ## Current status
 
-The first end-to-end compiler path is working and is being expanded feature by feature. Milestones M0 through M3 are complete. M4 (Variant) has started with Variant storage, conversions, and a first set of operators. The backend is no longer a C# code generator: the bound program is lowered to an IR of basic blocks and emitted directly as CIL, which is the M6 groundwork for `On Error` and the other VB6 control flow that C# cannot express.
+The first end-to-end managed compiler path is working and is being expanded feature by feature. M0 through M3 are complete, the Variant core is implemented with the remaining promotion matrix still open, and the first M5 class/object-model slice is now in place. The backend is no longer a C# code generator: the bound program is lowered to an IR of basic blocks and emitted directly as CIL. LLVM target selection, an MSBuild SDK boundary and a diagnostic LSP now build; native instruction emission, COM/ActiveX ABI compatibility and the full standard library remain major compiler milestones.
 
 Implemented so far:
 
@@ -16,12 +16,13 @@ Implemented so far:
 - fault-tolerant parser for the current VB6 language subset
 - `Sub` and typed `Function` declarations and calls
 - explicit `ByRef`, explicit `ByVal`, and VB6 default-`ByRef` parameters
-- `Optional` parameter syntax with explicit `ByVal`/`ByRef` and optional default expressions; omitted-argument/default-value semantics remain a later procedure milestone and are still diagnosed
+- `Optional` parameters with explicit `ByVal`/`ByRef`, defaults, and `Missing` for omitted untyped Variant arguments
+- `ParamArray` procedures with Variant-array collection, empty calls, mixed arguments, and declaration guards
 - `Option Base 0` / `Option Base 1` and `Option Compare Text` / `Option Compare Binary` syntax; `Base` and `Compare` remain ordinary identifiers outside the directive context, while array-bound and string-comparison semantics remain later milestones
 - VB6 Function return semantics through assignment to the function name
 - cross-module Sub and Function resolution in `.vbp` projects
 - typed comma-separated local and module variable declarators; each declarator has its own optional `As Type`, and declarators without one are normalized to Variant before binding
-- `Static` local declaration syntax with the same per-declarator typing rules as `Dim`; persistent lifetime semantics remain a later procedure milestone and are explicitly diagnosed instead of lowering as ordinary locals
+- `Static` local storage with persistence across calls, including scalar, String, Variant, and fixed-array initialization
 - unsigned 8-bit VB6 `Byte`
 - 16-bit VB6 `Integer` and 32-bit VB6 `Long`
 - modern signed 64-bit integer extension exposed as `LongLong` and `Int64` while keeping VB6 `Long` 32-bit
@@ -40,15 +41,15 @@ Implemented so far:
 - line continuation with a trailing underscore
 - identifier type suffixes `$ % & ! # @`
 - `Exit Sub` and `Exit Function`
-- `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; native binding and P/Invoke emission remain in the interop milestone
++ `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; scalar signatures now lower to real Managed P/Invoke imports, while ANSI string marshalling and `As Any` remain in the interop milestone
 - `Enum ... End Enum` with optional visibility plus explicit or implicit member values, bound as Long-backed constants
 - `Function` declarations without an `As` clause, which return Variant as they do in VB6
-- binary file I/O: `Open ... For Binary As #n`, `Close`, `Get`, `Put` and `Seek`, from lexing the file number through a runtime file-number table to generated programs that read and write real files. Positions are one-based and each type transfers its exact VB6 storage size. The statement words are recognized at statement position only, so they stay ordinary identifiers elsewhere. Text modes, the `Len` clause, and transfers of `String` or user-defined types are reported rather than approximated
+- binary file I/O: `Open ... For Binary As #n`, `Close`, `Get`, `Put` and `Seek`, from lexing the file number through a runtime file-number table to generated programs that read and write real files. Positions are one-based and each supported type transfers its exact VB6 storage size; variable-length Strings use a two-byte character-count prefix. The statement words are recognized at statement position only, so they stay ordinary identifiers elsewhere. Text modes, the `Len` clause, and UDT transfers remain reported rather than approximated
 - call-site passing mode overrides, so `Foo ByVal x` hands over a value against a ByRef parameter just as `Foo (x)` does
 - ByRef arguments that are not variables: a literal, an expression, or a function result is passed through a temporary whose write-back is discarded, and parentheses force an argument to be passed by value, so `Foo (x)` leaves `x` untouched while `Call Foo(x)` does not
 - arithmetic operators `+`, `-`, `*`, `/`, `\`, `Mod`, and `^`; exponentiation uses VB precedence/associativity and is implemented through binding, runtime, code generation, and generated-program execution
 - string concatenation with `&`
-- `Like` and `Is` expression syntax at comparison precedence; pattern matching/`Option Compare` and object-reference identity semantics remain later milestones and currently produce dedicated semantic diagnostics
+- `Like` and `Is` expression syntax at comparison precedence, including the current wildcard/`Option Compare` subset and runtime object-reference identity for Variant/host objects; emitted class-instance identity remains a later milestone
 - VB-oriented operator precedence for the implemented expression subset
 - `If`, multiline `ElseIf` / `Else`, and single-line `If ... Then ... Else`
 - `For ... To ... Step ... Next` with Integer, Long, and LongLong control variables
@@ -69,32 +70,33 @@ Implemented so far:
 - `UserDefinedTypeSymbol` with case-insensitive member lookup, forward references, and Public project-wide versus Private module-local scope
 - user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, managed value-copy semantics at every value boundary - assignment, array element, member, ByVal argument and function result - including the arrays a copied value owns
 - `With` blocks with implicit `.Member` access, bound through a receiver alias
-- `Variant` as a semantic type with storage and explicit conversions; multiplication follows the VB6 promotion rules, `&` concatenation and a numeric equality subset are lowered, and every remaining Variant operator is reported as `VB6S0053` instead of being approximated with scalar rules
+- `Variant` as a semantic type with storage and explicit conversions; the current scalar runtime covers numeric `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logical operators, comparisons, `&` concatenation, VB6 string/Variant `+`, Empty, Null propagation, and Decimal promotion, while remaining `Missing` edge cases and object/array Variants stay on the roadmap
 - VB built-in string constants such as `vbCrLf`, `vbTab`, and `vbNullChar`, which user declarations of the same name still override
-- the `Len`, three-argument `Mid`, and ASCII `Chr` intrinsics, plus the `CByte`/`CInt`/`CLng`/`CSng`/`CDbl`/`CBool`/`CStr` conversions and the `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` string functions. Each intrinsic symbol carries the runtime method the backend calls, so it is resolved and checked like any other procedure and a user declaration of the same name still shadows it
+- the `Len`, two- and three-argument `Mid`, ASCII `Chr`, `InStr`, `InStrRev`, `Replace`, and current `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` math intrinsics, plus the `CByte`/`CInt`/`CLng`/`CDec`/`CSng`/`CDbl`/`CBool`/`CStr` conversions and the `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` string functions. Each intrinsic symbol carries the runtime method the backend calls, so it is resolved and checked like any other procedure and a user declaration of the same name still shadows it
 - bracketed identifiers such as `[Stop]`
 - semantic binder with procedure, parameter, return-value, local-variable and primitive type symbols
 - explicit conversion nodes and typed arithmetic promotion
 - central `VBCompilation` analysis pipeline for individual source files
 - `VBProjectCompilation` for combining standard modules from `.vbp` projects
-- primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong/Currency arithmetic, exponentiation, comparisons, Boolean operations, concatenation, and `Debug.Print`
+- primitive `VB6.Runtime` conversion, checked Byte/Integer/Long/LongLong/Currency arithmetic, exponentiation, comparisons, Boolean operations, concatenation, VB6-near `Debug.Print`, and host-neutral `MsgBox`/`InputBox` contracts
 - lowering of the bound program to an IR of basic blocks with explicit jumps (`VB6.IR`), inspectable with `--dump-ir`
 - direct managed emission from that IR: CIL, metadata and a Portable PDB written by `VB6.Emit.Managed`, with no C# or Roslyn in between
 - debug information that maps back to VB6 source: documents, user-visible locals, and a sequence point per statement, carried referentially from the binder through the IR into the PDB
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
+- `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, and class-member binding
 - unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. What is still guarded is narrower and each case has its own diagnostic: `For Each` over arrays of user-defined types (`VB6S0056`), `Erase` on an array parameter (`VB6S0036`), and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
-The suite currently holds **525 tests** across 159 test classes, and the Release build is warning-free. The current VISIA parity measurement is **304 total errors** - **12 parser**, **0 lexer**, **292 semantic** - across 27 of 40 VISIA project items, and **five modules analyze without a single error**. Lexer errors are gone entirely: the 62 reported ones came from `#` in file numbers and had dragged more than 200 parser errors along with them. Parser errors fell from 1214 to 480 with the `With` and member-access work, the largest single drop so far, and stand at 12 today. The total does not fall monotonically, and that is expected: teaching the parser a construct lets it reach further into a file and surface the semantic gaps that the earlier cascade hid, so a real improvement can raise the count. Cleanly analyzed files can only grow, which makes them the honest metric - and the one `ConformanceCorpusTests` ratchets. `docs/ROADMAP.md` keeps the measured history and the current blocker ranking.
+The suite currently holds **602 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **309 total errors** - **196 parser**, **0 lexer**, **113 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **16 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
 
 Windows CI run #700 validated the array syntax slice on .NET 10 with a warning-free Release build and **258 passing tests**. Its VISIA report measures **2105 total errors**: **1644 parser**, **68 lexer**, and **393 semantic**. The array syntax slice reduces parser errors by 114 from the M2 closeout (1758 → 1644) while keeping semantic diagnostics stable. The project currently analyzes 27 of 40 VISIA project items; `.cls`, `.ctl`, and `.frm` are later milestones.
 
-Windows CI run #662 closes the M2 parser/readability milestone with **243 passing tests** and **2219 total VISIA errors** (1758 parser, 68 lexer, 393 semantic). `Static` syntax, `^`, `Like`, and expression-level `Is` are regression-covered; unsupported `Static` lifetime, `Like` pattern matching/`Option Compare`, and `Is` object identity are guarded rather than approximated.
+Windows CI run #662 closes the M2 parser/readability milestone with **243 passing tests** and **2219 total VISIA errors** (1758 parser, 68 lexer, 393 semantic). `Static` syntax, `^`, `Like`, and expression-level `Is` are regression-covered; at that historical snapshot `Static` lifetime, `Like` pattern matching/`Option Compare`, and `Is` object identity were guarded rather than approximated.
 
 ## Compatibility examples
 
@@ -192,15 +194,15 @@ vb6c LegacyApp.vbp --emit-assembly LegacyApp.dll
 
 The managed application output currently consists of the application DLL, its `.runtimeconfig.json`, and `VB6.Runtime.dll`.
 
-Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
+Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, `Optional` and `ParamArray` calls, persistent `Static` locals, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
 
-The current ByRef implementation requires a variable argument with an exactly matching type. VB6 edge cases involving parenthesized expressions and temporary ByRef conversions are intentionally left for a later compatibility pass. Class modules, forms, controls, and project references are loaded by the project system but are not compiled into the output yet. A native Windows apphost `.exe` is also a later compiler milestone.
+The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, `Class_Initialize`/`Class_Terminate`, events and simple `WithEvents` sinks. COM identity/dispatch, Forms/controls and full indexed/default property semantics remain open. The LLVM backend currently validates x86/x64 target selection and reports unsupported IR operations; native instruction emission and a native Windows apphost remain open. The MSBuild SDK and diagnostic LSP are now available as compiler-facing integration layers.
 
 ## Next milestones
 
-The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate order is:
+The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate compiler order is:
 
-1. finish M4 Variant - `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`, `Empty`/`Null`/`Nothing`/`Missing`, and the full operator promotion matrix in the binder itself rather than in post-binding correction passes
-2. M5 procedures and classes - `Optional` defaults, `ParamArray`, `Static` lifetime, `Property Get`/`Let`/`Set`, class modules, and `.cls` as a project source
-
-After that: lowered IR and error handling, the standard library, native and COM interop, Forms/UserControls, and finally the IDE.
+1. finish the Variant promotion matrix and the high-frequency standard library/runtime surface
+2. complete class lifecycle, object dispatch, events and COM/ActiveX compatibility
+3. replace the LLVM backend boundary diagnostics with native x86/x64 emission alongside the .NET backend
+4. harden the MSBuild SDK and LSP for Visual Studio; build the IDE/designer later

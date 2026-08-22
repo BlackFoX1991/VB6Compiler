@@ -17,7 +17,19 @@ public sealed class ArrayDeclarationParserTests
         Assert.AreEqual(0, parameter.Dimensions.Length);
         Assert.IsNotNull(parameter.OpenParenthesisToken);
         Assert.IsNotNull(parameter.CloseParenthesisToken);
-        Assert.AreEqual("String", parameter.TypeToken.Text);
+        Assert.AreEqual("String", parameter.TypeToken!.Text);
+    }
+
+    [TestMethod]
+    public void Parse_PreservesParamArrayDeclaration()
+    {
+        var procedure = ParseFunction(
+            "Function Collect(ParamArray values() As Variant) As Long\nEnd Function");
+
+        var parameter = procedure.Parameters.Single();
+        Assert.IsTrue(parameter.IsParamArray);
+        Assert.IsTrue(parameter.IsArray);
+        Assert.AreEqual("Variant", parameter.TypeToken!.Text);
     }
 
     [TestMethod]

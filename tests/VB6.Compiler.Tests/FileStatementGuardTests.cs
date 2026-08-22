@@ -53,10 +53,14 @@ public sealed class FileStatementGuardTests
     public void Lower_StopsRatherThanEmittingAProgramMissingAnUnsupportedTransfer()
     {
         var lowering = VBCompilation.Create("""
+            Type Record
+                Value As Long
+            End Type
+
             Sub Main()
-                Dim text As String
+                Dim record As Record
                 Open "a.bin" For Binary As #1
-                Put #1, 1, text
+                Put #1, 1, record
                 Close #1
             End Sub
             """, "Module1.bas").Lower();

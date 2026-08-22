@@ -92,7 +92,8 @@ public sealed record VariableDeclaratorSyntax(
 /// </summary>
 public sealed record ModuleVariableDeclarationSyntax(
     SyntaxToken? VisibilityKeyword,
-    ImmutableArray<VariableDeclaratorSyntax> Declarators) : MemberSyntax(SyntaxKind.ModuleVariableDeclaration)
+    ImmutableArray<VariableDeclaratorSyntax> Declarators,
+    SyntaxToken? WithEventsKeyword = null) : MemberSyntax(SyntaxKind.ModuleVariableDeclaration)
 {
     public ModuleVariableDeclarationSyntax(
         SyntaxToken? visibilityKeyword,
@@ -148,16 +149,18 @@ public sealed record DeclareDeclarationSyntax(
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
     SyntaxToken Identifier,
-    SyntaxToken AsKeyword,
-    SyntaxToken TypeToken,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? TypeToken,
     SyntaxToken? OptionalKeyword = null,
     SyntaxToken? EqualsToken = null,
     ExpressionSyntax? DefaultValue = null,
     SyntaxToken? OpenParenthesisToken = null,
     ImmutableArray<ArrayDimensionSyntax> Dimensions = default,
-    SyntaxToken? CloseParenthesisToken = null) : SyntaxNode(SyntaxKind.Parameter)
+    SyntaxToken? CloseParenthesisToken = null,
+    SyntaxToken? ParamArrayKeyword = null) : SyntaxNode(SyntaxKind.Parameter)
 {
     public bool IsArray => OpenParenthesisToken is not null;
+    public bool IsParamArray => ParamArrayKeyword is not null;
 }
 
 public sealed record SubDeclarationSyntax(
@@ -186,6 +189,38 @@ public sealed record FunctionDeclarationSyntax(
     SyntaxToken EndFunctionKeyword,
     SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
 
+/// <summary>
+/// A VB6 class property procedure. The accessor remains a token because <c>Get</c>, <c>Let</c>
+/// and <c>Set</c> are contextual words in VB6 and are not globally reserved identifiers.
+/// </summary>
+public sealed record PropertyDeclarationSyntax(
+    SyntaxToken PropertyKeyword,
+    SyntaxToken AccessorKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
+    SyntaxToken CloseParenthesisToken,
+    SyntaxToken? AsKeyword,
+    SyntaxToken? ReturnTypeToken,
+    ImmutableArray<StatementSyntax> Statements,
+    SyntaxToken EndKeyword,
+    SyntaxToken EndPropertyKeyword,
+    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.PropertyDeclaration)
+{
+    public bool IsGet => string.Equals(AccessorKeyword.Text, "Get", StringComparison.OrdinalIgnoreCase);
+    public bool IsLet => string.Equals(AccessorKeyword.Text, "Let", StringComparison.OrdinalIgnoreCase);
+    public bool IsSet => string.Equals(AccessorKeyword.Text, "Set", StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>A class event declaration such as <c>Public Event Changed(ByVal Value As Long)</c>.</summary>
+public sealed record EventDeclarationSyntax(
+    SyntaxToken EventKeyword,
+    SyntaxToken Identifier,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ParameterSyntax> Parameters,
+    SyntaxToken CloseParenthesisToken,
+    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.EventDeclaration);
+
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,
     ImmutableArray<VariableDeclaratorSyntax> Declarators) : StatementSyntax(SyntaxKind.DimStatement)
@@ -211,6 +246,13 @@ public sealed record AssignmentStatementSyntax(
     SyntaxToken Identifier,
     SyntaxToken EqualsToken,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.AssignmentStatement);
+
+/// <summary>A VB6 object reference assignment such as <c>Set target = New Widget</c>.</summary>
+public sealed record SetAssignmentStatementSyntax(
+    SyntaxToken SetKeyword,
+    ExpressionSyntax Target,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.SetAssignmentStatement);
 
 /// <summary>
 /// Assignment through an addressable member/postfix chain, for example <c>point.X = 1</c>,
@@ -331,6 +373,16 @@ public sealed record QualifiedInvocationStatementSyntax(
 public sealed record OmittedArgumentExpressionSyntax()
     : ExpressionSyntax(SyntaxKind.OmittedArgumentExpression);
 
+public sealed record OnGoToStatementSyntax(
+    ExpressionSyntax Expression,
+    SyntaxToken GoToKeyword,
+    ImmutableArray<SyntaxToken> LabelTokens) : StatementSyntax(SyntaxKind.OnGoToStatement);
+
+public sealed record OnGoSubStatementSyntax(
+    ExpressionSyntax Expression,
+    SyntaxToken GoSubKeyword,
+    ImmutableArray<SyntaxToken> LabelTokens) : StatementSyntax(SyntaxKind.OnGoSubStatement);
+
 /// <summary>
 /// <c>On Error GoTo Handler</c>, <c>On Error GoTo 0</c> and <c>On Error Resume Next</c>. The
 /// action keyword tells the three apart and the target carries the label, the zero, or Next.
@@ -341,9 +393,21 @@ public sealed record OnErrorStatementSyntax(
     SyntaxToken ActionKeyword,
     SyntaxToken TargetToken) : StatementSyntax(SyntaxKind.OnErrorStatement);
 
+/// <summary><c>Resume</c>, <c>Resume Next</c> and <c>Resume Handler</c> in an error handler.</summary>
+public sealed record ResumeStatementSyntax(
+    SyntaxToken ResumeKeyword,
+    SyntaxToken? TargetToken) : StatementSyntax(SyntaxKind.ResumeStatement);
+
 public sealed record GoToStatementSyntax(
     SyntaxToken GoToKeyword,
     SyntaxToken LabelToken) : StatementSyntax(SyntaxKind.GoToStatement);
+
+public sealed record GoSubStatementSyntax(
+    SyntaxToken GoSubKeyword,
+    SyntaxToken LabelToken) : StatementSyntax(SyntaxKind.GoSubStatement);
+
+public sealed record GoSubReturnStatementSyntax(
+    SyntaxToken ReturnKeyword) : StatementSyntax(SyntaxKind.GoSubReturnStatement);
 
 /// <summary>
 /// A jump target such as <c>LinkFail:</c>. Only a label that stands alone on its line is
@@ -352,7 +416,7 @@ public sealed record GoToStatementSyntax(
 /// </summary>
 public sealed record LabelStatementSyntax(
     SyntaxToken Identifier,
-    SyntaxToken ColonToken) : StatementSyntax(SyntaxKind.LabelStatement);
+    SyntaxToken? ColonToken) : StatementSyntax(SyntaxKind.LabelStatement);
 
 /// <summary>
 /// A VB6 file number, written <c>#1</c> or <c>#FileNum</c>. The hash is optional in VB6 for some
@@ -400,11 +464,20 @@ public sealed record SeekStatementSyntax(
     ExpressionSyntax Position) : StatementSyntax(SyntaxKind.SeekStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
+public sealed record NewExpressionSyntax(
+    SyntaxToken NewKeyword,
+    SyntaxToken TypeToken) : ExpressionSyntax(SyntaxKind.NewExpression);
 public sealed record InvocationExpressionSyntax(
     SyntaxToken Identifier,
     SyntaxToken OpenParenthesisToken,
     ImmutableArray<ExpressionSyntax> Arguments,
     SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.InvocationExpression);
+
+public sealed record MemberInvocationExpressionSyntax(
+    MemberAccessExpressionSyntax Target,
+    SyntaxToken OpenParenthesisToken,
+    ImmutableArray<ExpressionSyntax> Arguments,
+    SyntaxToken CloseParenthesisToken) : ExpressionSyntax(SyntaxKind.MemberInvocationExpression);
 
 /// <summary>
 /// Explicit VB member selection. Chains are represented recursively, so <c>a.B.C</c> is a
@@ -437,4 +510,4 @@ public sealed record TypeOfExpressionSyntax(
     SyntaxToken TypeOfKeyword,
     ExpressionSyntax Expression,
     SyntaxToken IsKeyword,
-    SyntaxToken TypeToken) : ExpressionSyntax(SyntaxKind.TypeOfExpression);
+    SyntaxToken TypeToken) : ExpressionSyntax(SyntaxKind.TypeOfExpression);

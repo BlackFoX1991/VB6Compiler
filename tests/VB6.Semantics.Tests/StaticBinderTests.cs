@@ -8,7 +8,7 @@ namespace VB6.Semantics.Tests;
 public sealed class StaticBinderTests
 {
     [TestMethod]
-    public void Bind_PredeclaresStaticLocalButDiagnosesLifetimeSemantics()
+    public void Bind_ModelsStaticLocalAsPersistentStorage()
     {
         var model = BindSource("""
             Function NextValue() As Long
@@ -18,24 +18,21 @@ public sealed class StaticBinderTests
             End Function
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0021" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length, string.Join(Environment.NewLine, model.Diagnostics));
 
         var procedure = model.Procedures.Single();
-        var local = procedure.Locals.Single();
-        Assert.AreEqual("count", local.Name);
-        Assert.AreEqual(TypeSymbol.Long, local.Type);
-        Assert.IsFalse(procedure.Body.Statements.Any(statement => statement is BoundVariableDeclarationStatement));
+        Assert.AreEqual(0, procedure.Locals.Length);
+        var storage = model.StaticVariables.Single();
+        Assert.AreEqual(TypeSymbol.Long, storage.Symbol.Type);
 
         var increment = (BoundAssignmentStatement)procedure.Body.Statements[0];
-        Assert.AreEqual(local, increment.Variable);
+        Assert.AreEqual(storage.Symbol, increment.Variable);
         var read = (BoundBinaryExpression)increment.Expression;
-        Assert.AreEqual(local, ((BoundVariableExpression)read.Left).Variable);
+        Assert.AreEqual(storage.Symbol, ((BoundVariableExpression)read.Left).Variable);
     }
 
     [TestMethod]
-    public void Bind_UntypedStaticAlsoReportsVariantGap()
+    public void Bind_UntypedStaticDefaultsToVariant()
     {
         var model = BindSource("""
             Sub Main()
@@ -43,9 +40,11 @@ public sealed class StaticBinderTests
             End Sub
             """);
 
-        CollectionAssert.AreEquivalent(
-            new[] { "VB6S0020", "VB6S0021" },
+        CollectionAssert.AreEqual(
+            new[] { "VB6S0020" },
             model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(TypeSymbol.Error, model.StaticVariables.Single().Symbol.Type);
+        Assert.AreEqual(0, model.Procedures.Single().Locals.Length);
     }
 
     private static SemanticModel BindSource(string source)

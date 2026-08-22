@@ -73,8 +73,6 @@ public sealed class VBCompilation
                 .AddRange(visibleEnumConstants)
                 .AddRange(visibleBuiltInConstants)
         };
-        semanticModel = VariantMultiplyLowerer.Lower(semanticModel);
-
         var userDefinedTypeValueDiagnostics = UserDefinedTypeValueGuard.Validate(
             Text,
             forEachRoot,

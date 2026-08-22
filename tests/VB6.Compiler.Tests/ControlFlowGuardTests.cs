@@ -1,20 +1,17 @@
 namespace VB6.Compiler.Tests;
 
 /// <summary>
-/// Jumps and error handling parse but cannot be lowered: the backend still lowers control flow
-/// while emitting, which cannot express a jump into the middle of a block or a handler guarding
-/// every statement. Binding drops what it does not understand, so each one has to be reported or
-/// the generated program would quietly lose it.
+/// GoTo, labels and the first label-directed error-handler path are lowered. Resume Next and
+/// handler targets use per-statement CIL exception regions.
 /// </summary>
 [TestClass]
 public sealed class ControlFlowGuardTests
 {
     /// <summary>
-    /// GoTo and labels are lowered now; only the error handling still waits for the lowered
-    /// representation, because a handler has to guard every statement rather than sit at one point.
+    /// GoTo, labels and both supported On Error modes are accepted by semantic analysis.
     /// </summary>
     [TestMethod]
-    public void Analyze_ReportsOnlyTheErrorHandling()
+    public void Analyze_AcceptsLabelDirectedErrorHandling()
     {
         var analysis = VBCompilation.Create("""
             Sub Main()
@@ -28,18 +25,11 @@ public sealed class ControlFlowGuardTests
             End Sub
             """, "Module1.bas").Analyze();
 
-        Assert.IsFalse(analysis.Success);
-        var reported = analysis.Diagnostics
-            .Where(d => d.Code == "VB6S0061")
-            .Select(d => d.Message)
-            .ToArray();
-
-        Assert.AreEqual(2, reported.Length, string.Join(Environment.NewLine, reported));
-        Assert.IsTrue(reported.All(m => m.Contains("On Error", StringComparison.Ordinal)));
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
     }
 
     [TestMethod]
-    public void Analyze_ReportsOnErrorResumeNext()
+    public void Analyze_AcceptsOnErrorResumeNext()
     {
         var analysis = VBCompilation.Create("""
             Sub Main()
@@ -48,12 +38,29 @@ public sealed class ControlFlowGuardTests
             End Sub
             """, "Module1.bas").Analyze();
 
-        var diagnostic = analysis.Diagnostics.Single(d => d.Code == "VB6S0061");
-        StringAssert.Contains(diagnostic.Message, "On Error Resume Next");
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
     }
 
     [TestMethod]
-    public void Lower_StopsRatherThanEmittingAProgramWithoutTheHandler()
+    public void Analyze_AcceptsResumeLabelInAnErrorHandler()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                On Error GoTo Failed
+                Debug.Print 1 / 0
+                Exit Sub
+            Failed:
+                Resume Done
+            Done:
+                Debug.Print "done"
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+    }
+
+    [TestMethod]
+    public void Lower_EmitsResumeNextRegions()
     {
         var lowering = VBCompilation.Create("""
             Sub Main()
@@ -62,7 +69,60 @@ public sealed class ControlFlowGuardTests
             End Sub
             """, "Module1.bas").Lower();
 
-        Assert.IsFalse(lowering.Success);
-        Assert.IsNull(lowering.Program);
+        Assert.IsTrue(lowering.Success, string.Join(Environment.NewLine, lowering.Diagnostics));
+        Assert.IsNotNull(lowering.Program);
+        Assert.IsTrue(
+            lowering.Program.Modules.SelectMany(module => module.Procedures)
+                .SelectMany(procedure => procedure.Blocks)
+                .SelectMany(block => block.Instructions)
+                .Any(instruction => instruction is VB6.IR.IrErrorBoundaryStartInstruction));
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ResumeNextContinuesAfterARecoverableStatementError()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error Resume Next
+                Debug.Print 1 / 0
+                Debug.Print "continued"
+            End Sub
+            """);
+
+        Assert.AreEqual("continued", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_JumpsToAnErrorHandler()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error GoTo Failed
+                Debug.Print 1 / 0
+                Debug.Print "wrong path"
+                Exit Sub
+            Failed:
+                Debug.Print "handled"
+            End Sub
+            """);
+
+        Assert.AreEqual("handled", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ResumeNextContinuesAtTheFollowingStatement()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error GoTo Failed
+                Debug.Print 1 / 0
+                Debug.Print "continued"
+                Exit Sub
+            Failed:
+                Resume Next
+            End Sub
+            """);
+
+        Assert.AreEqual("continued", output.Trim());
     }
 }

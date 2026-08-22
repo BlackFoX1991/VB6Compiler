@@ -63,6 +63,39 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void PutAndGet_RoundTripVariableLengthStringAndContinueFromPrefixPayload()
+    {
+        WithTemporaryFile(path =>
+        {
+            var value = "Gr" + (char)252 + (char)223 + "e";
+
+            VBFiles.OpenBinary(1, path);
+            VBFiles.Put(1, 1, value);
+            VBFiles.Close(1);
+
+            VBFiles.OpenBinary(1, path);
+            Assert.AreEqual(value, VBFiles.GetString(1, 1));
+            Assert.AreEqual(1L + sizeof(ushort) + value.Length * sizeof(char), VBFiles.Position(1));
+
+            VBFiles.Seek(1, 1);
+            Assert.AreEqual(value, VBFiles.GetString(1, null));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void PutString_RejectsValuesThatDoNotFitTheVb6LengthPrefix()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenBinary(1, path);
+            Assert.ThrowsException<OverflowException>(() =>
+                VBFiles.Put(1, 1, new string('x', ushort.MaxValue + 1)));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void FreeFile_ReturnsAnUnusedNumberAndCloseReleasesIt()
     {
         WithTemporaryFile(path =>

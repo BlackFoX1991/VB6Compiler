@@ -6,13 +6,10 @@ using VB6.Syntax.Text;
 namespace VB6.Semantics;
 
 /// <summary>
-/// Variant storage and explicit conversions are supported before the full VB6 Variant operator
-/// promotion matrix. This guard prevents already-bound unary/binary expressions from being
-/// lowered with scalar rules when any operand originates from a Variant value. Multiplication is
-/// allowed only after VariantMultiplyLowerer has marked the bound result as Variant; the narrow
-/// Variant-left integral equality slice is allowed only after the same lowerer has normalized both
-/// operands to Double. String concatenation with <c>&amp;</c> is safe once binding has converted both
-/// operands to String because the backend routes it through <c>VBOperators.Concat</c>/<c>CStr</c>.
+/// Variant storage and the currently implemented Variant operator matrix are supported before the
+/// final VB6 promotion rewrite. This guard keeps unsupported Variant constructs from falling into
+/// scalar IR lowering. String concatenation with <c>&amp;</c> routes through
+/// <c>VBOperators.Concat</c>/<c>CStr</c>.
 /// </summary>
 public static class VariantOperationGuard
 {
@@ -156,6 +153,13 @@ public static class VariantOperationGuard
                     VisitExpression(text, argument.Expression, diagnostics);
                 }
                 break;
+
+            case BoundRaiseEventStatement raiseEvent:
+                foreach (var argument in raiseEvent.Arguments)
+                {
+                    VisitExpression(text, argument.Expression, diagnostics);
+                }
+                break;
         }
     }
 
@@ -167,7 +171,10 @@ public static class VariantOperationGuard
         switch (expression)
         {
             case BoundUnaryExpression unary:
-                if (ContainsVariantValue(unary.Operand))
+                var isSupportedVariantUnary =
+                    unary.Operand.Type == TypeSymbol.Variant &&
+                    unary.OperatorKind is SyntaxKind.PlusToken or SyntaxKind.MinusToken or SyntaxKind.NotKeyword;
+                if (ContainsVariantValue(unary.Operand) && !isSupportedVariantUnary)
                 {
                     AddOperatorDiagnostic(
                         text,
@@ -182,18 +189,29 @@ public static class VariantOperationGuard
             {
                 var hasVariantOperand =
                     ContainsVariantValue(binary.Left) || ContainsVariantValue(binary.Right);
-                var isLoweredMultiply =
-                    binary.OperatorKind == SyntaxKind.StarToken && binary.Type == TypeSymbol.Variant;
-                var isLoweredIntegralEquality =
-                    VariantMultiplyLowerer.IsLoweredVariantIntegralEquality(binary);
+                var isVariantComparison = (binary.Type == TypeSymbol.Boolean || binary.Type == TypeSymbol.Variant) &&
+                    (binary.OperatorKind is SyntaxKind.EqualsToken or SyntaxKind.LessGreaterToken or
+                        SyntaxKind.LessToken or SyntaxKind.LessOrEqualsToken or SyntaxKind.GreaterToken or
+                        SyntaxKind.GreaterOrEqualsToken) &&
+                    (binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant);
+                var isVariantLike = binary.OperatorKind == SyntaxKind.LikeKeyword &&
+                    binary.Type == TypeSymbol.Boolean;
+                var isVariantObjectIdentity = binary.OperatorKind == SyntaxKind.IsKeyword &&
+                    binary.Type == TypeSymbol.Boolean;
+                var isSupportedVariantOperation =
+                    (binary.Type == TypeSymbol.Variant && binary.OperatorKind is
+                        SyntaxKind.CaretToken or SyntaxKind.PlusToken or SyntaxKind.MinusToken or
+                        SyntaxKind.StarToken or SyntaxKind.SlashToken or SyntaxKind.BackslashToken or
+                        SyntaxKind.ModKeyword or SyntaxKind.AndKeyword or SyntaxKind.OrKeyword or
+                        SyntaxKind.XorKeyword or SyntaxKind.EqvKeyword or SyntaxKind.ImpKeyword) ||
+                    isVariantComparison || isVariantLike || isVariantObjectIdentity;
                 var isBoundStringConcatenation =
                     binary.OperatorKind == SyntaxKind.AmpersandToken &&
                     binary.Type == TypeSymbol.String &&
-                    binary.Left.Type == TypeSymbol.String &&
-                    binary.Right.Type == TypeSymbol.String;
+                    (binary.Left.Type == TypeSymbol.String || binary.Left.Type == TypeSymbol.Variant) &&
+                    (binary.Right.Type == TypeSymbol.String || binary.Right.Type == TypeSymbol.Variant);
                 if (hasVariantOperand &&
-                    !isLoweredMultiply &&
-                    !isLoweredIntegralEquality &&
+                    !isSupportedVariantOperation &&
                     !isBoundStringConcatenation)
                 {
                     AddOperatorDiagnostic(
@@ -233,12 +251,25 @@ public static class VariantOperationGuard
                 }
                 break;
 
+            case BoundVariantArrayAccessExpression variantArrayAccess:
+                VisitExpression(text, variantArrayAccess.Receiver, diagnostics);
+                foreach (var index in variantArrayAccess.Indices)
+                {
+                    VisitExpression(text, index, diagnostics);
+                }
+                break;
+
             case BoundArrayBoundExpression arrayBound:
+                VisitExpression(text, arrayBound.Array, diagnostics);
                 VisitExpression(text, arrayBound.Dimension, diagnostics);
                 break;
 
             case BoundMemberAccessExpression memberAccess:
                 VisitExpression(text, memberAccess.Receiver, diagnostics);
+                break;
+
+            case BoundPropertyAccessExpression propertyAccess:
+                VisitExpression(text, propertyAccess.Receiver, diagnostics);
                 break;
         }
     }

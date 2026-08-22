@@ -48,7 +48,8 @@ internal static class VB6TestIr
     {
         ArgumentNullException.ThrowIfNull(program);
         return program.Modules.SelectMany(module => module.Procedures)
-            .Concat(program.TypeDefinitions.SelectMany(type => type.Methods));
+            .Concat(program.TypeDefinitions.SelectMany(type => type.Methods))
+            .Concat(program.ClassDefinitions.SelectMany(@class => @class.Methods));
     }
 
     /// <summary>Every expression anywhere in the program, parents before children.</summary>
@@ -103,6 +104,11 @@ internal static class VB6TestIr
                 VisitArguments(call.Arguments, collected);
                 break;
             case IrProcedureCallExpression call:
+                if (call.Receiver is not null)
+                {
+                    Visit(call.Receiver, collected);
+                }
+
                 VisitArguments(call.Arguments, collected);
                 break;
             case IrSyntheticCallExpression call:
@@ -127,6 +133,9 @@ internal static class VB6TestIr
             case IrReDimPreserveExpression preserve:
                 Visit(preserve.Array, collected);
                 VisitBounds(preserve.Bounds, collected);
+                break;
+            case IrTypeOfExpression typeOf:
+                Visit(typeOf.Expression, collected);
                 break;
             case IrEnsureArrayExpression ensure:
                 Visit(ensure.Storage, collected);

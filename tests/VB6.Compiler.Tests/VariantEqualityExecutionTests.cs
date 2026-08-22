@@ -1,4 +1,5 @@
 using VB6.IR;
+using VB6.Semantics;
 
 namespace VB6.Compiler.Tests;
 
@@ -51,7 +52,7 @@ public sealed class VariantEqualityExecutionTests
     }
 
     [TestMethod]
-    public void Lower_LowersVariantLeftIntegerEqualityThroughDoubleConversions()
+    public void Lower_UsesVariantComparisonForVariantLeftIntegerEquality()
     {
         var program = VB6TestIr.Lower("""
             Sub Main()
@@ -62,47 +63,94 @@ public sealed class VariantEqualityExecutionTests
             End Sub
             """);
 
-        // Both sides go through Double so the comparison has one defined numeric meaning rather
-        // than depending on what the Variant currently holds.
+        // Variant comparison is selected by the binder. Scalar operands remain scalar in the IR;
+        // the managed emitter boxes them when calling the object-based runtime method.
         var equality = VB6TestIr.Expressions(program)
             .OfType<IrRuntimeCallExpression>()
-            .Single(call => call.Method == IrRuntimeMethod.Equal);
-        Assert.IsTrue(equality.Arguments.All(argument =>
-            argument.Expression is IrRuntimeCallExpression { Method: IrRuntimeMethod.CDbl }));
+            .Single(call => call.Method == IrRuntimeMethod.VariantEqual);
+        Assert.AreEqual(TypeSymbol.Variant, equality.Arguments[0].Expression.Type);
+        Assert.AreEqual(TypeSymbol.Integer, equality.Arguments[1].Expression.Type);
     }
 
     [TestMethod]
-    public void Analyze_KeepsNumericLeftVariantRightEqualityGuarded()
+    public void EmitManagedApplication_ComparesNumericLeftToVariant()
     {
-        var analysis = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Sub Main()
                 Dim value As Variant
                 Debug.Print 0 = value
             End Sub
-            """, "Module1.bas").Analyze();
+            """, "Module1.bas");
 
-        Assert.IsFalse(analysis.Success);
-        CollectionAssert.Contains(
-            analysis.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray(),
-            "VB6S0053");
+        Assert.AreEqual("True", output.Trim());
     }
 
     [TestMethod]
-    public void Analyze_KeepsVariantDoubleEqualityGuarded()
+    public void EmitManagedApplication_ComparesVariantToDouble()
     {
-        var analysis = VBCompilation.Create("""
+        var output = VB6TestProgram.Run("""
             Sub Main()
                 Dim value As Variant
                 Dim target As Double
                 target = 0
                 Debug.Print value = target
             End Sub
-            """, "Module1.bas").Analyze();
+            """, "Module1.bas");
 
-        Assert.IsFalse(analysis.Success);
-        CollectionAssert.Contains(
-            analysis.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray(),
-            "VB6S0053");
+        Assert.AreEqual("True", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ComparesVariantStringsAndRelationalOperators()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = "42"
+                Debug.Print value = 42
+                Debug.Print value > 41
+                Debug.Print 41 < value
+                Debug.Print value <> 41
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True", "True" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PropagatesNullThroughComparisonsAndIf()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = Null
+                Debug.Print value = 0
+                Debug.Print value <> 0
+                If value = 0 Then
+                    Debug.Print "true"
+                Else
+                    Debug.Print "false"
+                End If
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Null", "Null", "false" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesStaticStringComparisonWithVariant()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = 2
+
+                Debug.Print "10" = value
+                Debug.Print "10" < value
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "False", "True" }, output);
     }
 
 }

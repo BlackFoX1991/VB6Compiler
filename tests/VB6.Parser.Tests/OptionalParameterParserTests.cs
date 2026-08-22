@@ -27,7 +27,7 @@ public sealed class OptionalParameterParserTests
         Assert.IsNull(function.Parameters[0].OptionalKeyword);
         Assert.AreEqual(SyntaxKind.OptionalKeyword, function.Parameters[1].OptionalKeyword!.Kind);
         Assert.IsNull(function.Parameters[1].PassingModeKeyword);
-        Assert.AreEqual("Boolean", function.Parameters[1].TypeToken.Text);
+        Assert.AreEqual("Boolean", function.Parameters[1].TypeToken!.Text);
         Assert.AreEqual(SyntaxKind.OptionalKeyword, function.Parameters[2].OptionalKeyword!.Kind);
         Assert.IsNull(function.Parameters[2].DefaultValue);
     }
@@ -58,5 +58,17 @@ public sealed class OptionalParameterParserTests
         Assert.IsNotNull(caption.EqualsToken);
         Assert.IsInstanceOfType<LiteralExpressionSyntax>(caption.DefaultValue);
         Assert.AreEqual("VISIA", ((LiteralExpressionSyntax)caption.DefaultValue!).LiteralToken.Value);
+    }
+
+    [TestMethod]
+    public void Parse_PreservesAnUntypedOptionalParameter()
+    {
+        var result = new ParserType(SourceText.From("Sub Consume(Optional value)\nEnd Sub"))
+            .ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        var parameter = ((SubDeclarationSyntax)result.Root.Members.Single()).Parameters.Single();
+        Assert.IsNull(parameter.AsKeyword);
+        Assert.IsNull(parameter.TypeToken);
     }
 }

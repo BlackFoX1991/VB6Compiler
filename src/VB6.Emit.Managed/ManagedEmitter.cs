@@ -62,6 +62,12 @@ public sealed class ManagedEmitter
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<UserDefinedTypeSymbol, TypeDefinitionHandle> _udtSymbolHandles =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<IrClassDefinition, TypeDefinitionHandle> _classHandles =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ClassTypeSymbol, TypeDefinitionHandle> _classSymbolHandles =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ClassTypeSymbol, MethodDefinitionHandle> _classConstructorHandles =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrModule, TypeDefinitionHandle> _moduleTypeHandles =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<TypeSymbol, TypeSpecificationHandle> _arrayTypeSpecs =
@@ -73,11 +79,14 @@ public sealed class ManagedEmitter
                 ReferenceEqualityComparer.Instance);
         private readonly Dictionary<Type, TypeReferenceHandle> _reflectionTypeRefs = new();
         private readonly Dictionary<string, TypeReferenceHandle> _namedTypeRefs = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, ModuleReferenceHandle> _moduleReferences =
+            new(StringComparer.OrdinalIgnoreCase);
         private readonly List<TypePlan> _typePlans = new();
         private AssemblyReferenceHandle _coreLibReference;
         private AssemblyReferenceHandle _runtimeReference;
         private TypeReferenceHandle _systemObject;
         private TypeReferenceHandle _systemValueType;
+        private TypeReferenceHandle _systemException;
         private TypeReferenceHandle _vbCurrency;
         private TypeReferenceHandle _vbArray;
         private TypeReferenceHandle _vbArrayBound;
@@ -168,6 +177,7 @@ public sealed class ManagedEmitter
 
             _systemObject = AddTypeReference(_coreLibReference, "System", "Object");
             _systemValueType = AddTypeReference(_coreLibReference, "System", "ValueType");
+            _systemException = GetReflectionTypeReference(typeof(Exception));
             AddPrimitiveTypeRefs();
             _vbCurrency = AddTypeReference(_runtimeReference, "VB6.Runtime", "VBCurrency");
             _vbArray = AddTypeReference(_runtimeReference, "VB6.Runtime", "VBArray`1");
@@ -241,6 +251,10 @@ public sealed class ManagedEmitter
             {
                 _typePlans.Add(TypePlan.ForUdt(type));
             }
+            foreach (var @class in _program.ClassDefinitions)
+            {
+                _typePlans.Add(TypePlan.ForClass(@class));
+            }
             foreach (var module in _program.Modules)
             {
                 _typePlans.Add(TypePlan.ForModule(module));
@@ -266,6 +280,23 @@ public sealed class ManagedEmitter
                     foreach (var method in plan.Udt.Methods)
                     {
                         AssignMethodHandle(method, ref nextMethod);
+                    }
+                }
+                else if (plan.Class is not null)
+                {
+                    _classHandles.Add(plan.Class, plan.TypeHandle);
+                    _classSymbolHandles.Add(plan.Class.Symbol, plan.TypeHandle);
+                    foreach (var field in plan.Class.Fields)
+                    {
+                        _fieldHandles.Add(field, MetadataTokens.FieldDefinitionHandle(nextField++));
+                    }
+                    foreach (var method in plan.Class.Methods)
+                    {
+                        AssignMethodHandle(method, ref nextMethod);
+                        if (string.Equals(method.Name, ".ctor", StringComparison.Ordinal))
+                        {
+                            _classConstructorHandles.Add(plan.Class.Symbol, _methodHandles[method]);
+                        }
                     }
                 }
                 else if (plan.Module is not null)
@@ -308,6 +339,17 @@ public sealed class ManagedEmitter
                         EnsureHandle(actual, _fieldHandles[field], "field");
                     }
                 }
+                else if (plan.Class is not null)
+                {
+                    foreach (var field in plan.Class.Fields)
+                    {
+                        var actual = _metadata.AddFieldDefinition(
+                            FieldAttributes.Private,
+                            _metadata.GetOrAddString(field.Name),
+                            EncodeFieldSignature(field.Type));
+                        EnsureHandle(actual, _fieldHandles[field], "class field");
+                    }
+                }
                 else if (plan.Module is not null)
                 {
                     foreach (var global in plan.Module.Globals)
@@ -345,6 +387,11 @@ public sealed class ManagedEmitter
             var result = new Dictionary<IrProcedure, int>(ReferenceEqualityComparer.Instance);
             foreach (var procedure in AllProcedures())
             {
+                if (procedure.IsExternal)
+                {
+                    continue;
+                }
+
                 var code = new BlobBuilder();
                 var flow = new ControlFlowBuilder();
                 var encoder = new InstructionEncoder(code, flow);
@@ -358,18 +405,59 @@ public sealed class ManagedEmitter
                 }
                 else
                 {
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBGoSub),
+                        nameof(VBGoSub.Enter))));
                     encoder.Branch(ILOpCode.Br, blockLabels[entry.Id]);
+                    var errorBoundaries = procedure.Blocks
+                        .SelectMany(block => block.Instructions)
+                        .OfType<IrErrorBoundaryStartInstruction>()
+                        .Select((boundary, index) => new ErrorBoundary(
+                            index,
+                            encoder.DefineLabel(),
+                            encoder.DefineLabel(),
+                            boundary.HandlerBlockId is int handlerBlockId
+                                ? blockLabels[handlerBlockId]
+                                : null))
+                        .ToArray();
+                    var boundaryIndex = 0;
+                    ErrorBoundary? activeBoundary = null;
                     foreach (var block in procedure.Blocks)
                     {
                         encoder.MarkLabel(blockLabels[block.Id]);
                         foreach (var instruction in block.Instructions)
                         {
                             RecordSequencePoint(sequencePoints, encoder, instruction.SourceLocation);
-                            EmitInstruction(encoder, procedure, instruction);
+                            switch (instruction)
+                            {
+                                case IrErrorBoundaryStartInstruction boundary when activeBoundary is null:
+                                    activeBoundary = errorBoundaries[boundaryIndex++];
+                                    encoder.MarkLabel(activeBoundary.TryStart);
+                                    break;
+                                case IrErrorBoundaryEndInstruction when activeBoundary is not null:
+                                    EmitErrorBoundary(encoder, flow, activeBoundary);
+                                    activeBoundary = null;
+                                    break;
+                                case IrErrorBoundaryStartInstruction:
+                                    throw new InvalidOperationException("Nested error handling regions are not supported.");
+                                case IrErrorBoundaryEndInstruction:
+                                    throw new InvalidOperationException("Error handling region ended without a start.");
+                                case IrResumeInstruction resume:
+                                    EmitResumeInstruction(encoder, resume, errorBoundaries);
+                                    break;
+                                default:
+                                    EmitInstruction(encoder, procedure, instruction);
+                                    break;
+                            }
                         }
 
                         RecordSequencePoint(sequencePoints, encoder, block.Terminator.SourceLocation);
                         EmitTerminator(encoder, procedure, block.Terminator, blockLabels);
+                    }
+
+                    if (activeBoundary is not null)
+                    {
+                        throw new InvalidOperationException("Error handling region crossed a basic-block boundary.");
                     }
                 }
 
@@ -387,6 +475,61 @@ public sealed class ManagedEmitter
             }
             return result;
         }
+
+        private void EmitErrorBoundary(
+            InstructionEncoder encoder,
+            ControlFlowBuilder flow,
+            ErrorBoundary boundary)
+        {
+            encoder.Branch(ILOpCode.Leave, boundary.Continuation);
+            var tryEnd = encoder.DefineLabel();
+            encoder.MarkLabel(tryEnd);
+
+            var handlerStart = encoder.DefineLabel();
+            encoder.MarkLabel(handlerStart);
+            encoder.LoadConstantI4(boundary.Index);
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBErrors),
+                nameof(VBErrors.Set),
+                typeof(Exception),
+                typeof(int))));
+            encoder.Branch(ILOpCode.Leave, boundary.HandlerTarget ?? boundary.Continuation);
+            var handlerEnd = encoder.DefineLabel();
+            encoder.MarkLabel(handlerEnd);
+            encoder.MarkLabel(boundary.Continuation);
+
+            // Exception region registration is validated by the method-body encoder below.
+            flow.AddCatchRegion(boundary.TryStart, tryEnd, handlerStart, handlerEnd, _systemException);
+        }
+
+        private void EmitResumeInstruction(
+            InstructionEncoder encoder,
+            IrResumeInstruction resume,
+            IReadOnlyList<ErrorBoundary> errorBoundaries)
+        {
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.ResumeIndexValue))));
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Clear))));
+            var targets = errorBoundaries
+                .Select(boundary => resume.Kind == IrResumeKind.Next
+                    ? boundary.Continuation
+                    : boundary.TryStart)
+                .ToArray();
+            if (targets.Length > 0)
+            {
+                var switchEncoder = encoder.Switch(targets.Length);
+                foreach (var target in targets)
+                {
+                    switchEncoder.Branch(target);
+                }
+            }
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.InvalidResume))));
+        }
+
+        private sealed record ErrorBoundary(
+            int Index,
+            LabelHandle TryStart,
+            LabelHandle Continuation,
+            LabelHandle? HandlerTarget);
 
         /// <summary>
         /// Notes that the code about to be emitted starts a new statement. Consecutive
@@ -441,6 +584,20 @@ public sealed class ManagedEmitter
                 case IrNopInstruction:
                     encoder.OpCode(ILOpCode.Nop);
                     break;
+                case IrRaiseEventInstruction raiseEvent:
+                    EmitRaiseEvent(encoder, procedure, raiseEvent);
+                    break;
+                case IrSubscribeEventInstruction subscribe:
+                    EmitSubscribeEvent(encoder, procedure, subscribe);
+                    break;
+                case IrBaseFinalizeInstruction:
+                    encoder.LoadArgument(0);
+                    encoder.Call(GetRuntimeMethodReference(
+                        typeof(object).GetMethod(
+                            "Finalize",
+                            BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?? throw new MissingMethodException("System.Object.Finalize is required.")));
+                    break;
                 default:
                     throw new NotSupportedException($"Managed emit does not support IR instruction '{instruction.GetType().Name}'.");
             }
@@ -462,11 +619,88 @@ public sealed class ManagedEmitter
                     encoder.Branch(ILOpCode.Brtrue, labels[conditional.TrueBlockId]);
                     encoder.Branch(ILOpCode.Br, labels[conditional.FalseBlockId]);
                     break;
+                case IrGoSubTerminator goSub:
+                    encoder.LoadConstantI4(goSub.ReturnIndex);
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBGoSub),
+                        nameof(VBGoSub.Push),
+                        typeof(int))));
+                    encoder.Branch(ILOpCode.Br, labels[goSub.TargetBlockId]);
+                    break;
+                case IrGoSubReturnTerminator goSubReturn:
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBGoSub),
+                        nameof(VBGoSub.Pop))));
+                    if (goSubReturn.ReturnTargetBlockIds.Length > 0)
+                    {
+                        var switchEncoder = encoder.Switch(goSubReturn.ReturnTargetBlockIds.Length);
+                        foreach (var target in goSubReturn.ReturnTargetBlockIds)
+                        {
+                            switchEncoder.Branch(labels[target]);
+                        }
+                    }
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBGoSub),
+                        nameof(VBGoSub.InvalidReturn))));
+                    break;
+                case IrOnGoToTerminator onGoTo:
+                    EmitExpression(encoder, procedure, onGoTo.Index);
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBControlFlow),
+                        nameof(VBControlFlow.OnGoToIndex),
+                        typeof(int))));
+                    if (onGoTo.TargetBlockIds.Length > 0)
+                    {
+                        var switchEncoder = encoder.Switch(onGoTo.TargetBlockIds.Length);
+                        foreach (var target in onGoTo.TargetBlockIds)
+                        {
+                            switchEncoder.Branch(labels[target]);
+                        }
+                    }
+                    encoder.Branch(ILOpCode.Br, labels[onGoTo.DefaultBlockId]);
+                    break;
+                case IrOnGoSubTerminator onGoSub:
+                    EmitExpression(encoder, procedure, onGoSub.Index);
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBControlFlow),
+                        nameof(VBControlFlow.OnGoToIndex),
+                        typeof(int))));
+                    if (onGoSub.TargetBlockIds.Length > 0)
+                    {
+                        var dispatchLabels = onGoSub.TargetBlockIds
+                            .Select(_ => encoder.DefineLabel())
+                            .ToArray();
+                        var switchEncoder = encoder.Switch(dispatchLabels.Length);
+                        foreach (var dispatchLabel in dispatchLabels)
+                        {
+                            switchEncoder.Branch(dispatchLabel);
+                        }
+
+                        encoder.Branch(ILOpCode.Br, labels[onGoSub.DefaultBlockId]);
+                        for (var index = 0; index < dispatchLabels.Length; index++)
+                        {
+                            encoder.MarkLabel(dispatchLabels[index]);
+                            encoder.LoadConstantI4(onGoSub.ReturnIndex);
+                            encoder.Call(GetRuntimeMethodReference(Static(
+                                typeof(VBGoSub),
+                                nameof(VBGoSub.Push),
+                                typeof(int))));
+                            encoder.Branch(ILOpCode.Br, labels[onGoSub.TargetBlockIds[index]]);
+                        }
+                    }
+                    else
+                    {
+                        encoder.Branch(ILOpCode.Br, labels[onGoSub.DefaultBlockId]);
+                    }
+                    break;
                 case IrReturnTerminator ret:
                     if (ret.Value is not null)
                     {
                         EmitExpression(encoder, procedure, ret.Value);
                     }
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBGoSub),
+                        nameof(VBGoSub.Leave))));
                     encoder.OpCode(ILOpCode.Ret);
                     break;
                 default:
@@ -502,8 +736,17 @@ public sealed class ManagedEmitter
                 case IrProcedureCallExpression call:
                     EmitProcedureCall(encoder, procedure, call);
                     break;
+                case IrNewClassExpression @new:
+                    EmitNewClass(encoder, @new);
+                    break;
+                case IrTypeOfExpression typeOf:
+                    EmitTypeOf(encoder, procedure, typeOf);
+                    break;
                 case IrArrayCallExpression arrayCall:
                     EmitArrayCall(encoder, procedure, arrayCall);
+                    break;
+                case IrVariantArrayCallExpression variantArrayCall:
+                    EmitVariantArrayCall(encoder, procedure, variantArrayCall);
                     break;
                 case IrNewVBArrayExpression newArray:
                     EmitNewArray(encoder, procedure, newArray);
@@ -603,11 +846,14 @@ public sealed class ManagedEmitter
                     encoder.LoadLocal(local.Local.Id);
                     break;
                 case IrParameterPlace parameter:
-                    encoder.LoadArgument(parameter.Parameter.Index);
+                    encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     if (parameter.Parameter.PassingMode == ParameterPassingMode.ByRef)
                     {
                         EmitLoadIndirect(encoder, parameter.Type);
                     }
+                    break;
+                case IrThisPlace:
+                    encoder.LoadArgument(0);
                     break;
                 case IrGlobalPlace global:
                     encoder.OpCode(ILOpCode.Ldsfld);
@@ -626,6 +872,9 @@ public sealed class ManagedEmitter
                     EmitExpression(encoder, procedure, indirect.Address);
                     EmitLoadIndirect(encoder, indirect.ElementType);
                     break;
+                case IrAccessorPlace accessor:
+                    EmitAccessorGet(encoder, procedure, accessor);
+                    break;
                 default:
                     throw new NotSupportedException($"Managed load does not support place '{place.GetType().Name}'.");
             }
@@ -641,10 +890,10 @@ public sealed class ManagedEmitter
                     break;
                 case IrParameterPlace parameter when parameter.Parameter.PassingMode == ParameterPassingMode.ByVal:
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
-                    encoder.StoreArgument(parameter.Parameter.Index);
+                    encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     break;
                 case IrParameterPlace parameter:
-                    encoder.LoadArgument(parameter.Parameter.Index);
+                    encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
                     EmitStoreIndirect(encoder, parameter.Type);
                     break;
@@ -669,6 +918,9 @@ public sealed class ManagedEmitter
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, indirect.ElementType);
                     EmitStoreIndirect(encoder, indirect.ElementType);
                     break;
+                case IrAccessorPlace accessor:
+                    EmitAccessorSet(encoder, procedure, accessor, value);
+                    break;
                 default:
                     throw new NotSupportedException($"Managed store does not support place '{place.GetType().Name}'.");
             }
@@ -684,12 +936,15 @@ public sealed class ManagedEmitter
                 case IrParameterPlace parameter:
                     if (parameter.Parameter.PassingMode == ParameterPassingMode.ByRef)
                     {
-                        encoder.LoadArgument(parameter.Parameter.Index);
+                        encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     }
                     else
                     {
-                        encoder.LoadArgumentAddress(parameter.Parameter.Index);
+                        encoder.LoadArgumentAddress(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     }
+                    break;
+                case IrThisPlace:
+                    encoder.LoadArgument(0);
                     break;
                 case IrGlobalPlace global:
                     encoder.OpCode(ILOpCode.Ldsflda);
@@ -751,6 +1006,11 @@ public sealed class ManagedEmitter
 
         private void EmitProcedureCall(InstructionEncoder encoder, IrProcedure procedure, IrProcedureCallExpression call)
         {
+            if (call.Receiver is not null)
+            {
+                EmitExpression(encoder, procedure, call.Receiver);
+            }
+
             for (var index = 0; index < call.Arguments.Length; index++)
             {
                 var argument = call.Arguments[index];
@@ -776,6 +1036,148 @@ public sealed class ManagedEmitter
             }
             encoder.Call(target);
         }
+
+        private void EmitAccessorGet(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAccessorPlace accessor)
+        {
+            if (accessor.Getter is null)
+            {
+                throw new NotSupportedException("A property read has no Get accessor.");
+            }
+
+            if (accessor.Receiver is not null)
+            {
+                EmitExpression(encoder, procedure, accessor.Receiver);
+            }
+
+            if (!_procedureSymbolHandles.TryGetValue(accessor.Getter, out var target))
+            {
+                throw new InvalidOperationException(
+                    $"Property getter '{accessor.Getter.Name}' has no managed method definition.");
+            }
+
+            encoder.Call(target);
+        }
+
+        private void EmitAccessorSet(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAccessorPlace accessor,
+            IrExpression value)
+        {
+            if (accessor.Setter is null)
+            {
+                throw new NotSupportedException("A property assignment has no Let/Set accessor.");
+            }
+
+            if (accessor.Receiver is not null)
+            {
+                EmitExpression(encoder, procedure, accessor.Receiver);
+            }
+
+            var valueType = accessor.Setter.Parameters.LastOrDefault()?.Type ?? accessor.ValueType;
+            EmitExpressionWithAssignmentConversion(encoder, procedure, value, valueType);
+            if (!_procedureSymbolHandles.TryGetValue(accessor.Setter, out var target))
+            {
+                throw new InvalidOperationException(
+                    $"Property setter '{accessor.Setter.Name}' has no managed method definition.");
+            }
+
+            encoder.Call(target);
+        }
+
+        private void EmitNewClass(InstructionEncoder encoder, IrNewClassExpression expression)
+        {
+            if (!_classConstructorHandles.TryGetValue(expression.ClassType, out var constructor))
+            {
+                throw new NotSupportedException(
+                    $"Class '{expression.ClassType.Name}' has no managed constructor.");
+            }
+
+            encoder.OpCode(ILOpCode.Newobj);
+            encoder.Token(constructor);
+        }
+
+        private void EmitRaiseEvent(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrRaiseEventInstruction raiseEvent)
+        {
+            if (raiseEvent.DeclaringClass is null)
+            {
+                throw new NotSupportedException("RaiseEvent requires a class instance receiver.");
+            }
+
+            encoder.LoadArgument(0);
+            encoder.LoadString(_metadata.GetOrAddUserString(raiseEvent.Event.Name));
+            encoder.LoadConstantI4(raiseEvent.Arguments.Length);
+            encoder.OpCode(ILOpCode.Newarr);
+            encoder.Token(GetReflectionTypeReference(typeof(object)));
+            for (var index = 0; index < raiseEvent.Arguments.Length; index++)
+            {
+                encoder.OpCode(ILOpCode.Dup);
+                encoder.LoadConstantI4(index);
+                EmitExpression(encoder, procedure, raiseEvent.Arguments[index]);
+                if (IsValueType(raiseEvent.Arguments[index].Type))
+                {
+                    encoder.OpCode(ILOpCode.Box);
+                    encoder.Token(GetTypeEntityHandle(raiseEvent.Arguments[index].Type));
+                }
+
+                encoder.OpCode(ILOpCode.Stelem_ref);
+            }
+
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBEvents).GetMethod(
+                    nameof(VBEvents.Raise),
+                    BindingFlags.Public | BindingFlags.Static,
+                    new[] { typeof(object), typeof(string), typeof(object[]) })
+                ?? throw new MissingMethodException("VBEvents.Raise is required.")));
+        }
+
+        private void EmitSubscribeEvent(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrSubscribeEventInstruction subscribe)
+        {
+            EmitExpression(encoder, procedure, subscribe.Source);
+            encoder.LoadString(_metadata.GetOrAddUserString(subscribe.Event.Name));
+            EmitExpression(encoder, procedure, subscribe.Target);
+            encoder.LoadString(_metadata.GetOrAddUserString(subscribe.Handler.Name));
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBEvents).GetMethod(
+                    nameof(VBEvents.SubscribeMethod),
+                    BindingFlags.Public | BindingFlags.Static,
+                    new[] { typeof(object), typeof(string), typeof(object), typeof(string) })
+                ?? throw new MissingMethodException("VBEvents.SubscribeMethod is required.")));
+        }
+
+        private void EmitTypeOf(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrTypeOfExpression expression)
+        {
+            EmitExpression(encoder, procedure, expression.Expression);
+            encoder.OpCode(ILOpCode.Ldtoken);
+            encoder.Token(_classSymbolHandles[expression.TargetType]);
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(Type).GetMethod(
+                    nameof(Type.GetTypeFromHandle),
+                    BindingFlags.Public | BindingFlags.Static,
+                    new[] { typeof(RuntimeTypeHandle) })
+                ?? throw new MissingMethodException("System.Type.GetTypeFromHandle is required.")));
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBObjectIdentity).GetMethod(
+                    nameof(VBObjectIdentity.IsType),
+                    BindingFlags.Public | BindingFlags.Static,
+                    new[] { typeof(object), typeof(Type) })
+                ?? throw new MissingMethodException("VBObjectIdentity.IsType is required.")));
+        }
+
+        private static int GetIlArgumentIndex(IrProcedure procedure, int parameterIndex) =>
+            parameterIndex + (procedure.IsStatic ? 0 : 1);
 
         private void EmitArrayElementAddress(InstructionEncoder encoder, IrProcedure procedure, IrArrayElementPlace element)
         {
@@ -821,6 +1223,39 @@ public sealed class ManagedEmitter
                 _ => throw new NotSupportedException($"Array operation '{call.Operation}' is not supported yet.")
             };
             encoder.Call(member);
+        }
+
+        private void EmitVariantArrayCall(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrVariantArrayCallExpression call)
+        {
+            EmitExpression(encoder, procedure, call.Array);
+            if (call.Operation == IrVariantArrayOperation.GetElement)
+            {
+                EmitInt32Array(encoder, procedure, call.Arguments);
+                encoder.Call(GetRuntimeMethodReference(
+                    typeof(VBArrayOperations).GetMethod(
+                        nameof(VBArrayOperations.GetElement),
+                        new[] { typeof(object), typeof(int[]) })
+                    ?? throw new MissingMethodException("VBArrayOperations.GetElement(object,int[]) is required.")));
+                return;
+            }
+
+            if (call.Arguments.Length != 1)
+            {
+                throw new InvalidOperationException("Variant array bounds require exactly one dimension argument.");
+            }
+
+            EmitExpression(encoder, procedure, call.Arguments[0]);
+            var methodName = call.Operation == IrVariantArrayOperation.UBound
+                ? nameof(VBArrayOperations.UBound)
+                : nameof(VBArrayOperations.LBound);
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBArrayOperations).GetMethod(
+                    methodName,
+                    new[] { typeof(object), typeof(int) })
+                ?? throw new MissingMethodException($"VBArrayOperations.{methodName}(object,int) is required.")));
         }
 
         private void EmitEnsureArray(
@@ -979,6 +1414,11 @@ public sealed class ManagedEmitter
                 encoder.Type(_udtSymbolHandles[udt], isValueType: true);
                 return;
             }
+            if (type is ClassTypeSymbol classType)
+            {
+                encoder.Type(_classSymbolHandles[classType], isValueType: false);
+                return;
+            }
             if (type is ArrayTypeSymbol array)
             {
                 var arguments = encoder.GenericInstantiation(_vbArray, 1, isValueType: false);
@@ -1025,6 +1465,7 @@ public sealed class ManagedEmitter
         {
             if (type == TypeSymbol.Currency) return _vbCurrency;
             if (type is UserDefinedTypeSymbol udt) return _udtSymbolHandles[udt];
+            if (type is ClassTypeSymbol classType) return _classSymbolHandles[classType];
             if (type is ArrayTypeSymbol array) return GetArrayTypeSpecification(array);
             if (type == TypeSymbol.Byte) return GetReflectionTypeReference(typeof(byte));
             if (type == TypeSymbol.Integer) return GetReflectionTypeReference(typeof(short));
@@ -1059,26 +1500,80 @@ public sealed class ManagedEmitter
             foreach (var procedure in AllProcedures())
             {
                 var isTypeInitializer = IsTypeInitializer(procedure);
+                var isInstanceConstructor = procedure.DeclaringClass is not null &&
+                    procedure.IsCompilerGenerated &&
+                    string.Equals(procedure.Name, ".ctor", StringComparison.Ordinal);
+                var isFinalizer = procedure.DeclaringClass is not null &&
+                    procedure.IsCompilerGenerated &&
+                    string.Equals(procedure.Name, "Finalize", StringComparison.Ordinal);
+                if (procedure.IsExternal)
+                {
+                    ValidateExternalSignature(procedure);
+                }
+
                 var visibility = isTypeInitializer
                     ? MethodAttributes.Private
+                    : isFinalizer
+                        ? MethodAttributes.Family
+                    : isInstanceConstructor || procedure.DeclaringClass is not null
+                        ? MethodAttributes.Public
                     : procedure == _program.EntryPoint
                         ? MethodAttributes.Public
                         : MethodAttributes.Assembly;
                 var attributes = visibility | MethodAttributes.HideBySig;
                 if (procedure.IsStatic) attributes |= MethodAttributes.Static;
+                if (procedure.IsExternal) attributes |= MethodAttributes.PinvokeImpl;
                 if (isTypeInitializer)
                 {
                     attributes |= MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
                 }
+                if (isInstanceConstructor)
+                {
+                    attributes |= MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
+                }
+                if (isFinalizer)
+                {
+                    attributes |= MethodAttributes.Virtual;
+                }
 
+                var implementation = procedure.IsExternal
+                    ? MethodImplAttributes.IL | MethodImplAttributes.Managed | MethodImplAttributes.PreserveSig
+                    : MethodImplAttributes.IL | MethodImplAttributes.Managed;
                 var actual = _metadata.AddMethodDefinition(
                     attributes,
-                    MethodImplAttributes.IL | MethodImplAttributes.Managed,
+                    implementation,
                     _metadata.GetOrAddString(procedure.Name),
                     EncodeMethodSignature(procedure),
-                    bodyOffsets[procedure],
+                    procedure.IsExternal ? 0 : bodyOffsets[procedure],
                     parameterStarts[procedure]);
                 EnsureHandle(actual, _methodHandles[procedure], "method");
+
+                if (procedure.IsExternal)
+                {
+                    if (string.IsNullOrWhiteSpace(procedure.ExternalLibrary))
+                    {
+                        throw new NotSupportedException(
+                            $"Declare procedure '{procedure.Name}' has no native library name.");
+                    }
+
+                    var library = procedure.ExternalLibrary!;
+                    if (!_moduleReferences.TryGetValue(library, out var module))
+                    {
+                        module = _metadata.AddModuleReference(_metadata.GetOrAddString(library));
+                        _moduleReferences.Add(library, module);
+                    }
+
+                    var importName = string.IsNullOrWhiteSpace(procedure.ExternalAlias)
+                        ? procedure.Name
+                        : procedure.ExternalAlias!;
+                    _metadata.AddMethodImport(
+                        _methodHandles[procedure],
+                        MethodImportAttributes.CallingConventionWinApi |
+                        MethodImportAttributes.CharSetAnsi |
+                        MethodImportAttributes.ExactSpelling,
+                        _metadata.GetOrAddString(importName),
+                        module);
+                }
             }
         }
 
@@ -1104,6 +1599,16 @@ public sealed class ManagedEmitter
                         _metadata.GetOrAddString("VB6.Generated"),
                         _metadata.GetOrAddString(plan.Udt.Name),
                         _systemValueType,
+                        plan.FirstField,
+                        plan.FirstMethod);
+                }
+                else if (plan.Class is not null)
+                {
+                    actual = _metadata.AddTypeDefinition(
+                        TypeAttributes.NotPublic,
+                        _metadata.GetOrAddString("VB6.Generated"),
+                        _metadata.GetOrAddString("__vb6_class_" + Sanitize(plan.Class.Name)),
+                        _systemObject,
                         plan.FirstField,
                         plan.FirstMethod);
                 }
@@ -1134,6 +1639,35 @@ public sealed class ManagedEmitter
             procedure.ReturnType is null &&
             string.Equals(procedure.Name, ".cctor", StringComparison.Ordinal);
 
+        private static void ValidateExternalSignature(IrProcedure procedure)
+        {
+            if (procedure.ReturnType is not null && !IsPInvokeScalar(procedure.ReturnType))
+            {
+                throw new NotSupportedException(
+                    $"Declare function '{procedure.Name}' return type '{procedure.ReturnType.Name}' " +
+                    "needs an explicit native marshalling contract.");
+            }
+
+            foreach (var parameter in procedure.Parameters)
+            {
+                if (!IsPInvokeScalar(parameter.Type))
+                {
+                    throw new NotSupportedException(
+                        $"Declare procedure '{procedure.Name}' parameter '{parameter.Name}' type " +
+                        $"'{parameter.Type.Name}' needs an explicit native marshalling contract.");
+                }
+            }
+        }
+
+        private static bool IsPInvokeScalar(TypeSymbol type) =>
+            type == TypeSymbol.Byte ||
+            type == TypeSymbol.Integer ||
+            type == TypeSymbol.Long ||
+            type == TypeSymbol.LongLong ||
+            type == TypeSymbol.Single ||
+            type == TypeSymbol.Double ||
+            type == TypeSymbol.Boolean;
+
         private MethodDefinitionHandle ResolveEntryPoint()
         {
             if (_program.EntryPoint is null)
@@ -1150,6 +1684,10 @@ public sealed class ManagedEmitter
                 if (plan.Udt is not null)
                 {
                     foreach (var method in plan.Udt.Methods) yield return method;
+                }
+                else if (plan.Class is not null)
+                {
+                    foreach (var method in plan.Class.Methods) yield return method;
                 }
                 else if (plan.Module is not null)
                 {
@@ -1371,17 +1909,65 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CByte) return Static(typeof(VBConversions), "CByte", typeof(object));
             if (m == IrRuntimeMethod.CInt) return Static(typeof(VBConversions), "CInt", typeof(object));
             if (m == IrRuntimeMethod.CLng) return Static(typeof(VBConversions), "CLng", typeof(object));
+            if (m == IrRuntimeMethod.CDec) return Static(typeof(VBConversions), "CDec", typeof(object));
             if (m == IrRuntimeMethod.CLngLng) return Static(typeof(VBConversions), "CLngLng", typeof(object));
             if (m == IrRuntimeMethod.CCur) return Static(typeof(VBConversions), "CCur", typeof(object));
             if (m == IrRuntimeMethod.CSng) return Static(typeof(VBConversions), "CSng", typeof(object));
             if (m == IrRuntimeMethod.CDbl) return Static(typeof(VBConversions), "CDbl", typeof(object));
             if (m == IrRuntimeMethod.CBool) return Static(typeof(VBConversions), "CBool", typeof(object));
             if (m == IrRuntimeMethod.CStr) return Static(typeof(VBConversions), "CStr", typeof(object));
+            if (m == IrRuntimeMethod.VariantToBoolean) return Static(typeof(VBVariants), "ToBoolean", typeof(object));
+            if (m == IrRuntimeMethod.StringLike) return Static(typeof(VBStrings), nameof(VBStrings.Like), typeof(object), typeof(object), typeof(bool));
+            if (m == IrRuntimeMethod.ObjectIs) return Static(typeof(VBObjectIdentity), nameof(VBObjectIdentity.IsSame), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.InteractionDoEvents) return Static(typeof(VBInteraction), "DoEvents");
+            if (m == IrRuntimeMethod.InteractionMsgBox) return Static(typeof(VBInteraction), "MsgBox", typeof(string), typeof(int), typeof(string));
+            if (m == IrRuntimeMethod.InteractionInputBox) return Static(typeof(VBInteraction), "InputBox", typeof(string), typeof(string), typeof(string), typeof(float), typeof(float), typeof(string), typeof(int));
+            if (m == IrRuntimeMethod.InteractionLoad) return Static(typeof(VBInteraction), "Load", typeof(object));
+            if (m == IrRuntimeMethod.InteractionUnload) return Static(typeof(VBInteraction), "Unload", typeof(object));
+            if (m == IrRuntimeMethod.InteractionCreateObject) return Static(typeof(VBInteraction), nameof(VBInteraction.CreateObject), typeof(string), typeof(string));
+            if (m == IrRuntimeMethod.InteractionGetObject) return Static(typeof(VBInteraction), nameof(VBInteraction.GetObject), typeof(string), typeof(string));
+            if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));
+            if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
+            if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
+            if (m == IrRuntimeMethod.MemoryLSet) return Static(typeof(VBMemory), nameof(VBMemory.LSet), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
+            if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
+            if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));
+            if (m == IrRuntimeMethod.ErrorClear) return Static(typeof(VBErrors), nameof(VBErrors.Clear));
+            if (m == IrRuntimeMethod.ErrorRaise) return Static(typeof(VBErrors), nameof(VBErrors.Raise), typeof(int), typeof(string), typeof(string), typeof(string), typeof(int));
+            if (m == IrRuntimeMethod.FunctionTypeName) return Static(typeof(VBFunctions), nameof(VBFunctions.TypeName), typeof(object));
+            if (m == IrRuntimeMethod.FunctionSwitch) return Static(typeof(VBFunctions), nameof(VBFunctions.Switch), typeof(VBArray<object>));
 
             if (m is IrRuntimeMethod.Equal or IrRuntimeMethod.NotEqual or IrRuntimeMethod.Less or IrRuntimeMethod.LessOrEqual or IrRuntimeMethod.Greater or IrRuntimeMethod.GreaterOrEqual or IrRuntimeMethod.Concat)
                 return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.ConcatVariant)
+                return Static(typeof(VBOperators), "ConcatVariant", typeof(object), typeof(object));
+            if (m is IrRuntimeMethod.VariantEqual or IrRuntimeMethod.VariantNotEqual or
+                IrRuntimeMethod.VariantLess or IrRuntimeMethod.VariantLessOrEqual or
+                IrRuntimeMethod.VariantGreater or IrRuntimeMethod.VariantGreaterOrEqual)
+                return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));
+            if (m is IrRuntimeMethod.StringVariantEqual or IrRuntimeMethod.StringVariantNotEqual or
+                IrRuntimeMethod.StringVariantLess or IrRuntimeMethod.StringVariantLessOrEqual or
+                IrRuntimeMethod.StringVariantGreater or IrRuntimeMethod.StringVariantGreaterOrEqual)
+                return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.Power) return Static(typeof(VBOperators), "Power", typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.PowerVariant) return Static(typeof(VBOperators), "PowerVariant", typeof(object), typeof(object));
             if (m == IrRuntimeMethod.MultiplyVariant) return Static(typeof(VBOperators), "MultiplyInteger", typeof(object), typeof(object));
+
+            if (m is IrRuntimeMethod.AddVariant or IrRuntimeMethod.SubtractVariant or
+                IrRuntimeMethod.AddStringVariant or
+                IrRuntimeMethod.DivideVariant or IrRuntimeMethod.IntegerDivideVariant or
+                IrRuntimeMethod.ModVariant or IrRuntimeMethod.AndVariant or
+                IrRuntimeMethod.OrVariant or IrRuntimeMethod.XorVariant or
+                IrRuntimeMethod.EqvVariant or IrRuntimeMethod.ImpVariant)
+            {
+                return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));
+            }
+
+            if (m is IrRuntimeMethod.NegateVariant or IrRuntimeMethod.NotVariant)
+            {
+                return Static(typeof(VBOperators), RuntimeName(m), typeof(object));
+            }
 
             if (m == IrRuntimeMethod.FixedStringRead)
                 return Static(typeof(VBTypeStorage), "ReadFixedString", typeof(string), typeof(int));
@@ -1399,6 +1985,45 @@ public sealed class ManagedEmitter
                 if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(string), typeof(int));
                 if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim" or "Asc") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object));
+                if (name == "InStr") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int));
+                if (name == "InStrRev") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
+                if (name == "Replace") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(string), typeof(int), typeof(int), typeof(int));
+                if (name == "Space") return Static(typeof(VBStrings), name, typeof(int));
+                if (name == "Split") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
+                if (name == "StrConv") return Static(typeof(VBStrings), name, typeof(string), typeof(int), typeof(int));
+            }
+
+            if (m == IrRuntimeMethod.ConversionInt) return Static(typeof(VBConversions), "Int", typeof(object));
+            if (m == IrRuntimeMethod.MathAbs) return Static(typeof(VBMath), "Abs", typeof(object));
+            if (m == IrRuntimeMethod.MathSgn) return Static(typeof(VBMath), "Sgn", typeof(object));
+            if (m == IrRuntimeMethod.MathFix) return Static(typeof(VBMath), "Fix", typeof(object));
+            if (m == IrRuntimeMethod.MathRound) return Static(typeof(VBMath), "Round", typeof(object), typeof(short));
+            if (m == IrRuntimeMethod.MathSqr) return Static(typeof(VBMath), "Sqr", typeof(double));
+
+            if (m is IrRuntimeMethod.VariantEmpty or IrRuntimeMethod.VariantNull or
+                IrRuntimeMethod.VariantNothing or IrRuntimeMethod.VariantMissing)
+            {
+                var name = m switch
+                {
+                    IrRuntimeMethod.VariantEmpty => "EmptyValue",
+                    IrRuntimeMethod.VariantNull => "NullValue",
+                    IrRuntimeMethod.VariantNothing => "NothingValue",
+                    _ => "MissingValue"
+                };
+                return Static(typeof(VBVariants), name);
+            }
+
+            if (m is IrRuntimeMethod.VariantIsEmpty or IrRuntimeMethod.VariantIsNull or
+                IrRuntimeMethod.VariantIsMissing or IrRuntimeMethod.VariantVarType)
+            {
+                var name = m switch
+                {
+                    IrRuntimeMethod.VariantIsEmpty => "IsEmpty",
+                    IrRuntimeMethod.VariantIsNull => "IsNull",
+                    IrRuntimeMethod.VariantIsMissing => "IsMissing",
+                    _ => "VarType"
+                };
+                return Static(typeof(VBVariants), name, typeof(object));
             }
 
             if (m.ToString().StartsWith("File", StringComparison.Ordinal))
@@ -1429,6 +2054,9 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileLength => Static(typeof(VBFiles), "Length", typeof(int)),
                 IrRuntimeMethod.FileEndOfFile => Static(typeof(VBFiles), "EndOfFile", typeof(int)),
                 IrRuntimeMethod.FilePosition => Static(typeof(VBFiles), "Position", typeof(int)),
+                IrRuntimeMethod.FileKill => Static(typeof(VBFiles), "Kill", typeof(string)),
+                IrRuntimeMethod.FileDir => Static(typeof(VBFiles), "Dir", typeof(string), typeof(int)),
+                IrRuntimeMethod.FileLengthByPath => Static(typeof(VBFiles), "Length", typeof(string)),
                 IrRuntimeMethod.FilePut => ResolveFilePut(call, out skippedArgument),
                 _ => ResolveFileGet(call, out skippedArgument)
             };
@@ -1457,6 +2085,7 @@ public sealed class ManagedEmitter
         private static string RuntimeName(IrRuntimeMethod method) => method switch
         {
             IrRuntimeMethod.IntegerDivideInteger => "IntegerDivide",
+            IrRuntimeMethod.IntegerDivideVariant => "IntegerDivideVariant",
             _ => method.ToString()
         };
 
@@ -1488,7 +2117,8 @@ public sealed class ManagedEmitter
         }
 
         private static bool IsReferenceType(TypeSymbol type) =>
-            type == TypeSymbol.String || type == TypeSymbol.Variant || type is ArrayTypeSymbol;
+            type == TypeSymbol.String || type == TypeSymbol.Variant || type is ArrayTypeSymbol ||
+            type is ClassTypeSymbol;
 
         private static bool IsValueType(TypeSymbol type) => !IsReferenceType(type) && type != TypeSymbol.Error;
 
@@ -1526,6 +2156,7 @@ public sealed class ManagedEmitter
             private TypePlan() { }
             public bool IsModulePseudoType { get; private init; }
             public IrTypeDefinition? Udt { get; private init; }
+            public IrClassDefinition? Class { get; private init; }
             public IrModule? Module { get; private init; }
             public TypeDefinitionHandle TypeHandle { get; set; }
             public FieldDefinitionHandle FirstField { get; set; }
@@ -1533,6 +2164,7 @@ public sealed class ManagedEmitter
 
             public static TypePlan ModuleType() => new() { IsModulePseudoType = true };
             public static TypePlan ForUdt(IrTypeDefinition type) => new() { Udt = type };
+            public static TypePlan ForClass(IrClassDefinition @class) => new() { Class = @class };
             public static TypePlan ForModule(IrModule module) => new() { Module = module };
         }
     }

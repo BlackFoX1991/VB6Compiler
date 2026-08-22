@@ -1,7 +1,17 @@
 # Roadmap
 
-Weg von "VB6-Teilmenge kompiliert" zu "beliebiges Legacy-`.vbp` kompiliert unverändert", plus
-moderne Typerweiterungen, danach die IDE.
+## Produktziel
+
+Das Hauptprodukt ist ein moderner, hochkompatibler VB6-Compiler, nicht die VISIA-Portierung und
+nicht zuerst die IDE. Der Compiler soll die vollständige VB6-Sprache und Standardbibliothek mit
+einem eigenen Runtime-/Objektmodell abbilden, COM/ActiveX konsumieren und emittieren, sowie
+native Windows-Ziele (x86 und x64 über LLVM) und .NET bedienen. `.vbp` plus MSBuild SDK sind die
+Projektverträge. Visual Studio wird später über LSP angebunden; Forms- und WinForms-Designer
+folgen erst nach dem Compiler-Kern.
+
+Der historische Plan wird auf das eigentliche Produktziel eingeordnet: ein moderner, hochkompatibler
+VB6-Compiler mit eigenem Runtime-/Objektmodell, COM/ActiveX-Kompatibilität, .NET- und nativen
+Windows-Backends. VISIA ist Regressionstestkorpus; Visual Studio/LSP, IDE und Designer folgen später.
 
 Die Reihenfolge stammt aus einer Konstrukt-Frequenzanalyse über echten VB6-Code, nicht aus einer
 generischen VB6-Feature-Liste.
@@ -44,6 +54,38 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | M5 `Optional`-Aufrufsemantik vorgezogen | **367** | 12 | 0 | 355 | **3 von 27** |
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
+| Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **309** | **196** | **0** | **113** | **16 von 40** |
+
+Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
+gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
+Get/Let/Set`, Events, `WithEvents`, `New`, `Set`, `TypeOf`, Variant-Arrays, Standard-Collection,
+late-bound Object-/Control-Mitglieder sowie `On Error` mit `Err` und `Resume Next` sind als
+Compiler-Kern vorhanden. Managed-Klasseninstanzen besitzen jetzt eigenen Feldspeicher, Konstruktor-
+und Terminator-Lifecycle, Property-Dispatch, `RaiseEvent`/`WithEvents`-Emission sowie echte
+Referenzidentitaet. COM-Identitaet/Dispatch, native ABI-Emission und viele Parser-/UDT-/Forms-
+Faelle stehen noch aus.
+VISIA bleibt dabei ein Regressionstest- und Messkorpus, nicht das fachliche Portierungsziel.
+
+### Aktueller Compiler-Kern-Nachtrag
+
+Seit dem Messpunkt sind mehrere bisher offene, backendunabhängige Kernpfade implementiert und
+regressionsgesichert: `Like` mit `Option Compare Binary/Text` (Wildcard-, Zeichenlisten- und
+Bereichsmuster), `Is` für Variant-/Hostobjektreferenzidentität, variable String-Transfers bei
+binärem `Get`/`Put` mit Zwei-Byte-Längenpräfix sowie `Debug.Print` mit VB6-naher numerischer
+Formatierung. `InStr`, `InStrRev`, zweiargumentiges `Mid`, `InputBox` als hostfähiger headless
+Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfalls über Symbol,
+IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
+Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. UDT-Dateitransfers,
+ANSI-String-/`As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
+Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
+ist inzwischen regressionsgesichert.
+
+Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
+`Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
+Events/`WithEvents` emittierbar. Der M6-Kontrollfluss ist fuer numerische und benannte Labels,
+`GoTo`, `On ... GoTo`, `GoSub`/`Return` und `On ... GoSub` im Basic-Block-IR und Managed-Backend
+verifiziert.
 
 `Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
 Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
@@ -268,15 +310,15 @@ fehlerfreien Dateien.
 
 | Code | Anzahl | wartet auf |
 |---|---|---|
-| `VB6S0005` / `VB6S0001` | 104 / 83 | zum größeren Teil Tabelleneinträge nach dem `IntrinsicKind`-Muster: `DoEvents` (12), `Kill` (5), `Dir` (4), `MsgBox` (4), `Split`, `InStrRev`, `LSet`, `CopyMemory`. Echt blockiert sind `frmMain` (25, M9) sowie `App` und `Err` (M6) |
-| `VB6S0061` | 26 | `On Error`; das lowered IR aus M6 steht inzwischen, die Handler-Semantik fehlt |
-| `VB6S0060` / `VB6S0062` | je 24 | `TypeOf` und Memberaufrufe, brauchen das Objektmodell aus M5/M9 |
+| `VB6S0005` / `VB6S0001` | 148 / 137 | Standardbibliotheksfunktionen und fehlende Projekt-/Objektbezeichner; davon sind `CopyMemory`, `DoEvents`, `VarPtr`, `RaiseEvent`, `frmMain`, `App` und `Err` die breiten Blocker |
+| `VB6S0003` | 31 | fehlende externe Typen wie `Collection`, `Control` und `OLE_COLOR`; COM-/Forms-Typraum folgt |
+| `VB6S0061` | 27 | `On Error` und Handler-Semantik; das lowered IR aus M6 steht inzwischen |
 | `VB6P0001` | 12 | verstreute Parserreste |
 | `VB6S0012` | 8 | verbliebene Typkonvertierungen |
 | `VB6S0058` | 6 | Datei-I/O-Formen jenseits der numerischen Binärtransfers |
 
-Nur `.bas` wird heute gelesen; `.cls` (3), `.ctl` (4) und `.frm` (6) sind noch außen vor —
-daher 27 von 40 Items.
+`.bas` und `.cls` werden heute gelesen und analysiert; `.ctl` (4) und `.frm` (6) sind noch
+außerhalb des Compiler-Kerns. Damit sind 30 von 40 Items abgedeckt.
 
 Dass zunehmend *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
 bis zum Binder durch, statt schon im Parser zu entgleisen.
@@ -315,8 +357,8 @@ Untypisierte Deklaratoren werden bis M4 als `VB6S0020` diagnostiziert, statt sti
 Typ des Nachbarn zu erben. Actions #604 verifiziert das mit Parser-, Binder- und End-to-End-Tests.
 
 `Static` verwendet dieselbe Deklaratorstruktur, aber einen eigenen Syntaxknoten. Der Binder macht
-die Namen für Folgeausdrücke sichtbar, emittiert sie jedoch **nicht** als normale Locals; bis die
-persistente Lebensdauer in M5 implementiert ist, verhindert `VB6S0021` eine falsche Absenkung.
+die Namen für Folgeausdrücke sichtbar und registriert prozedurbezogenen Modul-Storage; der bestehende
+Modulinitialisierer setzt String- und Array-Defaults einmalig, während skalare Defaults aus dem CLR-Nullwert kommen.
 `Like` und expression-level `Is` werden analog syntaktisch bewahrt, aber mit `VB6S0023` bzw.
 `VB6S0024` gestoppt, bis Pattern-/`Option Compare`- bzw. Objektidentitätssemantik existiert.
 `^` ist dagegen bereits vollständig von Lexer bis End-to-End-Ausführung implementiert. Actions
@@ -356,9 +398,9 @@ Business-Programm:
 | `ReDim`/`Preserve` | 103 ✅ typed arrays | `Type ... End Type` | 52 ✅ Syntax + Typraum |
 | `With` | 102 | `Enum` | 44 ✅ Syntax |
 
-Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0, `Resume`-Statement 0. Da `Resume`
-fehlt, genügt `On Error GoTo` + `On Error Resume Next` + `Err` — kein voller
-Resume-Zustandsautomat.
+Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0. `Resume`, `Resume Next` und
+`Resume <Label>` sind inzwischen syntaktisch gebunden; `Resume Next` besitzt im Managed-Backend
+einen fehlerstellenspezifischen Fortsetzungsdispatcher. Der native Resume-/ABI-Vertrag bleibt offen.
 
 ## Entschiedene Weichenstellungen
 
@@ -410,12 +452,13 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Exit Sub` und `Exit Function`
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
 - [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; inzwischen auch als Long-basierte Konstanten gebunden
-- [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults bleiben M5
+- [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults sind umgesetzt
 - [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
 - [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, implizites Variant bleibt M4
-- [x] `Static`-Local-Syntax; statische Lebensdauer bleibt M5 und wird bis dahin als `VB6S0021` diagnostiziert
-- [x] `^` vollständig; `Like`- und `Is`-Syntax mit Semantik-Guards bis M7 bzw. M5
+- [x] `Static`-Local-Syntax und persistente Lebensdauer ueber Modul-Storage
+- [x] `^`; `Like` mit `Option Compare`-Wildcardsemantik; `Is` mit Runtime-Identitätsvertrag für
+      Variant-/Hostobjekte (echte Klasseninstanzen folgen M5)
 
 **Nach M3 verschoben:** `With`-Blöcke und `.Feld`-Zugriff (19 Dateien, 629 Vorkommen). Sie
 brauchen einen Member-Zugriff, den es ohne UDTs und Objekte nicht sinnvoll gibt.
@@ -459,22 +502,27 @@ Zwei Nachträge:
 - [x] Variant als semantischer Typ mit Speicherung und expliziten Konvertierungen
 - [x] Untypisierte `Dim`-, `Static`- und Modul-Deklaratoren werden vor dem Binden zu Variant normalisiert
 - [x] `Function` ohne `As`-Klausel liefert Variant — Syntax, Normalisierung, Bindung und Ausführung
-- [ ] Untypisierte `Optional`-Parameter werden Variant
-- [ ] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsNumeric`
-- [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Heute sind `*`, `&` und eine numerische Gleichheits-Teilmenge implementiert; alles andere meldet `VB6S0053`. **Diese drei entstehen als Korrekturpass hinter dem Binder (`VariantMultiplyLowerer`) plus Sperre (`VariantOperationGuard`) — die vollständige Promotion gehört in den Binder selbst, und das Gerüst muss dabei zurückgebaut werden.**
-- [ ] Erstklassiges `Decimal` als additive Erweiterung
+- [x] Untypisierte `Optional`-Parameter werden Variant; ausgelassene Werte erhalten den `Missing`-Zustand
+- [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric` fuer die aktuell unterstuetzten Scalar-Variantwerte; Objekt-, Array-, Date- und Error-Varianten folgen mit den jeweiligen Typmodellen
+- [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen und Null bei `&` sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
+- [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
 - [x] `Optional`-Aufrufsemantik/Defaults **vorgezogen**: ausgelassene Argumente erhalten den deklarierten Default oder den Typdefault
-- [ ] `ParamArray`, `Static`-Local-Lebensdauer
+- [x] `ParamArray` als letztes `Variant`-Array-Argument mit leerem Aufruf und gemischten Werten
+- [x] `Static`-Local-Lebensdauer ueber compiler-generierten Modul-Storage inklusive String-/Array-Initialisierung
 - [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
       Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
-- [ ] `Is`-Objektreferenzidentität auf dem echten Klassen-/Objekttypmodell
-- [ ] `Property Get`/`Let`/`Set`
-- [ ] Klassenmodule: `New`, `Set`, `Class_Initialize`/`Terminate`, `Implements`
-- [ ] `Event`/`RaiseEvent`, `WithEvents`
-- [ ] `.cls` als Projektquelle lesen (hebt die Item-Abdeckung von 27 auf 30)
+- [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-Identität/Interop bleibt offen
+- [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission steht; indexierte/default Properties und COM-Dispatch bleiben offen
+- [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements`, COM und Forms bleiben offen
+- [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag steht; vollständiger Sink-Lifecycle, Umverdrahtung und COM-Events bleiben offen
+- [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
+
+`[~]` kennzeichnet einen begonnenen, teilweise ausgabefähigen Slice. Der Managed-Kern ist jetzt
+ausgabefähig; als nächste Klassenstufe folgen `Implements`, COM-Identität/Dispatch, vollständige
+Event-Sink-Lebenszyklen sowie indexed/default Properties.
 
 ## Meilenstein 6 — IR und Fehlerbehandlung
 
@@ -484,11 +532,11 @@ Das Lowering ist aus dem Backend heraus: `VB6.IR` erzeugt Basic Blocks mit expli
 Blockstruktur, nicht mehr des Textgenerators.
 
 - [x] Lowered IR mit Basic Blocks und expliziten Sprüngen — `VB6.IR`, inspizierbar mit `vb6c --dump-ir`
-- [x] Syntax für `GoTo`, Labels, `On Error GoTo`/`GoTo 0`/`Resume Next` — vorgezogen, Semantik als `VB6S0061` gemeldet
+- [x] Syntax, Bindung und Lowering für `GoTo`, Labels, `On Error GoTo`/`GoTo 0`, `Resume`, `Resume Next` und `Resume <Label>`
 - [x] `GoTo` und Labels vollständig: gebunden, gelowert und E2E ausgeführt
-- [ ] Zeilennummern, `On ... GoTo`, `GoSub`/`Return`
-- [ ] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt — `VB6S0061`,
-      26 Vorkommen im Korpus; der größte verbliebene Einzelposten nach den Bibliotheksfunktionen
+- [x] Numerische und benannte Labels, `On ... GoTo`, `GoSub`/`Return` und `On ... GoSub` im Basic-Block-IR und Managed-Backend
+- [x] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt und fehlerstellenspezifischer
+      `Resume Next`-Dispatcher im Managed-Backend; native ABI- und vollständige Handlerzustände offen
 - [x] Quellpositionen: der Binder hängt `SourceLocation` referenziell an jede gebundene Anweisung,
       `IrLowerer` stempelt sie auf die entstehenden Instruktionen, der Emitter merkt sich die
       IL-Offsets und `PortablePdbEmitter` schreibt daraus Sequenzpunkte. Die PDB trägt damit
@@ -510,14 +558,17 @@ Nach Korpusbedarf priorisiert:
 1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
     VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.
-    **Offen:** `InStr` und zweiargumentiges `Mid` — die `Optional`-Aufrufsemantik dafür steht
-    seit M5, es sind jetzt gewöhnliche Tabelleneinträge
+    `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
+    End-to-End-Tests verdrahtet.
 2. Datei-I/O — `Open For Binary`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close` ✅ für die
    numerischen Binärformen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und
-   E2E-Tests schreiben und lesen echte Dateien. **Offen:** Textmodi, die `Len`-Klausel sowie
-   `String`- und UDT-Transfers — gemeldet als `VB6S0058`, 6 Vorkommen im Korpus
-3. `MsgBox`/`InputBox`
-4. Math, Konvertierung, vollständiges `Like` inklusive `Option Compare`
+   E2E-Tests schreiben und lesen echte Dateien. Variable `String`-Transfers sind ergänzt;
+   UDT-Transfers, Textmodi und die `Len`-Klausel bleiben offen.
+3. `MsgBox`/`InputBox` als hostfähige Verträge; `InputBox` liefert im headless Runtime-Profil den
+   Defaultwert
+4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere
+   Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
+   für den aktuellen String-/Variant-Subset implementiert.
 5. Erst danach `Format$`, Datum/Zeit, Finanzfunktionen — im Korpus unbenutzt
 
 ## Meilenstein 8 — Interop
@@ -525,9 +576,13 @@ Nach Korpusbedarf priorisiert:
 Durch `Declare` (234) deutlich früher als ursprünglich geplant; ab Meilenstein 5 parallel
 beginnbar, da weitgehend unabhängig vom Sprachkern.
 
-- [ ] `Declare` → P/Invoke mit `Alias`, `As Any`, ANSI-String-Marshalling
-- [ ] COM-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
-- [ ] x86-Standardausgabe umgesetzt, nativer Apphost statt DLL + runtimeconfig
+- [~] `Declare` -> P/Invoke für skalare Signaturen mit `Lib`/`Alias` und echter Managed-
+      Invocation; `As Any` sowie ANSI-String-Marshalling bleiben offen
+- [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
+- [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
+- [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
+- [ ] LLVM-natives Windows-Backend für x86 und x64 — Target-/Diagnosevertrag steht, native Instruktions- und Runtime-Emission offen
+- [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [ ] `LongPtr`, vorzeichenlose Ganzzahltypen
 
 ## Meilenstein 9 — Forms
@@ -544,18 +599,19 @@ Größter Einzelblock.
 
 ## Meilenstein 10 — IDE
 
-Eigenständig in C#/WinForms, sobald der Compiler trägt: Editor mit VB6-Syntax, Projektbaum,
-Inline-Diagnostics, WinForms-Designer mit verlustfreiem `.frm`-Roundtrip, Debugger.
+Der erste LSP-Slice für Visual Studio steht: JSON-RPC, Initialize, Dokument-Synchronisation,
+Lexer-/Parser-/Semantik-Diagnosen und leere Completion-/Symbol-/Definition-Antworten. Als Nächstes
+folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Danach eigenständige IDE-/WinForms-Designer-Funktionen mit verlustfreiem
+`.frm`-Roundtrip und Debugger. Diese Schicht ist bewusst nach dem Compiler-Kern eingeordnet.
 
 ---
 
 ## Zusätzlich, klein und unabhängig
 
-1. `Debug.Print` auf VB6-Formatierung (führendes Vorzeichen-Leerzeichen, 15 signifikante
-   Stellen); danach `.Trim()` aus den E2E-Tests entfernen
+1. [x] `Debug.Print` auf VB6-nahe Formatierung (führendes Vorzeichen-Leerzeichen, 15
+   signifikante Stellen); die E2E-Helfer trimmen weiterhin bewusst Plattform-/Spaltenformat
 2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
    Binder hat beide Seiten bereits angeglichen
 3. `Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren
-4. `Debug.Print` formatiert Zahlen jetzt invariant, aber weiterhin nach .NET-Regeln — die
-   VB6-Formatierung (führendes Vorzeichen-Leerzeichen, 15 signifikante Stellen) steht
+4. `Debug.Print` formatiert Zahlen invariant und mit VB6-nahem Vorzeichen-/Signifikanzformat
    unverändert unter Punkt 1

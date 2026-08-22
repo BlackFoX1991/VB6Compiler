@@ -6,8 +6,8 @@ public static partial class VBOperators
 {
     /// <summary>
     /// Dynamic multiplication used when at least one VB6 operand is Variant. The C# generator
-    /// already emits MultiplyInteger for the binder's arithmetic fallback; overload resolution
-    /// selects this object overload only after VariantMultiplyLowerer restores a Variant operand.
+    /// already emits MultiplyInteger for the binder's scalar arithmetic fallback; the direct
+    /// Variant binder path selects this object overload when a Variant operand is present.
     /// </summary>
     public static object? MultiplyInteger(object? left, object? right)
     {
@@ -20,6 +20,7 @@ public static partial class VBOperators
             VariantNumericKind.LongLong => MultiplyVariantLongLong(left, right),
             VariantNumericKind.Single => MultiplyVariantSingle(left, right),
             VariantNumericKind.Currency => MultiplyCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
+            VariantNumericKind.Decimal => checked(VariantDecimal(left) * VariantDecimal(right)),
             VariantNumericKind.Double => MultiplyVariantDouble(left, right),
             _ => throw new InvalidOperationException("Unexpected Variant numeric kind.")
         };
@@ -107,6 +108,7 @@ public static partial class VBOperators
             long => VariantNumericKind.LongLong,
             float => VariantNumericKind.Single,
             VBCurrency => VariantNumericKind.Currency,
+            decimal => VariantNumericKind.Decimal,
             double => VariantNumericKind.Double,
             bool => VariantNumericKind.Integer,
             string text when double.TryParse(
@@ -124,6 +126,11 @@ public static partial class VBOperators
         VariantNumericKind left,
         VariantNumericKind right)
     {
+        if (left == VariantNumericKind.Decimal || right == VariantNumericKind.Decimal)
+        {
+            return VariantNumericKind.Decimal;
+        }
+
         if (left == VariantNumericKind.Double || right == VariantNumericKind.Double)
         {
             return VariantNumericKind.Double;
@@ -160,6 +167,51 @@ public static partial class VBOperators
         return VariantNumericKind.Byte;
     }
 
+    private static VariantNumericKind PromoteVariantAddKind(
+        VariantNumericKind left,
+        VariantNumericKind right)
+    {
+        if (left == VariantNumericKind.Decimal || right == VariantNumericKind.Decimal)
+        {
+            return VariantNumericKind.Decimal;
+        }
+
+        if (left == VariantNumericKind.Currency || right == VariantNumericKind.Currency)
+        {
+            return VariantNumericKind.Currency;
+        }
+
+        if (left == VariantNumericKind.Double || right == VariantNumericKind.Double)
+        {
+            return VariantNumericKind.Double;
+        }
+
+        if (left == VariantNumericKind.Single || right == VariantNumericKind.Single)
+        {
+            var other = left == VariantNumericKind.Single ? right : left;
+            return other is VariantNumericKind.Long or VariantNumericKind.LongLong
+                ? VariantNumericKind.Double
+                : VariantNumericKind.Single;
+        }
+
+        if (left == VariantNumericKind.LongLong || right == VariantNumericKind.LongLong)
+        {
+            return VariantNumericKind.LongLong;
+        }
+
+        if (left == VariantNumericKind.Long || right == VariantNumericKind.Long)
+        {
+            return VariantNumericKind.Long;
+        }
+
+        if (left == VariantNumericKind.Integer || right == VariantNumericKind.Integer)
+        {
+            return VariantNumericKind.Integer;
+        }
+
+        return VariantNumericKind.Byte;
+    }
+
     private enum VariantNumericKind
     {
         Byte,
@@ -168,6 +220,7 @@ public static partial class VBOperators
         LongLong,
         Single,
         Currency,
+        Decimal,
         Double
     }
 }

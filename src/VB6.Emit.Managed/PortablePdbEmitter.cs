@@ -186,6 +186,24 @@ public static class PortablePdbEmitter
             }
         }
 
+        foreach (var @class in program.ClassDefinitions)
+        {
+            var document = @class.Methods
+                .Select(method => method.Blocks.SelectMany(block => block.Instructions)
+                    .Select(instruction => instruction.SourceLocation?.FilePath)
+                    .FirstOrDefault(path => path is not null))
+                .FirstOrDefault(path => path is not null);
+            if (document is null || !documents.TryGetValue(NormalizePath(document), out var handle))
+            {
+                continue;
+            }
+
+            foreach (var procedure in @class.Methods)
+            {
+                result[procedure] = handle;
+            }
+        }
+
         return result;
     }
 
@@ -276,6 +294,14 @@ public static class PortablePdbEmitter
         foreach (var type in program.TypeDefinitions)
         {
             foreach (var method in type.Methods)
+            {
+                yield return method;
+            }
+        }
+
+        foreach (var @class in program.ClassDefinitions)
+        {
+            foreach (var method in @class.Methods)
             {
                 yield return method;
             }

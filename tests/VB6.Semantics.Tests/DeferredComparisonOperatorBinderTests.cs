@@ -8,7 +8,7 @@ namespace VB6.Semantics.Tests;
 public sealed class DeferredComparisonOperatorBinderTests
 {
     [TestMethod]
-    public void Bind_LikeProducesDedicatedSemanticDiagnostic()
+    public void Bind_LikeSupportsOptionCompareTextSemantics()
     {
         var model = BindSource("""
             Sub Main()
@@ -18,9 +18,7 @@ public sealed class DeferredComparisonOperatorBinderTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0023" },
-            model.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, model.Diagnostics.Length);
     }
 
     [TestMethod]

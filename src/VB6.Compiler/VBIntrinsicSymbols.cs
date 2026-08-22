@@ -43,6 +43,140 @@ internal static class VBIntrinsicSymbols
         Function("RTrim", VBIntrinsicKind.RTrim, "VBStrings.RTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
         Function("Asc", VBIntrinsicKind.Asc, "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Function("IsNumeric", VBIntrinsicKind.IsNumeric, "VBStrings.IsNumeric", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function(
+            "InStr",
+            VBIntrinsicKind.InStr,
+            "VBStrings.InStr",
+            TypeSymbol.Long,
+            Parameter("Start", TypeSymbol.Long),
+            Parameter("String1", TypeSymbol.String),
+            Parameter("String2", TypeSymbol.String),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)) with { IntrinsicMinimumArguments = 2 },
+        Function(
+            "InStrRev",
+            VBIntrinsicKind.InStrRev,
+            "VBStrings.InStrRev",
+            TypeSymbol.Long,
+            Parameter("StringCheck", TypeSymbol.String),
+            Parameter("StringMatch", TypeSymbol.String),
+            OptionalParameter("Start", TypeSymbol.Long, -1L),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)),
+        Function(
+            "Replace",
+            VBIntrinsicKind.Replace,
+            "VBStrings.Replace",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Find", TypeSymbol.String),
+            Parameter("Replace", TypeSymbol.String),
+            OptionalParameter("Start", TypeSymbol.Long, 1L),
+            OptionalParameter("Count", TypeSymbol.Long, -1L),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)),
+        Function("Space", VBIntrinsicKind.Space, "VBStrings.Space", TypeSymbol.String, Parameter("Number", TypeSymbol.Long)),
+        Function(
+            "Split",
+            VBIntrinsicKind.Split,
+            "VBStrings.Split",
+            new ArrayTypeSymbol(TypeSymbol.String),
+            Parameter("Expression", TypeSymbol.String),
+            OptionalParameter("Delimiter", TypeSymbol.String, " "),
+            OptionalParameter("Limit", TypeSymbol.Long, -1L),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)),
+        Function(
+            "StrConv",
+            VBIntrinsicKind.StrConv,
+            "VBStrings.StrConv",
+            TypeSymbol.String,
+            Parameter("String", TypeSymbol.String),
+            Parameter("Conversion", TypeSymbol.Long),
+            OptionalParameter("LCID", TypeSymbol.Long, 0L)),
+        Function("Abs", VBIntrinsicKind.Abs, "VBMath.Abs", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
+        Function("Sgn", VBIntrinsicKind.Sgn, "VBMath.Sgn", TypeSymbol.Integer, Parameter("Number", TypeSymbol.Variant)),
+        Function("Fix", VBIntrinsicKind.Fix, "VBMath.Fix", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
+        Function(
+            "Round",
+            VBIntrinsicKind.Round,
+            "VBMath.Round",
+            TypeSymbol.Variant,
+            Parameter("Number", TypeSymbol.Variant),
+            OptionalParameter("NumDigitsAfterDecimal", TypeSymbol.Integer, (short)0)),
+        Function("Sqr", VBIntrinsicKind.Sqr, "VBMath.Sqr", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Int", VBIntrinsicKind.Int, "VBConversions.Int", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
+        Sub("DoEvents", VBIntrinsicKind.DoEvents, "VBInteraction.DoEvents"),
+        Sub("Kill", VBIntrinsicKind.Kill, "VBFiles.Kill", Parameter("Path", TypeSymbol.String)),
+        Function(
+            "Dir",
+            VBIntrinsicKind.Dir,
+            "VBFiles.Dir",
+            TypeSymbol.String,
+            OptionalParameter("Path", TypeSymbol.String, string.Empty),
+            OptionalParameter("Attributes", TypeSymbol.Long, 0L)),
+        Function(
+            "MsgBox",
+            VBIntrinsicKind.MsgBox,
+            "VBInteraction.MsgBox",
+            TypeSymbol.Integer,
+            Parameter("Prompt", TypeSymbol.String),
+            OptionalParameter("Buttons", TypeSymbol.Long, 0L),
+            OptionalParameter("Title", TypeSymbol.String, string.Empty)),
+        Function(
+            "InputBox",
+            VBIntrinsicKind.InputBox,
+            "VBInteraction.InputBox",
+            TypeSymbol.String,
+            Parameter("Prompt", TypeSymbol.String),
+            OptionalParameter("Title", TypeSymbol.String, string.Empty),
+            OptionalParameter("Default", TypeSymbol.String, string.Empty),
+            OptionalParameter("XPos", TypeSymbol.Single, 0f),
+            OptionalParameter("YPos", TypeSymbol.Single, 0f),
+            OptionalParameter("HelpFile", TypeSymbol.String, string.Empty),
+            OptionalParameter("Context", TypeSymbol.Long, 0L)),
+        Function("FileLen", VBIntrinsicKind.FileLen, "VBFiles.FileLength", TypeSymbol.LongLong, Parameter("Path", TypeSymbol.String)),
+        Function("Now", VBIntrinsicKind.Now, "VBDateTime.Now", TypeSymbol.Double),
+        Sub("Load", VBIntrinsicKind.Load, "VBInteraction.Load", Parameter("Object", TypeSymbol.Variant)),
+        Sub("Unload", VBIntrinsicKind.Unload, "VBInteraction.Unload", Parameter("Object", TypeSymbol.Variant)),
+        Function("VarPtr", VBIntrinsicKind.VarPtr, "VBMemory.VarPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
+        Function("ObjPtr", VBIntrinsicKind.ObjPtr, "VBMemory.ObjPtr", TypeSymbol.Long, Parameter("Object", TypeSymbol.Variant)),
+        Sub("LSet", VBIntrinsicKind.LSet, "VBMemory.LSet", Parameter("Target", TypeSymbol.Variant), Parameter("Source", TypeSymbol.Variant)),
+        Function(
+            "CreateObject",
+            VBIntrinsicKind.CreateObject,
+            "VBInteraction.CreateObject",
+            VBStandardTypes.Object,
+            Parameter("Class", TypeSymbol.String),
+            OptionalParameter("ServerName", TypeSymbol.String, string.Empty)),
+        Function(
+            "GetObject",
+            VBIntrinsicKind.GetObject,
+            "VBInteraction.GetObject",
+            VBStandardTypes.Object,
+            OptionalParameter("PathName", TypeSymbol.String, string.Empty),
+            OptionalParameter("Class", TypeSymbol.String, string.Empty)),
+        Function(
+            "Shell",
+            VBIntrinsicKind.Shell,
+            "VBInteraction.Shell",
+            TypeSymbol.Long,
+            Parameter("PathName", TypeSymbol.String),
+            OptionalParameter("WindowStyle", TypeSymbol.Integer, 1L)),
+        Function("TypeName", VBIntrinsicKind.TypeName, "VBFunctions.TypeName", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)),
+        Function(
+            "Switch",
+            VBIntrinsicKind.Switch,
+            "VBFunctions.Switch",
+            TypeSymbol.Variant,
+            new ParameterSymbol("Arguments", new ArrayTypeSymbol(TypeSymbol.Variant), ParameterPassingMode.ByVal)
+            {
+                IsParamArray = true
+            }),
+        Function("IsEmpty", VBIntrinsicKind.IsEmpty, "VBVariants.IsEmpty", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("IsNull", VBIntrinsicKind.IsNull, "VBVariants.IsNull", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("IsMissing", VBIntrinsicKind.IsMissing, "VBVariants.IsMissing", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("VarType", VBIntrinsicKind.VarType, "VBVariants.VarType", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
+        Function("Empty", VBIntrinsicKind.Empty, "VBVariants.EmptyValue", TypeSymbol.Variant),
+        Function("Null", VBIntrinsicKind.Null, "VBVariants.NullValue", TypeSymbol.Variant),
+        Function("Nothing", VBIntrinsicKind.Nothing, "VBVariants.NothingValue", TypeSymbol.Variant),
+        Function("Missing", VBIntrinsicKind.Missing, "VBVariants.MissingValue", TypeSymbol.Variant),
 
         Function("FreeFile", VBIntrinsicKind.FreeFile, "VBFiles.FreeFile", TypeSymbol.Long),
         Function("LOF", VBIntrinsicKind.LOF, "VBFiles.Length", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
@@ -52,6 +186,7 @@ internal static class VBIntrinsicSymbols
         Function("CByte", VBIntrinsicKind.CByte, "VBConversions.CByte", TypeSymbol.Byte, Parameter("Expression", TypeSymbol.Variant)),
         Function("CInt", VBIntrinsicKind.CInt, "VBConversions.CInt", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
         Function("CLng", VBIntrinsicKind.CLng, "VBConversions.CLng", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CDec", VBIntrinsicKind.CDec, "VBConversions.CDec", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)),
         Function("CSng", VBIntrinsicKind.CSng, "VBConversions.CSng", TypeSymbol.Single, Parameter("Expression", TypeSymbol.Variant)),
         Function("CDbl", VBIntrinsicKind.CDbl, "VBConversions.CDbl", TypeSymbol.Double, Parameter("Expression", TypeSymbol.Variant)),
         Function("CBool", VBIntrinsicKind.CBool, "VBConversions.CBool", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
@@ -68,6 +203,7 @@ internal static class VBIntrinsicSymbols
             {
                 SubDeclarationSyntax sub => Binder.CreateProcedureSymbol(sub),
                 FunctionDeclarationSyntax function => Binder.CreateProcedureSymbol(function),
+                DeclareDeclarationSyntax declare => Binder.CreateDeclareProcedureSymbol(declare),
                 _ => null
             };
 
@@ -106,6 +242,24 @@ internal static class VBIntrinsicSymbols
             IntrinsicTarget = runtimeTarget
         };
 
+    private static ProcedureSymbol Sub(
+        string name,
+        VBIntrinsicKind intrinsicKind,
+        string runtimeTarget,
+        params ParameterSymbol[] parameters) =>
+        new(name, parameters.ToImmutableArray(), null)
+        {
+            IntrinsicKind = intrinsicKind,
+            IntrinsicTarget = runtimeTarget
+        };
+
     private static ParameterSymbol Parameter(string name, TypeSymbol type) =>
         new(name, type, ParameterPassingMode.ByVal);
+
+    private static ParameterSymbol OptionalParameter(string name, TypeSymbol type, object defaultValue) =>
+        new(name, type, ParameterPassingMode.ByVal)
+        {
+            IsOptional = true,
+            DefaultValue = defaultValue
+        };
 }

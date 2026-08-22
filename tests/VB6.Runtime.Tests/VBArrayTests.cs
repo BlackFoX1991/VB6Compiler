@@ -216,6 +216,17 @@ public sealed class VBArrayTests
         Assert.ThrowsException<ArgumentException>(() => new VBArray<int>());
     }
 
+    [TestMethod]
+    public void Array_AllowsTheZeroLengthParameterArrayShape()
+    {
+        var array = new VBArray<int>(new VBArrayBound(0, -1));
+
+        Assert.AreEqual(0, array.Length);
+        Assert.AreEqual(0, array.LBound());
+        Assert.AreEqual(-1, array.UBound());
+        CollectionAssert.AreEqual(Array.Empty<int>(), array.EnumerateValues().ToArray());
+    }
+
     private static void Increment(ref int value) => value++;
 
     private sealed class MutableValue

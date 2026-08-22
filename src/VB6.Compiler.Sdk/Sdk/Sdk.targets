@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="CompileVB6Project" BeforeTargets="Build" Condition="Exists('$(VB6Project)')">
+    <MakeDir Directories="$(TargetDir)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6Project)&quot; --emit-assembly &quot;$(VB6CompilerOutput)&quot;" />
+  </Target>
+</Project>

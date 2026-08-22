@@ -46,6 +46,7 @@ internal sealed class ForEachArraySyntaxLowerer
             {
                 SubDeclarationSyntax sub => LowerSub(sub),
                 FunctionDeclarationSyntax function => LowerFunction(function),
+                PropertyDeclarationSyntax property => LowerProperty(property),
                 _ => member
             });
         }
@@ -69,9 +70,23 @@ internal sealed class ForEachArraySyntaxLowerer
         return syntax with { Statements = LowerStatements(syntax.Statements, scope, usedNames) };
     }
 
-    private BoundProcedure? FindProcedure(string name) =>
+    private PropertyDeclarationSyntax LowerProperty(PropertyDeclarationSyntax syntax)
+    {
+        var accessor = syntax.IsGet
+            ? PropertyAccessorKind.Get
+            : syntax.IsLet
+            ? PropertyAccessorKind.Let
+            : PropertyAccessorKind.Set;
+        var procedure = FindProcedure(syntax.Identifier.Text, accessor);
+        var scope = BuildScope(procedure);
+        var usedNames = new HashSet<string>(scope.Keys, StringComparer.OrdinalIgnoreCase);
+        return syntax with { Statements = LowerStatements(syntax.Statements, scope, usedNames) };
+    }
+
+    private BoundProcedure? FindProcedure(string name, PropertyAccessorKind? accessor = null) =>
         _model.Procedures.FirstOrDefault(procedure =>
-            string.Equals(procedure.Symbol.Name, name, StringComparison.OrdinalIgnoreCase));
+            string.Equals(procedure.Symbol.Name, name, StringComparison.OrdinalIgnoreCase) &&
+            (accessor is null || procedure.Symbol.PropertyAccessor == accessor));
 
     private Dictionary<string, VariableSymbol> BuildScope(BoundProcedure? procedure)
     {

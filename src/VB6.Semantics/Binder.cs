@@ -9,8 +9,17 @@ namespace VB6.Semantics;
 
 public sealed class Binder
 {
+    private static readonly ProcedureSymbol MissingValueProcedure =
+        new("Missing", ImmutableArray<ParameterSymbol>.Empty, TypeSymbol.Variant)
+        {
+            IntrinsicKind = VBIntrinsicKind.Missing,
+            IntrinsicTarget = "VBVariants.MissingValue"
+        };
+
     private readonly SourceText _text;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+    private readonly ImmutableArray<BoundModuleVariable>.Builder _staticVariables =
+        ImmutableArray.CreateBuilder<BoundModuleVariable>();
     private readonly List<LoopBindingContext> _loopStack = new();
     /// <summary>
     /// Labels declared directly in the current procedure body. Only these can be jumped to, so a
@@ -18,10 +27,14 @@ public sealed class Binder
     /// </summary>
     private readonly HashSet<string> _procedureLabels = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<WithBindingContext> _withStack = new();
+    private ClassTypeSymbol? _containingClass;
+    private Dictionary<string, LocalVariableSymbol>? _activeLocals;
+    private bool _optionExplicit;
     private int _nextLoopId;
     private int _nextSelectId;
     private int _nextWithId;
     private int _optionBase;
+    private bool _optionCompareText;
 
     public Binder(SourceText text)
     {
@@ -66,14 +79,34 @@ public sealed class Binder
     public SemanticModel BindCompilationUnit(
         CompilationUnitSyntax root,
         IReadOnlyDictionary<string, ProcedureSymbol> availableProcedures,
-        IReadOnlyDictionary<string, ModuleVariableSymbol>? availableModuleVariables = null)
+        IReadOnlyDictionary<string, ModuleVariableSymbol>? availableModuleVariables = null,
+        ClassTypeSymbol? containingClass = null)
     {
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
+        _containingClass = containingClass;
         ApplyModuleOptions(root);
         var declared = DeclareModuleVariables(root, availableModuleVariables);
-        var moduleVariables = availableModuleVariables ?? declared.Scope;
+        var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(
+            declared.Scope,
+            StringComparer.OrdinalIgnoreCase);
+        if (availableModuleVariables is not null)
+        {
+            foreach (var entry in availableModuleVariables)
+            {
+                // A class/module-local declaration shadows a project-wide public variable with
+                // the same name. Existing project symbols are still reused when there is no local
+                // declaration, preserving identity for cross-module references.
+                moduleVariables.TryAdd(entry.Key, entry.Value);
+            }
+        }
+        if (containingClass is not null)
+        {
+            moduleVariables.TryAdd("Me", new ModuleVariableSymbol("Me", containingClass));
+        }
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
+        var properties = ImmutableArray.CreateBuilder<PropertySymbol>();
+        var events = ImmutableArray.CreateBuilder<EventSymbol>();
         foreach (var member in root.Members)
         {
             switch (member)
@@ -113,24 +146,76 @@ public sealed class Binder
                         moduleVariables));
                     break;
                 }
+
+                case PropertyDeclarationSyntax declaration:
+                {
+                    var property = CreatePropertySymbol(declaration);
+                    var propertyProcedure = CreatePropertyProcedureSymbol(declaration);
+                    properties.Add(property);
+                    if (propertyProcedure.ReturnType == TypeSymbol.Error && declaration.ReturnTypeToken is not null)
+                    {
+                        Report(
+                            "VB6S0011",
+                            $"Unknown property return type '{declaration.ReturnTypeToken.Text}'.",
+                            declaration.ReturnTypeToken.Span);
+                    }
+
+                    procedures.Add(BindProcedure(
+                        declaration.Identifier,
+                        declaration.Parameters,
+                        declaration.Statements,
+                        declaration.ReturnTypeToken,
+                        propertyProcedure,
+                        availableProcedures,
+                        moduleVariables));
+                    break;
+                }
+
+                case EventDeclarationSyntax declaration:
+                    events.Add(CreateEventSymbol(declaration));
+                    break;
             }
         }
 
+        var externalProcedures = root.Members
+            .OfType<DeclareDeclarationSyntax>()
+            .Select(declaration =>
+                availableProcedures.TryGetValue(declaration.Identifier.Text, out var procedure)
+                    ? procedure
+                    : CreateDeclareProcedureSymbol(declaration))
+            .ToImmutableArray();
+
         return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable())
         {
-            ModuleVariables = declared.Bound
+            ExternalProcedures = externalProcedures,
+            Properties = properties.ToImmutable(),
+            Events = events.ToImmutable(),
+            ModuleVariables = declared.Bound,
+            StaticVariables = _staticVariables.ToImmutable(),
+            InstanceVariables = _containingClass is null
+                ? ImmutableArray<BoundModuleVariable>.Empty
+                : declared.Bound,
+            ContainingClass = _containingClass
         };
     }
 
     private void ApplyModuleOptions(CompilationUnitSyntax root)
     {
         _optionBase = 0;
+        _optionExplicit = root.Members.OfType<OptionExplicitSyntax>().Any();
+        _optionCompareText = false;
         foreach (var member in root.Members)
         {
             if (member is OptionBaseSyntax optionBase)
             {
                 _optionBase = optionBase.ValueToken.Text == "1" ? 1 : 0;
-                break;
+            }
+            else if (member is OptionCompareSyntax optionCompare)
+            {
+                _optionCompareText = string.Equals(
+                    optionCompare.ModeToken.Text,
+                    "Text",
+                    StringComparison.OrdinalIgnoreCase);
             }
         }
     }
@@ -139,23 +224,164 @@ public sealed class Binder
         parameters
             .Select(parameter =>
             {
-                var elementType = TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error;
-                var type = parameter.IsArray && elementType != TypeSymbol.Error
+                var elementType = parameter.IsParamArray
+                    ? TypeSymbol.Variant
+                    : parameter.TypeToken is null ||
+                      string.Equals(parameter.TypeToken.Text, "Any", StringComparison.OrdinalIgnoreCase)
+                    ? TypeSymbol.Variant
+                    : TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error;
+                var type = (parameter.IsArray || parameter.IsParamArray) && elementType != TypeSymbol.Error
                     ? new ArrayTypeSymbol(elementType)
                     : elementType;
 
                 return new ParameterSymbol(
                     parameter.Identifier.Text,
                     type,
-                    parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
+                    parameter.IsParamArray || parameter.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword
                         ? ParameterPassingMode.ByVal
                         : ParameterPassingMode.ByRef)
                 {
                     IsOptional = parameter.OptionalKeyword is not null,
+                    IsParamArray = parameter.IsParamArray,
+                    IsAny = string.Equals(parameter.TypeToken?.Text, "Any", StringComparison.OrdinalIgnoreCase),
                     DefaultValue = (parameter.DefaultValue as LiteralExpressionSyntax)?.LiteralToken.Value
                 };
             })
             .ToImmutableArray();
+
+    private static ProcedureSymbol CreateErrProcedure(
+        string name,
+        VBIntrinsicKind kind,
+        string target,
+        TypeSymbol? returnType,
+        params ParameterSymbol[] parameters) =>
+        new(name, parameters.ToImmutableArray(), returnType)
+        {
+            IntrinsicKind = kind,
+            IntrinsicTarget = target
+        };
+
+    private static bool IsErrReceiver(BoundExpression receiver) =>
+        receiver is BoundVariableExpression variable &&
+        string.Equals(variable.Variable.Name, "Err", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsErrReceiver(ExpressionSyntax receiver) =>
+        receiver is NameExpressionSyntax name &&
+        string.Equals(name.IdentifierToken.Text, "Err", StringComparison.OrdinalIgnoreCase);
+
+    private static ProcedureSymbol? GetErrMemberProcedure(string memberName)
+    {
+        if (string.Equals(memberName, "Number", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure("Err.Number", VBIntrinsicKind.ErrNumber, "VBErrors.NumberValue", TypeSymbol.Long);
+        }
+
+        if (string.Equals(memberName, "Description", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure("Err.Description", VBIntrinsicKind.ErrDescription, "VBErrors.DescriptionValue", TypeSymbol.String);
+        }
+
+        if (string.Equals(memberName, "Clear", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure("Err.Clear", VBIntrinsicKind.ErrClear, "VBErrors.Clear", null);
+        }
+
+        if (string.Equals(memberName, "Raise", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure(
+                "Err.Raise",
+                VBIntrinsicKind.ErrRaise,
+                "VBErrors.Raise",
+                null,
+                new ParameterSymbol("Number", TypeSymbol.Long, ParameterPassingMode.ByVal),
+                new ParameterSymbol("Source", TypeSymbol.String, ParameterPassingMode.ByVal)
+                {
+                    IsOptional = true,
+                    DefaultValue = string.Empty
+                },
+                new ParameterSymbol("Description", TypeSymbol.String, ParameterPassingMode.ByVal)
+                {
+                    IsOptional = true,
+                    DefaultValue = string.Empty
+                },
+                new ParameterSymbol("HelpFile", TypeSymbol.String, ParameterPassingMode.ByVal)
+                {
+                    IsOptional = true,
+                    DefaultValue = string.Empty
+                },
+                new ParameterSymbol("HelpContext", TypeSymbol.Long, ParameterPassingMode.ByVal)
+                {
+                    IsOptional = true,
+                    DefaultValue = 0L
+                });
+        }
+
+        return null;
+    }
+
+    public static ProcedureSymbol CreateDeclareProcedureSymbol(DeclareDeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+        var isFunction = declaration.ProcedureKindKeyword.Kind == SyntaxKind.FunctionKeyword;
+        var returnType = !isFunction
+            ? null
+            : declaration.ReturnTypeToken is null ||
+              string.Equals(declaration.ReturnTypeToken.Text, "Any", StringComparison.OrdinalIgnoreCase)
+                ? TypeSymbol.Variant
+                : TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error;
+        return new ProcedureSymbol(
+            declaration.Identifier.Text,
+            CreateParameterSymbols(declaration.Parameters),
+            returnType)
+        {
+            IsExternal = true,
+            ExternalLibrary = declaration.LibraryName.Value as string ?? declaration.LibraryName.Text,
+            ExternalAlias = declaration.AliasName?.Value as string ?? declaration.AliasName?.Text
+        };
+    }
+
+    public static PropertySymbol CreatePropertySymbol(PropertyDeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        var parameters = CreateParameterSymbols(declaration.Parameters);
+        var type = declaration.IsGet
+            ? declaration.ReturnTypeToken is null
+                ? TypeSymbol.Variant
+                : TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error
+            : parameters.Length == 0
+                ? TypeSymbol.Variant
+                : parameters[^1].Type;
+        return new PropertySymbol(
+            declaration.Identifier.Text,
+            declaration.IsGet
+                ? PropertyAccessorKind.Get
+                : declaration.IsLet
+                ? PropertyAccessorKind.Let
+                : PropertyAccessorKind.Set,
+            type,
+            parameters);
+    }
+
+    private static ProcedureSymbol CreatePropertyProcedureSymbol(PropertyDeclarationSyntax declaration)
+    {
+        var property = CreatePropertySymbol(declaration);
+        return new ProcedureSymbol(
+            property.Name,
+            property.Parameters,
+            declaration.IsGet ? property.Type : null)
+        {
+            PropertyAccessor = property.Accessor
+        };
+    }
+
+    public static EventSymbol CreateEventSymbol(EventDeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+        return new EventSymbol(
+            declaration.Identifier.Text,
+            CreateParameterSymbols(declaration.Parameters));
+    }
 
     private ProcedureSymbol ResolveProcedureSymbol(
         string name,
@@ -193,6 +419,10 @@ public sealed class Binder
                 case FunctionDeclarationSyntax function:
                     symbol = CreateProcedureSymbol(function);
                     identifier = function.Identifier;
+                    break;
+                case DeclareDeclarationSyntax declare:
+                    symbol = CreateDeclareProcedureSymbol(declare);
+                    identifier = declare.Identifier;
                     break;
             }
 
@@ -273,7 +503,10 @@ public sealed class Binder
                                 symbol,
                                 null,
                                 IsConstant: false,
-                                dimensions));
+                                dimensions)
+                            {
+                                IsWithEvents = declaration.WithEventsKeyword is not null
+                            });
                         }
                     }
 
@@ -412,6 +645,11 @@ public sealed class Binder
             variables[moduleVariable.Key] = moduleVariable.Value;
         }
 
+        if (_containingClass is not null)
+        {
+            variables["Me"] = new ModuleVariableSymbol("Me", _containingClass);
+        }
+
         var locals = new Dictionary<string, LocalVariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
         if (symbol.IsFunction)
@@ -430,11 +668,12 @@ public sealed class Binder
             {
                 Report(
                     "VB6S0003",
-                    $"Unknown type '{syntax.TypeToken.Text}'.",
-                    syntax.TypeToken.Span);
+                    $"Unknown type '{syntax.TypeToken?.Text ?? "Variant"}'.",
+                    syntax.TypeToken?.Span ?? syntax.Identifier.Span);
             }
 
-            if (syntax.IsArray && syntax.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword)
+            if (syntax.IsArray && !syntax.IsParamArray &&
+                syntax.PassingModeKeyword?.Kind == SyntaxKind.ByValKeyword)
             {
                 Report(
                     "VB6S0028",
@@ -450,6 +689,50 @@ public sealed class Binder
                     syntax.Identifier.Span);
             }
 
+            if (syntax.IsParamArray)
+            {
+                if (index != parameterSyntaxes.Length - 1)
+                {
+                    Report(
+                        "VB6S0062",
+                        $"ParamArray parameter '{syntax.Identifier.Text}' must be the last parameter.",
+                        syntax.Identifier.Span);
+                }
+
+                if (parameterSyntaxes.Any(parameterSyntax => parameterSyntax.OptionalKeyword is not null) ||
+                    syntax.PassingModeKeyword is not null)
+                {
+                    Report(
+                        "VB6S0063",
+                        $"ParamArray parameter '{syntax.Identifier.Text}' cannot be Optional, ByVal, or ByRef.",
+                        syntax.Identifier.Span);
+                }
+
+                if (!syntax.IsArray)
+                {
+                    Report(
+                        "VB6S0064",
+                        $"ParamArray parameter '{syntax.Identifier.Text}' must be declared as an array.",
+                        syntax.Identifier.Span);
+                }
+                else if (syntax.TypeToken is not null &&
+                         !string.Equals(syntax.TypeToken.Text, "Variant", StringComparison.OrdinalIgnoreCase))
+                {
+                    Report(
+                        "VB6S0064",
+                        $"ParamArray parameter '{syntax.Identifier.Text}' must be an array of Variant.",
+                        syntax.TypeToken.Span);
+                }
+
+                if (syntax.DefaultValue is not null)
+                {
+                    Report(
+                        "VB6S0065",
+                        $"ParamArray parameter '{syntax.Identifier.Text}' cannot have a default value.",
+                        syntax.EqualsToken?.Span ?? syntax.Identifier.Span);
+                }
+            }
+
             if (!TryDeclareInProcedureScope(variables, parameter.Name, parameter))
             {
                 Report(
@@ -459,7 +742,7 @@ public sealed class Binder
             }
         }
 
-        PredeclareLocals(statements, locals, variables);
+        PredeclareLocals(statements, locals, variables, procedures, identifier.Text);
 
         _procedureLabels.Clear();
         foreach (var statement in statements.OfType<LabelStatementSyntax>())
@@ -467,7 +750,16 @@ public sealed class Binder
             _procedureLabels.Add(statement.Identifier.Text);
         }
 
-        var body = BindStatements(statements, variables, procedures);
+        _activeLocals = locals;
+        BoundBlockStatement body;
+        try
+        {
+            body = BindStatements(statements, variables, procedures);
+        }
+        finally
+        {
+            _activeLocals = null;
+        }
 
         return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
     }
@@ -475,7 +767,9 @@ public sealed class Binder
     private void PredeclareLocals(
         ImmutableArray<StatementSyntax> statements,
         Dictionary<string, LocalVariableSymbol> locals,
-        Dictionary<string, VariableSymbol> variables)
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        string procedureName)
     {
         foreach (var statement in statements)
         {
@@ -485,35 +779,38 @@ public sealed class Binder
                     PredeclareLocalDeclarators(dim.Declarators, locals, variables);
                     break;
                 case StaticStatementSyntax staticStatement:
-                    PredeclareLocalDeclarators(staticStatement.Declarators, locals, variables);
+                    PredeclareStaticDeclarators(
+                        staticStatement.Declarators,
+                        procedureName,
+                        variables);
                     break;
                 case IfStatementSyntax ifStatement:
-                    PredeclareLocals(ifStatement.Statements, locals, variables);
+                    PredeclareLocals(ifStatement.Statements, locals, variables, procedures, procedureName);
                     foreach (var elseIfClause in ifStatement.ElseIfClauses)
                     {
-                        PredeclareLocals(elseIfClause.Statements, locals, variables);
+                        PredeclareLocals(elseIfClause.Statements, locals, variables, procedures, procedureName);
                     }
-                    PredeclareLocals(ifStatement.ElseStatements, locals, variables);
+                    PredeclareLocals(ifStatement.ElseStatements, locals, variables, procedures, procedureName);
                     break;
                 case ForStatementSyntax forStatement:
-                    PredeclareLocals(forStatement.Statements, locals, variables);
+                    PredeclareLocals(forStatement.Statements, locals, variables, procedures, procedureName);
                     break;
                 case ForEachStatementSyntax forEachStatement:
-                    PredeclareLocals(forEachStatement.Statements, locals, variables);
+                    PredeclareLocals(forEachStatement.Statements, locals, variables, procedures, procedureName);
                     break;
                 case WhileStatementSyntax whileStatement:
-                    PredeclareLocals(whileStatement.Statements, locals, variables);
+                    PredeclareLocals(whileStatement.Statements, locals, variables, procedures, procedureName);
                     break;
                 case DoStatementSyntax doStatement:
-                    PredeclareLocals(doStatement.Statements, locals, variables);
+                    PredeclareLocals(doStatement.Statements, locals, variables, procedures, procedureName);
                     break;
                 case WithStatementSyntax withStatement:
-                    PredeclareLocals(withStatement.Statements, locals, variables);
+                    PredeclareLocals(withStatement.Statements, locals, variables, procedures, procedureName);
                     break;
                 case SelectCaseStatementSyntax selectStatement:
                     foreach (var caseBlock in selectStatement.Cases)
                     {
-                        PredeclareLocals(caseBlock.Statements, locals, variables);
+                        PredeclareLocals(caseBlock.Statements, locals, variables, procedures, procedureName);
                     }
                     break;
             }
@@ -539,6 +836,33 @@ public sealed class Binder
             }
 
             locals.Add(variable.Name, variable);
+        }
+    }
+
+    private void PredeclareStaticDeclarators(
+        ImmutableArray<VariableDeclaratorSyntax> declarators,
+        string procedureName,
+        Dictionary<string, VariableSymbol> variables)
+    {
+        foreach (var declarator in declarators)
+        {
+            var type = ResolveVariableDeclaratorType(declarator);
+            var storageName = $"__static_{_text.FilePath ?? "Module1"}_{procedureName}_{declarator.Identifier.Text}";
+            var variable = new ModuleVariableSymbol(storageName, type);
+            if (!TryDeclareInProcedureScope(variables, declarator.Identifier.Text, variable))
+            {
+                Report(
+                    "VB6S0002",
+                    $"Local variable '{declarator.Identifier.Text}' is already declared.",
+                    declarator.Identifier.Span);
+                continue;
+            }
+
+            _staticVariables.Add(new BoundModuleVariable(
+                variable,
+                null,
+                IsConstant: false,
+                ImmutableArray<BoundArrayDimension>.Empty));
         }
     }
 
@@ -602,12 +926,29 @@ public sealed class Binder
                 continue;
             }
 
-            if (statement is StaticStatementSyntax staticStatement)
+            if (statement is StaticStatementSyntax)
             {
-                Report(
-                    "VB6S0021",
-                    "Static local lifetime semantics are not implemented yet.",
-                    staticStatement.StaticKeyword.Span);
+                foreach (var declarator in ((StaticStatementSyntax)statement).Declarators)
+                {
+                    if (!variables.TryGetValue(declarator.Identifier.Text, out var variable) ||
+                        variable is not ModuleVariableSymbol staticVariable)
+                    {
+                        continue;
+                    }
+
+                    for (var index = 0; index < _staticVariables.Count; index++)
+                    {
+                        if (ReferenceEquals(_staticVariables[index].Symbol, staticVariable))
+                        {
+                            _staticVariables[index] = _staticVariables[index] with
+                            {
+                                ArrayDimensions = BindArrayDimensions(declarator, variables, procedures)
+                            };
+                            break;
+                        }
+                    }
+                }
+
                 continue;
             }
 
@@ -660,6 +1001,7 @@ public sealed class Binder
         return statement switch
         {
             AssignmentStatementSyntax assignment => BindAssignment(assignment, variables, procedures),
+            SetAssignmentStatementSyntax setAssignment => BindSetAssignment(setAssignment, variables, procedures),
             ArrayElementAssignmentStatementSyntax arrayAssignment => BindArrayElementAssignment(arrayAssignment, variables, procedures),
             MemberAssignmentStatementSyntax memberAssignment => BindMemberAssignment(memberAssignment, variables, procedures),
             IfStatementSyntax ifStatement => BindIf(ifStatement, variables, procedures),
@@ -680,17 +1022,25 @@ public sealed class Binder
             PutStatementSyntax put => BindGetOrPut(
                 put.FileNumber, put.RecordPosition, put.Target, put.PutKeyword, isGet: false, variables, procedures),
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
-            QualifiedInvocationStatementSyntax qualified => ReportObjectModelGap(
-                "Calling a method on an object",
-                GetSpan(qualified.Target)),
-            OnErrorStatementSyntax onError => ReportControlFlowGap(
-                $"On Error {onError.ActionKeyword.Text} {onError.TargetToken.Text}",
-                onError.OnKeyword.Span),
+            QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
+                qualified,
+                variables,
+                procedures),
+            OnErrorStatementSyntax onError => BindOnError(onError),
+            ResumeStatementSyntax resume => BindResume(resume),
             GoToStatementSyntax goTo => _procedureLabels.Contains(goTo.LabelToken.Text)
                 ? new BoundGoToStatement(goTo.LabelToken.Text)
                 : ReportControlFlowGap(
                     $"GoTo {goTo.LabelToken.Text}",
                     goTo.GoToKeyword.Span),
+            GoSubStatementSyntax goSub => _procedureLabels.Contains(goSub.LabelToken.Text)
+                ? new BoundGoSubStatement(goSub.LabelToken.Text)
+                : ReportControlFlowGap(
+                    $"GoSub {goSub.LabelToken.Text}",
+                    goSub.GoSubKeyword.Span),
+            GoSubReturnStatementSyntax goSubReturn => new BoundGoSubReturnStatement(),
+            OnGoToStatementSyntax onGoTo => BindOnGoTo(onGoTo, variables, procedures),
+            OnGoSubStatementSyntax onGoSub => BindOnGoSub(onGoSub, variables, procedures),
             LabelStatementSyntax label => _procedureLabels.Contains(label.Identifier.Text)
                 ? new BoundLabelStatement(label.Identifier.Text)
                 : ReportControlFlowGap(
@@ -720,14 +1070,110 @@ public sealed class Binder
         return null;
     }
 
+    private BoundExpression ReportObjectModelExpressionGap(string construct, TextSpan span)
+    {
+        Report(
+            "VB6S0062",
+            $"{construct} needs the object type model, which is not implemented yet.",
+            span);
+        return new BoundErrorExpression();
+    }
+
     /// <summary>Best-effort span for an expression, used only to place a diagnostic.</summary>
     private static TextSpan GetSpan(ExpressionSyntax expression) => expression switch
     {
         NameExpressionSyntax name => name.IdentifierToken.Span,
         MemberAccessExpressionSyntax member => member.MemberToken.Span,
+        MemberInvocationExpressionSyntax invocation => invocation.Target.MemberToken.Span,
         InvocationExpressionSyntax invocation => invocation.Identifier.Span,
         _ => new TextSpan(0, 0)
     };
+
+    private BoundStatement? BindOnError(OnErrorStatementSyntax syntax)
+    {
+        if (syntax.ActionKeyword.Kind == SyntaxKind.ResumeKeyword &&
+            syntax.TargetToken.Kind == SyntaxKind.NextKeyword)
+        {
+            return new BoundOnErrorStatement(BoundErrorHandlingMode.ResumeNext);
+        }
+
+        if (syntax.ActionKeyword.Kind == SyntaxKind.GoToKeyword && syntax.TargetToken.Text == "0")
+        {
+            return new BoundOnErrorStatement(BoundErrorHandlingMode.Disable);
+        }
+
+        if (syntax.ActionKeyword.Kind == SyntaxKind.GoToKeyword &&
+            _procedureLabels.Contains(syntax.TargetToken.Text))
+        {
+            return new BoundOnErrorStatement(
+                BoundErrorHandlingMode.GoToLabel,
+                syntax.TargetToken.Text);
+        }
+
+        return ReportControlFlowGap(
+            $"On Error {syntax.ActionKeyword.Text} {syntax.TargetToken.Text}",
+            syntax.OnKeyword.Span);
+    }
+
+    private BoundStatement? BindOnGoTo(
+        OnGoToStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var labels = syntax.LabelTokens.Select(token => token.Text).ToImmutableArray();
+        var invalid = labels.FirstOrDefault(label => !_procedureLabels.Contains(label));
+        if (invalid is not null)
+        {
+            return ReportControlFlowGap(
+                $"On ... GoTo {invalid}",
+                syntax.GoToKeyword.Span);
+        }
+
+        return new BoundOnGoToStatement(
+            BindConversion(BindExpression(syntax.Expression, variables, procedures), TypeSymbol.Long),
+            labels);
+    }
+
+    private BoundStatement? BindOnGoSub(
+        OnGoSubStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var labels = syntax.LabelTokens.Select(token => token.Text).ToImmutableArray();
+        var invalid = labels.FirstOrDefault(label => !_procedureLabels.Contains(label));
+        if (invalid is not null)
+        {
+            return ReportControlFlowGap(
+                $"On ... GoSub {invalid}",
+                syntax.GoSubKeyword.Span);
+        }
+
+        return new BoundOnGoSubStatement(
+            BindConversion(BindExpression(syntax.Expression, variables, procedures), TypeSymbol.Long),
+            labels);
+    }
+
+    private BoundStatement? BindResume(ResumeStatementSyntax syntax)
+    {
+        if (syntax.TargetToken is null)
+        {
+            return new BoundResumeStatement(IsNext: false);
+        }
+
+        if (syntax.TargetToken.Kind == SyntaxKind.NextKeyword)
+        {
+            return new BoundResumeStatement(IsNext: true);
+        }
+
+        if (_procedureLabels.Contains(syntax.TargetToken.Text))
+        {
+            return new BoundResumeStatement(IsNext: false, syntax.TargetToken.Text);
+        }
+
+        return ReportControlFlowGap(
+            $"Resume {syntax.TargetToken.Text}",
+            syntax.ResumeKeyword.Span);
+    }
 
     private BoundStatement? ReportControlFlowGap(string construct, TextSpan span)
     {
@@ -790,9 +1236,8 @@ public sealed class Binder
             BindConversion(BindExpression(syntax.Position, variables, procedures), TypeSymbol.LongLong));
 
     /// <summary>
-    /// Get and Put share their shape. Only the fixed-size numeric types are transferable so far: a
-    /// variable-length String is stored with a two-byte length prefix and a user-defined type in
-    /// its record layout, and neither rule is modelled yet.
+    /// Get and Put share their shape. Fixed-size numeric types and variable-length Strings are
+    /// transferable; user-defined types still need their record layout before they can be emitted.
     /// </summary>
     private BoundStatement? BindGetOrPut(
         FileNumberSyntax fileNumberSyntax,
@@ -818,8 +1263,8 @@ public sealed class Binder
         {
             Report(
                 "VB6S0058",
-                $"{keyword.Text} of type '{target.Type.Name}' is not implemented yet; only the " +
-                "fixed-size numeric types are transferable so far.",
+                $"{keyword.Text} of type '{target.Type.Name}' is not implemented yet; " +
+                "fixed-size numeric types and variable-length Strings are transferable so far; UDT transfers still need an explicit record layout.",
                 keyword.Span);
             return null;
         }
@@ -864,13 +1309,41 @@ public sealed class Binder
         return new BoundErrorExpression();
     }
 
-    private BoundExpression BindTypeOf(TypeOfExpressionSyntax syntax)
+    private BoundExpression BindTypeOf(
+        TypeOfExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        Report(
-            "VB6S0060",
-            $"TypeOf ... Is '{syntax.TypeToken.Text}' needs the object type model, which is not implemented yet.",
-            syntax.TypeOfKeyword.Span);
-        return new BoundErrorExpression();
+        var expression = BindExpression(syntax.Expression, variables, procedures);
+        var type = TypeSymbol.Lookup(syntax.TypeToken.Text);
+        if (type is null)
+        {
+            Report(
+                "VB6S0003",
+                $"Unknown type '{syntax.TypeToken.Text}'.",
+                syntax.TypeToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (type is not ClassTypeSymbol classType)
+        {
+            Report(
+                "VB6S0060",
+                $"TypeOf ... Is requires a class module type, but '{type.Name}' is not an object type.",
+                syntax.TypeToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (expression.Type != TypeSymbol.Variant && expression.Type is not ClassTypeSymbol)
+        {
+            Report(
+                "VB6S0060",
+                $"TypeOf cannot test a value of type '{expression.Type.Name}' against a class type.",
+                syntax.TypeOfKeyword.Span);
+            return new BoundErrorExpression();
+        }
+
+        return new BoundTypeOfExpression(expression, classType);
     }
 
     private static bool IsTransferableFileType(TypeSymbol type) =>
@@ -881,7 +1354,8 @@ public sealed class Binder
         type == TypeSymbol.Single ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Currency ||
-        type == TypeSymbol.Boolean;
+        type == TypeSymbol.Boolean ||
+        type == TypeSymbol.String;
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
         VariableDeclaratorSyntax syntax,
@@ -914,6 +1388,15 @@ public sealed class Binder
                 $"Variable '{syntax.Identifier.Text}' is not declared.",
                 syntax.Identifier.Span);
             variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            return new BoundReDimStatement(new BoundVariableExpression(variable), dimensions, preserve);
+        }
+
+        if (variable is ParameterSymbol { IsParamArray: true })
+        {
+            Report(
+                "VB6S0066",
+                $"ReDim cannot be used with ParamArray parameter '{syntax.Identifier.Text}'.",
+                syntax.Identifier.Span);
             return new BoundReDimStatement(new BoundVariableExpression(variable), dimensions, preserve);
         }
 
@@ -1040,6 +1523,15 @@ public sealed class Binder
             return new BoundEraseStatement(variable, Deallocate: false);
         }
 
+        if (variable is ParameterSymbol { IsParamArray: true })
+        {
+            Report(
+                "VB6S0066",
+                $"Erase cannot be used with ParamArray parameter '{identifier.Text}'.",
+                identifier.Span);
+            return new BoundEraseStatement(variable, Deallocate: false);
+        }
+
         if (variable is ParameterSymbol)
         {
             Report(
@@ -1073,12 +1565,31 @@ public sealed class Binder
         return new BoundAssignmentStatement(variable, BindConversion(expression, variable.Type));
     }
 
+    private BoundStatement BindSetAssignment(
+        SetAssignmentStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var target = syntax.Target is MemberAccessExpressionSyntax memberAccess
+            ? BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Set)
+            : BindExpression(syntax.Target, variables, procedures);
+        var expression = BindExpression(syntax.Expression, variables, procedures);
+        if (target is BoundVariableExpression variable)
+        {
+            return new BoundAssignmentStatement(variable.Variable, BindConversion(expression, variable.Variable.Type));
+        }
+
+        return new BoundMemberAssignmentStatement(target, BindConversion(expression, target.Type));
+    }
+
     private BoundMemberAssignmentStatement BindMemberAssignment(
         MemberAssignmentStatementSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var target = BindExpression(syntax.Target, variables, procedures);
+        var target = syntax.Target is MemberAccessExpressionSyntax memberAccess
+            ? BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Let)
+            : BindExpression(syntax.Target, variables, procedures);
         var expression = BindExpression(syntax.Expression, variables, procedures);
         return new BoundMemberAssignmentStatement(target, BindConversion(expression, target.Type));
     }
@@ -1354,7 +1865,8 @@ public sealed class Binder
         var target = BindExpression(syntax.Expression, variables, procedures);
         var contextReceiver = target;
 
-        if (target.Type != TypeSymbol.Error && target.Type is not UserDefinedTypeSymbol)
+        if (target.Type != TypeSymbol.Error &&
+            target.Type is not UserDefinedTypeSymbol and not ClassTypeSymbol)
         {
             Report(
                 "VB6S0050",
@@ -1469,11 +1981,16 @@ public sealed class Binder
         return new BoundSelectCaseStatement(_nextSelectId++, expression, cases.ToImmutable());
     }
 
-    private BoundInvocationStatement BindInvocation(
+    private BoundStatement? BindInvocation(
         InvocationStatementSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        if (string.Equals(syntax.Identifier.Text, "RaiseEvent", StringComparison.OrdinalIgnoreCase))
+        {
+            return BindRaiseEvent(syntax, variables, procedures);
+        }
+
         if (!procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
         {
             Report(
@@ -1492,6 +2009,139 @@ public sealed class Binder
             BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
     }
 
+    private BoundStatement? BindRaiseEvent(
+        InvocationStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (_containingClass is null)
+        {
+            return ReportObjectModelGap("Raising an event outside a class module", syntax.Identifier.Span);
+        }
+
+        if (syntax.Arguments.Length != 1)
+        {
+            return ReportEventGap(
+                "RaiseEvent requires an event name followed by its arguments",
+                syntax.Identifier.Span);
+        }
+
+        var (eventName, argumentSyntaxes) = syntax.Arguments[0] switch
+        {
+            NameExpressionSyntax name =>
+                (name.IdentifierToken.Text, ImmutableArray<ExpressionSyntax>.Empty),
+            InvocationExpressionSyntax invocation =>
+                (invocation.Identifier.Text, invocation.Arguments),
+            _ => (string.Empty, ImmutableArray<ExpressionSyntax>.Empty)
+        };
+
+        if (string.IsNullOrEmpty(eventName) || !_containingClass.TryGetEvent(eventName, out var @event))
+        {
+            return ReportEventGap(
+                $"Class '{_containingClass.Name}' has no event '{eventName}'.",
+                syntax.Identifier.Span);
+        }
+
+        var eventProcedure = new ProcedureSymbol(
+            @event.Name,
+            @event.Parameters,
+            ReturnType: null);
+        return new BoundRaiseEventStatement(
+            @event,
+            BindArguments(
+                syntax.Identifier,
+                argumentSyntaxes,
+                eventProcedure,
+                variables,
+                procedures));
+    }
+
+    private BoundStatement? ReportEventGap(string message, TextSpan span)
+    {
+        Report("VB6S0066", message, span);
+        return null;
+    }
+
+    private BoundStatement? BindQualifiedInvocation(
+        QualifiedInvocationStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (syntax.Target is MemberAccessExpressionSyntax errTarget &&
+            IsErrReceiver(errTarget.Receiver))
+        {
+            var errProcedure = GetErrMemberProcedure(errTarget.MemberToken.Text);
+            if (errProcedure is null)
+            {
+                return ReportObjectModelGap(
+                    $"Err member '{errTarget.MemberToken.Text}'",
+                    errTarget.MemberToken.Span);
+            }
+
+            return new BoundInvocationStatement(
+                errProcedure,
+                BindArguments(
+                    errTarget.MemberToken,
+                    syntax.Arguments,
+                    errProcedure,
+                    variables,
+                    procedures));
+        }
+
+        if (syntax.Target is not MemberAccessExpressionSyntax memberAccess)
+        {
+            return ReportObjectModelGap("Calling a method on an object", GetSpan(syntax.Target));
+        }
+
+        var receiver = memberAccess.Receiver is WithReceiverExpressionSyntax
+            ? BindWithReceiver(memberAccess.DotToken)
+            : BindExpression(memberAccess.Receiver, variables, procedures);
+        if (receiver.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        if (receiver.Type is not ClassTypeSymbol classType)
+        {
+            return ReportObjectModelGap(
+                "Calling a method on an object",
+                memberAccess.MemberToken.Span);
+        }
+
+        if (IsLateBoundObjectType(classType))
+        {
+            return new BoundMemberInvocationStatement(
+                receiver,
+                CreateDynamicObjectProcedure(memberAccess.MemberToken.Text, isFunction: false),
+                BindArguments(
+                    memberAccess.MemberToken,
+                    syntax.Arguments,
+                    CreateDynamicObjectProcedure(memberAccess.MemberToken.Text, isFunction: false),
+                    variables,
+                    procedures));
+        }
+
+        if (!classType.TryGetProcedure(memberAccess.MemberToken.Text, out var procedure))
+        {
+            return ReportObjectModelGap(
+                "Calling a method on an object",
+                memberAccess.MemberToken.Span);
+        }
+
+        if (procedure.IsFunction)
+        {
+            Report(
+                "VB6S0010",
+                $"Function '{procedure.Name}' cannot be called as a statement without using its result.",
+                memberAccess.MemberToken.Span);
+        }
+
+        return new BoundMemberInvocationStatement(
+            receiver,
+            procedure,
+            BindArguments(memberAccess.MemberToken, syntax.Arguments, procedure, variables, procedures));
+    }
+
     private BoundExpression BindExpression(
         ExpressionSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
@@ -1500,14 +2150,19 @@ public sealed class Binder
         return syntax switch
         {
             LiteralExpressionSyntax literal => BindLiteral(literal),
+            NewExpressionSyntax @new => BindNew(@new),
             NameExpressionSyntax name => BindName(name, variables, procedures),
             InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
+            MemberInvocationExpressionSyntax memberInvocation => BindMemberInvocationExpression(
+                memberInvocation,
+                variables,
+                procedures),
             MemberAccessExpressionSyntax memberAccess => BindMemberAccess(memberAccess, variables, procedures),
             ElementAccessExpressionSyntax elementAccess => BindElementAccess(elementAccess, variables, procedures),
             UnaryExpressionSyntax unary => BindUnary(unary, variables, procedures),
             BinaryExpressionSyntax binary => BindBinary(binary, variables, procedures),
             ParenthesizedExpressionSyntax parenthesized => BindExpression(parenthesized.Expression, variables, procedures),
-            TypeOfExpressionSyntax typeOf => BindTypeOf(typeOf),
+            TypeOfExpressionSyntax typeOf => BindTypeOf(typeOf, variables, procedures),
             // An omitted argument is only meaningful once Optional parameters carry defaults.
             OmittedArgumentExpressionSyntax omitted => BindOmittedArgument(omitted),
             // The keyword only decides how the argument is passed; the value itself is the operand.
@@ -1517,10 +2172,35 @@ public sealed class Binder
         };
     }
 
+    private BoundExpression BindNew(NewExpressionSyntax syntax)
+    {
+        var type = TypeSymbol.Lookup(syntax.TypeToken.Text);
+        if (type is null)
+        {
+            Report(
+                "VB6S0003",
+                $"Unknown type '{syntax.TypeToken.Text}'.",
+                syntax.TypeToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (type is not ClassTypeSymbol classType)
+        {
+            Report(
+                "VB6S0063",
+                $"New requires a class module type, but '{type.Name}' is not an object type.",
+                syntax.TypeToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        return new BoundNewExpression(classType);
+    }
+
     private BoundExpression BindMemberAccess(
         MemberAccessExpressionSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
-        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
         var receiver = syntax.Receiver is WithReceiverExpressionSyntax
             ? BindWithReceiver(syntax.DotToken)
@@ -1528,6 +2208,56 @@ public sealed class Binder
         if (receiver.Type == TypeSymbol.Error)
         {
             return receiver;
+        }
+
+        if (IsErrReceiver(receiver))
+        {
+            var errProcedure = GetErrMemberProcedure(syntax.MemberToken.Text);
+            if (errProcedure is not null && errProcedure.IsFunction)
+            {
+                return new BoundInvocationExpression(errProcedure, ImmutableArray<BoundArgument>.Empty);
+            }
+
+            Report(
+                "VB6S0065",
+                $"Err has no readable member '{syntax.MemberToken.Text}'.",
+                syntax.MemberToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (receiver.Type is ClassTypeSymbol classType)
+        {
+            if (classType.TryGetProperty(syntax.MemberToken.Text, accessor, out var property))
+            {
+                return new BoundPropertyAccessExpression(receiver, property);
+            }
+
+            if (accessor == PropertyAccessorKind.Get &&
+                classType.TryGetProcedure(syntax.MemberToken.Text, out var procedure) &&
+                procedure.IsFunction)
+            {
+                return new BoundMemberInvocationExpression(
+                    receiver,
+                    procedure,
+                    ImmutableArray<BoundArgument>.Empty);
+            }
+
+            if (IsLateBoundObjectType(classType))
+            {
+                return new BoundPropertyAccessExpression(
+                    receiver,
+                    new PropertySymbol(
+                        syntax.MemberToken.Text,
+                        accessor,
+                        VBStandardTypes.Object,
+                        ImmutableArray<ParameterSymbol>.Empty));
+            }
+
+            Report(
+                "VB6S0064",
+                $"Class '{classType.Name}' has no {GetPropertyAccessorDescription(accessor)} property '{syntax.MemberToken.Text}'.",
+                syntax.MemberToken.Span);
+            return new BoundErrorExpression();
         }
 
         if (receiver.Type is not UserDefinedTypeSymbol userDefinedType)
@@ -1551,15 +2281,68 @@ public sealed class Binder
         return new BoundMemberAccessExpression(receiver, member);
     }
 
+    private static string GetPropertyAccessorDescription(PropertyAccessorKind accessor) => accessor switch
+    {
+        PropertyAccessorKind.Get => "readable",
+        PropertyAccessorKind.Let => "assignable",
+        PropertyAccessorKind.Set => "object-assignable",
+        _ => "compatible"
+    };
+
     private BoundExpression BindElementAccess(
         ElementAccessExpressionSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        if (syntax.Receiver is MemberAccessExpressionSyntax memberAccess)
+        {
+            var memberReceiver = memberAccess.Receiver is WithReceiverExpressionSyntax
+                ? BindWithReceiver(memberAccess.DotToken)
+                : BindExpression(memberAccess.Receiver, variables, procedures);
+            if (memberReceiver.Type is ClassTypeSymbol)
+            {
+                return BindClassMemberInvocation(
+                    memberAccess,
+                    syntax.Indices,
+                    variables,
+                    procedures);
+            }
+        }
+
         var receiver = BindExpression(syntax.Receiver, variables, procedures);
         if (receiver.Type == TypeSymbol.Error)
         {
             return receiver;
+        }
+
+        if (receiver.Type is ClassTypeSymbol collectionType &&
+            collectionType.TryGetProperty("Item", PropertyAccessorKind.Get, out var defaultProperty))
+        {
+            var defaultProcedure = new ProcedureSymbol(
+                defaultProperty.Name,
+                defaultProperty.Parameters,
+                defaultProperty.Type)
+            {
+                PropertyAccessor = PropertyAccessorKind.Get
+            };
+            return new BoundMemberInvocationExpression(
+                receiver,
+                defaultProcedure,
+                BindArguments(
+                    SyntaxNavigator.GetFirstToken(syntax.Receiver) ?? syntax.OpenParenthesisToken,
+                    syntax.Indices,
+                    defaultProcedure,
+                    variables,
+                    procedures));
+        }
+
+        if (receiver.Type == TypeSymbol.Variant)
+        {
+            return new BoundVariantArrayAccessExpression(
+                receiver,
+                syntax.Indices
+                    .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+                    .ToImmutableArray());
         }
 
         if (receiver.Type is not ArrayTypeSymbol arrayType)
@@ -1622,6 +2405,39 @@ public sealed class Binder
                 arrayType.ElementType);
         }
 
+        if (variables.TryGetValue(syntax.Identifier.Text, out variable) &&
+            variable.Type is ClassTypeSymbol defaultPropertyType &&
+            defaultPropertyType.TryGetProperty("Item", PropertyAccessorKind.Get, out var defaultProperty))
+        {
+            var defaultProcedure = new ProcedureSymbol(
+                defaultProperty.Name,
+                defaultProperty.Parameters,
+                defaultProperty.Type)
+            {
+                PropertyAccessor = PropertyAccessorKind.Get
+            };
+            return new BoundMemberInvocationExpression(
+                new BoundVariableExpression(variable),
+                defaultProcedure,
+                BindArguments(
+                    syntax.Identifier,
+                    syntax.Arguments,
+                    defaultProcedure,
+                    variables,
+                    procedures));
+        }
+
+        if (variables.TryGetValue(syntax.Identifier.Text, out variable) &&
+            variable.Type == TypeSymbol.Variant &&
+            syntax.Arguments.Length > 0)
+        {
+            return new BoundVariantArrayAccessExpression(
+                new BoundVariableExpression(variable),
+                syntax.Arguments
+                    .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+                    .ToImmutableArray());
+        }
+
         if (!procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
         {
             Report(
@@ -1645,6 +2461,113 @@ public sealed class Binder
             BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
     }
 
+    private BoundExpression BindMemberInvocationExpression(
+        MemberInvocationExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+        => BindClassMemberInvocation(syntax.Target, syntax.Arguments, variables, procedures);
+
+    private BoundExpression BindClassMemberInvocation(
+        MemberAccessExpressionSyntax target,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var receiver = target.Receiver is WithReceiverExpressionSyntax
+            ? BindWithReceiver(target.DotToken)
+            : BindExpression(target.Receiver, variables, procedures);
+        if (receiver.Type == TypeSymbol.Error)
+        {
+            return receiver;
+        }
+
+        if (receiver.Type is not ClassTypeSymbol classType)
+        {
+            return ReportObjectModelExpressionGap(
+                "Calling a method on an object",
+                target.MemberToken.Span);
+        }
+
+        if (IsLateBoundObjectType(classType))
+        {
+            var dynamicProcedure = CreateDynamicObjectProcedure(target.MemberToken.Text, isFunction: true);
+            return new BoundMemberInvocationExpression(
+                receiver,
+                dynamicProcedure,
+                BindArguments(
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    dynamicProcedure,
+                    variables,
+                    procedures));
+        }
+
+        ProcedureSymbol? procedure = null;
+        if (classType.TryGetProcedure(target.MemberToken.Text, out var method))
+        {
+            procedure = method;
+        }
+        else if (classType.TryGetProperty(
+                     target.MemberToken.Text,
+                     PropertyAccessorKind.Get,
+                     out var property))
+        {
+            procedure = new ProcedureSymbol(property.Name, property.Parameters, property.Type)
+            {
+                PropertyAccessor = PropertyAccessorKind.Get
+            };
+        }
+
+        if (procedure is null)
+        {
+            Report(
+                "VB6S0065",
+                $"Class '{classType.Name}' has no method or indexed property '{target.MemberToken.Text}'.",
+                target.MemberToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        if (!procedure.IsFunction)
+        {
+            Report(
+                "VB6S0010",
+                $"Sub '{procedure.Name}' cannot be used as an expression.",
+                target.MemberToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        return new BoundMemberInvocationExpression(
+            receiver,
+            procedure,
+            BindArguments(
+                target.MemberToken,
+                argumentSyntaxes,
+                procedure,
+                variables,
+                procedures));
+    }
+
+    private static bool IsLateBoundObjectType(ClassTypeSymbol type) =>
+        ReferenceEquals(type, VBStandardTypes.Object) ||
+        ReferenceEquals(type, VBStandardTypes.Control) ||
+        ReferenceEquals(type, VBStandardTypes.Form) ||
+        ReferenceEquals(type, VBStandardTypes.UserControl) ||
+        (type.SourcePath is not null &&
+         Path.GetExtension(type.SourcePath) is ".frm" or ".ctl");
+
+    private static ProcedureSymbol CreateDynamicObjectProcedure(string name, bool isFunction) =>
+        new(
+            name,
+            ImmutableArray.Create(
+                new ParameterSymbol(
+                    "Arguments",
+                    new ArrayTypeSymbol(TypeSymbol.Variant),
+                    ParameterPassingMode.ByVal)
+                {
+                    IsParamArray = true
+                }),
+            isFunction ? TypeSymbol.Variant : null);
+
     private BoundExpression BindArrayBoundExpression(
         InvocationExpressionSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
@@ -1667,7 +2590,7 @@ public sealed class Binder
             return new BoundErrorExpression();
         }
 
-        if (array.Type is not ArrayTypeSymbol)
+        if (array.Type is not ArrayTypeSymbol && array.Type != TypeSymbol.Variant)
         {
             Report(
                 "VB6S0035",
@@ -1693,13 +2616,43 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        // InStr is the one intrinsic whose first parameter is optional in the middle of the
+        // signature: two arguments mean (string1, string2), while three and four arguments mean
+        // (start, string1, string2[, compare]). Normalize the two-argument form here so every
+        // backend receives the same four values.
+        if (procedure.IntrinsicKind == VBIntrinsicKind.InStr && argumentSyntaxes.Length == 2)
+        {
+            return ImmutableArray.Create(
+                new BoundArgument(procedure.Parameters[0], new BoundLiteralExpression(1L, TypeSymbol.Long)),
+                new BoundArgument(
+                    procedure.Parameters[1],
+                    BindConversion(BindExpression(argumentSyntaxes[0], variables, procedures), TypeSymbol.String)),
+                new BoundArgument(
+                    procedure.Parameters[2],
+                    BindConversion(BindExpression(argumentSyntaxes[1], variables, procedures), TypeSymbol.String)),
+                new BoundArgument(procedure.Parameters[3], CreateDefaultArgument(procedure.Parameters[3])));
+        }
+
         // Optional parameters may be left out at the call site, so the accepted count is a range.
         var minimumArguments = procedure.IntrinsicMinimumArguments
-            ?? procedure.Parameters.Count(parameter => !parameter.IsOptional);
-        if (argumentSyntaxes.Length > procedure.Parameters.Length ||
+            ?? procedure.Parameters.Count(parameter => !parameter.IsOptional && !parameter.IsParamArray);
+        var paramArrayIndex = -1;
+        for (var parameterIndex = 0; parameterIndex < procedure.Parameters.Length; parameterIndex++)
+        {
+            if (procedure.Parameters[parameterIndex].IsParamArray)
+            {
+                paramArrayIndex = parameterIndex;
+                break;
+            }
+        }
+
+        var fixedParameterCount = paramArrayIndex >= 0 ? paramArrayIndex : procedure.Parameters.Length;
+        if ((paramArrayIndex < 0 && argumentSyntaxes.Length > fixedParameterCount) ||
             argumentSyntaxes.Length < minimumArguments)
         {
-            var expected = minimumArguments == procedure.Parameters.Length
+            var expected = paramArrayIndex >= 0
+                ? $"at least {minimumArguments.ToString(CultureInfo.InvariantCulture)}"
+                : minimumArguments == procedure.Parameters.Length
                 ? procedure.Parameters.Length.ToString(CultureInfo.InvariantCulture)
                 : $"{minimumArguments.ToString(CultureInfo.InvariantCulture)} to " +
                   procedure.Parameters.Length.ToString(CultureInfo.InvariantCulture);
@@ -1710,10 +2663,20 @@ public sealed class Binder
         }
 
         var arguments = ImmutableArray.CreateBuilder<BoundArgument>();
-        for (var index = 0; index < argumentSyntaxes.Length; index++)
+        var suppliedFixedCount = Math.Min(argumentSyntaxes.Length, fixedParameterCount);
+        for (var index = 0; index < suppliedFixedCount; index++)
         {
-            var expression = BindExpression(argumentSyntaxes[index], variables, procedures);
             var parameter = index < procedure.Parameters.Length ? procedure.Parameters[index] : null;
+
+            if (argumentSyntaxes[index] is OmittedArgumentExpressionSyntax &&
+                parameter is not null &&
+                parameter.IsOptional)
+            {
+                arguments.Add(new BoundArgument(parameter, CreateDefaultArgument(parameter)));
+                continue;
+            }
+
+            var expression = BindExpression(argumentSyntaxes[index], variables, procedures);
 
             var requiresByRefTemporary = false;
 
@@ -1747,7 +2710,7 @@ public sealed class Binder
                     expression = BindConversion(expression, parameter.Type);
                     requiresByRefTemporary = true;
                 }
-                else if (!AreByRefTypesCompatible(expression.Type, parameter.Type) &&
+                else if (!parameter.IsAny && !AreByRefTypesCompatible(expression.Type, parameter.Type) &&
                          expression.Type != TypeSymbol.Error &&
                          parameter.Type != TypeSymbol.Error)
                 {
@@ -1767,10 +2730,37 @@ public sealed class Binder
             });
         }
 
+        if (paramArrayIndex >= 0)
+        {
+            var parameter = procedure.Parameters[paramArrayIndex];
+            var elements = ImmutableArray.CreateBuilder<BoundExpression>(
+                Math.Max(0, argumentSyntaxes.Length - fixedParameterCount));
+            for (var index = fixedParameterCount; index < argumentSyntaxes.Length; index++)
+            {
+                if (argumentSyntaxes[index] is OmittedArgumentExpressionSyntax)
+                {
+                    elements.Add(new BoundInvocationExpression(
+                        MissingValueProcedure,
+                        ImmutableArray<BoundArgument>.Empty));
+                    continue;
+                }
+
+                elements.Add(BindConversion(
+                    BindExpression(argumentSyntaxes[index], variables, procedures),
+                    TypeSymbol.Variant));
+            }
+
+            arguments.Add(new BoundArgument(
+                parameter,
+                new BoundArrayLiteralExpression(
+                    (ArrayTypeSymbol)parameter.Type,
+                    elements.ToImmutable())));
+        }
+
         // Fill in the Optional parameters the call site left out. A missing default means the
         // default of the type, which is what VB6 hands the callee. The value is a temporary, so a
         // ByRef Optional parameter has nowhere to write back to - exactly as in VB6.
-        for (var index = argumentSyntaxes.Length; index < procedure.Parameters.Length; index++)
+        for (var index = suppliedFixedCount; index < fixedParameterCount; index++)
         {
             var parameter = procedure.Parameters[index];
             if (!parameter.IsOptional)
@@ -1808,6 +2798,13 @@ public sealed class Binder
         if (parameter.Type == TypeSymbol.Boolean)
         {
             return new BoundLiteralExpression(false, TypeSymbol.Boolean);
+        }
+
+        if (parameter.Type == TypeSymbol.Variant)
+        {
+            return new BoundInvocationExpression(
+                MissingValueProcedure,
+                ImmutableArray<BoundArgument>.Empty);
         }
 
         return BindConversion(new BoundLiteralExpression(0L, TypeSymbol.Long), parameter.Type);
@@ -1897,6 +2894,14 @@ public sealed class Binder
             return new BoundInvocationExpression(procedure, ImmutableArray<BoundArgument>.Empty);
         }
 
+        if (!_optionExplicit && _activeLocals is not null)
+        {
+            var implicitLocal = new LocalVariableSymbol(syntax.IdentifierToken.Text, TypeSymbol.Variant);
+            variables[implicitLocal.Name] = implicitLocal;
+            _activeLocals[implicitLocal.Name] = implicitLocal;
+            return new BoundVariableExpression(implicitLocal);
+        }
+
         Report(
             "VB6S0001",
             $"Variable '{syntax.IdentifierToken.Text}' is not declared.",
@@ -1913,6 +2918,11 @@ public sealed class Binder
         if (operand.Type == TypeSymbol.Error)
         {
             return operand;
+        }
+
+        if (operand.Type == TypeSymbol.Variant && syntax.OperatorToken.Kind == SyntaxKind.NotKeyword)
+        {
+            return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, TypeSymbol.Variant);
         }
 
         if (syntax.OperatorToken.Kind == SyntaxKind.NotKeyword)
@@ -1944,6 +2954,11 @@ public sealed class Binder
             return new BoundUnaryExpression(SyntaxKind.MinusToken, operand, TypeSymbol.Integer);
         }
 
+        if (operand.Type == TypeSymbol.Variant)
+        {
+            return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, TypeSymbol.Variant);
+        }
+
         if (IsNumericType(operand.Type))
         {
             return new BoundUnaryExpression(syntax.OperatorToken.Kind, operand, operand.Type);
@@ -1969,6 +2984,15 @@ public sealed class Binder
         switch (syntax.OperatorToken.Kind)
         {
             case SyntaxKind.CaretToken:
+                if (left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.Variant);
+                }
+
                 if (!IsNumericType(left.Type) || !IsNumericType(right.Type))
                 {
                     Report(
@@ -1987,34 +3011,35 @@ public sealed class Binder
                     TypeSymbol.Double);
 
             case SyntaxKind.LikeKeyword:
-                Report(
-                    "VB6S0023",
-                    "Like pattern-matching semantics, including Option Compare, are not implemented yet.",
-                    syntax.OperatorToken.Span);
-                return new BoundErrorExpression();
+            {
+                if (left.Type != TypeSymbol.String && left.Type != TypeSymbol.Variant)
+                {
+                    left = BindConversion(left, TypeSymbol.String);
+                }
+
+                if (right.Type != TypeSymbol.String && right.Type != TypeSymbol.Variant)
+                {
+                    right = BindConversion(right, TypeSymbol.String);
+                }
+
+                return new BoundBinaryExpression(
+                    left,
+                    syntax.OperatorToken.Kind,
+                    right,
+                    TypeSymbol.Boolean)
+                {
+                    UseTextCompare = _optionCompareText
+                };
+            }
 
             case SyntaxKind.IsKeyword:
-                Report(
-                    "VB6S0024",
-                    "Is object-reference identity semantics are not implemented yet.",
-                    syntax.OperatorToken.Span);
-                return new BoundErrorExpression();
-
-            case SyntaxKind.EqualsToken:
-            case SyntaxKind.LessGreaterToken:
-            case SyntaxKind.LessToken:
-            case SyntaxKind.LessOrEqualsToken:
-            case SyntaxKind.GreaterToken:
-            case SyntaxKind.GreaterOrEqualsToken:
-                if (IsNumericType(left.Type) && IsNumericType(right.Type))
+                if (!IsObjectIdentityOperand(left.Type) || !IsObjectIdentityOperand(right.Type))
                 {
-                    var comparisonType = GetCommonNumericType(left.Type, right.Type);
-                    left = BindConversion(left, comparisonType);
-                    right = BindConversion(right, comparisonType);
-                }
-                else if (left.Type != right.Type)
-                {
-                    right = BindConversion(right, left.Type);
+                    Report(
+                        "VB6S0024",
+                        "Operator 'Is' requires object or Variant operands.",
+                        syntax.OperatorToken.Span);
+                    return new BoundErrorExpression();
                 }
 
                 return new BoundBinaryExpression(
@@ -2023,12 +3048,48 @@ public sealed class Binder
                     right,
                     TypeSymbol.Boolean);
 
+            case SyntaxKind.EqualsToken:
+            case SyntaxKind.LessGreaterToken:
+            case SyntaxKind.LessToken:
+            case SyntaxKind.LessOrEqualsToken:
+            case SyntaxKind.GreaterToken:
+            case SyntaxKind.GreaterOrEqualsToken:
+                if (left.Type != TypeSymbol.Variant && right.Type != TypeSymbol.Variant &&
+                    IsNumericType(left.Type) && IsNumericType(right.Type))
+                {
+                    var comparisonType = GetCommonNumericType(left.Type, right.Type);
+                    left = BindConversion(left, comparisonType);
+                    right = BindConversion(right, comparisonType);
+                }
+                else if (left.Type != TypeSymbol.Variant && right.Type != TypeSymbol.Variant &&
+                    left.Type != right.Type)
+                {
+                    right = BindConversion(right, left.Type);
+                }
+
+                return new BoundBinaryExpression(
+                    left,
+                    syntax.OperatorToken.Kind,
+                    right,
+                    left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant
+                        ? TypeSymbol.Variant
+                        : TypeSymbol.Boolean);
+
             case SyntaxKind.AndKeyword:
             case SyntaxKind.OrKeyword:
             case SyntaxKind.XorKeyword:
             case SyntaxKind.EqvKeyword:
             case SyntaxKind.ImpKeyword:
             {
+                if (left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.Variant);
+                }
+
                 if (left.Type == TypeSymbol.Boolean && right.Type == TypeSymbol.Boolean)
                 {
                     return new BoundBinaryExpression(
@@ -2067,6 +3128,15 @@ public sealed class Binder
             }
 
             case SyntaxKind.AmpersandToken:
+                if (left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.String);
+                }
+
                 left = BindConversion(left, TypeSymbol.String);
                 right = BindConversion(right, TypeSymbol.String);
                 return new BoundBinaryExpression(
@@ -2084,6 +3154,15 @@ public sealed class Binder
 
             case SyntaxKind.SlashToken:
             {
+                if (left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.Variant);
+                }
+
                 var resultType = IsSingleDivisionOperand(left.Type) && IsSingleDivisionOperand(right.Type)
                     ? TypeSymbol.Single
                     : TypeSymbol.Double;
@@ -2100,6 +3179,15 @@ public sealed class Binder
             case SyntaxKind.MinusToken:
             case SyntaxKind.StarToken:
             {
+                if (left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.Variant);
+                }
+
                 var resultType = IsNumericType(left.Type) && IsNumericType(right.Type)
                     ? GetCommonNumericType(left.Type, right.Type)
                     : TypeSymbol.Integer;
@@ -2115,6 +3203,15 @@ public sealed class Binder
             case SyntaxKind.BackslashToken:
             case SyntaxKind.ModKeyword:
             {
+                if (left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant)
+                {
+                    return new BoundBinaryExpression(
+                        left,
+                        syntax.OperatorToken.Kind,
+                        right,
+                        TypeSymbol.Variant);
+                }
+
                 var resultType = GetIntegerOperationType(left.Type, right.Type);
                 left = BindConversion(left, resultType);
                 right = BindConversion(right, resultType);
@@ -2144,11 +3241,15 @@ public sealed class Binder
     private static bool IsBitwiseOperandType(TypeSymbol type) =>
         IsNumericType(type) || type == TypeSymbol.Boolean;
 
+    private static bool IsObjectIdentityOperand(TypeSymbol type) =>
+        type == TypeSymbol.Variant || type is ClassTypeSymbol;
+
     private static bool IsAddressableExpression(BoundExpression expression) =>
         expression is BoundVariableExpression or
             BoundArrayAccessExpression or
             BoundElementAccessExpression or
             BoundMemberAccessExpression or
+            BoundPropertyAccessExpression or
             BoundWithReceiverExpression;
 
     private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>

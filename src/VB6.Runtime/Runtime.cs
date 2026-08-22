@@ -76,6 +76,26 @@ public static class VBConversions
         return VBCurrency.FromDecimal(decimalValue);
     }
 
+    public static object CDec(object? value)
+    {
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        if (value is VBCurrency currency)
+        {
+            return currency.ToDecimal();
+        }
+
+        if (value is bool boolean)
+        {
+            return boolean ? -1m : 0m;
+        }
+
+        return Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+    }
+
     public static float CSng(object? value)
     {
         var result = value switch
@@ -100,7 +120,21 @@ public static class VBConversions
 
     public static string CStr(object? value) => value is VBCurrency currency
         ? currency.ToString()
+        : value is decimal decimalValue
+            ? decimalValue.ToString("G29", CultureInfo.InvariantCulture)
         : Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+
+    /// <summary>Implements VB6 Int, including floor semantics for negative fractional values.</summary>
+    public static object Int(object? value)
+    {
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        var numeric = value is null ? 0d : Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        return Math.Floor(numeric);
+    }
 
     private static float CheckSingle(float value)
     {
@@ -297,6 +331,10 @@ public static partial class VBOperators
 
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
+    public static string ConcatVariant(object? left, object? right) =>
+        (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left)) +
+        (VBVariants.IsNull(right) ? string.Empty : VBConversions.CStr(right));
+
     public static bool Equal(object? left, object? right) => Compare(left, right) == 0;
 
     public static bool NotEqual(object? left, object? right) => Compare(left, right) != 0;
@@ -352,5 +390,36 @@ public static partial class VBOperators
 
 public static class VBDebug
 {
-    public static void Print(object? value) => Console.WriteLine(VBConversions.CStr(value));
+    /// <summary>
+    /// Formats the scalar values accepted by Debug.Print. VB6 reserves one leading column for the
+    /// sign of positive numeric values, while strings, Boolean values and Null are printed as-is.
+    /// </summary>
+    public static string Format(object? value)
+    {
+        if (VBVariants.IsNull(value))
+        {
+            return "Null";
+        }
+
+        return value switch
+        {
+            null => string.Empty,
+            string text => text,
+            bool boolean => boolean ? "True" : "False",
+            byte number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            short number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            int number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            long number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            float number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
+            double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
+            decimal number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
+            VBCurrency currency => FormatNumeric(currency.ToDecimal().ToString("G15", CultureInfo.InvariantCulture)),
+            _ => VBConversions.CStr(value)
+        };
+    }
+
+    public static void Print(object? value) => Console.WriteLine(Format(value));
+
+    private static string FormatNumeric(string value) =>
+        value.StartsWith("-", StringComparison.Ordinal) ? value : $" {value}";
 }

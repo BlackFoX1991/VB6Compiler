@@ -37,27 +37,63 @@ public sealed class VariantConcatenationExecutionTests
             End Sub
             """);
 
-        // & is the one Variant operator with a defined path today: both sides become strings and
-        // the runtime concatenates them. Anything else stays guarded by VB6S0053.
+        // Variant operands use the dedicated object-based concatenation path so Null can be
+        // treated as an empty string without changing the explicit CStr(Null) error behavior.
         CollectionAssert.IsSubsetOf(
-            new[] { IrRuntimeMethod.Concat, IrRuntimeMethod.CStr },
+            new[] { IrRuntimeMethod.ConcatVariant },
             VB6TestIr.RuntimeCalls(program).ToArray());
     }
 
     [TestMethod]
-    public void Analyze_KeepsVariantPlusGuarded()
+    public void EmitManagedApplication_ExecutesVariantArithmeticOperators()
     {
-        var analysis = VBCompilation.Create("""
+        var output = VB6TestProgram.RunLines("""
             Sub Main()
                 Dim value As Variant
-                Debug.Print value + 1
+                value = 10
+                Debug.Print value + 2
+                Debug.Print value - 3
+                Debug.Print value / 4
+                Debug.Print value \ 4
+                Debug.Print value Mod 4
+                Debug.Print value ^ 2
+                Debug.Print -value
+                Debug.Print Not value
+                Debug.Print value And 3
+                Debug.Print value Or 3
+                Debug.Print value Xor 3
+                Debug.Print value Eqv 3
+                Debug.Print value Imp 3
             End Sub
-            """, "Module1.bas").Analyze();
+            """);
 
-        Assert.IsFalse(analysis.Success);
-        CollectionAssert.Contains(
-            analysis.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray(),
-            "VB6S0053");
+        CollectionAssert.AreEqual(
+            new[] { "12", "7", "2.5", "2", "2", "100", "-10", "-11", "2", "11", "9", "-10", "-9" },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesVb6AdditionStringRulesForVariants()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim left As Variant
+                Dim right As Variant
+
+                left = "a"
+                right = "b"
+                Debug.Print left + right
+                right = 1
+                Debug.Print "x" + right
+                left = 1
+                Debug.Print left + "x"
+
+                right = Null
+                Debug.Print "x" + right
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "ab", "x1", "1x", "Null" }, output);
     }
 
     [TestMethod]
@@ -98,6 +134,21 @@ public sealed class VariantConcatenationExecutionTests
                 Directory.Delete(directory, recursive: true);
             }
         }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ConcatenatesNullVariantAsEmptyString()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = Null
+                Debug.Print value & "x"
+                Debug.Print "x" & value
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "x", "x" }, output);
     }
 
 }

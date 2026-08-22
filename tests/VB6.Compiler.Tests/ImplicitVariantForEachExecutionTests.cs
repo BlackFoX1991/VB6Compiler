@@ -22,7 +22,9 @@ public sealed class ImplicitVariantForEachExecutionTests
         var lines = standardOutput
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .TrimEnd('\n')
-            .Split('\n');
+            .Split('\n')
+            .Select(line => line.Trim())
+            .ToArray();
         CollectionAssert.AreEqual(new[] { "4", "5" }, lines);
     }
 }

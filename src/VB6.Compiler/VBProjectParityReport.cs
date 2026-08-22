@@ -24,7 +24,11 @@ public sealed record VBProjectParityReport(
 {
     /// <summary>Item kinds the compiler currently reads source from.</summary>
     private static readonly ImmutableHashSet<VBProjectItemKind> AnalyzedKinds =
-        ImmutableHashSet.Create(VBProjectItemKind.Module);
+        ImmutableHashSet.Create(
+            VBProjectItemKind.Module,
+            VBProjectItemKind.Class,
+            VBProjectItemKind.Form,
+            VBProjectItemKind.UserControl);
 
     public int TotalItemCount => ItemKinds.Sum(kind => kind.Count);
 

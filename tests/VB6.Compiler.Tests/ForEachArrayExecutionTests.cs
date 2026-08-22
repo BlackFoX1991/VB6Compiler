@@ -32,7 +32,9 @@ public sealed class ForEachArrayExecutionTests
         var lines = standardOutput
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .TrimEnd('\n')
-            .Split('\n');
+            .Split('\n')
+            .Select(line => line.Trim())
+            .ToArray();
         CollectionAssert.AreEqual(
             new[] { "15", "16", "25", "3", "25" },
             lines);

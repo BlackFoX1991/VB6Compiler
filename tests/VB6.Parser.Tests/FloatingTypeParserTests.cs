@@ -23,7 +23,7 @@ public sealed class FloatingTypeParserTests
 
         Assert.AreEqual(0, result.Diagnostics.Length);
         var function = (FunctionDeclarationSyntax)result.Root.Members.Single();
-        Assert.AreEqual(SyntaxKind.SingleKeyword, function.Parameters.Single().TypeToken.Kind);
+        Assert.AreEqual(SyntaxKind.SingleKeyword, function.Parameters.Single().TypeToken!.Kind);
         Assert.AreEqual(SyntaxKind.DoubleKeyword, function.ReturnTypeToken!.Kind);
         Assert.AreEqual(SyntaxKind.SingleKeyword, ((DimStatementSyntax)function.Statements[0]).TypeToken.Kind);
         var assignment = (AssignmentStatementSyntax)function.Statements[1];

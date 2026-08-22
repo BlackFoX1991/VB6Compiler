@@ -20,5 +20,19 @@ public sealed record IrArrayCallExpression(
     TypeSymbol ResultType)
     : IrExpression(ResultType);
 
+public enum IrVariantArrayOperation
+{
+    LBound,
+    UBound,
+    GetElement
+}
+
+public sealed record IrVariantArrayCallExpression(
+    IrVariantArrayOperation Operation,
+    IrExpression Array,
+    ImmutableArray<IrExpression> Arguments,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
 public sealed record IrNullExpression(TypeSymbol NullType)
     : IrExpression(NullType);

@@ -37,7 +37,7 @@ public sealed class VariantMultiplyProjectCompilationTests
     }
 
     [TestMethod]
-    public void Lower_ProjectPathKeepsVariantPlusGuarded()
+    public void Lower_ProjectPathLowersVariantPlus()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -51,11 +51,12 @@ public sealed class VariantMultiplyProjectCompilationTests
                 End Sub
                 """);
 
-            var lowering = VBProjectCompilation.Create(projectPath).Lower();
+            var program = VB6TestIr.LowerProject(projectPath);
 
-            Assert.IsFalse(lowering.Success);
-            Assert.IsNull(lowering.Program);
-            Assert.IsTrue(lowering.Analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0053"));
+            CollectionAssert.Contains(
+                VB6TestIr.RuntimeCalls(program).ToArray(),
+                IrRuntimeMethod.AddVariant);
+            Assert.AreEqual("4", VB6TestProgram.RunProject(projectPath).Trim());
         }
         finally
         {

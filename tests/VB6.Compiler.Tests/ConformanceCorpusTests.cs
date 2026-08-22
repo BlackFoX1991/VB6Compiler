@@ -13,9 +13,10 @@ public sealed class ConformanceCorpusTests
     private const string VisiaProject = "VISIA/4.8.7.1/prjVisia.vbp";
 
     /// <summary>
-    /// Modules the loader finds in the VISIA project. Update when the corpus changes.
+    /// Source items the compiler currently analyzes in the VISIA project. Update when the corpus
+    /// or supported project item kinds change.
     /// </summary>
-    private const int VisiaModuleCount = 27;
+    private const int VisiaAnalyzedItemCount = 40;
 
     /// <summary>
     /// Modules that currently analyze without a single error.
@@ -27,7 +28,7 @@ public sealed class ConformanceCorpusTests
     /// cascade hid, so a real improvement can raise the total. Cleanly analyzed files can only
     /// grow, which makes them the honest progress metric.
     /// </summary>
-    private const int VisiaCleanModuleBaseline = 5;
+    private const int VisiaCleanModuleBaseline = 16;
 
     /// <summary>
     /// Parser errors the corpus still produces.
@@ -36,21 +37,21 @@ public sealed class ConformanceCorpusTests
     /// stay there for a while, because binding is project-wide and a file only counts as clean
     /// once its whole dependency chain parses - so that baseline cannot catch a regression yet.
     /// Parser errors can, and every slice so far has lowered them: 3183 at M0, 1758 at the M2
-    /// closeout, 1214 after the UDT type space, 480 after With and member access, 466 with untyped functions, 454 once ReDim recovery stopped a cascade, 218 with file numbers lexed and the binary file statements parsed, 122 once TypeOf parsed, 83 with call-site ByVal, 49 once On Error, GoTo and labels parsed, 24 with qualified calls.
+    /// closeout, 1214 after the UDT type space, 480 after With and member access, 466 with untyped functions, 454 once ReDim recovery stopped a cascade, 218 with file numbers lexed and the binary file statements parsed, 122 once TypeOf parsed, 83 with call-site ByVal, 49 once On Error, GoTo and labels parsed, 24 with qualified calls, 23 after class Property/Event syntax, and 196 after form/control source analysis exposed the remaining parser surface.
     ///
     /// Lower it whenever a slice lands. Raising it is not forbidden but must be deliberate: a
     /// slice can legitimately expose parser gaps deeper in a file that used to derail at line 10
     /// and never reach line 400. Raise it with a note saying which construct surfaced, the same
     /// way the total error count is explained rather than asserted.
     /// </summary>
-    private const int VisiaParserErrorBaseline = 24;
+    private const int VisiaParserErrorBaseline = 196;
 
     [TestMethod]
     public void Analyze_SurvivesTheVisiaProject()
     {
         var report = AnalyzeCorpusProject(VisiaProject);
 
-        Assert.AreEqual(VisiaModuleCount, report.AnalyzedFileCount);
+        Assert.AreEqual(VisiaAnalyzedItemCount, report.AnalyzedFileCount);
         Assert.AreEqual(40, report.TotalItemCount);
     }
 

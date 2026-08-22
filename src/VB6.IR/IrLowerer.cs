@@ -38,6 +38,14 @@ public static class IrLowerer
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<UserDefinedTypeMemberSymbol, IrField> _fields =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ModuleVariableSymbol, IrField> _classFields =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ClassTypeSymbol, ImmutableArray<BoundModuleVariable>> _classVariables =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ClassTypeSymbol, Dictionary<string, ProcedureSymbol>> _classProcedures =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ModuleVariableSymbol, ImmutableArray<(EventSymbol Event, ProcedureSymbol Handler)>>
+            _withEventsHandlers = new(ReferenceEqualityComparer.Instance);
 
         public ProgramLoweringState(
             ImmutableArray<IrModuleInput> inputs,
@@ -50,12 +58,48 @@ public static class IrLowerer
         public IrProgram Lower()
         {
             PredeclareTypes();
+            PredeclareClasses();
             PredeclareGlobals();
 
             var modules = ImmutableArray.CreateBuilder<IrModule>(_inputs.Length + 1);
+            var classes = ImmutableArray.CreateBuilder<IrClassDefinition>();
             IrProcedure? entryPoint = null;
             foreach (var input in _inputs)
             {
+                if (input.SemanticModel.ContainingClass is { } containingClass)
+                {
+                    var classProcedures = ImmutableArray.CreateBuilder<IrProcedure>();
+                    foreach (var procedure in input.SemanticModel.Procedures)
+                    {
+                        classProcedures.Add(new ProcedureLowerer(
+                            this,
+                            procedure,
+                            containingClass: containingClass).Lower());
+                    }
+
+                    classProcedures.Insert(0, LowerClassConstructor(containingClass));
+                    if (TryGetClassProcedure(
+                            containingClass,
+                            "Class_Terminate",
+                            null,
+                            out var terminator))
+                    {
+                        classProcedures.Add(LowerClassFinalizer(containingClass, terminator));
+                    }
+                    var fields = _classVariables.TryGetValue(containingClass, out var variables)
+                        ? variables
+                            .Where(variable => _classFields.ContainsKey(variable.Symbol))
+                            .Select(variable => _classFields[variable.Symbol])
+                            .ToImmutableArray()
+                        : ImmutableArray<IrField>.Empty;
+                    classes.Add(new IrClassDefinition(
+                        containingClass,
+                        Mangle(containingClass.Name),
+                        fields,
+                        classProcedures.ToImmutable()));
+                    continue;
+                }
+
                 var globals = input.SemanticModel.ModuleVariables
                     .Where(variable => _globals.ContainsKey(variable.Symbol))
                     .Select(variable => _globals[variable.Symbol])
@@ -82,6 +126,27 @@ public static class IrLowerer
                     }
                 }
 
+                foreach (var external in input.SemanticModel.ExternalProcedures)
+                {
+                    procedures.Add(new IrProcedure(
+                        external,
+                        external.Name,
+                        external.ReturnType,
+                        external.Parameters
+                            .Select((parameter, index) => new IrParameter(
+                                parameter,
+                                index,
+                                Mangle(parameter.Name),
+                                parameter.Type,
+                                parameter.PassingMode))
+                            .ToImmutableArray(),
+                        ImmutableArray<IrLocal>.Empty,
+                        ImmutableArray<IrBasicBlock>.Empty,
+                        IsExternal: true,
+                        ExternalLibrary: external.ExternalLibrary,
+                        ExternalAlias: external.ExternalAlias));
+                }
+
                 modules.Add(new IrModule(input.Name, input.SourcePath, globals, procedures.ToImmutable()));
             }
 
@@ -104,7 +169,11 @@ public static class IrLowerer
                 modules.Add(new IrModule("__CompilerGlobals", null, extraGlobals, extraProcedures));
             }
 
-            return new IrProgram(modules.ToImmutable(), _types.Values.ToImmutableArray(), entryPoint);
+            return new IrProgram(
+                modules.ToImmutable(),
+                _types.Values.ToImmutableArray(),
+                entryPoint,
+                classes.ToImmutable());
         }
 
         public IrGlobal GetGlobal(ModuleVariableSymbol symbol) =>
@@ -116,6 +185,42 @@ public static class IrLowerer
             _fields.TryGetValue(symbol, out var field)
                 ? field
                 : throw new InvalidOperationException($"UDT field '{symbol.Name}' was not declared before lowering.");
+
+        public bool TryGetClassField(ModuleVariableSymbol symbol, out IrField field) =>
+            _classFields.TryGetValue(symbol, out field!);
+
+        public bool TryGetWithEventsHandlers(
+            ModuleVariableSymbol symbol,
+            out ImmutableArray<(EventSymbol Event, ProcedureSymbol Handler)> handlers) =>
+            _withEventsHandlers.TryGetValue(symbol, out handlers);
+
+        public ProcedureSymbol ResolveClassProcedure(ClassTypeSymbol classType, ProcedureSymbol requested)
+        {
+            return _classProcedures.TryGetValue(classType, out var procedures) &&
+                   procedures.TryGetValue(ProcedureKey(requested.Name, requested.PropertyAccessor), out var procedure)
+                ? procedure
+                : requested;
+        }
+
+        public bool TryGetClassProcedure(
+            ClassTypeSymbol classType,
+            string name,
+            PropertyAccessorKind? accessor,
+            out ProcedureSymbol procedure)
+        {
+            if (_classProcedures.TryGetValue(classType, out var procedures) &&
+                procedures.TryGetValue(ProcedureKey(name, accessor), out var found))
+            {
+                procedure = found;
+                return true;
+            }
+
+            procedure = null!;
+            return false;
+        }
+
+        private static string ProcedureKey(string name, PropertyAccessorKind? accessor) =>
+            name + "|" + (accessor?.ToString() ?? "Method");
 
         private void PredeclareGlobals()
         {
@@ -151,6 +256,96 @@ public static class IrLowerer
                 new BoundBlockStatement(ImmutableArray<BoundStatement>.Empty));
             return new ProcedureLowerer(this, procedure, variables).Lower();
         }
+
+        private IrProcedure LowerClassConstructor(ClassTypeSymbol classType)
+        {
+            var instructions = ImmutableArray.CreateBuilder<IrInstruction>();
+            if (_classVariables.TryGetValue(classType, out var fields))
+            {
+                foreach (var variable in fields)
+                {
+                    var field = _classFields[variable.Symbol];
+                    var target = new IrFieldPlace(new IrThisPlace(classType), field);
+                    if (variable.Symbol.Type == TypeSymbol.String)
+                    {
+                        instructions.Add(new IrStoreInstruction(
+                            target,
+                            new IrConstantExpression(string.Empty, TypeSymbol.String)));
+                    }
+                    else if (variable.Symbol.Type is ArrayTypeSymbol array &&
+                             !variable.ArrayDimensions.IsDefaultOrEmpty)
+                    {
+                        var bounds = variable.ArrayDimensions
+                            .Select(dimension => new IrArrayBound(
+                                new IrConstantExpression(ReadConstantLong(dimension.LowerBound), TypeSymbol.Long),
+                                new IrConstantExpression(ReadConstantLong(dimension.UpperBound), TypeSymbol.Long)))
+                            .ToImmutableArray();
+                        instructions.Add(new IrStoreInstruction(
+                            target,
+                            new IrNewVBArrayExpression(array, bounds)));
+                    }
+                }
+            }
+
+            if (TryGetClassProcedure(classType, "Class_Initialize", null, out var initializer))
+            {
+                instructions.Add(new IrEvaluateInstruction(
+                    new IrProcedureCallExpression(
+                        initializer,
+                        ImmutableArray<IrCallArgument>.Empty,
+                        TypeSymbol.Error,
+                        new IrLoadExpression(new IrThisPlace(classType)))));
+            }
+
+            return new IrProcedure(
+                null,
+                ".ctor",
+                null,
+                ImmutableArray<IrParameter>.Empty,
+                ImmutableArray<IrLocal>.Empty,
+                ImmutableArray.Create(new IrBasicBlock(
+                    0,
+                    "ctor_entry",
+                    instructions.ToImmutable(),
+                    new IrReturnTerminator(null))),
+                IsStatic: false,
+                IsCompilerGenerated: true,
+                DeclaringClass: classType);
+        }
+
+        private static IrProcedure LowerClassFinalizer(
+            ClassTypeSymbol classType,
+            ProcedureSymbol terminator)
+        {
+            return new IrProcedure(
+                null,
+                "Finalize",
+                null,
+                ImmutableArray<IrParameter>.Empty,
+                ImmutableArray<IrLocal>.Empty,
+                ImmutableArray.Create(new IrBasicBlock(
+                    0,
+                    "finalize_entry",
+                    ImmutableArray.Create<IrInstruction>(
+                        new IrEvaluateInstruction(new IrProcedureCallExpression(
+                            terminator,
+                            ImmutableArray<IrCallArgument>.Empty,
+                            TypeSymbol.Error,
+                            new IrLoadExpression(new IrThisPlace(classType)))),
+                        new IrBaseFinalizeInstruction()),
+                    new IrReturnTerminator(null))),
+                IsStatic: false,
+                IsCompilerGenerated: true,
+                DeclaringClass: classType);
+        }
+
+        private static long ReadConstantLong(BoundExpression expression) => expression switch
+        {
+            BoundLiteralExpression literal => Convert.ToInt64(literal.Value, System.Globalization.CultureInfo.InvariantCulture),
+            BoundConversionExpression conversion => ReadConstantLong(conversion.Expression),
+            _ => throw new NotSupportedException(
+                "Class field array bounds must be compile-time constants for managed class initialization.")
+        };
 
         private static bool NeedsModuleInitialization(BoundModuleVariable variable) =>
             !variable.IsConstant &&
@@ -190,6 +385,49 @@ public static class IrLowerer
             }
         }
 
+        private void PredeclareClasses()
+        {
+            foreach (var input in _inputs)
+            {
+                if (input.SemanticModel.ContainingClass is not { } classType ||
+                    _classVariables.ContainsKey(classType))
+                {
+                    continue;
+                }
+
+                _classVariables[classType] = input.SemanticModel.InstanceVariables;
+                var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
+                foreach (var procedure in input.SemanticModel.Procedures)
+                {
+                    procedures[ProcedureKey(procedure.Symbol.Name, procedure.Symbol.PropertyAccessor)] =
+                        procedure.Symbol;
+                }
+
+                _classProcedures[classType] = procedures;
+                foreach (var variable in input.SemanticModel.InstanceVariables)
+                {
+                    _classFields[variable.Symbol] = new IrField(
+                        Mangle(variable.Symbol.Name),
+                        variable.Symbol.Type);
+
+                    if (variable.IsWithEvents && variable.Symbol.Type is ClassTypeSymbol sourceType)
+                    {
+                        var handlers = ImmutableArray.CreateBuilder<(EventSymbol, ProcedureSymbol)>();
+                        foreach (var @event in sourceType.Events)
+                        {
+                            var handlerName = variable.Symbol.Name + "_" + @event.Name;
+                            if (procedures.TryGetValue(ProcedureKey(handlerName, null), out var handler))
+                            {
+                                handlers.Add((@event, handler));
+                            }
+                        }
+
+                        _withEventsHandlers[variable.Symbol] = handlers.ToImmutable();
+                    }
+                }
+            }
+        }
+
         private static string UniqueTypeName(string name, Dictionary<string, int> namesInUse)
         {
             if (namesInUse.TryGetValue(name, out var used))
@@ -212,6 +450,11 @@ public static class IrLowerer
                     pending.Push(global.Symbol.Type);
                 }
 
+                foreach (var instance in model.InstanceVariables)
+                {
+                    pending.Push(instance.Symbol.Type);
+                }
+
                 foreach (var procedure in model.Procedures)
                 {
                     if (procedure.Symbol.ReturnType is not null)
@@ -229,6 +472,11 @@ public static class IrLowerer
                         pending.Push(local.Type);
                     }
                 }
+            }
+
+            foreach (var staticVariable in _additionalGlobals)
+            {
+                pending.Push(staticVariable.Symbol.Type);
             }
 
             var emitted = new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance);
@@ -259,6 +507,7 @@ public static class IrLowerer
     {
         private readonly ProgramLoweringState _program;
         private readonly BoundProcedure _procedure;
+        private readonly ClassTypeSymbol? _containingClass;
         private readonly ImmutableArray<BoundModuleVariable> _moduleInitializers;
         private readonly Dictionary<LocalVariableSymbol, IrLocal> _locals =
             new(ReferenceEqualityComparer.Instance);
@@ -267,11 +516,18 @@ public static class IrLowerer
         private readonly Dictionary<int, IrLocal> _withAddresses = new();
         private readonly Dictionary<int, int> _loopExits = new();
         private readonly Dictionary<string, int> _labels = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<BoundGoSubStatement, (int TargetBlockId, int ReturnIndex)> _goSubs =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<BoundOnGoSubStatement, (ImmutableArray<int> TargetBlockIds, int ReturnIndex)> _onGoSubs =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly List<int> _goSubReturnBlocks = new();
         private readonly List<BlockBuilder> _blocks = new();
         private readonly List<IrLocal> _allLocals = new();
         private BlockBuilder _current = null!;
         private IrLocal? _returnLocal;
         private int _nextLocalId;
+        private bool _resumeNext;
+        private string? _errorHandler;
 
         /// <summary>Where the statement being lowered was written; stamped onto its instructions.</summary>
         private IrSourceLocation? _location;
@@ -279,10 +535,12 @@ public static class IrLowerer
         public ProcedureLowerer(
             ProgramLoweringState program,
             BoundProcedure procedure,
-            ImmutableArray<BoundModuleVariable> moduleInitializers = default)
+            ImmutableArray<BoundModuleVariable> moduleInitializers = default,
+            ClassTypeSymbol? containingClass = null)
         {
             _program = program;
             _procedure = procedure;
+            _containingClass = containingClass;
             _moduleInitializers = moduleInitializers.IsDefault
                 ? ImmutableArray<BoundModuleVariable>.Empty
                 : moduleInitializers;
@@ -315,6 +573,7 @@ public static class IrLowerer
             }
 
             PredeclareLabels(_procedure.Body);
+            PredeclareGoSubs(_procedure.Body);
             _current = NewBlock("entry");
             if (IsModuleInitializer)
             {
@@ -347,7 +606,9 @@ public static class IrLowerer
                 _parameters.Values.OrderBy(parameter => parameter.Index).ToImmutableArray(),
                 _allLocals.ToImmutableArray(),
                 _blocks.Select(block => block.Build()).ToImmutableArray(),
-                IsCompilerGenerated: IsModuleInitializer);
+                IsStatic: _containingClass is null,
+                IsCompilerGenerated: IsModuleInitializer,
+                DeclaringClass: _containingClass);
         }
 
         private void PredeclareLabels(BoundBlockStatement block)
@@ -389,6 +650,67 @@ public static class IrLowerer
             }
         }
 
+        private void PredeclareGoSubs(BoundBlockStatement block)
+        {
+            foreach (var statement in block.Statements)
+            {
+                switch (statement)
+                {
+                    case BoundGoSubStatement goSub:
+                        if (!_goSubs.ContainsKey(goSub))
+                        {
+                            if (!_labels.TryGetValue(goSub.Name, out var target))
+                            {
+                                throw new InvalidOperationException($"Label '{goSub.Name}' was not predeclared.");
+                            }
+
+                            var returnIndex = _goSubReturnBlocks.Count;
+                            var continuation = NewBlock($"gosub_return_{returnIndex}").Id;
+                            _goSubReturnBlocks.Add(continuation);
+                            _goSubs.Add(goSub, (target, returnIndex));
+                        }
+                        break;
+                    case BoundOnGoSubStatement onGoSub:
+                        if (!_onGoSubs.ContainsKey(onGoSub))
+                        {
+                            var targets = onGoSub.Labels
+                                .Select(label => _labels.TryGetValue(label, out var target)
+                                    ? target
+                                    : throw new InvalidOperationException($"Label '{label}' was not predeclared."))
+                                .ToImmutableArray();
+                            var returnIndex = _goSubReturnBlocks.Count;
+                            var continuation = NewBlock($"on_gosub_return_{returnIndex}").Id;
+                            _goSubReturnBlocks.Add(continuation);
+                            _onGoSubs.Add(onGoSub, (targets, returnIndex));
+                        }
+                        break;
+                    case BoundIfStatement @if:
+                        PredeclareGoSubs(@if.Body);
+                        foreach (var clause in @if.ElseIfClauses) PredeclareGoSubs(clause.Body);
+                        if (@if.ElseBody is not null) PredeclareGoSubs(@if.ElseBody);
+                        break;
+                    case BoundForStatement @for:
+                        PredeclareGoSubs(@for.Body);
+                        break;
+                    case BoundForEachStatement forEach:
+                        PredeclareGoSubs(forEach.Body);
+                        break;
+                    case BoundWhileStatement @while:
+                        PredeclareGoSubs(@while.Body);
+                        break;
+                    case BoundDoStatement @do:
+                        PredeclareGoSubs(@do.Body);
+                        break;
+                    case BoundWithStatement with:
+                        PredeclareGoSubs(with.Body);
+                        break;
+                    case BoundSelectCaseStatement select:
+                        foreach (var @case in select.Cases) PredeclareGoSubs(@case.Body);
+                        break;
+                }
+            }
+        }
+
         private void LowerBlock(BoundBlockStatement block)
         {
             foreach (var statement in block.Statements)
@@ -406,9 +728,21 @@ public static class IrLowerer
         {
             var enclosing = _location;
             _location = ToIrLocation(statement.SourceLocation) ?? enclosing;
+            var protect = (_resumeNext || _errorHandler is not null) && CanProtectForErrorHandling(statement);
             try
             {
+                if (protect)
+                {
+                    Emit(new IrErrorBoundaryStartInstruction(
+                        _errorHandler is null ? null : _labels[_errorHandler]));
+                }
+
                 LowerStatementCore(statement);
+
+                if (protect && !_current.HasTerminator)
+                {
+                    Emit(new IrErrorBoundaryEndInstruction());
+                }
             }
             finally
             {
@@ -430,7 +764,10 @@ public static class IrLowerer
                     // zero value is initialized once in the entry prologue, not at the Dim site.
                     break;
                 case BoundAssignmentStatement assignment:
-                    Emit(new IrStoreInstruction(LowerVariablePlace(assignment.Variable), LowerValueCopy(assignment.Expression)));
+                    Emit(new IrStoreInstruction(
+                        LowerVariablePlace(assignment.Variable),
+                        LowerValueCopy(assignment.Expression)));
+                    LowerWithEventsSubscriptions(assignment.Variable);
                     break;
                 case BoundArrayElementAssignmentStatement assignment:
                     Emit(new IrStoreInstruction(
@@ -479,6 +816,69 @@ public static class IrLowerer
                     Terminate(ReturnTerminator());
                     _current = NewBlock("after_return");
                     break;
+                case BoundOnErrorStatement onError:
+                    _resumeNext = onError.Mode == BoundErrorHandlingMode.ResumeNext;
+                    _errorHandler = onError.Mode == BoundErrorHandlingMode.GoToLabel
+                        ? onError.HandlerLabel
+                        : null;
+                    break;
+                case BoundResumeStatement resume:
+                    if (resume.TargetLabel is not null)
+                    {
+                        if (!_labels.TryGetValue(resume.TargetLabel, out var resumeTarget))
+                        {
+                            throw new InvalidOperationException($"Label '{resume.TargetLabel}' was not predeclared.");
+                        }
+
+                        Terminate(new IrGotoTerminator(resumeTarget));
+                        _current = NewBlock("after_resume");
+                    }
+                    else
+                    {
+                        Emit(new IrResumeInstruction(
+                            resume.IsNext ? IrResumeKind.Next : IrResumeKind.Same));
+                    }
+                    break;
+                case BoundGoSubStatement goSub:
+                    if (!_goSubs.TryGetValue(goSub, out var site))
+                    {
+                        throw new InvalidOperationException($"GoSub '{goSub.Name}' was not predeclared.");
+                    }
+
+                    Terminate(new IrGoSubTerminator(site.TargetBlockId, site.ReturnIndex));
+                    _current = _blocks[_goSubReturnBlocks[site.ReturnIndex]];
+                    break;
+                case BoundGoSubReturnStatement:
+                    Terminate(new IrGoSubReturnTerminator(_goSubReturnBlocks.ToImmutableArray()));
+                    _current = NewBlock("after_gosub_return");
+                    break;
+                case BoundOnGoSubStatement onGoSub:
+                    if (!_onGoSubs.TryGetValue(onGoSub, out var onGoSubSite))
+                    {
+                        throw new InvalidOperationException("On GoSub was not predeclared.");
+                    }
+
+                    var onGoSubContinuation = _blocks[_goSubReturnBlocks[onGoSubSite.ReturnIndex]];
+                    Terminate(new IrOnGoSubTerminator(
+                        LowerExpression(onGoSub.Expression),
+                        onGoSubSite.TargetBlockIds,
+                        onGoSubSite.ReturnIndex,
+                        onGoSubContinuation.Id));
+                    _current = onGoSubContinuation;
+                    break;
+                case BoundOnGoToStatement onGoTo:
+                    var onGoToContinuation = NewBlock("after_on_goto");
+                    var onGoToTargets = onGoTo.Labels
+                        .Select(label => _labels.TryGetValue(label, out var target)
+                            ? target
+                            : throw new InvalidOperationException($"Label '{label}' was not predeclared."))
+                        .ToImmutableArray();
+                    Terminate(new IrOnGoToTerminator(
+                        LowerExpression(onGoTo.Expression),
+                        onGoToTargets,
+                        onGoToContinuation.Id));
+                    _current = onGoToContinuation;
+                    break;
                 case BoundSelectCaseStatement select:
                     LowerSelect(select);
                     break;
@@ -490,6 +890,18 @@ public static class IrLowerer
                     break;
                 case BoundInvocationStatement invocation:
                     Emit(new IrEvaluateInstruction(LowerCall(invocation.Procedure, invocation.Arguments)));
+                    break;
+                case BoundMemberInvocationStatement memberInvocation:
+                    Emit(new IrEvaluateInstruction(LowerMemberCall(
+                        memberInvocation.Receiver,
+                        memberInvocation.Procedure,
+                        memberInvocation.Arguments)));
+                    break;
+                case BoundRaiseEventStatement raiseEvent:
+                    Emit(new IrRaiseEventInstruction(
+                        raiseEvent.Event,
+                        raiseEvent.Arguments.Select(argument => LowerValueCopy(argument.Expression)).ToImmutableArray(),
+                        _containingClass));
                     break;
                 case BoundLabelStatement label:
                     LowerLabel(label);
@@ -549,6 +961,43 @@ public static class IrLowerer
                         put.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(put.Position),
                         LowerExpression(put.Value))));
                     break;
+            }
+        }
+
+        private static bool CanProtectForErrorHandling(BoundStatement statement) => statement is not (
+            BoundIfStatement or
+            BoundForStatement or
+            BoundForEachStatement or
+            BoundWhileStatement or
+            BoundDoStatement or
+            BoundWithStatement or
+            BoundSelectCaseStatement or
+            BoundExitLoopStatement or
+            BoundReturnStatement or
+            BoundGoToStatement or
+            BoundGoSubStatement or
+            BoundGoSubReturnStatement or
+            BoundOnGoToStatement or
+            BoundOnGoSubStatement or
+            BoundLabelStatement or
+            BoundOnErrorStatement or
+            BoundResumeStatement);
+
+        private void LowerWithEventsSubscriptions(VariableSymbol variable)
+        {
+            if (_containingClass is null ||
+                variable is not ModuleVariableSymbol moduleVariable ||
+                !_program.TryGetWithEventsHandlers(moduleVariable, out var handlers) ||
+                handlers.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            var source = new IrLoadExpression(LowerVariablePlace(moduleVariable));
+            var target = new IrLoadExpression(new IrThisPlace(_containingClass));
+            foreach (var (eventSymbol, handler) in handlers)
+            {
+                Emit(new IrSubscribeEventInstruction(source, eventSymbol, target, handler));
             }
         }
 
@@ -1043,17 +1492,38 @@ public static class IrLowerer
             return expression switch
             {
                 BoundLiteralExpression literal => new IrConstantExpression(literal.Value, literal.LiteralType),
+                BoundNewExpression @new => new IrNewClassExpression(@new.ClassType),
+                BoundTypeOfExpression typeOf => new IrTypeOfExpression(
+                    LowerExpression(typeOf.Expression),
+                    typeOf.TargetType),
                 BoundVariableExpression variable => LowerVariableRead(variable.Variable),
                 BoundArrayAccessExpression array => new IrLoadExpression(new IrArrayElementPlace(
                     new IrLoadExpression(LowerVariablePlace(array.Array)),
                     array.Indices.Select(LowerExpression).ToImmutableArray(),
                     array.ElementType)),
+                BoundArrayLiteralExpression array => LowerArrayLiteral(array),
                 BoundElementAccessExpression element => new IrLoadExpression(new IrArrayElementPlace(
                     LowerExpression(element.Receiver),
                     element.Indices.Select(LowerExpression).ToImmutableArray(),
                     element.ElementType)),
+                BoundVariantArrayAccessExpression variantElement => new IrVariantArrayCallExpression(
+                    IrVariantArrayOperation.GetElement,
+                    LowerExpression(variantElement.Receiver),
+                    variantElement.Indices.Select(LowerExpression).ToImmutableArray(),
+                    TypeSymbol.Variant),
                 BoundMemberAccessExpression member => LowerMemberRead(member),
+                BoundPropertyAccessExpression property => LowerPropertyRead(property),
+                BoundMemberInvocationExpression memberInvocation => LowerMemberCall(
+                    memberInvocation.Receiver,
+                    memberInvocation.Procedure,
+                    memberInvocation.Arguments),
                 BoundWithReceiverExpression with => new IrLoadExpression(LowerWithPlace(with)),
+                BoundArrayBoundExpression bound when bound.Array.Type == TypeSymbol.Variant =>
+                    new IrVariantArrayCallExpression(
+                        bound.IsUpperBound ? IrVariantArrayOperation.UBound : IrVariantArrayOperation.LBound,
+                        LowerExpression(bound.Array),
+                        ImmutableArray.Create(LowerExpression(bound.Dimension)),
+                        TypeSymbol.Long),
                 BoundArrayBoundExpression bound => new IrArrayCallExpression(
                     bound.IsUpperBound ? IrArrayOperation.UBound : IrArrayOperation.LBound,
                     LowerExpression(bound.Array),
@@ -1068,6 +1538,32 @@ public static class IrLowerer
             };
         }
 
+        private IrExpression LowerArrayLiteral(BoundArrayLiteralExpression array)
+        {
+            var storage = NewLocal("__array_literal", array.ArrayType, true);
+            var upperBound = array.Elements.Length - 1L;
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(storage),
+                new IrNewVBArrayExpression(
+                    array.ArrayType,
+                    ImmutableArray.Create(new IrArrayBound(
+                        new IrConstantExpression(0L, TypeSymbol.Long),
+                        new IrConstantExpression(upperBound, TypeSymbol.Long))))));
+
+            for (var index = 0; index < array.Elements.Length; index++)
+            {
+                Emit(new IrStoreInstruction(
+                    new IrArrayElementPlace(
+                        new IrLoadExpression(new IrLocalPlace(storage)),
+                        ImmutableArray.Create<IrExpression>(
+                            new IrConstantExpression((long)index, TypeSymbol.Long)),
+                        array.ArrayType.ElementType),
+                    LowerValueCopy(array.Elements[index])));
+            }
+
+            return new IrLoadExpression(new IrLocalPlace(storage));
+        }
+
         private IrPlace LowerPlace(BoundExpression expression) => expression switch
         {
             BoundVariableExpression variable => LowerVariablePlace(variable.Variable),
@@ -1079,7 +1575,10 @@ public static class IrLowerer
                 LowerExpression(element.Receiver),
                 element.Indices.Select(LowerExpression).ToImmutableArray(),
                 element.ElementType),
+            BoundVariantArrayAccessExpression => throw new InvalidOperationException(
+                "A Variant array element is not addressable until Variant array write-back semantics are lowered."),
             BoundMemberAccessExpression member => LowerMemberPlace(member),
+            BoundPropertyAccessExpression property => LowerPropertyPlace(property),
             BoundWithReceiverExpression with => LowerWithPlace(with),
             _ => throw new InvalidOperationException($"Bound expression '{expression.GetType().Name}' is not an addressable place.")
         };
@@ -1126,6 +1625,70 @@ public static class IrLowerer
             return new IrLoadExpression(place);
         }
 
+        private IrExpression LowerPropertyRead(BoundPropertyAccessExpression expression)
+        {
+            if (expression.Receiver.Type is not ClassTypeSymbol classType ||
+                !_program.TryGetClassProcedure(
+                    classType,
+                    expression.Property.Name,
+                    PropertyAccessorKind.Get,
+                    out var getter))
+            {
+                throw new NotSupportedException(
+                    $"Property '{expression.Property.Name}' has no emitted Get accessor.");
+            }
+
+            return LowerCall(
+                getter,
+                ImmutableArray<BoundArgument>.Empty,
+                LowerExpression(expression.Receiver));
+        }
+
+        private IrExpression LowerMemberCall(
+            BoundExpression receiver,
+            ProcedureSymbol requested,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            if (receiver.Type is not ClassTypeSymbol classType)
+            {
+                throw new NotSupportedException(
+                    $"Instance call receiver '{receiver.Type.Name}' is not a class type.");
+            }
+
+            var procedure = _program.ResolveClassProcedure(classType, requested);
+            return LowerCall(procedure, arguments, LowerExpression(receiver));
+        }
+
+        private IrAccessorPlace LowerPropertyPlace(BoundPropertyAccessExpression expression)
+        {
+            if (expression.Receiver.Type is not ClassTypeSymbol classType)
+            {
+                throw new NotSupportedException(
+                    $"Property receiver '{expression.Receiver.Type.Name}' is not a class type.");
+            }
+
+            _program.TryGetClassProcedure(
+                classType,
+                expression.Property.Name,
+                PropertyAccessorKind.Get,
+                out var getter);
+            _program.TryGetClassProcedure(
+                classType,
+                expression.Property.Name,
+                expression.Property.Accessor,
+                out var setter);
+            if (expression.Property.Accessor is not (PropertyAccessorKind.Let or PropertyAccessorKind.Set))
+            {
+                setter = null;
+            }
+
+            return new IrAccessorPlace(
+                LowerExpression(expression.Receiver),
+                getter,
+                setter,
+                expression.Property.Type);
+        }
+
         private IrPlace LowerMemberPlace(BoundMemberAccessExpression expression)
         {
             var receiver = LowerPlace(expression.Receiver);
@@ -1165,14 +1728,34 @@ public static class IrLowerer
             {
                 LocalVariableSymbol local when _locals.TryGetValue(local, out var irLocal) => new IrLocalPlace(irLocal),
                 ParameterSymbol parameter when _parameters.TryGetValue(parameter, out var irParameter) => new IrParameterPlace(irParameter),
+                ModuleVariableSymbol module when _containingClass is not null &&
+                    _program.TryGetClassField(module, out var field) =>
+                    new IrFieldPlace(new IrThisPlace(_containingClass), field),
+                ModuleVariableSymbol module when _containingClass is not null &&
+                    string.Equals(module.Name, "Me", StringComparison.OrdinalIgnoreCase) &&
+                    module.Type == _containingClass => new IrThisPlace(_containingClass),
                 ModuleVariableSymbol global => new IrGlobalPlace(_program.GetGlobal(global)),
                 ReturnValueSymbol when _returnLocal is not null => new IrLocalPlace(_returnLocal),
                 _ => throw new InvalidOperationException($"Variable '{symbol.Name}' is not available in the current IR procedure.")
             };
         }
 
-        private IrExpression LowerCall(ProcedureSymbol procedure, ImmutableArray<BoundArgument> arguments)
+        private IrExpression LowerCall(
+            ProcedureSymbol procedure,
+            ImmutableArray<BoundArgument> arguments,
+            IrExpression? receiver = null)
         {
+            if (receiver is null && _containingClass is not null &&
+                _program.TryGetClassProcedure(
+                    _containingClass,
+                    procedure.Name,
+                    procedure.PropertyAccessor,
+                    out var classProcedure))
+            {
+                procedure = classProcedure;
+                receiver = new IrLoadExpression(new IrThisPlace(_containingClass));
+            }
+
             var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.Length);
             foreach (var argument in arguments)
             {
@@ -1209,7 +1792,8 @@ public static class IrLowerer
             return new IrProcedureCallExpression(
                 procedure,
                 lowered.ToImmutable(),
-                procedure.ReturnType ?? TypeSymbol.Error);
+                procedure.ReturnType ?? TypeSymbol.Error,
+                receiver);
         }
 
         private IrExpression LowerValueCopy(BoundExpression expression)
@@ -1280,7 +1864,9 @@ public static class IrLowerer
                 return operand;
             }
 
-            var method = conversion.TargetType == TypeSymbol.Byte ? IrRuntimeMethod.CByte
+            var method = conversion.TargetType == TypeSymbol.Boolean && conversion.Expression.Type == TypeSymbol.Variant
+                ? IrRuntimeMethod.VariantToBoolean
+                : conversion.TargetType == TypeSymbol.Byte ? IrRuntimeMethod.CByte
                 : conversion.TargetType == TypeSymbol.Integer ? IrRuntimeMethod.CInt
                 : conversion.TargetType == TypeSymbol.Long ? IrRuntimeMethod.CLng
                 : conversion.TargetType == TypeSymbol.LongLong ? IrRuntimeMethod.CLngLng
@@ -1305,6 +1891,7 @@ public static class IrLowerer
 
             var method = unary.OperatorKind switch
             {
+                SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Variant => IrRuntimeMethod.NegateVariant,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.LongLong => IrRuntimeMethod.NegateLongLong,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Long => IrRuntimeMethod.NegateLong,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Currency => IrRuntimeMethod.NegateCurrency,
@@ -1314,6 +1901,7 @@ public static class IrLowerer
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.Boolean => IrRuntimeMethod.NotBoolean,
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.LongLong => IrRuntimeMethod.NotLongLong,
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.Long => IrRuntimeMethod.NotLong,
+                SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.Variant => IrRuntimeMethod.NotVariant,
                 SyntaxKind.NotKeyword => IrRuntimeMethod.NotInteger,
                 _ => throw new NotSupportedException($"IR lowering does not support unary operator '{unary.OperatorKind}'.")
             };
@@ -1327,34 +1915,98 @@ public static class IrLowerer
             IrRuntimeMethod method;
             switch (binary.OperatorKind)
             {
-                case SyntaxKind.CaretToken: method = IrRuntimeMethod.Power; break;
-                case SyntaxKind.EqualsToken: method = IrRuntimeMethod.Equal; break;
-                case SyntaxKind.LessGreaterToken: method = IrRuntimeMethod.NotEqual; break;
-                case SyntaxKind.LessToken: method = IrRuntimeMethod.Less; break;
-                case SyntaxKind.LessOrEqualsToken: method = IrRuntimeMethod.LessOrEqual; break;
-                case SyntaxKind.GreaterToken: method = IrRuntimeMethod.Greater; break;
-                case SyntaxKind.GreaterOrEqualsToken: method = IrRuntimeMethod.GreaterOrEqual; break;
-                case SyntaxKind.AmpersandToken: method = IrRuntimeMethod.Concat; break;
+                case SyntaxKind.CaretToken: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.PowerVariant
+                    : IrRuntimeMethod.Power; break;
+                case SyntaxKind.LikeKeyword:
+                    return Runtime(
+                        IrRuntimeMethod.StringLike,
+                        TypeSymbol.Boolean,
+                        left,
+                        right,
+                        new IrConstantExpression(binary.UseTextCompare, TypeSymbol.Boolean));
+                case SyntaxKind.IsKeyword:
+                    return Runtime(IrRuntimeMethod.ObjectIs, TypeSymbol.Boolean, left, right);
+                case SyntaxKind.EqualsToken: method = IsStringVariantComparison(binary)
+                    ? IrRuntimeMethod.StringVariantEqual
+                    : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                        ? IrRuntimeMethod.VariantEqual
+                        : IrRuntimeMethod.Equal; break;
+                case SyntaxKind.LessGreaterToken: method = IsStringVariantComparison(binary)
+                    ? IrRuntimeMethod.StringVariantNotEqual
+                    : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                        ? IrRuntimeMethod.VariantNotEqual
+                        : IrRuntimeMethod.NotEqual; break;
+                case SyntaxKind.LessToken: method = IsStringVariantComparison(binary)
+                    ? IrRuntimeMethod.StringVariantLess
+                    : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                        ? IrRuntimeMethod.VariantLess
+                        : IrRuntimeMethod.Less; break;
+                case SyntaxKind.LessOrEqualsToken: method = IsStringVariantComparison(binary)
+                    ? IrRuntimeMethod.StringVariantLessOrEqual
+                    : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                        ? IrRuntimeMethod.VariantLessOrEqual
+                        : IrRuntimeMethod.LessOrEqual; break;
+                case SyntaxKind.GreaterToken: method = IsStringVariantComparison(binary)
+                    ? IrRuntimeMethod.StringVariantGreater
+                    : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                        ? IrRuntimeMethod.VariantGreater
+                        : IrRuntimeMethod.Greater; break;
+                case SyntaxKind.GreaterOrEqualsToken: method = IsStringVariantComparison(binary)
+                    ? IrRuntimeMethod.StringVariantGreaterOrEqual
+                    : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                        ? IrRuntimeMethod.VariantGreaterOrEqual
+                        : IrRuntimeMethod.GreaterOrEqual; break;
+                case SyntaxKind.AmpersandToken: method = binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant
+                    ? IrRuntimeMethod.ConcatVariant
+                    : IrRuntimeMethod.Concat; break;
+                case SyntaxKind.PlusToken when binary.ResultType == TypeSymbol.Variant &&
+                    (binary.Left.Type == TypeSymbol.String || binary.Right.Type == TypeSymbol.String):
+                    method = IrRuntimeMethod.AddStringVariant; break;
                 case SyntaxKind.PlusToken when binary.ResultType == TypeSymbol.String: method = IrRuntimeMethod.Concat; break;
-                case SyntaxKind.PlusToken: method = AddMethod(binary.ResultType); break;
-                case SyntaxKind.MinusToken: method = SubtractMethod(binary.ResultType); break;
+                case SyntaxKind.PlusToken: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.AddVariant
+                    : AddMethod(binary.ResultType); break;
+                case SyntaxKind.MinusToken: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.SubtractVariant
+                    : SubtractMethod(binary.ResultType); break;
                 case SyntaxKind.StarToken when binary.ResultType == TypeSymbol.Variant: method = IrRuntimeMethod.MultiplyVariant; break;
                 case SyntaxKind.StarToken: method = MultiplyMethod(binary.ResultType); break;
-                case SyntaxKind.BackslashToken: method = IntegerDivideMethod(binary.ResultType); break;
-                case SyntaxKind.ModKeyword: method = ModMethod(binary.ResultType); break;
+                case SyntaxKind.BackslashToken: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.IntegerDivideVariant
+                    : IntegerDivideMethod(binary.ResultType); break;
+                case SyntaxKind.ModKeyword: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.ModVariant
+                    : ModMethod(binary.ResultType); break;
                 case SyntaxKind.SlashToken: method = binary.ResultType == TypeSymbol.Single
                     ? IrRuntimeMethod.DivideSingle
-                    : IrRuntimeMethod.DivideDouble; break;
-                case SyntaxKind.AndKeyword: method = LogicMethod("And", binary.ResultType); break;
-                case SyntaxKind.OrKeyword: method = LogicMethod("Or", binary.ResultType); break;
-                case SyntaxKind.XorKeyword: method = LogicMethod("Xor", binary.ResultType); break;
-                case SyntaxKind.EqvKeyword: method = LogicMethod("Eqv", binary.ResultType); break;
-                case SyntaxKind.ImpKeyword: method = LogicMethod("Imp", binary.ResultType); break;
+                    : binary.ResultType == TypeSymbol.Variant
+                        ? IrRuntimeMethod.DivideVariant
+                        : IrRuntimeMethod.DivideDouble; break;
+                case SyntaxKind.AndKeyword: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.AndVariant
+                    : LogicMethod("And", binary.ResultType); break;
+                case SyntaxKind.OrKeyword: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.OrVariant
+                    : LogicMethod("Or", binary.ResultType); break;
+                case SyntaxKind.XorKeyword: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.XorVariant
+                    : LogicMethod("Xor", binary.ResultType); break;
+                case SyntaxKind.EqvKeyword: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.EqvVariant
+                    : LogicMethod("Eqv", binary.ResultType); break;
+                case SyntaxKind.ImpKeyword: method = binary.ResultType == TypeSymbol.Variant
+                    ? IrRuntimeMethod.ImpVariant
+                    : LogicMethod("Imp", binary.ResultType); break;
                 default: throw new NotSupportedException($"IR lowering does not support binary operator '{binary.OperatorKind}'.");
             }
 
             return Runtime(method, binary.ResultType, left, right);
         }
+
+        private static bool IsStringVariantComparison(BoundBinaryExpression binary) =>
+            (binary.Left.Type == TypeSymbol.String && binary.Right.Type == TypeSymbol.Variant) ||
+            (binary.Left.Type == TypeSymbol.Variant && binary.Right.Type == TypeSymbol.String);
 
         private ImmutableArray<IrArrayBound> LowerBounds(ImmutableArray<BoundArrayDimension> dimensions) =>
             dimensions.Select(dimension => new IrArrayBound(
@@ -1485,6 +2137,7 @@ public static class IrLowerer
             : type == TypeSymbol.Double ? IrRuntimeMethod.FileGetDouble
             : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetCurrency
             : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetBoolean
+            : type == TypeSymbol.String ? IrRuntimeMethod.FileGetString
             : throw new NotSupportedException($"File Get type '{type.Name}' is not supported by IR lowering.");
 
         private static IrRuntimeMethod IntrinsicMethod(string target) => target switch
@@ -1501,13 +2154,56 @@ public static class IrLowerer
             "VBStrings.RTrim" => IrRuntimeMethod.StringRTrim,
             "VBStrings.Asc" => IrRuntimeMethod.StringAsc,
             "VBStrings.IsNumeric" => IrRuntimeMethod.StringIsNumeric,
+            "VBStrings.InStr" => IrRuntimeMethod.StringInStr,
+            "VBStrings.InStrRev" => IrRuntimeMethod.StringInStrRev,
+            "VBStrings.Replace" => IrRuntimeMethod.StringReplace,
+            "VBStrings.Space" => IrRuntimeMethod.StringSpace,
+            "VBStrings.Split" => IrRuntimeMethod.StringSplit,
+            "VBStrings.StrConv" => IrRuntimeMethod.StringStrConv,
+            "VBConversions.Int" => IrRuntimeMethod.ConversionInt,
+            "VBMath.Abs" => IrRuntimeMethod.MathAbs,
+            "VBMath.Sgn" => IrRuntimeMethod.MathSgn,
+            "VBMath.Fix" => IrRuntimeMethod.MathFix,
+            "VBMath.Round" => IrRuntimeMethod.MathRound,
+            "VBMath.Sqr" => IrRuntimeMethod.MathSqr,
+            "VBVariants.EmptyValue" => IrRuntimeMethod.VariantEmpty,
+            "VBVariants.NullValue" => IrRuntimeMethod.VariantNull,
+            "VBVariants.NothingValue" => IrRuntimeMethod.VariantNothing,
+            "VBVariants.MissingValue" => IrRuntimeMethod.VariantMissing,
+            "VBVariants.IsEmpty" => IrRuntimeMethod.VariantIsEmpty,
+            "VBVariants.IsNull" => IrRuntimeMethod.VariantIsNull,
+            "VBVariants.IsMissing" => IrRuntimeMethod.VariantIsMissing,
+            "VBVariants.VarType" => IrRuntimeMethod.VariantVarType,
+            "VBVariants.ToBoolean" => IrRuntimeMethod.VariantToBoolean,
             "VBFiles.FreeFile" => IrRuntimeMethod.FileFreeFile,
             "VBFiles.Length" => IrRuntimeMethod.FileLength,
             "VBFiles.EndOfFile" => IrRuntimeMethod.FileEndOfFile,
             "VBFiles.Position" => IrRuntimeMethod.FilePosition,
+            "VBFiles.Kill" => IrRuntimeMethod.FileKill,
+            "VBFiles.Dir" => IrRuntimeMethod.FileDir,
+            "VBFiles.FileLength" => IrRuntimeMethod.FileLengthByPath,
+            "VBInteraction.DoEvents" => IrRuntimeMethod.InteractionDoEvents,
+            "VBInteraction.MsgBox" => IrRuntimeMethod.InteractionMsgBox,
+            "VBInteraction.InputBox" => IrRuntimeMethod.InteractionInputBox,
+            "VBInteraction.Load" => IrRuntimeMethod.InteractionLoad,
+            "VBInteraction.Unload" => IrRuntimeMethod.InteractionUnload,
+            "VBInteraction.CreateObject" => IrRuntimeMethod.InteractionCreateObject,
+            "VBInteraction.GetObject" => IrRuntimeMethod.InteractionGetObject,
+            "VBInteraction.Shell" => IrRuntimeMethod.InteractionShell,
+            "VBMemory.VarPtr" => IrRuntimeMethod.MemoryVarPtr,
+            "VBMemory.ObjPtr" => IrRuntimeMethod.MemoryObjPtr,
+            "VBMemory.LSet" => IrRuntimeMethod.MemoryLSet,
+            "VBDateTime.Now" => IrRuntimeMethod.DateTimeNow,
+            "VBErrors.NumberValue" => IrRuntimeMethod.ErrorNumber,
+            "VBErrors.DescriptionValue" => IrRuntimeMethod.ErrorDescription,
+            "VBErrors.Clear" => IrRuntimeMethod.ErrorClear,
+            "VBErrors.Raise" => IrRuntimeMethod.ErrorRaise,
+            "VBFunctions.TypeName" => IrRuntimeMethod.FunctionTypeName,
+            "VBFunctions.Switch" => IrRuntimeMethod.FunctionSwitch,
             "VBConversions.CByte" => IrRuntimeMethod.CByte,
             "VBConversions.CInt" => IrRuntimeMethod.CInt,
             "VBConversions.CLng" => IrRuntimeMethod.CLng,
+            "VBConversions.CDec" => IrRuntimeMethod.CDec,
             "VBConversions.CSng" => IrRuntimeMethod.CSng,
             "VBConversions.CDbl" => IrRuntimeMethod.CDbl,
             "VBConversions.CBool" => IrRuntimeMethod.CBool,

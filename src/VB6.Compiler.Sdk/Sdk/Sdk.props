@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <VB6Project Condition="'$(VB6Project)' == ''">$(MSBuildProjectDirectory)\$(MSBuildProjectName).vbp</VB6Project>
+    <VB6CompilerPath Condition="'$(VB6CompilerPath)' == ''">vb6c</VB6CompilerPath>
+    <VB6CompilerOutput Condition="'$(VB6CompilerOutput)' == ''">$(TargetDir)$(AssemblyName).dll</VB6CompilerOutput>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(VB6Project)')">
+    <None Include="$(VB6Project)" Visible="false" />
+  </ItemGroup>
+</Project>

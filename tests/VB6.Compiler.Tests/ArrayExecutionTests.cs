@@ -75,4 +75,70 @@ public sealed class ArrayExecutionTests
             standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
             standardOutput);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesParamArrayWithEmptyAndMixedArguments()
+    {
+        const string source = """
+            Sub Show(ParamArray values() As Variant)
+                Dim item As Variant
+                For Each item In values
+                    Debug.Print item
+                Next item
+                Debug.Print UBound(values)
+            End Sub
+
+            Sub Main()
+                Show
+                Show 10, "two", True
+            End Sub
+            """;
+
+        var compilation = VBCompilation.Create(source, "Module1.bas");
+        var standardOutput = VB6TestProgram.Run(compilation);
+        CollectionAssert.AreEqual(
+            new[] { "-1", "10", "two", "True", "2" },
+            standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+            standardOutput);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesStaticScalarStringAndArrayValues()
+    {
+        const string source = """
+            Function NextValue() As Long
+                Static count As Long
+                count = count + 1
+                NextValue = count
+            End Function
+
+            Sub AddText()
+                Static text As String
+                text = text & "x"
+                Debug.Print text
+            End Sub
+
+            Sub KeepArray()
+                Static values(1 To 2) As Long
+                values(1) = values(1) + 1
+                Debug.Print values(1)
+            End Sub
+
+            Sub Main()
+                Debug.Print NextValue()
+                Debug.Print NextValue()
+                AddText
+                AddText
+                KeepArray
+                KeepArray
+            End Sub
+            """;
+
+        var compilation = VBCompilation.Create(source, "Module1.bas");
+        var standardOutput = VB6TestProgram.Run(compilation);
+        CollectionAssert.AreEqual(
+            new[] { "1", "2", "x", "xx", "1", "2" },
+            standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+            standardOutput);
+    }
 }

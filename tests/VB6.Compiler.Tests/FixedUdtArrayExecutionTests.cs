@@ -52,7 +52,9 @@ public sealed class FixedUdtArrayExecutionTests
         var lines = standardOutput
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .TrimEnd('\n')
-            .Split('\n');
+            .Split('\n')
+            .Select(line => line.Trim())
+            .ToArray();
         CollectionAssert.AreEqual(
             new[] { "0", "10", "99", "20", "30", "7", "40", "41" },
             lines);

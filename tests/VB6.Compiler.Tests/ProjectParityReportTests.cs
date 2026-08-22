@@ -28,12 +28,12 @@ public sealed class ProjectParityReportTests
             var report = VBProjectParityReport.Create(VBProjectCompilation.Create(projectPath).Analyze());
 
             Assert.AreEqual(3, report.TotalItemCount);
-            Assert.AreEqual(1, report.AnalyzedFileCount);
+            Assert.AreEqual(3, report.AnalyzedFileCount);
 
             var module = report.ItemKinds.Single(kind => kind.Kind == VBProjectItemKind.Module);
             var @class = report.ItemKinds.Single(kind => kind.Kind == VBProjectItemKind.Class);
             Assert.IsTrue(module.IsAnalyzed);
-            Assert.IsFalse(@class.IsAnalyzed);
+            Assert.IsTrue(@class.IsAnalyzed);
         }
         finally
         {
@@ -168,9 +168,57 @@ public sealed class ProjectParityReportTests
                 .Render();
 
             StringAssert.Contains(rendered, "VB6 parity report for Sample");
-            StringAssert.Contains(rendered, "Analyzed 1 of 2 project items.");
-            StringAssert.Contains(rendered, "1 of 1 analyze without errors.");
-            StringAssert.Contains(rendered, "not analyzed yet");
+            StringAssert.Contains(rendered, "Analyzed 2 of 2 project items.");
+            StringAssert.Contains(rendered, "2 of 2 analyze without errors.");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ReadsClassModuleSourceAfterDesignerMetadata()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ClassProject.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Name="ClassProject"
+                Module=Main; Main.bas
+                Class=cThing; cThing.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "cThing.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "cThing"
+                Option Explicit
+
+                Private mValue As Long
+
+                Public Sub SetValue(ByVal value As Long)
+                    mValue = value
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+            Assert.AreEqual(2, analysis.Units.Length);
+            var classUnit = analysis.Units.Single(unit => unit.Item.Kind == VBProjectItemKind.Class);
+            Assert.IsNotNull(classUnit.Analysis.SemanticModel);
+            Assert.IsTrue(classUnit.Analysis.SemanticModel!.Procedures.Any(
+                procedure => procedure.Symbol.Name == "SetValue"));
         }
         finally
         {

@@ -1,4 +1,5 @@
 using VB6.Syntax.Nodes;
+using VB6.Syntax;
 using VB6.Syntax.Text;
 using ParserType = VB6.Parser.Parser;
 
@@ -39,11 +40,61 @@ public sealed class ErrorHandlingParserTests
     }
 
     [TestMethod]
+    public void Parse_ResumeVariants()
+    {
+        Assert.IsNull(((ResumeStatementSyntax)ParseSingleStatement("Resume")).TargetToken);
+        Assert.AreEqual(
+            "Next",
+            ((ResumeStatementSyntax)ParseSingleStatement("Resume Next")).TargetToken?.Text);
+        Assert.AreEqual(
+            "Retry",
+            ((ResumeStatementSyntax)ParseSingleStatement("Resume Retry")).TargetToken?.Text);
+    }
+
+    [TestMethod]
     public void Parse_GoToStatement()
     {
         var statement = (GoToStatementSyntax)ParseSingleStatement("GoTo Done");
 
         Assert.AreEqual("Done", statement.LabelToken.Text);
+    }
+
+    [TestMethod]
+    public void Parse_GoSubAndReturnStatements()
+    {
+        var goSub = (GoSubStatementSyntax)ParseSingleStatement("GoSub AddTwo");
+        var goSubReturn = (GoSubReturnStatementSyntax)ParseSingleStatement("Return");
+
+        Assert.AreEqual("AddTwo", goSub.LabelToken.Text);
+        Assert.AreEqual(SyntaxKind.ReturnKeyword, goSubReturn.ReturnKeyword.Kind);
+    }
+
+    [TestMethod]
+    public void Parse_OnGoToAndNumericLineLabel()
+    {
+        var result = new ParserType(SourceText.From("""
+            Sub Main()
+                On selector GoTo 100, Done
+            100
+            Done:
+            End Sub
+            """)).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(", ", result.Diagnostics.Select(d => d.Message)));
+        var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
+        var onGoTo = (OnGoToStatementSyntax)procedure.Statements[0];
+        Assert.AreEqual(2, onGoTo.LabelTokens.Length);
+        Assert.AreEqual("100", onGoTo.LabelTokens[0].Text);
+        Assert.IsNull(((LabelStatementSyntax)procedure.Statements[1]).ColonToken);
+    }
+
+    [TestMethod]
+    public void Parse_OnGoSub()
+    {
+        var statement = (OnGoSubStatementSyntax)ParseSingleStatement("On selector GoSub First, Second");
+
+        Assert.AreEqual("selector", ((NameExpressionSyntax)statement.Expression).IdentifierToken.Text);
+        CollectionAssert.AreEqual(new[] { "First", "Second" }, statement.LabelTokens.Select(token => token.Text).ToArray());
     }
 
     [TestMethod]

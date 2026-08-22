@@ -65,7 +65,7 @@ public static class UserDefinedTypeValueGuard
     {
         foreach (var parameter in parameters)
         {
-            if (RequiresStorageGuard(parameter.TypeToken.Text, types))
+            if (parameter.TypeToken is not null && RequiresStorageGuard(parameter.TypeToken.Text, types))
             {
                 AddDiagnostic(text, parameter.Identifier.Text, parameter.TypeToken.Span, diagnostics);
             }

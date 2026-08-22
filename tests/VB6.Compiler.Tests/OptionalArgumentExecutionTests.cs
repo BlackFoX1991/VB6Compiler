@@ -52,6 +52,26 @@ public sealed class OptionalArgumentExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_DefaultsAnUntypedOptionalToMissingVariant()
+    {
+        Run("""
+            Private Sub Show(Optional value)
+                Debug.Print IsMissing(value)
+                Debug.Print VarType(value)
+            End Sub
+
+            Public Sub Main()
+                Show
+                Show 42
+            End Sub
+            """,
+            "True",
+            "10",
+            "False",
+            "2");
+    }
+
+    [TestMethod]
     public void Analyze_StillReportsTooFewRequiredArguments()
     {
         var analysis = VBCompilation.Create("""

@@ -57,6 +57,17 @@ public sealed class CultureIndependenceTests
         Assert.AreEqual("2.5", writer.ToString().Trim());
     }
 
+    [TestMethod]
+    public void DebugPrint_UsesVb6ScalarFormatting()
+    {
+        Assert.AreEqual(" 42", VBDebug.Format(42));
+        Assert.AreEqual("-42", VBDebug.Format(-42));
+        Assert.AreEqual("True", VBDebug.Format(true));
+        Assert.AreEqual(string.Empty, VBDebug.Format(null));
+        Assert.AreEqual("Null", VBDebug.Format(VBVariants.NullValue()));
+        Assert.AreEqual(" 1.23456789012346", VBDebug.Format(1.234567890123456d));
+    }
+
     private static void UnderCommaDecimalCulture(Action action)
     {
         var originalCulture = CultureInfo.CurrentCulture;

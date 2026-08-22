@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace VB6.Semantics;
 
 /// <summary>
@@ -17,3 +19,15 @@ public sealed record BoundMemberAssignmentStatement(
     BoundExpression Target,
     BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
+
+public sealed record BoundMemberInvocationStatement(
+    BoundExpression Receiver,
+    ProcedureSymbol Procedure,
+    ImmutableArray<BoundArgument> Arguments)
+    : BoundStatement(BoundNodeKind.InvocationStatement);
+
+public sealed record BoundMemberInvocationExpression(
+    BoundExpression Receiver,
+    ProcedureSymbol Procedure,
+    ImmutableArray<BoundArgument> Arguments)
+    : BoundExpression(BoundNodeKind.InvocationExpression, Procedure.ReturnType ?? TypeSymbol.Error);

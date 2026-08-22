@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace VB6.Runtime;
 
@@ -10,12 +11,53 @@ namespace VB6.Runtime;
 /// the first byte of the file. Omitting the position continues where the previous operation
 /// stopped, which is why the core operations take a nullable position.
 ///
-/// Only the fixed-size numeric types are supported. A variable-length String is stored with a
-/// two-byte length prefix and a user-defined type is written in its record layout; both need rules
-/// this runtime does not model yet, and the compiler reports them instead of guessing.
+/// Fixed-size numeric types and variable-length Strings are supported. A String is stored with a
+/// two-byte character-count prefix followed by UTF-16LE characters, matching the BSTR-oriented
+/// VB6 binary transfer contract. User-defined types still require an explicit record layout.
 /// </summary>
 public static class VBFiles
 {
+    private static IEnumerator<string>? _directoryEnumerator;
+
+    /// <summary>Deletes one filesystem path using the VB6 Kill contract.</summary>
+    public static void Kill(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        File.Delete(path);
+    }
+
+    /// <summary>
+    /// Implements Dir's stateful first-call/continuation form. Attributes are accepted for source
+    /// compatibility; the portable profile currently enumerates ordinary files only.
+    /// </summary>
+    public static string Dir(string path, int attributes)
+    {
+        if (!string.IsNullOrEmpty(path))
+        {
+            var directory = Path.GetDirectoryName(path);
+            var pattern = Path.GetFileName(path);
+            directory = string.IsNullOrEmpty(directory) ? Directory.GetCurrentDirectory() : directory;
+            _directoryEnumerator = Directory.Exists(directory)
+                ? Directory.EnumerateFiles(directory, string.IsNullOrEmpty(pattern) ? "*" : pattern).GetEnumerator()
+                : null;
+        }
+
+        if (_directoryEnumerator is null || !_directoryEnumerator.MoveNext())
+        {
+            _directoryEnumerator?.Dispose();
+            _directoryEnumerator = null;
+            return string.Empty;
+        }
+
+        return Path.GetFileName(_directoryEnumerator.Current);
+    }
+
+    public static long Length(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return new FileInfo(path).Length;
+    }
+
     private const int MinimumFileNumber = 1;
     private const int MaximumFileNumber = 511;
 
@@ -119,6 +161,18 @@ public static class VBFiles
     public static bool GetBoolean(int fileNumber, long? position) =>
         BitConverter.ToInt16(Read(fileNumber, position, 2)) != 0;
 
+    public static string GetString(int fileNumber, long? position)
+    {
+        var characterCount = BitConverter.ToUInt16(Read(fileNumber, position, 2));
+        if (characterCount == 0)
+        {
+            return string.Empty;
+        }
+
+        var bytes = Read(fileNumber, null, checked(characterCount * sizeof(char)));
+        return Encoding.Unicode.GetString(bytes);
+    }
+
     // The direct managed backend uses ordinary CLI signatures rather than constructing Nullable<T>
     // just to express an omitted record position. These overloads preserve the same core behavior.
     public static byte GetByte(int fileNumber) => GetByte(fileNumber, null);
@@ -137,6 +191,8 @@ public static class VBFiles
     public static VBCurrency GetCurrency(int fileNumber, long position) => GetCurrency(fileNumber, (long?)position);
     public static bool GetBoolean(int fileNumber) => GetBoolean(fileNumber, null);
     public static bool GetBoolean(int fileNumber, long position) => GetBoolean(fileNumber, (long?)position);
+    public static string GetString(int fileNumber) => GetString(fileNumber, null);
+    public static string GetString(int fileNumber, long position) => GetString(fileNumber, (long?)position);
 
     public static void Put(int fileNumber, long? position, byte value) =>
         Write(fileNumber, position, new[] { value });
@@ -162,6 +218,21 @@ public static class VBFiles
     public static void Put(int fileNumber, long? position, bool value) =>
         Write(fileNumber, position, BitConverter.GetBytes(value ? (short)-1 : (short)0));
 
+    public static void Put(int fileNumber, long? position, string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Length > ushort.MaxValue)
+        {
+            throw new OverflowException("VB6 binary String transfers support at most 65535 characters.");
+        }
+
+        var payload = Encoding.Unicode.GetBytes(value);
+        var bytes = new byte[sizeof(ushort) + payload.Length];
+        BitConverter.GetBytes((ushort)value.Length).CopyTo(bytes, 0);
+        payload.CopyTo(bytes, sizeof(ushort));
+        Write(fileNumber, position, bytes);
+    }
+
     public static void Put(int fileNumber, byte value) => Put(fileNumber, null, value);
     public static void Put(int fileNumber, long position, byte value) => Put(fileNumber, (long?)position, value);
     public static void Put(int fileNumber, short value) => Put(fileNumber, null, value);
@@ -178,6 +249,8 @@ public static class VBFiles
     public static void Put(int fileNumber, long position, VBCurrency value) => Put(fileNumber, (long?)position, value);
     public static void Put(int fileNumber, bool value) => Put(fileNumber, null, value);
     public static void Put(int fileNumber, long position, bool value) => Put(fileNumber, (long?)position, value);
+    public static void Put(int fileNumber, string value) => Put(fileNumber, null, value);
+    public static void Put(int fileNumber, long position, string value) => Put(fileNumber, (long?)position, value);
 
     private static byte[] Read(int fileNumber, long? position, int count)
     {

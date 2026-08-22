@@ -1,7 +1,8 @@
 namespace VB6.Runtime;
 
 /// <summary>
-/// One VB6 array dimension. Bounds are inclusive and may start at any signed 32-bit value.
+/// One VB6 array dimension. Bounds are inclusive and may start at any signed 32-bit value. The
+/// special 0..-1 bound is the zero-length shape used by Array() and ParamArray with no values.
 /// </summary>
 public readonly record struct VBArrayBound(int Lower, int Upper)
 {
@@ -10,6 +11,11 @@ public readonly record struct VBArrayBound(int Lower, int Upper)
         get
         {
             var length = checked((long)Upper - Lower + 1L);
+            if (length == 0 && Lower == 0)
+            {
+                return 0;
+            }
+
             if (length <= 0 || length > int.MaxValue)
             {
                 throw new ArgumentOutOfRangeException(nameof(Upper), "VB6 array bounds do not describe a valid dimension.");
@@ -21,11 +27,25 @@ public readonly record struct VBArrayBound(int Lower, int Upper)
 }
 
 /// <summary>
+/// Non-generic view used when an array is carried inside a VB6 Variant. The concrete element type
+/// remains on <see cref="VBArray{T}"/>, while the Variant runtime only needs bounds and boxed
+/// element access.
+/// </summary>
+public interface IVBArray
+{
+    int Rank { get; }
+    int LBound(int dimension = 1);
+    int UBound(int dimension = 1);
+    object? GetObjectValue(int[] indices);
+    void SetObjectValue(int[] indices, object? value);
+}
+
+/// <summary>
 /// Runtime storage for a VB6 array. Unlike CLR arrays, each dimension preserves its explicit
 /// lower bound so Option Base, LBound/UBound and ReDim can be implemented without losing VB6
 /// semantics.
 /// </summary>
-public sealed class VBArray<T>
+public sealed class VBArray<T> : IVBArray
 {
     private readonly VBArrayBound[] _bounds;
     private readonly T[] _items;
@@ -70,6 +90,13 @@ public sealed class VBArray<T>
     /// be lowered to ordinary basic blocks without making IEnumerable an IR-level concept.
     /// </summary>
     public T GetValueAtFlatIndex(int index) => _items[index];
+
+    object? IVBArray.GetObjectValue(int[] indices) => this[indices];
+
+    void IVBArray.SetObjectValue(int[] indices, object? value)
+    {
+        this[indices] = ConvertElement(value);
+    }
 
     /// <summary>
     /// Reinitializes every element while preserving rank and bounds. This is the runtime operation
@@ -154,7 +181,16 @@ public sealed class VBArray<T>
         var oldLastLength = _bounds[lastDimension].Length;
         var newLastLength = bounds[lastDimension].Length;
         var preservedLastLength = Math.Min(oldLastLength, newLastLength);
-        var rows = Length / oldLastLength;
+        var rows = 1;
+        for (var dimension = 0; dimension < Rank - 1; dimension++)
+        {
+            rows = checked(rows * _bounds[dimension].Length);
+        }
+
+        if (oldLastLength == 0 || newLastLength == 0)
+        {
+            return resized;
+        }
 
         for (var row = 0; row < rows; row++)
         {
@@ -178,6 +214,26 @@ public sealed class VBArray<T>
         {
             Array.Fill(_items, (T)(object)string.Empty);
         }
+    }
+
+    private static T ConvertElement(object? value)
+    {
+        if (value is null)
+        {
+            return default!;
+        }
+
+        if (value is T typed)
+        {
+            return typed;
+        }
+
+        if (typeof(T) == typeof(string))
+        {
+            return (T)(object)Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)!;
+        }
+
+        return (T)Convert.ChangeType(value, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private VBArrayBound GetBound(int dimension)
@@ -218,6 +274,25 @@ public sealed class VBArray<T>
 
         return offset;
     }
+}
+
+/// <summary>Late-bound array operations for Variant values.</summary>
+public static class VBArrayOperations
+{
+    public static int LBound(object? value, int dimension = 1) => GetArray(value).LBound(dimension);
+
+    public static int UBound(object? value, int dimension = 1) => GetArray(value).UBound(dimension);
+
+    public static object? GetElement(object? value, int[] indices) => GetArray(value).GetObjectValue(indices);
+
+    public static void SetElement(object? value, int[] indices, object? element) =>
+        GetArray(value).SetObjectValue(indices, element);
+
+    private static IVBArray GetArray(object? value) => value switch
+    {
+        IVBArray array => array,
+        _ => throw new InvalidOperationException("The Variant does not contain an array.")
+    };
 }
 
 /// <summary>

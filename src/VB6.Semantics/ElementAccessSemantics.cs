@@ -13,3 +13,12 @@ public sealed record BoundElementAccessExpression(
     ImmutableArray<BoundExpression> Indices,
     TypeSymbol ElementType)
     : BoundExpression(BoundNodeKind.ArrayAccessExpression, ElementType);
+
+/// <summary>
+/// Indexing a Variant that contains an array. The element is itself a Variant because the concrete
+/// array element type is only known at runtime.
+/// </summary>
+public sealed record BoundVariantArrayAccessExpression(
+    BoundExpression Receiver,
+    ImmutableArray<BoundExpression> Indices)
+    : BoundExpression(BoundNodeKind.ArrayAccessExpression, TypeSymbol.Variant);

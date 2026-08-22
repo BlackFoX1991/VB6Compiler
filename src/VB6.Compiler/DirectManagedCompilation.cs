@@ -32,7 +32,7 @@ public static class DirectManagedCompilation
         var program = IrLowerer.Lower(new[]
         {
             new IrModuleInput(moduleName, sourcePath, analysis.SemanticModel)
-        });
+        }, analysis.SemanticModel.StaticVariables);
         return new LoweringResult(analysis, program);
     }
 
@@ -54,7 +54,9 @@ public static class DirectManagedCompilation
                 unit.FilePath,
                 unit.Analysis.SemanticModel!))
             .ToImmutableArray();
-        var program = IrLowerer.Lower(modules, analysis.SemanticModel.ModuleVariables);
+        var program = IrLowerer.Lower(
+            modules,
+            analysis.SemanticModel.ModuleVariables.Concat(analysis.SemanticModel.StaticVariables));
         return new VBProjectLoweringResult(analysis, program);
     }
 

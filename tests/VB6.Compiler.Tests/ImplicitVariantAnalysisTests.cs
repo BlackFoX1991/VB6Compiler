@@ -36,7 +36,7 @@ public sealed class ImplicitVariantAnalysisTests
     }
 
     [TestMethod]
-    public void Analyze_DefaultsUntypedStaticToVariantWhileKeepingLifetimeGuard()
+    public void Analyze_DefaultsUntypedStaticToVariantWithPersistentLifetime()
     {
         var analysis = VBCompilation.Create("""
             Sub Main()
@@ -46,10 +46,11 @@ public sealed class ImplicitVariantAnalysisTests
 
         Assert.IsNotNull(analysis.SemanticModel);
         Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0020"));
-        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0021"));
+        Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0021"));
 
         var main = analysis.SemanticModel.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
-        Assert.AreSame(TypeSymbol.Variant, main.Locals.Single(local => local.Name == "cached").Type);
+        Assert.AreSame(TypeSymbol.Variant, analysis.SemanticModel.StaticVariables.Single().Symbol.Type);
+        Assert.AreEqual(0, main.Locals.Length);
     }
 
     [TestMethod]

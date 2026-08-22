@@ -34,6 +34,13 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "DOUBLE" => Double,
         "CURRENCY" => Currency,
         "VARIANT" => Variant,
+        "COLLECTION" => VBStandardTypes.Collection,
+        "APP" => VBStandardTypes.App,
+        "OBJECT" => VBStandardTypes.Object,
+        "FORM" => VBStandardTypes.Form,
+        "USERCONTROL" => VBStandardTypes.UserControl,
+        "CONTROL" => VBStandardTypes.Control,
+        "OLE_COLOR" => Long,
         _ => UserDefinedTypeLookupScope.Lookup(name)
     };
 }
@@ -110,6 +117,8 @@ public sealed record ParameterSymbol(
     : VariableSymbol(Name, Type)
 {
     public bool IsOptional { get; init; }
+    public bool IsParamArray { get; init; }
+    public bool IsAny { get; init; }
     public object? DefaultValue { get; init; }
 }
 
@@ -130,6 +139,42 @@ public enum VBIntrinsicKind
     RTrim,
     Asc,
     IsNumeric,
+    InStr,
+    InStrRev,
+    Replace,
+    Space,
+    Split,
+    StrConv,
+    Int,
+    DoEvents,
+    Kill,
+    Dir,
+    MsgBox,
+    InputBox,
+    FileLen,
+    Now,
+    Load,
+    Unload,
+    VarPtr,
+    ObjPtr,
+    LSet,
+    CreateObject,
+    GetObject,
+    Shell,
+    ErrNumber,
+    ErrDescription,
+    ErrClear,
+    ErrRaise,
+    TypeName,
+    Switch,
+    IsEmpty,
+    IsNull,
+    IsMissing,
+    VarType,
+    Empty,
+    Null,
+    Nothing,
+    Missing,
     FreeFile,
     LOF,
     EOF,
@@ -137,10 +182,16 @@ public enum VBIntrinsicKind
     CByte,
     CInt,
     CLng,
+    CDec,
     CSng,
     CDbl,
     CBool,
-    CStr
+    CStr,
+    Abs,
+    Sgn,
+    Fix,
+    Round,
+    Sqr
 }
 
 public sealed record ProcedureSymbol(
@@ -157,7 +208,16 @@ public sealed record ProcedureSymbol(
     /// </summary>
     public string? IntrinsicTarget { get; init; }
 
+    /// <summary>True for a VB6 Declare/PInvoke contract whose body lives in a native library.</summary>
+    public bool IsExternal { get; init; }
+
+    public string? ExternalLibrary { get; init; }
+    public string? ExternalAlias { get; init; }
+
     public int? IntrinsicMinimumArguments { get; init; }
+
+    /// <summary>Identifies a class property accessor that is bound as an internal procedure.</summary>
+    public PropertyAccessorKind? PropertyAccessor { get; init; }
 
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
@@ -172,10 +232,34 @@ public sealed record ProcedureSymbol(
     public bool IsFunction => ReturnType is not null;
 }
 
+public enum PropertyAccessorKind
+{
+    Get,
+    Let,
+    Set
+}
+
+public sealed record PropertySymbol(
+    string Name,
+    PropertyAccessorKind Accessor,
+    TypeSymbol Type,
+    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name);
+
+public sealed record EventSymbol(
+    string Name,
+    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name);
+
 public enum BoundLoopKind
 {
     For,
     Do
+}
+
+public enum BoundErrorHandlingMode
+{
+    Disable,
+    ResumeNext,
+    GoToLabel
 }
 
 public enum BoundNodeKind
@@ -185,6 +269,7 @@ public enum BoundNodeKind
     ReDimStatement,
     EraseStatement,
     AssignmentStatement,
+    NewExpression,
     ArrayElementAssignmentStatement,
     IfStatement,
     ForStatement,
@@ -197,6 +282,12 @@ public enum BoundNodeKind
     InvocationStatement,
     LabelStatement,
     GoToStatement,
+    GoSubStatement,
+    GoSubReturnStatement,
+    OnGoToStatement,
+    OnGoSubStatement,
+    OnErrorStatement,
+    ResumeStatement,
     OpenStatement,
     CloseStatement,
     SeekStatement,
@@ -204,12 +295,15 @@ public enum BoundNodeKind
     PutStatement,
     LiteralExpression,
     VariableExpression,
+    PropertyAccessExpression,
+    TypeOfExpression,
     ArrayAccessExpression,
     ArrayBoundExpression,
     InvocationExpression,
     UnaryExpression,
     BinaryExpression,
     ConversionExpression,
+    ArrayLiteralExpression,
     ErrorExpression
 }
 
@@ -338,6 +432,31 @@ public sealed record BoundLabelStatement(string Name) : BoundStatement(BoundNode
 
 public sealed record BoundGoToStatement(string Name) : BoundStatement(BoundNodeKind.GoToStatement);
 
+public sealed record BoundGoSubStatement(string Name) : BoundStatement(BoundNodeKind.GoSubStatement);
+
+public sealed record BoundGoSubReturnStatement()
+    : BoundStatement(BoundNodeKind.GoSubReturnStatement);
+
+public sealed record BoundOnGoToStatement(
+    BoundExpression Expression,
+    ImmutableArray<string> Labels)
+    : BoundStatement(BoundNodeKind.OnGoToStatement);
+
+public sealed record BoundOnGoSubStatement(
+    BoundExpression Expression,
+    ImmutableArray<string> Labels)
+    : BoundStatement(BoundNodeKind.OnGoSubStatement);
+
+public sealed record BoundOnErrorStatement(
+    BoundErrorHandlingMode Mode,
+    string? HandlerLabel = null)
+    : BoundStatement(BoundNodeKind.OnErrorStatement);
+
+public sealed record BoundResumeStatement(
+    bool IsNext,
+    string? TargetLabel = null)
+    : BoundStatement(BoundNodeKind.ResumeStatement);
+
 public sealed record BoundOpenStatement(
     BoundExpression FileNumber,
     BoundExpression Path) : BoundStatement(BoundNodeKind.OpenStatement);
@@ -366,13 +485,31 @@ public sealed record BoundArgument(
     public bool RequiresByRefTemporary { get; init; }
 }
 
-public sealed record BoundInvocationStatement(
+    public sealed record BoundInvocationStatement(
     ProcedureSymbol Procedure,
+    ImmutableArray<BoundArgument> Arguments)
+    : BoundStatement(BoundNodeKind.InvocationStatement);
+
+public sealed record BoundRaiseEventStatement(
+    EventSymbol Event,
     ImmutableArray<BoundArgument> Arguments)
     : BoundStatement(BoundNodeKind.InvocationStatement);
 
 public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralType)
     : BoundExpression(BoundNodeKind.LiteralExpression, LiteralType);
+
+public sealed record BoundNewExpression(ClassTypeSymbol ClassType)
+    : BoundExpression(BoundNodeKind.NewExpression, ClassType);
+
+public sealed record BoundPropertyAccessExpression(
+    BoundExpression Receiver,
+    PropertySymbol Property)
+    : BoundExpression(BoundNodeKind.PropertyAccessExpression, Property.Type);
+
+public sealed record BoundTypeOfExpression(
+    BoundExpression Expression,
+    ClassTypeSymbol TargetType)
+    : BoundExpression(BoundNodeKind.TypeOfExpression, TypeSymbol.Boolean);
 
 public sealed record BoundVariableExpression(VariableSymbol Variable)
     : BoundExpression(BoundNodeKind.VariableExpression, Variable.Type);
@@ -382,6 +519,11 @@ public sealed record BoundArrayAccessExpression(
     ImmutableArray<BoundExpression> Indices,
     TypeSymbol ElementType)
     : BoundExpression(BoundNodeKind.ArrayAccessExpression, ElementType);
+
+public sealed record BoundArrayLiteralExpression(
+    ArrayTypeSymbol ArrayType,
+    ImmutableArray<BoundExpression> Elements)
+    : BoundExpression(BoundNodeKind.ArrayLiteralExpression, ArrayType);
 
 public sealed record BoundArrayBoundExpression(
     BoundExpression Array,
@@ -402,7 +544,11 @@ public sealed record BoundBinaryExpression(
     SyntaxKind OperatorKind,
     BoundExpression Right,
     TypeSymbol ResultType)
-    : BoundExpression(BoundNodeKind.BinaryExpression, ResultType);
+    : BoundExpression(BoundNodeKind.BinaryExpression, ResultType)
+{
+    /// <summary>True when a Like expression inherits <c>Option Compare Text</c>.</summary>
+    public bool UseTextCompare { get; init; }
+}
 
 public sealed record BoundConversionExpression(TypeSymbol TargetType, BoundExpression Expression)
     : BoundExpression(BoundNodeKind.ConversionExpression, TargetType);
@@ -421,6 +567,8 @@ public sealed record BoundModuleVariable(
     bool IsConstant,
     ImmutableArray<BoundArrayDimension> ArrayDimensions)
 {
+    public bool IsWithEvents { get; init; }
+
     public BoundModuleVariable(
         ModuleVariableSymbol Symbol,
         BoundExpression? Initializer,
@@ -434,6 +582,20 @@ public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,
     ImmutableArray<Diagnostic> Diagnostics)
 {
+    public ImmutableArray<ProcedureSymbol> ExternalProcedures { get; init; } =
+        ImmutableArray<ProcedureSymbol>.Empty;
+    public ImmutableArray<ClassTypeSymbol> ClassTypes { get; init; } =
+        ImmutableArray<ClassTypeSymbol>.Empty;
+    public ImmutableArray<PropertySymbol> Properties { get; init; } =
+        ImmutableArray<PropertySymbol>.Empty;
+    public ImmutableArray<EventSymbol> Events { get; init; } =
+        ImmutableArray<EventSymbol>.Empty;
     public ImmutableArray<BoundModuleVariable> ModuleVariables { get; init; } =
         ImmutableArray<BoundModuleVariable>.Empty;
+    public ImmutableArray<BoundModuleVariable> StaticVariables { get; init; } =
+        ImmutableArray<BoundModuleVariable>.Empty;
+    /// <summary>Class fields declared by the current class/form module.</summary>
+    public ImmutableArray<BoundModuleVariable> InstanceVariables { get; init; } =
+        ImmutableArray<BoundModuleVariable>.Empty;
+    public ClassTypeSymbol? ContainingClass { get; init; }
 }

@@ -33,7 +33,9 @@ public sealed class VariantFoundationExecutionTests
         var lines = standardOutput
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .TrimEnd('\n')
-            .Split('\n');
+            .Split('\n')
+            .Select(line => line.Trim())
+            .ToArray();
         CollectionAssert.AreEqual(
             new[] { string.Empty, "42", "hello", "7", "9" },
             lines);

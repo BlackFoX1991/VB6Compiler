@@ -19,7 +19,8 @@ public abstract record IrNode
 public sealed record IrProgram(
     ImmutableArray<IrModule> Modules,
     ImmutableArray<IrTypeDefinition> TypeDefinitions,
-    IrProcedure? EntryPoint) : IrNode;
+    IrProcedure? EntryPoint,
+    ImmutableArray<IrClassDefinition> ClassDefinitions = default) : IrNode;
 
 public sealed record IrModule(
     string Name,
@@ -29,6 +30,12 @@ public sealed record IrModule(
 
 public sealed record IrTypeDefinition(
     UserDefinedTypeSymbol Symbol,
+    string Name,
+    ImmutableArray<IrField> Fields,
+    ImmutableArray<IrProcedure> Methods) : IrNode;
+
+public sealed record IrClassDefinition(
+    ClassTypeSymbol Symbol,
     string Name,
     ImmutableArray<IrField> Fields,
     ImmutableArray<IrProcedure> Methods) : IrNode;
@@ -55,7 +62,11 @@ public sealed record IrProcedure(
     ImmutableArray<IrBasicBlock> Blocks,
     UserDefinedTypeSymbol? DeclaringType = null,
     bool IsStatic = true,
-    bool IsCompilerGenerated = false) : IrNode;
+    bool IsCompilerGenerated = false,
+    bool IsExternal = false,
+    string? ExternalLibrary = null,
+    string? ExternalAlias = null,
+    ClassTypeSymbol? DeclaringClass = null) : IrNode;
 
 public sealed record IrParameter(
     ParameterSymbol? Symbol,
@@ -88,6 +99,38 @@ public sealed record IrEvaluateInstruction(IrExpression Expression) : IrInstruct
 
 public sealed record IrNopInstruction : IrInstruction;
 
+/// <summary>Calls the CLR base finalizer after a generated Class_Terminate body.</summary>
+public sealed record IrBaseFinalizeInstruction : IrInstruction;
+
+/// <summary>
+/// Raises a class event. Event subscription/storage is backend-specific; retaining the event
+/// identity in IR keeps the compiler contract explicit for the native/COM and managed backends.
+/// </summary>
+public sealed record IrRaiseEventInstruction(
+    EventSymbol Event,
+    ImmutableArray<IrExpression> Arguments,
+    ClassTypeSymbol? DeclaringClass = null) : IrInstruction;
+
+public sealed record IrSubscribeEventInstruction(
+    IrExpression Source,
+    EventSymbol Event,
+    IrExpression Target,
+    ProcedureSymbol Handler) : IrInstruction;
+
+/// <summary>Starts a per-statement Resume Next protected region in the managed emitter.</summary>
+public sealed record IrErrorBoundaryStartInstruction(int? HandlerBlockId = null) : IrInstruction;
+
+/// <summary>Ends a per-statement Resume Next protected region in the managed emitter.</summary>
+public sealed record IrErrorBoundaryEndInstruction : IrInstruction;
+
+public enum IrResumeKind
+{
+    Same,
+    Next
+}
+
+public sealed record IrResumeInstruction(IrResumeKind Kind) : IrInstruction;
+
 public abstract record IrTerminator : IrNode;
 
 public sealed record IrGotoTerminator(int TargetBlockId) : IrTerminator;
@@ -96,6 +139,24 @@ public sealed record IrConditionalTerminator(
     IrExpression Condition,
     int TrueBlockId,
     int FalseBlockId) : IrTerminator;
+
+public sealed record IrGoSubTerminator(
+    int TargetBlockId,
+    int ReturnIndex) : IrTerminator;
+
+public sealed record IrGoSubReturnTerminator(
+    ImmutableArray<int> ReturnTargetBlockIds) : IrTerminator;
+
+public sealed record IrOnGoToTerminator(
+    IrExpression Index,
+    ImmutableArray<int> TargetBlockIds,
+    int DefaultBlockId) : IrTerminator;
+
+public sealed record IrOnGoSubTerminator(
+    IrExpression Index,
+    ImmutableArray<int> TargetBlockIds,
+    int ReturnIndex,
+    int DefaultBlockId) : IrTerminator;
 
 public sealed record IrReturnTerminator(IrExpression? Value) : IrTerminator;
 
@@ -106,6 +167,8 @@ public sealed record IrLocalPlace(IrLocal Local) : IrPlace(Local.Type);
 public sealed record IrParameterPlace(IrParameter Parameter) : IrPlace(Parameter.Type);
 
 public sealed record IrGlobalPlace(IrGlobal Global) : IrPlace(Global.Type);
+
+public sealed record IrThisPlace(ClassTypeSymbol ClassType) : IrPlace(ClassType);
 
 public sealed record IrFieldPlace(
     IrPlace Receiver,
@@ -122,8 +185,8 @@ public sealed record IrIndirectPlace(
 
 public sealed record IrAccessorPlace(
     IrExpression? Receiver,
-    IrProcedure Getter,
-    IrProcedure? Setter,
+    ProcedureSymbol? Getter,
+    ProcedureSymbol? Setter,
     TypeSymbol ValueType) : IrPlace(ValueType);
 
 public abstract record IrExpression(TypeSymbol Type) : IrNode;
@@ -152,7 +215,8 @@ public sealed record IrRuntimeCallExpression(
 public sealed record IrProcedureCallExpression(
     ProcedureSymbol Procedure,
     ImmutableArray<IrCallArgument> Arguments,
-    TypeSymbol ResultType)
+    TypeSymbol ResultType,
+    IrExpression? Receiver = null)
     : IrExpression(ResultType);
 
 public sealed record IrSyntheticCallExpression(
@@ -166,6 +230,14 @@ public sealed record IrNewVBArrayExpression(
     ArrayTypeSymbol ArrayType,
     ImmutableArray<IrArrayBound> Bounds)
     : IrExpression(ArrayType);
+
+public sealed record IrNewClassExpression(ClassTypeSymbol ClassType)
+    : IrExpression(ClassType);
+
+public sealed record IrTypeOfExpression(
+    IrExpression Expression,
+    ClassTypeSymbol TargetType)
+    : IrExpression(TypeSymbol.Boolean);
 
 public sealed record IrReDimPreserveExpression(
     IrExpression Array,
@@ -215,7 +287,9 @@ public enum IrRuntimeMethod
     CByte,
     CInt,
     CLng,
+    CDec,
     CLngLng,
+    VariantToBoolean,
     CCur,
     CSng,
     CDbl,
@@ -229,6 +303,8 @@ public enum IrRuntimeMethod
     AddCurrency,
     AddSingle,
     AddDouble,
+    AddVariant,
+    AddStringVariant,
     SubtractByte,
     SubtractInteger,
     SubtractLong,
@@ -236,6 +312,7 @@ public enum IrRuntimeMethod
     SubtractCurrency,
     SubtractSingle,
     SubtractDouble,
+    SubtractVariant,
     MultiplyByte,
     MultiplyInteger,
     MultiplyLong,
@@ -260,11 +337,17 @@ public enum IrRuntimeMethod
     ModLongLong,
     DivideSingle,
     DivideDouble,
+    DivideVariant,
+    IntegerDivideVariant,
+    ModVariant,
     Power,
+    PowerVariant,
     NotBoolean,
     NotInteger,
     NotLong,
     NotLongLong,
+    NotVariant,
+    NegateVariant,
     AndBoolean,
     AndByte,
     AndInteger,
@@ -288,13 +371,31 @@ public enum IrRuntimeMethod
     ImpInteger,
     ImpLong,
     ImpLongLong,
+    AndVariant,
+    OrVariant,
+    XorVariant,
+    EqvVariant,
+    ImpVariant,
     Concat,
+    ConcatVariant,
     Equal,
     NotEqual,
     Less,
     LessOrEqual,
     Greater,
     GreaterOrEqual,
+    VariantEqual,
+    VariantNotEqual,
+    VariantLess,
+    VariantLessOrEqual,
+    VariantGreater,
+    VariantGreaterOrEqual,
+    StringVariantEqual,
+    StringVariantNotEqual,
+    StringVariantLess,
+    StringVariantLessOrEqual,
+    StringVariantGreater,
+    StringVariantGreaterOrEqual,
 
     DebugPrint,
 
@@ -310,6 +411,28 @@ public enum IrRuntimeMethod
     StringRTrim,
     StringAsc,
     StringIsNumeric,
+    StringLike,
+    StringInStr,
+    StringInStrRev,
+    StringReplace,
+    StringSpace,
+    StringSplit,
+    StringStrConv,
+    ConversionInt,
+    MathAbs,
+    MathSgn,
+    MathFix,
+    MathRound,
+    MathSqr,
+
+    VariantEmpty,
+    VariantNull,
+    VariantNothing,
+    VariantMissing,
+    VariantIsEmpty,
+    VariantIsNull,
+    VariantIsMissing,
+    VariantVarType,
 
     FileOpenBinary,
     FileClose,
@@ -323,11 +446,35 @@ public enum IrRuntimeMethod
     FileGetDouble,
     FileGetCurrency,
     FileGetBoolean,
+    FileGetString,
     FilePut,
     FileFreeFile,
     FileLength,
     FileEndOfFile,
     FilePosition,
+    FileKill,
+    FileDir,
+    FileLengthByPath,
+
+    InteractionDoEvents,
+    InteractionMsgBox,
+    InteractionInputBox,
+    InteractionLoad,
+    InteractionUnload,
+    InteractionCreateObject,
+    InteractionGetObject,
+    InteractionShell,
+    MemoryVarPtr,
+    MemoryObjPtr,
+    MemoryLSet,
+    DateTimeNow,
+    ErrorNumber,
+    ErrorDescription,
+    ErrorClear,
+    ErrorRaise,
+    FunctionTypeName,
+    FunctionSwitch,
+    ObjectIs,
 
     ArrayClear,
     ArrayLBound,

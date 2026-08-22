@@ -119,7 +119,7 @@ public sealed class ForEachProjectCompilationTests
     }
 
     [TestMethod]
-    public void Analyze_ProjectPathAppliesVariantOperatorGuard()
+    public void Analyze_ProjectPathAllowsVariantArithmetic()
     {
         var directory = CreateTemporaryDirectory();
 
@@ -136,10 +136,7 @@ public sealed class ForEachProjectCompilationTests
 
             var analysis = VBProjectCompilation.Create(projectPath).Analyze();
 
-            Assert.IsFalse(analysis.Success);
-            CollectionAssert.Contains(
-                analysis.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray(),
-                "VB6S0053");
+            Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
         }
         finally
         {

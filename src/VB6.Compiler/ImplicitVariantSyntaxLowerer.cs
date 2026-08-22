@@ -28,9 +28,15 @@ internal static class ImplicitVariantSyntaxLowerer
         },
         SubDeclarationSyntax sub => sub with
         {
+            Parameters = LowerParameters(sub.Parameters),
             Statements = LowerStatements(sub.Statements)
         },
         FunctionDeclarationSyntax function => LowerFunction(function),
+        PropertyDeclarationSyntax property => property with
+        {
+            Parameters = LowerParameters(property.Parameters),
+            Statements = LowerStatements(property.Statements)
+        },
         _ => member
     };
 
@@ -92,7 +98,11 @@ internal static class ImplicitVariantSyntaxLowerer
     /// </summary>
     private static FunctionDeclarationSyntax LowerFunction(FunctionDeclarationSyntax function)
     {
-        var lowered = function with { Statements = LowerStatements(function.Statements) };
+        var lowered = function with
+        {
+            Parameters = LowerParameters(function.Parameters),
+            Statements = LowerStatements(function.Statements)
+        };
         if (lowered.ReturnTypeToken is not null)
         {
             return lowered;
@@ -109,6 +119,25 @@ internal static class ImplicitVariantSyntaxLowerer
     private static ImmutableArray<VariableDeclaratorSyntax> LowerDeclarators(
         ImmutableArray<VariableDeclaratorSyntax> declarators) =>
         declarators.Select(LowerDeclarator).ToImmutableArray();
+
+    private static ImmutableArray<ParameterSyntax> LowerParameters(
+        ImmutableArray<ParameterSyntax> parameters) =>
+        parameters.Select(LowerParameter).ToImmutableArray();
+
+    private static ParameterSyntax LowerParameter(ParameterSyntax parameter)
+    {
+        if (parameter.TypeToken is not null)
+        {
+            return parameter;
+        }
+
+        var position = parameter.Identifier.Span.End;
+        return parameter with
+        {
+            AsKeyword = SyntheticToken(SyntaxKind.AsKeyword, "As", position),
+            TypeToken = SyntheticToken(SyntaxKind.IdentifierToken, "Variant", position)
+        };
+    }
 
     private static VariableDeclaratorSyntax LowerDeclarator(VariableDeclaratorSyntax declarator)
     {

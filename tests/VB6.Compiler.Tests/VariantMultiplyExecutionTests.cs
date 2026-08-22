@@ -29,7 +29,9 @@ public sealed class VariantMultiplyExecutionTests
         var lines = standardOutput
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .TrimEnd('\n')
-            .Split('\n');
+            .Split('\n')
+            .Select(line => line.Trim())
+            .ToArray();
         CollectionAssert.AreEqual(
             new[] { "0", "12", "15", "5", "-2" },
             lines);
