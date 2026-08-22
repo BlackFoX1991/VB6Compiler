@@ -31,4 +31,33 @@ public sealed class CollectionExecutionTests
             new[] { "True", "3", "first", "second", "second", "2", "second" },
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesForEachOverStandardCollection()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim items As Collection
+                Dim item As Variant
+                Set items = New Collection
+                items.Add "first"
+                items.Add "second"
+
+                For Each item In items
+                    Debug.Print item
+                    If item = "second" Then
+                        Exit For
+                    End If
+                Next item
+
+                Dim emptyItems As Collection
+                Set emptyItems = New Collection
+                For Each item In emptyItems
+                    Debug.Print "unexpected"
+                Next item
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "first", "second" }, output);
+    }
 }

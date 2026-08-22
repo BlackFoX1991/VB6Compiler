@@ -1,14 +1,15 @@
 namespace VB6.Semantics;
 
 /// <summary>
-/// Bound VB6 For Each loop over an array. The control variable is required to be Variant for the
-/// currently supported array form; Collection retains its array type so code generation can emit
-/// the correct typed runtime enumeration and box each element into the Variant control variable.
+/// Bound VB6 For Each loop over an array or the standard Collection object. Collection iteration
+/// uses a Variant array snapshot during IR lowering so the control-flow shape remains identical
+/// to ordinary array enumeration.
 /// </summary>
 public sealed record BoundForEachStatement(
     int LoopId,
     VariableSymbol ControlVariable,
     BoundExpression Collection,
     ArrayTypeSymbol ArrayType,
+    bool IsCollection,
     BoundBlockStatement Body)
     : BoundStatement(BoundNodeKind.ForStatement);

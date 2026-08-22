@@ -97,8 +97,10 @@ Emitter. Scalar-
 Pointer-Transfers für `Declare ... As Any` inklusive `ByVal VarPtr(...)` sind über `IntPtr`
 abgedeckt. Die semantisch vorhandene Standard-`Collection` besitzt jetzt ebenfalls eine echte
 Managed-Runtime: `New Collection`, one-based und schlüsselbasierter `Item`-Zugriff, `Count`,
-`Add` mit `Key`/`Before` sowie `Remove` laufen über eigene IR-Runtime-IDs und werden im Managed-
-Emitter typkorrekt auf `VBCollection` abgebildet. Weitere zusammengesetzte String-/Random-Layouts,
+`Add` mit `Key`/`Before`, `Remove` sowie `For Each` in Einfügereihenfolge laufen über eigene
+IR-Runtime-IDs und werden im Managed-Emitter typkorrekt auf `VBCollection` abgebildet. `For Each`
+arbeitet dabei mit einem Variant-Snapshot, sodass leere Collections und `Exit For` denselben
+kontrollflussstabilen Pfad wie Array-Iteration verwenden. Weitere zusammengesetzte String-/Random-Layouts,
 komplexes `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
 Late-bound `Variant`-/`Object`-Memberzugriffe sind jetzt ebenfalls als eigener Runtime-Vertrag
 verdrahtet: Property-Get/Let/Set und Methoden werden auf erzeugten Klassen über `__vb6_`-Reflection
@@ -544,7 +546,7 @@ Zwei Nachträge:
 - [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-Identität/Interop bleibt offen
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
-- [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove` mit one-based und keyed lookup stehen; `For Each`, vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
+- [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
 - [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; vollständige COM-/IDispatch-Auflösung, ByRef-Writeback und Host-ABI bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; vollständiger Host-/COM-Event-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)

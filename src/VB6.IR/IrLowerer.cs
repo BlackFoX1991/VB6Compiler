@@ -1754,9 +1754,25 @@ public static class IrLowerer
 
         private void LowerForEach(BoundForEachStatement statement)
         {
-            var collection = NewLocal($"__foreach_collection_{statement.LoopId}", statement.ArrayType, true);
+            var collection = NewLocal(
+                $"__foreach_collection_{statement.LoopId}",
+                statement.IsCollection ? statement.Collection.Type : statement.ArrayType,
+                true);
+            var values = statement.IsCollection
+                ? NewLocal($"__foreach_values_{statement.LoopId}", statement.ArrayType, true)
+                : collection;
             var index = NewLocal($"__foreach_index_{statement.LoopId}", TypeSymbol.Long, true);
             Emit(new IrStoreInstruction(new IrLocalPlace(collection), LowerExpression(statement.Collection)));
+            if (statement.IsCollection)
+            {
+                Emit(new IrStoreInstruction(
+                    new IrLocalPlace(values),
+                    Runtime(
+                        IrRuntimeMethod.CollectionEnumerateValues,
+                        statement.ArrayType,
+                        new IrLoadExpression(new IrLocalPlace(collection)))));
+            }
+
             Emit(new IrStoreInstruction(new IrLocalPlace(index), new IrConstantExpression(0, TypeSymbol.Long)));
 
             var test = NewBlock($"foreach_test_{statement.LoopId}");
@@ -1774,7 +1790,7 @@ public static class IrLowerer
                     new IrLoadExpression(new IrLocalPlace(index)),
                     new IrArrayCallExpression(
                         IrArrayOperation.Length,
-                        new IrLoadExpression(new IrLocalPlace(collection)),
+                        new IrLoadExpression(new IrLocalPlace(values)),
                         ImmutableArray<IrExpression>.Empty,
                         TypeSymbol.Long)),
                 body.Id,
@@ -1783,7 +1799,7 @@ public static class IrLowerer
             _current = body;
             var item = new IrArrayCallExpression(
                 IrArrayOperation.GetFlatValue,
-                new IrLoadExpression(new IrLocalPlace(collection)),
+                new IrLoadExpression(new IrLocalPlace(values)),
                 ImmutableArray.Create<IrExpression>(new IrLoadExpression(new IrLocalPlace(index))),
                 statement.ArrayType.ElementType);
             Emit(new IrStoreInstruction(LowerVariablePlace(statement.ControlVariable), item));

@@ -1887,15 +1887,20 @@ public sealed class Binder
         {
             Report(
                 "VB6S0054",
-                $"For Each control variable '{controlVariable.Name}' must be Variant when iterating an array.",
+                $"For Each control variable '{controlVariable.Name}' must be Variant in the current compiler subset.",
                 syntax.Identifier.Span);
         }
 
         var collection = BindExpression(syntax.Collection, variables, procedures);
         ArrayTypeSymbol arrayType;
+        var isCollection = ReferenceEquals(collection.Type, VBStandardTypes.Collection);
         if (collection.Type is ArrayTypeSymbol boundArrayType)
         {
             arrayType = boundArrayType;
+        }
+        else if (isCollection)
+        {
+            arrayType = new ArrayTypeSymbol(TypeSymbol.Variant);
         }
         else
         {
@@ -1903,7 +1908,7 @@ public sealed class Binder
             {
                 Report(
                     "VB6S0055",
-                    $"For Each collection type '{collection.Type.Name}' is not an array in the current compiler subset.",
+                    $"For Each collection type '{collection.Type.Name}' is not an array or Collection in the current compiler subset.",
                     syntax.InKeyword.Span);
             }
 
@@ -1913,7 +1918,7 @@ public sealed class Binder
         // Not a compiler gap: For Each requires a Variant control variable, and VB6 coerces a
         // user-defined type into a Variant only for public types declared in public object
         // modules. A Type in a standard module never qualifies.
-        if (arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
+        if (!isCollection && arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
         {
             Report(
                 "VB6S0056",
@@ -1937,7 +1942,7 @@ public sealed class Binder
         var body = BindStatements(syntax.Statements, variables, procedures);
         _loopStack.RemoveAt(_loopStack.Count - 1);
 
-        return new BoundForEachStatement(loopId, controlVariable, collection, arrayType, body);
+        return new BoundForEachStatement(loopId, controlVariable, collection, arrayType, isCollection, body);
     }
 
     private BoundWhileStatement BindWhile(

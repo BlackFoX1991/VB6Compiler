@@ -10,6 +10,19 @@ public sealed class VBCollection
 
     public static VBCollection Create() => new();
 
+    /// <summary>Returns the current Collection order as a Variant-compatible array.</summary>
+    public static VBArray<object> EnumerateValues(VBCollection collection)
+    {
+        ArgumentNullException.ThrowIfNull(collection);
+        var values = new VBArray<object>(new VBArrayBound(0, collection._items.Count - 1));
+        for (var index = 0; index < collection._items.Count; index++)
+        {
+            values[index] = collection._items[index].Value!;
+        }
+
+        return values;
+    }
+
     public object? Item(object? index)
     {
         var position = ResolveIndex(index);

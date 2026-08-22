@@ -500,6 +500,7 @@ public enum IrRuntimeMethod
     MemoryObjPtr,
     MemoryLSet,
     CollectionCreate,
+    CollectionEnumerateValues,
     CollectionCount,
     CollectionItem,
     CollectionAdd,

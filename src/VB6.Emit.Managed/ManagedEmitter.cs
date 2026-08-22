@@ -2276,6 +2276,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryLSet) return Static(typeof(VBMemory), nameof(VBMemory.LSet), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.CollectionCreate) return Static(typeof(VBCollection), nameof(VBCollection.Create));
+            if (m == IrRuntimeMethod.CollectionEnumerateValues) return Static(typeof(VBCollection), nameof(VBCollection.EnumerateValues), typeof(VBCollection));
             if (m == IrRuntimeMethod.CollectionCount) return Static(typeof(VBCollection), nameof(VBCollection.CountValue), typeof(VBCollection));
             if (m == IrRuntimeMethod.CollectionItem) return Static(typeof(VBCollection), nameof(VBCollection.ItemValue), typeof(VBCollection), typeof(object));
             if (m == IrRuntimeMethod.CollectionAdd) return Static(typeof(VBCollection), nameof(VBCollection.AddValue), typeof(VBCollection), typeof(object), typeof(object), typeof(object), typeof(object));

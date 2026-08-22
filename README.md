@@ -65,7 +65,7 @@ Implemented so far:
 - array variable, parameter, and element binding, with `Option Base` applied only to dimensions that have no explicit lower bound; single array elements can be passed as real ByRef arguments
 - `ReDim` and `ReDim Preserve` for dynamic arrays, including bounds checks, value preservation when the last dimension grows, and generated-program execution
 - `Erase`, `LBound`, and `UBound`; `Erase` resets fixed arrays to their VB6 initial values and deallocates dynamic ones
-- `For Each` over fixed, multidimensional, and dynamic arrays, including an implicit Variant control variable; arrays of user-defined types are rejected because VB6 rejects them too - the Variant control variable cannot hold a user-defined type declared in a standard module
+- `For Each` over fixed, multidimensional, and dynamic arrays plus the standard `Collection`, including an implicit Variant control variable; arrays of user-defined types are rejected because VB6 rejects them too - the Variant control variable cannot hold a user-defined type declared in a standard module
 - `Type ... End Type` with visibility, scalar and fixed array members, nested type names, keyword member names, and `String * n`
 - `UserDefinedTypeSymbol` with case-insensitive member lookup, forward references, and Public project-wide versus Private module-local scope
 - user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, managed value-copy semantics at every value boundary - assignment, array element, member, ByVal argument and function result - including the arrays a copied value owns
@@ -87,14 +87,14 @@ Implemented so far:
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
-- the standard `Collection` object on the managed backend: `New Collection`, one-based and keyed `Item`, `Count`, `Add` with `Key`/`Before`, and `Remove`
+- the standard `Collection` object on the managed backend: `New Collection`, one-based and keyed `Item`, `Count`, `Add` with `Key`/`Before`, `Remove`, and `For Each` in insertion order
 - unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. What is still guarded is narrower and each case has its own diagnostic: `For Each` over arrays of user-defined types (`VB6S0056`), `Erase` on an array parameter (`VB6S0036`), and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
-The suite currently holds **645 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **275 total errors** - **196 parser**, **0 lexer**, **79 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **21 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
+The suite currently holds **646 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **275 total errors** - **196 parser**, **0 lexer**, **79 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **21 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
 
 Windows CI run #700 validated the array syntax slice on .NET 10 with a warning-free Release build and **258 passing tests**. Its VISIA report measures **2105 total errors**: **1644 parser**, **68 lexer**, and **393 semantic**. The array syntax slice reduces parser errors by 114 from the M2 closeout (1758 → 1644) while keeping semantic diagnostics stable. The project currently analyzes 27 of 40 VISIA project items; `.cls`, `.ctl`, and `.frm` are later milestones.
 
