@@ -52,6 +52,7 @@ public static class SyntaxNavigator
             GetStatementSyntax get => get.GetKeyword,
             PutStatementSyntax put => put.PutKeyword,
             SeekStatementSyntax seek => seek.SeekKeyword,
+            LineInputStatementSyntax lineInput => lineInput.LineKeyword,
             SkippedStatementSyntax skipped => skipped.Token,
             _ => null
         };

@@ -1025,6 +1025,7 @@ public sealed class Binder
             PutStatementSyntax put => BindGetOrPut(
                 put.FileNumber, put.RecordPosition, put.Target, put.PutKeyword, isGet: false, variables, procedures),
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
+            LineInputStatementSyntax lineInput => BindLineInput(lineInput, variables, procedures),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
                 variables,
@@ -1248,6 +1249,30 @@ public sealed class Binder
         new BoundSeekStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
             BindConversion(BindExpression(syntax.Position, variables, procedures), TypeSymbol.LongLong));
+
+    private BoundStatement? BindLineInput(
+        LineInputStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var target = BindExpression(syntax.Target, variables, procedures);
+        if (target.Type != TypeSymbol.String || target is not (
+            BoundVariableExpression or
+            BoundArrayAccessExpression or
+            BoundElementAccessExpression or
+            BoundMemberAccessExpression))
+        {
+            Report(
+                "VB6S0060",
+                "Line Input requires a String variable, array element, or user-defined type member.",
+                syntax.LineKeyword.Span);
+            return null;
+        }
+
+        return new BoundLineInputStatement(
+            BindFileNumber(syntax.FileNumber, variables, procedures),
+            target);
+    }
 
     /// <summary>
     /// Get and Put share their shape. Fixed-size numeric types and variable-length Strings are

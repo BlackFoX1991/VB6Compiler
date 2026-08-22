@@ -86,6 +86,24 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void LineInput_ReadsUtf8LinesAndAdvancesTheFilePosition()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Print(1, "Grüße");
+            VBFiles.Print(1, "zweite");
+            VBFiles.Close(1);
+
+            VBFiles.OpenInput(1, path);
+            Assert.AreEqual("Grüße", VBFiles.LineInput(1));
+            Assert.AreEqual("zweite", VBFiles.LineInput(1));
+            Assert.AreEqual(18L, VBFiles.Position(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void PutAndGet_RoundTripVariableLengthStringAndContinueFromPrefixPayload()
     {
         WithTemporaryFile(path =>

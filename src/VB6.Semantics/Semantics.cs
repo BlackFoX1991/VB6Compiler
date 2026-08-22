@@ -294,6 +294,7 @@ public enum BoundNodeKind
     SeekStatement,
     GetStatement,
     PutStatement,
+    LineInputStatement,
     LiteralExpression,
     VariableExpression,
     PropertyAccessExpression,
@@ -492,6 +493,10 @@ public sealed record BoundPutStatement(
     BoundExpression FileNumber,
     BoundExpression? Position,
     BoundExpression Value) : BoundStatement(BoundNodeKind.PutStatement);
+
+public sealed record BoundLineInputStatement(
+    BoundExpression FileNumber,
+    BoundExpression Target) : BoundStatement(BoundNodeKind.LineInputStatement);
 
 public sealed record BoundArgument(
     ParameterSymbol? Parameter,

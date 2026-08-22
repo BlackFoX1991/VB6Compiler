@@ -48,6 +48,15 @@ public sealed class FileStatementParserTests
     }
 
     [TestMethod]
+    public void Parse_LineInputWithFileNumberAndTarget()
+    {
+        var lineInput = (LineInputStatementSyntax)ParseSingleStatement("Line Input #1, text");
+
+        Assert.IsNotNull(lineInput.FileNumber.HashToken);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(lineInput.Target);
+    }
+
+    [TestMethod]
     public void Parse_CloseAcceptsSeveralFileNumbers()
     {
         var close = (CloseStatementSyntax)ParseSingleStatement("Close #1, #2");

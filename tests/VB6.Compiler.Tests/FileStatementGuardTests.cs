@@ -42,6 +42,7 @@ public sealed class FileStatementGuardTests
     {
         var program = VB6TestIr.Lower("""
             Sub Main()
+                Dim line As String
                 Open "text.txt" For Output As #1
                 Print #1, "hello"
                 Close #1
@@ -49,6 +50,7 @@ public sealed class FileStatementGuardTests
                 Print #1, "world"
                 Close #1
                 Open "text.txt" For Input As #1
+                Line Input #1, line
                 Close #1
             End Sub
             """);
@@ -59,7 +61,8 @@ public sealed class FileStatementGuardTests
                 IrRuntimeMethod.FileOpenOutput,
                 IrRuntimeMethod.FileOpenAppend,
                 IrRuntimeMethod.FileOpenInput,
-                IrRuntimeMethod.FilePrint
+                IrRuntimeMethod.FilePrint,
+                IrRuntimeMethod.FileLineInput
             },
             VB6TestIr.RuntimeCalls(program).ToArray());
     }

@@ -472,6 +472,12 @@ public sealed record SeekStatementSyntax(
     SyntaxToken SeekKeyword,
     FileNumberSyntax FileNumber,
     ExpressionSyntax Position) : StatementSyntax(SyntaxKind.SeekStatement);
+
+public sealed record LineInputStatementSyntax(
+    SyntaxToken LineKeyword,
+    SyntaxToken InputKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax Target) : StatementSyntax(SyntaxKind.LineInputStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
 public sealed record NewExpressionSyntax(

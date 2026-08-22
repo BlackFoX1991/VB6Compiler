@@ -2237,6 +2237,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileDir => Static(typeof(VBFiles), "Dir", typeof(string), typeof(int)),
                 IrRuntimeMethod.FileLengthByPath => Static(typeof(VBFiles), "Length", typeof(string)),
                 IrRuntimeMethod.FilePut => ResolveFilePut(call, out skippedArgument),
+                IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
             };
         }

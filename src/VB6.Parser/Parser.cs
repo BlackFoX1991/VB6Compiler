@@ -864,6 +864,7 @@ public sealed class Parser
             SyntaxKind.GoToKeyword => ParseGoToStatement(),
             SyntaxKind.GoSubKeyword => ParseGoSubStatement(),
             SyntaxKind.ReturnKeyword => ParseGoSubReturnStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeLineInputStatement() => ParseLineInputStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IntegerLiteralToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IntegerLiteralToken when LooksLikeLineNumberLabel() => ParseLabelStatement(),
@@ -1258,6 +1259,10 @@ public sealed class Parser
         string.Equals(Current.Text, keyword, StringComparison.OrdinalIgnoreCase) &&
         Peek(1).Kind is not SyntaxKind.EqualsToken and not SyntaxKind.DotToken;
 
+    private bool LooksLikeLineInputStatement() =>
+        string.Equals(Current.Text, "Line", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(Peek(1).Text, "Input", StringComparison.OrdinalIgnoreCase);
+
     private FileNumberSyntax ParseFileNumber()
     {
         SyntaxToken? hashToken = null;
@@ -1358,6 +1363,15 @@ public sealed class Parser
         var fileNumber = ParseFileNumber();
         MatchToken(SyntaxKind.CommaToken);
         return new SeekStatementSyntax(seekKeyword, fileNumber, ParseExpression());
+    }
+
+    private LineInputStatementSyntax ParseLineInputStatement()
+    {
+        var lineKeyword = NextToken();
+        var inputKeyword = NextToken();
+        var fileNumber = ParseFileNumber();
+        MatchToken(SyntaxKind.CommaToken);
+        return new LineInputStatementSyntax(lineKeyword, inputKeyword, fileNumber, ParseExpression());
     }
 
     private EraseStatementSyntax ParseEraseStatement()

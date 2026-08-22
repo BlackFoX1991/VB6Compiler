@@ -1019,6 +1019,14 @@ public static class IrLowerer
                             LowerExpression(put.Value))));
                     }
                     break;
+                case BoundLineInputStatement lineInput:
+                    Emit(new IrStoreInstruction(
+                        LowerPlace(lineInput.Target),
+                        Runtime(
+                            IrRuntimeMethod.FileLineInput,
+                            TypeSymbol.String,
+                            LowerExpression(lineInput.FileNumber))));
+                    break;
             }
         }
 

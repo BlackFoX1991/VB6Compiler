@@ -454,6 +454,7 @@ public enum IrRuntimeMethod
     FileGetBoolean,
     FileGetString,
     FilePut,
+    FileLineInput,
     FileFreeFile,
     FileLength,
     FileEndOfFile,

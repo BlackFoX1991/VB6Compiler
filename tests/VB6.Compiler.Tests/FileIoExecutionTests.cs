@@ -44,6 +44,9 @@ public sealed class FileIoExecutionTests
     {
         Run("""
             Sub Main()
+                Dim first As String
+                Dim second As String
+
                 Open "text.txt" For Output As #1
                 Print #1, "hello"
                 Close #1
@@ -53,11 +56,16 @@ public sealed class FileIoExecutionTests
                 Close #1
 
                 Open "text.txt" For Input As #1
-                Debug.Print LOF(1)
+                Line Input #1, first
+                Line Input #1, second
                 Close #1
+
+                Debug.Print first
+                Debug.Print second
             End Sub
             """,
-            "14");
+            "hello",
+            "world");
     }
 
     [TestMethod]

@@ -92,6 +92,39 @@ public static class VBFiles
         stream.Flush();
     }
 
+    public static string LineInput(int fileNumber)
+    {
+        var stream = GetStream(fileNumber);
+        var bytes = new List<byte>();
+        while (true)
+        {
+            var value = stream.ReadByte();
+            if (value < 0)
+            {
+                if (bytes.Count == 0)
+                {
+                    throw new EndOfStreamException("Line Input reached the end of the file.");
+                }
+
+                break;
+            }
+
+            if (value == '\n')
+            {
+                break;
+            }
+
+            bytes.Add((byte)value);
+        }
+
+        if (bytes.Count > 0 && bytes[^1] == '\r')
+        {
+            bytes.RemoveAt(bytes.Count - 1);
+        }
+
+        return Encoding.UTF8.GetString(bytes.ToArray());
+    }
+
     private static void OpenFile(int fileNumber, string path, FileMode mode, FileAccess access)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
