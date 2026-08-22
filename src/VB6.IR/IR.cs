@@ -38,7 +38,8 @@ public sealed record IrClassDefinition(
     ClassTypeSymbol Symbol,
     string Name,
     ImmutableArray<IrField> Fields,
-    ImmutableArray<IrProcedure> Methods) : IrNode;
+    ImmutableArray<IrProcedure> Methods,
+    bool IsInterface = false) : IrNode;
 
 public sealed record IrField(
     string Name,

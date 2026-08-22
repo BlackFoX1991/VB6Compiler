@@ -238,6 +238,91 @@ public sealed class ClassInstanceExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_DispatchesImplementsCallThroughInterface()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerInterfaceDispatchTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "InterfaceDispatch.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="InterfaceDispatch"
+                Class=IWorker; IWorker.cls
+                Class=Worker; Worker.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "IWorker.cls"), """
+                Option Explicit
+
+                Public Function Run(ByVal value As Long) As Long
+                End Function
+
+                Public Property Get Value() As Long
+                End Property
+
+                Public Property Let Value(ByVal newValue As Long)
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "Worker.cls"), """
+                Option Explicit
+
+                Implements IWorker
+
+                Private current As Long
+
+                Private Function IWorker_Run(ByVal value As Long) As Long
+                    IWorker_Run = value + 5
+                End Function
+
+                Private Property Get IWorker_Value() As Long
+                    IWorker_Value = current
+                End Property
+
+                Private Property Let IWorker_Value(ByVal newValue As Long)
+                    current = newValue
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim contract As IWorker
+                    Set contract = New Worker
+                    Debug.Print contract.Run(7)
+                    contract.Value = 19
+                    Debug.Print contract.Value
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+            CollectionAssert.AreEqual(
+                new[] { "12", "19" },
+                standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void AnalyzeProjectReportsMissingImplementsMember()
     {
         var directory = Path.Combine(

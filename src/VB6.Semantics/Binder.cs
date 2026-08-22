@@ -2219,6 +2219,15 @@ public sealed class Binder
             return new BoundErrorExpression();
         }
 
+        if (classType.IsInterfaceContract)
+        {
+            Report(
+                "VB6S0068",
+                $"Interface contract '{classType.Name}' cannot be instantiated with New.",
+                syntax.TypeToken.Span);
+            return new BoundErrorExpression();
+        }
+
         return new BoundNewExpression(classType);
     }
 

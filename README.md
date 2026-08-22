@@ -85,14 +85,14 @@ Implemented so far:
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
-- `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, and class-member binding
+- `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
 - unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
 - Codespaces development configuration
 - Windows GitHub Actions restore/build/test workflow with a VISIA parity report on every run
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. What is still guarded is narrower and each case has its own diagnostic: `For Each` over arrays of user-defined types (`VB6S0056`), `Erase` on an array parameter (`VB6S0036`), and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
-The suite currently holds **606 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **309 total errors** - **196 parser**, **0 lexer**, **113 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **16 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
+The suite currently holds **607 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **309 total errors** - **196 parser**, **0 lexer**, **113 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **16 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
 
 Windows CI run #700 validated the array syntax slice on .NET 10 with a warning-free Release build and **258 passing tests**. Its VISIA report measures **2105 total errors**: **1644 parser**, **68 lexer**, and **393 semantic**. The array syntax slice reduces parser errors by 114 from the M2 closeout (1758 → 1644) while keeping semantic diagnostics stable. The project currently analyzes 27 of 40 VISIA project items; `.cls`, `.ctl`, and `.frm` are later milestones.
 
@@ -196,13 +196,13 @@ The managed application output currently consists of the application DLL, its `.
 
 Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, `Optional` and `ParamArray` calls, persistent `Static` locals, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
 
-The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, `Class_Initialize`/`Class_Terminate`, events and simple `WithEvents` sinks. COM identity/dispatch, Forms/controls and full indexed/default property semantics remain open. The LLVM backend currently validates x86/x64 target selection and reports unsupported IR operations; native instruction emission and a native Windows apphost remain open. The MSBuild SDK and diagnostic LSP are now available as compiler-facing integration layers.
+The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, `Class_Initialize`/`Class_Terminate`, events, simple `WithEvents` sinks, and `Implements` as CLR interfaces with virtual method/property dispatch. COM identity/dispatch, Forms/controls and full default-property semantics remain open. The LLVM backend currently validates x86/x64 target selection and reports unsupported IR operations; native instruction emission and a native Windows apphost remain open. The MSBuild SDK and diagnostic LSP are now available as compiler-facing integration layers.
 
 ## Next milestones
 
 The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate compiler order is:
 
 1. finish the Variant promotion matrix and the high-frequency standard library/runtime surface
-2. complete class lifecycle, object dispatch, events and COM/ActiveX compatibility
+2. complete class lifecycle, object dispatch, events and COM/ActiveX compatibility beyond the current CLR-interface slice
 3. replace the LLVM backend boundary diagnostics with native x86/x64 emission alongside the .NET backend
 4. harden the MSBuild SDK and LSP for Visual Studio; build the IDE/designer later

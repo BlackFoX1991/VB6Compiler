@@ -28,6 +28,7 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public ImmutableArray<PropertySymbol> Properties => _definition.Properties;
     public ImmutableArray<EventSymbol> Events => _definition.Events;
     public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces => _definition.ImplementedInterfaces;
+    public bool IsInterfaceContract => _definition.IsInterfaceContract;
     public bool MembersDefined => _definition.IsDefined;
 
     public bool TryGetProcedure(string name, out ProcedureSymbol procedure) =>
@@ -108,6 +109,8 @@ public sealed record ClassTypeSymbol : TypeSymbol
             .ToImmutableArray();
     }
 
+    public void MarkAsInterfaceContract() => _definition.IsInterfaceContract = true;
+
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
 
     private sealed class ClassTypeDefinition
@@ -117,6 +120,7 @@ public sealed record ClassTypeSymbol : TypeSymbol
         public ImmutableArray<EventSymbol> Events { get; set; } = ImmutableArray<EventSymbol>.Empty;
         public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces { get; set; } =
             ImmutableArray<ClassTypeSymbol>.Empty;
+        public bool IsInterfaceContract { get; set; }
         public ImmutableDictionary<string, ProcedureSymbol> ProcedureMap { get; set; } =
             ImmutableDictionary.Create<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
         public ImmutableDictionary<PropertyKey, PropertySymbol> PropertyMap { get; set; } =

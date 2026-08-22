@@ -387,7 +387,7 @@ public sealed class ManagedEmitter
             var result = new Dictionary<IrProcedure, int>(ReferenceEqualityComparer.Instance);
             foreach (var procedure in AllProcedures())
             {
-                if (procedure.IsExternal)
+                if (procedure.IsExternal || IsInterfaceProcedure(procedure))
                 {
                     continue;
                 }
@@ -1034,7 +1034,15 @@ public sealed class ManagedEmitter
             {
                 throw new InvalidOperationException($"Procedure '{call.Procedure.Name}' has no managed method definition.");
             }
-            encoder.Call(target);
+            if (call.Receiver?.Type is ClassTypeSymbol { IsInterfaceContract: true })
+            {
+                encoder.OpCode(ILOpCode.Callvirt);
+                encoder.Token(target);
+            }
+            else
+            {
+                encoder.Call(target);
+            }
         }
 
         private void EmitAccessorGet(
@@ -1063,7 +1071,15 @@ public sealed class ManagedEmitter
                     $"Property getter '{accessor.Getter.Name}' has no managed method definition.");
             }
 
-            encoder.Call(target);
+            if (accessor.Receiver?.Type is ClassTypeSymbol { IsInterfaceContract: true })
+            {
+                encoder.OpCode(ILOpCode.Callvirt);
+                encoder.Token(target);
+            }
+            else
+            {
+                encoder.Call(target);
+            }
         }
 
         private void EmitAccessorSet(
@@ -1095,11 +1111,25 @@ public sealed class ManagedEmitter
                     $"Property setter '{accessor.Setter.Name}' has no managed method definition.");
             }
 
-            encoder.Call(target);
+            if (accessor.Receiver?.Type is ClassTypeSymbol { IsInterfaceContract: true })
+            {
+                encoder.OpCode(ILOpCode.Callvirt);
+                encoder.Token(target);
+            }
+            else
+            {
+                encoder.Call(target);
+            }
         }
 
         private void EmitNewClass(InstructionEncoder encoder, IrNewClassExpression expression)
         {
+            if (expression.ClassType.IsInterfaceContract)
+            {
+                throw new NotSupportedException(
+                    $"Interface contract '{expression.ClassType.Name}' cannot be instantiated.");
+            }
+
             if (!_classConstructorHandles.TryGetValue(expression.ClassType, out var constructor))
             {
                 throw new NotSupportedException(
@@ -1510,6 +1540,8 @@ public sealed class ManagedEmitter
             foreach (var procedure in AllProcedures())
             {
                 var isTypeInitializer = IsTypeInitializer(procedure);
+                var isInterfaceMethod = IsInterfaceProcedure(procedure);
+                var isInterfaceImplementation = IsInterfaceImplementationProcedure(procedure);
                 var isInstanceConstructor = procedure.DeclaringClass is not null &&
                     procedure.IsCompilerGenerated &&
                     string.Equals(procedure.Name, ".ctor", StringComparison.Ordinal);
@@ -1521,7 +1553,9 @@ public sealed class ManagedEmitter
                     ValidateExternalSignature(procedure);
                 }
 
-                var visibility = isTypeInitializer
+                var visibility = isInterfaceMethod
+                    ? MethodAttributes.Public
+                    : isTypeInitializer
                     ? MethodAttributes.Private
                     : isFinalizer
                         ? MethodAttributes.Family
@@ -1533,6 +1567,14 @@ public sealed class ManagedEmitter
                 var attributes = visibility | MethodAttributes.HideBySig;
                 if (procedure.IsStatic) attributes |= MethodAttributes.Static;
                 if (procedure.IsExternal) attributes |= MethodAttributes.PinvokeImpl;
+                if (isInterfaceMethod)
+                {
+                    attributes |= MethodAttributes.Abstract | MethodAttributes.Virtual | MethodAttributes.NewSlot;
+                }
+                if (isInterfaceImplementation)
+                {
+                    attributes |= MethodAttributes.Virtual;
+                }
                 if (isTypeInitializer)
                 {
                     attributes |= MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
@@ -1546,7 +1588,9 @@ public sealed class ManagedEmitter
                     attributes |= MethodAttributes.Virtual;
                 }
 
-                var implementation = procedure.IsExternal
+                var implementation = isInterfaceMethod
+                    ? MethodImplAttributes.IL | MethodImplAttributes.Managed
+                    : procedure.IsExternal
                     ? MethodImplAttributes.IL | MethodImplAttributes.Managed | MethodImplAttributes.PreserveSig
                     : MethodImplAttributes.IL | MethodImplAttributes.Managed;
                 var actual = _metadata.AddMethodDefinition(
@@ -1554,7 +1598,9 @@ public sealed class ManagedEmitter
                     implementation,
                     _metadata.GetOrAddString(procedure.Name),
                     EncodeMethodSignature(procedure),
-                    procedure.IsExternal ? 0 : bodyOffsets[procedure],
+                    // MetadataBuilder maps offset 0 to the first body in the stream; -1 is the
+                    // no-RVA marker required by abstract interface methods.
+                    procedure.IsExternal || isInterfaceMethod ? -1 : bodyOffsets[procedure],
                     parameterStarts[procedure]);
                 EnsureHandle(actual, _methodHandles[procedure], "method");
 
@@ -1614,11 +1660,16 @@ public sealed class ManagedEmitter
                 }
                 else if (plan.Class is not null)
                 {
+                    var attributes = plan.Class.IsInterface
+                        ? TypeAttributes.NotPublic | TypeAttributes.Abstract | TypeAttributes.Interface
+                        : TypeAttributes.NotPublic;
                     actual = _metadata.AddTypeDefinition(
-                        TypeAttributes.NotPublic,
+                        attributes,
                         _metadata.GetOrAddString("VB6.Generated"),
-                        _metadata.GetOrAddString("__vb6_class_" + Sanitize(plan.Class.Name)),
-                        _systemObject,
+                        _metadata.GetOrAddString(
+                            (plan.Class.IsInterface ? "__vb6_interface_" : "__vb6_class_") +
+                            Sanitize(plan.Class.Name)),
+                        plan.Class.IsInterface ? default : _systemObject,
                         plan.FirstField,
                         plan.FirstMethod);
                 }
@@ -1640,6 +1691,120 @@ public sealed class ManagedEmitter
                 }
                 EnsureHandle(actual, plan.TypeHandle, "type");
             }
+
+            foreach (var plan in _typePlans)
+            {
+                if (plan.Class is { IsInterface: false })
+                {
+                    EmitInterfaceImplementations(plan);
+                }
+            }
+        }
+
+        private void EmitInterfaceImplementations(TypePlan implementorPlan)
+        {
+            var implementor = implementorPlan.Class ??
+                throw new InvalidOperationException("Interface implementation plan has no class definition.");
+
+            foreach (var interfaceType in implementor.Symbol.ImplementedInterfaces)
+            {
+                var interfaceDefinition = _program.ClassDefinitions.SingleOrDefault(
+                    definition => ReferenceEquals(definition.Symbol, interfaceType));
+                if (interfaceDefinition is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Interface '{interfaceType.Name}' has no IR class definition.");
+                }
+
+                _metadata.AddInterfaceImplementation(
+                    implementorPlan.TypeHandle,
+                    _classHandles[interfaceDefinition]);
+
+                foreach (var interfaceMethod in interfaceDefinition.Methods)
+                {
+                    if (interfaceMethod.Symbol is null)
+                    {
+                        continue;
+                    }
+
+                    var implementationName = interfaceType.Name + "_" + interfaceMethod.Symbol.Name;
+                    var implementation = implementor.Methods.SingleOrDefault(candidate =>
+                        candidate.Symbol is not null &&
+                        string.Equals(
+                            candidate.Symbol.Name,
+                            implementationName,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        candidate.Symbol.PropertyAccessor == interfaceMethod.Symbol.PropertyAccessor);
+                    if (implementation is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Class '{implementor.Symbol.Name}' has no managed implementation for " +
+                            $"'{implementationName}'.");
+                    }
+
+                    _metadata.AddMethodImplementation(
+                        implementorPlan.TypeHandle,
+                        _methodHandles[implementation],
+                        GetInterfaceMethodReference(interfaceDefinition, interfaceMethod));
+                }
+            }
+        }
+
+        private MemberReferenceHandle GetInterfaceMethodReference(
+            IrClassDefinition interfaceDefinition,
+            IrProcedure method)
+        {
+            var key = "interface::" +
+                MetadataTokens.GetToken(_classHandles[interfaceDefinition]) + "::" +
+                method.Name + "::" + method.Symbol?.PropertyAccessor;
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var handle = _metadata.AddMemberReference(
+                _classHandles[interfaceDefinition],
+                _metadata.GetOrAddString(method.Name),
+                EncodeMethodSignature(method));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private static bool IsInterfaceProcedure(IrProcedure procedure) =>
+            procedure.DeclaringClass?.IsInterfaceContract == true;
+
+        private static bool IsInterfaceImplementationProcedure(IrProcedure procedure)
+        {
+            if (procedure.DeclaringClass is not { } declaringClass || procedure.Symbol is not { } symbol)
+            {
+                return false;
+            }
+
+            foreach (var interfaceType in declaringClass.ImplementedInterfaces)
+            {
+                if (interfaceType.Procedures.Any(expected =>
+                        string.Equals(
+                            interfaceType.Name + "_" + expected.Name,
+                            symbol.Name,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        expected.Parameters.Length == symbol.Parameters.Length &&
+                        expected.PropertyAccessor == symbol.PropertyAccessor))
+                {
+                    return true;
+                }
+
+                if (interfaceType.Properties.Any(expected =>
+                        string.Equals(
+                            interfaceType.Name + "_" + expected.Name,
+                            symbol.Name,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        expected.Accessor == symbol.PropertyAccessor))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsTypeInitializer(IrProcedure procedure) =>

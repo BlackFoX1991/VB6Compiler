@@ -71,22 +71,28 @@ public static class IrLowerer
                     var classProcedures = ImmutableArray.CreateBuilder<IrProcedure>();
                     foreach (var procedure in input.SemanticModel.Procedures)
                     {
-                        classProcedures.Add(new ProcedureLowerer(
-                            this,
-                            procedure,
-                            containingClass: containingClass).Lower());
+                        classProcedures.Add(containingClass.IsInterfaceContract
+                            ? LowerInterfaceProcedure(procedure, containingClass)
+                            : new ProcedureLowerer(
+                                this,
+                                procedure,
+                                containingClass: containingClass).Lower());
                     }
 
-                    classProcedures.Insert(0, LowerClassConstructor(containingClass));
-                    if (TryGetClassProcedure(
-                            containingClass,
-                            "Class_Terminate",
-                            null,
-                            out var terminator))
+                    if (!containingClass.IsInterfaceContract)
                     {
-                        classProcedures.Add(LowerClassFinalizer(containingClass, terminator));
+                        classProcedures.Insert(0, LowerClassConstructor(containingClass));
+                        if (TryGetClassProcedure(
+                                containingClass,
+                                "Class_Terminate",
+                                null,
+                                out var terminator))
+                        {
+                            classProcedures.Add(LowerClassFinalizer(containingClass, terminator));
+                        }
                     }
-                    var fields = _classVariables.TryGetValue(containingClass, out var variables)
+                    var fields = !containingClass.IsInterfaceContract &&
+                        _classVariables.TryGetValue(containingClass, out var variables)
                         ? variables
                             .Where(variable => _classFields.ContainsKey(variable.Symbol))
                             .Select(variable => _classFields[variable.Symbol])
@@ -96,7 +102,8 @@ public static class IrLowerer
                         containingClass,
                         Mangle(containingClass.Name),
                         fields,
-                        classProcedures.ToImmutable()));
+                        classProcedures.ToImmutable(),
+                        containingClass.IsInterfaceContract));
                     continue;
                 }
 
@@ -311,6 +318,28 @@ public static class IrLowerer
                 IsStatic: false,
                 IsCompilerGenerated: true,
                 DeclaringClass: classType);
+        }
+
+        private static IrProcedure LowerInterfaceProcedure(
+            BoundProcedure procedure,
+            ClassTypeSymbol containingClass)
+        {
+            return new IrProcedure(
+                procedure.Symbol,
+                $"__vb6_{Mangle(procedure.Symbol.Name)}",
+                procedure.Symbol.ReturnType,
+                procedure.Symbol.Parameters
+                    .Select((parameter, index) => new IrParameter(
+                        parameter,
+                        index,
+                        Mangle(parameter.Name),
+                        parameter.Type,
+                        parameter.PassingMode))
+                    .ToImmutableArray(),
+                ImmutableArray<IrLocal>.Empty,
+                ImmutableArray<IrBasicBlock>.Empty,
+                IsStatic: false,
+                DeclaringClass: containingClass);
         }
 
         private static IrProcedure LowerClassFinalizer(

@@ -445,6 +445,7 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
+            interfaceType.MarkAsInterfaceContract();
             relation.Implementor.SetImplementedInterfaces(
                 relation.Implementor.ImplementedInterfaces
                     .Append(interfaceType)
