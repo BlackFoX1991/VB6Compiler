@@ -1026,6 +1026,7 @@ public sealed class Binder
                 put.FileNumber, put.RecordPosition, put.Target, put.PutKeyword, isGet: false, variables, procedures),
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
             LineInputStatementSyntax lineInput => BindLineInput(lineInput, variables, procedures),
+            FileInputStatementSyntax fileInput => BindFileInput(fileInput, variables, procedures),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
                 variables,
@@ -1272,6 +1273,32 @@ public sealed class Binder
         return new BoundLineInputStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
             target);
+    }
+
+    private BoundStatement? BindFileInput(
+        FileInputStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var targets = syntax.Targets
+            .Select(target => BindExpression(target, variables, procedures))
+            .ToImmutableArray();
+        if (targets.Any(target => target.Type != TypeSymbol.String || target is not (
+                BoundVariableExpression or
+                BoundArrayAccessExpression or
+                BoundElementAccessExpression or
+                BoundMemberAccessExpression)))
+        {
+            Report(
+                "VB6S0062",
+                "Input # currently requires String variables, array elements, or user-defined type members.",
+                syntax.InputKeyword.Span);
+            return null;
+        }
+
+        return new BoundFileInputStatement(
+            BindFileNumber(syntax.FileNumber, variables, procedures),
+            targets);
     }
 
     /// <summary>

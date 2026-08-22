@@ -865,6 +865,7 @@ public sealed class Parser
             SyntaxKind.GoSubKeyword => ParseGoSubStatement(),
             SyntaxKind.ReturnKeyword => ParseGoSubReturnStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLineInputStatement() => ParseLineInputStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeFileInputStatement() => ParseFileInputStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IntegerLiteralToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IntegerLiteralToken when LooksLikeLineNumberLabel() => ParseLabelStatement(),
@@ -1263,6 +1264,10 @@ public sealed class Parser
         string.Equals(Current.Text, "Line", StringComparison.OrdinalIgnoreCase) &&
         string.Equals(Peek(1).Text, "Input", StringComparison.OrdinalIgnoreCase);
 
+    private bool LooksLikeFileInputStatement() =>
+        string.Equals(Current.Text, "Input", StringComparison.OrdinalIgnoreCase) &&
+        Peek(1).Kind == SyntaxKind.HashToken;
+
     private FileNumberSyntax ParseFileNumber()
     {
         SyntaxToken? hashToken = null;
@@ -1372,6 +1377,22 @@ public sealed class Parser
         var fileNumber = ParseFileNumber();
         MatchToken(SyntaxKind.CommaToken);
         return new LineInputStatementSyntax(lineKeyword, inputKeyword, fileNumber, ParseExpression());
+    }
+
+    private FileInputStatementSyntax ParseFileInputStatement()
+    {
+        var inputKeyword = NextToken();
+        var fileNumber = ParseFileNumber();
+        MatchToken(SyntaxKind.CommaToken);
+        var targets = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+        targets.Add(ParseExpression());
+        while (Current.Kind == SyntaxKind.CommaToken)
+        {
+            NextToken();
+            targets.Add(ParseExpression());
+        }
+
+        return new FileInputStatementSyntax(inputKeyword, fileNumber, targets.ToImmutable());
     }
 
     private EraseStatementSyntax ParseEraseStatement()

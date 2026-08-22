@@ -565,8 +565,9 @@ Nach Korpusbedarf priorisiert:
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records und grundlegende
    Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben
-   und lesen echte Dateien. Variable `String`-Transfers und `Line Input` sind ergänzt; `Input #`
-   als CSV-Vertrag, UDT-Arrays, variable Stringfelder, Random-Records und die `Len`-Klausel bleiben offen.
+   und lesen echte Dateien. Variable `String`-Transfers, `Line Input` und grundlegende Stringfelder
+   für `Input #` sind ergänzt; typisierte Numerik-/Datums-Konvertierung, UDT-Arrays, variable Stringfelder,
+   Random-Records und die `Len`-Klausel bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge; `InputBox` liefert im headless Runtime-Profil den
    Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere

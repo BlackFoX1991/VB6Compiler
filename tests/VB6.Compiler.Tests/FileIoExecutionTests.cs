@@ -69,6 +69,30 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ReadsInputFieldsIntoStringTargets()
+    {
+        Run("""
+            Sub Main()
+                Dim first As String
+                Dim second As String
+
+                Open "fields.txt" For Output As #1
+                Print #1, "alpha,beta"
+                Close #1
+
+                Open "fields.txt" For Input As #1
+                Input #1, first, second
+                Close #1
+
+                Debug.Print first
+                Debug.Print second
+            End Sub
+            """,
+            "alpha",
+            "beta");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsScalarUdtRecords()
     {
         Run("""

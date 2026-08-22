@@ -104,6 +104,21 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void InputField_ReadsDelimitedAndQuotedStringFields()
+    {
+        WithTemporaryFile(path =>
+        {
+            File.WriteAllText(path, "one,\"two,three\",four\r\n", System.Text.Encoding.UTF8);
+            VBFiles.OpenInput(1, path);
+
+            Assert.AreEqual("one", VBFiles.InputField(1));
+            Assert.AreEqual("two,three", VBFiles.InputField(1));
+            Assert.AreEqual("four", VBFiles.InputField(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void PutAndGet_RoundTripVariableLengthStringAndContinueFromPrefixPayload()
     {
         WithTemporaryFile(path =>

@@ -175,5 +175,6 @@ public enum SyntaxKind
     GetStatement,
     PutStatement,
     SeekStatement,
-    LineInputStatement
+    LineInputStatement,
+    FileInputStatement
 }

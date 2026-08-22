@@ -57,6 +57,15 @@ public sealed class FileStatementParserTests
     }
 
     [TestMethod]
+    public void Parse_InputWithMultipleStringTargets()
+    {
+        var input = (FileInputStatementSyntax)ParseSingleStatement("Input #1, first, second");
+
+        Assert.AreEqual(2, input.Targets.Length);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(input.Targets[1]);
+    }
+
+    [TestMethod]
     public void Parse_CloseAcceptsSeveralFileNumbers()
     {
         var close = (CloseStatementSyntax)ParseSingleStatement("Close #1, #2");

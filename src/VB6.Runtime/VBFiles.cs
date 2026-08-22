@@ -95,6 +95,7 @@ public static class VBFiles
     public static string LineInput(int fileNumber)
     {
         var stream = GetStream(fileNumber);
+        SkipUtf8Bom(stream);
         var bytes = new List<byte>();
         while (true)
         {
@@ -123,6 +124,108 @@ public static class VBFiles
         }
 
         return Encoding.UTF8.GetString(bytes.ToArray());
+    }
+
+    public static string InputField(int fileNumber)
+    {
+        var stream = GetStream(fileNumber);
+        SkipUtf8Bom(stream);
+        var bytes = new List<byte>();
+        var quoted = false;
+        var sawValue = false;
+
+        while (true)
+        {
+            var value = stream.ReadByte();
+            if (value < 0)
+            {
+                if (!sawValue && bytes.Count == 0)
+                {
+                    throw new EndOfStreamException("Input # reached the end of the file.");
+                }
+
+                break;
+            }
+
+            sawValue = true;
+            if (quoted)
+            {
+                if (value != '"')
+                {
+                    bytes.Add((byte)value);
+                    continue;
+                }
+
+                var next = stream.ReadByte();
+                if (next == '"')
+                {
+                    bytes.Add((byte)'"');
+                    continue;
+                }
+
+                quoted = false;
+                if (next < 0 || next is ',' or '\n')
+                {
+                    break;
+                }
+
+                if (next == '\r')
+                {
+                    ConsumeLineFeed(stream);
+                    break;
+                }
+
+                bytes.Add((byte)next);
+                continue;
+            }
+
+            if (value == '"' && bytes.Count == 0)
+            {
+                quoted = true;
+            }
+            else if (value is ',' or '\n')
+            {
+                break;
+            }
+            else if (value == '\r')
+            {
+                ConsumeLineFeed(stream);
+                break;
+            }
+            else
+            {
+                bytes.Add((byte)value);
+            }
+        }
+
+        return Encoding.UTF8.GetString(bytes.ToArray());
+    }
+
+    private static void ConsumeLineFeed(FileStream stream)
+    {
+        var next = stream.ReadByte();
+        if (next >= 0 && next != '\n')
+        {
+            stream.Position--;
+        }
+    }
+
+    private static void SkipUtf8Bom(FileStream stream)
+    {
+        if (stream.Position != 0)
+        {
+            return;
+        }
+
+        var first = stream.ReadByte();
+        var second = stream.ReadByte();
+        var third = stream.ReadByte();
+        if (first == 0xEF && second == 0xBB && third == 0xBF)
+        {
+            return;
+        }
+
+        stream.Position = 0;
     }
 
     private static void OpenFile(int fileNumber, string path, FileMode mode, FileAccess access)

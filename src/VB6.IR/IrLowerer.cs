@@ -1027,6 +1027,21 @@ public static class IrLowerer
                             TypeSymbol.String,
                             LowerExpression(lineInput.FileNumber))));
                     break;
+                case BoundFileInputStatement fileInput:
+                    var fileInputNumber = MaterializeFileArgument(
+                        fileInput.FileNumber,
+                        TypeSymbol.Long,
+                        "__file_input_number");
+                    foreach (var inputTarget in fileInput.Targets)
+                    {
+                        Emit(new IrStoreInstruction(
+                            LowerPlace(inputTarget),
+                            Runtime(
+                                IrRuntimeMethod.FileInputField,
+                                TypeSymbol.String,
+                                fileInputNumber)));
+                    }
+                    break;
             }
         }
 
