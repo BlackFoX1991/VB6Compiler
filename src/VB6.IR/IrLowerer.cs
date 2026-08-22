@@ -2695,10 +2695,15 @@ public static class IrLowerer
             params IrExpression[] arguments) =>
             new(method, arguments.Select(argument => new IrCallArgument(argument)).ToImmutableArray(), resultType);
 
-        private static IrExpression Zero(TypeSymbol type) => type == TypeSymbol.LongLong
-            ? new IrConstantExpression(0L, type)
-            : type == TypeSymbol.Long
-                ? new IrConstantExpression(0, type)
+        private static IrExpression Zero(TypeSymbol type) =>
+            ReferenceEquals(type, TypeSymbol.Byte) ? new IrConstantExpression((byte)0, type) :
+            ReferenceEquals(type, TypeSymbol.Integer) ? new IrConstantExpression((short)0, type) :
+            ReferenceEquals(type, TypeSymbol.Long) ? new IrConstantExpression(0, type) :
+            ReferenceEquals(type, TypeSymbol.LongLong) ? new IrConstantExpression(0L, type) :
+            ReferenceEquals(type, TypeSymbol.Single) ? new IrConstantExpression(0f, type) :
+            ReferenceEquals(type, TypeSymbol.Currency) ? new IrConstantExpression(0m, type) :
+            ReferenceEquals(type, TypeSymbol.Date) || ReferenceEquals(type, TypeSymbol.Double)
+                ? new IrConstantExpression(0d, type)
                 : new IrConstantExpression((short)0, type);
 
         private static IrRuntimeMethod AddMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.AddByte
@@ -2706,7 +2711,7 @@ public static class IrLowerer
             : type == TypeSymbol.Long ? IrRuntimeMethod.AddLong
             : type == TypeSymbol.Currency ? IrRuntimeMethod.AddCurrency
             : type == TypeSymbol.Single ? IrRuntimeMethod.AddSingle
-            : type == TypeSymbol.Double ? IrRuntimeMethod.AddDouble
+            : type == TypeSymbol.Date || type == TypeSymbol.Double ? IrRuntimeMethod.AddDouble
             : IrRuntimeMethod.AddInteger;
 
         private static IrRuntimeMethod SubtractMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.SubtractByte

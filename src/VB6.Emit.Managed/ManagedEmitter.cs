@@ -812,7 +812,7 @@ public sealed class ManagedEmitter
                 encoder.LoadConstantR4(Convert.ToSingle(constant.Value, CultureInfo.InvariantCulture));
                 return;
             }
-            if (constant.ConstantType == TypeSymbol.Double)
+            if (constant.ConstantType == TypeSymbol.Date || constant.ConstantType == TypeSymbol.Double)
             {
                 encoder.LoadConstantR8(Convert.ToDouble(constant.Value, CultureInfo.InvariantCulture));
                 return;

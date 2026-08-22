@@ -1815,14 +1815,19 @@ public sealed class Binder
             controlVariable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
         }
 
-        if (controlVariable.Type != TypeSymbol.Integer &&
+        if (controlVariable.Type != TypeSymbol.Byte &&
+            controlVariable.Type != TypeSymbol.Integer &&
             controlVariable.Type != TypeSymbol.Long &&
             controlVariable.Type != TypeSymbol.LongLong &&
+            controlVariable.Type != TypeSymbol.Single &&
+            controlVariable.Type != TypeSymbol.Double &&
+            controlVariable.Type != TypeSymbol.Currency &&
+            controlVariable.Type != TypeSymbol.Date &&
             controlVariable.Type != TypeSymbol.Error)
         {
             Report(
                 "VB6S0012",
-                $"For control variable '{controlVariable.Name}' must be Integer, Long, or LongLong in the current compiler subset.",
+                $"For control variable '{controlVariable.Name}' must be a numeric type.",
                 syntax.Identifier.Span);
         }
 
@@ -1842,13 +1847,7 @@ public sealed class Binder
             BindExpression(syntax.Limit, variables, procedures),
             controlVariable.Type);
         var step = syntax.Step is null
-            ? new BoundLiteralExpression(
-                1L,
-                controlVariable.Type == TypeSymbol.LongLong
-                    ? TypeSymbol.LongLong
-                    : controlVariable.Type == TypeSymbol.Long
-                        ? TypeSymbol.Long
-                        : TypeSymbol.Integer)
+            ? DefaultForStep(controlVariable.Type)
             : BindConversion(BindExpression(syntax.Step, variables, procedures), controlVariable.Type);
 
         var loopId = _nextLoopId++;
@@ -1858,6 +1857,17 @@ public sealed class Binder
 
         return new BoundForStatement(loopId, controlVariable, initialValue, limit, step, body);
     }
+
+    private static BoundLiteralExpression DefaultForStep(TypeSymbol type) =>
+        ReferenceEquals(type, TypeSymbol.Byte) ? new BoundLiteralExpression((byte)1, type) :
+        ReferenceEquals(type, TypeSymbol.Integer) ? new BoundLiteralExpression((short)1, type) :
+        ReferenceEquals(type, TypeSymbol.Long) ? new BoundLiteralExpression(1, type) :
+        ReferenceEquals(type, TypeSymbol.LongLong) ? new BoundLiteralExpression(1L, type) :
+        ReferenceEquals(type, TypeSymbol.Single) ? new BoundLiteralExpression(1f, type) :
+        ReferenceEquals(type, TypeSymbol.Double) ? new BoundLiteralExpression(1d, type) :
+        ReferenceEquals(type, TypeSymbol.Currency) ? new BoundLiteralExpression(1m, type) :
+        ReferenceEquals(type, TypeSymbol.Date) ? new BoundLiteralExpression(1d, type) :
+        new BoundLiteralExpression((short)1, type);
 
     private BoundForEachStatement BindForEach(
         ForEachStatementSyntax syntax,

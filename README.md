@@ -52,7 +52,7 @@ Implemented so far:
 - `Like` and `Is` expression syntax at comparison precedence, including the current wildcard/`Option Compare` subset and runtime object-reference identity for Variant/host objects; emitted class-instance identity remains a later milestone
 - VB-oriented operator precedence for the implemented expression subset
 - `If`, multiline `ElseIf` / `Else`, and single-line `If ... Then ... Else`
-- `For ... To ... Step ... Next` with Integer, Long, and LongLong control variables
+- `For ... To ... Step ... Next` with numeric control variables (`Byte`, `Integer`, `Long`, `LongLong`, `Single`, `Double`, `Currency`, and `Date`)
 - `While ... Wend`
 - pre-test and post-test `Do While`, `Do Until`, `Loop While`, and `Loop Until`
 - unconditional `Do ... Loop`
@@ -92,7 +92,7 @@ Implemented so far:
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. What is still guarded is narrower and each case has its own diagnostic: `For Each` over arrays of user-defined types (`VB6S0056`), `Erase` on an array parameter (`VB6S0036`), and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
-The suite currently holds **640 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **300 total errors** - **196 parser**, **0 lexer**, **104 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **18 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
+The suite currently holds **641 tests** across the test projects, and the Release build is warning-free. The current VISIA regression measurement is **292 total errors** - **196 parser**, **0 lexer**, **96 semantic** - across all 40 project items (27 modules, 6 forms, 4 user controls and 3 classes), and **18 items analyze without a single error**. VISIA is a regression corpus, not the product target. The total does not fall monotonically: teaching the parser or binder a construct can expose semantic gaps that earlier cascades hid. Cleanly analyzed items can only grow, which makes them the honest corpus metric. `docs/ROADMAP.md` keeps the measured history and current blocker ranking.
 
 Windows CI run #700 validated the array syntax slice on .NET 10 with a warning-free Release build and **258 passing tests**. Its VISIA report measures **2105 total errors**: **1644 parser**, **68 lexer**, and **393 semantic**. The array syntax slice reduces parser errors by 114 from the M2 closeout (1758 → 1644) while keeping semantic diagnostics stable. The project currently analyzes 27 of 40 VISIA project items; `.cls`, `.ctl`, and `.frm` are later milestones.
 
