@@ -85,6 +85,27 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void FixedStringRawTransfersUseDeclaredByteWidth()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenRandom(1, path, 5);
+            VBFiles.BeginRecord(1, 1);
+            VBFiles.PutRawFixedString(1, "Hi", 5);
+            VBFiles.EndRecord(1, forWrite: true);
+            VBFiles.Close(1);
+
+            CollectionAssert.AreEqual(new byte[] { 72, 105, 32, 32, 32 }, File.ReadAllBytes(path));
+
+            VBFiles.OpenRandom(1, path, 5);
+            VBFiles.BeginRecord(1, 1);
+            Assert.AreEqual("Hi   ", VBFiles.GetRawFixedString(1, 5));
+            VBFiles.EndRecord(1, forWrite: false);
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void TextModes_CreateTruncateAppendAndWriteVb6Lines()
     {
         WithTemporaryFile(path =>

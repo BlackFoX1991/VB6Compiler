@@ -3,7 +3,8 @@ namespace VB6.Semantics;
 /// <summary>
 /// Describes the subset of UDT layouts that can be transferred by VB6 binary Get/Put without
 /// depending on CLR padding, references, or a native ABI. Fixed array members are expanded by the
-/// IR lowerer; dynamic arrays and unsupported element layouts remain outside this contract.
+/// IR lowerer; dynamic arrays and unsupported element layouts remain outside this contract. A
+/// scalar fixed-length String member contributes its declared byte width without a descriptor.
 /// </summary>
 public static class UserDefinedTypeFileLayout
 {
@@ -68,5 +69,6 @@ public static class UserDefinedTypeFileLayout
         type == TypeSymbol.Single ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Currency ||
-        type == TypeSymbol.Boolean;
+        type == TypeSymbol.Boolean ||
+        type is FixedLengthStringTypeSymbol;
 }

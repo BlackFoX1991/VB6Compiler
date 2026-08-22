@@ -1157,6 +1157,18 @@ public static class IrLowerer
                 return;
             }
 
+            if (type is FixedLengthStringTypeSymbol fixedString)
+            {
+                Emit(new IrStoreInstruction(
+                    target,
+                    Runtime(
+                        IrRuntimeMethod.FileGetRawFixedString,
+                        TypeSymbol.String,
+                        fileNumber,
+                        new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))));
+                return;
+            }
+
             Emit(new IrStoreInstruction(
                 target,
                 Runtime(
@@ -1206,6 +1218,17 @@ public static class IrLowerer
             if (type is UserDefinedTypeSymbol nested)
             {
                 EmitBinaryRecordPutFields(source, nested, fileNumber);
+                return;
+            }
+
+            if (type is FixedLengthStringTypeSymbol fixedString)
+            {
+                Emit(new IrEvaluateInstruction(Runtime(
+                    IrRuntimeMethod.FilePutRawFixedString,
+                    TypeSymbol.Error,
+                    fileNumber,
+                    new IrLoadExpression(source),
+                    new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))));
                 return;
             }
 

@@ -79,10 +79,13 @@ Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfall
 IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
 Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. ANSI-String-Marshalling in
 `Declare` ist über `CharSetAnsi` und echte Windows-E2E-Aufrufe abgedeckt. Skalare UDT-Records werden
-bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; feste UDT-Arrayfelder mit
+bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; skalare feste `String * n`-
+UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste UDT-Arrayfelder mit
 skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
-`Len`, Recordgrenzen und die Defaultlänge 128. Dynamische/eigenständige UDT-Arrays, `As Any`-Marshalling,
-COM, native LLVM-Emission und Forms bleiben bewusst offen.
+`Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
+deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, dynamische/eigenständige UDT-Arrays,
+feste String-Arrays, variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission und Forms
+bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 

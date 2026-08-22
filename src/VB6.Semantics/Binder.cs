@@ -1353,7 +1353,7 @@ public sealed class Binder
             Report(
                 "VB6S0058",
                 $"{keyword.Text} of type '{target.Type.Name}' is not implemented yet; " +
-                "fixed-size numeric types, variable-length Strings, and scalar-layout UDT records are transferable.",
+                "fixed-size numeric types, Strings, and supported UDT record layouts are transferable.",
                 keyword.Span);
             return null;
         }

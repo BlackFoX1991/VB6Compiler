@@ -66,6 +66,7 @@ public static class VBFiles
     private static readonly Dictionary<int, FileStream> OpenFiles = new();
     private static readonly Dictionary<int, int?> RecordLengths = new();
     private static readonly Dictionary<int, long> RecordStarts = new();
+    private static readonly Encoding FixedStringEncoding = Encoding.Latin1;
 
     public static void OpenBinary(int fileNumber, string path)
     {
@@ -444,6 +445,17 @@ public static class VBFiles
         return Encoding.Unicode.GetString(bytes);
     }
 
+    /// <summary>
+    /// Reads a fixed-length UDT String without the variable-string length descriptor. The current
+    /// managed profile uses one Latin-1 byte per fixed-string character; host code-page selection
+    /// remains a later compatibility boundary.
+    /// </summary>
+    public static string GetRawFixedString(int fileNumber, int length)
+    {
+        ValidateFixedStringLength(length);
+        return FixedStringEncoding.GetString(ReadRecordRaw(fileNumber, length));
+    }
+
     public static void Put(int fileNumber, long? position, byte value) =>
         Write(fileNumber, position, new[] { value });
 
@@ -528,6 +540,14 @@ public static class VBFiles
         WriteRecordRaw(fileNumber, bytes);
     }
 
+    /// <summary>Writes a fixed-length UDT String as exactly its declared byte width.</summary>
+    public static void PutRawFixedString(int fileNumber, string value, int length)
+    {
+        ValidateFixedStringLength(length);
+        var fixedValue = VBTypeStorage.WriteFixedString(value, length);
+        WriteRecordRaw(fileNumber, FixedStringEncoding.GetBytes(fixedValue));
+    }
+
     private static byte[] Read(int fileNumber, long? position, int count)
     {
         var stream = Seek(fileNumber, position);
@@ -577,6 +597,16 @@ public static class VBFiles
         }
 
         return buffer;
+    }
+
+    private static void ValidateFixedStringLength(int length)
+    {
+        if (length is < 1 or > 65526)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(length),
+                "VB6 fixed-length String fields must contain between 1 and 65526 characters.");
+        }
     }
 
     private static void EnsureRecordFits(int fileNumber, int count)

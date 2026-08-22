@@ -2262,6 +2262,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileLengthByPath => Static(typeof(VBFiles), "Length", typeof(string)),
                 IrRuntimeMethod.FilePut => ResolveFilePut(call, out skippedArgument),
                 IrRuntimeMethod.FilePutRaw => ResolveFilePutRaw(call, out skippedArgument),
+                IrRuntimeMethod.FilePutRawFixedString => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int)),
                 IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
@@ -2274,7 +2275,9 @@ public sealed class ManagedEmitter
             if (name.StartsWith("GetRaw", StringComparison.Ordinal))
             {
                 skippedArgument = -1;
-                return Static(typeof(VBFiles), name, typeof(int));
+                return name == "GetRawFixedString"
+                    ? Static(typeof(VBFiles), name, typeof(int), typeof(int))
+                    : Static(typeof(VBFiles), name, typeof(int));
             }
 
             var omitted = call.Arguments.Length > 1 && call.Arguments[1].Expression is IrNullExpression;
@@ -2306,6 +2309,11 @@ public sealed class ManagedEmitter
         private MethodInfo ResolveFilePutRaw(IrRuntimeCallExpression call, out int skippedArgument)
         {
             skippedArgument = -1;
+            if (call.Method == IrRuntimeMethod.FilePutRawFixedString)
+            {
+                return Static(typeof(VBFiles), "PutRawFixedString", typeof(int), typeof(string), typeof(int));
+            }
+
             var valueType = RuntimeScalarType(call.Arguments[1].Expression.Type);
             return Static(typeof(VBFiles), "PutRaw", typeof(int), valueType);
         }
@@ -2324,7 +2332,7 @@ public sealed class ManagedEmitter
             : type == TypeSymbol.Single ? typeof(float)
             : type == TypeSymbol.Double ? typeof(double)
             : type == TypeSymbol.Boolean ? typeof(bool)
-            : type == TypeSymbol.String ? typeof(string)
+            : type == TypeSymbol.String || type is FixedLengthStringTypeSymbol ? typeof(string)
             : type == TypeSymbol.Currency ? typeof(VBCurrency)
             : type == TypeSymbol.Variant ? typeof(object)
             : throw new NotSupportedException($"Runtime scalar type '{type.Name}' is not supported.");

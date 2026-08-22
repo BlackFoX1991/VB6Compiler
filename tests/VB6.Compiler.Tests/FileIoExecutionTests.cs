@@ -281,6 +281,40 @@ public sealed class FileIoExecutionTests
             "200");
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsRandomFixedStringUdtRecords()
+    {
+        Run("""
+            Type Record
+                Code As Integer
+                Name As String * 5
+            End Type
+
+            Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                written.Code = 42
+                written.Name = "Hi"
+
+                Open "random-fixed-string-record.bin" For Random As #1 Len = 7
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "random-fixed-string-record.bin" For Random As #1 Len = 7
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack.Code
+                Debug.Print "[" & readBack.Name & "]"
+            End Sub
+            """,
+            "7",
+            "42",
+            "[Hi   ]");
+    }
+
     /// <summary>Positions are one-based, and an omitted position continues where the last one stopped.</summary>
     [TestMethod]
     public void EmitManagedApplication_UsesOneBasedPositionsAndContinuesWhenOmitted()
