@@ -1264,7 +1264,7 @@ public sealed class Binder
             Report(
                 "VB6S0058",
                 $"{keyword.Text} of type '{target.Type.Name}' is not implemented yet; " +
-                "fixed-size numeric types and variable-length Strings are transferable so far; UDT transfers still need an explicit record layout.",
+                "fixed-size numeric types, variable-length Strings, and scalar-layout UDT records are transferable.",
                 keyword.Span);
             return null;
         }
@@ -1355,7 +1355,9 @@ public sealed class Binder
         type == TypeSymbol.Double ||
         type == TypeSymbol.Currency ||
         type == TypeSymbol.Boolean ||
-        type == TypeSymbol.String;
+        type == TypeSymbol.String ||
+        type is UserDefinedTypeSymbol userDefinedType &&
+        UserDefinedTypeFileLayout.IsBinaryTransferable(userDefinedType);
 
     private BoundVariableDeclarationStatement BindVariableDeclaration(
         VariableDeclaratorSyntax syntax,

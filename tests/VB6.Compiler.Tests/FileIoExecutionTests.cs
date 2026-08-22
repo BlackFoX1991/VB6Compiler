@@ -39,6 +39,47 @@ public sealed class FileIoExecutionTests
             "123456");
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsScalarUdtRecords()
+    {
+        Run("""
+            Attribute VB_Name = "Module1"
+            Option Explicit
+
+            Type Header
+                Code As Integer
+            End Type
+
+            Type Record
+                Number As Long
+                Meta As Header
+            End Type
+
+            Public Sub Main()
+                Dim written As Record
+                Dim readBack As Record
+
+                written.Number = 123456
+                written.Meta.Code = 321
+
+                Open "record.bin" For Binary As #1
+                Put #1, 1, written
+                Close #1
+
+                Open "record.bin" For Binary As #1
+                Get #1, 1, readBack
+                Debug.Print LOF(1)
+                Close #1
+
+                Debug.Print readBack.Number
+                Debug.Print readBack.Meta.Code
+            End Sub
+            """,
+            "6",
+            "123456",
+            "321");
+    }
+
     /// <summary>Positions are one-based, and an omitted position continues where the last one stopped.</summary>
     [TestMethod]
     public void EmitManagedApplication_UsesOneBasedPositionsAndContinuesWhenOmitted()
@@ -115,7 +156,7 @@ public sealed class FileIoExecutionTests
     {
         var analysis = VBCompilation.Create("""
             Type Record
-                Value As Long
+                Text As String
             End Type
 
             Sub Main()

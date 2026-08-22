@@ -974,22 +974,129 @@ public static class IrLowerer
                         LowerExpression(seek.Position))));
                     break;
                 case BoundGetStatement get:
-                    Emit(new IrStoreInstruction(
-                        LowerPlace(get.Target),
-                        Runtime(
-                            FileGetMethod(get.Target.Type),
-                            get.Target.Type,
-                            LowerExpression(get.FileNumber),
-                            get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position))));
+                    if (get.Target.Type is UserDefinedTypeSymbol getType)
+                    {
+                        LowerBinaryRecordGet(get, getType);
+                    }
+                    else
+                    {
+                        Emit(new IrStoreInstruction(
+                            LowerPlace(get.Target),
+                            Runtime(
+                                FileGetMethod(get.Target.Type),
+                                get.Target.Type,
+                                LowerExpression(get.FileNumber),
+                                get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position))));
+                    }
                     break;
                 case BoundPutStatement put:
-                    Emit(new IrEvaluateInstruction(Runtime(
-                        IrRuntimeMethod.FilePut,
-                        TypeSymbol.Error,
-                        LowerExpression(put.FileNumber),
-                        put.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(put.Position),
-                        LowerExpression(put.Value))));
+                    if (put.Value.Type is UserDefinedTypeSymbol putType)
+                    {
+                        LowerBinaryRecordPut(put, putType);
+                    }
+                    else
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FilePut,
+                            TypeSymbol.Error,
+                            LowerExpression(put.FileNumber),
+                            put.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(put.Position),
+                            LowerExpression(put.Value))));
+                    }
                     break;
+            }
+        }
+
+        private void LowerBinaryRecordGet(BoundGetStatement get, UserDefinedTypeSymbol type)
+        {
+            EnsureBinaryRecordLayout(type);
+            var target = LowerPlace(get.Target);
+            var fileNumber = MaterializeFileArgument(get.FileNumber, TypeSymbol.Long, "__file_get_number");
+            var position = get.Position is null
+                ? null
+                : MaterializeFileArgument(get.Position, TypeSymbol.LongLong, "__file_get_position");
+            EmitBinaryRecordGetFields(target, type, fileNumber, ref position);
+        }
+
+        private void LowerBinaryRecordPut(BoundPutStatement put, UserDefinedTypeSymbol type)
+        {
+            EnsureBinaryRecordLayout(type);
+            var fileNumber = MaterializeFileArgument(put.FileNumber, TypeSymbol.Long, "__file_put_number");
+            var position = put.Position is null
+                ? null
+                : MaterializeFileArgument(put.Position, TypeSymbol.LongLong, "__file_put_position");
+            var source = NewLocal("__file_put_record", type, compilerGenerated: true);
+            Emit(new IrStoreInstruction(new IrLocalPlace(source), LowerValueCopy(put.Value)));
+            EmitBinaryRecordPutFields(new IrLocalPlace(source), type, fileNumber, ref position);
+        }
+
+        private IrExpression MaterializeFileArgument(
+            BoundExpression expression,
+            TypeSymbol type,
+            string localName)
+        {
+            var local = NewLocal(localName, type, compilerGenerated: true);
+            Emit(new IrStoreInstruction(new IrLocalPlace(local), LowerExpression(expression)));
+            return new IrLoadExpression(new IrLocalPlace(local));
+        }
+
+        private void EmitBinaryRecordGetFields(
+            IrPlace target,
+            UserDefinedTypeSymbol type,
+            IrExpression fileNumber,
+            ref IrExpression? position)
+        {
+            foreach (var member in type.Members)
+            {
+                var field = new IrFieldPlace(target, _program.GetField(member));
+                if (member.Type is UserDefinedTypeSymbol nested)
+                {
+                    EmitBinaryRecordGetFields(field, nested, fileNumber, ref position);
+                    continue;
+                }
+
+                Emit(new IrStoreInstruction(
+                    field,
+                    Runtime(
+                        FileGetMethod(member.Type),
+                        member.Type,
+                        fileNumber,
+                        position ?? new IrNullExpression(TypeSymbol.LongLong))));
+                position = null;
+            }
+        }
+
+        private void EmitBinaryRecordPutFields(
+            IrPlace source,
+            UserDefinedTypeSymbol type,
+            IrExpression fileNumber,
+            ref IrExpression? position)
+        {
+            foreach (var member in type.Members)
+            {
+                var field = new IrFieldPlace(source, _program.GetField(member));
+                if (member.Type is UserDefinedTypeSymbol nested)
+                {
+                    EmitBinaryRecordPutFields(field, nested, fileNumber, ref position);
+                    continue;
+                }
+
+                Emit(new IrEvaluateInstruction(Runtime(
+                    IrRuntimeMethod.FilePut,
+                    TypeSymbol.Error,
+                    fileNumber,
+                    position ?? new IrNullExpression(TypeSymbol.LongLong),
+                    new IrLoadExpression(field))));
+                position = null;
+            }
+        }
+
+        private static void EnsureBinaryRecordLayout(UserDefinedTypeSymbol type)
+        {
+            if (!UserDefinedTypeFileLayout.IsBinaryTransferable(type))
+            {
+                throw new NotSupportedException(
+                    $"UDT '{type.Name}' does not have a supported scalar binary record layout.");
             }
         }
 

@@ -77,8 +77,9 @@ binärem `Get`/`Put` mit Zwei-Byte-Längenpräfix sowie `Debug.Print` mit VB6-na
 Formatierung. `InStr`, `InStrRev`, zweiargumentiges `Mid`, `InputBox` als hostfähiger headless
 Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfalls über Symbol,
 IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
-Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. UDT-Dateitransfers,
-ANSI-String-/`As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
+Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. Skalare UDT-Records werden
+bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; UDT-Arrays und variable
+Stringfelder, ANSI-String-/`As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -562,9 +563,9 @@ Nach Korpusbedarf priorisiert:
     `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
     End-to-End-Tests verdrahtet.
 2. Datei-I/O — `Open For Binary`, `Get`, `Put`, `Seek`, `LOF`, `FreeFile`, `Close` ✅ für die
-   numerischen Binärformen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und
-   E2E-Tests schreiben und lesen echte Dateien. Variable `String`-Transfers sind ergänzt;
-   UDT-Transfers, Textmodi und die `Len`-Klausel bleiben offen.
+   numerischen Binärformen und skalare UDT-Records: Lexer, Syntax, Parser, Runtime, Bindung und
+   Emission stehen, und E2E-Tests schreiben und lesen echte Dateien. Variable `String`-Transfers
+   sind ergänzt; UDT-Arrays, variable Stringfelder, Textmodi und die `Len`-Klausel bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge; `InputBox` liefert im headless Runtime-Profil den
    Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere
