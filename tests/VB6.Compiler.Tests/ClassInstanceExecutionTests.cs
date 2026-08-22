@@ -371,4 +371,55 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesItemAsAnImplicitDefaultProperty()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerDefaultPropertyTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "DefaultProperty.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="DefaultProperty"
+                Class=Bucket; Bucket.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bucket.cls"), """
+                Private stored As String
+
+                Public Property Get Item(ByVal index As Long) As String
+                    Item = stored
+                End Property
+
+                Public Property Let Item(ByVal index As Long, ByVal newValue As String)
+                    stored = newValue
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim bucket As Bucket
+                    Set bucket = New Bucket
+                    bucket(2) = "hello"
+                    Debug.Print bucket(2)
+                End Sub
+                """);
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+            CollectionAssert.AreEqual(new[] { "hello" }, VB6TestProgram.SplitLines(standardOutput));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
