@@ -1063,6 +1063,16 @@ public sealed class ManagedEmitter
             for (var index = 0; index < call.Arguments.Length; index++)
             {
                 var argument = call.Arguments[index];
+                var parameter = index < call.Procedure.Parameters.Length
+                    ? call.Procedure.Parameters[index]
+                    : null;
+
+                if (call.Procedure.IsExternal && parameter?.IsAny == true)
+                {
+                    EmitExpression(encoder, procedure, argument.Expression);
+                    encoder.OpCode(ILOpCode.Conv_i);
+                    continue;
+                }
 
                 // A ByRef argument passes an address, which is already the parameter's type - only
                 // a by-value argument can need the boxing that a Variant parameter asks for.
@@ -1496,7 +1506,14 @@ public sealed class ManagedEmitter
                 {
                     foreach (var parameter in procedure.Parameters.OrderBy(parameter => parameter.Index))
                     {
-                        EncodeType(parameters.AddParameter().Type(parameter.PassingMode == ParameterPassingMode.ByRef), parameter.Type);
+                        if (procedure.IsExternal && parameter.Symbol?.IsAny == true)
+                        {
+                            parameters.AddParameter().Type(isByRef: false).IntPtr();
+                        }
+                        else
+                        {
+                            EncodeType(parameters.AddParameter().Type(parameter.PassingMode == ParameterPassingMode.ByRef), parameter.Type);
+                        }
                     }
                 });
             return _metadata.GetOrAddBlob(blob);
@@ -1892,7 +1909,7 @@ public sealed class ManagedEmitter
 
             foreach (var parameter in procedure.Parameters)
             {
-                if (!IsPInvokeScalar(parameter.Type))
+                if (parameter.Symbol?.IsAny != true && !IsPInvokeScalar(parameter.Type))
                 {
                     throw new NotSupportedException(
                         $"Declare procedure '{procedure.Name}' parameter '{parameter.Name}' type " +

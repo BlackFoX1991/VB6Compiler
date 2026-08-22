@@ -2276,6 +2276,12 @@ public static class IrLowerer
             var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.Length);
             foreach (var argument in arguments)
             {
+                if (procedure.IsExternal && argument.Parameter?.IsAny == true && argument.IsByValAtCallSite)
+                {
+                    lowered.Add(new IrCallArgument(LowerAnyPointerValue(argument.Expression)));
+                    continue;
+                }
+
                 if (argument.Parameter?.PassingMode == ParameterPassingMode.ByRef)
                 {
                     IrPlace place;
@@ -2311,6 +2317,35 @@ public static class IrLowerer
                 lowered.ToImmutable(),
                 procedure.ReturnType ?? TypeSymbol.Error,
                 receiver);
+        }
+
+        private IrExpression LowerAnyPointerValue(BoundExpression expression)
+        {
+            if (StripConversions(expression) is BoundInvocationExpression invocation &&
+                invocation.Procedure.IntrinsicKind == VBIntrinsicKind.VarPtr &&
+                invocation.Arguments.Length == 1)
+            {
+                var target = StripConversions(invocation.Arguments[0].Expression);
+                if (target is BoundVariableExpression or
+                    BoundArrayAccessExpression or
+                    BoundElementAccessExpression or
+                    BoundMemberAccessExpression)
+                {
+                    return new IrAddressExpression(LowerPlace(target));
+                }
+            }
+
+            return LowerExpression(expression);
+        }
+
+        private static BoundExpression StripConversions(BoundExpression expression)
+        {
+            while (expression is BoundConversionExpression conversion)
+            {
+                expression = conversion.Expression;
+            }
+
+            return expression;
         }
 
         private IrExpression LowerValueCopy(BoundExpression expression)

@@ -88,9 +88,10 @@ zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten
 übertragen außerhalb eines UDT nur ihre elementweise Payload ohne äußeren Descriptor. Dynamische
 UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
 als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
-Date-Werte werden als OLE-Automation-Doubles übertragen und bei `Input #` konvertiert. Weitere
-zusammengesetzte String-/Random-Layouts, `As Any`-Marshalling, COM, native LLVM-Emission und Forms
-bleiben bewusst offen.
+Date-Werte werden als OLE-Automation-Doubles übertragen und bei `Input #` konvertiert. Scalar-
+Pointer-Transfers für `Declare ... As Any` inklusive `ByVal VarPtr(...)` sind über `IntPtr`
+abgedeckt. Weitere zusammengesetzte String-/Random-Layouts, komplexes `As Any`-Marshalling, COM,
+native LLVM-Emission und Forms bleiben bewusst offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -597,7 +598,8 @@ Durch `Declare` (234) deutlich früher als ursprünglich geplant; ab Meilenstein
 beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 - [~] `Declare` -> P/Invoke für skalare Signaturen mit `Lib`/`Alias` und echter Managed-
-      Invocation; ANSI-String-Marshalling steht, `As Any` bleibt offen
+      Invocation; ANSI-String-Marshalling sowie Scalar-Pointer-Transfers für `As Any` stehen,
+      komplexes String-/UDT-Marshalling bleibt offen
 - [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren

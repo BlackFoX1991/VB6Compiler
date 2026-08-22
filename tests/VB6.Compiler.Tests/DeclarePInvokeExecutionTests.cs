@@ -150,4 +150,27 @@ public sealed class DeclarePInvokeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "3", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_InvokesScalarAsAnyPointerTransfer()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+            Sub Main()
+                Dim source As Long
+                Dim destination As Long
+
+                source = 16909060
+                CopyMemory destination, source, 4
+                Debug.Print destination
+
+                destination = 0
+                CopyMemory destination, ByVal VarPtr(source), 4
+                Debug.Print destination
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "16909060", "16909060" }, VB6TestProgram.SplitLines(output), output);
+    }
 }

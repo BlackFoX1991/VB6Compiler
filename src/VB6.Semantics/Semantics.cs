@@ -513,6 +513,7 @@ public sealed record BoundArgument(
     BoundExpression Expression)
 {
     public bool RequiresByRefTemporary { get; init; }
+    public bool IsByValAtCallSite { get; init; }
 }
 
     public sealed record BoundInvocationStatement(

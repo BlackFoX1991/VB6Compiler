@@ -2858,7 +2858,12 @@ public sealed class Binder
 
             if (parameter is not null)
             {
-                if (parameter.PassingMode == ParameterPassingMode.ByVal)
+                if (procedure.IsExternal && parameter.IsAny && forcedByValue)
+                {
+                    // The native As Any contract consumes a pointer value. Keep the original
+                    // expression so the lowering phase can recognize VarPtr(variable).
+                }
+                else if (parameter.PassingMode == ParameterPassingMode.ByVal)
                 {
                     expression = BindConversion(expression, parameter.Type);
                 }
@@ -2895,7 +2900,8 @@ public sealed class Binder
 
             arguments.Add(new BoundArgument(parameter, expression)
             {
-                RequiresByRefTemporary = requiresByRefTemporary
+                RequiresByRefTemporary = requiresByRefTemporary,
+                IsByValAtCallSite = forcedByValue
             });
         }
 
