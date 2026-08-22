@@ -222,6 +222,9 @@ public sealed record ProcedureSymbol(
     /// <summary>Identifies a class property accessor that is bound as an internal procedure.</summary>
     public PropertyAccessorKind? PropertyAccessor { get; init; }
 
+    /// <summary>True when the call is resolved by the runtime object dispatch contract.</summary>
+    public bool IsLateBound { get; init; }
+
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {
@@ -246,7 +249,11 @@ public sealed record PropertySymbol(
     string Name,
     PropertyAccessorKind Accessor,
     TypeSymbol Type,
-    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name);
+    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name)
+{
+    /// <summary>True when the property is resolved by the runtime object dispatch contract.</summary>
+    public bool IsLateBound { get; init; }
+}
 
 public sealed record EventSymbol(
     string Name,

@@ -512,6 +512,11 @@ public enum IrRuntimeMethod
     FunctionTypeName,
     FunctionSwitch,
     ObjectIs,
+    DynamicGetMember,
+    DynamicGetIndexedMember,
+    DynamicSetMember,
+    DynamicSetIndexedMember,
+    DynamicInvokeMember,
 
     ArrayClear,
     ArrayLBound,

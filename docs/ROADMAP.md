@@ -55,7 +55,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
-| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **292** | **196** | **0** | **96** | **18 von 40** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **275** | **196** | **0** | **79** | **21 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -100,6 +100,11 @@ Managed-Runtime: `New Collection`, one-based und schlüsselbasierter `Item`-Zugr
 `Add` mit `Key`/`Before` sowie `Remove` laufen über eigene IR-Runtime-IDs und werden im Managed-
 Emitter typkorrekt auf `VBCollection` abgebildet. Weitere zusammengesetzte String-/Random-Layouts,
 komplexes `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
+Late-bound `Variant`-/`Object`-Memberzugriffe sind jetzt ebenfalls als eigener Runtime-Vertrag
+verdrahtet: Property-Get/Let/Set und Methoden werden auf erzeugten Klassen über `__vb6_`-Reflection
+aufgelöst, während gewöhnliche CLR-Properties als Host-Fallback bestehen bleiben. Dadurch fallen
+17 bisherige `VB6S0047`-Diagnosen weg; der Messpunkt sinkt auf 275 Fehler und 21 von 40 fehlerfreie
+Dateien. Vollständige COM-/IDispatch-Identität, ByRef-Writeback und Host-ABI-Regeln bleiben offen.
 Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
 ist inzwischen regressionsgesichert.
 
@@ -540,6 +545,7 @@ Zwei Nachträge:
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
 - [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove` mit one-based und keyed lookup stehen; `For Each`, vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
+- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; vollständige COM-/IDispatch-Auflösung, ByRef-Writeback und Host-ABI bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; vollständiger Host-/COM-Event-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
 

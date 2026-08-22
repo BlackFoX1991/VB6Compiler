@@ -1556,6 +1556,12 @@ public sealed class ManagedEmitter
                     return;
                 }
 
+                if (IsRuntimeObjectContract(classType))
+                {
+                    encoder.Object();
+                    return;
+                }
+
                 encoder.Type(_classSymbolHandles[classType], isValueType: false);
                 return;
             }
@@ -1606,6 +1612,7 @@ public sealed class ManagedEmitter
             if (type == TypeSymbol.Currency) return _vbCurrency;
             if (type is UserDefinedTypeSymbol udt) return _udtSymbolHandles[udt];
             if (ReferenceEquals(type, VBStandardTypes.Collection)) return GetReflectionTypeReference(typeof(VBCollection));
+            if (type is ClassTypeSymbol objectContract && IsRuntimeObjectContract(objectContract)) return _systemObject;
             if (type is ClassTypeSymbol classType) return _classSymbolHandles[classType];
             if (type is ArrayTypeSymbol array) return GetArrayTypeSpecification(array);
             if (type == TypeSymbol.Byte) return GetReflectionTypeReference(typeof(byte));
@@ -2252,6 +2259,11 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.VariantToBoolean) return Static(typeof(VBVariants), "ToBoolean", typeof(object));
             if (m == IrRuntimeMethod.StringLike) return Static(typeof(VBStrings), nameof(VBStrings.Like), typeof(object), typeof(object), typeof(bool));
             if (m == IrRuntimeMethod.ObjectIs) return Static(typeof(VBObjectIdentity), nameof(VBObjectIdentity.IsSame), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.DynamicGetMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.GetMember), typeof(object), typeof(string));
+            if (m == IrRuntimeMethod.DynamicGetIndexedMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.GetIndexedMember), typeof(object), typeof(string), typeof(VBArray<object>));
+            if (m == IrRuntimeMethod.DynamicSetMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.SetMember), typeof(object), typeof(string), typeof(object));
+            if (m == IrRuntimeMethod.DynamicSetIndexedMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.SetIndexedMember), typeof(object), typeof(string), typeof(VBArray<object>), typeof(object));
+            if (m == IrRuntimeMethod.DynamicInvokeMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.InvokeMember), typeof(object), typeof(string), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.InteractionDoEvents) return Static(typeof(VBInteraction), "DoEvents");
             if (m == IrRuntimeMethod.InteractionMsgBox) return Static(typeof(VBInteraction), "MsgBox", typeof(string), typeof(int), typeof(string));
             if (m == IrRuntimeMethod.InteractionInputBox) return Static(typeof(VBInteraction), "InputBox", typeof(string), typeof(string), typeof(string), typeof(float), typeof(float), typeof(string), typeof(int));
@@ -2481,6 +2493,12 @@ public sealed class ManagedEmitter
             : type == TypeSymbol.Currency ? typeof(VBCurrency)
             : type == TypeSymbol.Variant ? typeof(object)
             : throw new NotSupportedException($"Runtime scalar type '{type.Name}' is not supported.");
+
+        private static bool IsRuntimeObjectContract(ClassTypeSymbol type) =>
+            ReferenceEquals(type, VBStandardTypes.Object) ||
+            ReferenceEquals(type, VBStandardTypes.Control) ||
+            ReferenceEquals(type, VBStandardTypes.Form) ||
+            ReferenceEquals(type, VBStandardTypes.UserControl);
 
         private static MethodInfo Static(Type type, string name, params Type[] parameters) =>
             type.GetMethod(name, BindingFlags.Public | BindingFlags.Static, parameters)

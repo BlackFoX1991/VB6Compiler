@@ -2390,7 +2390,10 @@ public sealed class Binder
                         syntax.MemberToken.Text,
                         accessor,
                         VBStandardTypes.Object,
-                        ImmutableArray<ParameterSymbol>.Empty));
+                        ImmutableArray<ParameterSymbol>.Empty)
+                    {
+                        IsLateBound = true
+                    });
             }
 
             Report(
@@ -2398,6 +2401,20 @@ public sealed class Binder
                 $"Class '{classType.Name}' has no {GetPropertyAccessorDescription(accessor)} property '{syntax.MemberToken.Text}'.",
                 syntax.MemberToken.Span);
             return new BoundErrorExpression();
+        }
+
+        if (receiver.Type == TypeSymbol.Variant)
+        {
+            return new BoundPropertyAccessExpression(
+                receiver,
+                new PropertySymbol(
+                    syntax.MemberToken.Text,
+                    accessor,
+                    TypeSymbol.Variant,
+                    ImmutableArray<ParameterSymbol>.Empty)
+                {
+                    IsLateBound = true
+                });
         }
 
         if (receiver.Type is not UserDefinedTypeSymbol userDefinedType)
@@ -2440,7 +2457,7 @@ public sealed class Binder
             var memberReceiver = memberAccess.Receiver is WithReceiverExpressionSyntax
                 ? BindWithReceiver(memberAccess.DotToken)
                 : BindExpression(memberAccess.Receiver, variables, procedures);
-            if (memberReceiver.Type is ClassTypeSymbol)
+            if (memberReceiver.Type is ClassTypeSymbol || memberReceiver.Type == TypeSymbol.Variant)
             {
                 return BindClassMemberInvocation(
                     memberAccess,
@@ -2610,6 +2627,20 @@ public sealed class Binder
             return receiver;
         }
 
+        if (receiver.Type == TypeSymbol.Variant)
+        {
+            var dynamicProcedure = CreateDynamicObjectProcedure(target.MemberToken.Text, isFunction: true);
+            return new BoundMemberInvocationExpression(
+                receiver,
+                dynamicProcedure,
+                BindArguments(
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    dynamicProcedure,
+                    variables,
+                    procedures));
+        }
+
         if (receiver.Type is not ClassTypeSymbol classType)
         {
             return ReportObjectModelExpressionGap(
@@ -2638,7 +2669,7 @@ public sealed class Binder
         }
         else if (classType.TryGetProperty(target.MemberToken.Text, accessor, out var property))
         {
-            return new BoundPropertyInvocationExpression(
+                return new BoundPropertyInvocationExpression(
                 receiver,
                 property,
                 BindPropertyArguments(
@@ -2745,7 +2776,10 @@ public sealed class Binder
                 {
                     IsParamArray = true
                 }),
-            isFunction ? TypeSymbol.Variant : null);
+            isFunction ? TypeSymbol.Variant : null)
+        {
+            IsLateBound = true
+        };
 
     private BoundExpression BindArrayBoundExpression(
         InvocationExpressionSyntax syntax,

@@ -809,6 +809,32 @@ public static class IrLowerer
                     break;
                 case BoundMemberAssignmentStatement assignment:
                 {
+                    if (assignment.Target is BoundPropertyAccessExpression
+                        {
+                            Property.IsLateBound: true
+                        } dynamicProperty)
+                    {
+                        Emit(new IrEvaluateInstruction(LowerDynamicSet(
+                            dynamicProperty.Receiver,
+                            dynamicProperty.Property.Name,
+                            ImmutableArray<BoundArgument>.Empty,
+                            LowerValueCopy(assignment.Expression))));
+                        break;
+                    }
+
+                    if (assignment.Target is BoundPropertyInvocationExpression
+                        {
+                            Property.IsLateBound: true
+                        } indexedDynamicProperty)
+                    {
+                        Emit(new IrEvaluateInstruction(LowerDynamicSet(
+                            indexedDynamicProperty.Receiver,
+                            indexedDynamicProperty.Property.Name,
+                            indexedDynamicProperty.Arguments,
+                            LowerValueCopy(assignment.Expression))));
+                        break;
+                    }
+
                     var memberTarget = LowerPlace(assignment.Target);
                     Emit(new IrStoreInstruction(
                         memberTarget,
@@ -2108,6 +2134,15 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyRead(BoundPropertyAccessExpression expression)
         {
+            if (expression.Property.IsLateBound)
+            {
+                return LowerDynamicGet(
+                    expression.Receiver,
+                    expression.Property.Name,
+                    ImmutableArray<BoundArgument>.Empty,
+                    expression.Property.Type);
+            }
+
             if (expression.Receiver.Type is ClassTypeSymbol classType &&
                 ReferenceEquals(classType, VBStandardTypes.Collection))
             {
@@ -2136,6 +2171,15 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyInvocation(BoundPropertyInvocationExpression expression)
         {
+            if (expression.Property.IsLateBound)
+            {
+                return LowerDynamicGet(
+                    expression.Receiver,
+                    expression.Property.Name,
+                    expression.Arguments,
+                    expression.Property.Type);
+            }
+
             if (expression.Receiver.Type is ClassTypeSymbol collectionType &&
                 ReferenceEquals(collectionType, VBStandardTypes.Collection))
             {
@@ -2167,6 +2211,11 @@ public static class IrLowerer
             ProcedureSymbol requested,
             ImmutableArray<BoundArgument> arguments)
         {
+            if (requested.IsLateBound)
+            {
+                return LowerDynamicInvoke(receiver, requested.Name, arguments);
+            }
+
             if (receiver.Type is ClassTypeSymbol collectionType &&
                 ReferenceEquals(collectionType, VBStandardTypes.Collection))
             {
@@ -2183,7 +2232,7 @@ public static class IrLowerer
             return LowerCall(procedure, arguments, LowerExpression(receiver));
         }
 
-        private IrAccessorPlace LowerPropertyPlace(BoundPropertyAccessExpression expression)
+        private IrPlace LowerPropertyPlace(BoundPropertyAccessExpression expression)
         {
             return LowerPropertyPlace(
                 expression.Receiver,
@@ -2191,16 +2240,22 @@ public static class IrLowerer
                 ImmutableArray<BoundArgument>.Empty);
         }
 
-        private IrAccessorPlace LowerPropertyPlace(BoundPropertyInvocationExpression expression)
+        private IrPlace LowerPropertyPlace(BoundPropertyInvocationExpression expression)
         {
             return LowerPropertyPlace(expression.Receiver, expression.Property, expression.Arguments);
         }
 
-        private IrAccessorPlace LowerPropertyPlace(
+        private IrPlace LowerPropertyPlace(
             BoundExpression receiver,
             PropertySymbol property,
             ImmutableArray<BoundArgument> arguments)
         {
+            if (property.IsLateBound)
+            {
+                throw new NotSupportedException(
+                    "A late-bound property cannot be passed ByRef until object write-back semantics are lowered.");
+            }
+
             if (receiver.Type is ClassTypeSymbol collectionType &&
                 ReferenceEquals(collectionType, VBStandardTypes.Collection))
             {
@@ -2260,6 +2315,81 @@ public static class IrLowerer
                 new IrCallArgument(LowerValueCopy(argument.Expression))));
             return new IrRuntimeCallExpression(method, lowered.ToImmutable(), property.Type);
         }
+
+        private IrExpression LowerDynamicGet(
+            BoundExpression receiver,
+            string memberName,
+            ImmutableArray<BoundArgument> arguments,
+            TypeSymbol resultType)
+        {
+            var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.IsDefaultOrEmpty ? 2 : 3);
+            lowered.Add(new IrCallArgument(LowerExpression(receiver)));
+            lowered.Add(new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)));
+            if (!arguments.IsDefaultOrEmpty)
+            {
+                lowered.Add(new IrCallArgument(LowerDynamicArguments(arguments.Select(argument => argument.Expression))));
+            }
+
+            return new IrRuntimeCallExpression(
+                arguments.IsDefaultOrEmpty
+                    ? IrRuntimeMethod.DynamicGetMember
+                    : IrRuntimeMethod.DynamicGetIndexedMember,
+                lowered.ToImmutable(),
+                resultType);
+        }
+
+        private IrExpression LowerDynamicInvoke(
+            BoundExpression receiver,
+            string memberName,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            var dynamicArguments = arguments.Length == 1 && arguments[0].Parameter?.IsParamArray == true
+                ? LowerValueCopy(arguments[0].Expression)
+                : LowerDynamicArguments(arguments.Select(argument => argument.Expression));
+            return new IrRuntimeCallExpression(
+                IrRuntimeMethod.DynamicInvokeMember,
+                ImmutableArray.Create(
+                    new IrCallArgument(LowerExpression(receiver)),
+                    new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)),
+                    new IrCallArgument(dynamicArguments)),
+                TypeSymbol.Variant);
+        }
+
+        private IrExpression LowerDynamicSet(
+            BoundExpression receiver,
+            string memberName,
+            ImmutableArray<BoundArgument> arguments,
+            IrExpression value)
+        {
+            var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.IsDefaultOrEmpty ? 3 : 4);
+            lowered.Add(new IrCallArgument(LowerExpression(receiver)));
+            lowered.Add(new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)));
+            if (!arguments.IsDefaultOrEmpty)
+            {
+                lowered.Add(new IrCallArgument(LowerDynamicArguments(arguments.Select(argument => argument.Expression))));
+            }
+
+            lowered.Add(new IrCallArgument(value));
+            return new IrRuntimeCallExpression(
+                arguments.IsDefaultOrEmpty
+                    ? IrRuntimeMethod.DynamicSetMember
+                    : IrRuntimeMethod.DynamicSetIndexedMember,
+                lowered.ToImmutable(),
+                TypeSymbol.Error);
+        }
+
+        private IrExpression LowerDynamicArguments(IEnumerable<BoundExpression> arguments)
+        {
+            var arrayType = new ArrayTypeSymbol(TypeSymbol.Variant);
+            return LowerArrayLiteral(new BoundArrayLiteralExpression(
+                arrayType,
+                arguments.Select(argument => BindDynamicArgument(argument)).ToImmutableArray()));
+        }
+
+        private BoundExpression BindDynamicArgument(BoundExpression expression) =>
+            expression.Type == TypeSymbol.Variant
+                ? expression
+                : new BoundConversionExpression(TypeSymbol.Variant, expression);
 
         private IrExpression LowerCollectionProcedure(
             ProcedureSymbol procedure,
