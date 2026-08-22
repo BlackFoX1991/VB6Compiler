@@ -567,7 +567,7 @@ Nach Korpusbedarf priorisiert:
    `MsgBox`, `Split`, `InStrRev`, `LSet` und `CopyMemory`, zusammen der größte Posten der
    Restfehler. Wirklich an spätere Meilensteine gebunden sind nur `frmMain` (25×, M9), `App`
    und `Err` (M6)
-1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
+1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CDec`/`CDate`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
 1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
     VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.

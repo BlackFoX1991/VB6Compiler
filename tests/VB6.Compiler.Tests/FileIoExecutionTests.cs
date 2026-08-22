@@ -512,6 +512,19 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesCDateConversion()
+    {
+        Run("""
+            Sub Main()
+                Debug.Print CDbl(CDate("2020-01-02"))
+                Debug.Print CDbl(CDate(43832))
+            End Sub
+            """,
+            "43832",
+            "43832");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsRandomFixedStringUdtRecords()
     {
         Run("""

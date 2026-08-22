@@ -185,6 +185,7 @@ public enum VBIntrinsicKind
     CInt,
     CLng,
     CDec,
+    CDate,
     CSng,
     CDbl,
     CBool,
