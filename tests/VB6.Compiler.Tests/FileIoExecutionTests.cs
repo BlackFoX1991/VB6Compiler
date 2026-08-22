@@ -355,6 +355,78 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsStandaloneFixedUdtArraysWithoutDescriptor()
+    {
+        Run("""
+            Type Child
+                Value As Long
+            End Type
+
+            Sub Main()
+                Dim written(1 To 2) As Child
+                Dim readBack(1 To 2) As Child
+
+                written(1).Value = 100
+                written(2).Value = 200
+
+                Open "standalone-fixed-array.bin" For Binary As #1
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "standalone-fixed-array.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack(1).Value
+                Debug.Print readBack(2).Value
+            End Sub
+            """,
+            "8",
+            "100",
+            "200");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsStandaloneDynamicUdtArraysWithoutDescriptor()
+    {
+        Run("""
+            Type Child
+                Value As Long
+            End Type
+
+            Sub Main()
+                Dim written() As Child
+                Dim readBack() As Child
+
+                ReDim written(1 To 2)
+                ReDim readBack(1 To 2)
+                written(1).Value = 300
+                written(2).Value = 400
+
+                Open "standalone-dynamic-array.bin" For Binary As #1
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "standalone-dynamic-array.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print LBound(readBack)
+                Debug.Print UBound(readBack)
+                Debug.Print readBack(1).Value
+                Debug.Print readBack(2).Value
+            End Sub
+            """,
+            "8",
+            "1",
+            "2",
+            "300",
+            "400");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsRandomFixedStringUdtRecords()
     {
         Run("""

@@ -15,6 +15,14 @@ public static class UserDefinedTypeFileLayout
         return IsBinaryTransferable(type, new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance));
     }
 
+    public static bool IsBinaryTransferableElement(TypeSymbol type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return IsBinaryTransferableElement(
+            type,
+            new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance));
+    }
+
     private static bool IsBinaryTransferable(
         UserDefinedTypeSymbol type,
         HashSet<UserDefinedTypeSymbol> activePath)

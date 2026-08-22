@@ -287,6 +287,9 @@ public static class VBArrayOperations
 {
     public static bool IsAllocated(object? value) => value is IVBArray;
 
+    public static object RequireAllocated(object? value) => value ??
+        throw new InvalidOperationException("The array must be allocated before file data can be read into it.");
+
     public static int LBound(object? value, int dimension = 1) => GetArray(value).LBound(dimension);
 
     public static int UBound(object? value, int dimension = 1) => GetArray(value).UBound(dimension);

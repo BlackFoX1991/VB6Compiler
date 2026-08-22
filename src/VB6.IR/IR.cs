@@ -510,6 +510,7 @@ public enum IrRuntimeMethod
     ArrayLBound,
     ArrayUBound,
     ArrayIsAllocated,
+    ArrayRequireAllocated,
     ArrayEnumerateValues,
 
     FixedStringRead,

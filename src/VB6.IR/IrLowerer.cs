@@ -1002,7 +1002,12 @@ public static class IrLowerer
                         LowerExpression(seek.Position))));
                     break;
                 case BoundGetStatement get:
-                    if (get.Target.Type is UserDefinedTypeSymbol getType)
+                    if (get.Target.Type is ArrayTypeSymbol getArrayType &&
+                        getArrayType.ElementType is UserDefinedTypeSymbol)
+                    {
+                        LowerBinaryArrayGet(get, getArrayType);
+                    }
+                    else if (get.Target.Type is UserDefinedTypeSymbol getType)
                     {
                         LowerBinaryRecordGet(get, getType);
                     }
@@ -1018,7 +1023,12 @@ public static class IrLowerer
                     }
                     break;
                 case BoundPutStatement put:
-                    if (put.Value.Type is UserDefinedTypeSymbol putType)
+                    if (put.Value.Type is ArrayTypeSymbol putArrayType &&
+                        putArrayType.ElementType is UserDefinedTypeSymbol)
+                    {
+                        LowerBinaryArrayPut(put, putArrayType);
+                    }
+                    else if (put.Value.Type is UserDefinedTypeSymbol putType)
                     {
                         LowerBinaryRecordPut(put, putType);
                     }
@@ -1059,6 +1069,60 @@ public static class IrLowerer
                     }
                     break;
             }
+        }
+
+        private void LowerBinaryArrayGet(BoundGetStatement get, ArrayTypeSymbol arrayType)
+        {
+            var elementType = (UserDefinedTypeSymbol)arrayType.ElementType;
+            EnsureBinaryRecordLayout(elementType);
+            var target = NewLocal("__file_get_array", arrayType, compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(target),
+                LowerExpression(get.Target)));
+            var fileNumber = MaterializeFileArgument(get.FileNumber, TypeSymbol.Long, "__file_get_array_number");
+            var position = get.Position is null
+                ? new IrNullExpression(TypeSymbol.LongLong)
+                : MaterializeFileArgument(get.Position, TypeSymbol.LongLong, "__file_get_array_position");
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordStart,
+                TypeSymbol.Error,
+                fileNumber,
+                position)));
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.ArrayRequireAllocated,
+                TypeSymbol.Variant,
+                new IrLoadExpression(new IrLocalPlace(target)))));
+            EmitDynamicArrayRecordElements(target, arrayType, fileNumber, forWrite: false);
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordEnd,
+                TypeSymbol.Error,
+                fileNumber,
+                new IrConstantExpression(false, TypeSymbol.Boolean))));
+        }
+
+        private void LowerBinaryArrayPut(BoundPutStatement put, ArrayTypeSymbol arrayType)
+        {
+            var elementType = (UserDefinedTypeSymbol)arrayType.ElementType;
+            EnsureBinaryRecordLayout(elementType);
+            var source = NewLocal("__file_put_array", arrayType, compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(source),
+                LowerValueCopy(put.Value)));
+            var fileNumber = MaterializeFileArgument(put.FileNumber, TypeSymbol.Long, "__file_put_array_number");
+            var position = put.Position is null
+                ? new IrNullExpression(TypeSymbol.LongLong)
+                : MaterializeFileArgument(put.Position, TypeSymbol.LongLong, "__file_put_array_position");
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordStart,
+                TypeSymbol.Error,
+                fileNumber,
+                position)));
+            EmitDynamicArrayRecordElements(source, arrayType, fileNumber, forWrite: true);
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.FileRecordEnd,
+                TypeSymbol.Error,
+                fileNumber,
+                new IrConstantExpression(true, TypeSymbol.Boolean))));
         }
 
         private void LowerBinaryRecordGet(BoundGetStatement get, UserDefinedTypeSymbol type)

@@ -1325,8 +1325,8 @@ public sealed class Binder
         type == TypeSymbol.Currency;
 
     /// <summary>
-    /// Get and Put share their shape. Fixed-size numeric types and variable-length Strings are
-    /// transferable; user-defined types still need their record layout before they can be emitted.
+    /// Get and Put share their shape. Fixed-size scalar values, supported typed arrays, and
+    /// user-defined types with a supported record layout are transferable.
     /// </summary>
     private BoundStatement? BindGetOrPut(
         FileNumberSyntax fileNumberSyntax,
@@ -1445,6 +1445,8 @@ public sealed class Binder
         type == TypeSymbol.Currency ||
         type == TypeSymbol.Boolean ||
         type == TypeSymbol.String ||
+        type is ArrayTypeSymbol { ElementType: UserDefinedTypeSymbol elementType } &&
+        UserDefinedTypeFileLayout.IsBinaryTransferableElement(elementType) ||
         type is UserDefinedTypeSymbol userDefinedType &&
         UserDefinedTypeFileLayout.IsBinaryTransferable(userDefinedType);
 

@@ -83,8 +83,9 @@ bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; skala
 UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste UDT-Arrayfelder mit
 skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
 `Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
-deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages, eigenständige UDT-Arrays als
-`Get`/`Put`-Variablen und nicht unterstützte zusammengesetzte Layouts bleiben offen. Dynamische
+deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages und nicht unterstützte
+zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten UDT-Elementen
+übertragen außerhalb eines UDT nur ihre elementweise Payload ohne äußeren Descriptor. Dynamische
 UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
 als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
 Variable Stringfelder, `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
@@ -577,8 +578,9 @@ Nach Korpusbedarf priorisiert:
    und lesen echte Dateien. Variable `String`-Transfers, `Line Input`, grundlegende Stringfelder und
    typisierte numerische, Boolean- und Currency-Ziele für `Input #` sowie skalare Random-Records mit
    `Len`-Klausel und Defaultlänge 128 sind ergänzt; dynamische UDT-Arraymember in Records tragen
-   ihren Descriptor und werden elementweise übertragen. Datums-Konvertierung, eigenständige UDT-
-   Arraytransfers, variable Stringfelder und weitere zusammengesetzte Random-Record-Layouts bleiben offen.
+   ihren Descriptor und werden elementweise übertragen, eigenständige Arrays unterstützter UDT-
+   Elemente übertragen ihre Payload ohne äußeren Descriptor. Datums-Konvertierung, variable
+   Stringfelder und weitere zusammengesetzte Random-Record-Layouts bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere
