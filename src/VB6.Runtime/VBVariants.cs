@@ -31,22 +31,51 @@ public static class VBVariants
 
     public static bool ToBoolean(object? value) => IsNull(value) ? false : VBConversions.CBool(value);
 
-    public static short VarType(object? value) => value switch
+    public static short VarType(object? value)
     {
-        null => 0,
-        NullValueMarker => 1,
-        short => 2,
-        int => 3,
-        float => 4,
-        double => 5,
-        VBCurrency => 6,
-        string => 8,
-        NothingValueMarker => 9,
-        MissingValueMarker => 10,
-        bool => 11,
-        byte => 17,
-        long => 20,
-        decimal => 14,
-        _ => 9
-    };
+        if (value is IVBArray)
+        {
+            return ArrayVarType(value.GetType());
+        }
+
+        return value switch
+        {
+            null => 0,
+            NullValueMarker => 1,
+            short => 2,
+            int => 3,
+            float => 4,
+            double => 5,
+            VBCurrency => 6,
+            string => 8,
+            NothingValueMarker => 9,
+            MissingValueMarker => 10,
+            bool => 11,
+            byte => 17,
+            long => 20,
+            decimal => 14,
+            _ => 9
+        };
+    }
+
+    private static short ArrayVarType(Type arrayType)
+    {
+        var elementType = arrayType.IsGenericType &&
+                          arrayType.GetGenericTypeDefinition() == typeof(VBArray<>)
+            ? arrayType.GetGenericArguments()[0]
+            : typeof(object);
+        var elementVarType = elementType == typeof(object) ? 12
+            : elementType == typeof(string) ? 8
+            : elementType == typeof(bool) ? 11
+            : elementType == typeof(byte) ? 17
+            : elementType == typeof(short) ? 2
+            : elementType == typeof(int) ? 3
+            : elementType == typeof(long) ? 20
+            : elementType == typeof(float) ? 4
+            : elementType == typeof(double) ? 5
+            : elementType == typeof(VBCurrency) ? 6
+            : elementType == typeof(decimal) ? 14
+            : 36;
+        return checked((short)(8192 + elementVarType));
+    }
 }

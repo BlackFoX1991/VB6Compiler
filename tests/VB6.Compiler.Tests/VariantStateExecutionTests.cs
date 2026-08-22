@@ -22,11 +22,12 @@ public sealed class VariantStateExecutionTests
                 Debug.Print IsMissing(Missing)
                 Debug.Print IsEmpty(Nothing)
                 Debug.Print VarType(Nothing)
+                Debug.Print VarType(Split("a,b", ","))
             End Sub
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "True", "False", "0", "False", "True", "1", "True", "False", "9" },
+            new[] { "True", "False", "0", "False", "True", "1", "True", "False", "9", "8200" },
             output);
     }
 

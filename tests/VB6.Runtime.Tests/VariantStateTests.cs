@@ -37,5 +37,7 @@ public sealed class VariantStateTests
         Assert.AreEqual((short)11, VBVariants.VarType(true));
         Assert.AreEqual((short)17, VBVariants.VarType((byte)1));
         Assert.AreEqual((short)20, VBVariants.VarType((long)1));
+        Assert.AreEqual((short)8200, VBVariants.VarType(new VBArray<string>(new VBArrayBound(0, 1))));
+        Assert.AreEqual((short)8204, VBVariants.VarType(new VBArray<object>(new VBArrayBound(0, 1))));
     }
 }
