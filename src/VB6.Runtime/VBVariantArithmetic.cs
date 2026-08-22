@@ -401,6 +401,9 @@ public static partial class VBOperators
             case VBCurrency currency:
                 number = currency.ToDecimal();
                 return true;
+            case VBDateValue date:
+                number = Convert.ToDecimal(date.OADate, System.Globalization.CultureInfo.InvariantCulture);
+                return true;
             case byte or short or int or long or bool:
                 number = Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
                 return true;

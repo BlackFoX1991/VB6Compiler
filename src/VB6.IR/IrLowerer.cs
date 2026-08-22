@@ -2471,8 +2471,10 @@ public static class IrLowerer
                 return operand;
             }
 
-            var method = conversion.TargetType == TypeSymbol.Boolean && conversion.Expression.Type == TypeSymbol.Variant
-                ? IrRuntimeMethod.VariantToBoolean
+            var method = conversion.TargetType == TypeSymbol.Variant && conversion.Expression.Type == TypeSymbol.Date
+                ? IrRuntimeMethod.DateToVariant
+                : conversion.TargetType == TypeSymbol.Boolean && conversion.Expression.Type == TypeSymbol.Variant
+                    ? IrRuntimeMethod.VariantToBoolean
                 : conversion.TargetType == TypeSymbol.Byte ? IrRuntimeMethod.CByte
                 : conversion.TargetType == TypeSymbol.Integer ? IrRuntimeMethod.CInt
                 : conversion.TargetType == TypeSymbol.Long ? IrRuntimeMethod.CLng

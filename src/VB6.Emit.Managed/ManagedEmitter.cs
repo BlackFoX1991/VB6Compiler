@@ -2224,6 +2224,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CLng) return Static(typeof(VBConversions), "CLng", typeof(object));
             if (m == IrRuntimeMethod.CDec) return Static(typeof(VBConversions), "CDec", typeof(object));
             if (m == IrRuntimeMethod.CDate) return Static(typeof(VBConversions), "CDate", typeof(object));
+            if (m == IrRuntimeMethod.DateToVariant) return Static(typeof(VBConversions), "DateToVariant", typeof(double));
             if (m == IrRuntimeMethod.CLngLng) return Static(typeof(VBConversions), "CLngLng", typeof(object));
             if (m == IrRuntimeMethod.CCur) return Static(typeof(VBConversions), "CCur", typeof(object));
             if (m == IrRuntimeMethod.CSng) return Static(typeof(VBConversions), "CSng", typeof(object));

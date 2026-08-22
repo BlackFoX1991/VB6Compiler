@@ -88,6 +88,11 @@ public static class VBConversions
             return currency.ToDecimal();
         }
 
+        if (value is VBDateValue date)
+        {
+            return Convert.ToDecimal(date.OADate, CultureInfo.InvariantCulture);
+        }
+
         if (value is bool boolean)
         {
             return boolean ? -1m : 0m;
@@ -110,12 +115,20 @@ public static class VBConversions
     public static double CDbl(object? value) => value switch
     {
         VBCurrency currency => currency.ToDouble(),
+        VBDateValue date => date.OADate,
         bool boolean => boolean ? -1d : 0d,
         _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
     };
 
+    public static object DateToVariant(double value) => new VBDateValue(value);
+
     public static double CDate(object? value)
     {
+        if (value is VBDateValue date)
+        {
+            return date.OADate;
+        }
+
         if (value is DateTime dateTime)
         {
             return dateTime.ToOADate();
@@ -137,11 +150,13 @@ public static class VBConversions
         ? currency.ScaledValue != 0
         : Convert.ToBoolean(value, CultureInfo.InvariantCulture);
 
-    public static string CStr(object? value) => value is VBCurrency currency
-        ? currency.ToString()
-        : value is decimal decimalValue
-            ? decimalValue.ToString("G29", CultureInfo.InvariantCulture)
-        : Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+    public static string CStr(object? value) => value switch
+    {
+        VBCurrency currency => currency.ToString(),
+        VBDateValue date => date.OADate.ToString("G15", CultureInfo.InvariantCulture),
+        decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+    };
 
     /// <summary>Implements VB6 Int, including floor semantics for negative fractional values.</summary>
     public static object Int(object? value)
@@ -433,6 +448,7 @@ public static class VBDebug
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             decimal number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             VBCurrency currency => FormatNumeric(currency.ToDecimal().ToString("G15", CultureInfo.InvariantCulture)),
+            VBDateValue date => FormatNumeric(date.OADate.ToString("G15", CultureInfo.InvariantCulture)),
             _ => VBConversions.CStr(value)
         };
     }

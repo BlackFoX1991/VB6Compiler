@@ -109,6 +109,7 @@ public static partial class VBOperators
             float => VariantNumericKind.Single,
             VBCurrency => VariantNumericKind.Currency,
             decimal => VariantNumericKind.Decimal,
+            VBDateValue => VariantNumericKind.Double,
             double => VariantNumericKind.Double,
             bool => VariantNumericKind.Integer,
             string text when double.TryParse(

@@ -1,5 +1,8 @@
 namespace VB6.Runtime;
 
+/// <summary>Preserves the VB6 Date Variant subtype while storing its OLE Automation value.</summary>
+public sealed record VBDateValue(double OADate);
+
 /// <summary>
 /// Runtime representation of VB6 Variant state values. Empty is represented by a null object
 /// reference because that is also the default value of a Variant slot. The other state values need
@@ -54,6 +57,7 @@ public static class VBVariants
             byte => 17,
             long => 20,
             decimal => 14,
+            VBDateValue => 7,
             _ => 9
         };
     }

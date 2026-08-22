@@ -16,6 +16,7 @@ public static class VBFunctions
         double => "Double",
         decimal => "Decimal",
         VBCurrency => "Currency",
+        VBDateValue => "Date",
         string => "String",
         VBArray<object> => "Variant()",
         _ => value.GetType().Name

@@ -73,4 +73,25 @@ public sealed class VariantStateExecutionTests
             new[] { "14", "2.25", "2.5", "0.625", "1.5625", "0.25", "1", "-2", "1", "False", "2.25" },
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesDateSubtypeInsideVariant()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim typedDate As Date
+                Dim value As Variant
+
+                typedDate = CDate(43832)
+                value = typedDate
+
+                Debug.Print VarType(value)
+                Debug.Print TypeName(value)
+                Debug.Print CDbl(value)
+                Debug.Print CDbl(CDate(value))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "7", "Date", "43832", "43832" }, output);
+    }
 }
