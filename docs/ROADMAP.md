@@ -71,6 +71,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Modulkonstanten mit projektweiten Enum-Symbolen | **202** | **0** | **0** | **202** | **27 von 40** |
 | Externe VB6-/Win32-Konstantenverträge | **172** | **0** | **0** | **172** | **27 von 40** |
 | `Erl`- und `Clipboard.GetText`-Hostverträge | **169** | **0** | **0** | **169** | **27 von 40** |
+| Externe Control-/COM-Typaliase und TreeView-Node-Vertrag | **134** | **0** | **0** | **134** | **27 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -270,6 +271,13 @@ fehlerfreien Dateien; die Suite umfasst **683 Tests**.
 liefert `Erl` im aktuellen Headless-Backend bewusst **0**; die Zeilenverfolgung bei abgefangenen
 Fehlern bleibt ein eigener Runtime-Slice. Der VISIA-Stand sinkt um **3** auf **169 semantische
 Fehler**, bei weiterhin **27 von 40** fehlerfreien Dateien; die Suite umfasst **685 Tests**.
+
+Die Typauflösung kennt nun die im Korpus verwendeten VB6-Standard- und ActiveX-Controlnamen als
+late-bound `Control`-Verträge, Long-basierte Konstantentypen sowie `IPicture`. `MSComctlLib.Node`
+ist als eigener Minimalvertrag mit `Key`, `Text` und `Index` modelliert. Damit verschwinden **35**
+Typ-/Folgefehler; der VISIA-Stand beträgt **134 semantische Fehler**, weiterhin **27 von 40**
+fehlerfreien Dateien, bei **686 Tests**. COM-Identität, echtes OCX-Hosting und vollständige
+Memberbibliotheken bleiben bewusst spätere Interop-Slices.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

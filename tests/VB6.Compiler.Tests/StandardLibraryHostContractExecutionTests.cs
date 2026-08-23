@@ -77,4 +77,25 @@ public sealed class StandardLibraryHostContractExecutionTests
 
         Assert.AreEqual("0", output.Trim());
     }
+
+    [TestMethod]
+    public void Analyze_ResolvesExternalControlAndComTypeAliases()
+    {
+        var analysis = VBCompilation.Create("""
+            Function ReadNode(ByVal node As MSComctlLib.Node) As VbMsgBoxResult
+                Dim editor As RichTextBox
+                Dim picture As IPicture
+                Dim pointer As MousePointerConstants
+                Dim comparison As VbCompareMethod
+
+                Set editor = Nothing
+                Set picture = Nothing
+                Debug.Print node.Key
+                Debug.Print node.Index
+                ReadNode = comparison
+            End Function
+            """).Analyze();
+
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+    }
 }

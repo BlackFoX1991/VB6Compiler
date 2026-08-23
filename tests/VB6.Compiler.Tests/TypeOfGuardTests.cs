@@ -3,15 +3,11 @@ namespace VB6.Compiler.Tests;
 [TestClass]
 public sealed class TypeOfGuardTests
 {
-    /// <summary>
-    /// TypeOf now binds for project class symbols; an external control type still needs a declared
-    /// reference/type definition before it can be resolved.
-    /// </summary>
     [TestMethod]
-    public void Analyze_ReportsUnknownTypeOfTarget()
+    public void Analyze_ResolvesExternalControlTypeOfTarget()
     {
         var analysis = VBCompilation.Create("""
-            Sub Apply(ctlControl As Long)
+            Sub Apply(ctlControl As Control)
                 If TypeOf ctlControl Is CheckBox Then Debug.Print 1
             End Sub
 
@@ -20,8 +16,6 @@ public sealed class TypeOfGuardTests
             End Sub
             """, "Module1.bas").Analyze();
 
-        Assert.IsFalse(analysis.Success);
-        var diagnostic = analysis.Diagnostics.Single(d => d.Code == "VB6S0003");
-        StringAssert.Contains(diagnostic.Message, "CheckBox");
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
     }
 }

@@ -41,6 +41,7 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "SCREEN" => VBStandardTypes.Screen,
         "AMBIENT" => VBStandardTypes.Ambient,
         "PROPERTYBAG" => VBStandardTypes.PropertyBag,
+        "CLIPBOARD" => VBStandardTypes.Clipboard,
         "PICTURE" => VBStandardTypes.Picture,
         "STDPICTURE" => VBStandardTypes.Picture,
         "FONT" => VBStandardTypes.Font,
@@ -49,6 +50,38 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "FORM" => VBStandardTypes.Form,
         "USERCONTROL" => VBStandardTypes.UserControl,
         "CONTROL" => VBStandardTypes.Control,
+        "IPICTURE" => VBStandardTypes.Picture,
+        "MSCOMCTLLIB.NODE" => VBStandardTypes.ExternalTreeNode,
+        "BORDERSTYLECONSTANTS" or
+        "MOUSEPOINTERCONSTANTS" or
+        "VBCOMPAREMETHOD" or
+        "VBMSGBOXRESULT" => Long,
+        "CHECKBOX" or
+        "COMBOBOX" or
+        "COMMANDBUTTON" or
+        "DIRLISTBOX" or
+        "DRIVELISTBOX" or
+        "FILELISTBOX" or
+        "FRAME" or
+        "HSCROLLBAR" or
+        "IMAGE" or
+        "IMAGECOMBO" or
+        "LINE" or
+        "LISTBOX" or
+        "LISTVIEW" or
+        "MENU" or
+        "OPTIONBUTTON" or
+        "PICTUREBOX" or
+        "PROGRESSBAR" or
+        "PROPERTYPAGE" or
+        "RICHTEXTBOX" or
+        "SHAPE" or
+        "STATUSBAR" or
+        "TABSTRIP" or
+        "TEXTBOX" or
+        "TOOLBAR" or
+        "TREEVIEW" or
+        "VSCROLLBAR" => VBStandardTypes.Control,
         "OLE_COLOR" => Long,
         _ => UserDefinedTypeLookupScope.Lookup(name)
     };
