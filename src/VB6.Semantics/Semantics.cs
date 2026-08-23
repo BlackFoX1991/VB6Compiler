@@ -417,7 +417,7 @@ public sealed record BoundReDimStatement(
     : BoundStatement(BoundNodeKind.ReDimStatement);
 
 public sealed record BoundEraseStatement(
-    VariableSymbol Array,
+    BoundExpression Target,
     bool Deallocate)
     : BoundStatement(BoundNodeKind.EraseStatement);
 

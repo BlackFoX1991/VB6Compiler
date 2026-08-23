@@ -71,6 +71,33 @@ public sealed class UserDefinedTypeMemberArrayBindingTests
     }
 
     [TestMethod]
+    public void Bind_EraseResolvesWithUdtArrayMember()
+    {
+        var model = Bind("""
+            Type Record
+                Values() As Long
+            End Type
+
+            Sub Main()
+                Dim record As Record
+                With record
+                    Erase .Values
+                End With
+            End Sub
+            """);
+
+        var withStatement = model.Procedures.Single().Body.Statements
+            .OfType<BoundWithStatement>()
+            .Single();
+        var erase = withStatement.Body.Statements.OfType<BoundEraseStatement>().Single();
+        Assert.IsTrue(erase.Deallocate);
+        var member = erase.Target as BoundMemberAccessExpression;
+        Assert.IsNotNull(member);
+        Assert.AreEqual("Values", member.Member.Name);
+        Assert.IsInstanceOfType<BoundWithReceiverExpression>(member.Receiver);
+    }
+
+    [TestMethod]
     public void Bind_AllowsUdtArrayMemberElementAsByRefArgument()
     {
         var model = Bind("""

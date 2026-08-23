@@ -76,6 +76,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Verschachtelte Label-/`GoTo`-Auflösung | **80** | **0** | **0** | **80** | **31 von 40** |
 | `End`-Prozessbeendigungsvertrag | **77** | **0** | **0** | **77** | **31 von 40** |
 | Whitespace-/Variant-Auflösung qualifizierter Member-Aufrufe | **73** | **0** | **0** | **73** | **31 von 40** |
+| `Erase` auf UDT-Memberarrays | **71** | **0** | **0** | **71** | **31 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -309,8 +310,13 @@ ohne die mehrteilige `PSet (X, Y), Farbe`-Schreibweise als Parserfehler zu behan
 dispatcht Variant-Empfänger bei Statement-Aufrufen über denselben Late-Bound-Vertrag wie
 Ausdrucksaufrufe. Damit entfallen vier weitere VISIA-Objektmodellfehler; der Stand sinkt auf
 **73 semantische Fehler** bei weiterhin **31 von 40** fehlerfreien Dateien. Die Suite umfasst
-nun **694 Tests**; übrig bleiben unter den `VB6S0062`-Fällen nur die beiden `Erase`-Memberarray-
-Fälle in `mcToolBar.ctl`.
+nun **694 Tests**.
+
+`Erase .Member` in einem `With`-Block bindet nun über denselben adressierbaren UDT-Memberpfad
+wie `ReDim` und Memberzuweisungen. Die IR speichert dynamische Memberarrays über ihr Feld- bzw.
+With-Place zurück, statt nur lokale Variablensymbole zu akzeptieren. Damit entfallen die beiden
+verbliebenen `VB6S0062`-Diagnosen in `mcToolBar.ctl`; der Stand sinkt auf **71 semantische Fehler**
+bei weiterhin **31 von 40** fehlerfreien Dateien. Die Suite umfasst nun **696 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

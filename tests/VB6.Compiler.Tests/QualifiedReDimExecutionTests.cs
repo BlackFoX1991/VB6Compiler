@@ -69,6 +69,35 @@ public sealed class QualifiedReDimExecutionTests
             "3");
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_ErasesAnArrayInsideAWithUdtMember()
+    {
+        Run("""
+            Attribute VB_Name = "Module1"
+            Option Explicit
+
+            Type TYPE_SECTION
+                Bytes() As Byte
+            End Type
+
+            Public Sub Main()
+                Dim section As TYPE_SECTION
+                ReDim section.Bytes(1 To 2)
+                section.Bytes(1) = 7
+
+                With section
+                    Erase .Bytes
+                End With
+
+                ReDim section.Bytes(3 To 4)
+                Debug.Print LBound(section.Bytes)
+                Debug.Print UBound(section.Bytes)
+            End Sub
+            """,
+            "3",
+            "4");
+    }
+
     private static void Run(string source, params string[] expectedLines)
     {
         var compilation = VBCompilation.Create(source, "Module1.bas");

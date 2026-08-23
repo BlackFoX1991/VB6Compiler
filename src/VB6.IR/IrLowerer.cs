@@ -1667,10 +1667,10 @@ public static class IrLowerer
 
         private void LowerErase(BoundEraseStatement statement)
         {
-            var target = LowerVariablePlace(statement.Array);
+            var target = LowerPlace(statement.Target);
             if (statement.Deallocate)
             {
-                Emit(new IrStoreInstruction(target, new IrNullExpression(statement.Array.Type)));
+                Emit(new IrStoreInstruction(target, new IrNullExpression(statement.Target.Type)));
                 return;
             }
 
