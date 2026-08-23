@@ -60,6 +60,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Standardbibliotheks- und hostfähige Interaktionsverträge | **515** | **0** | **0** | **515** | **22 von 40** |
 | `Call`-qualifizierte Objektaufrufe | **335** | **0** | **0** | **335** | **22 von 40** |
 | Modulbezogene UDT-Scope-Auflösung in Klassen/Forms/Controls | **289** | **0** | **0** | **289** | **22 von 40** |
+| Kontextuelle `Set`-Zuweisung auf indizierte Member | **286** | **0** | **0** | **286** | **22 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -197,6 +198,12 @@ bei der frühen Signaturerzeugung als unbekannt markiert; dadurch zerfielen dyna
 `With`-Zugriffe in Folgefehler. Der Scope-Fix entfernt **46** semantische Kaskaden, darunter alle
 `DstPoint`-/`POINTAPI`-Fehler in `GpTabs.ctl`. Der aktuelle VISIA-Stand beträgt **289 semantische
 Fehler**, weiterhin **22 von 40** fehlerfreien Dateien.
+
+Die kontextuelle `Set`-Erkennung scannt nun auch indizierte Empfänger wie
+`Set m_ButtonItem(index).TB_Icon = value` bis zum Gleichheitszeichen. Zuvor wurde diese Form als
+Aufruf einer nicht vorhandenen Prozedur `Set` klassifiziert. Der Parser-Fix entfernt drei weitere
+semantische Kaskaden; der VISIA-Stand beträgt **286 semantische Fehler**, weiterhin **22 von 40**
+fehlerfreien Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

@@ -1000,10 +1000,48 @@ public sealed class Parser
         }
     }
 
-    private bool IsSetAssignmentStart() =>
-        IsIdentifier(Current, "Set") &&
-        Peek(1).Kind == SyntaxKind.IdentifierToken &&
-        (Peek(2).Kind == SyntaxKind.EqualsToken || Peek(2).Kind == SyntaxKind.DotToken);
+    private bool IsSetAssignmentStart()
+    {
+        if (!IsIdentifier(Current, "Set") ||
+            Peek(1).Kind != SyntaxKind.IdentifierToken &&
+            Peek(1).Kind != SyntaxKind.DotToken)
+        {
+            return false;
+        }
+
+        var depth = 0;
+        for (var offset = 2; ; offset++)
+        {
+            var kind = Peek(offset).Kind;
+            if (kind == SyntaxKind.OpenParenthesisToken)
+            {
+                depth++;
+                continue;
+            }
+
+            if (kind == SyntaxKind.CloseParenthesisToken)
+            {
+                if (depth == 0)
+                {
+                    return false;
+                }
+
+                depth--;
+                continue;
+            }
+
+            if (depth == 0 && kind == SyntaxKind.EqualsToken)
+            {
+                return true;
+            }
+
+            if (depth == 0 && kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or
+                SyntaxKind.EndOfFileToken)
+            {
+                return false;
+            }
+        }
+    }
 
     private bool LooksLikeMemberAssignment()
     {
