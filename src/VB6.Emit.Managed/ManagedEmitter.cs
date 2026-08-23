@@ -2110,6 +2110,15 @@ public sealed class ManagedEmitter
                         plan.FirstMethod);
                 }
                 EnsureHandle(actual, plan.TypeHandle, "type");
+
+                if (plan.Class is { IsInterface: false } classPlan &&
+                    classPlan.Symbol.DefaultPropertyName is { Length: > 0 } defaultMemberName)
+                {
+                    _metadata.AddCustomAttribute(
+                        actual,
+                        GetDefaultMemberAttributeConstructor(),
+                        EncodeDefaultMemberAttribute(defaultMemberName));
+                }
             }
 
             foreach (var plan in _typePlans)
@@ -2556,6 +2565,37 @@ public sealed class ManagedEmitter
                 _metadata.GetOrAddBlob(blob));
             _memberReferences.Add(key, handle);
             return handle;
+        }
+
+        private MemberReferenceHandle GetDefaultMemberAttributeConstructor()
+        {
+            const string key = "DefaultMemberAttribute::.ctor(string)";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                1,
+                returnType => returnType.Void(),
+                parameters => parameters.AddParameter().Type().String());
+            var handle = _metadata.AddMemberReference(
+                GetReflectionTypeReference(typeof(DefaultMemberAttribute)),
+                _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private BlobHandle EncodeDefaultMemberAttribute(string memberName)
+        {
+            var blob = new BlobBuilder();
+            var encoder = new BlobEncoder(blob);
+            encoder.CustomAttributeSignature(out var fixedArguments, out var namedArguments);
+            fixedArguments.AddArgument().Scalar().Constant(memberName);
+            namedArguments.Count(0);
+            return _metadata.GetOrAddBlob(blob);
         }
 
         private MethodInfo ResolveRuntimeMethod(IrRuntimeCallExpression call, out int skippedArgument)

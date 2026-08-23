@@ -44,6 +44,7 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces => _definition.ImplementedInterfaces;
     public bool IsInterfaceContract => _definition.IsInterfaceContract;
     public bool MembersDefined => _definition.IsDefined;
+    public string? DefaultPropertyName => _definition.DefaultPropertyName;
 
     public bool TryGetProcedure(string name, out ProcedureSymbol procedure) =>
         _definition.ProcedureMap.TryGetValue(name, out procedure!);

@@ -1270,7 +1270,7 @@ ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate Kompatibilitätss
 Variant-Objektindizes verwenden nun den bestehenden Managed-Dispatch auch dann, wenn der
 Empfänger erst zur Laufzeit als Objekt bekannt ist: `value(index)` bleibt für echte `IVBArray`-
 Werte ein Arrayzugriff und fällt für Objekte auf `Item`-Get/Let zurück. Die Suite umfasst damit
-**851 Tests**; benannte COM-Default-Member und die vollständige Dispatch-ABI bleiben offen.
+**852 Tests**; benannte COM-Default-Member und die vollständige Dispatch-ABI bleiben offen.
 
 `.vbg`-Gruppen schreiben ihre Managed-Artefakte jetzt mit dem passenden Zieltyp: `Type=Exe`-
 Projekte erhalten `.exe`, Bibliotheksprojekte `.dll`. Die Abhängigkeitsreihenfolge und die
@@ -1285,3 +1285,8 @@ Statisch deklarierte `Object`-Empfänger nutzen denselben dynamischen `Item`-Def
 Vertrag wie `Variant`: String-Indizes werden gebunden, an den Managed-Dispatch weitergereicht
 und können gelesen sowie geschrieben werden. Die direkte COM-Aktivierung und vollständige
 `IDispatch`-Default-Member-Ermittlung bleiben offen.
+
+VB6-`VB_UserMemId = 0`-Namen werden für erzeugte Klassen nun als CLR-
+`DefaultMemberAttribute` emittiert. Dadurch verwenden late-bound `Variant`- und `Object`-
+Zugriffe auch benannte Default-Properties wie `Text(...)`; die vollständige COM-Dispatch-ABI
+bleibt separat offen.
