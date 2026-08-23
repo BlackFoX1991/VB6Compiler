@@ -97,4 +97,66 @@ public sealed class EnumExecutionTests
         }
     }
 
+    [TestMethod]
+    public void Analyze_ProjectEnumMemberWinsOutsideFormControlScope()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerEnumControlScopeTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "EnumControlScope.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="EnumControlScope"
+                Module=Linker; Linker.bas
+                Form=Main.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Linker.bas"), """
+                Public Enum SectionKind
+                    Code = 2
+                End Enum
+
+                Sub AddFixup(ByRef section As SectionKind)
+                End Sub
+
+                Sub Main()
+                    AddFixup Code
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.Form Main
+                   Begin VB.TextBox Code
+                   End
+                End
+                Attribute VB_Name = "Main"
+
+                Private Sub UseControl()
+                    Code.Show
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
 }

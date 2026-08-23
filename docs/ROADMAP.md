@@ -65,6 +65,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Implizite UserControl-Host-Intrinsics | **276** | **0** | **0** | **276** | **22 von 40** |
 | Kontextuelle `LSet`-Zuweisungssyntax | **272** | **0** | **0** | **272** | **23 von 40** |
 | Variant-Guard für boolesche Vergleichsoperatoren | **268** | **0** | **0** | **268** | **23 von 40** |
+| Modulbezogener Designer-Control-Scope | **221** | **0** | **0** | **221** | **27 von 40** |
 | Qualifizierte Enum-Memberauflösung | **258** | **0** | **0** | **258** | **23 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
@@ -237,6 +238,11 @@ Qualifizierte Enum-Ausdrücke wie `eMsgWhen.MSG_BEFORE` werden nun als Long-Kons
 jeweiligen Enum-Scope gebunden. Damit bleiben auch private Modul-Enums in Forms und UserControls
 für ihre qualifizierten Memberzugriffe sichtbar; der VISIA-Stand sinkt um **10** auf **258
 semantische Fehler**, bei weiterhin **23 von 40** fehlerfreien Dateien.
+
+Designer-Controls werden nun nur noch im eigenen Form- oder UserControl-Modul als implizite
+Mitglieder gebunden. Dadurch überschattet ein Control wie `frmMain.Code` nicht mehr das gleichnamige
+öffentliche Enum-Mitglied `ENUM_SECTION_TYPE.Code` in Standardmodulen. Der VISIA-Stand sinkt um
+**37** auf **221 semantische Fehler**, und die Zahl der fehlerfreien Dateien steigt auf **27 von 40**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

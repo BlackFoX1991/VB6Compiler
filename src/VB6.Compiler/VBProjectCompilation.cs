@@ -130,27 +130,6 @@ public sealed class VBProjectCompilation
             {
                 moduleVariableSymbols.TryAdd(name, new ModuleVariableSymbol(name, objectType));
             }
-
-            var itemPath = item.GetFullPath(loadResult.Project.ProjectDirectory);
-            if (!File.Exists(itemPath))
-            {
-                continue;
-            }
-
-            foreach (var line in File.ReadLines(itemPath))
-            {
-                var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 3 ||
-                    !string.Equals(parts[0], "Begin", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var controlName = parts[2];
-                moduleVariableSymbols.TryAdd(
-                    controlName,
-                    new ModuleVariableSymbol(controlName, VBStandardTypes.Control));
-            }
         }
         var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
         var visibleBuiltInConstants = VBBuiltInConstants.AddTo(moduleVariableSymbols);
@@ -186,6 +165,7 @@ public sealed class VBProjectCompilation
             {
                 containingClass = null;
             }
+            var moduleVariablesForBinding = CreateModuleVariableScope(module, moduleVariableSymbols);
             SemanticModel preliminaryModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
@@ -193,7 +173,7 @@ public sealed class VBProjectCompilation
                     .BindCompilationUnit(
                         module.SemanticRoot,
                         availableProcedures,
-                        moduleVariableSymbols,
+                        moduleVariablesForBinding,
                         containingClass);
             }
 
@@ -206,7 +186,7 @@ public sealed class VBProjectCompilation
                     .BindCompilationUnit(
                         forEachRoot,
                         availableProcedures,
-                        moduleVariableSymbols,
+                        moduleVariablesForBinding,
                         containingClass);
             }
             var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
@@ -275,6 +255,47 @@ public sealed class VBProjectCompilation
         {
             UserDefinedTypes = userDefinedTypes
         };
+    }
+
+    private static Dictionary<string, ModuleVariableSymbol> CreateModuleVariableScope(
+        ParsedProjectModule module,
+        IReadOnlyDictionary<string, ModuleVariableSymbol> projectVariables)
+    {
+        var variables = new Dictionary<string, ModuleVariableSymbol>(
+            projectVariables,
+            StringComparer.OrdinalIgnoreCase);
+        if (module.Item.Kind is not (VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        {
+            return variables;
+        }
+
+        foreach (var controlName in ReadDesignerControlNames(module.FilePath))
+        {
+            // A designer control is a member of its containing form/UserControl, not a project
+            // global. Keeping it module-local also lets a public Enum member retain its name in
+            // ordinary modules (for example frmMain.Code versus ENUM_SECTION_TYPE.Code).
+            variables[controlName] = new ModuleVariableSymbol(controlName, VBStandardTypes.Control);
+        }
+
+        return variables;
+    }
+
+    private static IEnumerable<string> ReadDesignerControlNames(string path)
+    {
+        if (!File.Exists(path))
+        {
+            yield break;
+        }
+
+        foreach (var line in File.ReadLines(path))
+        {
+            var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 &&
+                string.Equals(parts[0], "Begin", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return parts[2];
+            }
+        }
     }
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
