@@ -62,7 +62,7 @@ public sealed record ClassTypeSymbol : TypeSymbol
         var eventArray = events.ToImmutableArray();
         var procedureMap = ImmutableDictionary.CreateBuilder<string, ProcedureSymbol>(
             StringComparer.OrdinalIgnoreCase);
-        var propertyMap = ImmutableDictionary.CreateBuilder<PropertyKey, PropertySymbol>();
+        var propertyMap = ImmutableDictionary.CreateBuilder<PropertyKey, PropertySymbol>(PropertyKeyComparer.Instance);
         var eventMap = ImmutableDictionary.CreateBuilder<string, EventSymbol>(
             StringComparer.OrdinalIgnoreCase);
 
@@ -121,6 +121,20 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public void MarkAsInterfaceContract() => _definition.IsInterfaceContract = true;
 
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
+
+    private sealed class PropertyKeyComparer : IEqualityComparer<PropertyKey>
+    {
+        public static PropertyKeyComparer Instance { get; } = new();
+
+        public bool Equals(PropertyKey left, PropertyKey right) =>
+            left.Accessor == right.Accessor &&
+            string.Equals(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode(PropertyKey key) =>
+            HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(key.Name),
+                key.Accessor);
+    }
 
     private sealed class ClassTypeDefinition
     {
