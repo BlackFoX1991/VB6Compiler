@@ -241,6 +241,65 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
+    public void Emit_UsesScaledCurrencyStorageAndAddition()
+    {
+        var sum = new IrRuntimeCallExpression(
+            IrRuntimeMethod.AddCurrency,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1.2345m, TypeSymbol.Currency)),
+                new IrCallArgument(new IrConstantExpression(0.5m, TypeSymbol.Currency))),
+            TypeSymbol.Currency);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Currency,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(sum))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "define i64 @\"Main\"()");
+        StringAssert.Contains(result.ModuleText, "add i64 12345, 5000");
+        StringAssert.Contains(result.ModuleText, "ret i64 %t0");
+    }
+
+    [TestMethod]
+    public void Emit_DiagnosesCurrencyMultiplicationUntilScaledArithmeticExists()
+    {
+        var product = new IrRuntimeCallExpression(
+            IrRuntimeMethod.MultiplyCurrency,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1m, TypeSymbol.Currency)),
+                new IrCallArgument(new IrConstantExpression(2m, TypeSymbol.Currency))),
+            TypeSymbol.Currency);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Currency,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(product))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "Currency multiplication requires checked scaled arithmetic");
+        Assert.IsFalse(result.ModuleText.Contains("mul i64", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void Emit_LowersScalarExternalDeclarationsAndCalls()
     {
         var parameterSymbol = new ParameterSymbol("value", TypeSymbol.Long, ParameterPassingMode.ByVal);
