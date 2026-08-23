@@ -219,6 +219,16 @@ public static class VBConversions
         return Convert.ToDecimal(value, CultureInfo.InvariantCulture);
     }
 
+    public static object CVErr(object? value)
+    {
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        return new VBErrorValue(Convert.ToInt32(value, CultureInfo.InvariantCulture));
+    }
+
     public static float CSng(object? value)
     {
         var result = value switch

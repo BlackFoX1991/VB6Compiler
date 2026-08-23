@@ -75,6 +75,25 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesErrorVariantStateIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CVErr(11)
+
+                Debug.Print IsError(value)
+                Debug.Print IsError(Empty)
+                Debug.Print VarType(value)
+                Debug.Print TypeName(value)
+                Debug.Print IsNull(CVErr(Null))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "False", "10", "Error", "True" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesDateSubtypeInsideVariant()
     {
         var output = VB6TestProgram.RunLines("""

@@ -313,6 +313,7 @@ public enum IrRuntimeMethod
     CDbl,
     CBool,
     CStr,
+    CVErr,
 
     AddByte,
     AddInteger,
@@ -510,6 +511,7 @@ public enum IrRuntimeMethod
     VariantIsEmpty,
     VariantIsNull,
     VariantIsMissing,
+    VariantIsError,
     VariantVarType,
 
     FileOpenBinary,
