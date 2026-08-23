@@ -21,6 +21,7 @@ public static class VBStandardTypes
     public static ClassTypeSymbol Ambient { get; } = CreateAmbient();
     public static ClassTypeSymbol PropertyBag { get; } = CreatePropertyBag();
     public static ClassTypeSymbol Clipboard { get; } = CreateClipboard();
+    public static ClassTypeSymbol ExternalTreeNode { get; } = CreateExternalTreeNode();
 
     private static ClassTypeSymbol CreateCollection()
     {
@@ -182,6 +183,27 @@ public static class VBStandardTypes
         }
 
         return clipboard;
+    }
+
+    private static ClassTypeSymbol CreateExternalTreeNode()
+    {
+        var node = new ClassTypeSymbol("MSComctlLib.Node");
+        var properties = new[]
+        {
+            ReadOnlyProperty("Key", TypeSymbol.String),
+            ReadOnlyProperty("Text", TypeSymbol.String),
+            ReadOnlyProperty("Index", TypeSymbol.Long)
+        };
+        if (!node.TryDefineMembers(
+                Array.Empty<ProcedureSymbol>(),
+                properties,
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in TreeView node member '{duplicate}' is duplicated.");
+        }
+
+        return node;
     }
 
     private static ClassTypeSymbol CreateFont()
