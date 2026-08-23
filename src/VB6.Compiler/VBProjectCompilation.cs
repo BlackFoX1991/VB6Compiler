@@ -43,6 +43,7 @@ public sealed class VBProjectCompilation
         var projectDiagnostics = ImmutableArray.CreateBuilder<VBProjectCompilationDiagnostic>();
         var sourceDiagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var parsedModules = ImmutableArray.CreateBuilder<ParsedProjectModule>();
+        var designerDocuments = new Dictionary<string, VBDesignerDocument>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var diagnostic in loadResult.Diagnostics)
         {
@@ -79,6 +80,24 @@ public sealed class VBProjectCompilation
                     $"Project source '{module.RelativePath}' could not be read: {exception.Message}",
                     modulePath));
                 continue;
+            }
+
+            if (IsClassModuleKind(module.Kind))
+            {
+                var designerResult = VBDesignerParser.Parse(source, modulePath);
+                if (designerResult.Document is not null)
+                {
+                    designerDocuments[modulePath] = designerResult.Document;
+                }
+
+                foreach (var diagnostic in designerResult.Diagnostics)
+                {
+                    projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                        diagnostic.Code,
+                        diagnostic.Message,
+                        diagnostic.FilePath,
+                        diagnostic.Line));
+                }
             }
 
             var normalizedSource = IsClassModuleKind(module.Kind)
@@ -131,6 +150,7 @@ public sealed class VBProjectCompilation
             parsedModules,
             classTypes,
             userDefinedTypesByPath,
+            designerDocuments,
             projectDiagnostics);
 
         var procedureSymbols = DeclareProjectProcedures(
@@ -184,7 +204,10 @@ public sealed class VBProjectCompilation
             {
                 containingClass = null;
             }
-            var moduleVariablesForBinding = CreateModuleVariableScope(module, moduleVariableSymbols);
+            var moduleVariablesForBinding = CreateModuleVariableScope(
+                module,
+                moduleVariableSymbols,
+                designerDocuments);
             SemanticModel preliminaryModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
@@ -211,7 +234,7 @@ public sealed class VBProjectCompilation
             if (containingClass is not null && IsHostModuleKind(module.Item.Kind))
             {
                 var instanceVariables = semanticModel.InstanceVariables.ToBuilder();
-                foreach (var control in ReadDesignerControls(module.FilePath))
+                foreach (var control in ReadDesignerControls(module.FilePath, designerDocuments))
                 {
                     if (!moduleVariablesForBinding.TryGetValue(control.Name, out var symbol) ||
                         instanceVariables.Any(variable =>
@@ -292,13 +315,15 @@ public sealed class VBProjectCompilation
             combinedDiagnostics,
             projectDiagnostics.ToImmutable())
         {
-            UserDefinedTypes = userDefinedTypes
+            UserDefinedTypes = userDefinedTypes,
+            Designers = designerDocuments.Values.ToImmutableArray()
         };
     }
 
     private static Dictionary<string, ModuleVariableSymbol> CreateModuleVariableScope(
         ParsedProjectModule module,
-        IReadOnlyDictionary<string, ModuleVariableSymbol> projectVariables)
+        IReadOnlyDictionary<string, ModuleVariableSymbol> projectVariables,
+        IReadOnlyDictionary<string, VBDesignerDocument> designerDocuments)
     {
         var variables = new Dictionary<string, ModuleVariableSymbol>(
             projectVariables,
@@ -308,7 +333,7 @@ public sealed class VBProjectCompilation
             return variables;
         }
 
-        foreach (var control in ReadDesignerControls(module.FilePath))
+        foreach (var control in ReadDesignerControls(module.FilePath, designerDocuments))
         {
             // A designer control is a member of its containing form/UserControl, not a project
             // global. Keeping it module-local also lets a public Enum member retain its name in
@@ -425,42 +450,41 @@ public sealed class VBProjectCompilation
         return classTypes;
     }
 
-    private static IEnumerable<DesignerControl> ReadDesignerControls(string path)
+    private static IEnumerable<DesignerControl> ReadDesignerControls(
+        string path,
+        IReadOnlyDictionary<string, VBDesignerDocument> designerDocuments)
     {
-        if (!File.Exists(path))
+        if (!designerDocuments.TryGetValue(path, out var document))
         {
             yield break;
         }
 
-        var firstBegin = true;
-        foreach (var line in File.ReadLines(path))
+        var controls = new Dictionary<string, (TypeSymbol Type, bool IsArray)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in document.Root.DescendantsAndSelf().Skip(1))
         {
-            var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 3 &&
-                string.Equals(parts[0], "Begin", StringComparison.OrdinalIgnoreCase))
+            var typeName = node.TypeName.StartsWith("VB.", StringComparison.OrdinalIgnoreCase)
+                ? node.TypeName[3..]
+                : node.TypeName;
+            var type = TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control;
+            if (controls.TryGetValue(node.Name, out var existing))
             {
-                if (firstBegin && IsDesignerHostType(parts[1]))
-                {
-                    firstBegin = false;
-                    continue;
-                }
-
-                firstBegin = false;
-                var typeName = parts[1].StartsWith("VB.", StringComparison.OrdinalIgnoreCase)
-                    ? parts[1][3..]
-                    : parts[1];
-                yield return new DesignerControl(
-                    parts[2],
-                    TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control);
+                controls[node.Name] = (existing.Type, true);
+            }
+            else
+            {
+                controls.Add(node.Name, (type, node.IsControlArray));
             }
         }
-    }
 
-    private static bool IsDesignerHostType(string typeName) =>
-        typeName.Equals("VB.Form", StringComparison.OrdinalIgnoreCase) ||
-        typeName.Equals("VB.UserControl", StringComparison.OrdinalIgnoreCase) ||
-        typeName.Equals("VB.PropertyPage", StringComparison.OrdinalIgnoreCase) ||
-        typeName.Equals("VB.UserDocument", StringComparison.OrdinalIgnoreCase);
+        foreach (var control in controls)
+        {
+            yield return new DesignerControl(
+                control.Key,
+                control.Value.IsArray
+                    ? new ArrayTypeSymbol(control.Value.Type)
+                    : control.Value.Type);
+        }
+    }
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
@@ -553,6 +577,7 @@ public sealed class VBProjectCompilation
         IEnumerable<ParsedProjectModule> modules,
         IReadOnlyDictionary<string, ClassTypeSymbol> classTypes,
         IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath,
+        IReadOnlyDictionary<string, VBDesignerDocument> designerDocuments,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var interfaceRelations = new List<(ClassTypeSymbol Implementor, ImplementsStatementSyntax Declaration, string FilePath)>();
@@ -602,7 +627,7 @@ public sealed class VBProjectCompilation
                     AddPropertyIfMissing(properties, property);
                 }
 
-                foreach (var control in ReadDesignerControls(module.FilePath))
+                foreach (var control in ReadDesignerControls(module.FilePath, designerDocuments))
                 {
                     AddReadWriteProperty(properties, control.Name, control.Type);
                 }
@@ -1045,6 +1070,8 @@ public sealed record VBProjectCompilationAnalysis(
     ImmutableArray<VBProjectCompilationDiagnostic> ProjectDiagnostics)
 {
     public ProjectUserDefinedTypeDeclarationResult? UserDefinedTypes { get; init; }
+
+    public ImmutableArray<VBDesignerDocument> Designers { get; init; } = ImmutableArray<VBDesignerDocument>.Empty;
 
     public bool Success =>
         ProjectDiagnostics.Length == 0 &&
