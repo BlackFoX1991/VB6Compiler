@@ -3,6 +3,9 @@ namespace VB6.Runtime;
 /// <summary>Preserves the VB6 Date Variant subtype while storing its OLE Automation value.</summary>
 public sealed record VBDateValue(double OADate);
 
+/// <summary>Preserves a VB6 Error Variant value without throwing it as a runtime exception.</summary>
+public sealed record VBErrorValue(int Code);
+
 /// <summary>
 /// Runtime representation of VB6 Variant state values. Empty is represented by a null object
 /// reference because that is also the default value of a Variant slot. The other state values need
@@ -32,6 +35,8 @@ public static class VBVariants
 
     public static bool IsMissing(object? value) => ReferenceEquals(value, MissingMarker);
 
+    public static bool IsError(object? value) => value is VBErrorValue;
+
     public static bool ToBoolean(object? value) => IsNull(value) ? false : VBConversions.CBool(value);
 
     public static short VarType(object? value)
@@ -53,6 +58,7 @@ public static class VBVariants
             string => 8,
             NothingValueMarker => 9,
             MissingValueMarker => 10,
+            VBErrorValue => 10,
             bool => 11,
             byte => 17,
             ushort => 18,

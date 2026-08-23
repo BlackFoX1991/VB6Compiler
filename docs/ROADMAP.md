@@ -493,6 +493,11 @@ Signaturprüfung, native Callback-ABI und die Lebensdauer von Callback-Delegates
 Interop-Schritt offen. Der VISIA-Stand verbessert sich dadurch auf **1 semantischen Fehler** und
 **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **751 Tests**.
 
+Error-Varianten sind jetzt als eigener Runtime-Zustand ergänzt: `CVErr`/`IsError`, `VarType = 10`
+und `TypeName = "Error"` laufen durch Symbolik, IR, Managed-Emitter und End-to-End-Ausführung.
+`CVErr(Null)` bewahrt dabei die bestehende Null-Semantik. Der VISIA-Stand bleibt bei **1 semantischen
+Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **752 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -921,6 +926,9 @@ Zwei Nachträge:
 - [x] `Function` ohne `As`-Klausel liefert Variant — Syntax, Normalisierung, Bindung und Ausführung
 - [x] Untypisierte `Optional`-Parameter werden Variant; ausgelassene Werte erhalten den `Missing`-Zustand
 - [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric` fuer die aktuell unterstuetzten Scalar-Variantwerte sowie VB6-Array-Subtype-Codes; der Date-Subtype typisierter `Date`-Werte bleibt erhalten, Objekt-, Array-Arithmetik- und Error-Varianten folgen mit den jeweiligen Typmodellen
+- [x] Error-Variant-Grundlage: `CVErr` erzeugt einen typisierten Fehlerwert, `IsError` erkennt ihn,
+      `VarType` liefert `vbError` und `TypeName` liefert `Error`; Fehler-Propagation und `CVErr`-
+      Integrationen in weitere Operator-/Objektmodelle bleiben offen
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen und Null bei `&` sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 

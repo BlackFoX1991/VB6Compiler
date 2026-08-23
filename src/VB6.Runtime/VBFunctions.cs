@@ -30,6 +30,7 @@ public static class VBFunctions
         decimal => "Decimal",
         VBCurrency => "Currency",
         VBDateValue => "Date",
+        VBErrorValue => "Error",
         string => "String",
         VBArray<object> => "Variant()",
         _ => value.GetType().Name

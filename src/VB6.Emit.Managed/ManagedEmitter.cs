@@ -2364,6 +2364,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CDbl) return Static(typeof(VBConversions), "CDbl", typeof(object));
             if (m == IrRuntimeMethod.CBool) return Static(typeof(VBConversions), "CBool", typeof(object));
             if (m == IrRuntimeMethod.CStr) return Static(typeof(VBConversions), "CStr", typeof(object));
+            if (m == IrRuntimeMethod.CVErr) return Static(typeof(VBConversions), "CVErr", typeof(object));
             if (m == IrRuntimeMethod.VariantToBoolean) return Static(typeof(VBVariants), "ToBoolean", typeof(object));
             if (m == IrRuntimeMethod.StringLike) return Static(typeof(VBStrings), nameof(VBStrings.Like), typeof(object), typeof(object), typeof(bool));
             if (m == IrRuntimeMethod.ObjectIs) return Static(typeof(VBObjectIdentity), nameof(VBObjectIdentity.IsSame), typeof(object), typeof(object));
@@ -2530,13 +2531,14 @@ public sealed class ManagedEmitter
             }
 
             if (m is IrRuntimeMethod.VariantIsEmpty or IrRuntimeMethod.VariantIsNull or
-                IrRuntimeMethod.VariantIsMissing or IrRuntimeMethod.VariantVarType)
+                IrRuntimeMethod.VariantIsMissing or IrRuntimeMethod.VariantIsError or IrRuntimeMethod.VariantVarType)
             {
                 var name = m switch
                 {
                     IrRuntimeMethod.VariantIsEmpty => "IsEmpty",
                     IrRuntimeMethod.VariantIsNull => "IsNull",
                     IrRuntimeMethod.VariantIsMissing => "IsMissing",
+                    IrRuntimeMethod.VariantIsError => "IsError",
                     _ => "VarType"
                 };
                 return Static(typeof(VBVariants), name, typeof(object));

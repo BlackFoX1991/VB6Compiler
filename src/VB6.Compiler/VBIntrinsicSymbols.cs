@@ -304,6 +304,7 @@ internal static class VBIntrinsicSymbols
         Function("IsEmpty", VBIntrinsicKind.IsEmpty, "VBVariants.IsEmpty", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("IsNull", VBIntrinsicKind.IsNull, "VBVariants.IsNull", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("IsMissing", VBIntrinsicKind.IsMissing, "VBVariants.IsMissing", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("IsError", VBIntrinsicKind.IsError, "VBVariants.IsError", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("VarType", VBIntrinsicKind.VarType, "VBVariants.VarType", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
         Function("Empty", VBIntrinsicKind.Empty, "VBVariants.EmptyValue", TypeSymbol.Variant),
         Function("Null", VBIntrinsicKind.Null, "VBVariants.NullValue", TypeSymbol.Variant),
@@ -328,7 +329,8 @@ internal static class VBIntrinsicSymbols
         Function("CSng", VBIntrinsicKind.CSng, "VBConversions.CSng", TypeSymbol.Single, Parameter("Expression", TypeSymbol.Variant)),
         Function("CDbl", VBIntrinsicKind.CDbl, "VBConversions.CDbl", TypeSymbol.Double, Parameter("Expression", TypeSymbol.Variant)),
         Function("CBool", VBIntrinsicKind.CBool, "VBConversions.CBool", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
-        Function("CStr", VBIntrinsicKind.CStr, "VBConversions.CStr", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)));
+        Function("CStr", VBIntrinsicKind.CStr, "VBConversions.CStr", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CVErr", VBIntrinsicKind.CVErr, "VBConversions.CVErr", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)));
 
     private static readonly ImmutableArray<ProcedureSymbol> HostIntrinsics = ImmutableArray.Create(
         Function(

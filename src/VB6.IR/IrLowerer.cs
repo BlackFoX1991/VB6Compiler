@@ -3151,6 +3151,7 @@ public static class IrLowerer
             "VBVariants.IsEmpty" => IrRuntimeMethod.VariantIsEmpty,
             "VBVariants.IsNull" => IrRuntimeMethod.VariantIsNull,
             "VBVariants.IsMissing" => IrRuntimeMethod.VariantIsMissing,
+            "VBVariants.IsError" => IrRuntimeMethod.VariantIsError,
             "VBVariants.VarType" => IrRuntimeMethod.VariantVarType,
             "VBVariants.ToBoolean" => IrRuntimeMethod.VariantToBoolean,
             "VBFiles.FreeFile" => IrRuntimeMethod.FileFreeFile,
@@ -3227,6 +3228,7 @@ public static class IrLowerer
             "VBConversions.CDbl" => IrRuntimeMethod.CDbl,
             "VBConversions.CBool" => IrRuntimeMethod.CBool,
             "VBConversions.CStr" => IrRuntimeMethod.CStr,
+            "VBConversions.CVErr" => IrRuntimeMethod.CVErr,
             _ => throw new NotSupportedException($"Intrinsic runtime target '{target}' has no IR identity.")
         };
 
