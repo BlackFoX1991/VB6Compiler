@@ -189,7 +189,7 @@ public sealed class VBProjectCompilation
             SemanticModel preliminaryModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                preliminaryModel = new Binder(module.Text)
+                preliminaryModel = new Binder(module.Text, enumSymbols.QualifiedMembers)
                     .BindCompilationUnit(
                         module.SemanticRoot,
                         availableProcedures,
@@ -202,7 +202,7 @@ public sealed class VBProjectCompilation
             SemanticModel semanticModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                semanticModel = new Binder(module.Text)
+                semanticModel = new Binder(module.Text, enumSymbols.QualifiedMembers)
                     .BindCompilationUnit(
                         forEachRoot,
                         availableProcedures,

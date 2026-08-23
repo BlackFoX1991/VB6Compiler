@@ -48,7 +48,7 @@ public sealed class VBCompilation
                 .ToDictionary(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
             visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
             visibleBuiltInConstants = VBBuiltInConstants.AddTo(moduleVariableSymbols);
-            preliminaryModel = new Binder(Text)
+            preliminaryModel = new Binder(Text, enumSymbols.QualifiedMembers)
                 .BindCompilationUnit(implicitVariantRoot, procedureSymbols, moduleVariableSymbols);
         }
 
@@ -58,9 +58,9 @@ public sealed class VBCompilation
         ImmutableArray<Diagnostic> duplicateProcedureDiagnostics;
         using (UserDefinedTypeLookupScope.Push(userDefinedTypes.Types))
         {
-            semanticModel = new Binder(Text)
+            semanticModel = new Binder(Text, enumSymbols.QualifiedMembers)
                 .BindCompilationUnit(forEachRoot, procedureSymbols, moduleVariableSymbols);
-            duplicateProcedureDiagnostics = new Binder(Text)
+            duplicateProcedureDiagnostics = new Binder(Text, enumSymbols.QualifiedMembers)
                 .BindCompilationUnit(forEachRoot)
                 .Diagnostics
                 .Where(diagnostic => diagnostic.Code == "VB6S0004")

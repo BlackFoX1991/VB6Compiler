@@ -19,6 +19,7 @@ internal static class VBEnumSymbols
         ArgumentNullException.ThrowIfNull(roots);
 
         var aliases = ImmutableDictionary.CreateBuilder<string, TypeSymbol>(StringComparer.OrdinalIgnoreCase);
+        var qualifiedMembers = ImmutableDictionary.CreateBuilder<string, long>(StringComparer.OrdinalIgnoreCase);
         var constants = ImmutableArray.CreateBuilder<BoundModuleVariable>();
         var values = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var declaredMembers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -45,6 +46,7 @@ internal static class VBEnumSymbols
                     }
 
                     values[member.Identifier.Text] = value;
+                    qualifiedMembers[$"{declaration.Identifier.Text}.{member.Identifier.Text}"] = value;
                     nextValue = checked(value + 1);
 
                     if (!declaredMembers.Add(member.Identifier.Text))
@@ -61,7 +63,10 @@ internal static class VBEnumSymbols
             }
         }
 
-        return new VBEnumSymbolSet(aliases.ToImmutable(), constants.ToImmutable());
+        return new VBEnumSymbolSet(
+            aliases.ToImmutable(),
+            qualifiedMembers.ToImmutable(),
+            constants.ToImmutable());
     }
 
     private static bool TryEvaluate(
@@ -110,6 +115,7 @@ internal static class VBEnumSymbols
 
 internal sealed record VBEnumSymbolSet(
     ImmutableDictionary<string, TypeSymbol> TypeAliases,
+    ImmutableDictionary<string, long> QualifiedMembers,
     ImmutableArray<BoundModuleVariable> Constants)
 {
     public ImmutableArray<BoundModuleVariable> AddMemberSymbols(

@@ -17,6 +17,7 @@ public sealed class Binder
         };
 
     private readonly SourceText _text;
+    private readonly IReadOnlyDictionary<string, long> _qualifiedEnumMembers;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly ImmutableArray<BoundModuleVariable>.Builder _staticVariables =
         ImmutableArray.CreateBuilder<BoundModuleVariable>();
@@ -37,9 +38,13 @@ public sealed class Binder
     private int _optionBase;
     private bool _optionCompareText;
 
-    public Binder(SourceText text)
+    public Binder(
+        SourceText text,
+        IReadOnlyDictionary<string, long>? qualifiedEnumMembers = null)
     {
         _text = text;
+        _qualifiedEnumMembers = qualifiedEnumMembers ??
+            ImmutableDictionary.Create<string, long>(StringComparer.OrdinalIgnoreCase);
     }
 
     public static ProcedureSymbol CreateProcedureSymbol(SubDeclarationSyntax declaration)
@@ -2451,6 +2456,15 @@ public sealed class Binder
         IReadOnlyDictionary<string, ProcedureSymbol> procedures,
         PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
+        if (accessor == PropertyAccessorKind.Get &&
+            syntax.Receiver is NameExpressionSyntax enumName &&
+            _qualifiedEnumMembers.TryGetValue(
+                $"{enumName.IdentifierToken.Text}.{syntax.MemberToken.Text}",
+                out var enumValue))
+        {
+            return new BoundLiteralExpression(enumValue, TypeSymbol.Long);
+        }
+
         var receiver = syntax.Receiver is WithReceiverExpressionSyntax
             ? BindWithReceiver(syntax.DotToken)
             : BindExpression(syntax.Receiver, variables, procedures);

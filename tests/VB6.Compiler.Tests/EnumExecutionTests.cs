@@ -18,12 +18,13 @@ public sealed class EnumExecutionTests
                 value = Banana
                 Debug.Print value
                 Debug.Print Cherry
+                Debug.Print Fruit.Apple
             End Sub
             """;
 
         var output = VB6TestProgram.Run(source);
 
-        CollectionAssert.AreEqual(new[] { "4", "8" }, VB6TestProgram.SplitLines(output), output);
+        CollectionAssert.AreEqual(new[] { "4", "8", "3" }, VB6TestProgram.SplitLines(output), output);
     }
 
     [TestMethod]
