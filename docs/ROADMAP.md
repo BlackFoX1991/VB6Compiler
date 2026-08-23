@@ -94,6 +94,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | DateSerial/TimeSerial sowie DateAdd/DateDiff-Intervalle | **2** | **0** | **0** | **2** | **38 von 40** |
 | Variant-Date-Arithmetik mit Date-Subtype-Erhalt | **2** | **0** | **0** | **2** | **38 von 40** |
 | `DateValue`/`TimeValue`-Normalisierung | **2** | **0** | **0** | **2** | **38 von 40** |
+| Skalare Mathematik-Intrinsics `Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn` | **2** | **0** | **0** | **2** | **38 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -441,6 +442,12 @@ Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **725 Te
 `DateValue` und `TimeValue` normalisieren nun den Tages- beziehungsweise Zeitanteil beliebiger
 Date-Ausdrücke auf die bestehende OLE-Automation-Darstellung. Der VISIA-Stand bleibt bei **2
 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **727 Tests**.
+
+Die skalaren Mathematik-Intrinsics `Exp`, `Log`, `Sin`, `Cos`, `Tan` und `Atn` sind nun als
+portable Runtime-Verträge ergänzt. Winkel werden im bestehenden Radiant-Vertrag verarbeitet,
+`Log` ist der natürliche Logarithmus; ungültige Log-Eingaben und `Exp`-Überläufe bleiben explizite
+Laufzeitfehler. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und **38 von 40** fehlerfreien
+Dateien; die Suite umfasst nun **729 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
@@ -940,7 +947,8 @@ Nach Korpusbedarf priorisiert:
    Weitere zusammengesetzte Random-Record-Layouts bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
-4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere
+4. Math: `Abs`, `Sgn`, `Fix`, `Round`, `Sqr`, `Exp`, `Log`, `Sin`, `Cos`, `Tan` und `Atn` sind als
+   Scalar-Slice ergänzt; weitere
    Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
    für den aktuellen String-/Variant-Subset implementiert.
 5. [~] `Format$` — deterministische numerische Masken, Standardnamen, gängige Datums-/Zeit-Token

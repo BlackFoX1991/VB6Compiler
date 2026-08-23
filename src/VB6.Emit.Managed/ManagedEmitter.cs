@@ -2411,6 +2411,12 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.MathFix) return Static(typeof(VBMath), "Fix", typeof(object));
             if (m == IrRuntimeMethod.MathRound) return Static(typeof(VBMath), "Round", typeof(object), typeof(short));
             if (m == IrRuntimeMethod.MathSqr) return Static(typeof(VBMath), "Sqr", typeof(double));
+            if (m == IrRuntimeMethod.MathExp) return Static(typeof(VBMath), "Exp", typeof(double));
+            if (m == IrRuntimeMethod.MathLog) return Static(typeof(VBMath), "Log", typeof(double));
+            if (m == IrRuntimeMethod.MathSin) return Static(typeof(VBMath), "Sin", typeof(double));
+            if (m == IrRuntimeMethod.MathCos) return Static(typeof(VBMath), "Cos", typeof(double));
+            if (m == IrRuntimeMethod.MathTan) return Static(typeof(VBMath), "Tan", typeof(double));
+            if (m == IrRuntimeMethod.MathAtn) return Static(typeof(VBMath), "Atn", typeof(double));
 
             if (m is IrRuntimeMethod.VariantEmpty or IrRuntimeMethod.VariantNull or
                 IrRuntimeMethod.VariantNothing or IrRuntimeMethod.VariantMissing)

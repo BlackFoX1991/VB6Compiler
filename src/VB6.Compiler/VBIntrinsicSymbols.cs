@@ -113,6 +113,12 @@ internal static class VBIntrinsicSymbols
             Parameter("Number", TypeSymbol.Variant),
             OptionalParameter("NumDigitsAfterDecimal", TypeSymbol.Integer, (short)0)),
         Function("Sqr", VBIntrinsicKind.Sqr, "VBMath.Sqr", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Exp", VBIntrinsicKind.Exp, "VBMath.Exp", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Log", VBIntrinsicKind.Log, "VBMath.Log", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Sin", VBIntrinsicKind.Sin, "VBMath.Sin", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Cos", VBIntrinsicKind.Cos, "VBMath.Cos", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Tan", VBIntrinsicKind.Tan, "VBMath.Tan", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function("Atn", VBIntrinsicKind.Atn, "VBMath.Atn", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
         Function("Int", VBIntrinsicKind.Int, "VBConversions.Int", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
         Function(
             "IIf",

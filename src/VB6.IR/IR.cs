@@ -439,6 +439,12 @@ public enum IrRuntimeMethod
     MathFix,
     MathRound,
     MathSqr,
+    MathExp,
+    MathLog,
+    MathSin,
+    MathCos,
+    MathTan,
+    MathAtn,
 
     VariantEmpty,
     VariantNull,
