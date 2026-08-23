@@ -285,6 +285,7 @@ public static class VBStandardTypes
         var properties = new List<PropertySymbol>
         {
             item,
+            ReadOnlyProperty("Controls", Object),
             ReadOnlyProperty("hWnd", TypeSymbol.Long),
             ReadOnlyProperty("hInstance", TypeSymbol.Long),
             ReadOnlyProperty("Name", TypeSymbol.String),

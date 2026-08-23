@@ -85,6 +85,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Case-insensitive Standard-Property-Bindung für UserControl-Hosts | **20** | **0** | **0** | **20** | **34 von 40** |
 | `As New`-Klassendeklaratoren | **16** | **0** | **0** | **16** | **34 von 40** |
 | `Err.Source`-Runtimevertrag | **15** | **0** | **0** | **15** | **34 von 40** |
+| `For Each` über Host-/Control-Sammlungen | **9** | **0** | **0** | **9** | **36 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -376,6 +377,13 @@ Runtime aufgelöst. Der Fehlerzustand bewahrt dabei auch den explizit an `Err.Ra
 Quelltext, statt ihn beim Fehlerhandler durch den CLR-Fehlertyp zu ersetzen. Damit entfällt die
 letzte `Err.Source`-Diagnose; der VISIA-Stand sinkt auf **15 semantische Fehler**, weiterhin
 **34 von 40** fehlerfreien Dateien. Die Suite umfasst nun **709 Tests**.
+
+`For Each` unterstützt nun auch hostbereitgestellte Form-/UserControl-Sammlungen und late-bound
+`Object`-Werte über einen host-neutralen Enumeration-Callback. Objektvariablen sind als Schleifen-
+steuerung zulässig, während numerische Array-Steuerungen weiterhin diagnostiziert werden; implizite
+Schleifenvariablen ohne `Option Explicit` werden als Variant angelegt. Damit entfallen die sechs
+`For Each`-Diagnosen aus `frmDesign.frm` und `envBorders.bas`; der VISIA-Stand sinkt auf **9
+semantische Fehler**, bei **36 von 40** fehlerfreien Dateien. Die Suite umfasst nun **711 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

@@ -119,6 +119,21 @@ public sealed class ForEachProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EnumeratesHostObjectWithObjectControlVariable()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Dim host As Object
+                For Each item In host
+                    Debug.Print item
+                Next item
+            End Sub
+            """);
+
+        Assert.AreEqual(string.Empty, output);
+    }
+
+    [TestMethod]
     public void Analyze_ProjectPathAllowsVariantArithmetic()
     {
         var directory = CreateTemporaryDirectory();

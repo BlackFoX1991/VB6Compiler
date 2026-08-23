@@ -509,6 +509,7 @@ public enum IrRuntimeMethod
     MemoryLSet,
     CollectionCreate,
     CollectionEnumerateValues,
+    ControlEnumerateValues,
     CollectionCount,
     CollectionItem,
     CollectionAdd,
