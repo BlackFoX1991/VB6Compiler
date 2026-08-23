@@ -92,6 +92,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `Format`/`Format$`-Subset für deterministische Zahlen-, Datums-/Zeit- und Stringmasken | **2** | **0** | **0** | **2** | **38 von 40** |
 | Skalare Date-Part-/Timer-Intrinsics | **2** | **0** | **0** | **2** | **38 von 40** |
 | DateSerial/TimeSerial sowie DateAdd/DateDiff-Intervalle inklusive `w`/`ww` | **2** | **0** | **0** | **2** | **38 von 40** |
+| `DatePart` mit Kalender-, Zeit- und Wochenanteilen | **2** | **0** | **0** | **2** | **38 von 40** |
 | Variant-Date-Arithmetik mit Date-Subtype-Erhalt | **2** | **0** | **0** | **2** | **38 von 40** |
 | `DateValue`/`TimeValue`-Normalisierung | **2** | **0** | **0** | **2** | **38 von 40** |
 | Skalare Mathematik-Intrinsics `Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn` | **2** | **0** | **0** | **2** | **38 von 40** |
@@ -440,6 +441,12 @@ fehlerfreien Dateien; die Suite umfasst nun **723 Tests**.
 akzeptiert zusätzlich `firstdayofweek` und `firstweekofyear` mit den portablen VB6-Konstantwerten;
 die Wochengrenzen werden auf dem OLE-Datewert ausgewertet. Der VISIA-Stand bleibt bei **2
 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst weiterhin **733 Tests**.
+
+`DatePart` ist nun als eigener Intrinsic-Vertrag ergänzt und liefert Kalender-, Zeit-, Wochentags-
+und Kalenderwochenanteile mit den portablen `firstdayofweek`-/`firstweekofyear`-Regeln. Die
+Standardkonstanten `vbSunday` bis `vbSaturday` sowie `vbFirstJan1`, `vbFirstFourDays` und
+`vbFirstFullWeek` sind projektweit verfügbar. Der VISIA-Stand bleibt bei **2 semantischen Fehlern**
+und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **735 Tests**.
 
 Variant-Arithmetik erhält bei `Date + Zahl` und `Date - Zahl` den Date-Subtype; `Date - Date`
 liefert weiterhin einen numerischen Abstand. Damit bleibt die typisierte OLE-Automation-Darstellung

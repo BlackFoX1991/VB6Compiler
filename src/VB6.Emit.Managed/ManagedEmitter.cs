@@ -2333,6 +2333,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.TimeDateSerial) return Static(typeof(VBDateTime), "TimeSerial", typeof(short), typeof(short), typeof(short));
             if (m == IrRuntimeMethod.DateTimeAdd) return Static(typeof(VBDateTime), "DateAdd", typeof(string), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.DateTimeDiff) return Static(typeof(VBDateTime), "DateDiff", typeof(string), typeof(double), typeof(double), typeof(int), typeof(int));
+            if (m == IrRuntimeMethod.DateTimePart) return Static(typeof(VBDateTime), "DatePart", typeof(string), typeof(double), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
             if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));
             if (m == IrRuntimeMethod.ErrorSource) return Static(typeof(VBErrors), nameof(VBErrors.SourceValue));

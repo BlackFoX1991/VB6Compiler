@@ -45,4 +45,21 @@ public sealed class DateTimeRuntimeTests
         Assert.AreEqual(43832d, VBDateTime.DateValue(43832.75d));
         Assert.AreEqual(0.75d, VBDateTime.TimeValue(43832.75d));
     }
+
+    [TestMethod]
+    public void DatePart_ReturnsCalendarAndTimePartsWithWeekSettings()
+    {
+        Assert.AreEqual(2020, VBDateTime.DatePart("yyyy", 43832));
+        Assert.AreEqual(1, VBDateTime.DatePart("q", 43832));
+        Assert.AreEqual(1, VBDateTime.DatePart("m", 43832));
+        Assert.AreEqual(2, VBDateTime.DatePart("y", 43832));
+        Assert.AreEqual(2, VBDateTime.DatePart("d", 43832));
+        Assert.AreEqual(5, VBDateTime.DatePart("w", 43832));
+        Assert.AreEqual(1, VBDateTime.DatePart("w", 43832, 5));
+        Assert.AreEqual(1, VBDateTime.DatePart("ww", 43832, 2, 2));
+        const double halfPastNoon = 43832.5208333333;
+        Assert.AreEqual(12, VBDateTime.DatePart("h", halfPastNoon));
+        Assert.AreEqual(30, VBDateTime.DatePart("n", halfPastNoon));
+        Assert.AreEqual(0, VBDateTime.DatePart("s", halfPastNoon));
+    }
 }

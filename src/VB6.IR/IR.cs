@@ -535,6 +535,7 @@ public enum IrRuntimeMethod
     TimeDateSerial,
     DateTimeAdd,
     DateTimeDiff,
+    DateTimePart,
     ErrorNumber,
     ErrorDescription,
     ErrorSource,
