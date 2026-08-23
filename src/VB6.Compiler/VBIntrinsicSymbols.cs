@@ -45,6 +45,15 @@ internal static class VBIntrinsicSymbols
         Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),
         Function("Hex", VBIntrinsicKind.Hex, "VBStrings.Hex", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
         Function("String", VBIntrinsicKind.String, "VBStrings.String", TypeSymbol.String, Parameter("Number", TypeSymbol.Long), Parameter("Character", TypeSymbol.Variant)),
+        Function(
+            "Format",
+            VBIntrinsicKind.Format,
+            "VBStrings.FormatValue",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.Variant),
+            OptionalParameter("Format", TypeSymbol.String, string.Empty),
+            OptionalParameter("FirstDayOfWeek", TypeSymbol.Long, 0L),
+            OptionalParameter("FirstWeekOfYear", TypeSymbol.Long, 0L)),
         Function("IsNumeric", VBIntrinsicKind.IsNumeric, "VBStrings.IsNumeric", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function(
             "InStr",

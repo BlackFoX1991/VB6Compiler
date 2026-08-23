@@ -36,4 +36,22 @@ public sealed class ScalarStringIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "0", "2", "b" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesFormatStringAndNumericMasks()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Debug.Print Format$(5459.4, "##,##0.00")
+                Debug.Print Format$(5, "0.00%")
+                Debug.Print Format$("HELLO", "<")
+                Debug.Print Format$("hello", ">")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "5,459.40", "500.00%", "hello", "HELLO" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
 }

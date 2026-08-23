@@ -283,6 +283,115 @@ public static class VBStrings
     }
 
     /// <summary>
+    /// Implements the deterministic numeric and string subset of VB6 Format/Format$.
+    /// Numeric masks use the invariant culture and the .NET custom numeric grammar for the
+    /// compatible VB6 placeholders <c>0</c>, <c>#</c>, grouping, decimals, percent and sections.
+    /// Date/time masks and locale-dependent named formats remain intentionally unsupported.
+    /// </summary>
+    public static string FormatValue(
+        object? expression,
+        string format,
+        int firstDayOfWeek,
+        int firstWeekOfYear)
+    {
+        ArgumentNullException.ThrowIfNull(format);
+        _ = firstDayOfWeek;
+        _ = firstWeekOfYear;
+
+        if (VBVariants.IsNull(expression))
+        {
+            return "Null";
+        }
+
+        if (expression is string text)
+        {
+            return FormatString(text, format);
+        }
+
+        if (expression is VBDateValue)
+        {
+            throw new NotSupportedException(
+                "Format date/time masks are not supported by the current deterministic Format subset.");
+        }
+
+        if (!TryGetFormatNumber(expression, out var number))
+        {
+            throw new InvalidCastException(
+                $"CLR value of type '{expression?.GetType().FullName ?? "null"}' is not supported by the VB6 Format intrinsic.");
+        }
+
+        if (format.Length == 0)
+        {
+            return number.ToString("G29", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+
+        var numericFormat = format switch
+        {
+            "General Number" => "G29",
+            "Currency" => "$#,##0.00;($#,##0.00)",
+            "Fixed" => "0.00",
+            "Standard" => "#,##0.00",
+            "Percent" => "0.00%",
+            "Scientific" => "0.00E+00",
+            _ => format
+        };
+
+        try
+        {
+            return number.ToString(numericFormat, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+        catch (FormatException exception)
+        {
+            throw new NotSupportedException(
+                $"Format mask '{format}' is outside the current numeric Format subset.",
+                exception);
+        }
+    }
+
+    private static string FormatString(string value, string format) => format switch
+    {
+        "" => value,
+        "<" => value.ToLowerInvariant(),
+        ">" => value.ToUpperInvariant(),
+        _ => throw new NotSupportedException(
+            $"String Format mask '{format}' is outside the current '<'/'>' subset.")
+    };
+
+    private static bool TryGetFormatNumber(object? value, out IFormattable number)
+    {
+        switch (value)
+        {
+            case byte numberValue:
+                number = numberValue;
+                return true;
+            case short numberValue:
+                number = numberValue;
+                return true;
+            case int numberValue:
+                number = numberValue;
+                return true;
+            case long numberValue:
+                number = numberValue;
+                return true;
+            case float numberValue:
+                number = numberValue;
+                return true;
+            case double numberValue:
+                number = numberValue;
+                return true;
+            case decimal numberValue:
+                number = numberValue;
+                return true;
+            case VBCurrency currency:
+                number = currency.ToDecimal();
+                return true;
+            default:
+                number = 0m;
+                return false;
+        }
+    }
+
+    /// <summary>
     /// VB6 IsNumeric. It answers whether the value could be read as a number, which is true for
     /// numeric strings and for every numeric subtype, and false for Empty and for text.
     /// </summary>

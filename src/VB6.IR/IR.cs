@@ -424,6 +424,7 @@ public enum IrRuntimeMethod
     StringVal,
     StringHex,
     StringRepeat,
+    StringFormat,
     StringIsNumeric,
     StringLike,
     StringInStr,

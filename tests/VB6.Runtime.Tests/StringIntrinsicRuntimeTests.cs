@@ -86,4 +86,29 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.AreEqual("AAA", VBStrings.String(3, 65));
         Assert.AreEqual("\0\0", VBStrings.String(2, 0));
     }
+
+    [TestMethod]
+    public void FormatValue_FormatsSupportedNumericMasksInvariantly()
+    {
+        Assert.AreEqual("5,459.40", VBStrings.FormatValue(5459.4d, "##,##0.00", 0, 0));
+        Assert.AreEqual("500.00%", VBStrings.FormatValue(5, "0.00%", 0, 0));
+        Assert.AreEqual("$1,234.50", VBStrings.FormatValue(1234.5m, "Currency", 0, 0));
+    }
+
+    [TestMethod]
+    public void FormatValue_FormatsSupportedStringCases()
+    {
+        Assert.AreEqual("hello", VBStrings.FormatValue("HELLO", "<", 0, 0));
+        Assert.AreEqual("HELLO", VBStrings.FormatValue("hello", ">", 0, 0));
+        Assert.AreEqual("unchanged", VBStrings.FormatValue("unchanged", string.Empty, 0, 0));
+    }
+
+    [TestMethod]
+    public void FormatValue_RejectsUnsupportedDateAndStringMasks()
+    {
+        Assert.ThrowsException<NotSupportedException>(() =>
+            VBStrings.FormatValue(new VBDateValue(45292), "yyyy-mm-dd", 0, 0));
+        Assert.ThrowsException<NotSupportedException>(() =>
+            VBStrings.FormatValue("abc", "@@@", 0, 0));
+    }
 }
