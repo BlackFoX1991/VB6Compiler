@@ -873,15 +873,24 @@ public sealed class VBProjectCompilation
 
         var projectDiagnostics = analysis.ProjectDiagnostics.ToBuilder();
         var startupObject = analysis.Project.StartupObject;
+        var hasFormStartup = !string.IsNullOrWhiteSpace(startupObject) &&
+            !string.Equals(startupObject, "Sub Main", StringComparison.OrdinalIgnoreCase) &&
+            TryGetStartupForm(analysis, out _);
 
         if (!string.IsNullOrWhiteSpace(startupObject) &&
-            !string.Equals(startupObject, "Sub Main", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(startupObject, "Sub Main", StringComparison.OrdinalIgnoreCase) &&
+            !hasFormStartup)
         {
             projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
                 "VB6PRJ0004",
-                $"Startup object '{startupObject}' is not supported by project emission yet. Only 'Sub Main' is supported.",
+                $"Startup object '{startupObject}' does not name a supported project Form. Project emission supports 'Sub Main' or a Form startup object.",
                 analysis.Project.FilePath));
             return analysis with { ProjectDiagnostics = projectDiagnostics.ToImmutable() };
+        }
+
+        if (hasFormStartup)
+        {
+            return analysis;
         }
 
         var mainCount = analysis.SemanticModel.Procedures.Count(procedure =>
@@ -899,6 +908,38 @@ public sealed class VBProjectCompilation
         }
 
         return analysis with { ProjectDiagnostics = projectDiagnostics.ToImmutable() };
+    }
+
+    internal static bool TryGetStartupForm(
+        VBProjectCompilationAnalysis analysis,
+        out ClassTypeSymbol? startupForm)
+    {
+        startupForm = null;
+        var startupObject = analysis.Project.StartupObject;
+        if (string.IsNullOrWhiteSpace(startupObject) ||
+            string.Equals(startupObject, "Sub Main", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        foreach (var item in analysis.Project.Items.Where(item => item.Kind == VBProjectItemKind.Form))
+        {
+            var itemName = string.IsNullOrWhiteSpace(item.Name)
+                ? Path.GetFileNameWithoutExtension(item.RelativePath)
+                : item.Name!;
+            if (!string.Equals(itemName, startupObject, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            startupForm = analysis.Units
+                .Select(unit => unit.Analysis.SemanticModel?.ContainingClass)
+                .FirstOrDefault(type => type is not null &&
+                    string.Equals(type.Name, itemName, StringComparison.OrdinalIgnoreCase));
+            return startupForm is not null;
+        }
+
+        return false;
     }
 
     internal static bool IsLibraryProjectType(string? projectType) =>
