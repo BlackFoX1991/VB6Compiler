@@ -97,6 +97,28 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_DistinguishesExplicitAndImplicitErrorConversions()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim errorValue As Variant
+                Dim number As Long
+                errorValue = CVErr(2001)
+
+                Debug.Print CInt(errorValue)
+                Debug.Print CDbl(errorValue)
+
+                On Error Resume Next
+                number = errorValue
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2001", "2001", "13" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesDateSubtypeInsideVariant()
     {
         var output = VB6TestProgram.RunLines("""

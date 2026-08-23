@@ -782,7 +782,11 @@ public sealed class LlvmEmitter
 
         private static bool IsScalarConversion(string methodName) => methodName is
             "CByte" or "CInt" or "CLng" or "CLngPtr" or "CUShort" or "CUInt" or "CULng" or
-            "CDate" or "CVDate" or "CLngLng" or "CCur" or "CSng" or "CDbl" or "CBool";
+            "CDate" or "CVDate" or "CLngLng" or "CCur" or "CSng" or "CDbl" or "CBool" or
+            "ConvertCByte" or "ConvertCInt" or "ConvertCLng" or "ConvertCLngPtr" or
+            "ConvertCUShort" or "ConvertCUInt" or "ConvertCULng" or "ConvertCDate" or
+            "ConvertCLngLng" or "ConvertCCur" or "ConvertCSng" or "ConvertCDbl" or
+            "ConvertCBool" or "ConvertCStr";
 
         private static bool TryGetIntegerShape(
             TypeSymbol type,

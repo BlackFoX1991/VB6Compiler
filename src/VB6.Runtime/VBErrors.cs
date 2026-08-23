@@ -36,7 +36,7 @@ public static class VBErrors
         }
 
         _state = new ErrorState(
-            Number: 5,
+            Number: exception is VB6TypeMismatchException ? 13 : 5,
             Source: exception.GetType().Name,
             Description: exception.Message,
             HelpFile: string.Empty,
@@ -55,6 +55,14 @@ public static class VBErrors
         int HelpContext,
         int LineNumber = 0,
         int ResumeIndex = -1);
+}
+
+public sealed class VB6TypeMismatchException : Exception
+{
+    public VB6TypeMismatchException(string description)
+        : base(description)
+    {
+    }
 }
 
 public sealed class VB6RaisedError : Exception
