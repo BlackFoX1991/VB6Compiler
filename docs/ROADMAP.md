@@ -58,6 +58,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **779** | **0** | **0** | **779** | **21 von 40** |
 | Standard-VB-Konstanten und Host-unabhängige Numeric-Verträge | **680** | **0** | **0** | **680** | **22 von 40** |
 | Standardbibliotheks- und hostfähige Interaktionsverträge | **515** | **0** | **0** | **515** | **22 von 40** |
+| `Call`-qualifizierte Objektaufrufe | **335** | **0** | **0** | **335** | **22 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -180,6 +181,14 @@ stehen als typisierte Standardobjekte im Typraum; `PropertyBag` kann Werte über
 case-insensitiven Runtime-Speicher lesen und schreiben. Der VISIA-Stand sinkt damit auf **515
 semantische Fehler**, weiterhin **22 von 40** fehlerfreie Dateien. Controls, COM-Dispatch,
 Forms-Lifecycle und komplexes Host-Marshalling bleiben die nächsten separaten Blöcke.
+
+Der anschließende Parserabschluss behandelt `Call receiver.Member(...)` und die VB6-Variante ohne
+Klammern als denselben qualifizierten Aufrufpfad. Zuvor wurde `Call PropBag.ReadProperty(...)`
+fälschlich als globaler Aufruf der Prozedur `PropBag` zerlegt; außerdem verloren führende
+Punktzugriffe in verschachtelten `With`-Blöcken ihren Empfängerkontext. Der korrigierte Parserpfad
+bewahrt den vollständigen Empfänger und bindet die vorhandene Late-Binding-/PropertyBag-Semantik.
+Damit verschwinden **180** semantische Kaskadenfehler; der VISIA-Stand beträgt **335 semantische
+Fehler**, bei weiterhin **22 von 40** fehlerfreien Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

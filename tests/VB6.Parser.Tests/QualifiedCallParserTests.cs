@@ -50,6 +50,16 @@ public sealed class QualifiedCallParserTests
         Assert.IsInstanceOfType<MemberAccessExpressionSyntax>(statement.Target);
     }
 
+    [TestMethod]
+    public void Parse_CallKeywordBeforeQualifiedCall()
+    {
+        var statement = (QualifiedInvocationStatementSyntax)ParseSingleStatement(
+            "Call propertyBag.WriteProperty(\"Name\", \"value\")");
+
+        Assert.AreEqual(2, statement.Arguments.Length);
+        Assert.IsInstanceOfType<MemberAccessExpressionSyntax>(statement.Target);
+    }
+
     /// <summary>
     /// An ordinary call whose argument happens to be qualified must stay an ordinary call, or the
     /// receiver would be mistaken for the callee.
