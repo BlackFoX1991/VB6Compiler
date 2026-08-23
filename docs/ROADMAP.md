@@ -1178,9 +1178,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `MSComDlg.CommonDialog` haben einen typisierten Managed-Late-Binding-Vertrag einschließlich
       der VB6-Control-Hierarchie bei ByRef. Windows-`.tlb`/`.olb`-/TypeLib-Referenzen aus `.dll`/`.ocx`
       werden zusätzlich über `LoadTypeLibEx` als dynamische Klassen-, Methoden-, Property-, Enum-
-      und Record-/UDT-Verträge importiert. Skalare Recordfelder und referenzierte UDTs werden in
-      Managed-Structs übernommen; nicht sicher abbildbare Pointer-/C-Array-Signaturen erhalten
-      einen Object-Fallback.
+      und Record-/UDT-Verträge importiert. Skalare TypeLib-Aliase, Recordfelder und referenzierte
+      UDTs werden in Managed-Structs übernommen; nicht sicher abbildbare Pointer-/C-Array-
+      Signaturen erhalten einen Object-Fallback.
       `CreateObject` und Managed-`IDispatch`-Dispatch stehen; Enum-Konstanten aus Windows-TypeLibraries
       werden importiert und COM-Defaultzugriffe verwenden bei echten COM-Objekten `DISPID_VALUE`;
       vollständiger COM-ByRef-/Event-ABI, natives OCX-Hosting und der native

@@ -309,6 +309,8 @@ public sealed class ProjectCompilationTests
                     identifier.Data2 = 2
                     identifier.Data3 = 3
                     Debug.Print identifier.Data1
+                    Dim color As stdole.OLE_COLOR
+                    color = 3
                     Dim exceptionInfo As stdole.EXCEPINFO
                     exceptionInfo.scode = 5
                 End Sub
@@ -332,6 +334,10 @@ public sealed class ProjectCompilationTests
             Assert.AreEqual(TypeSymbol.UShort, guid.Members.Single(member => member.Name == "Data2").Type);
             Assert.AreEqual(TypeSymbol.UShort, guid.Members.Single(member => member.Name == "Data3").Type);
             Assert.AreSame(VBStandardTypes.Object, guid.Members.Single(member => member.Name == "Data4").Type);
+
+            var color = main.Locals.Single(local =>
+                string.Equals(local.Name, "color", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual(TypeSymbol.UInteger, color.Type);
 
             var exceptionInfo = main.Locals.Single(local =>
                 string.Equals(local.Name, "exceptionInfo", StringComparison.OrdinalIgnoreCase));
