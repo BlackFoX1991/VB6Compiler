@@ -125,4 +125,24 @@ public sealed class VariantArithmeticTests
         Assert.IsFalse((bool)VBOperators.VariantEqual(currency, 1.00006d));
         Assert.IsTrue((bool)VBOperators.VariantEqual(0.1f, 0.1d));
     }
+
+    [TestMethod]
+    public void ErrorVariants_CompareByCodeButRejectOtherOperators()
+    {
+        var first = new VBErrorValue(2001);
+        var same = new VBErrorValue(2001);
+        var later = new VBErrorValue(2002);
+
+        Assert.IsTrue((bool)VBOperators.VariantEqual(first, same));
+        Assert.IsFalse((bool)VBOperators.VariantNotEqual(first, same));
+        Assert.IsTrue((bool)VBOperators.VariantLess(first, later));
+        Assert.IsTrue((bool)VBOperators.VariantGreater(later, first));
+
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.VariantEqual(first, 2001));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AddVariant(first, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.MultiplyInteger(first, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.ConcatVariant(first, "value"));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.NotVariant(first));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AndVariant(first, 1));
+    }
 }

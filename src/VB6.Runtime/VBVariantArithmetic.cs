@@ -4,6 +4,8 @@ public static partial class VBOperators
 {
     public static object? AddVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -49,6 +51,8 @@ public static partial class VBOperators
 
     public static object? AddStringVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -59,6 +63,8 @@ public static partial class VBOperators
 
     public static object? SubtractVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -92,6 +98,8 @@ public static partial class VBOperators
 
     public static object? DivideVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -104,6 +112,8 @@ public static partial class VBOperators
 
     public static object? IntegerDivideVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -128,6 +138,8 @@ public static partial class VBOperators
 
     public static object? ModVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -152,6 +164,8 @@ public static partial class VBOperators
 
     public static object? PowerVariant(object? left, object? right)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
@@ -162,6 +176,8 @@ public static partial class VBOperators
 
     public static object? NegateVariant(object? value)
     {
+        ThrowIfErrorOperand(value);
+
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
@@ -186,6 +202,8 @@ public static partial class VBOperators
 
     public static object? NotVariant(object? value)
     {
+        ThrowIfErrorOperand(value);
+
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
@@ -327,18 +345,50 @@ public static partial class VBOperators
         ? decimalValue
         : throw new InvalidCastException("VB6 Variant value is not a Decimal subtype.");
 
+    private static void ThrowIfErrorOperand(object? value)
+    {
+        if (value is VBErrorValue)
+        {
+            throw new VB6TypeMismatchException("Error Variant values cannot be used with this operator.");
+        }
+    }
+
+    private static void ThrowIfErrorOperand(object? left, object? right)
+    {
+        if (left is VBErrorValue || right is VBErrorValue)
+        {
+            throw new VB6TypeMismatchException("Error Variant values cannot be used with this operator.");
+        }
+    }
+
     private static bool HasNullOperand(object? left, object? right) =>
         VBVariants.IsNull(left) || VBVariants.IsNull(right);
 
-    private static object CompareVariant(object? left, object? right, Func<int, bool> predicate) =>
-        HasNullOperand(left, right)
+    private static object CompareVariant(object? left, object? right, Func<int, bool> predicate)
+    {
+        if (left is VBErrorValue leftError && right is VBErrorValue rightError)
+        {
+            return predicate(leftError.Code.CompareTo(rightError.Code));
+        }
+
+        if (left is VBErrorValue || right is VBErrorValue)
+        {
+            throw new VB6TypeMismatchException("Error Variant values cannot be compared with non-Error values.");
+        }
+
+        return HasNullOperand(left, right)
             ? VBVariants.NullValue()
             : predicate(CompareVariantValues(left, right));
+    }
 
-    private static object CompareStringVariant(object? left, object? right, Func<int, bool> predicate) =>
-        HasNullOperand(left, right)
+    private static object CompareStringVariant(object? left, object? right, Func<int, bool> predicate)
+    {
+        ThrowIfErrorOperand(left, right);
+
+        return HasNullOperand(left, right)
             ? VBVariants.NullValue()
             : predicate(string.CompareOrdinal(VBConversions.CStr(left), VBConversions.CStr(right)));
+    }
 
     private static int CompareVariantValues(object? left, object? right)
     {
@@ -539,6 +589,8 @@ public static partial class VBOperators
         Func<uint, uint, uint>? uintOperation,
         Func<ulong, ulong, ulong>? ulongOperation)
     {
+        ThrowIfErrorOperand(left, right);
+
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
