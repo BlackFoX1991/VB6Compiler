@@ -510,6 +510,7 @@ public enum IrRuntimeMethod
     DateTimeNow,
     ErrorNumber,
     ErrorDescription,
+    ErrorLineNumber,
     ErrorClear,
     ErrorRaise,
     FunctionTypeName,

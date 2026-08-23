@@ -46,9 +46,35 @@ public sealed class StandardLibraryHostContractExecutionTests
                 Debug.Print Command()
                 Debug.Print Command$
                 Debug.Print StrPtr("value")
+                Debug.Print Erl
             End Sub
             """).Analyze();
 
         Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+    }
+
+    [TestMethod]
+    public void Analyze_ResolvesClipboardGetTextContract()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                Dim text As String
+                text = Clipboard.GetText
+            End Sub
+            """).Analyze();
+
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesErlRuntimeContract()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Debug.Print Erl
+            End Sub
+            """);
+
+        Assert.AreEqual("0", output.Trim());
     }
 }

@@ -162,6 +162,7 @@ public enum VBIntrinsicKind
     InputBox,
     FileLen,
     Now,
+    Erl,
     Command,
     Load,
     Unload,

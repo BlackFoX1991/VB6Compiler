@@ -70,6 +70,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Qualifizierte Enum-Memberauflösung | **258** | **0** | **0** | **258** | **23 von 40** |
 | Modulkonstanten mit projektweiten Enum-Symbolen | **202** | **0** | **0** | **202** | **27 von 40** |
 | Externe VB6-/Win32-Konstantenverträge | **172** | **0** | **0** | **172** | **27 von 40** |
+| `Erl`- und `Clipboard.GetText`-Hostverträge | **169** | **0** | **0** | **169** | **27 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -263,6 +264,12 @@ TreeView-Kindknoten, Win32-Rahmenflags, `vbGrayText` und `vbSrcCopy`. Die Konsta
 typisierte Long-Werte und können weiterhin durch eigene Moduldeklarationen überschattet werden.
 Dadurch sinkt der VISIA-Stand um **30** auf **172 semantische Fehler**, bei weiterhin **27 von 40**
 fehlerfreien Dateien; die Suite umfasst **683 Tests**.
+
+`Erl` ist nun als nullargumentiger Intrinsic bis in den Managed-Runtime-Vertrag verdrahtet und
+`Clipboard.GetText` besitzt einen typisierten Objektvertrag. Ohne weitergereichte Quellzeile
+liefert `Erl` im aktuellen Headless-Backend bewusst **0**; die Zeilenverfolgung bei abgefangenen
+Fehlern bleibt ein eigener Runtime-Slice. Der VISIA-Stand sinkt um **3** auf **169 semantische
+Fehler**, bei weiterhin **27 von 40** fehlerfreien Dateien; die Suite umfasst **685 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
