@@ -3408,6 +3408,7 @@ public sealed class Binder
                          expression is not BoundVariableExpression &&
                          expression is not BoundArrayAccessExpression &&
                          expression is not BoundElementAccessExpression &&
+                         expression is not BoundVariantArrayAccessExpression &&
                          expression is not BoundMemberAccessExpression)
                 {
                     // Not an error: VB6 accepts a literal, an expression, or a function result for

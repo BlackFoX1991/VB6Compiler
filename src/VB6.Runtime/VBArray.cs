@@ -296,6 +296,22 @@ public static class VBArrayOperations
 
     public static object? GetElement(object? value, int[] indices) => GetArray(value).GetObjectValue(indices);
 
+    /// <summary>
+    /// Returns a writable reference for an element of a Variant() array. A Variant array created
+    /// by Array(...) stores boxed values in VBArray&lt;object&gt;, which allows a managed ByRef call
+    /// to update the original slot without a temporary write-back protocol.
+    /// </summary>
+    public static ref object? GetElementReference(object? value, int[] indices)
+    {
+        if (GetArray(value) is VBArray<object?> array)
+        {
+            return ref array[indices];
+        }
+
+        throw new InvalidOperationException(
+            "A Variant array element is ByRef-addressable only when the runtime array stores Variant elements.");
+    }
+
     public static void SetElement(object? value, int[] indices, object? element) =>
         GetArray(value).SetObjectValue(indices, element);
 

@@ -2150,8 +2150,9 @@ public static class IrLowerer
                 LowerExpression(element.Receiver),
                 element.Indices.Select(LowerExpression).ToImmutableArray(),
                 element.ElementType),
-            BoundVariantArrayAccessExpression => throw new InvalidOperationException(
-                "A Variant array element is not addressable until Variant array write-back semantics are lowered."),
+            BoundVariantArrayAccessExpression variantElement => new IrVariantArrayElementPlace(
+                LowerExpression(variantElement.Receiver),
+                variantElement.Indices.Select(LowerExpression).ToImmutableArray()),
                 BoundMemberAccessExpression member => LowerMemberPlace(member),
                 BoundPropertyAccessExpression property => LowerPropertyPlace(property),
                 BoundPropertyInvocationExpression propertyInvocation => LowerPropertyPlace(propertyInvocation),

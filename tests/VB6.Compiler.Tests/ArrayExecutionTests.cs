@@ -77,6 +77,30 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PassesVariantArrayElementByRef()
+    {
+        const string source = """
+            Sub Replace(ByRef value As Variant)
+                value = "changed"
+            End Sub
+
+            Sub Main()
+                Dim values As Variant
+                values = Array("before")
+                Call Replace(values(0))
+                Debug.Print values(0)
+            End Sub
+            """;
+
+        var compilation = VBCompilation.Create(source, "Module1.bas");
+        var standardOutput = VB6TestProgram.Run(compilation);
+        CollectionAssert.AreEqual(
+            new[] { "changed" },
+            standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+            standardOutput);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesParamArrayWithEmptyAndMixedArguments()
     {
         const string source = """

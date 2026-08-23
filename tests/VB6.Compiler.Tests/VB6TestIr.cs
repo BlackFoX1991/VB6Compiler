@@ -176,6 +176,14 @@ internal static class VB6TestIr
                 Visit(element.Array, collected);
                 Visit(element.Index, collected);
                 break;
+            case IrVariantArrayElementPlace element:
+                Visit(element.Array, collected);
+                foreach (var index in element.Indices)
+                {
+                    Visit(index, collected);
+                }
+
+                break;
             case IrIndirectPlace indirect:
                 Visit(indirect.Address, collected);
                 break;
