@@ -1176,8 +1176,11 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Typ als Klassenfeld; `MSComctlLib.TreeView`/`Nodes`/`Node`, `ImageList`/`ListImages`/`ListImage`,
       `ImageCombo`/`ComboItems`/`ComboItem`, `RichTextLib.RichTextBox` und
       `MSComDlg.CommonDialog` haben einen typisierten Managed-Late-Binding-Vertrag einschließlich
-      der VB6-Control-Hierarchie bei ByRef. `CreateObject` und Managed-`IDispatch`-Dispatch stehen;
-      vollständiger Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
+      der VB6-Control-Hierarchie bei ByRef. Windows-`.tlb`/`.olb`-/TypeLib-Referenzen aus `.dll`/`.ocx`
+      werden zusätzlich über `LoadTypeLibEx` als dynamische Klassen-, Methoden- und Property-
+      Verträge importiert; nicht sicher abbildbare Pointer-/UDT-Typen erhalten einen Object-Fallback.
+      `CreateObject` und Managed-`IDispatch`-Dispatch stehen;
+      vollständiger Enum-/UDT-Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1252,7 +1255,7 @@ und die verbreiteten `MSComctlLib`-/
 mit diesen Typverträgen als Klassenfelder gebunden; der Managed-Pfad nutzt dafür Late Binding und
 emittiert keine falschen CLR-Typreferenzen auf OCX-Dateien. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**844 Tests**. `.frm`-/`.ctl`-Designerhüllen werden jetzt offsettreu geparst, verschachtelte
+**845 Tests**. `.frm`-/`.ctl`-Designerhüllen werden jetzt offsettreu geparst, verschachtelte
 Controls und Control-Arrays werden in die Klassenfelder übernommen, und `.frx`-Verweise behalten
 ihren aufgelösten Pfad sowie Hex-Offset. `Type=OleDll` und `Type=Control` werden dabei als
 Managed-Libraries ohne `Sub Main`
