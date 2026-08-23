@@ -64,6 +64,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `Command`-/`StrPtr`-Standardverträge | **278** | **0** | **0** | **278** | **22 von 40** |
 | Implizite UserControl-Host-Intrinsics | **276** | **0** | **0** | **276** | **22 von 40** |
 | Kontextuelle `LSet`-Zuweisungssyntax | **272** | **0** | **0** | **272** | **23 von 40** |
+| Variant-Guard für boolesche Vergleichsoperatoren | **268** | **0** | **0** | **268** | **23 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -224,6 +225,12 @@ und führt sie mit zwei Argumenten in den bestehenden `LSet`-Vertrag. Dadurch ve
 Arity-Kaskaden in `comMath.bas`; der VISIA-Stand sinkt auf **272 semantische Fehler**, und **23 von
 40** Dateien analysieren fehlerfrei. Die Native-UDT-Layoutsemantik von `LSet` bleibt bis zum nativen
 Backend bewusst separat offen.
+
+Der Variant-Operations-Guard akzeptiert nun auch `Not` und boolesche logische Operatoren über
+Vergleichsergebnisse mit Variant-/Objektursprung. Diese Ausdrücke werden bereits typkorrekt als
+`NotBoolean` beziehungsweise boolesche Logik gelowert und waren zuvor nur von einer zu engen
+Diagnosebedingung blockiert. Der VISIA-Stand sinkt auf **268 semantische Fehler**, bei weiterhin
+**23 von 40** fehlerfreien Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

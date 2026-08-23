@@ -34,9 +34,11 @@ public sealed class LikeAndObjectIdentityExecutionTests
                 Debug.Print "ABC" Like "a*"
                 Debug.Print first Is second
                 Debug.Print first Is Nothing
+                Debug.Print Not (first Is Nothing)
+                Debug.Print (first Is Nothing) Or (first Is second)
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "True", "True", "False" }, VB6TestProgram.SplitLines(output), output);
+        CollectionAssert.AreEqual(new[] { "True", "True", "False", "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
 }
