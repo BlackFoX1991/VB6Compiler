@@ -86,6 +86,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `As New`-Klassendeklaratoren | **16** | **0** | **0** | **16** | **34 von 40** |
 | `Err.Source`-Runtimevertrag | **15** | **0** | **0** | **15** | **34 von 40** |
 | `For Each` über Host-/Control-Sammlungen | **9** | **0** | **0** | **9** | **36 von 40** |
+| Klassen-Property-Targets in `With`-Blöcken | **6** | **0** | **0** | **6** | **37 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -384,6 +385,12 @@ steuerung zulässig, während numerische Array-Steuerungen weiterhin diagnostizi
 Schleifenvariablen ohne `Option Explicit` werden als Variant angelegt. Damit entfallen die sechs
 `For Each`-Diagnosen aus `frmDesign.frm` und `envBorders.bas`; der VISIA-Stand sinkt auf **9
 semantische Fehler**, bei **36 von 40** fehlerfreien Dateien. Die Suite umfasst nun **711 Tests**.
+
+Klassen-Property-Ergebnisse sind nun ebenfalls gültige `With`-Targets, wenn sie einen Objektwert
+liefern. Die IR-Absenkung wertet den indizierten Property-Get einmal aus und bindet den resultierenden
+Klassenverweis lokal, während UDT-Targets weiterhin über echte Adressen laufen. Damit entfallen die
+drei `With`-Diagnosen aus `GpTabs.ctl`; der VISIA-Stand sinkt auf **6 semantische Fehler**, bei
+**37 von 40** fehlerfreien Dateien. Die Suite umfasst nun **712 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

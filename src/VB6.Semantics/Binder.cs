@@ -3939,6 +3939,7 @@ public sealed class Binder
             BoundElementAccessExpression or
             BoundMemberAccessExpression or
             BoundPropertyAccessExpression or
+            BoundPropertyInvocationExpression { Type: ClassTypeSymbol } or
             BoundWithReceiverExpression;
 
     private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>

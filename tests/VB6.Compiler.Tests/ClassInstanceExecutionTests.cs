@@ -181,6 +181,86 @@ public sealed class ClassInstanceExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_AllowsWithOverIndexedClassProperty()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerIndexedWithTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "IndexedWith.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="IndexedWith"
+                Class=Item; Item.cls
+                Class=Items; Items.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Item.cls"), """
+                Option Explicit
+
+                Private current As Long
+
+                Public Property Get Value() As Long
+                    Value = current
+                End Property
+
+                Public Property Let Value(ByVal newValue As Long)
+                    current = newValue
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "Items.cls"), """
+                Option Explicit
+
+                Private value As Item
+
+                Private Sub Class_Initialize()
+                    Set value = New Item
+                End Sub
+
+                Public Property Get Item(ByVal index As Long) As Item
+                    Set Item = value
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim items As Items
+                    Set items = New Items
+                    With items.Item(1)
+                        .Value = 42
+                        Debug.Print .Value
+                    End With
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "42" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void AnalyzeProject_ResolvesImplementsContractsAndPrefixedMembers()
     {
         var directory = Path.Combine(
