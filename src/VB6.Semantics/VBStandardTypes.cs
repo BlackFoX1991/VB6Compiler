@@ -12,9 +12,14 @@ public static class VBStandardTypes
     public static ClassTypeSymbol Object { get; } = CreateEmpty("Object");
     public static ClassTypeSymbol Collection { get; } = CreateCollection();
     public static ClassTypeSymbol App { get; } = CreateApp();
+    public static ClassTypeSymbol Picture { get; } = CreateEmpty("Picture");
+    public static ClassTypeSymbol Font { get; } = CreateFont();
     public static ClassTypeSymbol Control { get; } = CreateControl("Control");
     public static ClassTypeSymbol Form { get; } = CreateControl("Form");
     public static ClassTypeSymbol UserControl { get; } = CreateControl("UserControl");
+    public static ClassTypeSymbol Screen { get; } = CreateScreen();
+    public static ClassTypeSymbol Ambient { get; } = CreateAmbient();
+    public static ClassTypeSymbol PropertyBag { get; } = CreatePropertyBag();
 
     private static ClassTypeSymbol CreateCollection()
     {
@@ -86,6 +91,104 @@ public static class VBStandardTypes
         return app;
     }
 
+    private static ClassTypeSymbol CreateScreen()
+    {
+        var screen = new ClassTypeSymbol("Screen");
+        var properties = new List<PropertySymbol>
+        {
+            ReadOnlyProperty("ActiveForm", Form),
+            ReadOnlyProperty("ActiveControl", Control)
+        };
+        properties.AddRange(ReadWriteProperties("MousePointer", TypeSymbol.Long));
+        if (!screen.TryDefineMembers(
+                Array.Empty<ProcedureSymbol>(),
+                properties,
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in Screen member '{duplicate}' is duplicated.");
+        }
+
+        return screen;
+    }
+
+    private static ClassTypeSymbol CreateAmbient()
+    {
+        var ambient = new ClassTypeSymbol("Ambient");
+        var properties = new[]
+        {
+            ReadOnlyProperty("Font", Font),
+            ReadOnlyProperty("UserMode", TypeSymbol.Boolean),
+            ReadOnlyProperty("DisplayName", TypeSymbol.String)
+        };
+        if (!ambient.TryDefineMembers(
+                Array.Empty<ProcedureSymbol>(),
+                properties,
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in Ambient member '{duplicate}' is duplicated.");
+        }
+
+        return ambient;
+    }
+
+    private static ClassTypeSymbol CreatePropertyBag()
+    {
+        var bag = new ClassTypeSymbol("PropertyBag");
+        var procedures = new[]
+        {
+            new ProcedureSymbol(
+                "ReadProperty",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Name", TypeSymbol.String, ParameterPassingMode.ByVal),
+                    OptionalVariantParameter("DefaultValue")),
+                TypeSymbol.Variant),
+            new ProcedureSymbol(
+                "WriteProperty",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Name", TypeSymbol.String, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("Value", TypeSymbol.Variant, ParameterPassingMode.ByVal),
+                    OptionalVariantParameter("DefaultValue")),
+                ReturnType: null)
+        };
+        if (!bag.TryDefineMembers(
+                procedures,
+                Array.Empty<PropertySymbol>(),
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in PropertyBag member '{duplicate}' is duplicated.");
+        }
+
+        return bag;
+    }
+
+    private static ClassTypeSymbol CreateFont()
+    {
+        var font = new ClassTypeSymbol("Font");
+        var properties = new List<PropertySymbol>();
+        properties.AddRange(ReadWriteProperties("Name", TypeSymbol.String));
+        properties.AddRange(ReadWriteProperties("Size", TypeSymbol.Single));
+        properties.AddRange(ReadWriteProperties("Bold", TypeSymbol.Boolean));
+        properties.AddRange(ReadWriteProperties("Italic", TypeSymbol.Boolean));
+        properties.AddRange(ReadWriteProperties("Underline", TypeSymbol.Boolean));
+        properties.AddRange(ReadWriteProperties("Strikethrough", TypeSymbol.Boolean));
+        properties.AddRange(ReadWriteProperties("Weight", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("Charset", TypeSymbol.Integer));
+        properties.AddRange(ReadWriteProperties("hFont", TypeSymbol.Long));
+        if (!font.TryDefineMembers(
+                Array.Empty<ProcedureSymbol>(),
+                properties,
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in Font member '{duplicate}' is duplicated.");
+        }
+
+        return font;
+    }
+
     private static PropertySymbol ReadOnlyProperty(string name, TypeSymbol type) =>
         new(name, PropertyAccessorKind.Get, type, ImmutableArray<ParameterSymbol>.Empty);
 
@@ -128,6 +231,19 @@ public static class VBStandardTypes
         properties.AddRange(ReadWriteProperties("Height", TypeSymbol.Long));
         properties.AddRange(ReadWriteProperties("Visible", TypeSymbol.Boolean));
         properties.AddRange(ReadWriteProperties("Enabled", TypeSymbol.Boolean));
+        properties.AddRange(ReadWriteProperties("Caption", TypeSymbol.String));
+        properties.AddRange(ReadWriteProperties("Text", TypeSymbol.String));
+        properties.AddRange(ReadWriteProperties("BackColor", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("ForeColor", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("BorderStyle", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("Appearance", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("MousePointer", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("ScaleHeight", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("ScaleWidth", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("Picture", Picture));
+        properties.AddRange(ReadWriteProperties("Image", Picture));
+        properties.AddRange(ReadWriteProperties("Font", Font));
+        properties.AddRange(ReadWriteProperties("hDC", TypeSymbol.Long));
         if (!type.TryDefineMembers(procedures, properties, Array.Empty<EventSymbol>(), out var duplicate))
         {
             throw new InvalidOperationException($"Built-in {name} member '{duplicate}' is duplicated.");

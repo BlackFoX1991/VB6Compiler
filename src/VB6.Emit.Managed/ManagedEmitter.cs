@@ -2272,6 +2272,12 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionCreateObject) return Static(typeof(VBInteraction), nameof(VBInteraction.CreateObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionGetObject) return Static(typeof(VBInteraction), nameof(VBInteraction.GetObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));
+            if (m == IrRuntimeMethod.InteractionGetSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.GetSetting), typeof(string), typeof(string), typeof(string), typeof(string));
+            if (m == IrRuntimeMethod.InteractionSaveSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.SaveSetting), typeof(string), typeof(string), typeof(string), typeof(string));
+            if (m == IrRuntimeMethod.InteractionSendKeys) return Static(typeof(VBInteraction), nameof(VBInteraction.SendKeys), typeof(string), typeof(bool));
+            if (m == IrRuntimeMethod.InteractionPopupMenu) return Static(typeof(VBInteraction), nameof(VBInteraction.PopupMenu), typeof(object), typeof(int), typeof(float), typeof(float));
+            if (m == IrRuntimeMethod.InteractionLoadPicture) return Static(typeof(VBInteraction), nameof(VBInteraction.LoadPicture), typeof(string));
+            if (m == IrRuntimeMethod.InteractionPropertyChanged) return Static(typeof(VBInteraction), nameof(VBInteraction.PropertyChanged), typeof(string));
             if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryLSet) return Static(typeof(VBMemory), nameof(VBMemory.LSet), typeof(object), typeof(object));
@@ -2288,6 +2294,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ErrorRaise) return Static(typeof(VBErrors), nameof(VBErrors.Raise), typeof(int), typeof(string), typeof(string), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.FunctionTypeName) return Static(typeof(VBFunctions), nameof(VBFunctions.TypeName), typeof(object));
             if (m == IrRuntimeMethod.FunctionSwitch) return Static(typeof(VBFunctions), nameof(VBFunctions.Switch), typeof(VBArray<object>));
+            if (m == IrRuntimeMethod.FunctionIIf) return Static(typeof(VBFunctions), nameof(VBFunctions.IIf), typeof(bool), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.FunctionRGB) return Static(typeof(VBFunctions), nameof(VBFunctions.RGB), typeof(int), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.ArrayIsAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.IsAllocated), typeof(object));
             if (m == IrRuntimeMethod.ArrayRequireAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.RequireAllocated), typeof(object));
 

@@ -2871,6 +2871,7 @@ public sealed class Binder
         ReferenceEquals(type, VBStandardTypes.Control) ||
         ReferenceEquals(type, VBStandardTypes.Form) ||
         ReferenceEquals(type, VBStandardTypes.UserControl) ||
+        ReferenceEquals(type, VBStandardTypes.PropertyBag) ||
         (type.SourcePath is not null &&
          Path.GetExtension(type.SourcePath) is ".frm" or ".ctl");
 

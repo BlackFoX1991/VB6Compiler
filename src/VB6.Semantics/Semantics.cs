@@ -38,6 +38,13 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "VARIANT" => Variant,
         "COLLECTION" => VBStandardTypes.Collection,
         "APP" => VBStandardTypes.App,
+        "SCREEN" => VBStandardTypes.Screen,
+        "AMBIENT" => VBStandardTypes.Ambient,
+        "PROPERTYBAG" => VBStandardTypes.PropertyBag,
+        "PICTURE" => VBStandardTypes.Picture,
+        "STDPICTURE" => VBStandardTypes.Picture,
+        "FONT" => VBStandardTypes.Font,
+        "STDFONT" => VBStandardTypes.Font,
         "OBJECT" => VBStandardTypes.Object,
         "FORM" => VBStandardTypes.Form,
         "USERCONTROL" => VBStandardTypes.UserControl,
@@ -194,7 +201,15 @@ public enum VBIntrinsicKind
     Sgn,
     Fix,
     Round,
-    Sqr
+    Sqr,
+    IIf,
+    RGB,
+    GetSetting,
+    SaveSetting,
+    SendKeys,
+    PopupMenu,
+    LoadPicture,
+    PropertyChanged
 }
 
 public sealed record ProcedureSymbol(
