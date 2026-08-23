@@ -80,6 +80,16 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void Str_ReservesLeadingSignSpaceForNonnegativeNumbers()
+    {
+        Assert.AreEqual(" 459", VBStrings.Str(459));
+        Assert.AreEqual("-459.65", VBStrings.Str(-459.65));
+        Assert.AreEqual(" 459.001", VBStrings.Str(459.001));
+        Assert.AreEqual(" 0", VBStrings.Str(null));
+        Assert.ThrowsException<InvalidCastException>(() => VBStrings.Str("459"));
+    }
+
+    [TestMethod]
     public void Oct_UsesVb6LongRepresentationAndPreservesNull()
     {
         Assert.AreEqual("10", VBStrings.Oct(8));

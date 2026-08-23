@@ -2497,6 +2497,7 @@ public sealed class ManagedEmitter
                 if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Oct") return Static(typeof(VBStrings), name, typeof(object));
+                if (name == "Str") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
                 if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int));
                 if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object));

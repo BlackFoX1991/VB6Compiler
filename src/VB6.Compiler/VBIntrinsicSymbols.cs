@@ -45,6 +45,7 @@ internal static class VBIntrinsicSymbols
         Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),
         Function("Hex", VBIntrinsicKind.Hex, "VBStrings.Hex", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
         Function("Oct", VBIntrinsicKind.Oct, "VBStrings.Oct", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
+        Function("Str", VBIntrinsicKind.Str, "VBStrings.Str", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
         Function("String", VBIntrinsicKind.String, "VBStrings.String", TypeSymbol.String, Parameter("Number", TypeSymbol.Long), Parameter("Character", TypeSymbol.Variant)),
         Function(
             "Format",

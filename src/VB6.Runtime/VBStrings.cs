@@ -274,6 +274,24 @@ public static class VBStrings
             : Convert.ToString(number, 8);
     }
 
+    /// <summary>Formats a numeric value using VB6's leading sign space and invariant decimal point.</summary>
+    public static string Str(object? value)
+    {
+        if (value is not null and not byte and not short and not int and not long and
+            not float and not double and not decimal and not VBCurrency and not IntPtr)
+        {
+            throw new InvalidCastException("VB6 Str requires a numeric value.");
+        }
+
+        var text = VBConversions.CStr(value);
+        if (text.Length == 0)
+        {
+            text = "0";
+        }
+
+        return text[0] == '-' ? text : " " + text;
+    }
+
     /// <summary>Creates a repeated-character string for the VB6 String intrinsic.</summary>
     public static string String(int number, object? character)
     {

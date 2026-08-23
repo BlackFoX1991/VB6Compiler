@@ -535,6 +535,10 @@ Suite umfasst nun **764 Tests**.
 Variant-`Null`-Zustand, wenn keine Bedingung wahr ist. Der VISIA-Stand bleibt bei **1 semantischen
 Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **766 Tests**.
 
+`Str` ergänzt die numerischen Konversionen um invariant-stabile VB6-Ausgabe mit führendem
+Vorzeichen-Leerzeichen für nichtnegative Werte. Der VISIA-Stand bleibt bei **1 semantischen Fehler**
+und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **767 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen

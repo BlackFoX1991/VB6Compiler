@@ -3124,6 +3124,7 @@ public static class IrLowerer
             "VBStrings.Val" => IrRuntimeMethod.StringVal,
             "VBStrings.Hex" => IrRuntimeMethod.StringHex,
             "VBStrings.Oct" => IrRuntimeMethod.StringOct,
+            "VBStrings.Str" => IrRuntimeMethod.StringStr,
             "VBStrings.String" => IrRuntimeMethod.StringRepeat,
             "VBStrings.FormatValue" => IrRuntimeMethod.StringFormat,
             "VBStrings.IsNumeric" => IrRuntimeMethod.StringIsNumeric,
