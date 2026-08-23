@@ -541,6 +541,53 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
+    public void Emit_LowersNativeErrorBoundariesAndStatus()
+    {
+        var divide = new IrRuntimeCallExpression(
+            IrRuntimeMethod.IntegerDivideLong,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(7, TypeSymbol.Long)),
+                new IrCallArgument(new IrConstantExpression(0, TypeSymbol.Long))),
+            TypeSymbol.Long);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(
+                new IrBasicBlock(
+                    0,
+                    "entry",
+                    ImmutableArray.Create<IrInstruction>(
+                        new IrErrorBoundaryStartInstruction(1),
+                        new IrEvaluateInstruction(divide),
+                        new IrErrorBoundaryEndInstruction()),
+                    new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long))),
+                new IrBasicBlock(
+                    1,
+                    "handler",
+                    ImmutableArray.Create<IrInstruction>(
+                        new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                            IrRuntimeMethod.ErrorNumber,
+                            ImmutableArray<IrCallArgument>.Empty,
+                            TypeSymbol.Long)),
+                        new IrResumeInstruction(IrResumeKind.Next)),
+                    new IrReturnTerminator(new IrConstantExpression(42L, TypeSymbol.Long)))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "@__vb6_error_pending = thread_local global i1 false");
+        StringAssert.Contains(result.ModuleText, "@__vb6_error_number_state = thread_local global i32 0");
+        StringAssert.Contains(result.ModuleText, "call void @__vb6_error_set(i32 11)");
+        StringAssert.Contains(result.ModuleText, "call i1 @__vb6_error_take_pending()");
+        StringAssert.Contains(result.ModuleText, "br label %bb1");
+        StringAssert.Contains(result.ModuleText, "call i32 @__vb6_error_number()");
+        StringAssert.Contains(result.ModuleText, "call void @__vb6_error_clear_pending()");
+    }
+
+    [TestMethod]
     public void Emit_LowersCheckedSignedIntegerRemainder()
     {
         var expression = new IrRuntimeCallExpression(
