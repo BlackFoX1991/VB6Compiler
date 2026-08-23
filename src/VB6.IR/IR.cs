@@ -483,6 +483,7 @@ public enum IrRuntimeMethod
     StringVal,
     StringHex,
     StringOct,
+    StringStr,
     StringRepeat,
     StringFormat,
     StringIsNumeric,

@@ -11,6 +11,8 @@ public sealed class StandardLibraryIntrinsicExecutionTests
                 Debug.Print Val("  -12.5 tail")
                 Debug.Print Hex(255)
                 Debug.Print Oct(459)
+                Debug.Print "[" & Str(459) & "]"
+                Debug.Print "[" & Str(-459.65) & "]"
                 Debug.Print IsNull(Oct(Null))
                 Debug.Print VarType(CVar(CDate(43832)))
                 Debug.Print String(3, "x")
@@ -18,6 +20,6 @@ public sealed class StandardLibraryIntrinsicExecutionTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "-12.5", "FF", "713", "True", "7", "xxx", "AAA" }, VB6TestProgram.SplitLines(output), output);
+        CollectionAssert.AreEqual(new[] { "-12.5", "FF", "713", "[ 459]", "[-459.65]", "True", "7", "xxx", "AAA" }, VB6TestProgram.SplitLines(output), output);
     }
 }
