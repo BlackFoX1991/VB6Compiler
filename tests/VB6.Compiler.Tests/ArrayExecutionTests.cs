@@ -154,6 +154,21 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesSwitchWithVariantNullWhenNoConditionMatches()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print IsNull(Switch(False, "first", False, "second"))
+                Debug.Print Switch(True, "selected", False, "ignored")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "selected" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesJoinAndFilterForStringArrays()
     {
         var output = VB6TestProgram.RunLines("""

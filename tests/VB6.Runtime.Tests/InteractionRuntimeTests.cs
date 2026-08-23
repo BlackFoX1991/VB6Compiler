@@ -25,6 +25,18 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void Switch_ReturnsVariantNullWhenNoConditionMatches()
+    {
+        var arguments = new VBArray<object>(new VBArrayBound(0, 3));
+        arguments[0] = false;
+        arguments[1] = "first";
+        arguments[2] = false;
+        arguments[3] = "second";
+
+        Assert.IsTrue(VBVariants.IsNull(VBFunctions.Switch(arguments)));
+    }
+
+    [TestMethod]
     public void Settings_AreCaseInsensitiveAndReturnDefaults()
     {
         VBInteraction.SaveSetting("RuntimeTests", "Settings", "Answer", "42");
