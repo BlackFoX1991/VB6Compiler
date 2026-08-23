@@ -195,6 +195,29 @@ public sealed class BinderTests
     }
 
     [TestMethod]
+    public void Bind_PassesConstantsByRefThroughATemporary()
+    {
+        var model = BindSource("""
+            Const DefaultTimeout = 1
+
+            Sub Main()
+                Call Update(DefaultTimeout)
+            End Sub
+
+            Sub Update(value As Long)
+                value = 10
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements.Single();
+        var argument = invocation.Arguments.Single();
+        Assert.IsTrue(argument.RequiresByRefTemporary);
+        Assert.IsInstanceOfType<BoundConversionExpression>(argument.Expression);
+    }
+
+    [TestMethod]
     public void Bind_ConvertsByValArguments()
     {
         var model = BindSource("""

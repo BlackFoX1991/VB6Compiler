@@ -77,6 +77,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `End`-Prozessbeendigungsvertrag | **77** | **0** | **0** | **77** | **31 von 40** |
 | Whitespace-/Variant-Auflösung qualifizierter Member-Aufrufe | **73** | **0** | **0** | **73** | **31 von 40** |
 | `Erase` auf UDT-Memberarrays | **71** | **0** | **0** | **71** | **31 von 40** |
+| ByRef-Konstanten als typisierte Temporaries | **65** | **0** | **0** | **65** | **33 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -317,6 +318,12 @@ wie `ReDim` und Memberzuweisungen. Die IR speichert dynamische Memberarrays übe
 With-Place zurück, statt nur lokale Variablensymbole zu akzeptieren. Damit entfallen die beiden
 verbliebenen `VB6S0062`-Diagnosen in `mcToolBar.ctl`; der Stand sinkt auf **71 semantische Fehler**
 bei weiterhin **31 von 40** fehlerfreien Dateien. Die Suite umfasst nun **696 Tests**.
+
+Konstanten werden bei ByRef-Aufrufen nun wie Literale als typisierte Temporaries übergeben. Das
+entfernt die sechs falschen Typmismatch-Diagnosen für die `EX_*`- und `REG_SZ`-Konstanten in
+VISIA; echte beschreibbare ByRef-/Interop-Mismatches bleiben sichtbar. Der Stand sinkt auf
+**65 semantische Fehler**, und **33 von 40** Dateien analysieren fehlerfrei. Die Suite umfasst
+nun **697 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

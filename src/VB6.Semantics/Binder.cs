@@ -531,7 +531,10 @@ public sealed class Binder
                     var type = declaration.TypeToken is null
                         ? value.Type
                         : ResolveDeclaredType(declaration.TypeToken, declaration.TypeName);
-                    var symbol = Declare(declaration.Identifier.Text, type);
+                    var symbol = Declare(declaration.Identifier.Text, type) with
+                    {
+                        IsConstant = true
+                    };
                     if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
                     {
                         availableScope[symbol.Name] = symbol;
@@ -946,7 +949,10 @@ public sealed class Binder
         var type = syntax.TypeToken is null
             ? value.Type
             : ResolveDeclaredType(syntax.TypeToken, syntax.TypeName);
-        var variable = new LocalVariableSymbol(syntax.Identifier.Text, type);
+        var variable = new LocalVariableSymbol(syntax.Identifier.Text, type)
+        {
+            IsConstant = true
+        };
 
         if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
         {
@@ -3252,6 +3258,7 @@ public sealed class Binder
                 }
                 else if (forcedByValue ||
                          argumentSyntaxes[index] is ParenthesizedExpressionSyntax ||
+                         expression is BoundVariableExpression { Variable.IsConstant: true } ||
                          expression is not BoundVariableExpression &&
                          expression is not BoundArrayAccessExpression &&
                          expression is not BoundElementAccessExpression &&

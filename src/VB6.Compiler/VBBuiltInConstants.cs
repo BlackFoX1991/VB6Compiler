@@ -194,7 +194,10 @@ internal static class VBBuiltInConstants
 
     private static BoundModuleVariable CreateString(string name, string value)
     {
-        var symbol = new ModuleVariableSymbol(name, TypeSymbol.String);
+        var symbol = new ModuleVariableSymbol(name, TypeSymbol.String)
+        {
+            IsConstant = true
+        };
         return new BoundModuleVariable(
             symbol,
             new BoundLiteralExpression(value, TypeSymbol.String),
@@ -203,7 +206,10 @@ internal static class VBBuiltInConstants
 
     private static BoundModuleVariable CreateLong(string name, int value)
     {
-        var symbol = new ModuleVariableSymbol(name, TypeSymbol.Long);
+        var symbol = new ModuleVariableSymbol(name, TypeSymbol.Long)
+        {
+            IsConstant = true
+        };
         return new BoundModuleVariable(
             symbol,
             new BoundLiteralExpression(value, TypeSymbol.Long),
@@ -212,7 +218,10 @@ internal static class VBBuiltInConstants
 
     private static BoundModuleVariable CreateVariant(string name)
     {
-        var symbol = new ModuleVariableSymbol(name, TypeSymbol.Variant);
+        var symbol = new ModuleVariableSymbol(name, TypeSymbol.Variant)
+        {
+            IsConstant = true
+        };
         return new BoundModuleVariable(
             symbol,
             new BoundLiteralExpression(null, TypeSymbol.Variant),
@@ -221,7 +230,10 @@ internal static class VBBuiltInConstants
 
     private static BoundModuleVariable CreateObject(string name, ClassTypeSymbol type)
     {
-        var symbol = new ModuleVariableSymbol(name, type);
+        var symbol = new ModuleVariableSymbol(name, type)
+        {
+            IsConstant = true
+        };
         return new BoundModuleVariable(
             symbol,
             new BoundLiteralExpression(null, type),
