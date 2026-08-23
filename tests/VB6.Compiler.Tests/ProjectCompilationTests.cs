@@ -242,6 +242,10 @@ public sealed class ProjectCompilationTests
                    End
                    Begin MSComDlg.CommonDialog dialog
                    End
+                   Begin MSComctlLib.ImageList images
+                   End
+                   Begin MSComctlLib.ImageCombo combo
+                   End
                 End
                 Attribute VB_Name = "Main"
                 Attribute VB_PredeclaredId = True
@@ -255,6 +259,12 @@ public sealed class ProjectCompilationTests
                     editor.SelText = "text"
                     dialog.Filter = "Text (*.txt)|*.txt"
                     dialog.ShowSave
+                    Dim image As MSComctlLib.ListImage
+                    Set image = images.ListImages.Add(1, "key")
+                    Debug.Print image.Index
+                    Dim item As MSComctlLib.ComboItem
+                    Set item = combo.ComboItems.Add(, "key", "text")
+                    item.Selected = True
                 End Sub
                 """);
 
@@ -269,6 +279,10 @@ public sealed class ProjectCompilationTests
             Assert.AreSame(VBStandardTypes.ExternalRichTextBox, editor!.Type);
             Assert.IsTrue(form.TryGetProperty("dialog", PropertyAccessorKind.Get, out var dialog));
             Assert.AreSame(VBStandardTypes.ExternalCommonDialog, dialog!.Type);
+            Assert.IsTrue(form.TryGetProperty("images", PropertyAccessorKind.Get, out var images));
+            Assert.AreSame(VBStandardTypes.ExternalImageList, images!.Type);
+            Assert.IsTrue(form.TryGetProperty("combo", PropertyAccessorKind.Get, out var combo));
+            Assert.AreSame(VBStandardTypes.ExternalImageCombo, combo!.Type);
 
             var result = compilation.EmitManagedApplication(Path.Combine(directory, "DesignerControls.dll"));
 

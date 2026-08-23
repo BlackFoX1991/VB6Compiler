@@ -1172,7 +1172,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
       Projektliste gebunden. Designer-Controls in Forms/UserControls behalten ihren qualifizierten
-      Typ als Klassenfeld; `MSComctlLib.TreeView`/`Nodes`/`Node`, `RichTextLib.RichTextBox` und
+      Typ als Klassenfeld; `MSComctlLib.TreeView`/`Nodes`/`Node`, `ImageList`/`ListImages`/`ListImage`,
+      `ImageCombo`/`ComboItems`/`ComboItem`, `RichTextLib.RichTextBox` und
       `MSComDlg.CommonDialog` haben einen typisierten Managed-Late-Binding-Vertrag einschließlich
       der VB6-Control-Hierarchie bei ByRef. `CreateObject` und Managed-`IDispatch`-Dispatch stehen;
       vollständiger Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
@@ -1246,7 +1247,7 @@ und die verbreiteten `MSComctlLib`-/
 mit diesen Typverträgen als Klassenfelder gebunden; der Managed-Pfad nutzt dafür Late Binding und
 emittiert keine falschen CLR-Typreferenzen auf OCX-Dateien. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**841 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
+**842 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
 emittiert. EXE-Projekte mit `Startup="FormName"` erhalten einen generierten Einstiegspunkt, der
 die erzeugte Formklasse konstruiert; Fenstererzeugung, Message Loop und OCX-Hosting bleiben
 Host-/Interop-Aufgaben. `PropertyPage`- und `UserDocument`-Quellen werden ebenfalls als

@@ -26,6 +26,12 @@ public static class VBStandardTypes
     public static ClassTypeSymbol ExternalTreeView { get; } = CreateExternalTreeView();
     public static ClassTypeSymbol ExternalRichTextBox { get; } = CreateExternalRichTextBox();
     public static ClassTypeSymbol ExternalCommonDialog { get; } = CreateExternalCommonDialog();
+    public static ClassTypeSymbol ExternalListImage { get; } = CreateExternalListImage();
+    public static ClassTypeSymbol ExternalListImages { get; } = CreateExternalListImages();
+    public static ClassTypeSymbol ExternalImageList { get; } = CreateExternalImageList();
+    public static ClassTypeSymbol ExternalComboItem { get; } = CreateExternalComboItem();
+    public static ClassTypeSymbol ExternalComboItems { get; } = CreateExternalComboItems();
+    public static ClassTypeSymbol ExternalImageCombo { get; } = CreateExternalImageCombo();
 
     private static ClassTypeSymbol CreateCollection()
     {
@@ -291,6 +297,121 @@ public static class VBStandardTypes
         return CreateExternalControl("MSComctlLib.TreeView", Array.Empty<ProcedureSymbol>(), properties);
     }
 
+    private static ClassTypeSymbol CreateExternalListImage()
+    {
+        var properties = new List<PropertySymbol>
+        {
+            LateBoundReadOnlyProperty("Key", TypeSymbol.String),
+            LateBoundReadOnlyProperty("Index", TypeSymbol.Long)
+        };
+        properties.AddRange(LateBoundReadWriteProperties("Picture", Picture));
+        return CreateExternalObject("MSComctlLib.ListImage", Array.Empty<ProcedureSymbol>(), properties);
+    }
+
+    private static ClassTypeSymbol CreateExternalListImages()
+    {
+        var item = new PropertySymbol(
+            "Item",
+            PropertyAccessorKind.Get,
+            ExternalListImage,
+            ImmutableArray.Create(OptionalVariantParameter("Index")))
+        {
+            IsLateBound = true
+        };
+        var procedures = new[]
+        {
+            LateBoundProcedure(
+                "Add",
+                ImmutableArray.Create(
+                    OptionalVariantParameter("Index"),
+                    OptionalVariantParameter("Key"),
+                    OptionalVariantParameter("FileName")),
+                ExternalListImage),
+            LateBoundProcedure(
+                "Remove",
+                ImmutableArray.Create(new ParameterSymbol("Index", TypeSymbol.Variant, ParameterPassingMode.ByVal))),
+            LateBoundProcedure("Clear", ImmutableArray<ParameterSymbol>.Empty)
+        };
+        var properties = new[]
+        {
+            LateBoundReadOnlyProperty("Count", TypeSymbol.Long),
+            item
+        };
+        var type = CreateExternalObject("MSComctlLib.ListImages", procedures, properties);
+        type.SetDefaultPropertyName("Item");
+        return type;
+    }
+
+    private static ClassTypeSymbol CreateExternalImageList()
+    {
+        var properties = new List<PropertySymbol>
+        {
+            LateBoundReadOnlyProperty("ListImages", ExternalListImages)
+        };
+        properties.AddRange(LateBoundReadWriteProperties("ImageWidth", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("ImageHeight", TypeSymbol.Long));
+        return CreateExternalObject("MSComctlLib.ImageList", Array.Empty<ProcedureSymbol>(), properties);
+    }
+
+    private static ClassTypeSymbol CreateExternalComboItem()
+    {
+        var properties = new List<PropertySymbol>
+        {
+            LateBoundReadOnlyProperty("Key", TypeSymbol.String),
+            LateBoundReadOnlyProperty("Index", TypeSymbol.Long)
+        };
+        properties.AddRange(LateBoundReadWriteProperties("Text", TypeSymbol.String));
+        properties.AddRange(LateBoundReadWriteProperties("Selected", TypeSymbol.Boolean));
+        properties.AddRange(LateBoundReadWriteProperties("Image", TypeSymbol.Long));
+        return CreateExternalObject("MSComctlLib.ComboItem", Array.Empty<ProcedureSymbol>(), properties);
+    }
+
+    private static ClassTypeSymbol CreateExternalComboItems()
+    {
+        var item = new PropertySymbol(
+            "Item",
+            PropertyAccessorKind.Get,
+            ExternalComboItem,
+            ImmutableArray.Create(OptionalVariantParameter("Index")))
+        {
+            IsLateBound = true
+        };
+        var procedures = new[]
+        {
+            LateBoundProcedure(
+                "Add",
+                ImmutableArray.Create(
+                    OptionalVariantParameter("Index"),
+                    OptionalVariantParameter("Key"),
+                    OptionalVariantParameter("Text"),
+                    OptionalVariantParameter("Image")),
+                ExternalComboItem),
+            LateBoundProcedure(
+                "Remove",
+                ImmutableArray.Create(new ParameterSymbol("Index", TypeSymbol.Variant, ParameterPassingMode.ByVal))),
+            LateBoundProcedure("Clear", ImmutableArray<ParameterSymbol>.Empty)
+        };
+        var properties = new[]
+        {
+            LateBoundReadOnlyProperty("Count", TypeSymbol.Long),
+            item
+        };
+        var type = CreateExternalObject("MSComctlLib.ComboItems", procedures, properties);
+        type.SetDefaultPropertyName("Item");
+        return type;
+    }
+
+    private static ClassTypeSymbol CreateExternalImageCombo()
+    {
+        var properties = new List<PropertySymbol>
+        {
+            LateBoundReadOnlyProperty("ComboItems", ExternalComboItems),
+            LateBoundReadOnlyProperty("SelectedItem", ExternalComboItem)
+        };
+        properties.AddRange(LateBoundReadWriteProperties("ImageList", VBStandardTypes.Object));
+        return CreateExternalControl("MSComctlLib.ImageCombo", Array.Empty<ProcedureSymbol>(), properties);
+    }
+
     private static ClassTypeSymbol CreateExternalRichTextBox()
     {
         var procedures = new[]
@@ -426,13 +547,27 @@ public static class VBStandardTypes
         string name,
         IEnumerable<ProcedureSymbol> procedures,
         IEnumerable<PropertySymbol> properties)
+        => CreateExternalObject(name, procedures, properties, isControl: true);
+
+    private static ClassTypeSymbol CreateExternalObject(
+        string name,
+        IEnumerable<ProcedureSymbol> procedures,
+        IEnumerable<PropertySymbol> properties,
+        bool isControl = false)
     {
         var type = new ClassTypeSymbol(name);
         type.MarkAsRuntimeObjectContract();
         type.MarkAsLateBoundObject();
-        type.MarkAsControlContract();
-        var inheritedProcedures = Control.Procedures.Select(procedure => procedure with { IsLateBound = true });
-        var inheritedProperties = Control.Properties.Select(property => property with { IsLateBound = true });
+        if (isControl)
+        {
+            type.MarkAsControlContract();
+        }
+        var inheritedProcedures = isControl
+            ? Control.Procedures.Select(procedure => procedure with { IsLateBound = true })
+            : Enumerable.Empty<ProcedureSymbol>();
+        var inheritedProperties = isControl
+            ? Control.Properties.Select(property => property with { IsLateBound = true })
+            : Enumerable.Empty<PropertySymbol>();
         if (!type.TryDefineMembers(
                 inheritedProcedures.Concat(procedures),
                 inheritedProperties.Concat(properties),

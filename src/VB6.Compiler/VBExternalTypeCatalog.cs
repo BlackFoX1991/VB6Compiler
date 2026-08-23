@@ -34,6 +34,12 @@ internal static class VBExternalTypeCatalog
                     });
                     aliases["MSComctlLib.Node"] = VBStandardTypes.ExternalTreeNode;
                     aliases["MSComctlLib.TreeView"] = VBStandardTypes.ExternalTreeView;
+                    aliases["MSComctlLib.ImageList"] = VBStandardTypes.ExternalImageList;
+                    aliases["MSComctlLib.ListImages"] = VBStandardTypes.ExternalListImages;
+                    aliases["MSComctlLib.ListImage"] = VBStandardTypes.ExternalListImage;
+                    aliases["MSComctlLib.ImageCombo"] = VBStandardTypes.ExternalImageCombo;
+                    aliases["MSComctlLib.ComboItems"] = VBStandardTypes.ExternalComboItems;
+                    aliases["MSComctlLib.ComboItem"] = VBStandardTypes.ExternalComboItem;
                     break;
 
                 case "RICHTX32.OCX":
