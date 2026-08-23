@@ -2311,6 +2311,22 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CollectionAdd) return Static(typeof(VBCollection), nameof(VBCollection.AddValue), typeof(VBCollection), typeof(object), typeof(object), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.CollectionRemove) return Static(typeof(VBCollection), nameof(VBCollection.RemoveValue), typeof(VBCollection), typeof(object));
             if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
+            if (m is IrRuntimeMethod.DateTimeYear or IrRuntimeMethod.DateTimeMonth or
+                IrRuntimeMethod.DateTimeDay or IrRuntimeMethod.DateTimeHour or
+                IrRuntimeMethod.DateTimeMinute or IrRuntimeMethod.DateTimeSecond)
+            {
+                var name = m switch
+                {
+                    IrRuntimeMethod.DateTimeYear => "Year",
+                    IrRuntimeMethod.DateTimeMonth => "Month",
+                    IrRuntimeMethod.DateTimeDay => "Day",
+                    IrRuntimeMethod.DateTimeHour => "Hour",
+                    IrRuntimeMethod.DateTimeMinute => "Minute",
+                    _ => "Second"
+                };
+                return Static(typeof(VBDateTime), name, typeof(double));
+            }
+            if (m == IrRuntimeMethod.DateTimeTimer) return Static(typeof(VBDateTime), "Timer");
             if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
             if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));
             if (m == IrRuntimeMethod.ErrorSource) return Static(typeof(VBErrors), nameof(VBErrors.SourceValue));

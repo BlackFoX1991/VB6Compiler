@@ -90,6 +90,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `LBound`/`UBound` mit leeren Arrayklammern | **3** | **0** | **0** | **3** | **38 von 40** |
 | RichTextBox-Dateityp-Konstanten (`rtfRTF`, `rtfText`) | **2** | **0** | **0** | **2** | **38 von 40** |
 | `Format`/`Format$`-Subset für deterministische Zahlen-, Datums-/Zeit- und Stringmasken | **2** | **0** | **0** | **2** | **38 von 40** |
+| Skalare Date-Part-/Timer-Intrinsics | **2** | **0** | **0** | **2** | **38 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -416,6 +417,12 @@ und `Long Time` hinzu. Wochenmasken, Locale-Auswahl und weitere String-Platzhalt
 offen, statt über eine unklare Annäherung als kompatibel zu gelten. Der VISIA-Stand bleibt
 unverändert bei **2 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst
 nun **720 Tests**.
+
+Die skalaren Date-Part-/Timer-Intrinsics `Year`, `Month`, `Day`, `Hour`, `Minute`, `Second` und
+`Timer` sind nun als backendunabhängige Runtime-Verträge ergänzt. Die Date-Part-Funktionen lesen
+typisierte `Date`-Ausdrücke über die bestehende OLE-Automation-Darstellung; `Timer` liefert die
+Sekunden seit lokaler Mitternacht im VB6-Tagesbereich. Der VISIA-Stand bleibt bei **2 semantischen
+Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **722 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
