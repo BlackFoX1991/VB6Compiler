@@ -96,7 +96,10 @@ public static class VBDynamicDispatch
         var property = FindProperty(target, memberName);
         if (property is not null && property.CanWrite)
         {
-            property.SetValue(target, value, ConvertPropertyArguments(property, arguments));
+            property.SetValue(
+                target,
+                ConvertArgument(value, property.PropertyType),
+                ConvertPropertyArguments(property, arguments));
             return;
         }
 
@@ -158,17 +161,50 @@ public static class VBDynamicDispatch
     {
         var parameters = method.GetParameters();
         var converted = new object?[parameters.Length];
+        var sourceIndexes = Enumerable.Repeat(-1, parameters.Length).ToArray();
+        var argumentIndex = 0;
         for (var index = 0; index < parameters.Length; index++)
         {
-            converted[index] = ConvertArgument(arguments[index], parameters[index].ParameterType);
+            var parameter = parameters[index];
+            if (parameter.GetCustomAttribute<ParamArrayAttribute>() is not null)
+            {
+                var elementType = parameter.ParameterType.GetElementType()
+                    ?? throw new InvalidOperationException("A ParamArray parameter must be an array.");
+                var remaining = arguments.Length - argumentIndex;
+                var values = Array.CreateInstance(elementType, remaining);
+                for (var valueIndex = 0; valueIndex < remaining; valueIndex++)
+                {
+                    values.SetValue(
+                        ConvertArgument(arguments[argumentIndex++], elementType),
+                        valueIndex);
+                }
+
+                converted[index] = values;
+                continue;
+            }
+
+            if (argumentIndex < arguments.Length)
+            {
+                sourceIndexes[index] = argumentIndex;
+                converted[index] = ConvertArgument(arguments[argumentIndex++], parameter.ParameterType);
+                continue;
+            }
+
+            converted[index] = OptionalValue(parameter);
+        }
+
+        if (argumentIndex != arguments.Length)
+        {
+            throw new TargetParameterCountException(
+                $"Member '{method.Name}' received {arguments.Length} argument(s), but only {argumentIndex} could be bound.");
         }
 
         var result = method.Invoke(target, converted);
         for (var index = 0; index < parameters.Length; index++)
         {
-            if (parameters[index].ParameterType.IsByRef && index < arguments.Length)
+            if (parameters[index].ParameterType.IsByRef && sourceIndexes[index] >= 0)
             {
-                arguments[index] = converted[index];
+                arguments[sourceIndexes[index]] = converted[index];
             }
         }
 
@@ -184,9 +220,44 @@ public static class VBDynamicDispatch
             .Where(method =>
                 string.Equals(method.Name, memberName, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(method.Name, generatedName, StringComparison.OrdinalIgnoreCase))
-            .Where(method => method.GetParameters().Length == argumentCount)
+            .Where(method => CanAcceptArgumentCount(method, argumentCount))
             .OrderBy(method => string.Equals(method.Name, generatedName, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(method => method.GetParameters().Length == argumentCount ? 0 : 1)
             .FirstOrDefault();
+    }
+
+    private static bool CanAcceptArgumentCount(MethodInfo method, int argumentCount)
+    {
+        var parameters = method.GetParameters();
+        var hasParamArray = parameters.LastOrDefault()?.GetCustomAttribute<ParamArrayAttribute>() is not null;
+        var fixedParameterCount = hasParamArray ? parameters.Length - 1 : parameters.Length;
+        var requiredParameterCount = parameters
+            .Take(fixedParameterCount)
+            .Count(parameter => !parameter.IsOptional && !parameter.HasDefaultValue);
+
+        if (argumentCount < requiredParameterCount)
+        {
+            return false;
+        }
+
+        return hasParamArray
+            ? argumentCount >= requiredParameterCount
+            : argumentCount <= parameters.Length;
+    }
+
+    private static object? OptionalValue(ParameterInfo parameter)
+    {
+        if (parameter.HasDefaultValue &&
+            parameter.DefaultValue is not DBNull &&
+            !ReferenceEquals(parameter.DefaultValue, Missing.Value))
+        {
+            return ConvertArgument(parameter.DefaultValue, parameter.ParameterType);
+        }
+
+        var targetType = parameter.ParameterType.IsByRef
+            ? parameter.ParameterType.GetElementType()!
+            : parameter.ParameterType;
+        return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
     }
 
     private static PropertyInfo? FindProperty(object? target, string memberName)
@@ -228,6 +299,12 @@ public static class VBDynamicDispatch
         var targetType = parameterType.IsByRef
             ? parameterType.GetElementType()!
             : parameterType;
+        var nullableType = Nullable.GetUnderlyingType(targetType);
+        if (nullableType is not null)
+        {
+            return value is null ? null : ConvertArgument(value, nullableType);
+        }
+
         if (value is null)
         {
             return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
@@ -242,11 +319,26 @@ public static class VBDynamicDispatch
         if (targetType == typeof(short)) return VBConversions.ConvertCInt(value);
         if (targetType == typeof(int)) return VBConversions.ConvertCLng(value);
         if (targetType == typeof(long)) return VBConversions.ConvertCLngLng(value);
+        if (targetType == typeof(ushort)) return VBConversions.ConvertCUShort(value);
+        if (targetType == typeof(uint)) return VBConversions.ConvertCUInt(value);
+        if (targetType == typeof(ulong)) return VBConversions.ConvertCULng(value);
+        if (targetType == typeof(IntPtr)) return VBConversions.ConvertCLngPtr(value);
         if (targetType == typeof(float)) return VBConversions.ConvertCSng(value);
         if (targetType == typeof(double)) return VBConversions.ConvertCDbl(value);
+        if (targetType == typeof(decimal))
+        {
+            return Convert.ToDecimal(VBConversions.CDec(value), CultureInfo.InvariantCulture);
+        }
+
         if (targetType == typeof(bool)) return VBConversions.ConvertCBool(value);
         if (targetType == typeof(string)) return VBConversions.ConvertCStr(value);
         if (targetType == typeof(VBCurrency)) return VBConversions.ConvertCCur(value);
+        if (targetType == typeof(VBDateValue)) return new VBDateValue(VBConversions.CDate(value));
+        if (targetType.IsEnum)
+        {
+            var underlying = ConvertArgument(value, Enum.GetUnderlyingType(targetType));
+            return Enum.ToObject(targetType, underlying!);
+        }
 
         throw new InvalidCastException(
             $"Cannot pass a Variant value of type '{value.GetType().Name}' to '{targetType.Name}'.");

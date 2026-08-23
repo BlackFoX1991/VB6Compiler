@@ -1089,7 +1089,7 @@ Zwei Nachträge:
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; vollständige Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
 - [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
-- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; vollständige COM-/IDispatch-Auflösung, ByRef-Writeback und Host-ABI bleiben offen
+- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; vollständige COM-/IDispatch-Auflösung, COM-ByRef-/Event-ABI und Host-ABI bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; vollständiger Host-/COM-Event-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
 
@@ -1217,3 +1217,11 @@ folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Dan
 3. `Currency + Double` liefert heute `Currency`; gegen echtes VB6 verifizieren
 4. `Debug.Print` formatiert Zahlen invariant und mit VB6-nahem Vorzeichen-/Signifikanzformat
    unverändert unter Punkt 1
+
+## Aktueller .NET-Nachtrag
+
+Der late-bound Managed-/CLR-Dispatch füllt nun optionale Parameter auf, bündelt `ParamArray`-
+Argumente, konvertiert Property- und Indexerargumente über die VB-Runtime und schreibt geänderte
+ByRef-Argumente in die Variant-Argumentliste zurück. Die drei Runtime-Regressionstests erhöhen die
+Suite auf **826 Tests**. COM-/IDispatch-spezifische Identität, Event-Sinks und Host-ABI bleiben als
+separater Interop-Schritt offen.
