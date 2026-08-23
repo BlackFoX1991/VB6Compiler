@@ -210,6 +210,87 @@ public sealed class ProjectCompilationTests
         }
     }
 
+    [TestMethod]
+    public void Analyze_BindsClassTypesFromReferencedVbp()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var libraryPath = Path.Combine(directory, "Shared.vbp");
+            File.WriteAllText(libraryPath, """
+                Type=OleDll
+                Name=Shared
+                Class=Customer; Customer.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Customer.cls"), """
+                Public Function Value() As Long
+                    Value = 7
+                End Function
+                """);
+
+            var consumerPath = Path.Combine(directory, "Consumer.vbp");
+            File.WriteAllText(consumerPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name=Consumer
+                Reference=*\G{00025E01-0000-0000-C000-000000000046}#1.0#0#Shared.vbp#Shared
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim customer As Shared.Customer
+                    Set customer = New Shared.Customer
+                    Debug.Print customer.Value
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(consumerPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            Assert.IsNotNull(analysis.SemanticModel);
+            var main = analysis.SemanticModel!.Procedures.Single(procedure =>
+                string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
+            var customer = main.Locals.Single(variable => variable.Name == "customer");
+            Assert.AreEqual("Customer", customer.Type.Name);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsProjectReferenceCycles()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(Path.Combine(directory, "First.vbp"), """
+                Type=OleDll
+                Name=First
+                Reference=*\G{00025E01-0000-0000-C000-000000000046}#1.0#0#Second.vbp#Second
+                """);
+            File.WriteAllText(Path.Combine(directory, "Second.vbp"), """
+                Type=OleDll
+                Name=Second
+                Reference=*\G{00025E01-0000-0000-C000-000000000046}#1.0#0#First.vbp#First
+                """);
+
+            var analysis = VBProjectCompilation.Create(Path.Combine(directory, "First.vbp")).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.ProjectDiagnostics.Any(diagnostic => diagnostic.Code == "VB6PRJ0017"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     /// <summary>
     /// A module with a syntax error still declares its procedures. The parser is fault-tolerant on
     /// purpose, so a procedure whose own header parsed is a real declaration - and hiding it turns
