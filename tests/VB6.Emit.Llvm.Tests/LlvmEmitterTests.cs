@@ -768,6 +768,50 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "trunc i64");
     }
 
+    [TestMethod]
+    public void Emit_LowersRoundedFloatingIntegerConversions()
+    {
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CInt,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(2.5d, TypeSymbol.Double))),
+                        TypeSymbol.Integer)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CByte,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(254.5f, TypeSymbol.Single))),
+                        TypeSymbol.Byte)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CUShort,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(65534.5d, TypeSymbol.Double))),
+                        TypeSymbol.UShort))),
+                new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "declare double @llvm.roundeven.f64(double)");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_fptosi_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_fptoui_checked_i64");
+        StringAssert.Contains(result.ModuleText, "double -32768.0, double 32767.0");
+        StringAssert.Contains(result.ModuleText, "double 255.0");
+        StringAssert.Contains(result.ModuleText, "double 65535.0");
+        StringAssert.Contains(result.ModuleText, "fpext float 254.5 to double");
+        StringAssert.Contains(result.ModuleText, "fptosi double %rounded to i64");
+        StringAssert.Contains(result.ModuleText, "fptoui double %rounded to i64");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",
