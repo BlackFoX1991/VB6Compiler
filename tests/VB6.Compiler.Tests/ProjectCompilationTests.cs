@@ -238,10 +238,12 @@ public sealed class ProjectCompilationTests
                 Sub Main()
                     Dim picture As stdole.IPicture
                     Dim font As stdole.IFont
+                    Dim standardFont As stdole.StdFont
                     Dim state As stdole.OLE_TRISTATE
                     state = stdole.OLE_TRISTATE.Checked
                     Set picture = Nothing
                     Set font = Nothing
+                    Set standardFont = Nothing
                     Debug.Print picture.Handle
                     Debug.Print font.Name
                 End Sub
@@ -265,6 +267,13 @@ public sealed class ProjectCompilationTests
                 stateExpression = conversion.Expression;
             }
             Assert.IsInstanceOfType<BoundLiteralExpression>(stateExpression);
+
+            var standardFont = main.Locals.Single(local =>
+                string.Equals(local.Name, "standardFont", StringComparison.OrdinalIgnoreCase));
+            Assert.IsInstanceOfType<ClassTypeSymbol>(standardFont.Type);
+            var standardFontType = (ClassTypeSymbol)standardFont.Type;
+            Assert.IsTrue(standardFontType.TryGetEvent("FontChanged", out var fontChanged));
+            Assert.AreEqual(1, fontChanged.Parameters.Length);
 
             var stateConstant = analysis.SemanticModel!.ModuleVariables
                 .Single(variable => string.Equals(variable.Symbol.Name, "Checked", StringComparison.OrdinalIgnoreCase));

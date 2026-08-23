@@ -451,10 +451,12 @@ internal static class VBTypeLibraryImporter
     {
         var procedures = ownMembers.Procedures.ToBuilder();
         var properties = ownMembers.Properties.ToBuilder();
+        var events = ownMembers.Events.ToBuilder();
         var defaultName = ownMembers.DefaultPropertyName;
 
         for (var index = 0; index < record.Attribute.cImplTypes; index++)
         {
+            record.TypeInfo.GetImplTypeFlags(index, out var implementationFlags);
             record.TypeInfo.GetRefTypeOfImplType(index, out var referenceHandle);
             record.TypeInfo.GetRefTypeInfo(referenceHandle, out var implementedTypeInfo);
             implementedTypeInfo.GetDocumentation(-1, out var implementedName, out _, out _, out _);
@@ -471,6 +473,16 @@ internal static class VBTypeLibraryImporter
                 ReadTypeAttribute(implementedTypeInfo),
                 false);
             var members = ImportMembers(implementedRecord, libraryName, types);
+            if ((implementationFlags & IMPLTYPEFLAGS.IMPLTYPEFLAG_FSOURCE) != 0)
+            {
+                var sourceEvents = members.Procedures.Select(procedure =>
+                    new EventSymbol(procedure.Name, procedure.Parameters));
+                events.AddRange(sourceEvents.Where(@event =>
+                    events.All(existing =>
+                        !string.Equals(existing.Name, @event.Name, StringComparison.OrdinalIgnoreCase))));
+                continue;
+            }
+
             procedures.AddRange(members.Procedures.Where(procedure =>
                 procedures.All(existing => !string.Equals(existing.Name, procedure.Name, StringComparison.OrdinalIgnoreCase))));
             properties.AddRange(members.Properties.Where(property =>
@@ -483,7 +495,7 @@ internal static class VBTypeLibraryImporter
         return new ImportedMembers(
             procedures.ToImmutable(),
             properties.ToImmutable(),
-            ownMembers.Events,
+            events.ToImmutable(),
             defaultName);
     }
 
