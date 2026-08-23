@@ -479,6 +479,12 @@ durch Binder, IR, Managed-Emitter und Runtime mit checked Integer-/Bitwise-Opera
 als echte pointergroße P/Invoke-Signatur. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und
 **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **741 Tests**.
 
+`UInteger` mit dem Alias `UInt32` ergänzt die unsigned Integer-Basis. `CUInt`, checked Arithmetic
+und Bitwise-Operationen, `For`-Zähler, boxed-Variant-Konvertierung sowie skalare `Declare`-/P/Invoke-
+Signaturen nutzen den vollständigen Bereich 0 bis 4.294.967.295. `UShort` und `ULong` bleiben als
+separate Breitenverträge offen. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und **38 von 40**
+fehlerfreien Dateien; die Suite umfasst nun **745 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -1006,7 +1012,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
-- [ ] vorzeichenlose Ganzzahltypen
+- [~] vorzeichenlose Ganzzahltypen — `UInteger`/`UInt32` und `CUInt` sind mit checked
+      Managed-/P/Invoke-/Variant-Verträgen ergänzt; `UShort` und `ULong` bleiben offen
 
 ## Meilenstein 9 — Forms
 

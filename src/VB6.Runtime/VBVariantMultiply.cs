@@ -105,6 +105,7 @@ public static partial class VBOperators
             byte => VariantNumericKind.Byte,
             short => VariantNumericKind.Integer,
             int => VariantNumericKind.Long,
+            uint => VariantNumericKind.LongLong,
             long => VariantNumericKind.LongLong,
             IntPtr => VariantNumericKind.LongLong,
             float => VariantNumericKind.Single,
