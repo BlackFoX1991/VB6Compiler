@@ -360,6 +360,66 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
+    public void Emit_DiagnosesCheckedIntegerDivision()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.IntegerDivideLong,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(7, TypeSymbol.Long)),
+                new IrCallArgument(new IrConstantExpression(2, TypeSymbol.Long))),
+            TypeSymbol.Long);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked integer division runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("sdiv i32", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Emit_DiagnosesCheckedIntegerRemainder()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.ModInteger,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression((short)7, TypeSymbol.Integer)),
+                new IrCallArgument(new IrConstantExpression((short)2, TypeSymbol.Integer))),
+            TypeSymbol.Integer);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Integer,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked integer remainder runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("srem i16", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void Emit_LowersScalarExternalDeclarationsAndCalls()
     {
         var parameterSymbol = new ParameterSymbol("value", TypeSymbol.Long, ParameterPassingMode.ByVal);
