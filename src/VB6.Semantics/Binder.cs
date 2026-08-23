@@ -2632,14 +2632,8 @@ public sealed class Binder
                 memberAccess.MemberToken.Span);
         }
 
-        if (procedure.IsFunction)
-        {
-            Report(
-                "VB6S0010",
-                $"Function '{procedure.Name}' cannot be called as a statement without using its result.",
-                memberAccess.MemberToken.Span);
-        }
-
+        // VB6 permits a statement-form call to a Function when its return value is intentionally
+        // discarded. Keep the call as an evaluated statement so side effects still execute.
         return new BoundMemberInvocationStatement(
             receiver,
             procedure,

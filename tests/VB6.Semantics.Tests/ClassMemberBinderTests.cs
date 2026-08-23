@@ -53,6 +53,9 @@ public sealed class ClassMemberBinderTests
 
             Function GetValue() As Long
             End Function
+
+            Function Touch(ByVal amount As Long) As Long
+            End Function
             """, "Widget.cls");
         var classRoot = new ParserType(classText).ParseCompilationUnit().Root;
         var classType = new ClassTypeSymbol("Widget", classText.FilePath);
@@ -68,6 +71,7 @@ public sealed class ClassMemberBinderTests
                 Set value = New Widget
                 Debug.Print value.Value
                 Debug.Print value.GetValue()
+                value.Touch 1
                 If TypeOf value Is Widget Then
                 End If
             End Sub
