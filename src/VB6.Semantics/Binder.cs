@@ -2074,6 +2074,16 @@ public sealed class Binder
 
         if (variable.Type is not ArrayTypeSymbol arrayType)
         {
+            if (variable.Type == TypeSymbol.Variant)
+            {
+                var target = new BoundVariantArrayAccessExpression(
+                    new BoundVariableExpression(variable),
+                    BindArrayIndices(syntax.Identifier, syntax.Indices, null, variables, procedures));
+                return new BoundMemberAssignmentStatement(
+                    target,
+                    BindConversion(expression, TypeSymbol.Variant));
+            }
+
             if (variable.Type is ClassTypeSymbol classType &&
                 (classType.TryGetDefaultProperty(PropertyAccessorKind.Let, out _) ||
                  classType.TryGetDefaultProperty(PropertyAccessorKind.Set, out _)))

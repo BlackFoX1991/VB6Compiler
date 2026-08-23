@@ -809,6 +809,15 @@ public static class IrLowerer
                     break;
                 case BoundMemberAssignmentStatement assignment:
                 {
+                    if (assignment.Target is BoundVariantArrayAccessExpression variantArray)
+                    {
+                        Emit(new IrVariantArraySetInstruction(
+                            LowerExpression(variantArray.Receiver),
+                            variantArray.Indices.Select(LowerExpression).ToImmutableArray(),
+                            LowerValueCopy(assignment.Expression)));
+                        break;
+                    }
+
                     if (assignment.Target is BoundPropertyAccessExpression
                         {
                             Property.IsLateBound: true

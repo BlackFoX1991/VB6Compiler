@@ -369,6 +369,9 @@ public sealed class LlvmEmitter
                 case IrStoreInstruction store:
                     EmitStore(store);
                     return;
+                case IrVariantArraySetInstruction:
+                    AddDiagnostic("VB6L0001", "Native LLVM lowering for Variant array writes is not implemented yet.");
+                    return;
                 case IrEvaluateInstruction evaluate:
                     _ = EmitExpression(evaluate.Expression);
                     return;

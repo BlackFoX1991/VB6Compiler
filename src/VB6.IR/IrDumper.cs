@@ -48,6 +48,8 @@ public static class IrDumper
     private static string FormatInstruction(IrInstruction instruction) => instruction switch
     {
         IrStoreInstruction store => $"store {FormatPlace(store.Target)}, {FormatExpression(store.Value)}",
+        IrVariantArraySetInstruction set =>
+            $"variant-array-set {FormatExpression(set.Array)}[{string.Join(", ", set.Arguments.Select(FormatExpression))}], {FormatExpression(set.Value)}",
         IrStoreAddressInstruction address => $"store-address %{address.AddressLocal.Name}, {FormatExpression(address.Address)}",
         IrEvaluateInstruction evaluate => $"eval {FormatExpression(evaluate.Expression)}",
         IrBaseFinalizeInstruction => "base-finalize",
