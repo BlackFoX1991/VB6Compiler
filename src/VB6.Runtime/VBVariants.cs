@@ -33,6 +33,8 @@ public static class VBVariants
 
     public static bool IsNull(object? value) => ReferenceEquals(value, NullMarker);
 
+    public static bool IsNothing(object? value) => ReferenceEquals(value, NothingMarker);
+
     public static bool IsMissing(object? value) => ReferenceEquals(value, MissingMarker);
 
     public static bool IsError(object? value) => value is VBErrorValue;
