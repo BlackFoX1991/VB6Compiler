@@ -121,6 +121,20 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InvokesLongPtrDeclareFunction()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Function GetCurrentProcessId Lib "kernel32" () As LongPtr
+
+            Sub Main()
+                Debug.Print CLng(GetCurrentProcessId) > 0
+            End Sub
+            """);
+
+        Assert.AreEqual("True", output.Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_AcceptsAnsiDeclareStringMarshalling()
     {
         var result = VBCompilation.Create("""

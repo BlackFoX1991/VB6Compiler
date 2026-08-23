@@ -64,6 +64,31 @@ public sealed class Int64TypeBinderTests
         Assert.AreEqual(TypeSymbol.LongLong, loop.Step.Type);
     }
 
+    [TestMethod]
+    public void Bind_RecognizesLongPtrAsNativeIntegerType()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim value As LongPtr
+                value = value + 1
+                For value = 1 To 2
+                Next value
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var procedure = model.Procedures.Single();
+        var value = procedure.Body.Statements
+            .OfType<BoundVariableDeclarationStatement>()
+            .Single()
+            .Variable;
+        Assert.AreEqual(TypeSymbol.LongPtr, value.Type);
+        var assignment = procedure.Body.Statements.OfType<BoundAssignmentStatement>().Single();
+        Assert.AreEqual(TypeSymbol.LongPtr, assignment.Expression.Type);
+        var loop = procedure.Body.Statements.OfType<BoundForStatement>().Single();
+        Assert.AreEqual(TypeSymbol.LongPtr, loop.ControlVariable.Type);
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");

@@ -25,4 +25,22 @@ public sealed class Int64RuntimeTests
         Assert.AreEqual(3000000000L, VBOperators.IntegerDivideLongLong(9000000000L, 3L));
         Assert.AreEqual(2L, VBOperators.ModLongLong(9000000002L, 3L));
     }
+
+    [TestMethod]
+    public void LongPtrConversionAndArithmeticUseNativePointerWidth()
+    {
+        var value = VBConversions.CLngPtr(42L);
+
+        Assert.AreEqual(new IntPtr(42), value);
+        Assert.AreEqual(new IntPtr(84), VBOperators.AddLongPtr(value, value));
+        Assert.AreEqual(new IntPtr(0x20), VBOperators.AndLongPtr(value, new IntPtr(0x60)));
+        Assert.AreEqual(42L, VBConversions.CLngLng(value));
+        Assert.AreEqual("42", VBConversions.CStr(value));
+        Assert.AreEqual(IntPtr.Size == 8 ? (short)20 : (short)3, VBVariants.VarType(value));
+
+        if (IntPtr.Size == 8)
+        {
+            Assert.AreEqual(new IntPtr(long.MaxValue), VBConversions.CLngPtr(long.MaxValue));
+        }
+    }
 }

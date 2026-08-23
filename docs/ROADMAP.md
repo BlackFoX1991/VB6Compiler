@@ -473,6 +473,12 @@ Dateien; die Suite umfasst nun **729 Tests**.
 explizit ungültigen Variant-Zuständen dem VB6-Vertrag. Der VISIA-Stand bleibt bei **2 semantischen
 Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **731 Tests**.
 
+`LongPtr` und `CLngPtr` sind nun als native-width `System.IntPtr`-Verträge ergänzt. Der Typ läuft
+durch Binder, IR, Managed-Emitter und Runtime mit checked Integer-/Bitwise-Operatoren, kann als
+`For`-Zähler verwendet werden, wird in Variants numerisch konvertiert und erscheint in `Declare`
+als echte pointergroße P/Invoke-Signatur. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und
+**38 von 40** fehlerfreien Dateien; die Suite umfasst nun **741 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -977,7 +983,8 @@ Nach Korpusbedarf priorisiert:
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
 4. Math: `Abs`, `Sgn`, `Fix`, `Round`, `Sqr`, `Exp`, `Log`, `Sin`, `Cos`, `Tan` und `Atn` sind als
-   Scalar-Slice ergänzt, einschließlich `Null`-/`Empty`-Semantik für `Abs`, `Fix` und `Round`; weitere
+   Scalar-Slice ergänzt, einschließlich `Null`-/`Empty`-Semantik für `Abs`, `Fix` und `Round`; `LongPtr`
+   ist als native-width Integer inklusive Pointerarithmetik und `CLngPtr` ergänzt; weitere
    Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
    für den aktuellen String-/Variant-Subset implementiert.
 5. [~] `Format$` — deterministische numerische Masken, Standardnamen, gängige Datums-/Zeit-Token
@@ -997,7 +1004,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
 - [ ] LLVM-natives Windows-Backend für x86 und x64 — Target-/Diagnosevertrag steht, native Instruktions- und Runtime-Emission offen
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
-- [ ] `LongPtr`, vorzeichenlose Ganzzahltypen
+- [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
+      `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
+- [ ] vorzeichenlose Ganzzahltypen
 
 ## Meilenstein 9 — Forms
 
