@@ -292,6 +292,8 @@ public static class VBConversions
         _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
     };
 
+    public static object? CVar(object? value) => value;
+
     /// <summary>Implements VB6 Int, including floor semantics for negative fractional values.</summary>
     public static object Int(object? value)
     {

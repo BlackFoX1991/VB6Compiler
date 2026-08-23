@@ -80,6 +80,26 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void Oct_UsesVb6LongRepresentationAndPreservesNull()
+    {
+        Assert.AreEqual("10", VBStrings.Oct(8));
+        Assert.AreEqual("713", VBStrings.Oct(459));
+        Assert.AreEqual("37777777777", VBStrings.Oct(-1));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Oct(VBVariants.NullValue())));
+        Assert.AreEqual("0", VBStrings.Oct(VBVariants.EmptyValue()));
+    }
+
+    [TestMethod]
+    public void CVar_PreservesVariantStateAndSubtype()
+    {
+        var date = new VBDateValue(43832d);
+
+        Assert.AreSame(date, VBConversions.CVar(date));
+        Assert.IsTrue(VBVariants.IsNull(VBConversions.CVar(VBVariants.NullValue())));
+        Assert.AreEqual((short)3, VBVariants.VarType(VBConversions.CVar(42)));
+    }
+
+    [TestMethod]
     public void String_RepeatsNumericAndStringCharacters()
     {
         Assert.AreEqual("xxx", VBStrings.String(3, "x"));

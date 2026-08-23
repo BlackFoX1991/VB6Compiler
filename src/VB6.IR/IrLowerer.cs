@@ -3123,6 +3123,7 @@ public static class IrLowerer
             "VBStrings.Asc" => IrRuntimeMethod.StringAsc,
             "VBStrings.Val" => IrRuntimeMethod.StringVal,
             "VBStrings.Hex" => IrRuntimeMethod.StringHex,
+            "VBStrings.Oct" => IrRuntimeMethod.StringOct,
             "VBStrings.String" => IrRuntimeMethod.StringRepeat,
             "VBStrings.FormatValue" => IrRuntimeMethod.StringFormat,
             "VBStrings.IsNumeric" => IrRuntimeMethod.StringIsNumeric,
@@ -3234,6 +3235,7 @@ public static class IrLowerer
             "VBConversions.CDbl" => IrRuntimeMethod.CDbl,
             "VBConversions.CBool" => IrRuntimeMethod.CBool,
             "VBConversions.CStr" => IrRuntimeMethod.CStr,
+            "VBConversions.CVar" => IrRuntimeMethod.CVar,
             "VBConversions.CVErr" => IrRuntimeMethod.CVErr,
             _ => throw new NotSupportedException($"Intrinsic runtime target '{target}' has no IR identity.")
         };

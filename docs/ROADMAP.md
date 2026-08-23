@@ -521,6 +521,11 @@ Reihenfolge und unterstützt Include-/Binary-/Text-Vergleiche, auch bei leeren E
 VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
 umfasst nun **760 Tests**.
 
+`Oct` ergänzt `Hex` als Variant-String-Konversion mit bis zu elf Long-Oktalziffern und erhaltener
+`Null`-Semantik. `CVar` führt die Typkonversionsfamilie als expliziter Variant-Vertrag fort und
+bewahrt Date-Subtype und Variant-Zustände. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und
+**39 von 40** fehlerfreien Dateien; die Suite umfasst nun **762 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
