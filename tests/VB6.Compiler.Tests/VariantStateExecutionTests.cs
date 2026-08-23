@@ -94,4 +94,22 @@ public sealed class VariantStateExecutionTests
 
         CollectionAssert.AreEqual(new[] { "7", "Date", "43832", "43832" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesDateSubtypeThroughVariantArithmetic()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CDate(43832)
+
+                Debug.Print TypeName(value + 1)
+                Debug.Print Format$(value + 1, "yyyy-mm-dd")
+                Debug.Print TypeName(value - value)
+                Debug.Print value - value
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Date", "2020-01-03", "Double", "0" }, output);
+    }
 }
