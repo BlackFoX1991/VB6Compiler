@@ -215,6 +215,13 @@ vb6c Module1.bas --dump-ir
 vb6c LegacyApp.vbp --dump-ir LegacyApp.ir.txt
 ```
 
+Generate a native LLVM module from the scalar backend (x64 is the default):
+
+```text
+vb6c Module1.bas --emit-llvm Module1.ll
+vb6c Module1.bas --emit-llvm Module1-x86.ll --x86
+```
+
 Generate a managed application assembly:
 
 ```text

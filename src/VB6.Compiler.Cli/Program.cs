@@ -1,9 +1,10 @@
 using VB6.Compiler;
+using VB6.Emit.Llvm;
 using VB6.IR;
 using VB6.ProjectSystem;
 
 const string usage =
-    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> | --dump-ir [output-file]]\n" +
+    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
     "       vb6c <project.vbp> --report";
 
 if (args.Length == 0)
@@ -64,6 +65,19 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
     }
 
+    if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringComparison.OrdinalIgnoreCase))
+    {
+        var lowering = projectCompilation.Lower();
+        PrintProjectDiagnostics(lowering.Analysis);
+
+        if (!lowering.Success || lowering.Program is null)
+        {
+            return 1;
+        }
+
+        return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
+    }
+
     if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
         var emitResult = projectCompilation.EmitManagedApplication(args[2]);
@@ -102,6 +116,22 @@ if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringCompariso
     }
 
     return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
+}
+
+if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringComparison.OrdinalIgnoreCase))
+{
+    var lowering = compilation.Lower();
+    foreach (var diagnostic in lowering.Diagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+
+    if (!lowering.Success || lowering.Program is null)
+    {
+        return 1;
+    }
+
+    return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
 }
 
 if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
@@ -157,6 +187,41 @@ static int WriteIr(string dump, string? outputPath)
 
     File.WriteAllText(outputPath, dump);
     Console.WriteLine($"Generated IR dump: {outputPath}");
+    return 0;
+}
+
+static int EmitLlvm(IrProgram program, string outputPath, string? architectureArgument)
+{
+    var architecture = architectureArgument?.ToLowerInvariant() switch
+    {
+        null or "--x64" => LlvmArchitecture.X64,
+        "--x86" => LlvmArchitecture.X86,
+        _ => (LlvmArchitecture?)null
+    };
+
+    if (architecture is null)
+    {
+        Console.Error.WriteLine($"Unknown LLVM architecture '{architectureArgument}'. Use --x86 or --x64.");
+        return 1;
+    }
+
+    var moduleName = Path.GetFileNameWithoutExtension(outputPath);
+    var result = new LlvmEmitter().Emit(
+        program,
+        new LlvmEmitOptions(architecture.Value, string.IsNullOrWhiteSpace(moduleName) ? "VB6Program" : moduleName));
+    foreach (var diagnostic in result.Diagnostics)
+    {
+        Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+    }
+
+    if (!result.Success)
+    {
+        return 1;
+    }
+
+    File.WriteAllText(outputPath, result.ModuleText);
+    Console.WriteLine($"Generated LLVM module: {outputPath}");
+    Console.WriteLine($"LLVM target: {architecture.Value}");
     return 0;
 }
 
