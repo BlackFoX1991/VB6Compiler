@@ -76,4 +76,21 @@ public sealed class DateTimeIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "4", "Thursday", "Thu", "January", "Jan" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesDateVariantIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print VarType(Date)
+                Debug.Print VarType(Time)
+                Debug.Print IsDate(Date)
+                Debug.Print IsDate(Time)
+                Debug.Print VarType(CVDate("2020-01-02"))
+                Debug.Print Day(CVDate("2020-01-02"))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "7", "7", "True", "True", "7", "2" }, output);
+    }
 }

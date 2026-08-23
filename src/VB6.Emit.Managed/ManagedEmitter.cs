@@ -2357,6 +2357,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CULng) return Static(typeof(VBConversions), "CULng", typeof(object));
             if (m == IrRuntimeMethod.CDec) return Static(typeof(VBConversions), "CDec", typeof(object));
             if (m == IrRuntimeMethod.CDate) return Static(typeof(VBConversions), "CDate", typeof(object));
+            if (m == IrRuntimeMethod.CVDate) return Static(typeof(VBConversions), "CVDate", typeof(object));
             if (m == IrRuntimeMethod.DateToVariant) return Static(typeof(VBConversions), "DateToVariant", typeof(double));
             if (m == IrRuntimeMethod.CLngLng) return Static(typeof(VBConversions), "CLngLng", typeof(object));
             if (m == IrRuntimeMethod.CCur) return Static(typeof(VBConversions), "CCur", typeof(object));
@@ -2406,6 +2407,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CollectionItem) return Static(typeof(VBCollection), nameof(VBCollection.ItemValue), typeof(VBCollection), typeof(object));
             if (m == IrRuntimeMethod.CollectionAdd) return Static(typeof(VBCollection), nameof(VBCollection.AddValue), typeof(VBCollection), typeof(object), typeof(object), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.CollectionRemove) return Static(typeof(VBCollection), nameof(VBCollection.RemoveValue), typeof(VBCollection), typeof(object));
+            if (m == IrRuntimeMethod.DateTimeDate) return Static(typeof(VBDateTime), "Date");
+            if (m == IrRuntimeMethod.DateTimeTime) return Static(typeof(VBDateTime), "Time");
             if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
             if (m == IrRuntimeMethod.DateTimeValue) return Static(typeof(VBDateTime), "DateValue", typeof(object));
             if (m == IrRuntimeMethod.TimeDateValue) return Static(typeof(VBDateTime), "TimeValue", typeof(object));

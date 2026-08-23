@@ -548,6 +548,12 @@ Die Managed-Ausführung prüft die VB6-kompatible Vier-Dezimalstellen-Rundung, b
 den erhaltenen `Currency`-Variant-Subtype. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und
 **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **770 Tests**.
 
+`Date` und `Time` liefern nun wie in VB6 `Variant(Date)`-Werte über `VBDateValue`; `CVDate` wandelt
+beliebige kompatible Ausdrücke in denselben Date-Subtype um. `VarType`, `IsDate` und bestehende
+Date-Part-Intrinsics bleiben dadurch auf einem gemeinsamen OLE-Automation-Pfad. Der VISIA-Stand
+bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun
+**771 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -1031,7 +1037,7 @@ Nach Korpusbedarf priorisiert:
    `MsgBox`, `Split`, `InStrRev`, `LSet` und `CopyMemory`, zusammen der größte Posten der
    Restfehler. Wirklich an spätere Meilensteine gebunden sind nur `frmMain` (25×, M9), `App`
    und `Err` (M6)
-1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CCur`/`CDec`/`CDate`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
+1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CCur`/`CDec`/`CDate`/`CVDate`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
 1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
     VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.

@@ -5,6 +5,14 @@ namespace VB6.Runtime;
 /// <summary>Portable Date/Time intrinsics represented by OLE Automation doubles.</summary>
 public static class VBDateTime
 {
+    public static object Date() => new VBDateValue(DateTime.Today.ToOADate());
+
+    public static object Time()
+    {
+        var time = DateTime.Now.TimeOfDay;
+        return new VBDateValue(new DateTime(1899, 12, 30).Add(time).ToOADate());
+    }
+
     public static double Now() => DateTime.Now.ToOADate();
 
     public static double DateValue(object? value) =>
