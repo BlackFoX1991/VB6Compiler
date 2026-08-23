@@ -202,7 +202,12 @@ public sealed record VBPaintPicture(
 
 public sealed record VBComObject(string ClassName, string ServerName);
 
-public sealed record VBPicture(string FileName);
+public sealed record VBPicture(string FileName)
+{
+    public int Width { get; init; }
+    public int Height { get; init; }
+    public int Type { get; init; }
+}
 
 /// <summary>Minimal host-neutral PropertyBag implementation used by ActiveX UserControls.</summary>
 public sealed class VBPropertyBag
