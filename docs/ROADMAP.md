@@ -13,6 +13,11 @@ Der historische Plan wird auf das eigentliche Produktziel eingeordnet: ein moder
 VB6-Compiler mit eigenem Runtime-/Objektmodell, COM/ActiveX-Kompatibilität, .NET- und nativen
 Windows-Backends. VISIA ist Regressionstestkorpus; Visual Studio/LSP, IDE und Designer folgen später.
 
+Die aktuelle Priorisierung ist bewusst **.NET-first**: Der Managed-Emitter, die Runtime, Variant-/Object-
+Semantik, COM-/ActiveX-Konsum und die Visual-Studio-/MSBuild-Buildverträge werden zuerst bis zu einem
+stabilen Kompatibilitätsziel geführt. LLVM bleibt als optionaler nativer x86/x64-Backendpfad im Projekt,
+wird aber bis zum Abschluss dieses Managed-Ziels nicht als Blocker behandelt.
+
 Die Reihenfolge stammt aus einer Konstrukt-Frequenzanalyse über echten VB6-Code, nicht aus einer
 generischen VB6-Feature-Liste.
 
@@ -1163,10 +1168,17 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Invocation; ANSI-String-Marshalling sowie Scalar-Pointer-Transfers für `As Any` stehen,
       `AddressOf` erzeugt Managed-Funktionsadressen für direkte Prozedurziele, komplexes
       String-/UDT-Marshalling sowie vollständige Callback-ABI-/Delegate-Verträge bleiben offen
-- [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
+- [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`; der
+      Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
-- [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
-- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards, pending-error-aware Single-Arithmetik/-Negation und Single-/Double-Division, checked Integer-Add/Subtract/Multiply und Currency-Add/Subtract/Negate, checked Integer-Verengungen/Vorzeichenwechsel, skalierte Currency-Multiplikation mit `i128`-Zwischenrechnung, gerundete Floating-Konversionen bis 64 Bit mit sicheren Grenzwerten, Currency-zu-Integer-Konversionen, exakte Integer-/Boolean-zu-Currency-Konversionen mit i128-Skalierung, gerundete Single-/Double-zu-Currency-Konversionen mit `roundeven` und Range-Guards sowie native `On Error`-Boundaries mit gespeicherter Resume-Boundary-ID sind ergänzt; stringwertige Err-Felder und native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
+- [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
+      vollständige Runtime-/Projektverträge bleiben offen
+- [~] LLVM-natives Windows-Backend für x86 und x64 (**optional/deferred**) — primitive skalare IR-Emission
+      für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare
+      Konversionen, skalarer `Declare`-Verträge, pending-error-aware Arithmetic-/Conversion-Helper und
+      native `On Error`-Boundaries mit gespeicherter Resume-Boundary-ID sind ergänzt; stringwertige
+      Err-Felder und native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen. Dieser Pfad
+      blockiert den Managed/.NET-Abschluss nicht.
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
