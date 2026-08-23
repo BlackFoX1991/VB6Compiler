@@ -2084,6 +2084,21 @@ public sealed class Binder
                     BindConversion(expression, TypeSymbol.Variant));
             }
 
+            if (variable.Type is ClassTypeSymbol lateBoundType &&
+                IsLateBoundObjectType(lateBoundType))
+            {
+                var target = BindDynamicDefaultPropertyInvocation(
+                    new BoundVariableExpression(variable),
+                    syntax.Identifier,
+                    syntax.Indices,
+                    variables,
+                    procedures,
+                    PropertyAccessorKind.Let);
+                return new BoundMemberAssignmentStatement(
+                    target,
+                    BindConversion(expression, TypeSymbol.Variant));
+            }
+
             if (variable.Type is ClassTypeSymbol classType &&
                 (classType.TryGetDefaultProperty(PropertyAccessorKind.Let, out _) ||
                  classType.TryGetDefaultProperty(PropertyAccessorKind.Set, out _)))
@@ -2974,6 +2989,18 @@ public sealed class Binder
                     .ToImmutableArray());
         }
 
+        if (receiver.Type is ClassTypeSymbol lateBoundType &&
+            IsLateBoundObjectType(lateBoundType))
+        {
+            return BindDynamicDefaultPropertyInvocation(
+                receiver,
+                SyntaxNavigator.GetFirstToken(syntax.Receiver) ?? syntax.OpenParenthesisToken,
+                syntax.Indices,
+                variables,
+                procedures,
+                accessor);
+        }
+
         if (receiver.Type is not ArrayTypeSymbol arrayType)
         {
             Report(
@@ -3058,6 +3085,20 @@ public sealed class Binder
                 syntax.Arguments
                     .Select(index => BindExpression(index, variables, procedures))
                     .ToImmutableArray());
+        }
+
+        if (variables.TryGetValue(syntax.Identifier.Text, out variable) &&
+            variable.Type is ClassTypeSymbol lateBoundType &&
+            IsLateBoundObjectType(lateBoundType) &&
+            syntax.Arguments.Length > 0)
+        {
+            return BindDynamicDefaultPropertyInvocation(
+                new BoundVariableExpression(variable),
+                syntax.Identifier,
+                syntax.Arguments,
+                variables,
+                procedures,
+                PropertyAccessorKind.Get);
         }
 
         if (!procedures.TryGetValue(syntax.Identifier.Text, out var procedure))
@@ -3232,6 +3273,31 @@ public sealed class Binder
             receiver,
             property,
             BindPropertyArguments(anchor, argumentSyntaxes, property, variables, procedures));
+    }
+
+    private BoundPropertyInvocationExpression BindDynamicDefaultPropertyInvocation(
+        BoundExpression receiver,
+        SyntaxToken anchor,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        PropertyAccessorKind accessor)
+    {
+        var property = new PropertySymbol(
+            "Item",
+            accessor,
+            TypeSymbol.Variant,
+            ImmutableArray<ParameterSymbol>.Empty)
+        {
+            IsLateBound = true
+        };
+        var dynamicProcedure = CreateDynamicObjectProcedure(
+            property.Name,
+            accessor == PropertyAccessorKind.Get);
+        return new BoundPropertyInvocationExpression(
+            receiver,
+            property,
+            BindArguments(anchor, argumentSyntaxes, dynamicProcedure, variables, procedures));
     }
 
     private static bool IsLateBoundObjectType(ClassTypeSymbol type) =>

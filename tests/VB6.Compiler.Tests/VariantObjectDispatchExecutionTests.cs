@@ -201,4 +201,65 @@ public sealed class VariantObjectDispatchExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_UsesDefaultPropertyThroughObject()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerObjectDefaultPropertyTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ObjectDefaultProperty.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ObjectDefaultProperty"
+                Class=Bucket; Bucket.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bucket.cls"), """
+                Private stored As String
+
+                Public Property Get Item(ByVal key As String) As String
+                    Item = stored
+                End Property
+
+                Public Property Let Item(ByVal key As String, ByVal value As String)
+                    stored = key & ":" & value
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim value As Object
+                    Set value = New Bucket
+                    value("object") = "default"
+                    Debug.Print value("object")
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "object:default" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

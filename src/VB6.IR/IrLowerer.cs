@@ -2482,7 +2482,10 @@ public static class IrLowerer
             lowered.Add(new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)));
             if (!arguments.IsDefaultOrEmpty)
             {
-                lowered.Add(new IrCallArgument(LowerDynamicArguments(arguments.Select(argument => argument.Expression))));
+                var dynamicArguments = arguments.Length == 1 && arguments[0].Parameter?.IsParamArray == true
+                    ? LowerValueCopy(arguments[0].Expression)
+                    : LowerDynamicArguments(arguments.Select(argument => argument.Expression));
+                lowered.Add(new IrCallArgument(dynamicArguments));
             }
 
             return new IrRuntimeCallExpression(
@@ -2521,7 +2524,10 @@ public static class IrLowerer
             lowered.Add(new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)));
             if (!arguments.IsDefaultOrEmpty)
             {
-                lowered.Add(new IrCallArgument(LowerDynamicArguments(arguments.Select(argument => argument.Expression))));
+                var dynamicArguments = arguments.Length == 1 && arguments[0].Parameter?.IsParamArray == true
+                    ? LowerValueCopy(arguments[0].Expression)
+                    : LowerDynamicArguments(arguments.Select(argument => argument.Expression));
+                lowered.Add(new IrCallArgument(dynamicArguments));
             }
 
             lowered.Add(new IrCallArgument(value));
