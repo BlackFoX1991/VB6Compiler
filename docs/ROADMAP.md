@@ -1231,7 +1231,8 @@ Suite auf **826 Tests**. COM-/IDispatch-spezifische Identität, Event-Sinks und 
 separater Interop-Schritt offen.
 
 Die Projektintegration unterstützt nun zusätzlich `.vbg`-Gruppen: deklarierte `.vbp`-Pfade werden
-relativ zum Gruppenverzeichnis in stabiler Reihenfolge aufgelöst, einzeln analysiert und über
+relativ zum Gruppenverzeichnis in abhängigkeitssicherer Reihenfolge aufgelöst (referenzierte
+Bibliotheken vor ihren Verbrauchern, unabhängige Projekte in Deklarationsreihenfolge), einzeln analysiert und über
 `vb6c <gruppe.vbg> --emit-assembly <ausgabeverzeichnis>` als Managed-Artefakte ausgegeben. Gruppen-
 und projektbezogene Fehler behalten den aufgelösten Pfad. `Reference=`/`Object=` werden mit
 GUID-, Versions-, LCID- und Pfadmetadaten erfasst; fehlende explizite `.vbp`-Verweise erzeugen
@@ -1240,6 +1241,6 @@ Projekt- und Klassennamen in die semantische Sicht und in Managed-IL-Assembly-/M
 und die verbreiteten `MSComctlLib`-/
 `RichTextLib`-/`MSComDlg`-Controltypen werden projektlokal erkannt. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**837 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
+**838 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
 emittiert; vollständiger ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate
 Kompatibilitätsstufen.
