@@ -433,6 +433,14 @@ public sealed class VBProjectCompilation
 
             if (module.Item.Kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl)
             {
+                var hostType = module.Item.Kind == VBProjectItemKind.Form
+                    ? VBStandardTypes.Form
+                    : VBStandardTypes.UserControl;
+                foreach (var property in hostType.Properties)
+                {
+                    AddPropertyIfMissing(properties, property);
+                }
+
                 foreach (var controlName in ReadDesignerControlNames(module.FilePath))
                 {
                     AddReadWriteProperty(properties, controlName, VBStandardTypes.Control);
@@ -582,6 +590,18 @@ public sealed class VBProjectCompilation
                 PropertyAccessorKind.Let,
                 type,
                 ImmutableArray<ParameterSymbol>.Empty));
+        }
+
+        static void AddPropertyIfMissing(List<PropertySymbol> properties, PropertySymbol property)
+        {
+            if (properties.Any(existing =>
+                    string.Equals(existing.Name, property.Name, StringComparison.OrdinalIgnoreCase) &&
+                    existing.Accessor == property.Accessor))
+            {
+                return;
+            }
+
+            properties.Add(property);
         }
 
         static IEnumerable<string> ReadDesignerControlNames(string path)
