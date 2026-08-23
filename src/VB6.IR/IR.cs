@@ -213,6 +213,11 @@ public sealed record IrAddressExpression(IrPlace Place)
 public sealed record IrLocalAddressExpression(IrLocal Local)
     : IrExpression(Local.Type);
 
+public sealed record IrAddressOfExpression(
+    ProcedureSymbol Procedure,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
 public sealed record IrRuntimeCallExpression(
     IrRuntimeMethod Method,
     ImmutableArray<IrCallArgument> Arguments,

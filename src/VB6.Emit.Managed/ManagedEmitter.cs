@@ -750,6 +750,9 @@ public sealed class ManagedEmitter
                 case IrLocalAddressExpression localAddress:
                     encoder.LoadLocal(localAddress.Local.Id);
                     break;
+                case IrAddressOfExpression addressOf:
+                    EmitAddressOf(encoder, addressOf);
+                    break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
                     break;
@@ -1033,6 +1036,54 @@ public sealed class ManagedEmitter
                 encoder.OpCode(ILOpCode.Box);
                 encoder.Token(GetTypeEntityHandle(value.Type));
             }
+        }
+
+        private void EmitAddressOf(InstructionEncoder encoder, IrAddressOfExpression expression)
+        {
+            if (!_procedureSymbolHandles.TryGetValue(expression.Procedure, out var target))
+            {
+                throw new InvalidOperationException(
+                    $"Procedure '{expression.Procedure.Name}' has no managed method definition.");
+            }
+
+            encoder.OpCode(ILOpCode.Ldftn);
+            encoder.Token(target);
+            if (expression.ResultType == TypeSymbol.Long)
+            {
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            if (expression.ResultType == TypeSymbol.LongPtr)
+            {
+                encoder.OpCode(ILOpCode.Newobj);
+                encoder.Token(GetIntPtrConstructorReference());
+                return;
+            }
+
+            throw new NotSupportedException(
+                $"AddressOf result type '{expression.ResultType.Name}' is not supported.");
+        }
+
+        private MemberReferenceHandle GetIntPtrConstructorReference()
+        {
+            const string key = "System.IntPtr::.ctor(long)";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                1,
+                returnType => returnType.Void(),
+                parameters => parameters.AddParameter().Type().Int64());
+            var handle = _metadata.AddMemberReference(
+                GetReflectionTypeReference(typeof(IntPtr)),
+                _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
         }
 
         private void EmitRuntimeCall(InstructionEncoder encoder, IrProcedure procedure, IrRuntimeCallExpression call)

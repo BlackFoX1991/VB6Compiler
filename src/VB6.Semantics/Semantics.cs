@@ -423,6 +423,7 @@ public enum BoundNodeKind
     BinaryExpression,
     ConversionExpression,
     ArrayLiteralExpression,
+    AddressOfExpression,
     ErrorExpression
 }
 
@@ -656,6 +657,9 @@ public sealed record BoundRaiseEventStatement(
 
 public sealed record BoundLiteralExpression(object? Value, TypeSymbol LiteralType)
     : BoundExpression(BoundNodeKind.LiteralExpression, LiteralType);
+
+public sealed record BoundAddressOfExpression(ProcedureSymbol Procedure)
+    : BoundExpression(BoundNodeKind.AddressOfExpression, TypeSymbol.LongPtr);
 
 public sealed record BoundNewExpression(ClassTypeSymbol ClassType)
     : BoundExpression(BoundNodeKind.NewExpression, ClassType);

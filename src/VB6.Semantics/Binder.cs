@@ -2705,7 +2705,7 @@ public sealed class Binder
         {
             LiteralExpressionSyntax literal => BindLiteral(literal),
             NewExpressionSyntax @new => BindNew(@new),
-            AddressOfExpressionSyntax addressOf => BindAddressOf(addressOf),
+            AddressOfExpressionSyntax addressOf => BindAddressOf(addressOf, procedures),
             NameExpressionSyntax name => BindName(name, variables, procedures),
             InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
             MemberInvocationExpressionSyntax memberInvocation => BindMemberInvocationExpression(
@@ -2761,13 +2761,20 @@ public sealed class Binder
         return new BoundNewExpression(classType);
     }
 
-    private BoundExpression BindAddressOf(AddressOfExpressionSyntax syntax)
+    private BoundExpression BindAddressOf(
+        AddressOfExpressionSyntax syntax,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        Report(
-            "VB6S0063",
-            $"AddressOf callback '{syntax.TargetToken.Text}' is not implemented yet.",
-            syntax.AddressOfKeyword.Span);
-        return new BoundErrorExpression();
+        if (!procedures.TryGetValue(syntax.TargetToken.Text, out var procedure))
+        {
+            Report(
+                "VB6S0001",
+                $"Procedure '{syntax.TargetToken.Text}' is not declared.",
+                syntax.TargetToken.Span);
+            return new BoundErrorExpression();
+        }
+
+        return new BoundAddressOfExpression(procedure);
     }
 
     private BoundExpression BindMemberAccess(
