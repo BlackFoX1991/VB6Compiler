@@ -211,6 +211,51 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ImportsTypesFromWindowsTypeLibraryReference()
+    {
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "System32",
+            "stdole2.tlb");
+        if (!OperatingSystem.IsWindows() || !File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The Windows stdole2.tlb test fixture is not available.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "TypeLibrary.vbp");
+            File.WriteAllText(projectPath, $"""
+                Type=Exe
+                Startup="Sub Main"
+                Reference=*\G00020430-0000-0000-C000-000000000046#2.0#0#{typeLibraryPath}#stdole
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim picture As stdole.IPicture
+                    Dim font As stdole.IFont
+                    Set picture = Nothing
+                    Set font = Nothing
+                    Debug.Print picture.Handle
+                    Debug.Print font.Name
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_BindsDesignerActiveXControlContracts()
     {
         var directory = CreateTemporaryDirectory();

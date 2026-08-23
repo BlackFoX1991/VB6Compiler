@@ -14,6 +14,20 @@ internal static class VBExternalTypeCatalog
         ArgumentNullException.ThrowIfNull(project);
         var aliases = new Dictionary<string, TypeSymbol>(StringComparer.OrdinalIgnoreCase);
 
+        foreach (var reference in project.References.Where(reference =>
+                     reference.Metadata.Kind == VBProjectReferenceKind.TypeLibrary))
+        {
+            var path = reference.Metadata.GetFullPath(project.ProjectDirectory);
+            if (path is null)
+            {
+                continue;
+            }
+
+            MergeImportedAliases(
+                aliases,
+                VBTypeLibraryImporter.Import(path, reference.Metadata.DisplayName, controlLibrary: false));
+        }
+
         foreach (var component in project.Objects)
         {
             var fileName = Path.GetFileName(component.Metadata.FilePath)?.ToUpperInvariant();
@@ -62,6 +76,14 @@ internal static class VBExternalTypeCatalog
                     AddControls(aliases, "MCI", new[] { "MMControl" });
                     break;
             }
+
+            var path = component.Metadata.GetFullPath(project.ProjectDirectory);
+            if (path is not null)
+            {
+                MergeImportedAliases(
+                    aliases,
+                    VBTypeLibraryImporter.Import(path, component.Metadata.DisplayName, controlLibrary: true));
+            }
         }
 
         return aliases;
@@ -75,6 +97,18 @@ internal static class VBExternalTypeCatalog
         foreach (var typeName in typeNames)
         {
             aliases[$"{libraryName}.{typeName}"] = VBStandardTypes.Control;
+        }
+    }
+
+    private static void MergeImportedAliases(
+        IDictionary<string, TypeSymbol> aliases,
+        IReadOnlyDictionary<string, TypeSymbol> imported)
+    {
+        foreach (var entry in imported)
+        {
+            // Explicit contracts above are more precise for the common VB6 controls than the
+            // generic automation signatures exposed by an installed OCX.
+            aliases.TryAdd(entry.Key, entry.Value);
         }
     }
 }
