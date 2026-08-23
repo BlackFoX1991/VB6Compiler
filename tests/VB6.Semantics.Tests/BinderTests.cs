@@ -49,6 +49,8 @@ public sealed class BinderTests
     public void Bind_ReportsUndefinedVariable()
     {
         var model = BindSource("""
+            Option Explicit
+
             Sub Main()
                 missing = 10
             End Sub
@@ -192,6 +194,35 @@ public sealed class BinderTests
 
         Assert.AreEqual(ParameterPassingMode.ByRef, argument.Parameter!.PassingMode);
         Assert.IsInstanceOfType<BoundVariableExpression>(argument.Expression);
+    }
+
+    [TestMethod]
+    public void Bind_InfersIdentifierTypeSuffixesForDeclaredAndImplicitVariables()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim declared&
+                implicit& = 0
+                Call Update(declared&)
+                Call Update(implicit&)
+            End Sub
+
+            Sub Update(value&)
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var main = model.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var assignment = main.Body.Statements.OfType<BoundAssignmentStatement>().Single();
+        Assert.AreEqual(TypeSymbol.Long, assignment.Variable.Type);
+
+        var update = model.Procedures.Single(procedure => procedure.Symbol.Name == "Update");
+        Assert.AreEqual(TypeSymbol.Long, update.Symbol.Parameters.Single().Type);
+
+        var invocations = main.Body.Statements.OfType<BoundInvocationStatement>().ToArray();
+        Assert.AreEqual(2, invocations.Length);
+        Assert.IsTrue(invocations.All(invocation => invocation.Arguments.Single().Expression.Type == TypeSymbol.Long));
+        Assert.IsTrue(invocations.All(invocation => !invocation.Arguments.Single().RequiresByRefTemporary));
     }
 
     [TestMethod]

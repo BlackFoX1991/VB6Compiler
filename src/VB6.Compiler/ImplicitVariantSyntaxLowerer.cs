@@ -6,9 +6,8 @@ using VB6.Syntax.Text;
 namespace VB6.Compiler;
 
 /// <summary>
-/// VB6 declarations without an explicit <c>As ...</c> clause are Variants. Normalize those
-/// declarations before semantic binding so the existing explicit Variant type path is reused
-/// consistently instead of teaching every binder declaration site a second defaulting rule.
+/// Normalize VB6 declarations without an explicit <c>As ...</c> clause to Variant while leaving
+/// identifier type suffixes intact for semantic binding.
 /// </summary>
 internal static class ImplicitVariantSyntaxLowerer
 {
@@ -103,7 +102,7 @@ internal static class ImplicitVariantSyntaxLowerer
             Parameters = LowerParameters(function.Parameters),
             Statements = LowerStatements(function.Statements)
         };
-        if (lowered.ReturnTypeToken is not null)
+        if (lowered.ReturnTypeToken is not null || lowered.Identifier.TypeSuffix is not null)
         {
             return lowered;
         }
@@ -126,7 +125,7 @@ internal static class ImplicitVariantSyntaxLowerer
 
     private static ParameterSyntax LowerParameter(ParameterSyntax parameter)
     {
-        if (parameter.TypeToken is not null)
+        if (parameter.TypeToken is not null || parameter.Identifier.TypeSuffix is not null)
         {
             return parameter;
         }
@@ -141,7 +140,7 @@ internal static class ImplicitVariantSyntaxLowerer
 
     private static VariableDeclaratorSyntax LowerDeclarator(VariableDeclaratorSyntax declarator)
     {
-        if (declarator.TypeToken is not null)
+        if (declarator.TypeToken is not null || declarator.Identifier.TypeSuffix is not null)
         {
             return declarator;
         }

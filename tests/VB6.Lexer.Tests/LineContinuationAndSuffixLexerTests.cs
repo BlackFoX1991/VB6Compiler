@@ -70,6 +70,16 @@ public sealed class LineContinuationAndSuffixLexerTests
     }
 
     [TestMethod]
+    public void Lex_PreservesIdentifierTypeSuffixMetadata()
+    {
+        var tokens = LexTokens("text$ count& flag% ratio! wide# money@");
+
+        CollectionAssert.AreEqual(
+            new char?[] { '$', '&', '%', '!', '#', '@' },
+            tokens.Select(token => token.TypeSuffix).ToArray());
+    }
+
+    [TestMethod]
     public void Lex_KeepsConcatenationSeparateFromASuffix()
     {
         var tokens = LexTokens("a & b");

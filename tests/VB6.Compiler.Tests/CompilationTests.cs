@@ -43,6 +43,8 @@ public sealed class CompilationTests
     public void Analyze_IncludesSemanticDiagnostics()
     {
         var compilation = VBCompilation.Create("""
+            Option Explicit
+
             Sub Main()
                 missing = 10
             End Sub

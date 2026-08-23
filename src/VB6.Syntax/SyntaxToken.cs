@@ -8,4 +8,8 @@ public sealed record SyntaxToken(
     TextSpan Span,
     string Text,
     object? Value,
-    ImmutableArray<SyntaxTrivia> LeadingTrivia);
+    ImmutableArray<SyntaxTrivia> LeadingTrivia)
+{
+    /// <summary>The VB6 identifier type character consumed into this token, if present.</summary>
+    public char? TypeSuffix { get; init; }
+}
