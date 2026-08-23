@@ -294,7 +294,9 @@ public static class VBArrayOperations
 
     public static int UBound(object? value, int dimension = 1) => GetArray(value).UBound(dimension);
 
-    public static object? GetElement(object? value, int[] indices) => GetArray(value).GetObjectValue(indices);
+    public static object? GetElement(object? value, int[] indices) => value is IVBArray array
+        ? array.GetObjectValue(indices)
+        : VBDynamicDispatch.GetDefaultMember(value, indices);
 
     /// <summary>
     /// Returns a writable reference for an element of a Variant() array. A Variant array created
@@ -312,8 +314,16 @@ public static class VBArrayOperations
             "A Variant array element is ByRef-addressable only when the runtime array stores Variant elements.");
     }
 
-    public static void SetElement(object? value, int[] indices, object? element) =>
-        GetArray(value).SetObjectValue(indices, element);
+    public static void SetElement(object? value, int[] indices, object? element)
+    {
+        if (value is IVBArray array)
+        {
+            array.SetObjectValue(indices, element);
+            return;
+        }
+
+        VBDynamicDispatch.SetDefaultMember(value, indices, element);
+    }
 
     private static IVBArray GetArray(object? value) => value switch
     {

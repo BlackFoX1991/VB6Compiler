@@ -37,6 +37,25 @@ public static class VBDynamicDispatch
         SetMemberCore(target, memberName, arguments.EnumerateValues().ToArray(), value);
     }
 
+    public static object? GetDefaultMember(object? target, int[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return InvokeMember(
+            target,
+            ResolveDefaultMemberName(target),
+            arguments.Cast<object?>().ToArray());
+    }
+
+    public static void SetDefaultMember(object? target, int[] arguments, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        SetMemberCore(
+            target,
+            ResolveDefaultMemberName(target),
+            arguments.Cast<object?>().ToArray(),
+            value);
+    }
+
     public static object? InvokeMember(
         object? target,
         string memberName,
@@ -288,6 +307,12 @@ public static class VBDynamicDispatch
 
     private static object RequireTarget(object? target) =>
         target ?? throw new NullReferenceException("Object member access requires a non-empty object reference.");
+
+    private static string ResolveDefaultMemberName(object? target)
+    {
+        var type = RequireTarget(target).GetType();
+        return type.GetCustomAttribute<DefaultMemberAttribute>()?.MemberName ?? "Item";
+    }
 
     private static Exception MissingMember(object? target, string memberName) =>
         new MissingMemberException(
