@@ -118,6 +118,19 @@ public sealed class VariantEqualityExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ComparesDecimalVariantAgainstDoubleAtDecimalPrecision()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print CDec("0.100000000000000005") > 0.1
+                Debug.Print CDec("0.100000000000000005") = 0.1
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "False" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PropagatesNullThroughComparisonsAndIf()
     {
         var output = VB6TestProgram.RunLines("""
