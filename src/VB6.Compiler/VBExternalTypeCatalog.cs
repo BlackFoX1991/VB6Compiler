@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using VB6.ProjectSystem;
 using VB6.Semantics;
 
@@ -9,10 +10,12 @@ namespace VB6.Compiler;
 /// </summary>
 internal static class VBExternalTypeCatalog
 {
-    public static IReadOnlyDictionary<string, TypeSymbol> Create(VBProject project)
+    public static VBExternalTypeCatalogResult Create(VBProject project)
     {
         ArgumentNullException.ThrowIfNull(project);
         var aliases = new Dictionary<string, TypeSymbol>(StringComparer.OrdinalIgnoreCase);
+        var qualifiedEnumMembers = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var constants = new Dictionary<string, BoundModuleVariable>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var reference in project.References.Where(reference =>
                      reference.Metadata.Kind == VBProjectReferenceKind.TypeLibrary))
@@ -23,8 +26,10 @@ internal static class VBExternalTypeCatalog
                 continue;
             }
 
-            MergeImportedAliases(
+            MergeImportedTypeLibrary(
                 aliases,
+                qualifiedEnumMembers,
+                constants,
                 VBTypeLibraryImporter.Import(path, reference.Metadata.DisplayName, controlLibrary: false));
         }
 
@@ -80,13 +85,18 @@ internal static class VBExternalTypeCatalog
             var path = component.Metadata.GetFullPath(project.ProjectDirectory);
             if (path is not null)
             {
-                MergeImportedAliases(
+                MergeImportedTypeLibrary(
                     aliases,
+                    qualifiedEnumMembers,
+                    constants,
                     VBTypeLibraryImporter.Import(path, component.Metadata.DisplayName, controlLibrary: true));
             }
         }
 
-        return aliases;
+        return new VBExternalTypeCatalogResult(
+            aliases,
+            qualifiedEnumMembers,
+            constants.Values.ToImmutableArray());
     }
 
     private static void AddControls(
@@ -100,15 +110,53 @@ internal static class VBExternalTypeCatalog
         }
     }
 
-    private static void MergeImportedAliases(
+    private static void MergeImportedTypeLibrary(
         IDictionary<string, TypeSymbol> aliases,
-        IReadOnlyDictionary<string, TypeSymbol> imported)
+        IDictionary<string, long> qualifiedEnumMembers,
+        IDictionary<string, BoundModuleVariable> constants,
+        VBTypeLibraryImportResult imported)
     {
-        foreach (var entry in imported)
+        foreach (var entry in imported.Aliases)
         {
             // Explicit contracts above are more precise for the common VB6 controls than the
             // generic automation signatures exposed by an installed OCX.
             aliases.TryAdd(entry.Key, entry.Value);
         }
+
+        foreach (var entry in imported.QualifiedEnumMembers)
+        {
+            qualifiedEnumMembers.TryAdd(entry.Key, entry.Value);
+        }
+
+        foreach (var constant in imported.Constants)
+        {
+            constants.TryAdd(constant.Symbol.Name, constant);
+        }
+    }
+}
+
+internal sealed record VBExternalTypeCatalogResult(
+    IReadOnlyDictionary<string, TypeSymbol> Aliases,
+    IReadOnlyDictionary<string, long> QualifiedEnumMembers,
+    ImmutableArray<BoundModuleVariable> Constants)
+{
+    public ImmutableArray<BoundModuleVariable> AddMemberSymbols(
+        IDictionary<string, ModuleVariableSymbol> variables)
+    {
+        ArgumentNullException.ThrowIfNull(variables);
+
+        var visible = ImmutableArray.CreateBuilder<BoundModuleVariable>();
+        foreach (var constant in Constants)
+        {
+            if (variables.ContainsKey(constant.Symbol.Name))
+            {
+                continue;
+            }
+
+            variables.Add(constant.Symbol.Name, constant.Symbol);
+            visible.Add(constant);
+        }
+
+        return visible.ToImmutable();
     }
 }

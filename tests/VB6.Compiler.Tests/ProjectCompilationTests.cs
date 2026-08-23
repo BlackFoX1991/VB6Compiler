@@ -238,6 +238,8 @@ public sealed class ProjectCompilationTests
                 Sub Main()
                     Dim picture As stdole.IPicture
                     Dim font As stdole.IFont
+                    Dim state As stdole.OLE_TRISTATE
+                    state = stdole.OLE_TRISTATE.Checked
                     Set picture = Nothing
                     Set font = Nothing
                     Debug.Print picture.Handle
@@ -248,6 +250,27 @@ public sealed class ProjectCompilationTests
             var analysis = VBProjectCompilation.Create(projectPath).Analyze();
 
             Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!
+                .Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
+            var stateAssignment = main.Body.Statements
+                .OfType<BoundAssignmentStatement>()
+                .Single(statement => string.Equals(statement.Variable.Name, "state", StringComparison.OrdinalIgnoreCase));
+            var stateExpression = stateAssignment.Expression;
+            while (stateExpression is BoundConversionExpression conversion)
+            {
+                stateExpression = conversion.Expression;
+            }
+            Assert.IsInstanceOfType<BoundLiteralExpression>(stateExpression);
+
+            var stateConstant = analysis.SemanticModel!.ModuleVariables
+                .Single(variable => string.Equals(variable.Symbol.Name, "Checked", StringComparison.OrdinalIgnoreCase));
+            var stateLiteral = stateConstant.Initializer as BoundLiteralExpression;
+            Assert.IsNotNull(stateLiteral);
+            Assert.AreEqual(1L, stateLiteral!.Value);
         }
         finally
         {

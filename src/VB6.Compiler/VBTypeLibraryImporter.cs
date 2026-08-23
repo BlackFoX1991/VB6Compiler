@@ -1,15 +1,17 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Runtime.Versioning;
 using VB6.ProjectSystem;
 using VB6.Semantics;
 
 namespace VB6.Compiler;
 
 /// <summary>
-/// Imports the automation surface of a Windows type library into the semantic type alias scope.
-/// The importer intentionally produces runtime object contracts: activation and the final COM
-/// ABI remain runtime concerns, while source binding can use the real names and signatures.
+/// Imports the automation surface and enum constants of a Windows type library into the semantic
+/// project scope. The importer intentionally produces runtime object contracts: activation and
+/// the final COM ABI remain runtime concerns, while source binding can use real names/signatures.
 /// </summary>
 internal static class VBTypeLibraryImporter
 {
@@ -45,14 +47,14 @@ internal static class VBTypeLibraryImporter
     private const short VtUnknown = 13;
     private const short VtPtr = 26;
 
-    public static IReadOnlyDictionary<string, TypeSymbol> Import(
+    public static VBTypeLibraryImportResult Import(
         string filePath,
         string? fallbackLibraryName,
         bool controlLibrary)
     {
         if (!OperatingSystem.IsWindows() || !File.Exists(filePath))
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
 
         try
@@ -62,23 +64,23 @@ internal static class VBTypeLibraryImporter
         }
         catch (COMException)
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
         catch (ExternalException)
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
         catch (IOException)
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
         catch (UnauthorizedAccessException)
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
     }
 
-    private static IReadOnlyDictionary<string, TypeSymbol> Load(
+    private static VBTypeLibraryImportResult Load(
         string filePath,
         string? fallbackLibraryName,
         bool controlLibrary)
@@ -86,7 +88,7 @@ internal static class VBTypeLibraryImporter
         var hresult = LoadTypeLibEx(filePath, RegKindNone, out var typeLibrary);
         if (hresult < 0 || typeLibrary is null)
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
 
         typeLibrary.GetDocumentation(-1, out var documentedName, out _, out _, out _);
@@ -99,19 +101,20 @@ internal static class VBTypeLibraryImporter
         var records = ReadTypeInfos(typeLibrary);
         if (records.IsDefaultOrEmpty)
         {
-            return ImmutableDictionary<string, TypeSymbol>.Empty;
+            return VBTypeLibraryImportResult.Empty;
         }
 
         var aliases = new Dictionary<string, TypeSymbol>(StringComparer.OrdinalIgnoreCase);
         var recordTypes = new Dictionary<string, TypeSymbol>(StringComparer.OrdinalIgnoreCase);
+        var qualifiedEnumMembers = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var constants = new Dictionary<string, BoundModuleVariable>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in records)
         {
             var typeName = QualifiedName(libraryName, record.Name);
             TypeSymbol symbol;
             if (record.Kind == TYPEKIND.TKIND_ENUM)
             {
-                // Enum constants are added to the built-in constant scope separately. Treating
-                // the enum itself as Long is enough to type parameters and return values here.
+                // VB6 enums are Long-sized; their named constants are imported below.
                 symbol = TypeSymbol.Long;
             }
             else
@@ -130,6 +133,15 @@ internal static class VBTypeLibraryImporter
             recordTypes[typeName] = symbol;
             aliases.TryAdd(typeName, symbol);
             aliases.TryAdd(record.Name, symbol);
+        }
+
+        foreach (var record in records.Where(record => record.Kind == TYPEKIND.TKIND_ENUM))
+        {
+            ImportEnumMembers(
+                record,
+                libraryName,
+                qualifiedEnumMembers,
+                constants);
         }
 
         foreach (var record in records)
@@ -157,7 +169,91 @@ internal static class VBTypeLibraryImporter
             }
         }
 
-        return aliases.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase);
+        return new VBTypeLibraryImportResult(
+            aliases.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase),
+            qualifiedEnumMembers.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase),
+            constants.Values.ToImmutableArray());
+    }
+
+    private static void ImportEnumMembers(
+        TypeInfoRecord record,
+        string libraryName,
+        IDictionary<string, long> qualifiedMembers,
+        IDictionary<string, BoundModuleVariable> constants)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var typeInfo = record.TypeInfo;
+        var qualifiedTypeName = QualifiedName(libraryName, record.Name);
+        for (var index = 0; index < record.Attribute.cVars; index++)
+        {
+            typeInfo.GetVarDesc(index, out var variablePointer);
+            try
+            {
+                var variable = Marshal.PtrToStructure<VARDESC>(variablePointer);
+                if (variable.varkind != VARKIND.VAR_CONST ||
+                    variable.desc.lpvarValue == IntPtr.Zero ||
+                    !TryReadEnumValue(variable.desc.lpvarValue, out var value))
+                {
+                    continue;
+                }
+
+                var name = GetVariableName(typeInfo, variable.memid);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                qualifiedMembers.TryAdd($"{qualifiedTypeName}.{name}", value);
+                qualifiedMembers.TryAdd($"{record.Name}.{name}", value);
+                constants.TryAdd(
+                    name,
+                    new BoundModuleVariable(
+                        new ModuleVariableSymbol(name, TypeSymbol.Long)
+                        {
+                            IsConstant = true
+                        },
+                        new BoundLiteralExpression(value, TypeSymbol.Long),
+                        IsConstant: true));
+            }
+            finally
+            {
+                typeInfo.ReleaseVarDesc(variablePointer);
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryReadEnumValue(IntPtr variantPointer, out long value)
+    {
+        try
+        {
+            var rawValue = Marshal.GetObjectForNativeVariant(variantPointer);
+            value = Convert.ToInt64(rawValue, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidCastException or OverflowException)
+        {
+            value = 0;
+            return false;
+        }
+    }
+
+    private static string? GetVariableName(ITypeInfo typeInfo, int memberId)
+    {
+        var names = new string[1];
+        try
+        {
+            typeInfo.GetNames(memberId, names, names.Length, out var count);
+            return count > 0 ? names[0] : null;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
     }
 
     private static ImmutableArray<TypeInfoRecord> ReadTypeInfos(ITypeLib typeLibrary)
@@ -467,4 +563,15 @@ internal static class VBTypeLibraryImporter
         ImmutableArray<PropertySymbol> Properties,
         ImmutableArray<EventSymbol> Events,
         string? DefaultPropertyName);
+}
+
+internal sealed record VBTypeLibraryImportResult(
+    ImmutableDictionary<string, TypeSymbol> Aliases,
+    ImmutableDictionary<string, long> QualifiedEnumMembers,
+    ImmutableArray<BoundModuleVariable> Constants)
+{
+    public static VBTypeLibraryImportResult Empty { get; } = new(
+        ImmutableDictionary<string, TypeSymbol>.Empty,
+        ImmutableDictionary<string, long>.Empty,
+        ImmutableArray<BoundModuleVariable>.Empty);
 }
