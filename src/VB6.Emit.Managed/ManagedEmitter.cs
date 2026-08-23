@@ -2922,7 +2922,8 @@ public sealed class ManagedEmitter
             ReferenceEquals(type, VBStandardTypes.App) ||
             ReferenceEquals(type, VBStandardTypes.Control) ||
             ReferenceEquals(type, VBStandardTypes.Form) ||
-            ReferenceEquals(type, VBStandardTypes.UserControl);
+            ReferenceEquals(type, VBStandardTypes.UserControl) ||
+            type.IsRuntimeObjectContract;
 
         private static MethodInfo Static(Type type, string name, params Type[] parameters) =>
             type.GetMethod(name, BindingFlags.Public | BindingFlags.Static, parameters)

@@ -3223,6 +3223,7 @@ public sealed class Binder
         ReferenceEquals(type, VBStandardTypes.Form) ||
         ReferenceEquals(type, VBStandardTypes.UserControl) ||
         ReferenceEquals(type, VBStandardTypes.PropertyBag) ||
+        type.IsLateBoundObject ||
         (type.SourcePath is not null &&
          Path.GetExtension(type.SourcePath) is ".frm" or ".ctl");
 
@@ -3642,6 +3643,14 @@ public sealed class Binder
         {
             return argumentArray.ElementType == parameterArray.ElementType &&
                 (!argumentArray.HasKnownRank || !parameterArray.HasKnownRank || argumentArray.Rank == parameterArray.Rank);
+        }
+
+        if (parameterType == VBStandardTypes.Control &&
+            (argumentType is ClassTypeSymbol { IsControlContract: true } ||
+             ReferenceEquals(argumentType, VBStandardTypes.Form) ||
+             ReferenceEquals(argumentType, VBStandardTypes.UserControl)))
+        {
+            return true;
         }
 
         return false;

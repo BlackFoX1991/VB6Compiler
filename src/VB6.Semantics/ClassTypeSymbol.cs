@@ -29,6 +29,15 @@ public sealed record ClassTypeSymbol : TypeSymbol
     /// Null means the class is emitted by the current compilation.
     /// </summary>
     public string? ExternalAssemblyName { get; init; }
+    /// <summary>
+    /// True when the backend represents this object contract as a runtime object rather than as a
+    /// compiler-emitted CLR class. This is used for host-provided COM/ActiveX objects.
+    /// </summary>
+    public bool IsRuntimeObjectContract { get; private set; }
+    /// <summary>True when unknown members use the VB6 late-bound object dispatch contract.</summary>
+    public bool IsLateBoundObject { get; private set; }
+    /// <summary>True when this host-provided object participates in the VB6 Control hierarchy.</summary>
+    public bool IsControlContract { get; private set; }
     public ImmutableArray<ProcedureSymbol> Procedures => _definition.Procedures;
     public ImmutableArray<PropertySymbol> Properties => _definition.Properties;
     public ImmutableArray<EventSymbol> Events => _definition.Events;
@@ -124,6 +133,12 @@ public sealed record ClassTypeSymbol : TypeSymbol
     }
 
     public void MarkAsInterfaceContract() => _definition.IsInterfaceContract = true;
+
+    public void MarkAsRuntimeObjectContract() => IsRuntimeObjectContract = true;
+
+    public void MarkAsLateBoundObject() => IsLateBoundObject = true;
+
+    public void MarkAsControlContract() => IsControlContract = true;
 
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
 

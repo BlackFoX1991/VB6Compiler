@@ -1171,9 +1171,12 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
-      Projektliste gebunden. `CreateObject` und Managed-`IDispatch`-Dispatch stehen; vollständiger
-      Typbibliotheksimport, COM-ByRef-/Event-ABI und der native LLVM-Pfad bleiben offen. Der
-      Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
+      Projektliste gebunden. Designer-Controls in Forms/UserControls behalten ihren qualifizierten
+      Typ als Klassenfeld; `MSComctlLib.TreeView`/`Nodes`/`Node`, `RichTextLib.RichTextBox` und
+      `MSComDlg.CommonDialog` haben einen typisierten Managed-Late-Binding-Vertrag einschließlich
+      der VB6-Control-Hierarchie bei ByRef. `CreateObject` und Managed-`IDispatch`-Dispatch stehen;
+      vollständiger Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
+      LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
       vollständige Runtime-/Projektverträge bleiben offen
@@ -1239,9 +1242,11 @@ GUID-, Versions-, LCID- und Pfadmetadaten erfasst; fehlende explizite `.vbp`-Ver
 aufgelöste Compilerdiagnosen; vorhandene Referenzprojekte liefern ihre Klassenverträge unter
 Projekt- und Klassennamen in die semantische Sicht und in Managed-IL-Assembly-/Member-References,
 und die verbreiteten `MSComctlLib`-/
-`RichTextLib`-/`MSComDlg`-Controltypen werden projektlokal erkannt. Die Projektgruppenregressionen
+`RichTextLib`-/`MSComDlg`-Controltypen werden projektlokal erkannt. Designer-Controlfelder werden
+mit diesen Typverträgen als Klassenfelder gebunden; der Managed-Pfad nutzt dafür Late Binding und
+emittiert keine falschen CLR-Typreferenzen auf OCX-Dateien. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**840 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
+**841 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
 emittiert. EXE-Projekte mit `Startup="FormName"` erhalten einen generierten Einstiegspunkt, der
 die erzeugte Formklasse konstruiert; Fenstererzeugung, Message Loop und OCX-Hosting bleiben
 Host-/Interop-Aufgaben. `PropertyPage`- und `UserDocument`-Quellen werden ebenfalls als
