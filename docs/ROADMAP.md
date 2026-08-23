@@ -582,11 +582,12 @@ Der native LLVM-Emitter trägt nun den ersten ausgabefähigen Skalar-Slice: `Byt
 `Long`, `LongLong`, `LongPtr`, die unsigned Ganzzahlbreiten, `Single`, `Double`, `Date`,
 `Currency` und `Boolean` werden mit x86-/x64-breiten Typen, lokalen und Parameter-Slots,
 arithmetischen/vergleichenden Runtime-Operationen, Returns und Basic-Block-Verzweigungen als
-LLVM-Text emittiert. Skalare ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben;
+LLVM-Text emittiert. Direkte interne skalare Prozeduraufrufe werden mit Wert- und Pointer-Argumenten
+ebenfalls als native Calls emittiert. Skalare ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben;
 komplexe Variant-/String-/Objekt-/ByRef-Werte, Globals und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**785 Tests**.
+**786 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-

@@ -299,6 +299,8 @@ public sealed class LlvmEmitter
                     return EmitLoad(load.Place);
                 case IrRuntimeCallExpression runtime:
                     return EmitRuntimeCall(runtime);
+                case IrProcedureCallExpression procedureCall:
+                    return EmitProcedureCall(procedureCall);
                 case IrAddressExpression:
                 case IrLocalAddressExpression:
                 case IrAddressOfExpression:
@@ -405,6 +407,110 @@ public sealed class LlvmEmitter
                 "VB6L0001",
                 $"Native LLVM lowering for runtime method '{runtime.Method}' is not implemented yet.");
             return ZeroValue(runtime.ResultType);
+        }
+
+        private NativeValue EmitProcedureCall(IrProcedureCallExpression call)
+        {
+            if (call.Receiver is not null)
+            {
+                AddDiagnostic("VB6L0001", "Native LLVM lowering for procedure receivers is not implemented yet.");
+                return ZeroValue(call.ResultType);
+            }
+
+            if (call.Procedure.IsExternal)
+            {
+                AddDiagnostic("VB6L0001", $"Native LLVM lowering for external procedure '{call.Procedure.Name}' is not implemented yet.");
+                return ZeroValue(call.ResultType);
+            }
+
+            if (call.Arguments.Length != call.Procedure.Parameters.Length)
+            {
+                AddDiagnostic(
+                    "VB6L0004",
+                    $"LLVM procedure call '{call.Procedure.Name}' has {call.Arguments.Length} argument(s), but the procedure declares {call.Procedure.Parameters.Length} parameter(s).");
+            }
+
+            var argumentCount = Math.Min(call.Arguments.Length, call.Procedure.Parameters.Length);
+            var arguments = new List<string>(argumentCount);
+            for (var index = 0; index < argumentCount; index++)
+            {
+                var argument = call.Arguments[index];
+                var parameter = call.Procedure.Parameters[index];
+                var irParameter = new IrParameter(
+                    parameter,
+                    index,
+                    parameter.Name,
+                    parameter.Type,
+                    parameter.PassingMode);
+                var parameterType = GetParameterLlvmType(irParameter);
+
+                if (argument.Kind == IrCallArgumentKind.Address)
+                {
+                    if (parameter.PassingMode != ParameterPassingMode.ByRef ||
+                        argument.Expression is not IrAddressExpression address)
+                    {
+                        AddDiagnostic(
+                            "VB6L0004",
+                            $"LLVM procedure call '{call.Procedure.Name}' has an invalid address argument for parameter '{parameter.Name}'.");
+                        continue;
+                    }
+
+                    var pointer = EmitPlacePointer(address.Place, out var elementType);
+                    if (pointer is null || elementType is null || parameterType != "ptr")
+                    {
+                        continue;
+                    }
+
+                    if (!string.Equals(elementType, GetTypeOrFallback(parameter.Type, $"parameter '{parameter.Name}'"), StringComparison.Ordinal))
+                    {
+                        AddDiagnostic(
+                            "VB6L0004",
+                            $"LLVM procedure call '{call.Procedure.Name}' address argument type does not match parameter '{parameter.Name}'.");
+                        continue;
+                    }
+
+                    arguments.Add("ptr " + pointer);
+                    continue;
+                }
+
+                if (parameter.PassingMode == ParameterPassingMode.ByRef)
+                {
+                    AddDiagnostic(
+                        "VB6L0004",
+                        $"LLVM procedure call '{call.Procedure.Name}' requires an address for ByRef parameter '{parameter.Name}'.");
+                    continue;
+                }
+
+                var value = EmitExpression(argument.Expression);
+                if (!string.Equals(value.LlvmType, parameterType, StringComparison.Ordinal))
+                {
+                    AddDiagnostic(
+                        "VB6L0004",
+                        $"LLVM procedure call '{call.Procedure.Name}' value argument type does not match parameter '{parameter.Name}'.");
+                    continue;
+                }
+
+                arguments.Add(parameterType + " " + value.Value);
+            }
+
+            var returnType = call.Procedure.ReturnType is null
+                ? "void"
+                : GetTypeOrFallback(call.Procedure.ReturnType, $"procedure '{call.Procedure.Name}' return type");
+            var result = returnType == "void" ? string.Empty : NextTemporary();
+            if (result.Length != 0)
+            {
+                _builder.Append("  ").Append(result).Append(" = ");
+            }
+            else
+            {
+                _builder.Append("  ");
+            }
+
+            _builder.Append("call ").Append(returnType).Append(" @\"")
+                .Append(EscapeIdentifier(call.Procedure.Name)).Append("\"(")
+                .Append(string.Join(", ", arguments)).AppendLine(")");
+
+            return new NativeValue(call.ResultType, returnType, result);
         }
 
         private NativeValue EmitBinary(TypeSymbol resultType, NativeValue[] arguments, string operation)

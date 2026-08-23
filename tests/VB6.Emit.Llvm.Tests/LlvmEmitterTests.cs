@@ -124,6 +124,81 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "load i32, ptr %arg0");
     }
 
+    [TestMethod]
+    public void Emit_LowersScalarProcedureCallsWithValueAndByRefArguments()
+    {
+        var inputParameter = new ParameterSymbol("input", TypeSymbol.Long, ParameterPassingMode.ByVal);
+        var outputParameter = new ParameterSymbol("output", TypeSymbol.Long, ParameterPassingMode.ByRef);
+        var helperSymbol = new ProcedureSymbol(
+            "AddWithOutput",
+            ImmutableArray.Create(inputParameter, outputParameter),
+            TypeSymbol.Long);
+        var inputParameterIr = new IrParameter(
+            inputParameter,
+            0,
+            inputParameter.Name,
+            inputParameter.Type,
+            inputParameter.PassingMode);
+        var outputParameterIr = new IrParameter(
+            outputParameter,
+            1,
+            outputParameter.Name,
+            outputParameter.Type,
+            outputParameter.PassingMode);
+        var helper = new IrProcedure(
+            helperSymbol,
+            helperSymbol.Name,
+            helperSymbol.ReturnType,
+            ImmutableArray.Create(inputParameterIr, outputParameterIr),
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrStoreInstruction(
+                        new IrParameterPlace(outputParameterIr),
+                        new IrConstantExpression(8L, TypeSymbol.Long))),
+                new IrReturnTerminator(new IrLoadExpression(new IrParameterPlace(inputParameterIr))))));
+
+        var local = new IrLocal(0, "value", TypeSymbol.Long);
+        var main = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray.Create(local),
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrStoreInstruction(
+                        new IrLocalPlace(local),
+                        new IrConstantExpression(2L, TypeSymbol.Long))),
+                new IrReturnTerminator(new IrProcedureCallExpression(
+                    helperSymbol,
+                    ImmutableArray.Create(
+                        new IrCallArgument(new IrConstantExpression(5L, TypeSymbol.Long)),
+                        new IrCallArgument(
+                            new IrAddressExpression(new IrLocalPlace(local)),
+                            IrCallArgumentKind.Address)),
+                    TypeSymbol.Long)))));
+
+        var program = new IrProgram(
+            ImmutableArray.Create(new IrModule(
+                "Module1",
+                null,
+                ImmutableArray<IrGlobal>.Empty,
+                ImmutableArray.Create(main, helper))),
+            ImmutableArray<IrTypeDefinition>.Empty,
+            main);
+
+        var result = new LlvmEmitter().Emit(program, new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i32 @\"AddWithOutput\"(i32 5, ptr %local_0)");
+        StringAssert.Contains(result.ModuleText, "define i32 @\"AddWithOutput\"(i32 %arg0, ptr %arg1)");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",
