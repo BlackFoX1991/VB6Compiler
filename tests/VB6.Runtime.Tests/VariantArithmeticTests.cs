@@ -145,4 +145,18 @@ public sealed class VariantArithmeticTests
         Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.NotVariant(first));
         Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AndVariant(first, 1));
     }
+
+    [TestMethod]
+    public void MissingVariants_RaiseError448ForVariantOperations()
+    {
+        var missing = VBVariants.MissingValue();
+
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.AddVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.MultiplyInteger(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.ConcatVariant(missing, "value"));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.VariantEqual(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.NotVariant(missing));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.AndVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBDebug.Format(missing));
+    }
 }

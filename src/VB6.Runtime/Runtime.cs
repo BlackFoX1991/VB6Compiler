@@ -14,6 +14,12 @@ public static class VBConversions
 {
     public static byte CByte(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            var missingErrorNumber = VBVariants.MissingErrorNumber;
+            return checked((byte)missingErrorNumber);
+        }
+
         if (value is VBErrorValue error)
         {
             return checked((byte)error.Code);
@@ -36,6 +42,11 @@ public static class VBConversions
 
     public static short CInt(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return checked((short)VBVariants.MissingErrorNumber);
+        }
+
         if (value is VBErrorValue error)
         {
             return checked((short)error.Code);
@@ -58,6 +69,11 @@ public static class VBConversions
 
     public static int CLng(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return VBVariants.MissingErrorNumber;
+        }
+
         if (value is VBErrorValue error)
         {
             return error.Code;
@@ -80,6 +96,11 @@ public static class VBConversions
 
     public static long CLngLng(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return VBVariants.MissingErrorNumber;
+        }
+
         if (value is VBErrorValue error)
         {
             return error.Code;
@@ -102,6 +123,11 @@ public static class VBConversions
 
     public static IntPtr CLngPtr(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return new IntPtr(VBVariants.MissingErrorNumber);
+        }
+
         if (value is VBErrorValue error)
         {
             return new IntPtr(error.Code);
@@ -120,6 +146,11 @@ public static class VBConversions
 
     public static ushort CUShort(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return checked((ushort)VBVariants.MissingErrorNumber);
+        }
+
         if (value is VBErrorValue error)
         {
             return checked((ushort)error.Code);
@@ -150,6 +181,11 @@ public static class VBConversions
 
     public static uint CUInt(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return VBVariants.MissingErrorNumber;
+        }
+
         if (value is VBErrorValue error)
         {
             return checked((uint)error.Code);
@@ -180,6 +216,11 @@ public static class VBConversions
 
     public static ulong CULng(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return VBVariants.MissingErrorNumber;
+        }
+
         if (value is VBErrorValue error)
         {
             return checked((ulong)error.Code);
@@ -210,6 +251,11 @@ public static class VBConversions
 
     public static VBCurrency CCur(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return VBCurrency.FromDecimal(VBVariants.MissingErrorNumber);
+        }
+
         if (value is VBErrorValue error)
         {
             return VBCurrency.FromDecimal(error.Code);
@@ -239,6 +285,11 @@ public static class VBConversions
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
+        }
+
+        if (VBVariants.IsMissing(value))
+        {
+            return (decimal)VBVariants.MissingErrorNumber;
         }
 
         if (value is VBErrorValue error)
@@ -276,11 +327,19 @@ public static class VBConversions
             return VBVariants.NullValue();
         }
 
-        return new VBErrorValue(Convert.ToInt32(value, CultureInfo.InvariantCulture));
+        return new VBErrorValue(
+            VBVariants.IsMissing(value)
+                ? VBVariants.MissingErrorNumber
+                : Convert.ToInt32(value, CultureInfo.InvariantCulture));
     }
 
     public static float CSng(object? value)
     {
+        if (VBVariants.IsMissing(value))
+        {
+            return VBVariants.MissingErrorNumber;
+        }
+
         if (value is VBErrorValue error)
         {
             return CheckSingle(error.Code);
@@ -299,6 +358,7 @@ public static class VBConversions
     public static double CDbl(object? value) => value switch
     {
         VBErrorValue error => error.Code,
+        _ when VBVariants.IsMissing(value) => VBVariants.MissingErrorNumber,
         IntPtr pointer => pointer.ToInt64(),
         VBCurrency currency => currency.ToDouble(),
         VBDateValue date => date.OADate,
@@ -312,6 +372,8 @@ public static class VBConversions
 
     public static double CDate(object? value)
     {
+        VBVariants.ThrowIfMissing(value);
+
         if (value is VBErrorValue error)
         {
             throw new VB6TypeMismatchException($"Cannot convert Error Variant {error.Code} to Date.");
@@ -339,16 +401,22 @@ public static class VBConversions
         return Convert.ToDouble(value, CultureInfo.InvariantCulture);
     }
 
-    public static bool CBool(object? value) => value switch
+    public static bool CBool(object? value)
     {
-        VBErrorValue error => error.Code != 0,
-        IntPtr pointer => pointer != IntPtr.Zero,
-        VBCurrency currency => currency.ScaledValue != 0,
-        _ => Convert.ToBoolean(value, CultureInfo.InvariantCulture)
-    };
+        VBVariants.ThrowIfMissing(value);
+        return value switch
+        {
+            VBErrorValue error => error.Code != 0,
+            IntPtr pointer => pointer != IntPtr.Zero,
+            VBCurrency currency => currency.ScaledValue != 0,
+            _ => Convert.ToBoolean(value, CultureInfo.InvariantCulture)
+        };
+    }
 
     public static string CStr(object? value)
     {
+        VBVariants.ThrowIfMissing(value);
+
         if (VBVariants.IsNull(value))
         {
             throw new InvalidCastException("VB6 CStr cannot convert Null to String.");
@@ -453,6 +521,8 @@ public static class VBConversions
 
     private static void RejectImplicitError(object? value, string targetType)
     {
+        VBVariants.ThrowIfMissing(value);
+
         if (value is VBErrorValue error)
         {
             throw new VB6TypeMismatchException(
@@ -767,6 +837,7 @@ public static partial class VBOperators
 
     public static string ConcatVariant(object? left, object? right)
     {
+        VBVariants.ThrowIfMissing(left, right);
         ThrowIfErrorOperand(left, right);
 
         return (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left)) +
@@ -834,6 +905,8 @@ public static class VBDebug
     /// </summary>
     public static string Format(object? value)
     {
+        VBVariants.ThrowIfMissing(value);
+
         if (VBVariants.IsNull(value))
         {
             return "Null";

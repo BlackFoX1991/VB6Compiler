@@ -36,7 +36,12 @@ public static class VBErrors
         }
 
         _state = new ErrorState(
-            Number: exception is VB6TypeMismatchException ? 13 : 5,
+            Number: exception switch
+            {
+                VB6MissingArgumentException => 448,
+                VB6TypeMismatchException => 13,
+                _ => 5
+            },
             Source: exception.GetType().Name,
             Description: exception.Message,
             HelpFile: string.Empty,
@@ -61,6 +66,14 @@ public sealed class VB6TypeMismatchException : Exception
 {
     public VB6TypeMismatchException(string description)
         : base(description)
+    {
+    }
+}
+
+public sealed class VB6MissingArgumentException : Exception
+{
+    public VB6MissingArgumentException()
+        : base("The optional Variant argument was not supplied.")
     {
     }
 }

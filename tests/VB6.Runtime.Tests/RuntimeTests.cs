@@ -33,6 +33,32 @@ public sealed class RuntimeTests
     }
 
     [TestMethod]
+    public void MissingVariant_ResolvesToError448WhenAValueIsRequired()
+    {
+        var missing = VBVariants.MissingValue();
+
+        Assert.AreEqual((short)448, VBConversions.CInt(missing));
+        Assert.AreEqual(448d, VBConversions.CDbl(missing));
+        Assert.AreEqual(448m, VBConversions.CDec(missing));
+        Assert.AreEqual(new VBErrorValue(448), VBConversions.CVErr(missing));
+        Assert.AreEqual("Error", VBFunctions.TypeName(missing));
+
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBConversions.CStr(missing));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBConversions.ConvertCInt(missing));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBVariants.ToBoolean(missing));
+
+        VBErrors.Set(new VB6MissingArgumentException());
+        try
+        {
+            Assert.AreEqual(448, VBErrors.NumberValue());
+        }
+        finally
+        {
+            VBErrors.Clear();
+        }
+    }
+
+    [TestMethod]
     public void BooleanLogicalOperators_UseVbTruthTables()
     {
         Assert.IsFalse(VBOperators.NotBoolean(true));
