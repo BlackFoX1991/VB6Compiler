@@ -215,6 +215,7 @@ public enum VBIntrinsicKind
     TimeSerial,
     DateAdd,
     DateDiff,
+    DatePart,
     Erl,
     Command,
     Load,

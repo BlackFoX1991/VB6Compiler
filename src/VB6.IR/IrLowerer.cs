@@ -3150,6 +3150,7 @@ public static class IrLowerer
             "VBDateTime.TimeSerial" => IrRuntimeMethod.TimeDateSerial,
             "VBDateTime.DateAdd" => IrRuntimeMethod.DateTimeAdd,
             "VBDateTime.DateDiff" => IrRuntimeMethod.DateTimeDiff,
+            "VBDateTime.DatePart" => IrRuntimeMethod.DateTimePart,
             "VBErrors.NumberValue" => IrRuntimeMethod.ErrorNumber,
             "VBErrors.DescriptionValue" => IrRuntimeMethod.ErrorDescription,
             "VBErrors.SourceValue" => IrRuntimeMethod.ErrorSource,

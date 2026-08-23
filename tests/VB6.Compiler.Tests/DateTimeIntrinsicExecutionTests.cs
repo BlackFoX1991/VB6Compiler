@@ -43,4 +43,21 @@ public sealed class DateTimeIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesDatePartWithBuiltInWeekConstants()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print DatePart("yyyy", CDate(43832))
+                Debug.Print DatePart("q", CDate(43832))
+                Debug.Print DatePart("y", CDate(43832))
+                Debug.Print DatePart("w", CDate(43832), vbMonday)
+                Debug.Print DatePart("ww", CDate(43832), vbMonday, vbFirstFourDays)
+                Debug.Print DatePart("h", CDate(43832.5))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2020", "1", "2", "4", "1", "12" }, output);
+    }
 }

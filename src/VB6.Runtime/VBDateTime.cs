@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace VB6.Runtime;
 
 /// <summary>Portable Date/Time intrinsics represented by OLE Automation doubles.</summary>
@@ -94,6 +96,32 @@ public static class VBDateTime
         };
     }
 
+    public static int DatePart(
+        string interval,
+        double value,
+        int firstDayOfWeek = 1,
+        int firstWeekOfYear = 1)
+    {
+        ArgumentNullException.ThrowIfNull(interval);
+        var date = FromOleDate(value);
+        var firstDay = ResolveFirstDayOfWeek(firstDayOfWeek);
+        var weekRule = ResolveFirstWeekRule(firstWeekOfYear);
+        return NormalizeInterval(interval) switch
+        {
+            "yyyy" => date.Year,
+            "q" => (date.Month - 1) / 3 + 1,
+            "m" => date.Month,
+            "y" => date.DayOfYear,
+            "d" => date.Day,
+            "w" => 1 + ((int)date.DayOfWeek - (int)firstDay + 7) % 7,
+            "ww" => new GregorianCalendar().GetWeekOfYear(date, weekRule, firstDay),
+            "h" => date.Hour,
+            "n" => date.Minute,
+            "s" => date.Second,
+            _ => throw UnsupportedInterval(interval)
+        };
+    }
+
     private static DateTime FromOleDate(double value) => DateTime.FromOADate(value);
 
     private static int WholeIntervalCount(double value) =>
@@ -120,6 +148,14 @@ public static class VBDateTime
             throw new ArgumentOutOfRangeException(nameof(value), "FirstWeekOfYear must be between 0 and 3.");
         }
     }
+
+    private static CalendarWeekRule ResolveFirstWeekRule(int value) => value switch
+    {
+        0 or 1 => CalendarWeekRule.FirstDay,
+        2 => CalendarWeekRule.FirstFourDayWeek,
+        3 => CalendarWeekRule.FirstFullWeek,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), "FirstWeekOfYear must be between 0 and 3.")
+    };
 
     private static int CountWeekdayBoundaries(DateTime first, DateTime second, DayOfWeek weekday)
     {
