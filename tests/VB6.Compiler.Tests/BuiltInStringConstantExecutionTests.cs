@@ -86,6 +86,24 @@ public sealed class BuiltInStringConstantExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesRichTextBoxFileTypeConstants()
+    {
+        const string source = """
+            Sub Main()
+                Debug.Print rtfRTF
+                Debug.Print rtfText
+            End Sub
+            """;
+
+        var output = VB6TestProgram.Run(source);
+
+        CollectionAssert.AreEqual(
+            new[] { "0", "1" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UserDeclarationShadowsExternalConstant()
     {
         const string source = """

@@ -88,6 +88,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `For Each` über Host-/Control-Sammlungen | **9** | **0** | **0** | **9** | **36 von 40** |
 | Klassen-Property-Targets in `With`-Blöcken | **6** | **0** | **0** | **6** | **37 von 40** |
 | `LBound`/`UBound` mit leeren Arrayklammern | **3** | **0** | **0** | **3** | **38 von 40** |
+| RichTextBox-Dateityp-Konstanten (`rtfRTF`, `rtfText`) | **2** | **0** | **0** | **2** | **38 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -398,6 +399,11 @@ drei `With`-Diagnosen aus `GpTabs.ctl`; der VISIA-Stand sinkt auf **6 semantisch
 elementlosen Zugriff mit dem Elementtyp zu behandeln. Damit entfallen die drei `UBound`-Diagnosen
 aus `mcToolBar.ctl`; der VISIA-Stand sinkt auf **3 semantische Fehler**, bei **38 von 40**
 fehlerfreien Dateien. Die Suite umfasst nun **714 Tests**.
+
+Die globalen RichTextBox-OCX-Konstanten `rtfRTF = 0` und `rtfText = 1` sind nun als Built-in-
+Konstanten verfügbar und respektieren weiterhin die Überschreibung durch Benutzerdeklarationen.
+Damit entfällt die `rtfText`-Diagnose aus `CodeEdit.ctl`; der VISIA-Stand sinkt auf **2 semantische
+Fehler**, bei weiterhin **38 von 40** fehlerfreien Dateien. Die Suite umfasst nun **715 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
