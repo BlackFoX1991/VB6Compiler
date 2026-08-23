@@ -18,11 +18,15 @@ public sealed class DateTimeIntrinsicExecutionTests
                 Debug.Print Format$(TimeSerial(12, 30, 45), "hh:nn:ss")
                 Debug.Print Format$(DateAdd("m", 1, CDate(43832)), "yyyy-mm-dd")
                 Debug.Print DateDiff("d", CDate(43832), CDate(43833))
+                Debug.Print Format$(DateAdd("ww", 1, CDate(43832)), "yyyy-mm-dd")
+                Debug.Print DateDiff("w", CDate(43832), CDate(43839))
+                Debug.Print DateDiff("ww", CDate(43832), CDate(43835))
+                Debug.Print DateDiff("ww", CDate(43832), CDate(43835), 2)
             End Sub
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "2020", "1", "2", "12", "0", "0", "2020-01-02", "12:30:45", "2020-02-02", "1" },
+            new[] { "2020", "1", "2", "12", "0", "0", "2020-01-02", "12:30:45", "2020-02-02", "1", "2020-01-09", "1", "1", "0" },
             VB6TestProgram.SplitLines(output),
             output);
     }

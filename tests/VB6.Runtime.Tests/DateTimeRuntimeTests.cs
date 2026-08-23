@@ -25,8 +25,13 @@ public sealed class DateTimeRuntimeTests
     {
         Assert.AreEqual(43832d, VBDateTime.DateSerial(2020, 1, 2));
         Assert.AreEqual(43863d, VBDateTime.DateAdd("m", 1, 43832));
+        Assert.AreEqual(43833d, VBDateTime.DateAdd("w", 1, 43832));
+        Assert.AreEqual(43839d, VBDateTime.DateAdd("ww", 1, 43832));
         Assert.AreEqual(1, VBDateTime.DateDiff("d", 43832, 43833));
         Assert.AreEqual(1, VBDateTime.DateDiff("m", 43832, 43863));
+        Assert.AreEqual(1, VBDateTime.DateDiff("w", 43832, 43839));
+        Assert.AreEqual(1, VBDateTime.DateDiff("ww", 43832, 43835));
+        Assert.AreEqual(0, VBDateTime.DateDiff("ww", 43832, 43835, 2));
 
         var time = DateTime.FromOADate(VBDateTime.TimeSerial(12, 30, 45));
         Assert.AreEqual(12, time.Hour);
