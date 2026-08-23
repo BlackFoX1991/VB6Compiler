@@ -51,6 +51,18 @@ public sealed class QualifiedCallParserTests
     }
 
     [TestMethod]
+    public void Parse_QualifiedCallWithWhitespaceBeforeParenthesizedArguments()
+    {
+        var statement = (QualifiedInvocationStatementSyntax)ParseSingleStatement(
+            "Me.ucTab_BeforeClick (False)");
+
+        Assert.AreEqual(1, statement.Arguments.Length);
+        var target = statement.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(target);
+        Assert.AreEqual("ucTab_BeforeClick", target.MemberToken.Text);
+    }
+
+    [TestMethod]
     public void Parse_CallKeywordBeforeQualifiedCall()
     {
         var statement = (QualifiedInvocationStatementSyntax)ParseSingleStatement(

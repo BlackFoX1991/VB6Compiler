@@ -1238,6 +1238,7 @@ public sealed class Binder
         NameExpressionSyntax name => name.IdentifierToken.Span,
         MemberAccessExpressionSyntax member => member.MemberToken.Span,
         MemberInvocationExpressionSyntax invocation => invocation.Target.MemberToken.Span,
+        ElementAccessExpressionSyntax elementAccess => GetSpan(elementAccess.Receiver),
         InvocationExpressionSyntax invocation => invocation.Identifier.Span,
         _ => new TextSpan(0, 0)
     };
@@ -2478,10 +2479,28 @@ public sealed class Binder
                     procedures));
         }
 
-        if (syntax.Target is not MemberAccessExpressionSyntax memberAccess)
+        MemberAccessExpressionSyntax? memberAccess = syntax.Target switch
+        {
+            MemberAccessExpressionSyntax member => member,
+            ElementAccessExpressionSyntax
+            {
+                Receiver: MemberAccessExpressionSyntax member
+            } => member,
+            _ => null
+        };
+        if (memberAccess is null)
         {
             return ReportObjectModelGap("Calling a method on an object", GetSpan(syntax.Target));
         }
+
+        var argumentSyntaxes = syntax.Target is ElementAccessExpressionSyntax elementAccess &&
+            elementAccess.Receiver is MemberAccessExpressionSyntax
+            ? elementAccess.Indices.AddRange(
+                syntax.Arguments.Length > 0 &&
+                syntax.Arguments[0] is OmittedArgumentExpressionSyntax
+                    ? syntax.Arguments.RemoveAt(0)
+                    : syntax.Arguments)
+            : syntax.Arguments;
 
         var receiver = memberAccess.Receiver is WithReceiverExpressionSyntax
             ? BindWithReceiver(memberAccess.DotToken)
@@ -2489,6 +2508,20 @@ public sealed class Binder
         if (receiver.Type == TypeSymbol.Error)
         {
             return null;
+        }
+
+        if (receiver.Type == TypeSymbol.Variant)
+        {
+            var dynamicProcedure = CreateDynamicObjectProcedure(memberAccess.MemberToken.Text, isFunction: false);
+            return new BoundMemberInvocationStatement(
+                receiver,
+                dynamicProcedure,
+                BindArguments(
+                    memberAccess.MemberToken,
+                    argumentSyntaxes,
+                    dynamicProcedure,
+                    variables,
+                    procedures));
         }
 
         if (receiver.Type is not ClassTypeSymbol classType)
@@ -2505,7 +2538,7 @@ public sealed class Binder
                 CreateDynamicObjectProcedure(memberAccess.MemberToken.Text, isFunction: false),
                 BindArguments(
                     memberAccess.MemberToken,
-                    syntax.Arguments,
+                    argumentSyntaxes,
                     CreateDynamicObjectProcedure(memberAccess.MemberToken.Text, isFunction: false),
                     variables,
                     procedures));
@@ -2529,7 +2562,7 @@ public sealed class Binder
         return new BoundMemberInvocationStatement(
             receiver,
             procedure,
-            BindArguments(memberAccess.MemberToken, syntax.Arguments, procedure, variables, procedures));
+            BindArguments(memberAccess.MemberToken, argumentSyntaxes, procedure, variables, procedures));
     }
 
     private BoundExpression BindExpression(
