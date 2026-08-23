@@ -93,7 +93,7 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_ReportsByRefUntilTheNativeAbiExists()
+    public void Emit_LowersScalarByRefParametersAsPointers()
     {
         var parameter = new IrParameter(
             new ParameterSymbol("value", TypeSymbol.Long, ParameterPassingMode.ByRef),
@@ -104,19 +104,24 @@ public sealed class LlvmEmitterTests
         var procedure = new IrProcedure(
             null,
             "Main",
-            null,
+            TypeSymbol.Long,
             ImmutableArray.Create(parameter),
             ImmutableArray<IrLocal>.Empty,
             ImmutableArray.Create(new IrBasicBlock(
                 0,
                 "entry",
-                ImmutableArray<IrInstruction>.Empty,
-                new IrReturnTerminator(null))));
+                ImmutableArray.Create<IrInstruction>(
+                    new IrStoreInstruction(
+                        new IrParameterPlace(parameter),
+                        new IrConstantExpression(3L, TypeSymbol.Long))),
+                new IrReturnTerminator(new IrLoadExpression(new IrParameterPlace(parameter))))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6L0005"));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "define i32 @\"Main\"(ptr %arg0)");
+        StringAssert.Contains(result.ModuleText, "store i32 3, ptr %arg0");
+        StringAssert.Contains(result.ModuleText, "load i32, ptr %arg0");
     }
 
     private static IrProgram CreateProgram(IrProcedure procedure) => new(

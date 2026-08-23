@@ -26,8 +26,8 @@ public sealed record LlvmEmitResult(
 /// <summary>
 /// Emits the first native LLVM scalar slice. Primitive values, local and parameter storage,
 /// arithmetic/comparison runtime operations, returns and basic-block branches are represented
-/// directly in LLVM IR. Complex VB6 values remain explicit diagnostics until their native ABI is
-/// defined instead of being silently treated as integers.
+/// directly in LLVM IR. Complex VB6 values and non-scalar ABIs remain explicit diagnostics until
+/// their native representation is defined instead of being silently treated as integers.
 /// </summary>
 public sealed class LlvmEmitter
 {
@@ -105,18 +105,8 @@ public sealed class LlvmEmitter
         {
             var returnType = GetTypeOrFallback(procedure.ReturnType, "procedure return type");
             var parameterTypes = procedure.Parameters
-                .Select(parameter => GetTypeOrFallback(parameter.Type, $"parameter '{parameter.Name}'"))
+                .Select(GetParameterLlvmType)
                 .ToArray();
-
-            foreach (var parameter in procedure.Parameters)
-            {
-                if (parameter.PassingMode == ParameterPassingMode.ByRef)
-                {
-                    AddDiagnostic(
-                        "VB6L0005",
-                        $"Native LLVM lowering for ByRef parameter '{parameter.Name}' is not implemented yet.");
-                }
-            }
 
             _blockLabels.Clear();
             foreach (var block in procedure.Blocks)
@@ -184,6 +174,12 @@ public sealed class LlvmEmitter
         {
             foreach (var parameter in procedure.Parameters)
             {
+                if (parameter.PassingMode == ParameterPassingMode.ByRef)
+                {
+                    _parameterSlots[parameter.Index] = $"%arg{parameter.Index}";
+                    continue;
+                }
+
                 var llvmType = GetTypeOrFallback(parameter.Type, $"parameter '{parameter.Name}'");
                 var slot = $"%param_{parameter.Index}";
                 _parameterSlots[parameter.Index] = slot;
@@ -199,6 +195,17 @@ public sealed class LlvmEmitter
                 _localSlots[local.Id] = slot;
                 _builder.Append("  ").Append(slot).Append(" = alloca ").AppendLine(llvmType);
             }
+        }
+
+        private string GetParameterLlvmType(IrParameter parameter)
+        {
+            if (parameter.PassingMode == ParameterPassingMode.ByRef)
+            {
+                _ = GetTypeOrFallback(parameter.Type, $"ByRef parameter '{parameter.Name}'");
+                return "ptr";
+            }
+
+            return GetTypeOrFallback(parameter.Type, $"parameter '{parameter.Name}'");
         }
 
         private void EmitInstruction(IrInstruction instruction)
