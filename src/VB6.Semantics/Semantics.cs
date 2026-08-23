@@ -280,6 +280,7 @@ public enum VBIntrinsicKind
     CUShort,
     CUInt,
     CULng,
+    CCur,
     CDec,
     CDate,
     CSng,

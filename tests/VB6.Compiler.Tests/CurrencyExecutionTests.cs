@@ -22,4 +22,21 @@ public sealed class CurrencyExecutionTests
         var standardOutput = VB6TestProgram.Run(compilation);
         Assert.AreEqual("1", standardOutput.Trim());
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesCCurConversion()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CCur("1.23455")
+
+                Debug.Print CDbl(value)
+                Debug.Print VarType(value)
+                Debug.Print CDbl(CCur(True))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "1.2346", "6", "-1" }, output);
+    }
 }
