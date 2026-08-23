@@ -56,6 +56,10 @@ public sealed record AttributeSyntax(
     SyntaxToken AttributeKeyword,
     ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.AttributeStatement);
 
+public sealed record ConditionalCompilationDirectiveSyntax(
+    SyntaxToken HashToken,
+    ImmutableArray<SyntaxToken> Tokens) : MemberSyntax(SyntaxKind.ConditionalCompilationDirective);
+
 /// <summary>
 /// One dimension inside a VB6 array rank specifier. <c>x(10)</c> has only an upper bound;
 /// <c>x(1 To 10)</c> preserves both explicit bounds. The trailing comma belongs to this
@@ -161,7 +165,9 @@ public sealed record DeclareDeclarationSyntax(
     SyntaxToken CloseParenthesisToken,
     SyntaxToken? AsKeyword,
     SyntaxToken? ReturnTypeToken,
-    TypeNameSyntax? ReturnTypeName = null) : MemberSyntax(SyntaxKind.DeclareDeclaration);
+    TypeNameSyntax? ReturnTypeName = null,
+    SyntaxToken? ReturnOpenParenthesisToken = null,
+    SyntaxToken? ReturnCloseParenthesisToken = null) : MemberSyntax(SyntaxKind.DeclareDeclaration);
 
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
@@ -206,7 +212,9 @@ public sealed record FunctionDeclarationSyntax(
     SyntaxToken EndKeyword,
     SyntaxToken EndFunctionKeyword,
     SyntaxToken? VisibilityKeyword = null,
-    TypeNameSyntax? ReturnTypeName = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
+    TypeNameSyntax? ReturnTypeName = null,
+    SyntaxToken? ReturnOpenParenthesisToken = null,
+    SyntaxToken? ReturnCloseParenthesisToken = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
 
 /// <summary>
 /// A VB6 class property procedure. The accessor remains a token because <c>Get</c>, <c>Let</c>
@@ -225,7 +233,9 @@ public sealed record PropertyDeclarationSyntax(
     SyntaxToken EndKeyword,
     SyntaxToken EndPropertyKeyword,
     SyntaxToken? VisibilityKeyword = null,
-    TypeNameSyntax? ReturnTypeName = null) : MemberSyntax(SyntaxKind.PropertyDeclaration)
+    TypeNameSyntax? ReturnTypeName = null,
+    SyntaxToken? ReturnOpenParenthesisToken = null,
+    SyntaxToken? ReturnCloseParenthesisToken = null) : MemberSyntax(SyntaxKind.PropertyDeclaration)
 {
     public bool IsGet => string.Equals(AccessorKeyword.Text, "Get", StringComparison.OrdinalIgnoreCase);
     public bool IsLet => string.Equals(AccessorKeyword.Text, "Let", StringComparison.OrdinalIgnoreCase);
@@ -432,7 +442,8 @@ public sealed record OnErrorStatementSyntax(
     SyntaxToken OnKeyword,
     SyntaxToken ErrorKeyword,
     SyntaxToken ActionKeyword,
-    SyntaxToken TargetToken) : StatementSyntax(SyntaxKind.OnErrorStatement);
+    SyntaxToken TargetToken,
+    SyntaxToken? LocalKeyword = null) : StatementSyntax(SyntaxKind.OnErrorStatement);
 
 /// <summary><c>Resume</c>, <c>Resume Next</c> and <c>Resume Handler</c> in an error handler.</summary>
 public sealed record ResumeStatementSyntax(
@@ -514,6 +525,29 @@ public sealed record FileInputStatementSyntax(
     SyntaxToken InputKeyword,
     FileNumberSyntax FileNumber,
     ImmutableArray<ExpressionSyntax> Targets) : StatementSyntax(SyntaxKind.FileInputStatement);
+
+/// <summary>A coordinate pair in a graphics <c>Line</c> statement.</summary>
+public sealed record LinePointSyntax(
+    SyntaxToken OpenParenthesisToken,
+    ExpressionSyntax XExpression,
+    SyntaxToken CommaToken,
+    ExpressionSyntax YExpression,
+    SyntaxToken CloseParenthesisToken) : SyntaxNode(SyntaxKind.LinePoint);
+
+/// <summary>
+/// VB6 graphics line syntax, such as <c>Line (x1, y1)-(x2, y2), color</c>. The backend may still
+/// need a forms/control implementation, but the source shape remains available to later passes.
+/// </summary>
+public sealed record LineStatementSyntax(
+    SyntaxToken LineKeyword,
+    SyntaxToken? StepKeyword,
+    LinePointSyntax StartPoint,
+    SyntaxToken MinusToken,
+    LinePointSyntax EndPoint,
+    SyntaxToken? ColorCommaToken,
+    ExpressionSyntax? ColorExpression,
+    ImmutableArray<ExpressionSyntax> Options) : StatementSyntax(SyntaxKind.LineStatement);
+public sealed record EndStatementSyntax(SyntaxToken EndKeyword) : StatementSyntax(SyntaxKind.EndStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
 public sealed record NewExpressionSyntax(

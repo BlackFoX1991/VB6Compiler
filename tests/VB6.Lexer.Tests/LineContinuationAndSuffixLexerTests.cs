@@ -77,4 +77,13 @@ public sealed class LineContinuationAndSuffixLexerTests
         Assert.AreEqual(3, tokens.Length);
         Assert.AreEqual(SyntaxKind.AmpersandToken, tokens[1].Kind);
     }
+
+    [TestMethod]
+    public void Lex_TreatsCommentedContinuationLinesAsCommentTrivia()
+    {
+        var tokens = LexTokens("'Call DrawLine _\r\n    x = 1\r\nvalue");
+
+        Assert.IsFalse(tokens.Any(token => token.Text is "x" or "=" or "1"));
+        Assert.IsTrue(tokens.Any(token => token.Text == "value"));
+    }
 }

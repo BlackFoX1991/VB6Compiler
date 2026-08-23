@@ -83,4 +83,18 @@ public sealed class ClassMemberBinderTests
 
         Assert.AreEqual(0, model.Diagnostics.Length, string.Join(Environment.NewLine, model.Diagnostics));
     }
+
+    [TestMethod]
+    public void Bind_ModelsArrayFunctionReturnType()
+    {
+        var text = SourceText.From("Function Names() As String()\nEnd Function\n", "module.bas");
+        var root = new ParserType(text).ParseCompilationUnit().Root;
+
+        var symbol = Binder.CreateProcedureSymbol((FunctionDeclarationSyntax)root.Members.Single());
+
+        var returnType = symbol.ReturnType as ArrayTypeSymbol;
+        Assert.IsNotNull(returnType);
+        Assert.AreEqual(TypeSymbol.String, returnType!.ElementType);
+        Assert.IsFalse(returnType.HasKnownRank);
+    }
 }

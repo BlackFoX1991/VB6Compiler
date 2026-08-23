@@ -51,4 +51,17 @@ public sealed class ClassMemberParserTests
         Assert.AreEqual("IWorker", implements.TypeToken.Text);
     }
 
+    [TestMethod]
+    public void Parse_PreservesArrayFunctionReturnType()
+    {
+        var result = new Parser(SourceText.From("Function Names() As String()\nEnd Function\n", "module.bas"))
+            .ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        var function = (FunctionDeclarationSyntax)result.Root.Members.Single();
+        Assert.AreEqual("String", function.ReturnTypeToken!.Text);
+        Assert.IsNotNull(function.ReturnOpenParenthesisToken);
+        Assert.IsNotNull(function.ReturnCloseParenthesisToken);
+    }
+
 }

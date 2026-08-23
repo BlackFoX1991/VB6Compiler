@@ -58,6 +58,11 @@ public sealed class Parser
             return ParseAttribute();
         }
 
+        if (Current.Kind == SyntaxKind.HashToken)
+        {
+            return ParseConditionalCompilationDirective();
+        }
+
         if (Current.Kind == SyntaxKind.OptionKeyword && Peek(1).Kind == SyntaxKind.ExplicitKeyword)
         {
             return ParseOptionExplicit();
@@ -205,11 +210,18 @@ public sealed class Parser
         SyntaxToken? asKeyword = null;
         SyntaxToken? returnType = null;
         TypeNameSyntax? returnTypeName = null;
+        SyntaxToken? returnOpenParenthesis = null;
+        SyntaxToken? returnCloseParenthesis = null;
         if (procedureKindKeyword.Kind == SyntaxKind.FunctionKeyword && Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
             returnTypeName = ParseTypeName();
             returnType = returnTypeName.FirstToken;
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                returnOpenParenthesis = NextToken();
+                returnCloseParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+            }
         }
 
         ConsumeLineTerminator();
@@ -227,7 +239,9 @@ public sealed class Parser
             closeParenthesis,
             asKeyword,
             returnType,
-            returnTypeName);
+            returnTypeName,
+            returnOpenParenthesis,
+            returnCloseParenthesis);
     }
 
     private EnumDeclarationSyntax ParseEnumDeclaration(SyntaxToken? visibilityKeyword)
@@ -568,6 +582,18 @@ public sealed class Parser
         return new AttributeSyntax(attributeKeyword, tokens.ToImmutable());
     }
 
+    private ConditionalCompilationDirectiveSyntax ParseConditionalCompilationDirective()
+    {
+        var hashToken = NextToken();
+        var tokens = ImmutableArray.CreateBuilder<SyntaxToken>();
+        while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.EndOfFileToken)
+        {
+            tokens.Add(NextToken());
+        }
+
+        return new ConditionalCompilationDirectiveSyntax(hashToken, tokens.ToImmutable());
+    }
+
     private OptionExplicitSyntax ParseOptionExplicit()
     {
         var optionKeyword = MatchToken(SyntaxKind.OptionKeyword);
@@ -643,11 +669,18 @@ public sealed class Parser
         SyntaxToken? asKeyword = null;
         SyntaxToken? returnType = null;
         TypeNameSyntax? returnTypeName = null;
+        SyntaxToken? returnOpenParenthesis = null;
+        SyntaxToken? returnCloseParenthesis = null;
         if (Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
             returnTypeName = ParseTypeName();
             returnType = returnTypeName.FirstToken;
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                returnOpenParenthesis = NextToken();
+                returnCloseParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+            }
         }
 
         ConsumeLineTerminator();
@@ -668,7 +701,9 @@ public sealed class Parser
             endKeyword,
             endFunctionKeyword,
             visibilityKeyword,
-            returnTypeName);
+            returnTypeName,
+            returnOpenParenthesis,
+            returnCloseParenthesis);
     }
 
     private PropertyDeclarationSyntax ParsePropertyDeclaration(SyntaxToken? visibilityKeyword)
@@ -683,12 +718,19 @@ public sealed class Parser
         SyntaxToken? asKeyword = null;
         SyntaxToken? returnType = null;
         TypeNameSyntax? returnTypeName = null;
+        SyntaxToken? returnOpenParenthesis = null;
+        SyntaxToken? returnCloseParenthesis = null;
         if (string.Equals(accessorKeyword.Text, "Get", StringComparison.OrdinalIgnoreCase) &&
             Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
             returnTypeName = ParseTypeName();
             returnType = returnTypeName.FirstToken;
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                returnOpenParenthesis = NextToken();
+                returnCloseParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+            }
         }
 
         ConsumeLineTerminator();
@@ -710,7 +752,9 @@ public sealed class Parser
             endKeyword,
             endPropertyKeyword,
             visibilityKeyword,
-            returnTypeName);
+            returnTypeName,
+            returnOpenParenthesis,
+            returnCloseParenthesis);
     }
 
     private EventDeclarationSyntax ParseEventDeclaration(SyntaxToken? visibilityKeyword)
@@ -770,6 +814,12 @@ public sealed class Parser
         var statements = ImmutableArray.CreateBuilder<StatementSyntax>();
         while (!IsPhysicalLineTerminator(Current.Kind) && !isTerminator())
         {
+            if (Current.Kind == SyntaxKind.ColonToken)
+            {
+                NextToken();
+                continue;
+            }
+
             var start = _position;
             statements.Add(ParseStatement());
             if (_position == start)
@@ -885,13 +935,16 @@ public sealed class Parser
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.PrintKeyword when IsFileStatementKeyword("Print") => ParseFilePrintStatement(),
+            SyntaxKind.PrintKeyword => ParseInvocationStatement(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
-            SyntaxKind.OnKeyword when Peek(1).Kind == SyntaxKind.ErrorKeyword => ParseOnErrorStatement(),
+            SyntaxKind.OnKeyword when LooksLikeOnErrorStatement() => ParseOnErrorStatement(),
             SyntaxKind.OnKeyword => ParseOnBranchStatement(),
             SyntaxKind.ResumeKeyword => ParseResumeStatement(),
             SyntaxKind.GoToKeyword => ParseGoToStatement(),
             SyntaxKind.GoSubKeyword => ParseGoSubStatement(),
             SyntaxKind.ReturnKeyword => ParseGoSubReturnStatement(),
+            SyntaxKind.EndKeyword => ParseEndStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeLineStatement() => ParseLineStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLineInputStatement() => ParseLineInputStatement(),
             SyntaxKind.IdentifierToken when LooksLikeFileInputStatement() => ParseFileInputStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLabel() => ParseLabelStatement(),
@@ -1295,6 +1348,12 @@ public sealed class Parser
     private OnErrorStatementSyntax ParseOnErrorStatement()
     {
         var onKeyword = NextToken();
+        SyntaxToken? localKeyword = null;
+        if (string.Equals(Current.Text, "Local", StringComparison.OrdinalIgnoreCase))
+        {
+            localKeyword = NextToken();
+        }
+
         var errorKeyword = MatchToken(SyntaxKind.ErrorKeyword);
         var action = NextToken();
 
@@ -1305,8 +1364,10 @@ public sealed class Parser
                 ? MatchToken(SyntaxKind.NextKeyword)
                 : MatchLabelToken();
 
-        return new OnErrorStatementSyntax(onKeyword, errorKeyword, action, target);
+        return new OnErrorStatementSyntax(onKeyword, errorKeyword, action, target, localKeyword);
     }
+
+    private EndStatementSyntax ParseEndStatement() => new(NextToken());
 
     private ResumeStatementSyntax ParseResumeStatement()
     {
@@ -1333,11 +1394,31 @@ public sealed class Parser
     /// </summary>
     private bool IsFileStatementKeyword(string keyword) =>
         string.Equals(Current.Text, keyword, StringComparison.OrdinalIgnoreCase) &&
-        Peek(1).Kind is not SyntaxKind.EqualsToken and not SyntaxKind.DotToken;
+        Peek(1).Kind is not SyntaxKind.EqualsToken and not SyntaxKind.DotToken &&
+        (!string.Equals(keyword, "Print", StringComparison.OrdinalIgnoreCase) ||
+         Peek(1).Kind == SyntaxKind.HashToken);
 
     private bool LooksLikeLineInputStatement() =>
         string.Equals(Current.Text, "Line", StringComparison.OrdinalIgnoreCase) &&
         string.Equals(Peek(1).Text, "Input", StringComparison.OrdinalIgnoreCase);
+
+    private bool LooksLikeOnErrorStatement() =>
+        Current.Kind == SyntaxKind.OnKeyword &&
+        (Peek(1).Kind == SyntaxKind.ErrorKeyword ||
+         (string.Equals(Peek(1).Text, "Local", StringComparison.OrdinalIgnoreCase) &&
+          Peek(2).Kind == SyntaxKind.ErrorKeyword));
+
+    private bool LooksLikeLineStatement()
+    {
+        if (!string.Equals(Current.Text, "Line", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return Peek(1).Kind == SyntaxKind.OpenParenthesisToken ||
+            (string.Equals(Peek(1).Text, "Step", StringComparison.OrdinalIgnoreCase) &&
+             Peek(2).Kind == SyntaxKind.OpenParenthesisToken);
+    }
 
     private bool LooksLikeFileInputStatement() =>
         string.Equals(Current.Text, "Input", StringComparison.OrdinalIgnoreCase) &&
@@ -1454,6 +1535,60 @@ public sealed class Parser
         return new LineInputStatementSyntax(lineKeyword, inputKeyword, fileNumber, ParseExpression());
     }
 
+    private LineStatementSyntax ParseLineStatement()
+    {
+        var lineKeyword = NextToken();
+        SyntaxToken? stepKeyword = null;
+        if (string.Equals(Current.Text, "Step", StringComparison.OrdinalIgnoreCase))
+        {
+            stepKeyword = NextToken();
+        }
+
+        var startPoint = ParseLinePoint();
+        var minusToken = MatchToken(SyntaxKind.MinusToken);
+        var endPoint = ParseLinePoint();
+
+        SyntaxToken? colorCommaToken = null;
+        ExpressionSyntax? colorExpression = null;
+        if (Current.Kind == SyntaxKind.CommaToken)
+        {
+            colorCommaToken = NextToken();
+            colorExpression = ParseExpression();
+        }
+
+        var options = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+        while (Current.Kind == SyntaxKind.CommaToken)
+        {
+            NextToken();
+            options.Add(ParseExpression());
+        }
+
+        return new LineStatementSyntax(
+            lineKeyword,
+            stepKeyword,
+            startPoint,
+            minusToken,
+            endPoint,
+            colorCommaToken,
+            colorExpression,
+            options.ToImmutable());
+    }
+
+    private LinePointSyntax ParseLinePoint()
+    {
+        var openParenthesis = MatchToken(SyntaxKind.OpenParenthesisToken);
+        var xExpression = ParseExpression();
+        var commaToken = MatchToken(SyntaxKind.CommaToken);
+        var yExpression = ParseExpression();
+        var closeParenthesis = MatchToken(SyntaxKind.CloseParenthesisToken);
+        return new LinePointSyntax(
+            openParenthesis,
+            xExpression,
+            commaToken,
+            yExpression,
+            closeParenthesis);
+    }
+
     private FileInputStatementSyntax ParseFileInputStatement()
     {
         var inputKeyword = NextToken();
@@ -1474,10 +1609,19 @@ public sealed class Parser
     {
         var eraseKeyword = MatchToken(SyntaxKind.EraseKeyword);
         var identifiers = ImmutableArray.CreateBuilder<SyntaxToken>();
+        SyntaxToken? memberDotToken = null;
 
         while (Current.Kind is not SyntaxKind.NewLineToken and not SyntaxKind.ColonToken and not SyntaxKind.EndOfFileToken)
         {
-            identifiers.Add(MatchToken(SyntaxKind.IdentifierToken));
+            if (Current.Kind == SyntaxKind.DotToken)
+            {
+                memberDotToken ??= NextToken();
+                identifiers.Add(MatchTypeMemberName());
+            }
+            else
+            {
+                identifiers.Add(MatchToken(SyntaxKind.IdentifierToken));
+            }
             if (Current.Kind != SyntaxKind.CommaToken)
             {
                 break;
@@ -1486,7 +1630,7 @@ public sealed class Parser
             NextToken();
         }
 
-        return new EraseStatementSyntax(eraseKeyword, identifiers.ToImmutable());
+        return new EraseStatementSyntax(eraseKeyword, identifiers.ToImmutable(), memberDotToken);
     }
 
     private StaticStatementSyntax ParseStaticStatement()
@@ -1747,7 +1891,8 @@ public sealed class Parser
         SyntaxToken targetKeyword;
 
         if (Current.Kind is SyntaxKind.ForKeyword or SyntaxKind.DoKeyword
-            or SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
+            or SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword ||
+            string.Equals(Current.Text, "Property", StringComparison.OrdinalIgnoreCase))
         {
             targetKeyword = NextToken();
         }
@@ -1854,7 +1999,9 @@ public sealed class Parser
             callKeyword = NextToken();
         }
 
-        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var identifier = Current.Kind is SyntaxKind.IdentifierToken or SyntaxKind.PrintKeyword
+            ? NextToken()
+            : MatchToken(SyntaxKind.IdentifierToken);
         SyntaxToken? openParenthesis = null;
         SyntaxToken? closeParenthesis = null;
         ImmutableArray<ExpressionSyntax> arguments;

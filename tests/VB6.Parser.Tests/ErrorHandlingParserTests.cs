@@ -40,6 +40,16 @@ public sealed class ErrorHandlingParserTests
     }
 
     [TestMethod]
+    public void Parse_OnLocalErrorResumeNext()
+    {
+        var statement = (OnErrorStatementSyntax)ParseSingleStatement("On Local Error Resume Next");
+
+        Assert.IsNotNull(statement.LocalKeyword);
+        Assert.AreEqual("Local", statement.LocalKeyword!.Text);
+        Assert.AreEqual("Next", statement.TargetToken.Text);
+    }
+
+    [TestMethod]
     public void Parse_ResumeVariants()
     {
         Assert.IsNull(((ResumeStatementSyntax)ParseSingleStatement("Resume")).TargetToken);

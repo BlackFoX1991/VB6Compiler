@@ -89,4 +89,16 @@ public sealed class IfBranchParserTests
         Assert.AreEqual(0, statement.ElseStatements.Length);
         Assert.AreEqual(3, sub.Statements.Length);
     }
+
+    [TestMethod]
+    public void Parse_AllowsColonImmediatelyAfterSingleLineElse()
+    {
+        const string source = "Sub Main()\nIf ready Then result = 1 Else: result = 2\nEnd Sub";
+
+        var result = new ParserType(SourceText.From(source, "test.bas")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        var statement = (IfStatementSyntax)((SubDeclarationSyntax)result.Root.Members.Single()).Statements.Single();
+        Assert.AreEqual(1, statement.ElseStatements.Length);
+    }
 }

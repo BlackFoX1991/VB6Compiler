@@ -173,11 +173,15 @@ public enum SyntaxKind
     LabelStatement,
     FileNumber,
     TypeName,
+    ConditionalCompilationDirective,
     OpenStatement,
     CloseStatement,
     GetStatement,
     PutStatement,
     SeekStatement,
     LineInputStatement,
-    FileInputStatement
+    FileInputStatement,
+    LineStatement,
+    LinePoint,
+    EndStatement
 }
