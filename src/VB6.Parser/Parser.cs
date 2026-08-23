@@ -952,6 +952,7 @@ public sealed class Parser
             SyntaxKind.IdentifierToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IntegerLiteralToken when LooksLikeLabel() => ParseLabelStatement(),
             SyntaxKind.IntegerLiteralToken when LooksLikeLineNumberLabel() => ParseLabelStatement(),
+            SyntaxKind.IdentifierToken when IsLSetAssignmentStart() => ParseLSetAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsSetAssignmentStart() => ParseSetAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Open") => ParseOpenStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Close") => ParseCloseStatement(),
@@ -1011,6 +1012,48 @@ public sealed class Parser
 
         var depth = 0;
         for (var offset = 2; ; offset++)
+        {
+            var kind = Peek(offset).Kind;
+            if (kind == SyntaxKind.OpenParenthesisToken)
+            {
+                depth++;
+                continue;
+            }
+
+            if (kind == SyntaxKind.CloseParenthesisToken)
+            {
+                if (depth == 0)
+                {
+                    return false;
+                }
+
+                depth--;
+                continue;
+            }
+
+            if (depth == 0 && kind == SyntaxKind.EqualsToken)
+            {
+                return true;
+            }
+
+            if (depth == 0 && kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or
+                SyntaxKind.EndOfFileToken)
+            {
+                return false;
+            }
+        }
+    }
+
+    private bool IsLSetAssignmentStart()
+    {
+        if (!IsIdentifier(Current, "LSet") ||
+            (Peek(1).Kind != SyntaxKind.IdentifierToken && Peek(1).Kind != SyntaxKind.DotToken))
+        {
+            return false;
+        }
+
+        var depth = 0;
+        for (var offset = 1; ; offset++)
         {
             var kind = Peek(offset).Kind;
             if (kind == SyntaxKind.OpenParenthesisToken)
@@ -2078,6 +2121,21 @@ public sealed class Parser
             openParenthesis,
             arguments,
             closeParenthesis);
+    }
+
+    private InvocationStatementSyntax ParseLSetAssignmentStatement()
+    {
+        var identifier = MatchToken(SyntaxKind.IdentifierToken);
+        var target = ParsePrimaryExpression();
+        MatchToken(SyntaxKind.EqualsToken);
+        var source = ParseExpression();
+
+        return new InvocationStatementSyntax(
+            CallKeyword: null,
+            Identifier: identifier,
+            OpenParenthesisToken: null,
+            Arguments: ImmutableArray.Create<ExpressionSyntax>(target, source),
+            CloseParenthesisToken: null);
     }
 
     /// <summary>
