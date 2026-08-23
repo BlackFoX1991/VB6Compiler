@@ -250,6 +250,7 @@ public enum VBIntrinsicKind
     ErrClear,
     ErrRaise,
     TypeName,
+    Array,
     Switch,
     IsEmpty,
     IsNull,

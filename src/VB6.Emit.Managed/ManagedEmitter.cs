@@ -2439,6 +2439,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ErrorClear) return Static(typeof(VBErrors), nameof(VBErrors.Clear));
             if (m == IrRuntimeMethod.ErrorRaise) return Static(typeof(VBErrors), nameof(VBErrors.Raise), typeof(int), typeof(string), typeof(string), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.FunctionTypeName) return Static(typeof(VBFunctions), nameof(VBFunctions.TypeName), typeof(object));
+            if (m == IrRuntimeMethod.FunctionArray) return Static(typeof(VBFunctions), nameof(VBFunctions.Array), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.FunctionSwitch) return Static(typeof(VBFunctions), nameof(VBFunctions.Switch), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.FunctionIIf) return Static(typeof(VBFunctions), nameof(VBFunctions.IIf), typeof(bool), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.FunctionRGB) return Static(typeof(VBFunctions), nameof(VBFunctions.RGB), typeof(int), typeof(int), typeof(int));

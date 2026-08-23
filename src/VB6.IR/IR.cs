@@ -608,6 +608,7 @@ public enum IrRuntimeMethod
     ErrorClear,
     ErrorRaise,
     FunctionTypeName,
+    FunctionArray,
     FunctionSwitch,
     FunctionIIf,
     FunctionRGB,

@@ -103,6 +103,32 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesArrayIntrinsicWithEmptyAndMixedValues()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim values As Variant
+
+                values = Array()
+                Debug.Print IsArray(values)
+                Debug.Print UBound(values)
+
+                values = Array(1, "two", True)
+                Debug.Print IsArray(values)
+                Debug.Print VarType(values)
+                Debug.Print values(0)
+                Debug.Print values(1)
+                Debug.Print values(2)
+                Debug.Print UBound(values)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "-1", "True", "8204", "1", "two", "True", "2" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesStaticScalarStringAndArrayValues()
     {
         const string source = """
