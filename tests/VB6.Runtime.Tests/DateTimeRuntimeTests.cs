@@ -19,4 +19,18 @@ public sealed class DateTimeRuntimeTests
         var timer = VBDateTime.Timer();
         Assert.IsTrue(timer >= 0f && timer < 86_400f, $"Timer returned {timer} outside one day.");
     }
+
+    [TestMethod]
+    public void DateSerialAndDateArithmetic_UseSupportedIntervals()
+    {
+        Assert.AreEqual(43832d, VBDateTime.DateSerial(2020, 1, 2));
+        Assert.AreEqual(43863d, VBDateTime.DateAdd("m", 1, 43832));
+        Assert.AreEqual(1, VBDateTime.DateDiff("d", 43832, 43833));
+        Assert.AreEqual(1, VBDateTime.DateDiff("m", 43832, 43863));
+
+        var time = DateTime.FromOADate(VBDateTime.TimeSerial(12, 30, 45));
+        Assert.AreEqual(12, time.Hour);
+        Assert.AreEqual(30, time.Minute);
+        Assert.AreEqual(45, time.Second);
+    }
 }
