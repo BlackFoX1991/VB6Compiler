@@ -498,6 +498,12 @@ und `TypeName = "Error"` laufen durch Symbolik, IR, Managed-Emitter und End-to-E
 `CVErr(Null)` bewahrt dabei die bestehende Null-Semantik. Der VISIA-Stand bleibt bei **1 semantischen
 Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **752 Tests**.
 
+Benannte Argumente mit `name:=value` werden jetzt im Parser bewahrt und im Binder case-insensitiv
+aufgelöst. Die Argumente werden in Signaturreihenfolge gebracht, optionale Lücken erhalten ihre
+Defaults, und die Reihenfolge kann damit unabhängig von der Deklaration verwendet werden. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **754 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen

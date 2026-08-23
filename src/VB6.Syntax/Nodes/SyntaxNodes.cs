@@ -592,6 +592,12 @@ public sealed record ArgumentPassingModeExpressionSyntax(
     SyntaxToken PassingModeKeyword,
     ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.ArgumentPassingModeExpression);
 
+public sealed record NamedArgumentExpressionSyntax(
+    SyntaxToken NameToken,
+    SyntaxToken ColonToken,
+    SyntaxToken EqualsToken,
+    ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.NamedArgumentExpression);
+
 /// <summary>
 /// <c>TypeOf ctlControl Is CheckBox</c>. The type name is a plain token because resolving it
 /// needs the object model, which does not exist yet.
