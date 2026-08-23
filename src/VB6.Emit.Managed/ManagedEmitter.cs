@@ -2502,6 +2502,8 @@ public sealed class ManagedEmitter
                 if (name == "Replace") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(string), typeof(int), typeof(int), typeof(int));
                 if (name == "Space") return Static(typeof(VBStrings), name, typeof(int));
                 if (name == "Split") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
+                if (name == "Join") return Static(typeof(VBStrings), name, typeof(VBArray<string>), typeof(string));
+                if (name == "Filter") return Static(typeof(VBStrings), name, typeof(VBArray<string>), typeof(string), typeof(bool), typeof(int));
                 if (name == "StrConv") return Static(typeof(VBStrings), name, typeof(string), typeof(int), typeof(int));
             }
 

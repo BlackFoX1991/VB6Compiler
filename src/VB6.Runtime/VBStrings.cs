@@ -853,6 +853,47 @@ public static class VBStrings
         return CreateStringArray(values);
     }
 
+    /// <summary>Joins a zero-based VB6 string array with the requested delimiter.</summary>
+    public static string Join(VBArray<string> sourceArray, string delimiter)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(delimiter);
+
+        if (sourceArray.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var values = new string[sourceArray.Length];
+        for (var index = 0; index < values.Length; index++)
+        {
+            values[index] = sourceArray[sourceArray.LBound() + index];
+        }
+
+        return string.Join(delimiter, values);
+    }
+
+    /// <summary>Filters a string array by substring match while preserving source order.</summary>
+    public static VBArray<string> Filter(VBArray<string> sourceArray, string match, bool include, int compare)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(match);
+
+        var comparison = compare == 1 ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var values = new List<string>();
+        for (var index = 0; index < sourceArray.Length; index++)
+        {
+            var value = sourceArray[sourceArray.LBound() + index];
+            var matches = value.Contains(match, comparison);
+            if (matches == include)
+            {
+                values.Add(value);
+            }
+        }
+
+        return CreateStringArray(values);
+    }
+
     /// <summary>
     /// Implements the portable StrConv subset used by VB6 source. LCID is accepted for signature
     /// compatibility; the compiler runtime deliberately uses invariant casing.

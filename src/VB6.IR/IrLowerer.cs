@@ -3131,6 +3131,8 @@ public static class IrLowerer
             "VBStrings.Replace" => IrRuntimeMethod.StringReplace,
             "VBStrings.Space" => IrRuntimeMethod.StringSpace,
             "VBStrings.Split" => IrRuntimeMethod.StringSplit,
+            "VBStrings.Join" => IrRuntimeMethod.StringJoin,
+            "VBStrings.Filter" => IrRuntimeMethod.StringFilter,
             "VBStrings.StrConv" => IrRuntimeMethod.StringStrConv,
             "VBConversions.Int" => IrRuntimeMethod.ConversionInt,
             "VBMath.Abs" => IrRuntimeMethod.MathAbs,

@@ -129,6 +129,34 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesJoinAndFilterForStringArrays()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim words() As String
+                Dim filtered() As String
+
+                words = Split("alpha,beta,BETA,gamma", ",")
+                Debug.Print Join(words, "-")
+                Debug.Print Join(words)
+
+                filtered = Filter(words, "beta")
+                Debug.Print UBound(filtered)
+                Debug.Print filtered(0)
+
+                filtered = Filter(words, "beta", False, 1)
+                Debug.Print UBound(filtered)
+                Debug.Print filtered(0)
+                Debug.Print filtered(1)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "alpha-beta-BETA-gamma", "alpha beta BETA gamma", "0", "beta", "1", "alpha", "gamma" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesStaticScalarStringAndArrayValues()
     {
         const string source = """

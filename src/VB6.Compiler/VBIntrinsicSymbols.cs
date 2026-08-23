@@ -98,6 +98,22 @@ internal static class VBIntrinsicSymbols
             OptionalParameter("Limit", TypeSymbol.Long, -1L),
             OptionalParameter("Compare", TypeSymbol.Long, 0L)),
         Function(
+            "Join",
+            VBIntrinsicKind.Join,
+            "VBStrings.Join",
+            TypeSymbol.String,
+            Parameter("SourceArray", new ArrayTypeSymbol(TypeSymbol.String)),
+            OptionalParameter("Delimiter", TypeSymbol.String, " ")),
+        Function(
+            "Filter",
+            VBIntrinsicKind.Filter,
+            "VBStrings.Filter",
+            new ArrayTypeSymbol(TypeSymbol.String),
+            Parameter("SourceArray", new ArrayTypeSymbol(TypeSymbol.String)),
+            Parameter("Match", TypeSymbol.String),
+            OptionalParameter("Include", TypeSymbol.Boolean, true),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)),
+        Function(
             "StrConv",
             VBIntrinsicKind.StrConv,
             "VBStrings.StrConv",

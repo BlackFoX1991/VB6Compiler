@@ -207,6 +207,8 @@ public enum VBIntrinsicKind
     Replace,
     Space,
     Split,
+    Join,
+    Filter,
     StrConv,
     Int,
     DoEvents,

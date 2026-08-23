@@ -490,6 +490,8 @@ public enum IrRuntimeMethod
     StringReplace,
     StringSpace,
     StringSplit,
+    StringJoin,
+    StringFilter,
     StringStrConv,
     ConversionInt,
     MathAbs,
