@@ -872,6 +872,11 @@ public static class IrLowerer
                     Terminate(ReturnTerminator());
                     _current = NewBlock("after_return");
                     break;
+                case BoundEndStatement:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.EndProgram,
+                        TypeSymbol.Error)));
+                    break;
                 case BoundOnErrorStatement onError:
                     _resumeNext = onError.Mode == BoundErrorHandlingMode.ResumeNext;
                     _errorHandler = onError.Mode == BoundErrorHandlingMode.GoToLabel

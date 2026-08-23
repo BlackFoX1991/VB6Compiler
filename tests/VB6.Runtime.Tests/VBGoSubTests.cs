@@ -27,4 +27,22 @@ public sealed class VBGoSubTests
         Assert.AreEqual(0, VBControlFlow.OnGoToIndex(1));
         Assert.AreEqual(1, VBControlFlow.OnGoToIndex(2));
     }
+
+    [TestMethod]
+    public void EndProgram_UsesHostSinkWhenInstalled()
+    {
+        var called = false;
+        var previousSink = VBControlFlow.EndProgramSink;
+        try
+        {
+            VBControlFlow.EndProgramSink = () => called = true;
+            VBControlFlow.EndProgram();
+        }
+        finally
+        {
+            VBControlFlow.EndProgramSink = previousSink;
+        }
+
+        Assert.IsTrue(called);
+    }
 }

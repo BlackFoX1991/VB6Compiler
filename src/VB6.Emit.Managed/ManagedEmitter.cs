@@ -2255,6 +2255,9 @@ public sealed class ManagedEmitter
                 typeof(bool),
                 typeof(bool),
                 typeof(bool));
+            if (m == IrRuntimeMethod.EndProgram) return Static(
+                typeof(VBControlFlow),
+                nameof(VBControlFlow.EndProgram));
             if (m == IrRuntimeMethod.CByte) return Static(typeof(VBConversions), "CByte", typeof(object));
             if (m == IrRuntimeMethod.CInt) return Static(typeof(VBConversions), "CInt", typeof(object));
             if (m == IrRuntimeMethod.CLng) return Static(typeof(VBConversions), "CLng", typeof(object));

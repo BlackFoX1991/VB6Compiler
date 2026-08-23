@@ -1174,7 +1174,7 @@ public sealed class Binder
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
             LineInputStatementSyntax lineInput => BindLineInput(lineInput, variables, procedures),
             FileInputStatementSyntax fileInput => BindFileInput(fileInput, variables, procedures),
-            EndStatementSyntax end => ReportControlFlowGap("End statement", end.EndKeyword.Span),
+            EndStatementSyntax => new BoundEndStatement(),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
                 variables,
