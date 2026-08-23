@@ -103,7 +103,7 @@ Implemented so far:
 - debug information that maps back to VB6 source: documents, user-visible locals, and a sequence point per statement, carried referentially from the binder through the IR into the PDB
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
-- `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components
+- `.vbp` loading for common project metadata, modules, classes, forms, controls, references, and components, plus `.vbg` group loading and command-line batch emission of declared projects
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
 - the standard `Collection` object on the managed backend: `New Collection`, one-based and keyed `Item`, `Count`, `Add` with `Key`/`Before`, `Remove`, and `For Each` in insertion order
 - unit tests for syntax, lexer, parser, semantics, runtime, IR lowering, managed emission, project loading, and compiler orchestration
@@ -203,6 +203,7 @@ Measure how much of a project the compiler currently understands:
 
 ```text
 vb6c LegacyApp.vbp --report
+vb6c LegacyGroup.vbg --report
 ```
 
 The report lists project items by kind, counts analyzed/error-free sources, and ranks remaining gaps by affected files. `conformance/` holds real third-party VB6 projects used for this measurement; see `conformance/README.md`.
@@ -227,23 +228,25 @@ Generate a managed application assembly:
 ```text
 vb6c Module1.bas --emit-assembly Module1.dll
 vb6c LegacyApp.vbp --emit-assembly LegacyApp.dll
+vb6c LegacyGroup.vbg --emit-assembly build
 ```
 
-The managed application output currently consists of the application DLL, its `.runtimeconfig.json`, and `VB6.Runtime.dll`.
+The managed application output currently consists of the application DLL, its `.runtimeconfig.json`, and `VB6.Runtime.dll`. For a `.vbg` group, the output argument is a directory; every declared `.vbp` is emitted there in declaration order, with project-name-based DLL names.
 
 Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point, cross-module Sub and Function calls, the current ByRef/ByVal subset, `Optional` and `ParamArray` calls, persistent `Static` locals, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, LongPtr, UShort/UInt16, UInteger/UInt32, ULong/UInt64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
 
-The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, implicit `Item` and `VB_UserMemId`-named default-property Get/Let dispatch, `Class_Initialize`/`Class_Terminate`, events, simple `WithEvents` sinks with reassignment cleanup, `Implements` as CLR interfaces with virtual method/property dispatch, and the standard `Collection` object with one-based/keyed lookup. COM identity/dispatch, Forms/controls and the remaining full default-property rules remain open. The .NET/Managed path is now the primary completion target; LLVM remains an optional native x86/x64 backend and is intentionally deferred while the managed Variant/Object/COM contracts are completed. The MSBuild SDK and diagnostic LSP are available as compiler-facing integration layers.
+The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, implicit `Item` and `VB_UserMemId`-named default-property Get/Let dispatch, `Class_Initialize`/`Class_Terminate`, events, simple `WithEvents` sinks with reassignment cleanup, `Implements` as CLR interfaces with virtual method/property dispatch, and the standard `Collection` object with one-based/keyed lookup. `Type=OleDll`, `Type=Control`, and equivalent library project types emit DLLs without requiring `Sub Main`; EXE projects retain the entry-point check. COM identity/dispatch, Forms/controls and the remaining full default-property rules remain open. The .NET/Managed path is now the primary completion target; LLVM remains an optional native x86/x64 backend and is intentionally deferred while the managed Variant/Object/COM contracts are completed. The MSBuild SDK and diagnostic LSP are available as compiler-facing integration layers.
 
-Late-bound Managed/CLR dispatch now also fills optional parameters, packs `ParamArray` arguments, applies VB runtime conversions to indexed properties and property setters, and writes modified ByRef arguments back into the Variant argument array. COM/IDispatch-specific identity, event sinks, and host ABI rules remain separate follow-up work.
+Late-bound Managed/CLR dispatch now also fills optional parameters, packs `ParamArray` arguments, applies VB runtime conversions to indexed properties and property setters, and writes modified ByRef arguments back into the Variant argument array. COM/IDispatch-specific identity, event sinks, and host ABI rules remain separate follow-up work. The CLI now accepts `.vbg` groups for `--report` and managed batch emission; each declared `.vbp` is loaded and compiled independently with project-qualified diagnostics, including library projects that do not have `Sub Main`.
 
-Current native LLVM status (optional/deferred): checked integer Add/Subtract/Multiply and Integer narrowing/sign conversions plus Currency Add/Subtract/Negate use pending-error-aware i64 helpers with explicit target-width guards. Currency multiplication now uses a scaled `i128` product with VB6 banker's rounding and an `Int64` range guard. Rounded Single/Double-to-integer conversions now cover typed integer targets through 64-bit using `roundeven` and safe representable range guards; Currency-to-integer conversions use the same scaled ties-to-even helper; exact integer- and Boolean-to-Currency conversions use checked i128 scaling with VB6's `True = -10000` representation; rounded Single/Double-to-Currency conversions use scaled `roundeven`, finite/range guards and checked `fptosi`. Native `On Error Resume Next` and label-directed handler boundaries now consume pending scalar errors, with native `Err.Number`/`Err.Clear` access; `Resume Next` and targetless `Resume` select the recorded boundary continuation/retry labels. String-valued Err fields and complex native ABI contracts remain open. The suite now contains **826 tests**.
+Current native LLVM status (optional/deferred): checked integer Add/Subtract/Multiply and Integer narrowing/sign conversions plus Currency Add/Subtract/Negate use pending-error-aware i64 helpers with explicit target-width guards. Currency multiplication now uses a scaled `i128` product with VB6 banker's rounding and an `Int64` range guard. Rounded Single/Double-to-integer conversions now cover typed integer targets through 64-bit using `roundeven` and safe representable range guards; Currency-to-integer conversions use the same scaled ties-to-even helper; exact integer- and Boolean-to-Currency conversions use checked i128 scaling with VB6's `True = -10000` representation; rounded Single/Double-to-Currency conversions use scaled `roundeven`, finite/range guards and checked `fptosi`. Native `On Error Resume Next` and label-directed handler boundaries now consume pending scalar errors, with native `Err.Number`/`Err.Clear` access; `Resume Next` and targetless `Resume` select the recorded boundary continuation/retry labels. String-valued Err fields and complex native ABI contracts remain open. The suite now contains **831 tests**.
 
 ## Next milestones
 
 The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate compiler order is:
 
-1. finish the Variant promotion matrix and the high-frequency standard library/runtime surface
-2. complete class lifecycle, object dispatch, events and COM/ActiveX compatibility for the Managed/.NET target
-3. harden the MSBuild SDK and LSP for Visual Studio; build the IDE/designer later
-4. resume the optional LLVM backend for native ABI/runtime emission after the .NET target is stable
+1. harden `.vbp`/`.vbg` command-line builds and legacy-project diagnostics
+2. finish the Variant promotion matrix and the high-frequency standard library/runtime surface
+3. complete class lifecycle, object dispatch, events and COM/ActiveX compatibility for the Managed/.NET target
+4. harden the MSBuild SDK and LSP for Visual Studio; build the IDE/designer later
+5. resume the optional LLVM backend for native ABI/runtime emission after the .NET target is stable

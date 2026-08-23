@@ -1,0 +1,117 @@
+namespace VB6.Compiler.Tests;
+
+[TestClass]
+public sealed class VBProjectGroupCompilationTests
+{
+    [TestMethod]
+    public void AnalyzeAndEmit_CompilesEachVbpInDeclaredVbgOrder()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, """
+                Type=Group
+                Project=First.vbp
+                Project=Second.vbp
+                StartupProject=First.vbp
+                """);
+            WriteProject(directory, "First", "First.vbp", "First.bas", "1");
+            WriteProject(directory, "Second", "Second.vbp", "Second.bas", "2");
+
+            var compilation = VBProjectGroupCompilation.Create(groupPath);
+            var analysis = compilation.Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            CollectionAssert.AreEqual(
+                new[] { "First.vbp", "Second.vbp" },
+                analysis.Projects.Select(project => project.Project.RelativePath).ToArray());
+
+            var outputDirectory = Path.Combine(directory, "bin");
+            var emit = compilation.EmitManagedApplications(outputDirectory);
+
+            Assert.IsTrue(emit.Success, FormatDiagnostics(emit.Analysis));
+            Assert.AreEqual(2, emit.Projects.Length);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsMissingVbpWithItsResolvedPath()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "Missing.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=Missing.vbp\n");
+
+            var analysis = VBProjectGroupCompilation.Create(groupPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            var diagnostic = analysis.Projects.Single().Diagnostics.Single();
+            Assert.AreEqual("VB6VBG0006", diagnostic.Code);
+            Assert.AreEqual(Path.Combine(directory, "Missing.vbp"), diagnostic.FilePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    private static void WriteProject(
+        string directory,
+        string name,
+        string projectFileName,
+        string moduleFileName,
+        string value)
+    {
+        File.WriteAllText(
+            Path.Combine(directory, projectFileName),
+            $"""
+            Type=Exe
+            Startup="Sub Main"
+            Name="{name}"
+            Module={Path.GetFileNameWithoutExtension(moduleFileName)}; {moduleFileName}
+            """);
+        File.WriteAllText(
+            Path.Combine(directory, moduleFileName),
+            $"""
+            Sub Main()
+                Debug.Print {value}
+            End Sub
+            """);
+    }
+
+    private static string FormatDiagnostics(VBProjectGroupAnalysis analysis) =>
+        string.Join(
+            Environment.NewLine,
+            analysis.GroupDiagnostics.Select(diagnostic => diagnostic.ToString())
+                .Concat(analysis.Projects
+                    .SelectMany(project => project.Diagnostics)
+                    .Select(diagnostic => diagnostic.ToString()))
+                .Concat(analysis.Projects
+                    .Where(project => project.Compilation is not null)
+                    .SelectMany(project => project.Compilation!.ProjectDiagnostics)
+                    .Select(diagnostic => diagnostic.ToString())));
+
+    private static string CreateTemporaryDirectory() =>
+        Path.Combine(Path.GetTempPath(), "VB6CompilerProjectGroupTests", Guid.NewGuid().ToString("N"));
+
+    private static void DeleteDirectory(string directory)
+    {
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+}

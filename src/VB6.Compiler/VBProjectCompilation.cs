@@ -736,6 +736,11 @@ public sealed class VBProjectCompilation
             return analysis;
         }
 
+        if (IsLibraryProjectType(analysis.Project.ProjectType))
+        {
+            return analysis;
+        }
+
         var projectDiagnostics = analysis.ProjectDiagnostics.ToBuilder();
         var startupObject = analysis.Project.StartupObject;
 
@@ -765,6 +770,14 @@ public sealed class VBProjectCompilation
 
         return analysis with { ProjectDiagnostics = projectDiagnostics.ToImmutable() };
     }
+
+    internal static bool IsLibraryProjectType(string? projectType) =>
+        projectType?.Trim().ToUpperInvariant() is
+            "OLEDLL" or
+            "CONTROL" or
+            "DLL" or
+            "ACTIVEX DLL" or
+            "ACTIVEX CONTROL";
 
     private sealed record ParsedProjectModule(
         VBProjectItem Item,

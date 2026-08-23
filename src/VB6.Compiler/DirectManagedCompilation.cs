@@ -104,7 +104,10 @@ public static class DirectManagedCompilation
         var actualOptions = PrepareOptions(
             options,
             assemblyName,
-            CreateProjectSourceDocuments(lowering.Analysis));
+            CreateProjectSourceDocuments(lowering.Analysis),
+            VBProjectCompilation.IsLibraryProjectType(lowering.Analysis.Project.ProjectType)
+                ? ManagedOutputKind.Library
+                : ManagedOutputKind.Application);
         var backend = EmitBackend(lowering.Program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {
@@ -155,9 +158,13 @@ public static class DirectManagedCompilation
     private static ManagedEmitOptions PrepareOptions(
         ManagedEmitOptions? options,
         string assemblyName,
-        ImmutableArray<ManagedSourceDocument> sourceDocuments)
+        ImmutableArray<ManagedSourceDocument> sourceDocuments,
+        ManagedOutputKind defaultOutputKind = ManagedOutputKind.Application)
     {
-        var actualOptions = options ?? new ManagedEmitOptions(assemblyName, EmitPortablePdb: true);
+        var actualOptions = options ?? new ManagedEmitOptions(
+            assemblyName,
+            OutputKind: defaultOutputKind,
+            EmitPortablePdb: true);
         if (!string.Equals(actualOptions.AssemblyName, assemblyName, StringComparison.Ordinal))
         {
             actualOptions = actualOptions with { AssemblyName = assemblyName };

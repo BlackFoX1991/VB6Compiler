@@ -5,7 +5,9 @@ using VB6.ProjectSystem;
 
 const string usage =
     "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
-    "       vb6c <project.vbp> --report";
+    "       vb6c <project.vbp> --report\n" +
+    "       vb6c <project.vbg> --report\n" +
+    "       vb6c <project.vbg> --emit-assembly <output-directory>";
 
 if (args.Length == 0)
 {
@@ -100,6 +102,11 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     return 1;
 }
 
+if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnoreCase))
+{
+    return HandleProjectGroup(path, args);
+}
+
 var compilation = VBCompilation.Create(File.ReadAllText(path), path);
 
 if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
@@ -188,6 +195,85 @@ static int WriteIr(string dump, string? outputPath)
     File.WriteAllText(outputPath, dump);
     Console.WriteLine($"Generated IR dump: {outputPath}");
     return 0;
+}
+
+static int HandleProjectGroup(string path, string[] args)
+{
+    var compilation = VBProjectGroupCompilation.Create(path);
+    if (args.Length == 1)
+    {
+        var analysis = compilation.Analyze();
+        PrintProjectGroupSummary(analysis);
+        PrintProjectGroupDiagnostics(analysis);
+        return analysis.Success ? 0 : 1;
+    }
+
+    if (args.Length == 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
+    {
+        var analysis = compilation.Analyze();
+        PrintProjectGroupSummary(analysis);
+        PrintProjectGroupDiagnostics(analysis);
+        foreach (var project in analysis.Projects.Where(project => project.Compilation is not null))
+        {
+            Console.WriteLine($"--- {project.FullPath} ---");
+            Console.Write(VBProjectParityReport.Create(project.Compilation!).Render());
+        }
+
+        return 0;
+    }
+
+    if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    {
+        var result = compilation.EmitManagedApplications(args[2]);
+        PrintProjectGroupSummary(result.Analysis);
+        PrintProjectGroupDiagnostics(result.Analysis);
+        foreach (var project in result.Projects)
+        {
+            PrintProjectDiagnostics(project.Emit.Lowering.Analysis);
+            PrintBackendDiagnostics(project.Emit.BackendResult);
+            if (project.Success)
+            {
+                Console.WriteLine($"Generated managed project assembly: {project.OutputPath}");
+                PrintDebugInformation(project.Emit.PdbPath);
+                Console.WriteLine($"Runtime support: {project.Emit.RuntimeAssemblyPath}");
+                Console.WriteLine($"Runtime config: {project.Emit.RuntimeConfigPath}");
+            }
+        }
+
+        return result.Success ? 0 : 1;
+    }
+
+    Console.Error.WriteLine(usage);
+    return 1;
+}
+
+static void PrintProjectGroupSummary(VBProjectGroupAnalysis analysis)
+{
+    Console.WriteLine($"Loaded VB6 project group: {Path.GetFileNameWithoutExtension(analysis.Group.FilePath)}");
+    Console.WriteLine($"Type: {analysis.Group.GroupType ?? "Unknown"}");
+    Console.WriteLine($"Startup project: {analysis.Group.StartupProject ?? "Not specified"}");
+    Console.WriteLine($"Projects: {analysis.Group.Projects.Length}");
+}
+
+static void PrintProjectGroupDiagnostics(VBProjectGroupAnalysis analysis)
+{
+    foreach (var diagnostic in analysis.GroupDiagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+
+    foreach (var project in analysis.Projects)
+    {
+        foreach (var diagnostic in project.Diagnostics)
+        {
+            Console.Error.WriteLine(diagnostic);
+        }
+
+        if (project.Compilation is not null)
+        {
+            PrintProjectDiagnostics(project.Compilation);
+        }
+    }
 }
 
 static int EmitLlvm(IrProgram program, string outputPath, string? architectureArgument)
