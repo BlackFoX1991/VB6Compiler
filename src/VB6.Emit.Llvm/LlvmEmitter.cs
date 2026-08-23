@@ -83,6 +83,7 @@ public sealed class LlvmEmitter
     {
         builder.AppendLine("@__vb6_error_pending = thread_local global i1 false");
         builder.AppendLine("@__vb6_error_number_state = thread_local global i32 0");
+        builder.AppendLine("@__vb6_error_resume_boundary_state = thread_local global i32 -1");
         builder.AppendLine();
         builder.AppendLine("define void @__vb6_error_set(i32 %number) {");
         builder.AppendLine("entry:");
@@ -104,6 +105,24 @@ public sealed class LlvmEmitter
         builder.AppendLine("  ret void");
         builder.AppendLine("}");
         builder.AppendLine();
+        builder.AppendLine("define void @__vb6_error_set_resume_boundary(i32 %boundary) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  store i32 %boundary, ptr @__vb6_error_resume_boundary_state");
+        builder.AppendLine("  ret void");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define i32 @__vb6_error_resume_boundary() {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %boundary = load i32, ptr @__vb6_error_resume_boundary_state");
+        builder.AppendLine("  ret i32 %boundary");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define void @__vb6_error_clear_resume_boundary() {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  store i32 -1, ptr @__vb6_error_resume_boundary_state");
+        builder.AppendLine("  ret void");
+        builder.AppendLine("}");
+        builder.AppendLine();
         builder.AppendLine("define i32 @__vb6_error_number() {");
         builder.AppendLine("entry:");
         builder.AppendLine("  %number = load i32, ptr @__vb6_error_number_state");
@@ -114,6 +133,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("entry:");
         builder.AppendLine("  store i1 false, ptr @__vb6_error_pending");
         builder.AppendLine("  store i32 0, ptr @__vb6_error_number_state");
+        builder.AppendLine("  store i32 -1, ptr @__vb6_error_resume_boundary_state");
         builder.AppendLine("  ret void");
         builder.AppendLine("}");
         builder.AppendLine();
@@ -626,8 +646,10 @@ public sealed class LlvmEmitter
         private readonly Dictionary<int, string> _parameterSlots = new();
         private readonly Dictionary<int, string> _localSlots = new();
         private readonly Dictionary<int, string> _blockLabels = new();
+        private readonly List<NativeErrorBoundary> _errorBoundaries = new();
         private int _temporaryId;
         private int _errorBoundaryId;
+        private int _resumeId;
         private NativeErrorBoundary? _activeErrorBoundary;
 
         public NativeProcedureEmitter(
@@ -650,8 +672,10 @@ public sealed class LlvmEmitter
                 .ToArray();
 
             _blockLabels.Clear();
+            _errorBoundaries.Clear();
             _temporaryId = 0;
             _errorBoundaryId = 0;
+            _resumeId = 0;
             _activeErrorBoundary = null;
             foreach (var block in procedure.Blocks)
             {
@@ -754,6 +778,7 @@ public sealed class LlvmEmitter
         private void EmitStorage(IrProcedure procedure)
         {
             _builder.AppendLine("  call void @__vb6_error_clear_pending()");
+            _builder.AppendLine("  call void @__vb6_error_clear_resume_boundary()");
             foreach (var parameter in procedure.Parameters)
             {
                 if (parameter.PassingMode == ParameterPassingMode.ByRef)
@@ -791,6 +816,8 @@ public sealed class LlvmEmitter
             _builder.Append(errorLabel).AppendLine(":");
             if (boundary.HandlerBlockId is int handlerBlockId)
             {
+                _builder.Append("  call void @__vb6_error_set_resume_boundary(i32 ")
+                    .Append(boundary.Id).AppendLine(")");
                 _builder.Append("  br label %").AppendLine(GetBlockLabel(handlerBlockId));
             }
             else
@@ -803,15 +830,39 @@ public sealed class LlvmEmitter
 
         private void EmitResumeInstruction(IrResumeInstruction resume)
         {
-            if (resume.Kind == IrResumeKind.Next)
+            var handlerBoundaries = _errorBoundaries
+                .Where(boundary => boundary.HandlerBlockId is not null)
+                .ToArray();
+            if (handlerBoundaries.Length == 0)
             {
-                _builder.AppendLine("  call void @__vb6_error_clear_pending()");
+                AddDiagnostic(
+                    "VB6L0001",
+                    "Native LLVM lowering for 'Resume' requires a label-directed error boundary.");
                 return;
             }
 
-            AddDiagnostic(
-                "VB6L0001",
-                "Native LLVM lowering for 'Resume' without a target is not implemented yet.");
+            var boundary = NextTemporary();
+            var invalidLabel = $"__vb6_error_resume_invalid_{_resumeId}";
+            var fallthroughLabel = $"__vb6_error_resume_fallthrough_{_resumeId++}";
+            _builder.Append("  ").Append(boundary)
+                .AppendLine(" = call i32 @__vb6_error_resume_boundary()");
+            _builder.AppendLine("  call void @__vb6_error_clear()");
+            _builder.Append("  switch i32 ").Append(boundary).Append(", label %")
+                .Append(invalidLabel).AppendLine(" [");
+            foreach (var errorBoundary in handlerBoundaries)
+            {
+                var target = resume.Kind == IrResumeKind.Next
+                    ? errorBoundary.ContinuationLabel
+                    : errorBoundary.TryLabel;
+                _builder.Append("    i32 ").Append(errorBoundary.Id)
+                    .Append(", label %").AppendLine(target);
+            }
+
+            _builder.AppendLine("  ]");
+            _builder.Append(invalidLabel).AppendLine(":");
+            _builder.AppendLine("  call void @__vb6_error_set(i32 20)");
+            _builder.Append("  br label %").AppendLine(fallthroughLabel);
+            _builder.Append(fallthroughLabel).AppendLine(":");
         }
 
         private string GetParameterLlvmType(IrParameter parameter)
@@ -857,9 +908,12 @@ public sealed class LlvmEmitter
                     }
                     else
                     {
-                        _activeErrorBoundary = new NativeErrorBoundary(
+                        var nativeBoundary = new NativeErrorBoundary(
                             _errorBoundaryId++,
                             boundary.HandlerBlockId);
+                        _activeErrorBoundary = nativeBoundary;
+                        _errorBoundaries.Add(nativeBoundary);
+                        _builder.Append(nativeBoundary.TryLabel).AppendLine(":");
                     }
                     return;
                 case IrErrorBoundaryEndInstruction:
@@ -2316,7 +2370,12 @@ public sealed class LlvmEmitter
         internal static string EscapeIdentifier(string identifier) =>
             identifier.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
 
-        private sealed record NativeErrorBoundary(int Id, int? HandlerBlockId);
+        private sealed record NativeErrorBoundary(int Id, int? HandlerBlockId)
+        {
+            public string TryLabel => $"__vb6_error_try_{Id}";
+
+            public string ContinuationLabel => $"__vb6_error_continue_{Id}";
+        }
 
         private sealed record NativeValue(TypeSymbol SemanticType, string LlvmType, string Value);
     }
