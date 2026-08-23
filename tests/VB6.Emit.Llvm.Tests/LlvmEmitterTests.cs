@@ -363,7 +363,7 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCurrencyMultiplicationUntilScaledArithmeticExists()
+    public void Emit_LowersCheckedCurrencyMultiplication()
     {
         var product = new IrRuntimeCallExpression(
             IrRuntimeMethod.MultiplyCurrency,
@@ -385,11 +385,14 @@ public sealed class LlvmEmitterTests
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "Currency multiplication requires checked scaled arithmetic");
-        Assert.IsFalse(result.ModuleText.Contains("mul i64", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_mcurrency_checked_i64(i64 10000, i64 20000)");
+        StringAssert.Contains(result.ModuleText, "%product = mul i128 %left_wide, %right_wide");
+        StringAssert.Contains(result.ModuleText, "%quotient = sdiv i128 %product, 10000");
+        StringAssert.Contains(result.ModuleText, "%remainder = srem i128 %product, 10000");
+        StringAssert.Contains(result.ModuleText, "%tie_round = and i1 %exactly_half, %quotient_is_odd");
+        StringAssert.Contains(result.ModuleText, "icmp slt i128 %result, -9223372036854775808");
+        StringAssert.Contains(result.ModuleText, "%narrowed = trunc i128 %result to i64");
     }
 
     [TestMethod]
