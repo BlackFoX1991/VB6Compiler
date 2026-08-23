@@ -73,13 +73,18 @@ public sealed class Lexer
                 keywordKind = SyntaxKind.IdentifierToken;
             }
 
+            char? typeSuffix = null;
             if (keywordKind == SyntaxKind.IdentifierToken && IsIdentifierTypeSuffix(Current))
             {
+                typeSuffix = Current;
                 _position++;
             }
 
             var span = TextSpan.FromBounds(start, _position);
-            return new SyntaxToken(keywordKind, span, text, null, leadingTrivia);
+            return new SyntaxToken(keywordKind, span, text, null, leadingTrivia)
+            {
+                TypeSuffix = typeSuffix
+            };
         }
 
         if (char.IsDigit(Current) || (Current == '.' && char.IsDigit(Peek(1))))

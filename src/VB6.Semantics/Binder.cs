@@ -61,7 +61,8 @@ public sealed class Binder
             CreateProcedureReturnType(
                 declaration.ReturnTypeToken,
                 declaration.ReturnTypeName,
-                declaration.ReturnOpenParenthesisToken is not null));
+                declaration.ReturnOpenParenthesisToken is not null,
+                declaration.Identifier));
     }
 
     public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
@@ -229,10 +230,12 @@ public sealed class Binder
             .Select(parameter =>
             {
                 var declaredTypeName = GetDeclaredTypeName(parameter.TypeToken, parameter.TypeName);
+                var suffixType = GetIdentifierType(parameter.Identifier);
                 var elementType = parameter.IsParamArray
                     ? TypeSymbol.Variant
-                    : parameter.TypeToken is null ||
-                      string.Equals(declaredTypeName, "Any", StringComparison.OrdinalIgnoreCase)
+                    : parameter.TypeToken is null
+                    ? suffixType ?? TypeSymbol.Variant
+                    : string.Equals(declaredTypeName, "Any", StringComparison.OrdinalIgnoreCase)
                     ? TypeSymbol.Variant
                     : TypeSymbol.Lookup(declaredTypeName!) ?? TypeSymbol.Error;
                 var type = (parameter.IsArray || parameter.IsParamArray) && elementType != TypeSymbol.Error
@@ -333,7 +336,8 @@ public sealed class Binder
             : CreateProcedureReturnType(
                 declaration.ReturnTypeToken,
                 declaration.ReturnTypeName,
-                declaration.ReturnOpenParenthesisToken is not null);
+                declaration.ReturnOpenParenthesisToken is not null,
+                declaration.Identifier);
         return new ProcedureSymbol(
             declaration.Identifier.Text,
             CreateParameterSymbols(declaration.Parameters),
@@ -352,11 +356,12 @@ public sealed class Binder
         var parameters = CreateParameterSymbols(declaration.Parameters);
         var type = declaration.IsGet
             ? declaration.ReturnTypeToken is null
-                ? TypeSymbol.Variant
+                ? GetIdentifierType(declaration.Identifier) ?? TypeSymbol.Variant
                 : CreateProcedureReturnType(
                     declaration.ReturnTypeToken,
                     declaration.ReturnTypeName,
-                    declaration.ReturnOpenParenthesisToken is not null)
+                    declaration.ReturnOpenParenthesisToken is not null,
+                    declaration.Identifier)
             : parameters.Length == 0
                 ? TypeSymbol.Variant
                 : parameters[^1].Type;
@@ -529,7 +534,7 @@ public sealed class Binder
                     var visible = CreateVisibleModuleScope();
                     var value = BindExpression(declaration.Value, visible, noProcedures);
                     var type = declaration.TypeToken is null
-                        ? value.Type
+                        ? GetIdentifierType(declaration.Identifier) ?? value.Type
                         : ResolveDeclaredType(declaration.TypeToken, declaration.TypeName);
                     var symbol = Declare(declaration.Identifier.Text, type) with
                     {
@@ -578,6 +583,19 @@ public sealed class Binder
 
         if (declarator.TypeToken is null)
         {
+            var suffixType = GetIdentifierType(declarator.Identifier);
+            if (suffixType is not null)
+            {
+                if (!declarator.IsArray)
+                {
+                    return suffixType;
+                }
+
+                return declarator.Dimensions.IsDefaultOrEmpty
+                    ? new ArrayTypeSymbol(suffixType)
+                    : new ArrayTypeSymbol(suffixType, declarator.Dimensions.Length);
+            }
+
             Report(
                 "VB6S0020",
                 $"Variable '{declarator.Identifier.Text}' has implicit Variant type, which is not supported yet.",
@@ -637,13 +655,31 @@ public sealed class Binder
     private static string? GetDeclaredTypeName(SyntaxToken? typeToken, TypeNameSyntax? typeName) =>
         typeName?.Text ?? typeToken?.Text;
 
+    private static TypeSymbol? GetIdentifierType(SyntaxToken identifier) => identifier.TypeSuffix switch
+    {
+        '$' => TypeSymbol.String,
+        '%' => TypeSymbol.Integer,
+        '&' => TypeSymbol.Long,
+        '!' => TypeSymbol.Single,
+        '#' => TypeSymbol.Double,
+        '@' => TypeSymbol.Currency,
+        _ => null
+    };
+
     private static TypeSymbol CreateProcedureReturnType(
         SyntaxToken? typeToken,
         TypeNameSyntax? typeName,
-        bool isArray)
+        bool isArray,
+        SyntaxToken? identifier = null)
     {
-        if (typeToken is null ||
-            string.Equals(GetDeclaredTypeName(typeToken, typeName), "Any", StringComparison.OrdinalIgnoreCase))
+        if (typeToken is null)
+        {
+            return identifier is null
+                ? TypeSymbol.Variant
+                : GetIdentifierType(identifier) ?? TypeSymbol.Variant;
+        }
+
+        if (string.Equals(GetDeclaredTypeName(typeToken, typeName), "Any", StringComparison.OrdinalIgnoreCase))
         {
             return TypeSymbol.Variant;
         }
@@ -947,7 +983,7 @@ public sealed class Binder
     {
         var value = BindExpression(syntax.Value, variables, procedures);
         var type = syntax.TypeToken is null
-            ? value.Type
+            ? GetIdentifierType(syntax.Identifier) ?? value.Type
             : ResolveDeclaredType(syntax.TypeToken, syntax.TypeName);
         var variable = new LocalVariableSymbol(syntax.Identifier.Text, type)
         {
@@ -1930,11 +1966,24 @@ public sealed class Binder
                     BindConversion(expression, propertyTarget.Type));
             }
 
-            Report(
-                "VB6S0001",
-                $"Variable '{syntax.Identifier.Text}' is not declared.",
-                syntax.Identifier.Span);
-            variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            if (!_optionExplicit && _activeLocals is not null)
+            {
+                var implicitLocal = new LocalVariableSymbol(
+                    syntax.Identifier.Text,
+                    GetIdentifierType(syntax.Identifier) ?? TypeSymbol.Variant);
+                variable = implicitLocal;
+                variables[variable.Name] = variable;
+                _activeLocals[implicitLocal.Name] = implicitLocal;
+            }
+            else
+            {
+                Report(
+                    "VB6S0001",
+                    $"Variable '{syntax.Identifier.Text}' is not declared.",
+                    syntax.Identifier.Span);
+                variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            }
+
             return new BoundAssignmentStatement(variable, expression);
         }
 
@@ -3472,7 +3521,9 @@ public sealed class Binder
 
         if (!_optionExplicit && _activeLocals is not null)
         {
-            var implicitLocal = new LocalVariableSymbol(syntax.IdentifierToken.Text, TypeSymbol.Variant);
+            var implicitLocal = new LocalVariableSymbol(
+                syntax.IdentifierToken.Text,
+                GetIdentifierType(syntax.IdentifierToken) ?? TypeSymbol.Variant);
             variables[implicitLocal.Name] = implicitLocal;
             _activeLocals[implicitLocal.Name] = implicitLocal;
             return new BoundVariableExpression(implicitLocal);
