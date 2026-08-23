@@ -296,6 +296,59 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_BindsNestedIntrinsicControlArraysFromDesigner()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ControlArray.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Form=Main.frm
+                Module=Entry; Entry.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Entry.bas"), """
+                Sub Main()
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.Form Main
+                   Begin VB.Frame HostFrame
+                      Begin VB.CommandButton Buttons
+                         Index = 0
+                         Caption = "First"
+                      End
+                   End
+                End
+                Attribute VB_Name = "Main"
+                Option Explicit
+
+                Private Sub UseButtons()
+                    Buttons(0).Caption = "Changed"
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            Assert.AreEqual(1, analysis.Designers.Length);
+            var form = analysis.SemanticModel!.ClassTypes.Single(type => type.Name == "Main");
+            Assert.IsTrue(form.TryGetProperty("Buttons", PropertyAccessorKind.Get, out var buttons));
+            var buttonArray = buttons!.Type as ArrayTypeSymbol;
+            Assert.IsNotNull(buttonArray);
+            Assert.AreSame(VBStandardTypes.Control, buttonArray!.ElementType);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_EmitsFormStartupProject()
     {
         var directory = CreateTemporaryDirectory();

@@ -877,8 +877,9 @@ fehlerfreien Dateien.
 | `VB6S0012` | 8 | verbliebene Typkonvertierungen |
 | `VB6S0058` | 6 | Datei-I/O-Formen jenseits der numerischen Binärtransfers |
 
-`.bas` und `.cls` werden heute gelesen und analysiert; `.ctl` (4) und `.frm` (6) sind noch
-außerhalb des Compiler-Kerns. Damit sind 30 von 40 Items abgedeckt.
+Zum damaligen Messstand wurden `.bas` und `.cls` gelesen und analysiert; `.ctl` (4) und `.frm`
+(6) lagen noch außerhalb des Compiler-Kerns. Der aktuelle Stand liest zusätzlich die Designer-
+Hüllen dieser Module, ohne die historische Messreihe nachträglich umzuschreiben.
 
 Dass zunehmend *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
 bis zum Binder durch, statt schon im Parser zu entgleisen.
@@ -1199,10 +1200,14 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 Größter Einzelblock.
 
-- [ ] `.frm`/`.frx` parsen; intrinsische Controls (Menu, Label, Shape, PictureBox, Image, Line,
-      CommandButton, TextBox, Frame, Timer)
+- [~] `.frm`/`.frx` parsen; die Designer-Hülle wird mit verschachtelten Controls, Eigenschaften,
+      `BeginProperty`-Blöcken und hexadezimalen `.frx`-Ressourcenoffsets erfasst. Intrinsische
+      Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
+      `Label`, `Shape`, `Line`, `Timer` und `Menu`) werden als typisierte Klassenfelder gebunden;
+      vollständige Ressourcendekodierung und WinForms-Erzeugung bleiben offen.
 - [ ] Forms-Runtime auf WinForms: Twips, Property-/Event-Mapping, `Load`/`Unload`/`Show`
-- [ ] **Control-Arrays** — kein WinForms-Konzept, eigene Nachbildung
+- [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
+      als typisierte VB6-Arrays gebunden; die eigene Laufzeit-/WinForms-Nachbildung bleibt offen.
 - [ ] Zeichnen auf Form/PictureBox, MDI
 - [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
@@ -1247,7 +1252,10 @@ und die verbreiteten `MSComctlLib`-/
 mit diesen Typverträgen als Klassenfelder gebunden; der Managed-Pfad nutzt dafür Late Binding und
 emittiert keine falschen CLR-Typreferenzen auf OCX-Dateien. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**842 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
+**844 Tests**. `.frm`-/`.ctl`-Designerhüllen werden jetzt offsettreu geparst, verschachtelte
+Controls und Control-Arrays werden in die Klassenfelder übernommen, und `.frx`-Verweise behalten
+ihren aufgelösten Pfad sowie Hex-Offset. `Type=OleDll` und `Type=Control` werden dabei als
+Managed-Libraries ohne `Sub Main`
 emittiert. EXE-Projekte mit `Startup="FormName"` erhalten einen generierten Einstiegspunkt, der
 die erzeugte Formklasse konstruiert; Fenstererzeugung, Message Loop und OCX-Hosting bleiben
 Host-/Interop-Aufgaben. `PropertyPage`- und `UserDocument`-Quellen werden ebenfalls als
