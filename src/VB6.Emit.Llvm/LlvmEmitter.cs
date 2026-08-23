@@ -41,6 +41,7 @@ public sealed class LlvmEmitter
         builder.AppendLine($"; VB6 native module: {options.ModuleName}");
         builder.AppendLine($"target triple = \"{GetTargetTriple(options.Architecture)}\"");
         builder.AppendLine();
+        EmitCheckedIntegerHelpers(builder);
 
         if (!program.TypeDefinitions.IsDefaultOrEmpty || !program.ClassDefinitions.IsDefaultOrEmpty)
         {
@@ -74,6 +75,56 @@ public sealed class LlvmEmitter
             diagnostics.Count == 0,
             builder.ToString(),
             diagnostics.ToImmutable());
+    }
+
+    private static void EmitCheckedIntegerHelpers(StringBuilder builder)
+    {
+        builder.AppendLine("declare void @llvm.trap()");
+        builder.AppendLine();
+        EmitCheckedIntegerHelper(builder, "__vb6_sdiv_checked_i64", "sdiv", checkSignedOverflow: true);
+        EmitCheckedIntegerHelper(builder, "__vb6_srem_checked_i64", "srem", checkSignedOverflow: false);
+        EmitCheckedIntegerHelper(builder, "__vb6_udiv_checked_i64", "udiv", checkSignedOverflow: false);
+        EmitCheckedIntegerHelper(builder, "__vb6_urem_checked_i64", "urem", checkSignedOverflow: false);
+    }
+
+    private static void EmitCheckedIntegerHelper(
+        StringBuilder builder,
+        string name,
+        string operation,
+        bool checkSignedOverflow)
+    {
+        if (checkSignedOverflow)
+        {
+            builder.Append("define i64 @").Append(name).AppendLine("(i64 %left, i64 %right, i64 %min_value) {");
+        }
+        else
+        {
+            builder.Append("define i64 @").Append(name).AppendLine("(i64 %left, i64 %right) {");
+        }
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %is_zero = icmp eq i64 %right, 0");
+        if (checkSignedOverflow)
+        {
+            builder.AppendLine("  br i1 %is_zero, label %trap, label %check_overflow");
+            builder.AppendLine("check_overflow:");
+            builder.AppendLine("  %is_min = icmp eq i64 %left, %min_value");
+            builder.AppendLine("  %is_negative_one = icmp eq i64 %right, -1");
+            builder.AppendLine("  %is_overflow = and i1 %is_min, %is_negative_one");
+            builder.AppendLine("  br i1 %is_overflow, label %trap, label %divide");
+        }
+        else
+        {
+            builder.AppendLine("  br i1 %is_zero, label %trap, label %divide");
+        }
+
+        builder.AppendLine("divide:");
+        builder.Append("  %result = ").Append(operation).AppendLine(" i64 %left, %right");
+        builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
     }
 
     private static Dictionary<IrGlobal, string> EmitGlobals(
@@ -492,6 +543,14 @@ public sealed class LlvmEmitter
             if (methodName.StartsWith("IntegerDivide", StringComparison.Ordinal) ||
                 methodName.StartsWith("Mod", StringComparison.Ordinal))
             {
+                if (TryGetIntegerShape(runtime.ResultType, _architecture, out _, out _))
+                {
+                    return EmitIntegerDivision(
+                        runtime.ResultType,
+                        arguments,
+                        methodName.StartsWith("Mod", StringComparison.Ordinal));
+                }
+
                 return RejectCheckedOperation(
                     methodName,
                     runtime.ResultType,
@@ -562,6 +621,78 @@ public sealed class LlvmEmitter
                 "VB6L0001",
                 $"Native LLVM lowering for runtime method '{methodName}' requires checked {operation} runtime semantics and is not implemented yet.");
             return ZeroValue(resultType);
+        }
+
+        private NativeValue EmitIntegerDivision(
+            TypeSymbol resultType,
+            NativeValue[] arguments,
+            bool remainder)
+        {
+            if (arguments.Length != 2 || arguments[0].LlvmType != arguments[1].LlvmType)
+            {
+                AddDiagnostic("VB6L0004", "LLVM integer division requires two operands of the same type.");
+                return ZeroValue(resultType);
+            }
+
+            if (!TryGetIntegerShape(arguments[0].SemanticType, _architecture, out var bits, out var unsigned) ||
+                !TryGetIntegerShape(arguments[1].SemanticType, _architecture, out var rightBits, out var rightUnsigned) ||
+                bits != rightBits ||
+                unsigned != rightUnsigned ||
+                !TryGetIntegerShape(resultType, _architecture, out var resultBits, out var resultUnsigned) ||
+                bits != resultBits ||
+                unsigned != resultUnsigned)
+            {
+                AddDiagnostic("VB6L0004", "LLVM integer division requires matching integer operand and result types.");
+                return ZeroValue(resultType);
+            }
+
+            var left = ExtendIntegerToHelperWidth(arguments[0], unsigned);
+            var right = ExtendIntegerToHelperWidth(arguments[1], unsigned);
+            var helperName = unsigned
+                ? remainder ? "__vb6_urem_checked_i64" : "__vb6_udiv_checked_i64"
+                : remainder ? "__vb6_srem_checked_i64" : "__vb6_sdiv_checked_i64";
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call i64 @").Append(helperName)
+                .Append("(i64 ").Append(left).Append(", i64 ").Append(right);
+            if (!unsigned && !remainder)
+            {
+                _builder.Append(", i64 ").Append(SignedMinimumLiteral(bits));
+            }
+            _builder.AppendLine(")");
+
+            var resultLlvmType = GetTypeOrFallback(resultType, "integer division result");
+            if (resultLlvmType == "i64")
+            {
+                return new NativeValue(resultType, resultLlvmType, call);
+            }
+
+            var narrowed = NextTemporary();
+            _builder.Append("  ").Append(narrowed).Append(" = trunc i64 ").Append(call)
+                .Append(" to ").AppendLine(resultLlvmType);
+            return new NativeValue(resultType, resultLlvmType, narrowed);
+        }
+
+        private static string SignedMinimumLiteral(int bits) => bits switch
+        {
+            8 => "-128",
+            16 => "-32768",
+            32 => "-2147483648",
+            64 => "-9223372036854775808",
+            _ => throw new ArgumentOutOfRangeException(nameof(bits))
+        };
+
+        private string ExtendIntegerToHelperWidth(NativeValue value, bool unsigned)
+        {
+            if (value.LlvmType == "i64")
+            {
+                return value.Value;
+            }
+
+            var temporary = NextTemporary();
+            _builder.Append("  ").Append(temporary).Append(" = ")
+                .Append(unsigned ? "zext " : "sext ").Append(value.LlvmType).Append(' ')
+                .Append(value.Value).AppendLine(" to i64");
+            return temporary;
         }
 
         private NativeValue EmitScalarConversion(

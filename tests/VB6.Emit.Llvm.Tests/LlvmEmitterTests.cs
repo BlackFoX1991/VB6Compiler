@@ -441,7 +441,7 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedIntegerDivision()
+    public void Emit_LowersCheckedSignedIntegerDivision()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.IntegerDivideLong,
@@ -463,15 +463,15 @@ public sealed class LlvmEmitterTests
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked integer division runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("sdiv i32", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sdiv_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sdiv_checked_i64(i64 %t0, i64 %t1, i64 -2147483648)");
+        StringAssert.Contains(result.ModuleText, "%is_overflow = and i1 %is_min, %is_negative_one");
+        StringAssert.Contains(result.ModuleText, "ret i32");
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedIntegerRemainder()
+    public void Emit_LowersCheckedSignedIntegerRemainder()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.ModInteger,
@@ -493,11 +493,39 @@ public sealed class LlvmEmitterTests
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked integer remainder runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("srem i16", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_srem_checked_i64");
+        StringAssert.Contains(result.ModuleText, "sext i16 7 to i64");
+        StringAssert.Contains(result.ModuleText, "trunc i64");
+    }
+
+    [TestMethod]
+    public void Emit_LowersCheckedUnsignedIntegerRemainder()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.ModUInteger,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(7u, TypeSymbol.UInteger)),
+                new IrCallArgument(new IrConstantExpression(2u, TypeSymbol.UInteger))),
+            TypeSymbol.UInteger);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.UInteger,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_urem_checked_i64");
+        StringAssert.Contains(result.ModuleText, "zext i32 7 to i64");
+        StringAssert.Contains(result.ModuleText, "zext i32 2 to i64");
     }
 
     [TestMethod]
