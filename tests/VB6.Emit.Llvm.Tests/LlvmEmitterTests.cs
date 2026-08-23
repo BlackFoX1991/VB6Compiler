@@ -240,6 +240,81 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "load i32, ptr @\"__vb6_global_Module1_counter_0\"");
     }
 
+    [TestMethod]
+    public void Emit_LowersScalarExternalDeclarationsAndCalls()
+    {
+        var parameterSymbol = new ParameterSymbol("value", TypeSymbol.Long, ParameterPassingMode.ByVal);
+        var outputParameterSymbol = new ParameterSymbol("output", TypeSymbol.Long, ParameterPassingMode.ByRef);
+        var externalSymbol = new ProcedureSymbol(
+            "GetValue",
+            ImmutableArray.Create(parameterSymbol, outputParameterSymbol),
+            TypeSymbol.Long)
+        {
+            IsExternal = true,
+            ExternalLibrary = "kernel32",
+            ExternalAlias = "NativeGetValue"
+        };
+        var parameter = new IrParameter(
+            parameterSymbol,
+            0,
+            parameterSymbol.Name,
+            parameterSymbol.Type,
+            parameterSymbol.PassingMode);
+        var outputParameter = new IrParameter(
+            outputParameterSymbol,
+            1,
+            outputParameterSymbol.Name,
+            outputParameterSymbol.Type,
+            outputParameterSymbol.PassingMode);
+        var external = new IrProcedure(
+            externalSymbol,
+            externalSymbol.Name,
+            externalSymbol.ReturnType,
+            ImmutableArray.Create(parameter, outputParameter),
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray<IrBasicBlock>.Empty,
+            IsExternal: true,
+            ExternalLibrary: externalSymbol.ExternalLibrary,
+            ExternalAlias: externalSymbol.ExternalAlias);
+        var local = new IrLocal(0, "output", TypeSymbol.Long);
+        var main = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray.Create(local),
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrStoreInstruction(
+                        new IrLocalPlace(local),
+                        new IrConstantExpression(0L, TypeSymbol.Long))),
+                new IrReturnTerminator(new IrProcedureCallExpression(
+                    externalSymbol,
+                    ImmutableArray.Create(
+                        new IrCallArgument(new IrConstantExpression(3L, TypeSymbol.Long)),
+                        new IrCallArgument(
+                            new IrAddressExpression(new IrLocalPlace(local)),
+                            IrCallArgumentKind.Address)),
+                    TypeSymbol.Long)))));
+        var program = new IrProgram(
+            ImmutableArray.Create(new IrModule(
+                "Module1",
+                null,
+                ImmutableArray<IrGlobal>.Empty,
+                ImmutableArray.Create(external, main))),
+            ImmutableArray<IrTypeDefinition>.Empty,
+            main);
+
+        var result = new LlvmEmitter().Emit(program, new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "; external library: kernel32");
+        StringAssert.Contains(result.ModuleText, "declare i32 @\"NativeGetValue\"(i32, ptr)");
+        StringAssert.Contains(result.ModuleText, "call i32 @\"NativeGetValue\"(i32 3, ptr %local_0)");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",

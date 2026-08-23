@@ -54,7 +54,14 @@ public sealed class LlvmEmitter
         foreach (var procedure in program.Modules.SelectMany(module => module.Procedures))
         {
             var emitter = new NativeProcedureEmitter(builder, diagnostics, options.Architecture, globalSlots);
-            emitter.Emit(procedure);
+            if (procedure.IsExternal)
+            {
+                emitter.EmitExternalDeclaration(procedure);
+            }
+            else
+            {
+                emitter.Emit(procedure);
+            }
             builder.AppendLine();
         }
 
@@ -220,6 +227,35 @@ public sealed class LlvmEmitter
             }
 
             _builder.AppendLine("}");
+        }
+
+        public void EmitExternalDeclaration(IrProcedure procedure)
+        {
+            var returnType = procedure.ReturnType is null
+                ? "void"
+                : GetTypeOrFallback(procedure.ReturnType, $"external procedure '{procedure.Name}' return type");
+            var parameterTypes = procedure.Parameters
+                .Select(GetParameterLlvmType)
+                .ToArray();
+
+            if (!string.IsNullOrEmpty(procedure.ExternalLibrary))
+            {
+                _builder.Append("; external library: ").AppendLine(procedure.ExternalLibrary);
+            }
+
+            _builder.Append("declare ").Append(returnType).Append(" @\"")
+                .Append(EscapeIdentifier(GetExternalName(procedure))).Append("\"(");
+            for (var index = 0; index < parameterTypes.Length; index++)
+            {
+                if (index > 0)
+                {
+                    _builder.Append(", ");
+                }
+
+                _builder.Append(parameterTypes[index]);
+            }
+
+            _builder.AppendLine(")");
         }
 
         private void EmitFallbackReturn(string returnType)
@@ -484,12 +520,6 @@ public sealed class LlvmEmitter
                 return ZeroValue(call.ResultType);
             }
 
-            if (call.Procedure.IsExternal)
-            {
-                AddDiagnostic("VB6L0001", $"Native LLVM lowering for external procedure '{call.Procedure.Name}' is not implemented yet.");
-                return ZeroValue(call.ResultType);
-            }
-
             if (call.Arguments.Length != call.Procedure.Parameters.Length)
             {
                 AddDiagnostic(
@@ -574,11 +604,17 @@ public sealed class LlvmEmitter
             }
 
             _builder.Append("call ").Append(returnType).Append(" @\"")
-                .Append(EscapeIdentifier(call.Procedure.Name)).Append("\"(")
+                .Append(EscapeIdentifier(GetExternalName(call.Procedure))).Append("\"(")
                 .Append(string.Join(", ", arguments)).AppendLine(")");
 
             return new NativeValue(call.ResultType, returnType, result);
         }
+
+        private static string GetExternalName(IrProcedure procedure) =>
+            procedure.ExternalAlias ?? procedure.Symbol?.ExternalAlias ?? procedure.Name;
+
+        private static string GetExternalName(ProcedureSymbol procedure) =>
+            procedure.ExternalAlias ?? procedure.Name;
 
         private NativeValue EmitBinary(TypeSymbol resultType, NativeValue[] arguments, string operation)
         {
