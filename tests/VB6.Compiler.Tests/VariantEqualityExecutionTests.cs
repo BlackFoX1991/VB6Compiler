@@ -131,6 +131,26 @@ public sealed class VariantEqualityExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ComparesCurrencyAndSingleVariantsAtTheirPrecision()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim currencyValue As Variant
+                Dim singleValue As Variant
+
+                currencyValue = CCur(1)
+                singleValue = CSng(0.1)
+
+                Debug.Print currencyValue = 1.00004
+                Debug.Print currencyValue = 1.00006
+                Debug.Print singleValue = 0.1
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "False", "True" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PropagatesNullThroughComparisonsAndIf()
     {
         var output = VB6TestProgram.RunLines("""

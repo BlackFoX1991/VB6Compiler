@@ -115,4 +115,14 @@ public sealed class VariantArithmeticTests
         Assert.IsTrue((bool)VBOperators.VariantGreater(value, 0.1d));
         Assert.IsFalse((bool)VBOperators.VariantEqual(value, 0.1d));
     }
+
+    [TestMethod]
+    public void VariantComparisons_UseVb6CurrencyAndSinglePrecisionRules()
+    {
+        var currency = VBConversions.CCur(1m);
+
+        Assert.IsTrue((bool)VBOperators.VariantEqual(currency, 1.00004d));
+        Assert.IsFalse((bool)VBOperators.VariantEqual(currency, 1.00006d));
+        Assert.IsTrue((bool)VBOperators.VariantEqual(0.1f, 0.1d));
+    }
 }

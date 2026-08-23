@@ -367,6 +367,11 @@ public static partial class VBOperators
             return string.CompareOrdinal(leftText, string.Empty);
         }
 
+        if (TryComparePromotedNumericValues(left, right, out var promotedComparison))
+        {
+            return promotedComparison;
+        }
+
         if (TryGetVariantDecimalValue(left, out var leftDecimal) &&
             TryGetVariantDecimalValue(right, out var rightDecimal))
         {
@@ -380,6 +385,72 @@ public static partial class VBOperators
         }
 
         return Compare(left, right);
+    }
+
+    private static bool TryComparePromotedNumericValues(
+        object? left,
+        object? right,
+        out int comparison)
+    {
+        comparison = 0;
+
+        if (left is VBCurrency || right is VBCurrency)
+        {
+            if (left is decimal || right is decimal ||
+                !TryGetCurrencyComparisonValue(left, out var leftCurrency) ||
+                !TryGetCurrencyComparisonValue(right, out var rightCurrency))
+            {
+                return false;
+            }
+
+            comparison = leftCurrency.CompareTo(rightCurrency);
+            return true;
+        }
+
+        if (left is float || right is float)
+        {
+            if (left is decimal || right is decimal ||
+                !TryGetSingleComparisonValue(left, out var leftSingle) ||
+                !TryGetSingleComparisonValue(right, out var rightSingle))
+            {
+                return false;
+            }
+
+            comparison = leftSingle.CompareTo(rightSingle);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetCurrencyComparisonValue(object? value, out decimal number)
+    {
+        if (value is VBCurrency currency)
+        {
+            number = currency.ToDecimal();
+            return true;
+        }
+
+        if (value is not (byte or short or int or ushort or uint or long or ulong or IntPtr or float or double or bool))
+        {
+            number = 0m;
+            return false;
+        }
+
+        number = VBConversions.CCur(value).ToDecimal();
+        return true;
+    }
+
+    private static bool TryGetSingleComparisonValue(object? value, out float number)
+    {
+        if (value is not (byte or short or int or ushort or uint or long or ulong or IntPtr or float or double or bool))
+        {
+            number = 0f;
+            return false;
+        }
+
+        number = VBConversions.CSng(value);
+        return true;
     }
 
     private static bool TryGetVariantNumericValue(object? value, out double number)
