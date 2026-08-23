@@ -20,6 +20,19 @@ public sealed class RuntimeTests
     }
 
     [TestMethod]
+    public void ErrorVariantConversions_DistinguishExplicitAndImplicitPaths()
+    {
+        var error = new VBErrorValue(2001);
+
+        Assert.AreEqual((short)2001, VBConversions.CInt(error));
+        Assert.AreEqual(2001d, VBConversions.CDbl(error));
+        Assert.AreEqual(2001m, VBConversions.CDec(error));
+        Assert.AreEqual("Error 2001", VBConversions.CStr(error));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBConversions.ConvertCInt(error));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBConversions.ConvertCStr(error));
+    }
+
+    [TestMethod]
     public void BooleanLogicalOperators_UseVbTruthTables()
     {
         Assert.IsFalse(VBOperators.NotBoolean(true));

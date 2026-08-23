@@ -2796,20 +2796,20 @@ public static class IrLowerer
                 ? IrRuntimeMethod.DateToVariant
                 : conversion.TargetType == TypeSymbol.Boolean && conversion.Expression.Type == TypeSymbol.Variant
                     ? IrRuntimeMethod.VariantToBoolean
-                : conversion.TargetType == TypeSymbol.Byte ? IrRuntimeMethod.CByte
-                : conversion.TargetType == TypeSymbol.Integer ? IrRuntimeMethod.CInt
-                : conversion.TargetType == TypeSymbol.Long ? IrRuntimeMethod.CLng
-                : conversion.TargetType == TypeSymbol.LongLong ? IrRuntimeMethod.CLngLng
-                : conversion.TargetType == TypeSymbol.LongPtr ? IrRuntimeMethod.CLngPtr
-                : conversion.TargetType == TypeSymbol.UShort ? IrRuntimeMethod.CUShort
-                : conversion.TargetType == TypeSymbol.UInteger ? IrRuntimeMethod.CUInt
-                : conversion.TargetType == TypeSymbol.ULong ? IrRuntimeMethod.CULng
-                : conversion.TargetType == TypeSymbol.Currency ? IrRuntimeMethod.CCur
-                : conversion.TargetType == TypeSymbol.Date ? IrRuntimeMethod.CDate
-                : conversion.TargetType == TypeSymbol.Single ? IrRuntimeMethod.CSng
-                : conversion.TargetType == TypeSymbol.Double ? IrRuntimeMethod.CDbl
-                : conversion.TargetType == TypeSymbol.Boolean ? IrRuntimeMethod.CBool
-                : conversion.TargetType == TypeSymbol.String ? IrRuntimeMethod.CStr
+                : conversion.TargetType == TypeSymbol.Byte ? IrRuntimeMethod.ConvertCByte
+                : conversion.TargetType == TypeSymbol.Integer ? IrRuntimeMethod.ConvertCInt
+                : conversion.TargetType == TypeSymbol.Long ? IrRuntimeMethod.ConvertCLng
+                : conversion.TargetType == TypeSymbol.LongLong ? IrRuntimeMethod.ConvertCLngLng
+                : conversion.TargetType == TypeSymbol.LongPtr ? IrRuntimeMethod.ConvertCLngPtr
+                : conversion.TargetType == TypeSymbol.UShort ? IrRuntimeMethod.ConvertCUShort
+                : conversion.TargetType == TypeSymbol.UInteger ? IrRuntimeMethod.ConvertCUInt
+                : conversion.TargetType == TypeSymbol.ULong ? IrRuntimeMethod.ConvertCULng
+                : conversion.TargetType == TypeSymbol.Currency ? IrRuntimeMethod.ConvertCCur
+                : conversion.TargetType == TypeSymbol.Date ? IrRuntimeMethod.ConvertCDate
+                : conversion.TargetType == TypeSymbol.Single ? IrRuntimeMethod.ConvertCSng
+                : conversion.TargetType == TypeSymbol.Double ? IrRuntimeMethod.ConvertCDbl
+                : conversion.TargetType == TypeSymbol.Boolean ? IrRuntimeMethod.ConvertCBool
+                : conversion.TargetType == TypeSymbol.String ? IrRuntimeMethod.ConvertCStr
                 : (IrRuntimeMethod?)null;
             return method is null
                 ? operand

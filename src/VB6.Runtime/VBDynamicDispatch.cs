@@ -238,15 +238,15 @@ public static class VBDynamicDispatch
             return value;
         }
 
-        if (targetType == typeof(byte)) return VBConversions.CByte(value);
-        if (targetType == typeof(short)) return VBConversions.CInt(value);
-        if (targetType == typeof(int)) return VBConversions.CLng(value);
-        if (targetType == typeof(long)) return VBConversions.CLngLng(value);
-        if (targetType == typeof(float)) return VBConversions.CSng(value);
-        if (targetType == typeof(double)) return VBConversions.CDbl(value);
-        if (targetType == typeof(bool)) return VBConversions.CBool(value);
-        if (targetType == typeof(string)) return VBConversions.CStr(value);
-        if (targetType == typeof(VBCurrency)) return VBConversions.CCur(value);
+        if (targetType == typeof(byte)) return VBConversions.ConvertCByte(value);
+        if (targetType == typeof(short)) return VBConversions.ConvertCInt(value);
+        if (targetType == typeof(int)) return VBConversions.ConvertCLng(value);
+        if (targetType == typeof(long)) return VBConversions.ConvertCLngLng(value);
+        if (targetType == typeof(float)) return VBConversions.ConvertCSng(value);
+        if (targetType == typeof(double)) return VBConversions.ConvertCDbl(value);
+        if (targetType == typeof(bool)) return VBConversions.ConvertCBool(value);
+        if (targetType == typeof(string)) return VBConversions.ConvertCStr(value);
+        if (targetType == typeof(VBCurrency)) return VBConversions.ConvertCCur(value);
 
         throw new InvalidCastException(
             $"Cannot pass a Variant value of type '{value.GetType().Name}' to '{targetType.Name}'.");

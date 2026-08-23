@@ -14,6 +14,11 @@ public static class VBConversions
 {
     public static byte CByte(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return checked((byte)error.Code);
+        }
+
         if (value is IntPtr pointer)
         {
             return checked((byte)pointer.ToInt64());
@@ -31,6 +36,11 @@ public static class VBConversions
 
     public static short CInt(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return checked((short)error.Code);
+        }
+
         if (value is IntPtr pointer)
         {
             return checked((short)pointer.ToInt64());
@@ -48,6 +58,11 @@ public static class VBConversions
 
     public static int CLng(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return error.Code;
+        }
+
         if (value is IntPtr pointer)
         {
             return checked((int)pointer.ToInt64());
@@ -65,6 +80,11 @@ public static class VBConversions
 
     public static long CLngLng(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return error.Code;
+        }
+
         if (value is IntPtr pointer)
         {
             return pointer.ToInt64();
@@ -82,6 +102,11 @@ public static class VBConversions
 
     public static IntPtr CLngPtr(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return new IntPtr(error.Code);
+        }
+
         if (value is IntPtr pointer)
         {
             return pointer;
@@ -95,6 +120,11 @@ public static class VBConversions
 
     public static ushort CUShort(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return checked((ushort)error.Code);
+        }
+
         if (value is ushort number)
         {
             return number;
@@ -120,6 +150,11 @@ public static class VBConversions
 
     public static uint CUInt(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return checked((uint)error.Code);
+        }
+
         if (value is uint number)
         {
             return number;
@@ -145,6 +180,11 @@ public static class VBConversions
 
     public static ulong CULng(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return checked((ulong)error.Code);
+        }
+
         if (value is ulong number)
         {
             return number;
@@ -170,6 +210,11 @@ public static class VBConversions
 
     public static VBCurrency CCur(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return VBCurrency.FromDecimal(error.Code);
+        }
+
         if (value is IntPtr pointer)
         {
             return VBCurrency.FromDecimal(pointer.ToInt64());
@@ -194,6 +239,11 @@ public static class VBConversions
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
+        }
+
+        if (value is VBErrorValue error)
+        {
+            return (decimal)error.Code;
         }
 
         if (value is VBCurrency currency)
@@ -231,6 +281,11 @@ public static class VBConversions
 
     public static float CSng(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            return CheckSingle(error.Code);
+        }
+
         var result = value switch
         {
             IntPtr pointer => pointer.ToInt64(),
@@ -243,6 +298,7 @@ public static class VBConversions
 
     public static double CDbl(object? value) => value switch
     {
+        VBErrorValue error => error.Code,
         IntPtr pointer => pointer.ToInt64(),
         VBCurrency currency => currency.ToDouble(),
         VBDateValue date => date.OADate,
@@ -256,6 +312,11 @@ public static class VBConversions
 
     public static double CDate(object? value)
     {
+        if (value is VBErrorValue error)
+        {
+            throw new VB6TypeMismatchException($"Cannot convert Error Variant {error.Code} to Date.");
+        }
+
         if (value is VBDateValue date)
         {
             return date.OADate;
@@ -280,6 +341,7 @@ public static class VBConversions
 
     public static bool CBool(object? value) => value switch
     {
+        VBErrorValue error => error.Code != 0,
         IntPtr pointer => pointer != IntPtr.Zero,
         VBCurrency currency => currency.ScaledValue != 0,
         _ => Convert.ToBoolean(value, CultureInfo.InvariantCulture)
@@ -304,6 +366,99 @@ public static class VBConversions
     }
 
     public static object? CVar(object? value) => value;
+
+    public static byte ConvertCByte(object? value)
+    {
+        RejectImplicitError(value, nameof(Byte));
+        return CByte(value);
+    }
+
+    public static short ConvertCInt(object? value)
+    {
+        RejectImplicitError(value, nameof(Int16));
+        return CInt(value);
+    }
+
+    public static int ConvertCLng(object? value)
+    {
+        RejectImplicitError(value, nameof(Int32));
+        return CLng(value);
+    }
+
+    public static long ConvertCLngLng(object? value)
+    {
+        RejectImplicitError(value, nameof(Int64));
+        return CLngLng(value);
+    }
+
+    public static IntPtr ConvertCLngPtr(object? value)
+    {
+        RejectImplicitError(value, nameof(IntPtr));
+        return CLngPtr(value);
+    }
+
+    public static ushort ConvertCUShort(object? value)
+    {
+        RejectImplicitError(value, nameof(UInt16));
+        return CUShort(value);
+    }
+
+    public static uint ConvertCUInt(object? value)
+    {
+        RejectImplicitError(value, nameof(UInt32));
+        return CUInt(value);
+    }
+
+    public static ulong ConvertCULng(object? value)
+    {
+        RejectImplicitError(value, nameof(UInt64));
+        return CULng(value);
+    }
+
+    public static VBCurrency ConvertCCur(object? value)
+    {
+        RejectImplicitError(value, nameof(VBCurrency));
+        return CCur(value);
+    }
+
+    public static double ConvertCDate(object? value)
+    {
+        RejectImplicitError(value, nameof(DateTime));
+        return CDate(value);
+    }
+
+    public static float ConvertCSng(object? value)
+    {
+        RejectImplicitError(value, nameof(Single));
+        return CSng(value);
+    }
+
+    public static double ConvertCDbl(object? value)
+    {
+        RejectImplicitError(value, nameof(Double));
+        return CDbl(value);
+    }
+
+    public static bool ConvertCBool(object? value)
+    {
+        RejectImplicitError(value, nameof(Boolean));
+        return CBool(value);
+    }
+
+    public static string ConvertCStr(object? value)
+    {
+        RejectImplicitError(value, nameof(String));
+        return CStr(value);
+    }
+
+    private static void RejectImplicitError(object? value, string targetType)
+    {
+        if (value is VBErrorValue error)
+        {
+            throw new VB6TypeMismatchException(
+                $"Cannot implicitly convert Error Variant {error.Code} to {targetType}.");
+        }
+    }
 
     /// <summary>Implements VB6 Int, including floor semantics for negative fractional values.</summary>
     public static object Int(object? value)
