@@ -448,6 +448,14 @@ public sealed class LlvmEmitter
             var arguments = runtime.Arguments.Select(argument => EmitExpression(argument.Expression)).ToArray();
             var methodName = runtime.Method.ToString();
 
+            if (methodName == "MultiplyCurrency")
+            {
+                AddDiagnostic(
+                    "VB6L0001",
+                    "Native LLVM lowering for Currency multiplication requires checked scaled arithmetic and is not implemented yet.");
+                return ZeroValue(runtime.ResultType);
+            }
+
             if (methodName.StartsWith("Add", StringComparison.Ordinal) ||
                 methodName.StartsWith("Subtract", StringComparison.Ordinal) ||
                 methodName.StartsWith("Multiply", StringComparison.Ordinal))
@@ -1145,9 +1153,31 @@ public sealed class LlvmEmitter
                 return true;
             }
 
+            if (type == TypeSymbol.Currency)
+            {
+                try
+                {
+                    var number = value is bool boolean
+                        ? boolean ? -1m : 0m
+                        : Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+                    var scaled = decimal.Round(number, 4, MidpointRounding.ToEven) * 10_000m;
+                    literal = decimal.ToInt64(scaled).ToString(CultureInfo.InvariantCulture);
+                    return true;
+                }
+                catch (FormatException)
+                {
+                }
+                catch (InvalidCastException)
+                {
+                }
+                catch (OverflowException)
+                {
+                }
+            }
+
             if (type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long ||
                 type == TypeSymbol.LongLong || type == TypeSymbol.LongPtr || type == TypeSymbol.UShort ||
-                type == TypeSymbol.UInteger || type == TypeSymbol.ULong || type == TypeSymbol.Currency)
+                type == TypeSymbol.UInteger || type == TypeSymbol.ULong)
             {
                 try
                 {
