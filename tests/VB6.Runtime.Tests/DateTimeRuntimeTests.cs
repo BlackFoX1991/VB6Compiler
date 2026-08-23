@@ -62,4 +62,15 @@ public sealed class DateTimeRuntimeTests
         Assert.AreEqual(30, VBDateTime.DatePart("n", halfPastNoon));
         Assert.AreEqual(0, VBDateTime.DatePart("s", halfPastNoon));
     }
+
+    [TestMethod]
+    public void DateNameFunctions_UseConfiguredWeekdayAndInvariantNames()
+    {
+        Assert.AreEqual((short)5, VBDateTime.Weekday(43832));
+        Assert.AreEqual((short)4, VBDateTime.Weekday(43832, 2));
+        Assert.AreEqual("Thursday", VBDateTime.WeekdayName(4, false, 2));
+        Assert.AreEqual("Thu", VBDateTime.WeekdayName(5, true));
+        Assert.AreEqual("January", VBDateTime.MonthName(1));
+        Assert.AreEqual("Jan", VBDateTime.MonthName(1, true));
+    }
 }

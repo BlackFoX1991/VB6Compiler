@@ -93,6 +93,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Skalare Date-Part-/Timer-Intrinsics | **2** | **0** | **0** | **2** | **38 von 40** |
 | DateSerial/TimeSerial sowie DateAdd/DateDiff-Intervalle inklusive `w`/`ww` | **2** | **0** | **0** | **2** | **38 von 40** |
 | `DatePart` mit Kalender-, Zeit- und Wochenanteilen | **2** | **0** | **0** | **2** | **38 von 40** |
+| `Weekday`/`WeekdayName`/`MonthName` | **2** | **0** | **0** | **2** | **38 von 40** |
 | Variant-Date-Arithmetik mit Date-Subtype-Erhalt | **2** | **0** | **0** | **2** | **38 von 40** |
 | `DateValue`/`TimeValue`-Normalisierung | **2** | **0** | **0** | **2** | **38 von 40** |
 | Skalare Mathematik-Intrinsics `Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn` | **2** | **0** | **0** | **2** | **38 von 40** |
@@ -447,6 +448,10 @@ und Kalenderwochenanteile mit den portablen `firstdayofweek`-/`firstweekofyear`-
 Standardkonstanten `vbSunday` bis `vbSaturday` sowie `vbFirstJan1`, `vbFirstFourDays` und
 `vbFirstFullWeek` sind projektweit verfügbar. Der VISIA-Stand bleibt bei **2 semantischen Fehlern**
 und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **735 Tests**.
+
+`Weekday`, `WeekdayName` und `MonthName` ergänzen den Date-/Time-Intrinsic-Slice mit konfigurierbarer
+Wochenbasis und invariant-stabilen Namen für das portable Compilerprofil. Der VISIA-Stand bleibt bei
+**2 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **737 Tests**.
 
 Variant-Arithmetik erhält bei `Date + Zahl` und `Date - Zahl` den Date-Subtype; `Date - Date`
 liefert weiterhin einen numerischen Abstand. Damit bleibt die typisierte OLE-Automation-Darstellung

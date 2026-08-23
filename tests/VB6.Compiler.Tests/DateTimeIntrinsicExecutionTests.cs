@@ -60,4 +60,20 @@ public sealed class DateTimeIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "2020", "1", "2", "4", "1", "12" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesDateNameIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print Weekday(CDate(43832), vbMonday)
+                Debug.Print WeekdayName(4, False, vbMonday)
+                Debug.Print WeekdayName(5, True)
+                Debug.Print MonthName(1)
+                Debug.Print MonthName(1, True)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "4", "Thursday", "Thu", "January", "Jan" }, output);
+    }
 }

@@ -122,6 +122,39 @@ public static class VBDateTime
         };
     }
 
+    public static short Weekday(double value, int firstDayOfWeek = 1)
+    {
+        var firstDay = ResolveFirstDayOfWeek(firstDayOfWeek);
+        var date = FromOleDate(value);
+        return checked((short)(1 + ((int)date.DayOfWeek - (int)firstDay + 7) % 7));
+    }
+
+    public static string WeekdayName(int weekday, bool abbreviate = false, int firstDayOfWeek = 1)
+    {
+        var firstDay = ResolveFirstDayOfWeek(firstDayOfWeek);
+        if (weekday is < 1 or > 7)
+        {
+            throw new ArgumentOutOfRangeException(nameof(weekday), "Weekday must be between 1 and 7.");
+        }
+
+        var day = (DayOfWeek)(((int)firstDay + weekday - 1) % 7);
+        return abbreviate
+            ? CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedDayName(day)
+            : CultureInfo.InvariantCulture.DateTimeFormat.GetDayName(day);
+    }
+
+    public static string MonthName(int month, bool abbreviate = false)
+    {
+        if (month is < 1 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(month), "Month must be between 1 and 12.");
+        }
+
+        return abbreviate
+            ? CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month)
+            : CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);
+    }
+
     private static DateTime FromOleDate(double value) => DateTime.FromOADate(value);
 
     private static int WholeIntervalCount(double value) =>
