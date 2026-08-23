@@ -394,11 +394,15 @@ public sealed class VBProjectCompilation
 
             foreach (var classType in referencedAnalysis.SemanticModel.ClassTypes)
             {
-                classTypes.TryAdd(classType.Name, classType);
-                classTypes.TryAdd($"{projectName}.{classType.Name}", classType);
+                var externalClassType = classType with
+                {
+                    ExternalAssemblyName = projectName
+                };
+                classTypes.TryAdd(classType.Name, externalClassType);
+                classTypes.TryAdd($"{projectName}.{classType.Name}", externalClassType);
                 if (!string.IsNullOrWhiteSpace(reference.Metadata.DisplayName))
                 {
-                    classTypes.TryAdd($"{reference.Metadata.DisplayName}.{classType.Name}", classType);
+                    classTypes.TryAdd($"{reference.Metadata.DisplayName}.{classType.Name}", externalClassType);
                 }
             }
         }

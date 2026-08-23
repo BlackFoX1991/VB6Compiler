@@ -2237,12 +2237,30 @@ public static class IrLowerer
                     ImmutableArray<BoundArgument>.Empty);
             }
 
-            if (expression.Receiver.Type is not ClassTypeSymbol classTypeForProcedure ||
-                !_program.TryGetClassProcedure(
+            if (expression.Receiver.Type is not ClassTypeSymbol classTypeForProcedure)
+            {
+                throw new NotSupportedException(
+                    $"Property '{expression.Property.Name}' has no emitted Get accessor.");
+            }
+
+            ProcedureSymbol? getter;
+            if (classTypeForProcedure.ExternalAssemblyName is not null)
+            {
+                getter = TryGetExternalPropertyProcedure(
+                    classTypeForProcedure,
+                    expression.Property.Name,
+                    PropertyAccessorKind.Get);
+            }
+            else
+            {
+                _program.TryGetClassProcedure(
                     classTypeForProcedure,
                     expression.Property.Name,
                     PropertyAccessorKind.Get,
-                    out var getter))
+                    out getter);
+            }
+
+            if (getter is null)
             {
                 throw new NotSupportedException(
                     $"Property '{expression.Property.Name}' has no emitted Get accessor.");
@@ -2274,12 +2292,30 @@ public static class IrLowerer
                     expression.Arguments);
             }
 
-            if (expression.Receiver.Type is not ClassTypeSymbol classType ||
-                !_program.TryGetClassProcedure(
+            if (expression.Receiver.Type is not ClassTypeSymbol classType)
+            {
+                throw new NotSupportedException(
+                    $"Indexed property '{expression.Property.Name}' has no emitted Get accessor.");
+            }
+
+            ProcedureSymbol? getter;
+            if (classType.ExternalAssemblyName is not null)
+            {
+                getter = TryGetExternalPropertyProcedure(
+                    classType,
+                    expression.Property.Name,
+                    PropertyAccessorKind.Get);
+            }
+            else
+            {
+                _program.TryGetClassProcedure(
                     classType,
                     expression.Property.Name,
                     PropertyAccessorKind.Get,
-                    out var getter))
+                    out getter);
+            }
+
+            if (getter is null)
             {
                 throw new NotSupportedException(
                     $"Indexed property '{expression.Property.Name}' has no emitted Get accessor.");
@@ -2313,7 +2349,9 @@ public static class IrLowerer
                     $"Instance call receiver '{receiver.Type.Name}' is not a class type.");
             }
 
-            var procedure = _program.ResolveClassProcedure(classType, requested);
+            var procedure = classType.ExternalAssemblyName is null
+                ? _program.ResolveClassProcedure(classType, requested)
+                : requested;
             return LowerCall(procedure, arguments, LowerExpression(receiver));
         }
 
@@ -2354,16 +2392,32 @@ public static class IrLowerer
                     $"Property receiver '{receiver.Type.Name}' is not a class type.");
             }
 
-            _program.TryGetClassProcedure(
-                classType,
-                property.Name,
-                PropertyAccessorKind.Get,
-                out var getter);
-            _program.TryGetClassProcedure(
-                classType,
-                property.Name,
-                property.Accessor,
-                out var setter);
+            ProcedureSymbol? getter;
+            ProcedureSymbol? setter;
+            if (classType.ExternalAssemblyName is not null)
+            {
+                getter = TryGetExternalPropertyProcedure(
+                    classType,
+                    property.Name,
+                    PropertyAccessorKind.Get);
+                setter = TryGetExternalPropertyProcedure(
+                    classType,
+                    property.Name,
+                    property.Accessor);
+            }
+            else
+            {
+                _program.TryGetClassProcedure(
+                    classType,
+                    property.Name,
+                    PropertyAccessorKind.Get,
+                    out getter);
+                _program.TryGetClassProcedure(
+                    classType,
+                    property.Name,
+                    property.Accessor,
+                    out setter);
+            }
             if (property.Accessor is not (PropertyAccessorKind.Let or PropertyAccessorKind.Set))
             {
                 setter = null;
@@ -2375,6 +2429,22 @@ public static class IrLowerer
                 setter,
                 property.Type,
                 arguments.Select(argument => LowerValueCopy(argument.Expression)).ToImmutableArray());
+        }
+
+        private static ProcedureSymbol? TryGetExternalPropertyProcedure(
+            ClassTypeSymbol classType,
+            string propertyName,
+            PropertyAccessorKind accessor)
+        {
+            return classType.TryGetProperty(propertyName, accessor, out var property)
+                ? new ProcedureSymbol(
+                    property.Name,
+                    property.Parameters,
+                    accessor == PropertyAccessorKind.Get ? property.Type : null)
+                {
+                    PropertyAccessor = accessor
+                }
+                : null;
         }
 
         private IrExpression LowerCollectionProperty(

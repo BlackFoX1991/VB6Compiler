@@ -81,6 +81,10 @@ public sealed class ManagedEmitter
         private readonly Dictionary<string, TypeReferenceHandle> _namedTypeRefs = new(StringComparer.Ordinal);
         private readonly Dictionary<string, ModuleReferenceHandle> _moduleReferences =
             new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, AssemblyReferenceHandle> _externalAssemblyReferences =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<ClassTypeSymbol, TypeReferenceHandle> _externalClassTypeReferences =
+            new(ReferenceEqualityComparer.Instance);
         private readonly List<TypePlan> _typePlans = new();
         private AssemblyReferenceHandle _coreLibReference;
         private AssemblyReferenceHandle _runtimeReference;
@@ -206,6 +210,39 @@ public sealed class ManagedEmitter
                 token is { Length: > 0 } ? _metadata.GetOrAddBlob(token) : default,
                 AssemblyFlags.None,
                 default);
+        }
+
+        private AssemblyReferenceHandle GetExternalAssemblyReference(string assemblyName)
+        {
+            if (_externalAssemblyReferences.TryGetValue(assemblyName, out var existing))
+            {
+                return existing;
+            }
+
+            var reference = AddAssemblyReference(new AssemblyName(assemblyName));
+            _externalAssemblyReferences.Add(assemblyName, reference);
+            return reference;
+        }
+
+        private TypeReferenceHandle GetExternalClassTypeReference(ClassTypeSymbol classType)
+        {
+            if (_externalClassTypeReferences.TryGetValue(classType, out var existing))
+            {
+                return existing;
+            }
+
+            if (string.IsNullOrWhiteSpace(classType.ExternalAssemblyName))
+            {
+                throw new InvalidOperationException(
+                    $"External class '{classType.Name}' has no assembly identity.");
+            }
+
+            var reference = AddTypeReference(
+                GetExternalAssemblyReference(classType.ExternalAssemblyName),
+                "VB6.Generated",
+                "__vb6_class_" + Sanitize(classType.Name));
+            _externalClassTypeReferences.Add(classType, reference);
+            return reference;
         }
 
         private TypeReferenceHandle AddTypeReference(EntityHandle scope, string @namespace, string name)
@@ -1178,9 +1215,23 @@ public sealed class ManagedEmitter
                     argument.Expression,
                     call.Procedure.Parameters[index].Type);
             }
-            if (!_procedureSymbolHandles.TryGetValue(call.Procedure, out var target))
+            EntityHandle target;
+            if (!_procedureSymbolHandles.TryGetValue(call.Procedure, out var localTarget))
             {
-                throw new InvalidOperationException($"Procedure '{call.Procedure.Name}' has no managed method definition.");
+                if (call.Receiver?.Type is ClassTypeSymbol externalClass &&
+                    externalClass.ExternalAssemblyName is not null)
+                {
+                    target = GetExternalMemberReference(externalClass, call.Procedure);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"Procedure '{call.Procedure.Name}' has no managed method definition.");
+                }
+            }
+            else
+            {
+                target = localTarget;
             }
             if (call.Receiver?.Type is ClassTypeSymbol { IsInterfaceContract: true })
             {
@@ -1213,10 +1264,23 @@ public sealed class ManagedEmitter
                 EmitExpression(encoder, procedure, argument);
             }
 
-            if (!_procedureSymbolHandles.TryGetValue(accessor.Getter, out var target))
+            EntityHandle target;
+            if (!_procedureSymbolHandles.TryGetValue(accessor.Getter, out var localTarget))
             {
-                throw new InvalidOperationException(
-                    $"Property getter '{accessor.Getter.Name}' has no managed method definition.");
+                if (accessor.Receiver?.Type is ClassTypeSymbol externalClass &&
+                    externalClass.ExternalAssemblyName is not null)
+                {
+                    target = GetExternalMemberReference(externalClass, accessor.Getter);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"Property getter '{accessor.Getter.Name}' has no managed method definition.");
+                }
+            }
+            else
+            {
+                target = localTarget;
             }
 
             if (accessor.Receiver?.Type is ClassTypeSymbol { IsInterfaceContract: true })
@@ -1253,10 +1317,23 @@ public sealed class ManagedEmitter
 
             var valueType = accessor.Setter.Parameters.LastOrDefault()?.Type ?? accessor.ValueType;
             EmitExpressionWithAssignmentConversion(encoder, procedure, value, valueType);
-            if (!_procedureSymbolHandles.TryGetValue(accessor.Setter, out var target))
+            EntityHandle target;
+            if (!_procedureSymbolHandles.TryGetValue(accessor.Setter, out var localTarget))
             {
-                throw new InvalidOperationException(
-                    $"Property setter '{accessor.Setter.Name}' has no managed method definition.");
+                if (accessor.Receiver?.Type is ClassTypeSymbol externalClass &&
+                    externalClass.ExternalAssemblyName is not null)
+                {
+                    target = GetExternalMemberReference(externalClass, accessor.Setter);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"Property setter '{accessor.Setter.Name}' has no managed method definition.");
+                }
+            }
+            else
+            {
+                target = localTarget;
             }
 
             if (accessor.Receiver?.Type is ClassTypeSymbol { IsInterfaceContract: true })
@@ -1286,6 +1363,13 @@ public sealed class ManagedEmitter
                         BindingFlags.Public | BindingFlags.Static,
                         Type.EmptyTypes)
                     ?? throw new MissingMethodException("VBCollection.Create is required.")));
+                return;
+            }
+
+            if (expression.ClassType.ExternalAssemblyName is not null)
+            {
+                encoder.OpCode(ILOpCode.Newobj);
+                encoder.Token(GetExternalConstructorReference(expression.ClassType));
                 return;
             }
 
@@ -1649,6 +1733,77 @@ public sealed class ManagedEmitter
             return _metadata.GetOrAddBlob(blob);
         }
 
+        private BlobHandle EncodeExternalMethodSignature(ProcedureSymbol procedure)
+        {
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                procedure.Parameters.Length,
+                returnType =>
+                {
+                    if (procedure.ReturnType is null)
+                    {
+                        returnType.Void();
+                    }
+                    else
+                    {
+                        EncodeType(returnType.Type(), procedure.ReturnType);
+                    }
+                },
+                parameters =>
+                {
+                    foreach (var parameter in procedure.Parameters)
+                    {
+                        EncodeType(
+                            parameters.AddParameter().Type(parameter.PassingMode == ParameterPassingMode.ByRef),
+                            parameter.Type);
+                    }
+                });
+            return _metadata.GetOrAddBlob(blob);
+        }
+
+        private MemberReferenceHandle GetExternalMemberReference(
+            ClassTypeSymbol classType,
+            ProcedureSymbol procedure)
+        {
+            var key = "external::" +
+                      classType.ExternalAssemblyName + "::" +
+                      classType.Name + "::" +
+                      procedure.Name + "::" +
+                      procedure.PropertyAccessor;
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var reference = _metadata.AddMemberReference(
+                GetExternalClassTypeReference(classType),
+                _metadata.GetOrAddString(procedure.Name),
+                EncodeExternalMethodSignature(procedure));
+            _memberReferences.Add(key, reference);
+            return reference;
+        }
+
+        private MemberReferenceHandle GetExternalConstructorReference(ClassTypeSymbol classType)
+        {
+            var key = "external::" + classType.ExternalAssemblyName + "::" + classType.Name + "::.ctor";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                0,
+                returnType => returnType.Void(),
+                _ => { });
+            var reference = _metadata.AddMemberReference(
+                GetExternalClassTypeReference(classType),
+                _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, reference);
+            return reference;
+        }
+
         private void EncodeType(SignatureTypeEncoder encoder, TypeSymbol type)
         {
             if (type == TypeSymbol.Byte) { encoder.Byte(); return; }
@@ -1685,7 +1840,11 @@ public sealed class ManagedEmitter
                     return;
                 }
 
-                encoder.Type(_classSymbolHandles[classType], isValueType: false);
+                encoder.Type(
+                    classType.ExternalAssemblyName is null
+                        ? _classSymbolHandles[classType]
+                        : GetExternalClassTypeReference(classType),
+                    isValueType: false);
                 return;
             }
             if (type is ArrayTypeSymbol array)
@@ -1736,7 +1895,12 @@ public sealed class ManagedEmitter
             if (type is UserDefinedTypeSymbol udt) return _udtSymbolHandles[udt];
             if (ReferenceEquals(type, VBStandardTypes.Collection)) return GetReflectionTypeReference(typeof(VBCollection));
             if (type is ClassTypeSymbol objectContract && IsRuntimeObjectContract(objectContract)) return _systemObject;
-            if (type is ClassTypeSymbol classType) return _classSymbolHandles[classType];
+            if (type is ClassTypeSymbol classType)
+            {
+                return classType.ExternalAssemblyName is null
+                    ? _classSymbolHandles[classType]
+                    : GetExternalClassTypeReference(classType);
+            }
             if (type is ArrayTypeSymbol array) return GetArrayTypeSpecification(array);
             if (type == TypeSymbol.Byte) return GetReflectionTypeReference(typeof(byte));
             if (type == TypeSymbol.Integer) return GetReflectionTypeReference(typeof(short));
@@ -1897,8 +2061,8 @@ public sealed class ManagedEmitter
                 else if (plan.Class is not null)
                 {
                     var attributes = plan.Class.IsInterface
-                        ? TypeAttributes.NotPublic | TypeAttributes.Abstract | TypeAttributes.Interface
-                        : TypeAttributes.NotPublic;
+                        ? TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Interface
+                        : TypeAttributes.Public;
                     actual = _metadata.AddTypeDefinition(
                         attributes,
                         _metadata.GetOrAddString("VB6.Generated"),

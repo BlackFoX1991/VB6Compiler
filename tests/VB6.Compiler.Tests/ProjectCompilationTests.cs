@@ -254,6 +254,15 @@ public sealed class ProjectCompilationTests
                 string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
             var customer = main.Locals.Single(variable => variable.Name == "customer");
             Assert.AreEqual("Customer", customer.Type.Name);
+
+            var libraryEmit = VBProjectCompilation.Create(libraryPath)
+                .EmitManagedApplication(Path.Combine(directory, "Shared.dll"));
+            Assert.IsTrue(libraryEmit.Success, FormatDiagnostics(libraryEmit.Lowering.Analysis));
+
+            var consumerEmit = VBProjectCompilation.Create(consumerPath)
+                .EmitManagedApplication(Path.Combine(directory, "Consumer.dll"));
+            Assert.IsTrue(consumerEmit.Success, FormatDiagnostics(consumerEmit.Lowering.Analysis));
+            Assert.IsTrue(File.Exists(consumerEmit.AssemblyPath));
         }
         finally
         {
