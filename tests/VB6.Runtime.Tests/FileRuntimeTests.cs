@@ -197,6 +197,21 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void Input_ReadsRequestedTextBytesAndAdvancesThePosition()
+    {
+        WithTemporaryFile(path =>
+        {
+            File.WriteAllText(path, "abcdef", new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            VBFiles.OpenInput(1, path);
+
+            Assert.AreEqual("abc", VBFiles.Input(3, 1));
+            Assert.AreEqual("de", VBFiles.Input(2, 1));
+            Assert.AreEqual(6L, VBFiles.Position(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void PutAndGet_RoundTripVariableLengthStringAndContinueFromPrefixPayload()
     {
         WithTemporaryFile(path =>

@@ -152,6 +152,136 @@ public static class VBStrings
         return character;
     }
 
+    /// <summary>Parses the numeric prefix accepted by the VB6 Val intrinsic.</summary>
+    public static double Val(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var text = value.TrimStart();
+        if (text.Length == 0)
+        {
+            return 0d;
+        }
+
+        var sign = 1;
+        var offset = 0;
+        if (text[0] is '+' or '-')
+        {
+            sign = text[0] == '-' ? -1 : 1;
+            offset = 1;
+        }
+
+        if (text.AsSpan(offset).StartsWith("&H", StringComparison.OrdinalIgnoreCase) ||
+            text.AsSpan(offset).StartsWith("&O", StringComparison.OrdinalIgnoreCase))
+        {
+            var isHex = text[offset + 1] is 'H' or 'h';
+            var digits = text.AsSpan(offset + 2);
+            var valueDigits = 0;
+            var digitCount = 0;
+            foreach (var digit in digits)
+            {
+                var numeric = isHex
+                    ? digit switch
+                    {
+                        >= '0' and <= '9' => digit - '0',
+                        >= 'A' and <= 'F' => digit - 'A' + 10,
+                        >= 'a' and <= 'f' => digit - 'a' + 10,
+                        _ => -1
+                    }
+                    : digit is >= '0' and <= '7' ? digit - '0' : -1;
+                if (numeric < 0)
+                {
+                    break;
+                }
+
+                valueDigits = checked(valueDigits * (isHex ? 16 : 8) + numeric);
+                digitCount++;
+            }
+
+            return digitCount == 0 ? 0d : sign * valueDigits;
+        }
+
+        var end = offset;
+        var hasDigits = false;
+        var hasDecimalPoint = false;
+        while (end < text.Length)
+        {
+            var character = text[end];
+            if (character is >= '0' and <= '9')
+            {
+                hasDigits = true;
+                end++;
+                continue;
+            }
+
+            if (character == '.' && !hasDecimalPoint)
+            {
+                hasDecimalPoint = true;
+                end++;
+                continue;
+            }
+
+            break;
+        }
+
+        if (!hasDigits)
+        {
+            return 0d;
+        }
+
+        if (end < text.Length && text[end] is 'e' or 'E')
+        {
+            var exponentEnd = end + 1;
+            if (exponentEnd < text.Length && text[exponentEnd] is '+' or '-')
+            {
+                exponentEnd++;
+            }
+
+            var exponentStart = exponentEnd;
+            while (exponentEnd < text.Length && text[exponentEnd] is >= '0' and <= '9')
+            {
+                exponentEnd++;
+            }
+
+            if (exponentEnd > exponentStart)
+            {
+                end = exponentEnd;
+            }
+        }
+
+        return sign * double.Parse(text[offset..end], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Formats a VB6 numeric value as an uppercase hexadecimal Long.</summary>
+    public static string Hex(object? value)
+    {
+        var number = VBConversions.CLng(value ?? 0);
+        return number < 0
+            ? unchecked((uint)number).ToString("X8", System.Globalization.CultureInfo.InvariantCulture)
+            : number.ToString("X", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Creates a repeated-character string for the VB6 String intrinsic.</summary>
+    public static string String(int number, object? character)
+    {
+        if (number < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(number), "VB6 String requires a non-negative count.");
+        }
+
+        var code = character switch
+        {
+            string text when text.Length > 0 => text[0],
+            string => 0,
+            _ => VBConversions.CLng(character ?? 0)
+        };
+        if (code is < 0 or > 255)
+        {
+            throw new ArgumentOutOfRangeException(nameof(character), "VB6 String character codes must be between 0 and 255.");
+        }
+
+        return new string((char)code, number);
+    }
+
     /// <summary>
     /// VB6 IsNumeric. It answers whether the value could be read as a number, which is true for
     /// numeric strings and for every numeric subtype, and false for Empty and for text.

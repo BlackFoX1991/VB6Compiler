@@ -183,6 +183,9 @@ public enum VBIntrinsicKind
     LTrim,
     RTrim,
     Asc,
+    Val,
+    Hex,
+    String,
     IsNumeric,
     InStr,
     InStrRev,
@@ -226,6 +229,7 @@ public enum VBIntrinsicKind
     FreeFile,
     LOF,
     EOF,
+    Input,
     Seek,
     CByte,
     CInt,
@@ -251,7 +255,10 @@ public enum VBIntrinsicKind
     PropertyChanged,
     ScaleX,
     ScaleY,
-    TextWidth
+    TextWidth,
+    TextHeight,
+    Print,
+    PaintPicture
 }
 
 public sealed record ProcedureSymbol(

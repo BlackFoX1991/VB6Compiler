@@ -231,6 +231,32 @@ public static class VBFiles
         return Encoding.UTF8.GetString(bytes.ToArray());
     }
 
+    /// <summary>Reads a requested number of text bytes from the current file position.</summary>
+    public static string Input(long numberOfCharacters, int fileNumber)
+    {
+        if (numberOfCharacters < 0 || numberOfCharacters > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(numberOfCharacters));
+        }
+
+        var stream = GetStream(fileNumber);
+        SkipUtf8Bom(stream);
+        var bytes = new byte[(int)numberOfCharacters];
+        var offset = 0;
+        while (offset < bytes.Length)
+        {
+            var read = stream.Read(bytes, offset, bytes.Length - offset);
+            if (read == 0)
+            {
+                break;
+            }
+
+            offset += read;
+        }
+
+        return Encoding.UTF8.GetString(bytes, 0, offset);
+    }
+
     private static void ConsumeLineFeed(FileStream stream)
     {
         var next = stream.ReadByte();

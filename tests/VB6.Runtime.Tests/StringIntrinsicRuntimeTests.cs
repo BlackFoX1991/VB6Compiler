@@ -62,4 +62,28 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(-1));
         Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(128));
     }
+
+    [TestMethod]
+    public void Val_ReadsDecimalAndPrefixedNumericPrefixes()
+    {
+        Assert.AreEqual(-12.5d, VBStrings.Val("  -12.5 points"));
+        Assert.AreEqual(255d, VBStrings.Val("&HFF"));
+        Assert.AreEqual(8d, VBStrings.Val("&O10"));
+        Assert.AreEqual(0d, VBStrings.Val("not a number"));
+    }
+
+    [TestMethod]
+    public void Hex_UsesUppercaseLongRepresentation()
+    {
+        Assert.AreEqual("FF", VBStrings.Hex(255));
+        Assert.AreEqual("FFFFFFFF", VBStrings.Hex(-1));
+    }
+
+    [TestMethod]
+    public void String_RepeatsNumericAndStringCharacters()
+    {
+        Assert.AreEqual("xxx", VBStrings.String(3, "x"));
+        Assert.AreEqual("AAA", VBStrings.String(3, 65));
+        Assert.AreEqual("\0\0", VBStrings.String(2, 0));
+    }
 }

@@ -42,6 +42,9 @@ internal static class VBIntrinsicSymbols
         Function("LTrim", VBIntrinsicKind.LTrim, "VBStrings.LTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
         Function("RTrim", VBIntrinsicKind.RTrim, "VBStrings.RTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
         Function("Asc", VBIntrinsicKind.Asc, "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
+        Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),
+        Function("Hex", VBIntrinsicKind.Hex, "VBStrings.Hex", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
+        Function("String", VBIntrinsicKind.String, "VBStrings.String", TypeSymbol.String, Parameter("Number", TypeSymbol.Long), Parameter("Character", TypeSymbol.Variant)),
         Function("IsNumeric", VBIntrinsicKind.IsNumeric, "VBStrings.IsNumeric", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function(
             "InStr",
@@ -242,6 +245,7 @@ internal static class VBIntrinsicSymbols
         Function("FreeFile", VBIntrinsicKind.FreeFile, "VBFiles.FreeFile", TypeSymbol.Long),
         Function("LOF", VBIntrinsicKind.LOF, "VBFiles.Length", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
         Function("EOF", VBIntrinsicKind.EOF, "VBFiles.EndOfFile", TypeSymbol.Boolean, Parameter("FileNumber", TypeSymbol.Long)),
+        Function("Input", VBIntrinsicKind.Input, "VBFiles.Input", TypeSymbol.String, Parameter("NumberOfCharacters", TypeSymbol.LongLong), Parameter("FileNumber", TypeSymbol.Long)),
         Function("Seek", VBIntrinsicKind.Seek, "VBFiles.Position", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
 
         Function("CByte", VBIntrinsicKind.CByte, "VBConversions.CByte", TypeSymbol.Byte, Parameter("Expression", TypeSymbol.Variant)),
@@ -276,7 +280,27 @@ internal static class VBIntrinsicSymbols
             VBIntrinsicKind.TextWidth,
             "VBInteraction.TextWidth",
             TypeSymbol.Single,
-            Parameter("Text", TypeSymbol.String)));
+            Parameter("Text", TypeSymbol.String)),
+        Function(
+            "TextHeight",
+            VBIntrinsicKind.TextHeight,
+            "VBInteraction.TextHeight",
+            TypeSymbol.Single,
+            Parameter("Text", TypeSymbol.String)),
+        Sub(
+            "Print",
+            VBIntrinsicKind.Print,
+            "VBInteraction.Print",
+            Parameter("Value", TypeSymbol.Variant)),
+        Sub(
+            "PaintPicture",
+            VBIntrinsicKind.PaintPicture,
+            "VBInteraction.PaintPicture",
+            Parameter("Picture", TypeSymbol.Variant),
+            Parameter("X", TypeSymbol.Single),
+            Parameter("Y", TypeSymbol.Single),
+            Parameter("Width", TypeSymbol.Single),
+            Parameter("Height", TypeSymbol.Single)));
 
     public static Dictionary<string, ProcedureSymbol> CreateProcedureTable(CompilationUnitSyntax root)
     {
