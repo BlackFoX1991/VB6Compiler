@@ -511,6 +511,9 @@ public enum IrRuntimeMethod
     MathCos,
     MathTan,
     MathAtn,
+    MathRnd,
+    MathRndWithNumber,
+    MathRandomize,
 
     VariantEmpty,
     VariantNull,

@@ -27,4 +27,28 @@ public sealed class MathRuntimeTests
         Assert.AreEqual((short)0, VBMath.Fix(null));
         Assert.AreEqual((short)0, VBMath.Round(null, 0));
     }
+
+    [TestMethod]
+    public void Rnd_UsesTheVB6SequenceAndHonorsArgumentModes()
+    {
+        Assert.AreEqual(0.7055475f, VBMath.Rnd(), 0.0000001f);
+        var second = VBMath.Rnd();
+        Assert.AreEqual(0.533424f, second, 0.000001f);
+        Assert.AreEqual(second, VBMath.Rnd(0f));
+
+        var seeded = VBMath.Rnd(-1f);
+        Assert.AreEqual(seeded, VBMath.Rnd(-1f));
+    }
+
+    [TestMethod]
+    public void Randomize_RepeatsASequenceForTheSameNumericSeed()
+    {
+        VBMath.Rnd(-1f);
+        VBMath.Randomize(1d);
+        var first = VBMath.Rnd();
+
+        VBMath.Rnd(-1f);
+        VBMath.Randomize(1d);
+        Assert.AreEqual(first, VBMath.Rnd());
+    }
 }

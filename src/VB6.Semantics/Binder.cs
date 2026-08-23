@@ -3363,7 +3363,10 @@ public sealed class Binder
                     parameter,
                     procedure.IntrinsicKind == VBIntrinsicKind.InStr && index == 0
                         ? new BoundLiteralExpression(1L, TypeSymbol.Long)
-                        : CreateDefaultArgument(parameter)));
+                        : CreateDefaultArgument(parameter))
+                {
+                    IsOmitted = true
+                });
                 continue;
             }
 
@@ -3468,7 +3471,8 @@ public sealed class Binder
 
             arguments.Add(new BoundArgument(parameter, CreateDefaultArgument(parameter))
             {
-                RequiresByRefTemporary = parameter.PassingMode == ParameterPassingMode.ByRef
+                RequiresByRefTemporary = parameter.PassingMode == ParameterPassingMode.ByRef,
+                IsOmitted = true
             });
         }
 
@@ -3698,7 +3702,7 @@ public sealed class Binder
         // precedence.
         if (procedures.TryGetValue(syntax.IdentifierToken.Text, out var procedure) &&
             procedure.IsFunction &&
-            procedure.Parameters.IsDefaultOrEmpty)
+            procedure.Parameters.All(parameter => parameter.IsOptional))
         {
             return new BoundInvocationExpression(procedure, ImmutableArray<BoundArgument>.Empty);
         }

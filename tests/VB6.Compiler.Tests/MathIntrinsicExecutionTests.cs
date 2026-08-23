@@ -62,4 +62,27 @@ public sealed class MathIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True", "True", "0" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesRndAndRandomizeContracts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim first As Single
+
+                Debug.Print Rnd >= 0
+                Debug.Print Rnd < 1
+                Debug.Print Rnd(0) = Rnd(0)
+                Debug.Print Rnd(-1) = Rnd(-1)
+
+                Randomize 1
+                first = Rnd
+                Rnd -1
+                Randomize 1
+                Debug.Print first = Rnd
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True", "True", "True" }, output);
+    }
 }

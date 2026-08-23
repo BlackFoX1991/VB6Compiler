@@ -572,6 +572,12 @@ Aufrufen emittiert, damit numerische Werte nicht über den objektbasierten Late-
 Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
 Suite umfasst nun **778 Tests**.
 
+`Rnd` und `Randomize` sind nun als vollständiger mathematischer Runtime-Slice verdrahtet. Der
+Managed-Kern nutzt die dokumentierte VB6-24-Bit-LCG, unterscheidet negative, null, positive und
+ausgelassene `Rnd`-Argumente und unterstützt timerbasierte sowie reproduzierbare numerische Seeds.
+Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
+Suite umfasst nun **781 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
