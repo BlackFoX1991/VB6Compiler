@@ -765,9 +765,13 @@ public static partial class VBOperators
 
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
-    public static string ConcatVariant(object? left, object? right) =>
-        (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left)) +
-        (VBVariants.IsNull(right) ? string.Empty : VBConversions.CStr(right));
+    public static string ConcatVariant(object? left, object? right)
+    {
+        ThrowIfErrorOperand(left, right);
+
+        return (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left)) +
+            (VBVariants.IsNull(right) ? string.Empty : VBConversions.CStr(right));
+    }
 
     public static bool Equal(object? left, object? right) => Compare(left, right) == 0;
 

@@ -594,7 +594,7 @@ geprüfte Integer-Division und Restbildung, Currency-Multiplikationsskalierung u
 komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**805 Tests**.
+**804 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1025,7 +1025,7 @@ Zwei Nachträge:
 - [x] Untypisierte `Optional`-Parameter werden Variant; ausgelassene Werte erhalten den `Missing`-Zustand
 - [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsError`, `IsArray`/`IsDate`/`IsObject` und `IsNumeric` fuer die aktuell unterstuetzten Scalar-Variantwerte sowie VB6-Array-Subtype-Codes; der Date-Subtype typisierter `Date`-Werte bleibt erhalten, Objekt-, Array-Arithmetik- und Error-Varianten folgen mit den jeweiligen Typmodellen
 - [x] Error-Variant-Grundlage: `CVErr` erzeugt einen typisierten Fehlerwert, `IsError` erkennt ihn,
-      `VarType` liefert `vbError` und `TypeName` liefert `Error`; `Debug.Print` stellt Error-Werte als `Error <Nummer>` dar; explizite C*-Konversionen uebernehmen die Error-Nummer, implizite Zuweisungen und Parameter-Konversionen melden Type Mismatch (`Err.Number = 13`); Fehler-Propagation und `CVErr`-
+      `VarType` liefert `vbError` und `TypeName` liefert `Error`; `Debug.Print` stellt Error-Werte als `Error <Nummer>` dar; explizite C*-Konversionen uebernehmen die Error-Nummer, implizite Zuweisungen und Parameter-Konversionen melden Type Mismatch (`Err.Number = 13`); Relationen vergleichen zwei Error-Varianten ueber ihre Error-Nummer, waehrend arithmetische, logische und String-Konkatenationsoperatoren Error-Operanden mit Type Mismatch (`Err.Number = 13`) ablehnen; Fehler-Propagation und `CVErr`-
       Integrationen in weitere Operator-/Objektmodelle bleiben offen
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
