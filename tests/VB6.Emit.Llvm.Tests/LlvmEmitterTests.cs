@@ -763,7 +763,22 @@ public sealed class LlvmEmitterTests
                         IrRuntimeMethod.CUShort,
                         ImmutableArray.Create<IrCallArgument>(
                             new IrCallArgument(new IrConstantExpression(65534.5m, TypeSymbol.Currency))),
-                        TypeSymbol.UShort))),
+                        TypeSymbol.UShort)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CCur,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(7L, TypeSymbol.Long))),
+                        TypeSymbol.Currency)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CCur,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(4000000000u, TypeSymbol.UInteger))),
+                        TypeSymbol.Currency)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CCur,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(true, TypeSymbol.Boolean))),
+                        TypeSymbol.Currency))),
                 new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
@@ -779,6 +794,10 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "%quotient = sdiv i64 %scaled, 10000");
         StringAssert.Contains(result.ModuleText, "i64 25000, i64 -32768, i64 32767");
         StringAssert.Contains(result.ModuleText, "trunc i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sinteger_to_currency_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_uinteger_to_currency_checked_i64");
+        StringAssert.Contains(result.ModuleText, "%scaled = mul i128 %wide, 10000");
+        StringAssert.Contains(result.ModuleText, "select i1 1, i64 -10000, i64 0");
     }
 
     [TestMethod]

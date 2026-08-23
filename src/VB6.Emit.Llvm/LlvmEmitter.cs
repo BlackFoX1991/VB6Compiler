@@ -101,6 +101,7 @@ public sealed class LlvmEmitter
         EmitCheckedIntegerConversionHelper(builder, "__vb6_sconvert_checked_i64", signed: true);
         EmitCheckedIntegerConversionHelper(builder, "__vb6_uconvert_checked_i64", signed: false);
         EmitCheckedCurrencyMultiplicationHelper(builder);
+        EmitCheckedIntegerToCurrencyHelpers(builder);
         EmitCheckedCurrencyToIntegerHelper(builder);
         EmitCheckedFloatingIntegerConversionHelpers(builder);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_sneg_checked_i64", signed: true);
@@ -273,6 +274,36 @@ public sealed class LlvmEmitter
         builder.AppendLine("done:");
         builder.AppendLine("  %narrowed = trunc i128 %result to i64");
         builder.AppendLine("  ret i64 %narrowed");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedIntegerToCurrencyHelpers(StringBuilder builder)
+    {
+        EmitCheckedIntegerToCurrencyHelper(builder, "__vb6_sinteger_to_currency_checked_i64", signed: true);
+        EmitCheckedIntegerToCurrencyHelper(builder, "__vb6_uinteger_to_currency_checked_i64", signed: false);
+    }
+
+    private static void EmitCheckedIntegerToCurrencyHelper(
+        StringBuilder builder,
+        string name,
+        bool signed)
+    {
+        builder.Append("define i64 @").Append(name).AppendLine("(i64 %value) {");
+        builder.AppendLine("entry:");
+        builder.Append("  %wide = ").Append(signed ? "sext " : "zext ")
+            .AppendLine("i64 %value to i128");
+        builder.AppendLine("  %scaled = mul i128 %wide, 10000");
+        builder.AppendLine("  %too_low = icmp slt i128 %scaled, -9223372036854775808");
+        builder.AppendLine("  %too_high = icmp sgt i128 %scaled, 9223372036854775807");
+        builder.AppendLine("  %overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %done");
+        builder.AppendLine("done:");
+        builder.AppendLine("  %result = trunc i128 %scaled to i64");
+        builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
         builder.AppendLine("  unreachable");
@@ -1241,6 +1272,16 @@ public sealed class LlvmEmitter
                 return EmitBooleanToScalar(methodName, targetType, targetLlvmType, source);
             }
 
+            if (targetType == TypeSymbol.Currency &&
+                TryGetIntegerShape(source.SemanticType, _architecture, out _, out var currencySourceUnsigned))
+            {
+                return EmitIntegerToCurrencyConversion(
+                    targetType,
+                    targetLlvmType,
+                    source,
+                    currencySourceUnsigned);
+            }
+
             if (source.SemanticType == TypeSymbol.Currency &&
                 TryGetIntegerShape(targetType, _architecture, out var currencyTargetBits, out var currencyTargetUnsigned))
             {
@@ -1356,6 +1397,22 @@ public sealed class LlvmEmitter
             return new NativeValue(targetType, targetLlvmType, narrowed);
         }
 
+        private NativeValue EmitIntegerToCurrencyConversion(
+            TypeSymbol targetType,
+            string targetLlvmType,
+            NativeValue source,
+            bool sourceUnsigned)
+        {
+            var widened = ExtendIntegerToHelperWidth(source, sourceUnsigned);
+            var helper = sourceUnsigned
+                ? "__vb6_uinteger_to_currency_checked_i64"
+                : "__vb6_sinteger_to_currency_checked_i64";
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call i64 @").Append(helper)
+                .Append("(i64 ").Append(widened).AppendLine(")");
+            return new NativeValue(targetType, targetLlvmType, call);
+        }
+
         private NativeValue EmitCurrencyToIntegerConversion(
             TypeSymbol targetType,
             string targetLlvmType,
@@ -1435,6 +1492,14 @@ public sealed class LlvmEmitter
                 _builder.Append("  ").Append(temporary).Append(" = select i1 ")
                     .Append(source.Value).Append(", ").Append(targetLlvmType).Append(' ').Append(trueValue)
                     .Append(", ").Append(targetLlvmType).Append(" 0").AppendLine();
+                return new NativeValue(targetType, targetLlvmType, temporary);
+            }
+
+            if (targetType == TypeSymbol.Currency)
+            {
+                var temporary = NextTemporary();
+                _builder.Append("  ").Append(temporary).Append(" = select i1 ")
+                    .Append(source.Value).AppendLine(", i64 -10000, i64 0");
                 return new NativeValue(targetType, targetLlvmType, temporary);
             }
 
