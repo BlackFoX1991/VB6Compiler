@@ -57,6 +57,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
 | Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **779** | **0** | **0** | **779** | **21 von 40** |
 | Standard-VB-Konstanten und Host-unabhängige Numeric-Verträge | **680** | **0** | **0** | **680** | **22 von 40** |
+| Standardbibliotheks- und hostfähige Interaktionsverträge | **515** | **0** | **0** | **515** | **22 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -168,6 +169,17 @@ Stringkonstanten projektweit sichtbar, bleiben typisiert und werden weiterhin vo
 Benutzerdeklarationen überschattet. Dadurch sinkt der VISIA-Stand auf **680 semantische Fehler**;
 **22 von 40** Dateien analysieren fehlerfrei. Controls, `PropertyChanged`, `IIf`, `RGB`,
 `PropertyBag` und COM-/Forms-Objektmodelle bleiben getrennte Compilerkern-Slices.
+
+Der anschließende Standardbibliotheks-Slice verdrahtet `IIf` und `RGB` backendunabhängig durch
+Binder, IR, Managed-Emitter und Runtime. `IIf` behält die VB6-eager Auswertung beider Wertzweige;
+`RGB` erzeugt geklemmte Windows-`OLE_COLOR`-Werte. `GetSetting`/`SaveSetting` besitzen einen
+deterministischen, case-insensitiven Prozessspeicher für headless Hosts; `SendKeys`, `PopupMenu`
+und `PropertyChanged` sind explizite hostfähige No-op-Verträge. `LoadPicture` liefert einen
+hostneutralen Picture-Platzhalter. `Screen`, `Ambient`, `Picture`, `Font` und `PropertyBag`
+stehen als typisierte Standardobjekte im Typraum; `PropertyBag` kann Werte über einen
+case-insensitiven Runtime-Speicher lesen und schreiben. Der VISIA-Stand sinkt damit auf **515
+semantische Fehler**, weiterhin **22 von 40** fehlerfreie Dateien. Controls, COM-Dispatch,
+Forms-Lifecycle und komplexes Host-Marshalling bleiben die nächsten separaten Blöcke.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
@@ -650,6 +662,9 @@ Nach Korpusbedarf priorisiert:
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.
     `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
     End-to-End-Tests verdrahtet.
+1d. Host- und Kontrollintrinsics — `IIf`/`RGB`, `GetSetting`/`SaveSetting`, `SendKeys`,
+    `PopupMenu`, `LoadPicture` und `PropertyChanged` — ✅ als headless-fähige Runtime-Verträge;
+    echte UI-/Registry-Hostadapter folgen in M8/M9.
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende

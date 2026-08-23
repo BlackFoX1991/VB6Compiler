@@ -3,6 +3,19 @@ namespace VB6.Runtime;
 /// <summary>Small, backend-independent VB6 functions that operate on Variant values.</summary>
 public static class VBFunctions
 {
+    /// <summary>
+    /// VB6 evaluates both value arguments before entering IIf. The compiler's ordinary call
+    /// lowering preserves that eager evaluation; this method only selects the resulting value.
+    /// </summary>
+    public static object? IIf(bool condition, object? truePart, object? falsePart) =>
+        condition ? truePart : falsePart;
+
+    /// <summary>Builds a Windows OLE_COLOR value from RGB components, clamping each component.</summary>
+    public static int RGB(int red, int green, int blue) =>
+        ClampColor(red) |
+        (ClampColor(green) << 8) |
+        (ClampColor(blue) << 16);
+
     public static string TypeName(object? value) => value switch
     {
         null => "Empty",
@@ -40,4 +53,6 @@ public static class VBFunctions
 
         return null;
     }
+
+    private static int ClampColor(int value) => Math.Clamp(value, 0, 255);
 }

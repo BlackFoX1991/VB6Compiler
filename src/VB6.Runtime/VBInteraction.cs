@@ -3,6 +3,9 @@ namespace VB6.Runtime;
 /// <summary>Headless, deterministic implementations of VB6 interaction intrinsics.</summary>
 public static class VBInteraction
 {
+    private static readonly Dictionary<string, string> Settings = new(StringComparer.Ordinal);
+    private static readonly object SettingsGate = new();
+
     /// <summary>Yielding to a UI message pump is a host concern; the compiler runtime has no pump.</summary>
     public static void DoEvents()
     {
@@ -64,6 +67,81 @@ public static class VBInteraction
         _ = context;
         return defaultResponse;
     }
+
+    /// <summary>
+    /// Provides a deterministic process-local replacement for the VB6 registry settings API.
+    /// Hosts may replace this store at their boundary without changing generated call sites.
+    /// </summary>
+    public static string GetSetting(
+        string appName,
+        string section,
+        string key,
+        string defaultValue)
+    {
+        var settingKey = MakeSettingKey(appName, section, key);
+        lock (SettingsGate)
+        {
+            return Settings.TryGetValue(settingKey, out var value) ? value : defaultValue;
+        }
+    }
+
+    public static void SaveSetting(
+        string appName,
+        string section,
+        string key,
+        string setting)
+    {
+        var settingKey = MakeSettingKey(appName, section, key);
+        lock (SettingsGate)
+        {
+            Settings[settingKey] = setting;
+        }
+    }
+
+    /// <summary>Keyboard injection belongs to the UI host; headless execution intentionally does nothing.</summary>
+    public static void SendKeys(string keys, bool wait)
+    {
+        _ = keys;
+        _ = wait;
+    }
+
+    /// <summary>Context-menu display belongs to the UI host; headless execution intentionally does nothing.</summary>
+    public static void PopupMenu(object? menu, int flags, float x, float y)
+    {
+        _ = menu;
+        _ = flags;
+        _ = x;
+        _ = y;
+    }
+
+    public static VBPicture LoadPicture(string fileName) => new(fileName);
+
+    /// <summary>Signals a changed UserControl property to a host; headless execution has no sink.</summary>
+    public static void PropertyChanged(string propertyName) => _ = propertyName;
+
+    private static string MakeSettingKey(string appName, string section, string key) =>
+        string.Join(
+            '\u001f',
+            appName.ToUpperInvariant(),
+            section.ToUpperInvariant(),
+            key.ToUpperInvariant());
 }
 
 public sealed record VBComObject(string ClassName, string ServerName);
+
+public sealed record VBPicture(string FileName);
+
+/// <summary>Minimal host-neutral PropertyBag implementation used by ActiveX UserControls.</summary>
+public sealed class VBPropertyBag
+{
+    private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase);
+
+    public object? ReadProperty(string name, object? defaultValue = null) =>
+        _values.TryGetValue(name, out var value) ? value : defaultValue;
+
+    public void WriteProperty(string name, object? value, object? defaultValue = null)
+    {
+        _ = defaultValue;
+        _values[name] = value;
+    }
+}
