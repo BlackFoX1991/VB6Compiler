@@ -65,6 +65,7 @@ public sealed class CultureIndependenceTests
         Assert.AreEqual("True", VBDebug.Format(true));
         Assert.AreEqual(string.Empty, VBDebug.Format(null));
         Assert.AreEqual("Null", VBDebug.Format(VBVariants.NullValue()));
+        Assert.AreEqual("Error 2001", VBDebug.Format(new VBErrorValue(2001)));
         Assert.AreEqual(" 1.23456789012346", VBDebug.Format(1.234567890123456d));
     }
 
