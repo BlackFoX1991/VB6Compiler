@@ -22,6 +22,10 @@ public static class VBStandardTypes
     public static ClassTypeSymbol PropertyBag { get; } = CreatePropertyBag();
     public static ClassTypeSymbol Clipboard { get; } = CreateClipboard();
     public static ClassTypeSymbol ExternalTreeNode { get; } = CreateExternalTreeNode();
+    public static ClassTypeSymbol ExternalTreeNodeCollection { get; } = CreateExternalTreeNodeCollection();
+    public static ClassTypeSymbol ExternalTreeView { get; } = CreateExternalTreeView();
+    public static ClassTypeSymbol ExternalRichTextBox { get; } = CreateExternalRichTextBox();
+    public static ClassTypeSymbol ExternalCommonDialog { get; } = CreateExternalCommonDialog();
 
     private static ClassTypeSymbol CreateCollection()
     {
@@ -211,11 +215,13 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreateExternalTreeNode()
     {
         var node = new ClassTypeSymbol("MSComctlLib.Node");
+        node.MarkAsRuntimeObjectContract();
+        node.MarkAsLateBoundObject();
         var properties = new[]
         {
-            ReadOnlyProperty("Key", TypeSymbol.String),
-            ReadOnlyProperty("Text", TypeSymbol.String),
-            ReadOnlyProperty("Index", TypeSymbol.Long)
+            LateBoundReadOnlyProperty("Key", TypeSymbol.String),
+            LateBoundReadOnlyProperty("Text", TypeSymbol.String),
+            LateBoundReadOnlyProperty("Index", TypeSymbol.Long)
         };
         if (!node.TryDefineMembers(
                 Array.Empty<ProcedureSymbol>(),
@@ -227,6 +233,101 @@ public static class VBStandardTypes
         }
 
         return node;
+    }
+
+    private static ClassTypeSymbol CreateExternalTreeNodeCollection()
+    {
+        var collection = new ClassTypeSymbol("MSComctlLib.Nodes");
+        collection.MarkAsRuntimeObjectContract();
+        collection.MarkAsLateBoundObject();
+        var item = new PropertySymbol(
+            "Item",
+            PropertyAccessorKind.Get,
+            ExternalTreeNode,
+            ImmutableArray.Create(OptionalVariantParameter("Index")))
+        {
+            IsLateBound = true
+        };
+        var procedures = new[]
+        {
+            LateBoundProcedure(
+                "Add",
+                ImmutableArray.Create(
+                    OptionalVariantParameter("Relative"),
+                    OptionalVariantParameter("Relationship"),
+                    OptionalVariantParameter("Key"),
+                    OptionalVariantParameter("Text"),
+                    OptionalVariantParameter("Image"),
+                    OptionalVariantParameter("SelectedImage")),
+                ExternalTreeNode),
+            LateBoundProcedure(
+                "Remove",
+                ImmutableArray.Create(new ParameterSymbol("Index", TypeSymbol.Variant, ParameterPassingMode.ByVal))),
+            LateBoundProcedure("Clear", ImmutableArray<ParameterSymbol>.Empty)
+        };
+        var properties = new[]
+        {
+            LateBoundReadOnlyProperty("Count", TypeSymbol.Long),
+            item
+        };
+        if (!collection.TryDefineMembers(procedures, properties, Array.Empty<EventSymbol>(), out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in TreeView node collection member '{duplicate}' is duplicated.");
+        }
+
+        collection.SetDefaultPropertyName("Item");
+        return collection;
+    }
+
+    private static ClassTypeSymbol CreateExternalTreeView()
+    {
+        var properties = new List<PropertySymbol>
+        {
+            LateBoundReadOnlyProperty("Nodes", ExternalTreeNodeCollection),
+            LateBoundReadOnlyProperty("SelectedItem", ExternalTreeNode)
+        };
+        properties.AddRange(LateBoundReadWriteProperties("Style", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("LineStyle", TypeSymbol.Long));
+        return CreateExternalControl("MSComctlLib.TreeView", Array.Empty<ProcedureSymbol>(), properties);
+    }
+
+    private static ClassTypeSymbol CreateExternalRichTextBox()
+    {
+        var procedures = new[]
+        {
+            LateBoundProcedure(
+                "LoadFile",
+                ImmutableArray.Create(new ParameterSymbol("FileName", TypeSymbol.String, ParameterPassingMode.ByVal))),
+            LateBoundProcedure(
+                "SaveFile",
+                ImmutableArray.Create(new ParameterSymbol("FileName", TypeSymbol.String, ParameterPassingMode.ByVal)))
+        };
+        var properties = new List<PropertySymbol>();
+        properties.AddRange(LateBoundReadWriteProperties("SelText", TypeSymbol.String));
+        properties.AddRange(LateBoundReadWriteProperties("SelStart", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("SelLength", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("FileName", TypeSymbol.String));
+        properties.AddRange(LateBoundReadWriteProperties("Modified", TypeSymbol.Boolean));
+        return CreateExternalControl("RichTextLib.RichTextBox", procedures, properties);
+    }
+
+    private static ClassTypeSymbol CreateExternalCommonDialog()
+    {
+        var procedures = new[]
+        {
+            LateBoundProcedure("ShowOpen", ImmutableArray<ParameterSymbol>.Empty),
+            LateBoundProcedure("ShowSave", ImmutableArray<ParameterSymbol>.Empty),
+            LateBoundProcedure("ShowColor", ImmutableArray<ParameterSymbol>.Empty),
+            LateBoundProcedure("ShowFont", ImmutableArray<ParameterSymbol>.Empty),
+            LateBoundProcedure("ShowPrinter", ImmutableArray<ParameterSymbol>.Empty)
+        };
+        var properties = new List<PropertySymbol>();
+        properties.AddRange(LateBoundReadWriteProperties("CancelError", TypeSymbol.Boolean));
+        properties.AddRange(LateBoundReadWriteProperties("Filter", TypeSymbol.String));
+        properties.AddRange(LateBoundReadWriteProperties("FileName", TypeSymbol.String));
+        properties.AddRange(LateBoundReadWriteProperties("DialogTitle", TypeSymbol.String));
+        properties.AddRange(LateBoundReadWriteProperties("FilterIndex", TypeSymbol.Long));
+        return CreateExternalControl("MSComDlg.CommonDialog", procedures, properties);
     }
 
     private static ClassTypeSymbol CreateFont()
@@ -320,6 +421,54 @@ public static class VBStandardTypes
 
         return type;
     }
+
+    private static ClassTypeSymbol CreateExternalControl(
+        string name,
+        IEnumerable<ProcedureSymbol> procedures,
+        IEnumerable<PropertySymbol> properties)
+    {
+        var type = new ClassTypeSymbol(name);
+        type.MarkAsRuntimeObjectContract();
+        type.MarkAsLateBoundObject();
+        type.MarkAsControlContract();
+        var inheritedProcedures = Control.Procedures.Select(procedure => procedure with { IsLateBound = true });
+        var inheritedProperties = Control.Properties.Select(property => property with { IsLateBound = true });
+        if (!type.TryDefineMembers(
+                inheritedProcedures.Concat(procedures),
+                inheritedProperties.Concat(properties),
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in {name} member '{duplicate}' is duplicated.");
+        }
+
+        return type;
+    }
+
+    private static ProcedureSymbol LateBoundProcedure(
+        string name,
+        ImmutableArray<ParameterSymbol> parameters,
+        TypeSymbol? returnType = null) =>
+        new(name, parameters, returnType) { IsLateBound = true };
+
+    private static PropertySymbol LateBoundReadOnlyProperty(string name, TypeSymbol type) =>
+        new(name, PropertyAccessorKind.Get, type, ImmutableArray<ParameterSymbol>.Empty)
+        {
+            IsLateBound = true
+        };
+
+    private static IEnumerable<PropertySymbol> LateBoundReadWriteProperties(string name, TypeSymbol type) =>
+        new[]
+        {
+            new PropertySymbol(name, PropertyAccessorKind.Get, type, ImmutableArray<ParameterSymbol>.Empty)
+            {
+                IsLateBound = true
+            },
+            new PropertySymbol(name, PropertyAccessorKind.Let, type, ImmutableArray<ParameterSymbol>.Empty)
+            {
+                IsLateBound = true
+            }
+        };
 
     private static IEnumerable<PropertySymbol> ReadWriteProperties(string name, TypeSymbol type) =>
         new[]

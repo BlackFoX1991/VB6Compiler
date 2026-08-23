@@ -208,6 +208,26 @@ public sealed class VBProjectCompilation
                         moduleVariablesForBinding,
                         containingClass);
             }
+            if (containingClass is not null && IsHostModuleKind(module.Item.Kind))
+            {
+                var instanceVariables = semanticModel.InstanceVariables.ToBuilder();
+                foreach (var control in ReadDesignerControls(module.FilePath))
+                {
+                    if (!moduleVariablesForBinding.TryGetValue(control.Name, out var symbol) ||
+                        instanceVariables.Any(variable =>
+                            string.Equals(variable.Symbol.Name, symbol.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    instanceVariables.Add(new BoundModuleVariable(symbol, Initializer: null, IsConstant: false));
+                }
+
+                semanticModel = semanticModel with
+                {
+                    InstanceVariables = instanceVariables.ToImmutable()
+                };
+            }
             var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
                 ? ImmutableArray<Diagnostic>.Empty
                 : UserDefinedTypeValueGuard.Validate(
@@ -288,12 +308,12 @@ public sealed class VBProjectCompilation
             return variables;
         }
 
-        foreach (var controlName in ReadDesignerControlNames(module.FilePath))
+        foreach (var control in ReadDesignerControls(module.FilePath))
         {
             // A designer control is a member of its containing form/UserControl, not a project
             // global. Keeping it module-local also lets a public Enum member retain its name in
             // ordinary modules (for example frmMain.Code versus ENUM_SECTION_TYPE.Code).
-            variables[controlName] = new ModuleVariableSymbol(controlName, VBStandardTypes.Control);
+            variables[control.Name] = new ModuleVariableSymbol(control.Name, control.Type);
         }
 
         return variables;
@@ -405,23 +425,42 @@ public sealed class VBProjectCompilation
         return classTypes;
     }
 
-    private static IEnumerable<string> ReadDesignerControlNames(string path)
+    private static IEnumerable<DesignerControl> ReadDesignerControls(string path)
     {
         if (!File.Exists(path))
         {
             yield break;
         }
 
+        var firstBegin = true;
         foreach (var line in File.ReadLines(path))
         {
             var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 3 &&
                 string.Equals(parts[0], "Begin", StringComparison.OrdinalIgnoreCase))
             {
-                yield return parts[2];
+                if (firstBegin && IsDesignerHostType(parts[1]))
+                {
+                    firstBegin = false;
+                    continue;
+                }
+
+                firstBegin = false;
+                var typeName = parts[1].StartsWith("VB.", StringComparison.OrdinalIgnoreCase)
+                    ? parts[1][3..]
+                    : parts[1];
+                yield return new DesignerControl(
+                    parts[2],
+                    TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control);
             }
         }
     }
+
+    private static bool IsDesignerHostType(string typeName) =>
+        typeName.Equals("VB.Form", StringComparison.OrdinalIgnoreCase) ||
+        typeName.Equals("VB.UserControl", StringComparison.OrdinalIgnoreCase) ||
+        typeName.Equals("VB.PropertyPage", StringComparison.OrdinalIgnoreCase) ||
+        typeName.Equals("VB.UserDocument", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
@@ -563,9 +602,9 @@ public sealed class VBProjectCompilation
                     AddPropertyIfMissing(properties, property);
                 }
 
-                foreach (var controlName in ReadDesignerControlNames(module.FilePath))
+                foreach (var control in ReadDesignerControls(module.FilePath))
                 {
-                    AddReadWriteProperty(properties, controlName, VBStandardTypes.Control);
+                    AddReadWriteProperty(properties, control.Name, control.Type);
                 }
             }
             var events = module.SemanticRoot.Members
@@ -726,23 +765,6 @@ public sealed class VBProjectCompilation
             properties.Add(property);
         }
 
-        static IEnumerable<string> ReadDesignerControlNames(string path)
-        {
-            if (!File.Exists(path))
-            {
-                yield break;
-            }
-
-            foreach (var line in File.ReadLines(path))
-            {
-                var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 3 &&
-                    string.Equals(parts[0], "Begin", StringComparison.OrdinalIgnoreCase))
-                {
-                    yield return parts[2];
-                }
-            }
-        }
     }
 
     private static Dictionary<string, ProcedureSymbol> DeclareProjectProcedures(
@@ -965,6 +987,8 @@ public sealed class VBProjectCompilation
         SourceText Text,
         ParseResult ParseResult,
         CompilationUnitSyntax SemanticRoot);
+
+    private sealed record DesignerControl(string Name, TypeSymbol Type);
 
     private sealed class ActiveProjectScope : IDisposable
     {

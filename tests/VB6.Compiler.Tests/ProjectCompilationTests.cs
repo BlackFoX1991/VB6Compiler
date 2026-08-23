@@ -211,6 +211,77 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_BindsDesignerActiveXControlContracts()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "DesignerControls.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="DesignerControls"
+                Object={831FDD16-0C5C-11D2-A9FC-0000F8754DA1}#2.1#0; MSCOMCTL.OCX
+                Object={3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0; RICHTX32.OCX
+                Object={A0E7BF60-0D59-11D2-8E2F-00A0C9EAF7A1}#1.0#0; COMDLG32.OCX
+                Form=Main.frm
+                Module=Entry; Entry.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Entry.bas"), """
+                Sub Main()
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.Form Main
+                   Begin MSComctlLib.TreeView tree
+                   End
+                   Begin RichTextLib.RichTextBox editor
+                   End
+                   Begin MSComDlg.CommonDialog dialog
+                   End
+                End
+                Attribute VB_Name = "Main"
+                Attribute VB_PredeclaredId = True
+                Option Explicit
+
+                Private Sub UseControls()
+                    Dim node As MSComctlLib.Node
+                    Set node = tree.Nodes.Add(, , "root", "Root")
+                    Debug.Print node.Text
+                    Debug.Print tree.Nodes.Count
+                    editor.SelText = "text"
+                    dialog.Filter = "Text (*.txt)|*.txt"
+                    dialog.ShowSave
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var form = analysis.SemanticModel!.ClassTypes.Single(type => type.Name == "Main");
+            Assert.IsTrue(form.TryGetProperty("tree", PropertyAccessorKind.Get, out var tree));
+            Assert.AreSame(VBStandardTypes.ExternalTreeView, tree!.Type);
+            Assert.IsTrue(form.TryGetProperty("editor", PropertyAccessorKind.Get, out var editor));
+            Assert.AreSame(VBStandardTypes.ExternalRichTextBox, editor!.Type);
+            Assert.IsTrue(form.TryGetProperty("dialog", PropertyAccessorKind.Get, out var dialog));
+            Assert.AreSame(VBStandardTypes.ExternalCommonDialog, dialog!.Type);
+
+            var result = compilation.EmitManagedApplication(Path.Combine(directory, "DesignerControls.dll"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            Assert.IsTrue(File.Exists(result.AssemblyPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_EmitsFormStartupProject()
     {
         var directory = CreateTemporaryDirectory();

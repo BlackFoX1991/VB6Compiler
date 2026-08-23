@@ -33,14 +33,15 @@ internal static class VBExternalTypeCatalog
                         "TreeView"
                     });
                     aliases["MSComctlLib.Node"] = VBStandardTypes.ExternalTreeNode;
+                    aliases["MSComctlLib.TreeView"] = VBStandardTypes.ExternalTreeView;
                     break;
 
                 case "RICHTX32.OCX":
-                    AddControls(aliases, "RichTextLib", new[] { "RichTextBox" });
+                    aliases["RichTextLib.RichTextBox"] = VBStandardTypes.ExternalRichTextBox;
                     break;
 
                 case "COMDLG32.OCX":
-                    AddControls(aliases, "MSComDlg", new[] { "CommonDialog" });
+                    aliases["MSComDlg.CommonDialog"] = VBStandardTypes.ExternalCommonDialog;
                     break;
 
                 case "MSWINSCK.OCX":
