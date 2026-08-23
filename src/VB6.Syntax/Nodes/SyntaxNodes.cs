@@ -79,7 +79,8 @@ public sealed record VariableDeclaratorSyntax(
     SyntaxToken? AsKeyword,
     SyntaxToken? TypeToken,
     SyntaxToken? CommaToken,
-    TypeNameSyntax? TypeName = null) : SyntaxNode(SyntaxKind.VariableDeclarator)
+    TypeNameSyntax? TypeName = null,
+    SyntaxToken? NewKeyword = null) : SyntaxNode(SyntaxKind.VariableDeclarator)
 {
     public VariableDeclaratorSyntax(
         SyntaxToken identifier,

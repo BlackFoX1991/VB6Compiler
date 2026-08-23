@@ -547,6 +547,14 @@ public sealed class Binder
 
     private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
     {
+        if (declarator.NewKeyword is not null)
+        {
+            Report(
+                "VB6S0063",
+                $"Implicit object construction for '{declarator.Identifier.Text}' using As New is not implemented yet.",
+                declarator.NewKeyword.Span);
+        }
+
         if (declarator.TypeToken is null)
         {
             Report(

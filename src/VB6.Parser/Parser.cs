@@ -410,9 +410,15 @@ public sealed class Parser
             SyntaxToken? asKeyword = null;
             SyntaxToken? typeToken = null;
             TypeNameSyntax? typeName = null;
+            SyntaxToken? newKeyword = null;
             if (Current.Kind == SyntaxKind.AsKeyword)
             {
                 asKeyword = NextToken();
+                if (IsIdentifier(Current, "New"))
+                {
+                    newKeyword = NextToken();
+                }
+
                 typeName = ParseTypeName();
                 typeToken = typeName.FirstToken;
             }
@@ -431,7 +437,8 @@ public sealed class Parser
                 asKeyword,
                 typeToken,
                 commaToken,
-                typeName));
+                typeName,
+                newKeyword));
             if (commaToken is null)
             {
                 break;
