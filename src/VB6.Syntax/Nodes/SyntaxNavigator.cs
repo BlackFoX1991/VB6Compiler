@@ -78,6 +78,7 @@ public static class SyntaxNavigator
             BinaryExpressionSyntax binary => GetFirstToken(binary.Left),
             ParenthesizedExpressionSyntax parenthesized => parenthesized.OpenParenthesisToken,
             ArgumentPassingModeExpressionSyntax passingMode => passingMode.PassingModeKeyword,
+            NamedArgumentExpressionSyntax named => named.NameToken,
             TypeOfExpressionSyntax typeOf => typeOf.TypeOfKeyword,
 
             // A With receiver and an omitted argument are positions in the source, not text.

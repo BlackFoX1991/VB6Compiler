@@ -9,6 +9,23 @@ namespace VB6.Compiler.Tests;
 public sealed class OptionalArgumentExecutionTests
 {
     [TestMethod]
+    public void EmitManagedApplication_BindsNamedArgumentsByParameterName()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Configure(Optional ByVal title As String = "default", Optional ByVal count As Long = 1)
+                Debug.Print title & ":" & count
+            End Sub
+
+            Sub Main()
+                Configure count:=3, title:="named"
+                Configure title:="only"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "named:3", "only:1" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesDeclaredDefaultsAndTypeDefaults()
     {
         Run("""

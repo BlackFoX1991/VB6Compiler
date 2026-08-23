@@ -2147,6 +2147,16 @@ public sealed class Parser
     /// </summary>
     private ExpressionSyntax ParseArgument()
     {
+        if (Current.Kind == SyntaxKind.IdentifierToken &&
+            Peek(1).Kind == SyntaxKind.ColonToken &&
+            Peek(2).Kind == SyntaxKind.EqualsToken)
+        {
+            var name = NextToken();
+            var colon = NextToken();
+            var equals = NextToken();
+            return new NamedArgumentExpressionSyntax(name, colon, equals, ParseArgument());
+        }
+
         if (Current.Kind is SyntaxKind.ByValKeyword or SyntaxKind.ByRefKeyword)
         {
             var passingMode = NextToken();

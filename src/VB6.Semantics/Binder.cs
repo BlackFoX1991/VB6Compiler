@@ -3298,11 +3298,15 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        argumentSyntaxes = NormalizeNamedArguments(invocationIdentifier, argumentSyntaxes, procedure);
+
         // InStr is the one intrinsic whose first parameter is optional in the middle of the
         // signature: two arguments mean (string1, string2), while three and four arguments mean
         // (start, string1, string2[, compare]). Normalize the two-argument form here so every
         // backend receives the same four values.
-        if (procedure.IntrinsicKind == VBIntrinsicKind.InStr && argumentSyntaxes.Length == 2)
+        if (procedure.IntrinsicKind == VBIntrinsicKind.InStr &&
+            argumentSyntaxes.Length == 2 &&
+            argumentSyntaxes.All(argument => argument is not OmittedArgumentExpressionSyntax))
         {
             return ImmutableArray.Create(
                 new BoundArgument(procedure.Parameters[0], new BoundLiteralExpression(1L, TypeSymbol.Long)),
@@ -3352,9 +3356,14 @@ public sealed class Binder
 
             if (argumentSyntaxes[index] is OmittedArgumentExpressionSyntax &&
                 parameter is not null &&
-                parameter.IsOptional)
+                (parameter.IsOptional ||
+                 procedure.IntrinsicKind == VBIntrinsicKind.InStr && index == 0))
             {
-                arguments.Add(new BoundArgument(parameter, CreateDefaultArgument(parameter)));
+                arguments.Add(new BoundArgument(
+                    parameter,
+                    procedure.IntrinsicKind == VBIntrinsicKind.InStr && index == 0
+                        ? new BoundLiteralExpression(1L, TypeSymbol.Long)
+                        : CreateDefaultArgument(parameter)));
                 continue;
             }
 
@@ -3464,6 +3473,106 @@ public sealed class Binder
         }
 
         return arguments.ToImmutable();
+    }
+
+    private ImmutableArray<ExpressionSyntax> NormalizeNamedArguments(
+        SyntaxToken invocationIdentifier,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        ProcedureSymbol procedure)
+    {
+        if (!argumentSyntaxes.Any(argument => argument is NamedArgumentExpressionSyntax))
+        {
+            return argumentSyntaxes;
+        }
+
+        var paramArrayIndex = -1;
+        for (var index = 0; index < procedure.Parameters.Length; index++)
+        {
+            if (procedure.Parameters[index].IsParamArray)
+            {
+                paramArrayIndex = index;
+                break;
+            }
+        }
+
+        var fixedParameterCount = paramArrayIndex >= 0 ? paramArrayIndex : procedure.Parameters.Length;
+        var slots = new ExpressionSyntax?[fixedParameterCount];
+        var extraArguments = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+        var nextPositional = 0;
+        var sawNamed = false;
+
+        foreach (var argument in argumentSyntaxes)
+        {
+            if (argument is NamedArgumentExpressionSyntax named)
+            {
+                sawNamed = true;
+                var parameterIndex = -1;
+                for (var index = 0; index < fixedParameterCount; index++)
+                {
+                    if (string.Equals(
+                            procedure.Parameters[index].Name,
+                            named.NameToken.Text,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        parameterIndex = index;
+                        break;
+                    }
+                }
+
+                if (parameterIndex < 0)
+                {
+                    Report(
+                        "VB6S0069",
+                        $"Named argument '{named.NameToken.Text}' is not a parameter of procedure '{procedure.Name}'.",
+                        named.NameToken.Span);
+                    continue;
+                }
+
+                if (slots[parameterIndex] is not null)
+                {
+                    Report(
+                        "VB6S0069",
+                        $"Named argument '{named.NameToken.Text}' was supplied more than once.",
+                        named.NameToken.Span);
+                    continue;
+                }
+
+                slots[parameterIndex] = named.Expression;
+                continue;
+            }
+
+            if (sawNamed)
+            {
+                Report(
+                    "VB6S0069",
+                    "A positional argument cannot follow a named argument.",
+                    invocationIdentifier.Span);
+            }
+
+            while (nextPositional < fixedParameterCount && slots[nextPositional] is not null)
+            {
+                nextPositional++;
+            }
+
+            if (nextPositional < fixedParameterCount)
+            {
+                slots[nextPositional++] = argument;
+            }
+            else
+            {
+                extraArguments.Add(argument);
+            }
+        }
+
+        var lastSlot = Array.FindLastIndex(slots, slot => slot is not null);
+        var normalized = ImmutableArray.CreateBuilder<ExpressionSyntax>(Math.Max(0, lastSlot + 1) + extraArguments.Count);
+        for (var index = 0; index <= lastSlot; index++)
+        {
+            normalized.Add(slots[index] ?? new OmittedArgumentExpressionSyntax());
+        }
+
+        normalized.AddRange(extraArguments);
+        return normalized.ToImmutable();
     }
 
     /// <summary>
