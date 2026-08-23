@@ -15,7 +15,8 @@ public sealed record TypeMemberSyntax(
     SyntaxToken AsKeyword,
     SyntaxToken TypeToken,
     SyntaxToken? StarToken,
-    ExpressionSyntax? FixedStringLength)
+    ExpressionSyntax? FixedStringLength,
+    TypeNameSyntax? TypeName = null)
     : SyntaxNode(SyntaxKind.TypeMember)
 {
     public bool IsArray => OpenParenthesisToken is not null;

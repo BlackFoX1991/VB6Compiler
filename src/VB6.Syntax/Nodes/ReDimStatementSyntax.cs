@@ -15,7 +15,8 @@ public sealed record ReDimQualifiedTargetSyntax(
     SyntaxToken CloseParenthesisToken,
     SyntaxToken? AsKeyword = null,
     SyntaxToken? TypeToken = null,
-    SyntaxToken? CommaToken = null) : SyntaxNode(SyntaxKind.ReDimQualifiedTarget);
+    SyntaxToken? CommaToken = null,
+    TypeNameSyntax? TypeName = null) : SyntaxNode(SyntaxKind.ReDimQualifiedTarget);
 
 /// <summary>
 /// A VB6 <c>ReDim</c> statement. The optional <c>Preserve</c> keyword applies to every

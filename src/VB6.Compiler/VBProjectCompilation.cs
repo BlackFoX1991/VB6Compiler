@@ -433,11 +433,12 @@ public sealed class VBProjectCompilation
 
         foreach (var relation in interfaceRelations)
         {
-            if (!classTypes.TryGetValue(relation.Declaration.TypeToken.Text, out var interfaceType))
+            var interfaceName = relation.Declaration.TypeName?.Text ?? relation.Declaration.TypeToken.Text;
+            if (!classTypes.TryGetValue(interfaceName, out var interfaceType))
             {
                 projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
                     "VB6PRJ0010",
-                    $"Class '{relation.Implementor.Name}' implements unknown class '{relation.Declaration.TypeToken.Text}'.",
+                    $"Class '{relation.Implementor.Name}' implements unknown class '{interfaceName}'.",
                     relation.FilePath));
                 continue;
             }

@@ -8,6 +8,19 @@ public abstract record StatementSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
 public abstract record ExpressionSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
 public abstract record CaseClauseSyntax(SyntaxKind Kind) : SyntaxNode(Kind);
 
+/// <summary>
+/// A declared type name, including qualified COM names such as <c>MSComctlLib.Node</c>.
+/// The first token remains exposed by declaration nodes for compatibility with the original
+/// syntax API; this node preserves every component and separator for binding and round-tripping.
+/// </summary>
+public sealed record TypeNameSyntax(
+    SyntaxToken FirstToken,
+    ImmutableArray<SyntaxToken> Tokens) : SyntaxNode(SyntaxKind.TypeName)
+{
+    public string Text => string.Concat(Tokens.Select(token => token.Text));
+    public SyntaxToken LastToken => Tokens[^1];
+}
+
 public sealed record CompilationUnitSyntax(
     ImmutableArray<MemberSyntax> Members,
     SyntaxToken EndOfFileToken) : SyntaxNode(SyntaxKind.CompilationUnit);
@@ -65,7 +78,8 @@ public sealed record VariableDeclaratorSyntax(
     SyntaxToken? CloseParenthesisToken,
     SyntaxToken? AsKeyword,
     SyntaxToken? TypeToken,
-    SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.VariableDeclarator)
+    SyntaxToken? CommaToken,
+    TypeNameSyntax? TypeName = null) : SyntaxNode(SyntaxKind.VariableDeclarator)
 {
     public VariableDeclaratorSyntax(
         SyntaxToken identifier,
@@ -123,7 +137,8 @@ public sealed record ConstDeclarationSyntax(
     SyntaxToken? AsKeyword,
     SyntaxToken? TypeToken,
     SyntaxToken EqualsToken,
-    ExpressionSyntax Value) : MemberSyntax(SyntaxKind.ConstDeclaration);
+    ExpressionSyntax Value,
+    TypeNameSyntax? TypeName = null) : MemberSyntax(SyntaxKind.ConstDeclaration);
 
 /// <summary>
 /// A native procedure declaration such as
@@ -144,7 +159,8 @@ public sealed record DeclareDeclarationSyntax(
     ImmutableArray<ParameterSyntax> Parameters,
     SyntaxToken CloseParenthesisToken,
     SyntaxToken? AsKeyword,
-    SyntaxToken? ReturnTypeToken) : MemberSyntax(SyntaxKind.DeclareDeclaration);
+    SyntaxToken? ReturnTypeToken,
+    TypeNameSyntax? ReturnTypeName = null) : MemberSyntax(SyntaxKind.DeclareDeclaration);
 
 public sealed record ParameterSyntax(
     SyntaxToken? PassingModeKeyword,
@@ -157,7 +173,8 @@ public sealed record ParameterSyntax(
     SyntaxToken? OpenParenthesisToken = null,
     ImmutableArray<ArrayDimensionSyntax> Dimensions = default,
     SyntaxToken? CloseParenthesisToken = null,
-    SyntaxToken? ParamArrayKeyword = null) : SyntaxNode(SyntaxKind.Parameter)
+    SyntaxToken? ParamArrayKeyword = null,
+    TypeNameSyntax? TypeName = null) : SyntaxNode(SyntaxKind.Parameter)
 {
     public bool IsArray => OpenParenthesisToken is not null;
     public bool IsParamArray => ParamArrayKeyword is not null;
@@ -187,7 +204,8 @@ public sealed record FunctionDeclarationSyntax(
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
     SyntaxToken EndFunctionKeyword,
-    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
+    SyntaxToken? VisibilityKeyword = null,
+    TypeNameSyntax? ReturnTypeName = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
 
 /// <summary>
 /// A VB6 class property procedure. The accessor remains a token because <c>Get</c>, <c>Let</c>
@@ -205,7 +223,8 @@ public sealed record PropertyDeclarationSyntax(
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
     SyntaxToken EndPropertyKeyword,
-    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.PropertyDeclaration)
+    SyntaxToken? VisibilityKeyword = null,
+    TypeNameSyntax? ReturnTypeName = null) : MemberSyntax(SyntaxKind.PropertyDeclaration)
 {
     public bool IsGet => string.Equals(AccessorKeyword.Text, "Get", StringComparison.OrdinalIgnoreCase);
     public bool IsLet => string.Equals(AccessorKeyword.Text, "Let", StringComparison.OrdinalIgnoreCase);
@@ -224,7 +243,8 @@ public sealed record EventDeclarationSyntax(
 /// <summary>A class contract declaration such as <c>Implements IFormatter</c>.</summary>
 public sealed record ImplementsStatementSyntax(
     SyntaxToken ImplementsKeyword,
-    SyntaxToken TypeToken) : MemberSyntax(SyntaxKind.ImplementsStatement);
+    SyntaxToken TypeToken,
+    TypeNameSyntax? TypeName = null) : MemberSyntax(SyntaxKind.ImplementsStatement);
 
 public sealed record DimStatementSyntax(
     SyntaxToken DimKeyword,
@@ -254,7 +274,8 @@ public sealed record ConstStatementSyntax(
     SyntaxToken? AsKeyword,
     SyntaxToken? TypeToken,
     SyntaxToken EqualsToken,
-    ExpressionSyntax Value) : StatementSyntax(SyntaxKind.ConstStatement);
+    ExpressionSyntax Value,
+    TypeNameSyntax? TypeName = null) : StatementSyntax(SyntaxKind.ConstStatement);
 
 public sealed record AssignmentStatementSyntax(
     SyntaxToken Identifier,
@@ -496,7 +517,8 @@ public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : Express
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
 public sealed record NewExpressionSyntax(
     SyntaxToken NewKeyword,
-    SyntaxToken TypeToken) : ExpressionSyntax(SyntaxKind.NewExpression);
+    SyntaxToken TypeToken,
+    TypeNameSyntax? TypeName = null) : ExpressionSyntax(SyntaxKind.NewExpression);
 public sealed record InvocationExpressionSyntax(
     SyntaxToken Identifier,
     SyntaxToken OpenParenthesisToken,
@@ -540,4 +562,5 @@ public sealed record TypeOfExpressionSyntax(
     SyntaxToken TypeOfKeyword,
     ExpressionSyntax Expression,
     SyntaxToken IsKeyword,
-    SyntaxToken TypeToken) : ExpressionSyntax(SyntaxKind.TypeOfExpression);
+    SyntaxToken TypeToken,
+    TypeNameSyntax? TypeName = null) : ExpressionSyntax(SyntaxKind.TypeOfExpression);

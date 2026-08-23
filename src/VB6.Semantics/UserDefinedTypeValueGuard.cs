@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Nodes;
 using VB6.Syntax.Text;
@@ -30,7 +31,7 @@ public static class UserDefinedTypeValueGuard
                     ValidateDeclarators(text, declaration.Declarators, types, diagnostics);
                     break;
 
-                case ConstDeclarationSyntax declaration when RequiresStorageGuard(declaration.TypeToken?.Text, types):
+                case ConstDeclarationSyntax declaration when RequiresStorageGuard(GetDeclaredTypeName(declaration.TypeToken, declaration.TypeName), types):
                     AddDiagnostic(text, declaration.Identifier.Text, declaration.Identifier.Span, diagnostics);
                     break;
 
@@ -42,7 +43,7 @@ public static class UserDefinedTypeValueGuard
                 case FunctionDeclarationSyntax declaration:
                     // No As clause means Variant, which is never a user-defined type.
                     if (declaration.ReturnTypeToken is not null &&
-                        RequiresStorageGuard(declaration.ReturnTypeToken.Text, types))
+                        RequiresStorageGuard(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName), types))
                     {
                         AddDiagnostic(text, declaration.Identifier.Text, declaration.ReturnTypeToken.Span, diagnostics);
                     }
@@ -64,7 +65,8 @@ public static class UserDefinedTypeValueGuard
     {
         foreach (var parameter in parameters)
         {
-            if (parameter.TypeToken is not null && RequiresStorageGuard(parameter.TypeToken.Text, types))
+            if (parameter.TypeToken is not null &&
+                RequiresStorageGuard(GetDeclaredTypeName(parameter.TypeToken, parameter.TypeName), types))
             {
                 AddDiagnostic(text, parameter.Identifier.Text, parameter.TypeToken.Span, diagnostics);
             }
@@ -140,7 +142,7 @@ public static class UserDefinedTypeValueGuard
     {
         foreach (var declarator in declarators)
         {
-            if (RequiresStorageGuard(declarator.TypeToken?.Text, types))
+            if (RequiresStorageGuard(GetDeclaredTypeName(declarator.TypeToken, declarator.TypeName), types))
             {
                 AddDiagnostic(text, declarator.Identifier.Text, declarator.TypeToken!.Span, diagnostics);
             }
@@ -160,6 +162,9 @@ public static class UserDefinedTypeValueGuard
             type,
             new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance));
     }
+
+    private static string? GetDeclaredTypeName(SyntaxToken? typeToken, TypeNameSyntax? typeName) =>
+        typeName?.Text ?? typeToken?.Text;
 
     private static bool RequiresStorageGuard(
         UserDefinedTypeSymbol type,

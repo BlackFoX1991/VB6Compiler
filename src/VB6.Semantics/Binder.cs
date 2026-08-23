@@ -58,7 +58,8 @@ public sealed class Binder
             CreateParameterSymbols(declaration.Parameters),
             declaration.ReturnTypeToken is null
                 ? TypeSymbol.Variant
-                : TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error);
+                : TypeSymbol.Lookup(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)!) ??
+                  TypeSymbol.Error);
     }
 
     public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
@@ -133,7 +134,7 @@ public sealed class Binder
                     {
                         Report(
                             "VB6S0011",
-                            $"Unknown function return type '{declaration.ReturnTypeToken.Text}'.",
+                            $"Unknown function return type '{GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)}'.",
                             declaration.ReturnTypeToken.Span);
                     }
 
@@ -157,7 +158,7 @@ public sealed class Binder
                     {
                         Report(
                             "VB6S0011",
-                            $"Unknown property return type '{declaration.ReturnTypeToken.Text}'.",
+                            $"Unknown property return type '{GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)}'.",
                             declaration.ReturnTypeToken.Span);
                     }
 
@@ -225,12 +226,13 @@ public sealed class Binder
         parameters
             .Select(parameter =>
             {
+                var declaredTypeName = GetDeclaredTypeName(parameter.TypeToken, parameter.TypeName);
                 var elementType = parameter.IsParamArray
                     ? TypeSymbol.Variant
                     : parameter.TypeToken is null ||
-                      string.Equals(parameter.TypeToken.Text, "Any", StringComparison.OrdinalIgnoreCase)
+                      string.Equals(declaredTypeName, "Any", StringComparison.OrdinalIgnoreCase)
                     ? TypeSymbol.Variant
-                    : TypeSymbol.Lookup(parameter.TypeToken.Text) ?? TypeSymbol.Error;
+                    : TypeSymbol.Lookup(declaredTypeName!) ?? TypeSymbol.Error;
                 var type = (parameter.IsArray || parameter.IsParamArray) && elementType != TypeSymbol.Error
                     ? new ArrayTypeSymbol(elementType)
                     : elementType;
@@ -244,7 +246,7 @@ public sealed class Binder
                 {
                     IsOptional = parameter.OptionalKeyword is not null,
                     IsParamArray = parameter.IsParamArray,
-                    IsAny = string.Equals(parameter.TypeToken?.Text, "Any", StringComparison.OrdinalIgnoreCase),
+                    IsAny = string.Equals(declaredTypeName, "Any", StringComparison.OrdinalIgnoreCase),
                     DefaultValue = (parameter.DefaultValue as LiteralExpressionSyntax)?.LiteralToken.Value
                 };
             })
@@ -327,9 +329,10 @@ public sealed class Binder
         var returnType = !isFunction
             ? null
             : declaration.ReturnTypeToken is null ||
-              string.Equals(declaration.ReturnTypeToken.Text, "Any", StringComparison.OrdinalIgnoreCase)
+              string.Equals(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName), "Any", StringComparison.OrdinalIgnoreCase)
                 ? TypeSymbol.Variant
-                : TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error;
+                : TypeSymbol.Lookup(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)!) ??
+                  TypeSymbol.Error;
         return new ProcedureSymbol(
             declaration.Identifier.Text,
             CreateParameterSymbols(declaration.Parameters),
@@ -349,7 +352,8 @@ public sealed class Binder
         var type = declaration.IsGet
             ? declaration.ReturnTypeToken is null
                 ? TypeSymbol.Variant
-                : TypeSymbol.Lookup(declaration.ReturnTypeToken.Text) ?? TypeSymbol.Error
+                : TypeSymbol.Lookup(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)!) ??
+                  TypeSymbol.Error
             : parameters.Length == 0
                 ? TypeSymbol.Variant
                 : parameters[^1].Type;
@@ -523,7 +527,7 @@ public sealed class Binder
                     var value = BindExpression(declaration.Value, visible, noProcedures);
                     var type = declaration.TypeToken is null
                         ? value.Type
-                        : ResolveDeclaredType(declaration.TypeToken);
+                        : ResolveDeclaredType(declaration.TypeToken, declaration.TypeName);
                     var symbol = Declare(declaration.Identifier.Text, type);
                     if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
                     {
@@ -552,7 +556,7 @@ public sealed class Binder
             return TypeSymbol.Error;
         }
 
-        var elementType = ResolveDeclaredType(declarator.TypeToken);
+        var elementType = ResolveDeclaredType(declarator.TypeToken, declarator.TypeName);
         if (!declarator.IsArray || elementType == TypeSymbol.Error)
         {
             return elementType;
@@ -601,15 +605,19 @@ public sealed class Binder
         return dimensions.ToImmutable();
     }
 
-    private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken)
+    private static string? GetDeclaredTypeName(SyntaxToken? typeToken, TypeNameSyntax? typeName) =>
+        typeName?.Text ?? typeToken?.Text;
+
+    private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken, TypeNameSyntax? typeName = null)
     {
-        var type = TypeSymbol.Lookup(typeToken.Text);
+        var declaredTypeName = GetDeclaredTypeName(typeToken, typeName)!;
+        var type = TypeSymbol.Lookup(declaredTypeName);
         if (type is not null)
         {
             return type;
         }
 
-        Report("VB6S0003", $"Unknown type '{typeToken.Text}'.", typeToken.Span);
+        Report("VB6S0003", $"Unknown type '{declaredTypeName}'.", typeToken.Span);
         return TypeSymbol.Error;
     }
 
@@ -669,7 +677,7 @@ public sealed class Binder
             {
                 Report(
                     "VB6S0003",
-                    $"Unknown type '{syntax.TypeToken?.Text ?? "Variant"}'.",
+                    $"Unknown type '{GetDeclaredTypeName(syntax.TypeToken, syntax.TypeName) ?? "Variant"}'.",
                     syntax.TypeToken?.Span ?? syntax.Identifier.Span);
             }
 
@@ -717,12 +725,12 @@ public sealed class Binder
                         syntax.Identifier.Span);
                 }
                 else if (syntax.TypeToken is not null &&
-                         !string.Equals(syntax.TypeToken.Text, "Variant", StringComparison.OrdinalIgnoreCase))
+                         !string.Equals(GetDeclaredTypeName(syntax.TypeToken, syntax.TypeName), "Variant", StringComparison.OrdinalIgnoreCase))
                 {
                     Report(
                         "VB6S0064",
                         $"ParamArray parameter '{syntax.Identifier.Text}' must be an array of Variant.",
-                        syntax.TypeToken.Span);
+                        syntax.TypeName?.FirstToken.Span ?? syntax.TypeToken.Span);
                 }
 
                 if (syntax.DefaultValue is not null)
@@ -854,7 +862,7 @@ public sealed class Binder
         var value = BindExpression(syntax.Value, variables, procedures);
         var type = syntax.TypeToken is null
             ? value.Type
-            : ResolveDeclaredType(syntax.TypeToken);
+            : ResolveDeclaredType(syntax.TypeToken, syntax.TypeName);
         var variable = new LocalVariableSymbol(syntax.Identifier.Text, type);
 
         if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
@@ -1454,12 +1462,13 @@ public sealed class Binder
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
         var expression = BindExpression(syntax.Expression, variables, procedures);
-        var type = TypeSymbol.Lookup(syntax.TypeToken.Text);
+        var typeName = GetDeclaredTypeName(syntax.TypeToken, syntax.TypeName)!;
+        var type = TypeSymbol.Lookup(typeName);
         if (type is null)
         {
             Report(
                 "VB6S0003",
-                $"Unknown type '{syntax.TypeToken.Text}'.",
+                $"Unknown type '{typeName}'.",
                 syntax.TypeToken.Span);
             return new BoundErrorExpression();
         }
@@ -1571,7 +1580,7 @@ public sealed class Binder
 
         if (syntax.TypeToken is not null)
         {
-            var reDimElementType = ResolveDeclaredType(syntax.TypeToken);
+            var reDimElementType = ResolveDeclaredType(syntax.TypeToken, syntax.TypeName);
             if (reDimElementType != TypeSymbol.Error && reDimElementType != arrayType.ElementType)
             {
                 Report(
@@ -1631,7 +1640,7 @@ public sealed class Binder
         // it cannot be changed.
         if (syntax.TypeToken is not null)
         {
-            var restated = ResolveDeclaredType(syntax.TypeToken);
+            var restated = ResolveDeclaredType(syntax.TypeToken, syntax.TypeName);
             if (restated != TypeSymbol.Error && restated != arrayType.ElementType)
             {
                 Report(
@@ -2359,12 +2368,13 @@ public sealed class Binder
 
     private BoundExpression BindNew(NewExpressionSyntax syntax)
     {
-        var type = TypeSymbol.Lookup(syntax.TypeToken.Text);
+        var typeName = GetDeclaredTypeName(syntax.TypeToken, syntax.TypeName)!;
+        var type = TypeSymbol.Lookup(typeName);
         if (type is null)
         {
             Report(
                 "VB6S0003",
-                $"Unknown type '{syntax.TypeToken.Text}'.",
+                $"Unknown type '{typeName}'.",
                 syntax.TypeToken.Span);
             return new BoundErrorExpression();
         }

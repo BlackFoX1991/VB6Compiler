@@ -28,7 +28,7 @@ public sealed class ConformanceCorpusTests
     /// cascade hid, so a real improvement can raise the total. Cleanly analyzed files can only
     /// grow, which makes them the honest progress metric.
     /// </summary>
-    private const int VisiaCleanModuleBaseline = 18;
+    private const int VisiaCleanModuleBaseline = 21;
 
     /// <summary>
     /// Parser errors the corpus still produces.
@@ -37,7 +37,7 @@ public sealed class ConformanceCorpusTests
     /// stay there for a while, because binding is project-wide and a file only counts as clean
     /// once its whole dependency chain parses - so that baseline cannot catch a regression yet.
     /// Parser errors can, and every slice so far has lowered them: 3183 at M0, 1758 at the M2
-    /// closeout, 1214 after the UDT type space, 480 after With and member access, 466 with untyped functions, 454 once ReDim recovery stopped a cascade, 218 with file numbers lexed and the binary file statements parsed, 122 once TypeOf parsed, 83 with call-site ByVal, 49 once On Error, GoTo and labels parsed, 24 with qualified calls, 23 after class Property/Event syntax, 196 after form/control source analysis exposed the remaining parser surface, 124 after leading-dot calls and Select Case recovery, 104 after procedure-level Const support, and 99 after parenthesized procedure calls.
+    /// closeout, 1214 after the UDT type space, 480 after With and member access, 466 with untyped functions, 454 once ReDim recovery stopped a cascade, 218 with file numbers lexed and the binary file statements parsed, 122 once TypeOf parsed, 83 with call-site ByVal, 49 once On Error, GoTo and labels parsed, 24 with qualified calls, 23 after class Property/Event syntax, 196 after form/control source analysis exposed the remaining parser surface, 124 after leading-dot calls and Select Case recovery, 104 after procedure-level Const support, 99 after parenthesized procedure calls, and 89 after qualified type names.
     ///
     /// Lower it whenever a slice lands. Raising it is not forbidden but must be deliberate: a
     /// slice can legitimately expose parser gaps deeper in a file that used to derail at line 10

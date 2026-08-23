@@ -171,6 +171,7 @@ public enum SyntaxKind
     GoSubReturnStatement,
     LabelStatement,
     FileNumber,
+    TypeName,
     OpenStatement,
     CloseStatement,
     GetStatement,

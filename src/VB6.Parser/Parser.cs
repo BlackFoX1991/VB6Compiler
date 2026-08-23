@@ -204,10 +204,12 @@ public sealed class Parser
 
         SyntaxToken? asKeyword = null;
         SyntaxToken? returnType = null;
+        TypeNameSyntax? returnTypeName = null;
         if (procedureKindKeyword.Kind == SyntaxKind.FunctionKeyword && Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            returnType = MatchTypeToken();
+            returnTypeName = ParseTypeName();
+            returnType = returnTypeName.FirstToken;
         }
 
         ConsumeLineTerminator();
@@ -224,7 +226,8 @@ public sealed class Parser
             parameters,
             closeParenthesis,
             asKeyword,
-            returnType);
+            returnType,
+            returnTypeName);
     }
 
     private EnumDeclarationSyntax ParseEnumDeclaration(SyntaxToken? visibilityKeyword)
@@ -286,7 +289,8 @@ public sealed class Parser
             var memberIdentifier = MatchTypeMemberName();
             var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
             var asKeyword = MatchToken(SyntaxKind.AsKeyword);
-            var memberType = MatchTypeToken();
+            var memberTypeName = ParseTypeName();
+            var memberType = memberTypeName.FirstToken;
 
             SyntaxToken? starToken = null;
             ExpressionSyntax? fixedStringLength = null;
@@ -311,7 +315,8 @@ public sealed class Parser
                 asKeyword,
                 memberType,
                 starToken,
-                fixedStringLength));
+                fixedStringLength,
+                memberTypeName));
         }
 
         var endKeyword = MatchToken(SyntaxKind.EndKeyword);
@@ -361,10 +366,12 @@ public sealed class Parser
 
         SyntaxToken? asKeyword = null;
         SyntaxToken? typeToken = null;
+        TypeNameSyntax? typeName = null;
         if (Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            typeToken = MatchTypeToken();
+            typeName = ParseTypeName();
+            typeToken = typeName.FirstToken;
         }
 
         var equalsToken = MatchToken(SyntaxKind.EqualsToken);
@@ -378,7 +385,8 @@ public sealed class Parser
             asKeyword,
             typeToken,
             equalsToken,
-            value);
+            value,
+            typeName);
     }
 
     private ModuleVariableDeclarationSyntax ParseModuleVariableDeclaration(
@@ -401,10 +409,12 @@ public sealed class Parser
 
             SyntaxToken? asKeyword = null;
             SyntaxToken? typeToken = null;
+            TypeNameSyntax? typeName = null;
             if (Current.Kind == SyntaxKind.AsKeyword)
             {
                 asKeyword = NextToken();
-                typeToken = MatchTypeToken();
+                typeName = ParseTypeName();
+                typeToken = typeName.FirstToken;
             }
 
             SyntaxToken? commaToken = null;
@@ -420,7 +430,8 @@ public sealed class Parser
                 closeParenthesis,
                 asKeyword,
                 typeToken,
-                commaToken));
+                commaToken,
+                typeName));
             if (commaToken is null)
             {
                 break;
@@ -624,10 +635,12 @@ public sealed class Parser
         // already allows. Requiring it here derailed every untyped Function in real code.
         SyntaxToken? asKeyword = null;
         SyntaxToken? returnType = null;
+        TypeNameSyntax? returnTypeName = null;
         if (Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            returnType = MatchTypeToken();
+            returnTypeName = ParseTypeName();
+            returnType = returnTypeName.FirstToken;
         }
 
         ConsumeLineTerminator();
@@ -647,7 +660,8 @@ public sealed class Parser
             statements,
             endKeyword,
             endFunctionKeyword,
-            visibilityKeyword);
+            visibilityKeyword,
+            returnTypeName);
     }
 
     private PropertyDeclarationSyntax ParsePropertyDeclaration(SyntaxToken? visibilityKeyword)
@@ -661,11 +675,13 @@ public sealed class Parser
 
         SyntaxToken? asKeyword = null;
         SyntaxToken? returnType = null;
+        TypeNameSyntax? returnTypeName = null;
         if (string.Equals(accessorKeyword.Text, "Get", StringComparison.OrdinalIgnoreCase) &&
             Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            returnType = MatchTypeToken();
+            returnTypeName = ParseTypeName();
+            returnType = returnTypeName.FirstToken;
         }
 
         ConsumeLineTerminator();
@@ -686,7 +702,8 @@ public sealed class Parser
             statements,
             endKeyword,
             endPropertyKeyword,
-            visibilityKeyword);
+            visibilityKeyword,
+            returnTypeName);
     }
 
     private EventDeclarationSyntax ParseEventDeclaration(SyntaxToken? visibilityKeyword)
@@ -811,10 +828,12 @@ public sealed class Parser
         var (openParenthesis, dimensions, closeParenthesis) = ParseArrayDimensions();
         SyntaxToken? asKeyword = null;
         SyntaxToken? typeToken = null;
+        TypeNameSyntax? typeName = null;
         if (Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            typeToken = MatchTypeToken();
+            typeName = ParseTypeName();
+            typeToken = typeName.FirstToken;
         }
 
         SyntaxToken? equalsToken = null;
@@ -836,7 +855,8 @@ public sealed class Parser
             openParenthesis,
             dimensions,
             closeParenthesis,
-            paramArrayKeyword);
+            paramArrayKeyword,
+            typeName);
     }
 
     private StatementSyntax ParseStatement()
@@ -1045,10 +1065,12 @@ public sealed class Parser
 
         SyntaxToken? asKeyword = null;
         SyntaxToken? typeToken = null;
+        TypeNameSyntax? typeName = null;
         if (Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            typeToken = MatchTypeToken();
+            typeName = ParseTypeName();
+            typeToken = typeName.FirstToken;
         }
 
         var equalsToken = MatchToken(SyntaxKind.EqualsToken);
@@ -1060,7 +1082,8 @@ public sealed class Parser
             asKeyword,
             typeToken,
             equalsToken,
-            value);
+            value,
+            typeName);
     }
 
     private ReDimStatementSyntax ParseReDimStatement()
@@ -1171,10 +1194,12 @@ public sealed class Parser
         // ReDim Preserve Section(2).Bytes(n) As Byte restates the element type, as the plain form does.
         SyntaxToken? asKeyword = null;
         SyntaxToken? typeToken = null;
+        TypeNameSyntax? typeName = null;
         if (Current.Kind == SyntaxKind.AsKeyword)
         {
             asKeyword = NextToken();
-            typeToken = MatchTypeToken();
+            typeName = ParseTypeName();
+            typeToken = typeName.FirstToken;
         }
 
         return new ReDimQualifiedTargetSyntax(
@@ -1183,7 +1208,9 @@ public sealed class Parser
             dimensions,
             closeParenthesis ?? MatchToken(SyntaxKind.CloseParenthesisToken),
             asKeyword,
-            typeToken);
+            typeToken,
+            null,
+            typeName);
     }
 
     /// <summary>
@@ -1975,8 +2002,8 @@ public sealed class Parser
             var typeOfKeyword = NextToken();
             var operand = ParsePrimaryExpression();
             var isKeyword = MatchToken(SyntaxKind.IsKeyword);
-            var typeToken = MatchToken(SyntaxKind.IdentifierToken);
-            return new TypeOfExpressionSyntax(typeOfKeyword, operand, isKeyword, typeToken);
+            var typeName = ParseTypeName();
+            return new TypeOfExpressionSyntax(typeOfKeyword, operand, isKeyword, typeName.FirstToken, typeName);
         }
 
         if (Current.Kind == SyntaxKind.DotToken)
@@ -1998,7 +2025,8 @@ public sealed class Parser
         else if (IsIdentifier(Current, "New") && Peek(1).Kind == SyntaxKind.IdentifierToken)
         {
             var newKeyword = NextToken();
-            expression = new NewExpressionSyntax(newKeyword, MatchTypeToken());
+            var typeName = ParseTypeName();
+            expression = new NewExpressionSyntax(newKeyword, typeName.FirstToken, typeName);
         }
         else if (Current.Kind == SyntaxKind.IdentifierToken && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
         {
@@ -2042,15 +2070,25 @@ public sealed class Parser
         return expression;
     }
 
-    private SyntaxToken MatchTypeToken()
+    private TypeNameSyntax ParseTypeName()
     {
         if (Current.Kind is SyntaxKind.ByteKeyword or SyntaxKind.IntegerKeyword or SyntaxKind.LongKeyword or
             SyntaxKind.SingleKeyword or SyntaxKind.DoubleKeyword or SyntaxKind.IdentifierToken)
         {
-            return NextToken();
+            var firstToken = NextToken();
+            var tokens = ImmutableArray.CreateBuilder<SyntaxToken>();
+            tokens.Add(firstToken);
+            while (Current.Kind == SyntaxKind.DotToken)
+            {
+                tokens.Add(NextToken());
+                tokens.Add(MatchTypeMemberName());
+            }
+
+            return new TypeNameSyntax(firstToken, tokens.ToImmutable());
         }
 
-        return MatchToken(SyntaxKind.IdentifierToken);
+        var missing = MatchToken(SyntaxKind.IdentifierToken);
+        return new TypeNameSyntax(missing, ImmutableArray.Create(missing));
     }
 
     private void ConsumeLineTerminator()

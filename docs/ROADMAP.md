@@ -55,7 +55,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
-| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **180** | **99** | **0** | **81** | **21 von 40** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **170** | **89** | **0** | **81** | **21 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -129,6 +129,14 @@ qualifizierte Aufrufe wie `object.Method(value)`. Die VB6-Unterscheidung zu `Foo
 erhalten: ein Leerzeichen vor der Klammer markiert weiterhin den ByVal-Ausdruck. Damit sinkt die
 Parserdiagnostik auf **99** und der Gesamtstand auf **180** Fehler; die acht neuen Regressionstests
 heben die Suite auf **652 Tests**.
+
+Qualifizierte Deklarationstypen wie `MSComctlLib.Node` werden jetzt als vollständige Typnamen im
+Syntaxbaum erhalten, statt nach dem ersten Identifier abzubrechen. Das gilt für Parameter,
+Variablen, Konstanten, Rückgabetypen, `Declare`, `TypeOf`, `New`, `ReDim` und UDT-Felder; der
+Binder verwendet für Meldungen und Auflösung ebenfalls den vollständigen Namen. Zwei Parser-
+Regressionstests sichern Tokenfolge und Text ab. Der VISIA-Stand sinkt dadurch auf **170
+Gesamtfehler**, davon **89 Parser**, **0 Lexer** und **81 Semantik**, bei weiterhin **21 von 40**
+fehlerfreien Dateien; die Suite umfasst **654 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
