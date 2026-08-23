@@ -252,6 +252,59 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedLibrary_CompilesPropertyPageAndUserDocumentSources()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "LegacyControl.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Control
+                Name="LegacyControl"
+                PropertyPage=Options.pag
+                UserDocument=Document.dob
+                """);
+            File.WriteAllText(Path.Combine(directory, "Options.pag"), """
+                VERSION 5.00
+                Begin VB.PropertyPage Options
+                End
+                Attribute VB_Name = "Options"
+                Option Explicit
+
+                Public Function Value() As Long
+                    Value = 1
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Document.dob"), """
+                VERSION 5.00
+                Begin VB.UserDocument Document
+                End
+                Attribute VB_Name = "Document"
+                Option Explicit
+
+                Public Function Value() As Long
+                    Value = 2
+                End Function
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "LegacyControl.dll"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            CollectionAssert.AreEquivalent(
+                new[] { "Options", "Document" },
+                result.Lowering.Analysis.SemanticModel!.ClassTypes.Select(type => type.Name).ToArray());
+            Assert.IsTrue(File.Exists(result.AssemblyPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_BindsClassTypesFromReferencedVbp()
     {
         var directory = CreateTemporaryDirectory();

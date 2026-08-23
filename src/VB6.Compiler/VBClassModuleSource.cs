@@ -3,7 +3,8 @@ using System.Text;
 namespace VB6.Compiler;
 
 /// <summary>
-/// Removes the designer metadata envelope from VB6 class, form and user-control modules while
+/// Removes the designer metadata envelope from VB6 class, form, user-control, property-page and
+/// user-document modules while
 /// preserving every source offset and line ending. The declarations after the Attribute block are
 /// ordinary VB6 source and go through the same lexer/parser pipeline as a standard module.
 /// </summary>
@@ -108,6 +109,8 @@ internal static class VBClassModuleSource
 
         return source.Contains(" CLASS", StringComparison.OrdinalIgnoreCase) ||
             source.Contains("Begin VB.Form", StringComparison.OrdinalIgnoreCase) ||
-            source.Contains("Begin VB.UserControl", StringComparison.OrdinalIgnoreCase);
+            source.Contains("Begin VB.UserControl", StringComparison.OrdinalIgnoreCase) ||
+            source.Contains("Begin VB.PropertyPage", StringComparison.OrdinalIgnoreCase) ||
+            source.Contains("Begin VB.UserDocument", StringComparison.OrdinalIgnoreCase);
     }
 }
