@@ -12,7 +12,7 @@ public static class VBStandardTypes
     public static ClassTypeSymbol Object { get; } = CreateEmpty("Object");
     public static ClassTypeSymbol Collection { get; } = CreateCollection();
     public static ClassTypeSymbol App { get; } = CreateApp();
-    public static ClassTypeSymbol Picture { get; } = CreateEmpty("Picture");
+    public static ClassTypeSymbol Picture { get; } = CreatePicture();
     public static ClassTypeSymbol Font { get; } = CreateFont();
     public static ClassTypeSymbol Control { get; } = CreateControl("Control");
     public static ClassTypeSymbol Form { get; } = CreateControl("Form");
@@ -99,7 +99,9 @@ public static class VBStandardTypes
         var properties = new List<PropertySymbol>
         {
             ReadOnlyProperty("ActiveForm", Form),
-            ReadOnlyProperty("ActiveControl", Control)
+            ReadOnlyProperty("ActiveControl", Control),
+            ReadOnlyProperty("TwipsPerPixelX", TypeSymbol.Single),
+            ReadOnlyProperty("TwipsPerPixelY", TypeSymbol.Single)
         };
         properties.AddRange(ReadWriteProperties("MousePointer", TypeSymbol.Long));
         if (!screen.TryDefineMembers(
@@ -112,6 +114,27 @@ public static class VBStandardTypes
         }
 
         return screen;
+    }
+
+    private static ClassTypeSymbol CreatePicture()
+    {
+        var picture = new ClassTypeSymbol("Picture");
+        var properties = new[]
+        {
+            ReadOnlyProperty("Width", TypeSymbol.Long),
+            ReadOnlyProperty("Height", TypeSymbol.Long),
+            ReadOnlyProperty("Type", TypeSymbol.Long)
+        };
+        if (!picture.TryDefineMembers(
+                Array.Empty<ProcedureSymbol>(),
+                properties,
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in Picture member '{duplicate}' is duplicated.");
+        }
+
+        return picture;
     }
 
     private static ClassTypeSymbol CreateAmbient()

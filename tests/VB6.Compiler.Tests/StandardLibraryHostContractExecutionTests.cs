@@ -38,8 +38,13 @@ public sealed class StandardLibraryHostContractExecutionTests
                 Dim fontValue As Font
                 Dim bag As PropertyBag
                 Set pictureValue = LoadPicture("")
+                Debug.Print pictureValue.Width
+                Debug.Print pictureValue.Height
+                Debug.Print pictureValue.Type
                 Set fontValue = Ambient.Font
                 Screen.MousePointer = vbHourglass
+                Debug.Print Screen.TwipsPerPixelX
+                Debug.Print Screen.TwipsPerPixelY
                 Set bag = Nothing
                 Call bag.WriteProperty("Caption", "value")
                 Debug.Print bag.ReadProperty("Caption", "fallback")

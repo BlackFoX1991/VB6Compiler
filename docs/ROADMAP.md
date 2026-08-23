@@ -81,6 +81,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Identifier-Typensuffixe in Bindung und impliziten Variablen | **55** | **0** | **0** | **55** | **34 von 40** |
 | Statement-Aufrufe von Functions mit verworfenem Rückgabewert | **50** | **0** | **0** | **50** | **34 von 40** |
 | Standardbibliotheks- und Host-Intrinsics (`Val`, `Hex`, `String`, `Input`, `TextHeight`, `Print`, `PaintPicture`) | **43** | **0** | **0** | **43** | **34 von 40** |
+| Standardtypen `Picture`-/`Screen`-Properties | **36** | **0** | **0** | **36** | **34 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -348,6 +349,12 @@ Intrinsic-Symbol, IR, Managed-Emitter und headless Runtime-Tests. Dadurch sinkt 
 auf **43 semantische Fehler**, weiterhin **34 von 40** fehlerfreien Dateien; die Suite umfasst nun
 **705 Tests**. Die verbleibende `String`-zu-`Variant`-ByRef-Diagnose sowie Host-/COM-/Forms-Lücken
 bleiben bewusst sichtbar.
+
+Der folgende Host-Object-Slice ergänzt die lesbaren Standardmitglieder `Picture.Width`,
+`Picture.Height`, `Picture.Type` sowie `Screen.TwipsPerPixelX` und `Screen.TwipsPerPixelY`.
+`LoadPicture` liefert dafür deterministische headless Defaults. Die sieben `VB6S0064`-Diagnosen
+entfallen; der VISIA-Stand sinkt auf **36 semantische Fehler**, weiterhin **34 von 40** fehlerfreien
+Dateien. Die Suite umfasst nun **706 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

@@ -40,6 +40,17 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void LoadPicture_ExposesDeterministicHostMetadataDefaults()
+    {
+        var picture = VBInteraction.LoadPicture(string.Empty);
+
+        Assert.AreEqual(string.Empty, picture.FileName);
+        Assert.AreEqual(0, picture.Width);
+        Assert.AreEqual(0, picture.Height);
+        Assert.AreEqual(0, picture.Type);
+    }
+
+    [TestMethod]
     public void ControlHostContracts_AreDeterministicInHeadlessRuntime()
     {
         Assert.AreEqual(12f, VBInteraction.ScaleX(12f, 0, 0));
