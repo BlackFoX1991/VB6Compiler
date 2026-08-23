@@ -22,9 +22,31 @@ public sealed record VBProjectItem(
         Path.GetFullPath(Path.Combine(projectDirectory, RelativePath));
 }
 
-public sealed record VBProjectReference(string RawValue);
+public sealed record VBProjectReference
+{
+    public VBProjectReference(string rawValue)
+    {
+        ArgumentNullException.ThrowIfNull(rawValue);
+        RawValue = rawValue;
+        Metadata = VBProjectBindingMetadataParser.ParseReference(rawValue);
+    }
 
-public sealed record VBProjectObject(string RawValue);
+    public string RawValue { get; }
+    public VBProjectReferenceMetadata Metadata { get; }
+}
+
+public sealed record VBProjectObject
+{
+    public VBProjectObject(string rawValue)
+    {
+        ArgumentNullException.ThrowIfNull(rawValue);
+        RawValue = rawValue;
+        Metadata = VBProjectBindingMetadataParser.ParseObject(rawValue);
+    }
+
+    public string RawValue { get; }
+    public VBProjectObjectMetadata Metadata { get; }
+}
 
 public sealed record VBProjectProperty(string Name, string Value);
 

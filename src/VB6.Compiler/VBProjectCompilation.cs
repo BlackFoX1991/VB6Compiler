@@ -41,6 +41,8 @@ public sealed class VBProjectCompilation
                 diagnostic.Line));
         }
 
+        ValidateProjectReferences(loadResult.Project, projectDiagnostics);
+
         foreach (var module in loadResult.Project.Items.Where(item =>
                      item.Kind is VBProjectItemKind.Module or VBProjectItemKind.Class or
                          VBProjectItemKind.Form or VBProjectItemKind.UserControl))
@@ -92,6 +94,8 @@ public sealed class VBProjectCompilation
             parsedModules,
             loadResult.Project.Items,
             projectDiagnostics);
+        using var externalTypeScope = UserDefinedTypeLookupScope.PushAliases(
+            VBExternalTypeCatalog.Create(loadResult.Project));
         var enumSymbols = VBEnumSymbols.Bind(parsedModules.Select(module => module.SemanticRoot));
         using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
         var classTypeAliases = classTypes.ToDictionary(
@@ -278,6 +282,50 @@ public sealed class VBProjectCompilation
         }
 
         return variables;
+    }
+
+    private static void ValidateProjectReferences(
+        VBProject project,
+        ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var reference in project.References.Where(reference =>
+                     reference.Metadata.Kind == VBProjectReferenceKind.Project))
+        {
+            var referencePath = reference.Metadata.GetFullPath(project.ProjectDirectory);
+            if (referencePath is null)
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0013",
+                    $"Project reference '{reference.RawValue}' does not specify a project file.",
+                    project.FilePath));
+                continue;
+            }
+
+            if (!seen.Add(referencePath))
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0014",
+                    $"Project reference '{referencePath}' occurs more than once.",
+                    project.FilePath));
+                continue;
+            }
+
+            if (string.Equals(referencePath, project.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0015",
+                    "A project cannot reference itself.",
+                    project.FilePath));
+            }
+            else if (!File.Exists(referencePath))
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0016",
+                    $"Referenced project '{reference.Metadata.FilePath}' was not found.",
+                    referencePath));
+            }
+        }
     }
 
     private static IEnumerable<string> ReadDesignerControlNames(string path)

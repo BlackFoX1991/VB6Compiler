@@ -139,6 +139,77 @@ public sealed class ProjectCompilationTests
         }
     }
 
+    [TestMethod]
+    public void Analyze_ReportsMissingReferencedVbpWithResolvedPath()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Consumer.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Reference=*\G{00025E01-0000-0000-C000-000000000046}#1.0#0#..\Shared\Shared.vbp#Shared
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            var diagnostic = analysis.ProjectDiagnostics.Single(diagnostic => diagnostic.Code == "VB6PRJ0016");
+            Assert.AreEqual(
+                Path.GetFullPath(Path.Combine(directory, "..", "Shared", "Shared.vbp")),
+                diagnostic.FilePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_BindsQualifiedActiveXTypesFromProjectObjects()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Controls.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Object={831FDD16-0C5C-11D2-A9FC-0000F8754DA1}#2.1#0; MSCOMCTL.OCX
+                Object={3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0; RICHTX32.OCX
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim tree As MSComctlLib.TreeView
+                    Dim node As MSComctlLib.Node
+                    Dim editor As RichTextLib.RichTextBox
+                    Set tree = Nothing
+                    Set node = Nothing
+                    Set editor = Nothing
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     /// <summary>
     /// A module with a syntax error still declares its procedures. The parser is fault-tolerant on
     /// purpose, so a procedure whose own header parsed is a real declaration - and hiding it turns
