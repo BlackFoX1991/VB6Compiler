@@ -1123,6 +1123,7 @@ public sealed class Binder
             SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
+            LineStatementSyntax line => BindGraphicsLine(line, variables, procedures),
             FilePrintStatementSyntax filePrint => new BoundFilePrintStatement(
                 BindFileNumber(filePrint.FileNumber, variables, procedures),
                 BindExpression(filePrint.Expression, variables, procedures)),
@@ -1136,7 +1137,6 @@ public sealed class Binder
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
             LineInputStatementSyntax lineInput => BindLineInput(lineInput, variables, procedures),
             FileInputStatementSyntax fileInput => BindFileInput(fileInput, variables, procedures),
-            LineStatementSyntax line => ReportObjectModelGap("Graphics Line statement", line.LineKeyword.Span),
             EndStatementSyntax end => ReportControlFlowGap("End statement", end.EndKeyword.Span),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
@@ -1396,6 +1396,95 @@ public sealed class Binder
         return new BoundLineInputStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
             target);
+    }
+
+    private BoundStatement? BindGraphicsLine(
+        LineStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var startX = BindLineCoordinate(syntax.StartPoint.XExpression, variables, procedures, syntax.LineKeyword.Span);
+        var startY = BindLineCoordinate(syntax.StartPoint.YExpression, variables, procedures, syntax.LineKeyword.Span);
+        var endX = BindLineCoordinate(syntax.EndPoint.XExpression, variables, procedures, syntax.LineKeyword.Span);
+        var endY = BindLineCoordinate(syntax.EndPoint.YExpression, variables, procedures, syntax.LineKeyword.Span);
+
+        BoundExpression? color = null;
+        if (syntax.ColorExpression is not null)
+        {
+            color = BindExpression(syntax.ColorExpression, variables, procedures);
+            if (color.Type != TypeSymbol.Error && !IsNumericType(color.Type) && color.Type != TypeSymbol.Variant)
+            {
+                Report(
+                    "VB6S0060",
+                    "Graphics Line color must be a numeric or Variant expression.",
+                    GetSpan(syntax.ColorExpression));
+            }
+        }
+
+        var drawBox = false;
+        var fill = false;
+        foreach (var option in syntax.Options)
+        {
+            if (option is not NameExpressionSyntax name)
+            {
+                Report(
+                    "VB6S0062",
+                    "Graphics Line options must be B or F.",
+                    GetSpan(option));
+                continue;
+            }
+
+            if (string.Equals(name.IdentifierToken.Text, "B", StringComparison.OrdinalIgnoreCase))
+            {
+                drawBox = true;
+            }
+            else if (string.Equals(name.IdentifierToken.Text, "F", StringComparison.OrdinalIgnoreCase))
+            {
+                fill = true;
+            }
+            else
+            {
+                Report(
+                    "VB6S0062",
+                    $"Graphics Line option '{name.IdentifierToken.Text}' is not supported; use B or F.",
+                    name.IdentifierToken.Span);
+            }
+        }
+
+        if (startX.Type == TypeSymbol.Error || startY.Type == TypeSymbol.Error ||
+            endX.Type == TypeSymbol.Error || endY.Type == TypeSymbol.Error ||
+            color?.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        return new BoundGraphicsLineStatement(
+            startX,
+            startY,
+            endX,
+            endY,
+            color,
+            syntax.StepKeyword is not null,
+            drawBox,
+            fill);
+    }
+
+    private BoundExpression BindLineCoordinate(
+        ExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        TextSpan diagnosticSpan)
+    {
+        var expression = BindExpression(syntax, variables, procedures);
+        if (expression.Type != TypeSymbol.Error && !IsNumericType(expression.Type) && expression.Type != TypeSymbol.Variant)
+        {
+            Report(
+                "VB6S0060",
+                "Graphics Line coordinates must be numeric or Variant expressions.",
+                diagnosticSpan);
+        }
+
+        return BindConversion(expression, TypeSymbol.Single);
     }
 
     private BoundStatement? BindFileInput(

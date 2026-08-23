@@ -343,6 +343,7 @@ public enum BoundNodeKind
     ReturnStatement,
     SelectCaseStatement,
     DebugPrintStatement,
+    GraphicsLineStatement,
     FilePrintStatement,
     InvocationStatement,
     LabelStatement,
@@ -495,6 +496,17 @@ public sealed record BoundSelectCaseStatement(
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
+
+public sealed record BoundGraphicsLineStatement(
+    BoundExpression StartX,
+    BoundExpression StartY,
+    BoundExpression EndX,
+    BoundExpression EndY,
+    BoundExpression? Color,
+    bool IsStep,
+    bool DrawBox,
+    bool Fill)
+    : BoundStatement(BoundNodeKind.GraphicsLineStatement);
 
 public sealed record BoundFilePrintStatement(
     BoundExpression FileNumber,
