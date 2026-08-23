@@ -42,6 +42,7 @@ public sealed class LlvmEmitter
         builder.AppendLine($"target triple = \"{GetTargetTriple(options.Architecture)}\"");
         builder.AppendLine();
         EmitCheckedIntegerHelpers(builder);
+        EmitCheckedFloatingHelpers(builder);
 
         if (!program.TypeDefinitions.IsDefaultOrEmpty || !program.ClassDefinitions.IsDefaultOrEmpty)
         {
@@ -120,6 +121,90 @@ public sealed class LlvmEmitter
         builder.AppendLine("divide:");
         builder.Append("  %result = ").Append(operation).AppendLine(" i64 %left, %right");
         builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedFloatingHelpers(StringBuilder builder)
+    {
+        EmitCheckedSingleBinaryHelper(builder, "__vb6_fadd_checked_f32", "fadd");
+        EmitCheckedSingleBinaryHelper(builder, "__vb6_fsub_checked_f32", "fsub");
+        EmitCheckedSingleBinaryHelper(builder, "__vb6_fmul_checked_f32", "fmul");
+        EmitCheckedSingleUnaryHelper(builder, "__vb6_fneg_checked_f32");
+        EmitCheckedFloatingDivisionHelper(builder, "__vb6_fdiv_checked_f32", "float", "0x7FF0000000000000", "0xFFF0000000000000", checkInfinity: true);
+        EmitCheckedFloatingDivisionHelper(builder, "__vb6_fdiv_checked_f64", "double", "0x7FF0000000000000", "0xFFF0000000000000", checkInfinity: false);
+    }
+
+    private static void EmitCheckedSingleBinaryHelper(StringBuilder builder, string name, string operation)
+    {
+        builder.Append("define float @").Append(name).AppendLine("(float %left, float %right) {");
+        builder.AppendLine("entry:");
+        builder.Append("  %result = ").Append(operation).AppendLine(" float %left, %right");
+        EmitSingleInfinityGuard(builder, "result");
+        builder.AppendLine("  br i1 %is_infinite, label %trap, label %done");
+        builder.AppendLine("done:");
+        builder.AppendLine("  ret float %result");
+        EmitFloatingTrapBlock(builder);
+    }
+
+    private static void EmitCheckedSingleUnaryHelper(StringBuilder builder, string name)
+    {
+        builder.Append("define float @").Append(name).AppendLine("(float %value) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %result = fneg float %value");
+        EmitSingleInfinityGuard(builder, "result");
+        builder.AppendLine("  br i1 %is_infinite, label %trap, label %done");
+        builder.AppendLine("done:");
+        builder.AppendLine("  ret float %result");
+        EmitFloatingTrapBlock(builder);
+    }
+
+    private static void EmitCheckedFloatingDivisionHelper(
+        StringBuilder builder,
+        string name,
+        string llvmType,
+        string positiveInfinity,
+        string negativeInfinity,
+        bool checkInfinity)
+    {
+        builder.Append("define ").Append(llvmType).Append(" @").Append(name)
+            .Append('(').Append(llvmType).AppendLine(" %left, " + llvmType + " %right) {");
+        builder.AppendLine("entry:");
+        builder.Append("  %is_zero = fcmp oeq ").Append(llvmType).AppendLine(" %right, 0.0");
+        builder.AppendLine("  br i1 %is_zero, label %trap, label %divide");
+        builder.AppendLine("divide:");
+        builder.Append("  %result = fdiv ").Append(llvmType).AppendLine(" %left, %right");
+        if (checkInfinity)
+        {
+            builder.Append("  %is_pos_inf = fcmp oeq ").Append(llvmType).Append(' ')
+                .AppendLine("%result, " + positiveInfinity);
+            builder.Append("  %is_neg_inf = fcmp oeq ").Append(llvmType).Append(' ')
+                .AppendLine("%result, " + negativeInfinity);
+            builder.AppendLine("  %is_infinite = or i1 %is_pos_inf, %is_neg_inf");
+            builder.AppendLine("  br i1 %is_infinite, label %trap, label %done");
+        }
+        else
+        {
+            builder.AppendLine("  br label %done");
+        }
+
+        builder.AppendLine("done:");
+        builder.Append("  ret ").Append(llvmType).AppendLine(" %result");
+        EmitFloatingTrapBlock(builder);
+    }
+
+    private static void EmitSingleInfinityGuard(StringBuilder builder, string resultName)
+    {
+        builder.AppendLine("  %is_pos_inf = fcmp oeq float %" + resultName + ", 0x7FF0000000000000");
+        builder.AppendLine("  %is_neg_inf = fcmp oeq float %" + resultName + ", 0xFFF0000000000000");
+        builder.AppendLine("  %is_infinite = or i1 %is_pos_inf, %is_neg_inf");
+    }
+
+    private static void EmitFloatingTrapBlock(StringBuilder builder)
+    {
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
         builder.AppendLine("  unreachable");
@@ -512,15 +597,12 @@ public sealed class LlvmEmitter
 
             if (methodName is "AddSingle" or "SubtractSingle" or "MultiplySingle" or "NegateSingle")
             {
-                return RejectCheckedOperation(
-                    methodName,
-                    runtime.ResultType,
-                    methodName == "NegateSingle" ? "Single negation" : "Single arithmetic");
+                return EmitCheckedSingleOperation(methodName, runtime.ResultType, arguments);
             }
 
             if (methodName is "DivideSingle" or "DivideDouble")
             {
-                return RejectCheckedOperation(methodName, runtime.ResultType, "floating-point division");
+                return EmitCheckedFloatingDivision(methodName, runtime.ResultType, arguments);
             }
 
             if (methodName.StartsWith("Add", StringComparison.Ordinal) ||
@@ -624,6 +706,65 @@ public sealed class LlvmEmitter
                 "VB6L0001",
                 $"Native LLVM lowering for runtime method '{methodName}' requires checked {operation} runtime semantics and is not implemented yet.");
             return ZeroValue(resultType);
+        }
+
+        private NativeValue EmitCheckedSingleOperation(
+            string methodName,
+            TypeSymbol resultType,
+            NativeValue[] arguments)
+        {
+            var unary = methodName == "NegateSingle";
+            if ((unary && arguments.Length != 1) || (!unary && arguments.Length != 2) ||
+                arguments.Any(argument => argument.LlvmType != "float"))
+            {
+                AddDiagnostic("VB6L0004", $"LLVM Single operation '{methodName}' has invalid operands.");
+                return ZeroValue(resultType);
+            }
+
+            var helperName = methodName switch
+            {
+                "AddSingle" => "__vb6_fadd_checked_f32",
+                "SubtractSingle" => "__vb6_fsub_checked_f32",
+                "MultiplySingle" => "__vb6_fmul_checked_f32",
+                "NegateSingle" => "__vb6_fneg_checked_f32",
+                _ => throw new ArgumentOutOfRangeException(nameof(methodName))
+            };
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call float @").Append(helperName).Append('(');
+            if (unary)
+            {
+                _builder.Append("float ").Append(arguments[0].Value);
+            }
+            else
+            {
+                _builder.Append("float ").Append(arguments[0].Value)
+                    .Append(", float ").Append(arguments[1].Value);
+            }
+
+            _builder.AppendLine(")");
+            return new NativeValue(resultType, "float", call);
+        }
+
+        private NativeValue EmitCheckedFloatingDivision(
+            string methodName,
+            TypeSymbol resultType,
+            NativeValue[] arguments)
+        {
+            if (arguments.Length != 2 || arguments.Any(argument => argument.LlvmType != (methodName == "DivideSingle" ? "float" : "double")))
+            {
+                AddDiagnostic("VB6L0004", $"LLVM floating division '{methodName}' has invalid operands.");
+                return ZeroValue(resultType);
+            }
+
+            var llvmType = methodName == "DivideSingle" ? "float" : "double";
+            var helperName = methodName == "DivideSingle"
+                ? "__vb6_fdiv_checked_f32"
+                : "__vb6_fdiv_checked_f64";
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call ").Append(llvmType).Append(" @")
+                .Append(helperName).Append('(').Append(llvmType).Append(' ').Append(arguments[0].Value)
+                .Append(", ").Append(llvmType).Append(' ').Append(arguments[1].Value).AppendLine(")");
+            return new NativeValue(resultType, llvmType, call);
         }
 
         private NativeValue EmitIntegerDivision(

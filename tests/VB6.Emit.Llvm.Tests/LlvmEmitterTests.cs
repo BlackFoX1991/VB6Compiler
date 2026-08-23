@@ -352,7 +352,7 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedSingleArithmetic()
+    public void Emit_LowersCheckedSingleArithmetic()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.AddSingle,
@@ -374,15 +374,14 @@ public sealed class LlvmEmitterTests
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked Single arithmetic runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("add float", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call float @__vb6_fadd_checked_f32");
+        StringAssert.Contains(result.ModuleText, "%result = fadd float %left, %right");
+        StringAssert.Contains(result.ModuleText, "%is_infinite = or i1 %is_pos_inf, %is_neg_inf");
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedSingleNegation()
+    public void Emit_LowersCheckedSingleNegation()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.NegateSingle,
@@ -403,15 +402,13 @@ public sealed class LlvmEmitterTests
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked Single negation runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("fneg float", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call float @__vb6_fneg_checked_f32");
+        StringAssert.Contains(result.ModuleText, "%result = fneg float %value");
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedFloatingDivision()
+    public void Emit_LowersCheckedFloatingDivision()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.DivideDouble,
@@ -433,11 +430,40 @@ public sealed class LlvmEmitterTests
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked floating-point division runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("fdiv double", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call double @__vb6_fdiv_checked_f64");
+        StringAssert.Contains(result.ModuleText, "%is_zero = fcmp oeq double %right, 0.0");
+        StringAssert.Contains(result.ModuleText, "%result = fdiv double %left, %right");
+    }
+
+    [TestMethod]
+    public void Emit_LowersCheckedSingleDivision()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.DivideSingle,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1f, TypeSymbol.Single)),
+                new IrCallArgument(new IrConstantExpression(0f, TypeSymbol.Single))),
+            TypeSymbol.Single);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Single,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call float @__vb6_fdiv_checked_f32");
+        StringAssert.Contains(result.ModuleText, "%is_zero = fcmp oeq float %right, 0.0");
+        StringAssert.Contains(result.ModuleText, "%is_pos_inf = fcmp oeq float %result, 0x7FF0000000000000");
+        StringAssert.Contains(result.ModuleText, "%result = fdiv float %left, %right");
     }
 
     [TestMethod]
