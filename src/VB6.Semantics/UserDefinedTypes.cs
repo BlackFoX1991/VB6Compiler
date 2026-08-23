@@ -77,6 +77,16 @@ public sealed record UserDefinedTypeSymbol : TypeSymbol
     public bool TryGetMember(string name, out UserDefinedTypeMemberSymbol member) =>
         _definition.MemberMap.TryGetValue(name, out member!);
 
+    /// <summary>
+    /// Defines fields imported from an external type library. External records use the same
+    /// symbol and layout pipeline as VB6 <c>Type</c> declarations, while the importer decides
+    /// which native field kinds are representable by the current backend contract.
+    /// </summary>
+    public bool TryDefineImportedMembers(
+        IEnumerable<UserDefinedTypeMemberSymbol> members,
+        out string? duplicateMemberName) =>
+        TryDefineMembers(members, out duplicateMemberName);
+
     internal bool TryDefineMembers(
         IEnumerable<UserDefinedTypeMemberSymbol> members,
         out string? duplicateMemberName)

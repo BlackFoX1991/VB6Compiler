@@ -9,9 +9,10 @@ using VB6.Semantics;
 namespace VB6.Compiler;
 
 /// <summary>
-/// Imports the automation surface and enum constants of a Windows type library into the semantic
-/// project scope. The importer intentionally produces runtime object contracts: activation and
-/// the final COM ABI remain runtime concerns, while source binding can use real names/signatures.
+/// Imports the automation surface, enum constants, and representable record fields of a Windows
+/// type library into the semantic project scope. The importer intentionally produces runtime
+/// object contracts: activation and the final COM ABI remain runtime concerns, while source
+/// binding can use real names/signatures and safe UDT layout metadata.
 /// </summary>
 internal static class VBTypeLibraryImporter
 {
@@ -45,6 +46,8 @@ internal static class VBTypeLibraryImporter
     private const short VtUserDefined = 29;
     private const short VtDispatch = 9;
     private const short VtUnknown = 13;
+    private const short VtSafeArray = 27;
+    private const short VtCArray = 28;
     private const short VtPtr = 26;
 
     public static VBTypeLibraryImportResult Import(
@@ -117,6 +120,10 @@ internal static class VBTypeLibraryImporter
                 // VB6 enums are Long-sized; their named constants are imported below.
                 symbol = TypeSymbol.Long;
             }
+            else if (record.Kind == TYPEKIND.TKIND_RECORD)
+            {
+                symbol = new UserDefinedTypeSymbol(typeName);
+            }
             else
             {
                 var imported = new ClassTypeSymbol(typeName);
@@ -147,7 +154,19 @@ internal static class VBTypeLibraryImporter
         foreach (var record in records)
         {
             if (!recordTypes.TryGetValue(QualifiedName(libraryName, record.Name), out var symbol) ||
-                symbol is not ClassTypeSymbol classType)
+                record.Kind is TYPEKIND.TKIND_ENUM or TYPEKIND.TKIND_ALIAS)
+            {
+                continue;
+            }
+
+            if (symbol is UserDefinedTypeSymbol recordType)
+            {
+                var recordMembers = ImportRecordMembers(record, libraryName, recordTypes);
+                recordType.TryDefineImportedMembers(recordMembers, out _);
+                continue;
+            }
+
+            if (symbol is not ClassTypeSymbol classType)
             {
                 continue;
             }
@@ -283,6 +302,43 @@ internal static class VBTypeLibraryImporter
         }
 
         return records.ToImmutable();
+    }
+
+    private static ImmutableArray<UserDefinedTypeMemberSymbol> ImportRecordMembers(
+        TypeInfoRecord record,
+        string libraryName,
+        IReadOnlyDictionary<string, TypeSymbol> types)
+    {
+        var members = ImmutableArray.CreateBuilder<UserDefinedTypeMemberSymbol>();
+        var typeInfo = record.TypeInfo;
+        for (var index = 0; index < record.Attribute.cVars; index++)
+        {
+            typeInfo.GetVarDesc(index, out var variablePointer);
+            try
+            {
+                var variable = Marshal.PtrToStructure<VARDESC>(variablePointer);
+                if (variable.varkind != VARKIND.VAR_PERINSTANCE &&
+                    variable.varkind != VARKIND.VAR_STATIC)
+                {
+                    continue;
+                }
+
+                var name = GetVariableName(typeInfo, variable.memid);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                var type = ReadType(variable.elemdescVar.tdesc, typeInfo, libraryName, types);
+                members.Add(new UserDefinedTypeMemberSymbol(name, type));
+            }
+            finally
+            {
+                typeInfo.ReleaseVarDesc(variablePointer);
+            }
+        }
+
+        return members.ToImmutable();
     }
 
     private static ImportedMembers ImportMembers(
@@ -469,12 +525,8 @@ internal static class VBTypeLibraryImporter
     {
         var vt = description.vt;
         var baseType = (short)(vt & VariantTypeMask);
-        if ((vt & VariantByRef) != 0)
-        {
-            return TypeSymbol.Variant;
-        }
 
-        if ((vt & VariantArray) != 0)
+        if ((vt & VariantArray) != 0 || baseType is VtSafeArray or VtCArray)
         {
             return VBStandardTypes.Object;
         }
@@ -501,9 +553,48 @@ internal static class VBTypeLibraryImporter
             VtDate => TypeSymbol.Date,
             VtBstr => TypeSymbol.String,
             VtDispatch or VtUnknown => VBStandardTypes.Object,
-            VtUserDefined => VBStandardTypes.Object,
+            VtUserDefined => ReadReferencedType(description, owner, libraryName, types),
             _ => TypeSymbol.Variant
         };
+    }
+
+    private static TypeSymbol ReadReferencedType(
+        TYPEDESC description,
+        ITypeInfo owner,
+        string libraryName,
+        IReadOnlyDictionary<string, TypeSymbol> types)
+    {
+        if (description.lpValue == IntPtr.Zero)
+        {
+            return VBStandardTypes.Object;
+        }
+
+        try
+        {
+            // TYPEDESC.lpValue stores HREFTYPE directly for VT_USERDEFINED. It is not a
+            // pointer to an HREFTYPE, unlike several other TYPEDESC variants.
+            var referenceHandle = unchecked((int)description.lpValue.ToInt64());
+            owner.GetRefTypeInfo(referenceHandle, out var referencedTypeInfo);
+            referencedTypeInfo.GetDocumentation(-1, out var referencedName, out _, out _, out _);
+            if (!string.IsNullOrWhiteSpace(referencedName))
+            {
+                if (types.TryGetValue(QualifiedName(libraryName, referencedName), out var qualifiedType))
+                {
+                    return qualifiedType;
+                }
+
+                if (types.TryGetValue(referencedName, out var unqualifiedType))
+                {
+                    return unqualifiedType;
+                }
+            }
+        }
+        catch (COMException)
+        {
+            // Unknown referenced records remain object-shaped until their ABI is modeled.
+        }
+
+        return VBStandardTypes.Object;
     }
 
     private static string[] GetFunctionNames(ITypeInfo typeInfo, int memberId, short parameterCount)
