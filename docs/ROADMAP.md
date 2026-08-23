@@ -594,7 +594,7 @@ geprüfte Integer-Division und Restbildung, Currency-Multiplikationsskalierung u
 komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**801 Tests**.
+**803 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1120,7 +1120,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Invocation; ANSI-String-Marshalling sowie Scalar-Pointer-Transfers für `As Any` stehen,
       `AddressOf` erzeugt Managed-Funktionsadressen für direkte Prozedurziele, komplexes
       String-/UDT-Marshalling sowie vollständige Callback-ABI-/Delegate-Verträge bleiben offen
-- [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
+- [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
 - [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; geprüfte/rundende Konversionen, geprüfte Integer-/Currency-Arithmetik, geprüfte Single-Arithmetik und -Negation, Floating-Division, geprüfte Integer-Division und Restbildung, Currency-Multiplikationsskalierung sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
