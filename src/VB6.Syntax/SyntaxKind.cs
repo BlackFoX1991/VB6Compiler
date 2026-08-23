@@ -159,6 +159,7 @@ public enum SyntaxKind
     ParenthesizedExpression,
     TypeOfExpression,
     NewExpression,
+    AddressOfExpression,
     ArgumentPassingModeExpression,
     QualifiedInvocationStatement,
     OmittedArgumentExpression,

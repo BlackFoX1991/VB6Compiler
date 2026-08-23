@@ -55,7 +55,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
-| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **170** | **89** | **0** | **81** | **21 von 40** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **167** | **84** | **0** | **83** | **21 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -137,6 +137,12 @@ Binder verwendet für Meldungen und Auflösung ebenfalls den vollständigen Name
 Regressionstests sichern Tokenfolge und Text ab. Der VISIA-Stand sinkt dadurch auf **170
 Gesamtfehler**, davon **89 Parser**, **0 Lexer** und **81 Semantik**, bei weiterhin **21 von 40**
 fehlerfreien Dateien; die Suite umfasst **654 Tests**.
+
+`AddressOf ProcedureName` wird nun als eigener Ausdruck bis zur semantischen Grenze erhalten. Der
+Binder meldet den noch offenen Callback-/Funktionszeigervertrag explizit, statt die nachfolgenden
+Argumente als Parserfehler zu behandeln. Dadurch sinkt der VISIA-Parserstand auf **84** und der
+Gesamtstand auf **167** Fehler bei weiterhin **21 von 40** fehlerfreien Dateien; die Suite umfasst
+**655 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

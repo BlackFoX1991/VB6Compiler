@@ -2022,6 +2022,13 @@ public sealed class Parser
         {
             expression = new LiteralExpressionSyntax(NextToken());
         }
+        else if (IsIdentifier(Current, "AddressOf") && Peek(1).Kind == SyntaxKind.IdentifierToken)
+        {
+            var addressOfKeyword = NextToken();
+            expression = new AddressOfExpressionSyntax(
+                addressOfKeyword,
+                MatchToken(SyntaxKind.IdentifierToken));
+        }
         else if (IsIdentifier(Current, "New") && Peek(1).Kind == SyntaxKind.IdentifierToken)
         {
             var newKeyword = NextToken();

@@ -519,6 +519,9 @@ public sealed record NewExpressionSyntax(
     SyntaxToken NewKeyword,
     SyntaxToken TypeToken,
     TypeNameSyntax? TypeName = null) : ExpressionSyntax(SyntaxKind.NewExpression);
+public sealed record AddressOfExpressionSyntax(
+    SyntaxToken AddressOfKeyword,
+    SyntaxToken TargetToken) : ExpressionSyntax(SyntaxKind.AddressOfExpression);
 public sealed record InvocationExpressionSyntax(
     SyntaxToken Identifier,
     SyntaxToken OpenParenthesisToken,

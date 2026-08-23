@@ -2345,6 +2345,7 @@ public sealed class Binder
         {
             LiteralExpressionSyntax literal => BindLiteral(literal),
             NewExpressionSyntax @new => BindNew(@new),
+            AddressOfExpressionSyntax addressOf => BindAddressOf(addressOf),
             NameExpressionSyntax name => BindName(name, variables, procedures),
             InvocationExpressionSyntax invocation => BindInvocationExpression(invocation, variables, procedures),
             MemberInvocationExpressionSyntax memberInvocation => BindMemberInvocationExpression(
@@ -2398,6 +2399,15 @@ public sealed class Binder
         }
 
         return new BoundNewExpression(classType);
+    }
+
+    private BoundExpression BindAddressOf(AddressOfExpressionSyntax syntax)
+    {
+        Report(
+            "VB6S0063",
+            $"AddressOf callback '{syntax.TargetToken.Text}' is not implemented yet.",
+            syntax.AddressOfKeyword.Span);
+        return new BoundErrorExpression();
     }
 
     private BoundExpression BindMemberAccess(

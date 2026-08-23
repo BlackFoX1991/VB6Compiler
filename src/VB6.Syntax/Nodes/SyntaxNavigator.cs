@@ -68,6 +68,7 @@ public static class SyntaxNavigator
         {
             LiteralExpressionSyntax literal => literal.LiteralToken,
             NameExpressionSyntax name => name.IdentifierToken,
+            AddressOfExpressionSyntax addressOf => addressOf.AddressOfKeyword,
             InvocationExpressionSyntax invocation => invocation.Identifier,
             ElementAccessExpressionSyntax element => GetFirstToken(element.Receiver),
             MemberAccessExpressionSyntax member => GetFirstToken(member.Receiver),
