@@ -2279,6 +2279,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionPopupMenu) return Static(typeof(VBInteraction), nameof(VBInteraction.PopupMenu), typeof(object), typeof(int), typeof(float), typeof(float));
             if (m == IrRuntimeMethod.InteractionLoadPicture) return Static(typeof(VBInteraction), nameof(VBInteraction.LoadPicture), typeof(string));
             if (m == IrRuntimeMethod.InteractionPropertyChanged) return Static(typeof(VBInteraction), nameof(VBInteraction.PropertyChanged), typeof(string));
+            if (m == IrRuntimeMethod.InteractionScaleX) return Static(typeof(VBInteraction), nameof(VBInteraction.ScaleX), typeof(float), typeof(int), typeof(int));
+            if (m == IrRuntimeMethod.InteractionScaleY) return Static(typeof(VBInteraction), nameof(VBInteraction.ScaleY), typeof(float), typeof(int), typeof(int));
+            if (m == IrRuntimeMethod.InteractionTextWidth) return Static(typeof(VBInteraction), nameof(VBInteraction.TextWidth), typeof(string));
             if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryStrPtr) return Static(typeof(VBMemory), nameof(VBMemory.StrPtr), typeof(string));

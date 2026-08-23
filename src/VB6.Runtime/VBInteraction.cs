@@ -117,6 +117,15 @@ public static class VBInteraction
         _ = y;
     }
 
+    /// <summary>Headless controls use identity scaling; a UI host can supply its scale modes.</summary>
+    public static float ScaleX(float value, int fromScale, int toScale) => value;
+
+    /// <summary>Headless controls use identity scaling; a UI host can supply its scale modes.</summary>
+    public static float ScaleY(float value, int fromScale, int toScale) => value;
+
+    /// <summary>Returns a deterministic character-width approximation for headless control code.</summary>
+    public static float TextWidth(string text) => text.Length;
+
     public static VBPicture LoadPicture(string fileName) => new(fileName);
 
     /// <summary>Signals a changed UserControl property to a host; headless execution has no sink.</summary>

@@ -211,7 +211,10 @@ public enum VBIntrinsicKind
     SendKeys,
     PopupMenu,
     LoadPicture,
-    PropertyChanged
+    PropertyChanged,
+    ScaleX,
+    ScaleY,
+    TextWidth
 }
 
 public sealed record ProcedureSymbol(
