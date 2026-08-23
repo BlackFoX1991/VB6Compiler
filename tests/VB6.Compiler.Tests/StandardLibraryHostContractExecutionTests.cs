@@ -41,7 +41,7 @@ public sealed class StandardLibraryHostContractExecutionTests
                 Set fontValue = Ambient.Font
                 Screen.MousePointer = vbHourglass
                 Set bag = Nothing
-                bag.WriteProperty "Caption", "value"
+                Call bag.WriteProperty("Caption", "value")
                 Debug.Print bag.ReadProperty("Caption", "fallback")
             End Sub
             """).Analyze();

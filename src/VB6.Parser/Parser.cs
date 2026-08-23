@@ -936,6 +936,8 @@ public sealed class Parser
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.PrintKeyword when IsFileStatementKeyword("Print") => ParseFilePrintStatement(),
             SyntaxKind.PrintKeyword => ParseInvocationStatement(),
+            SyntaxKind.CallKeyword when LooksLikeQualifiedCallAfterCall() =>
+                ParseQualifiedInvocationStatementAfterCall(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
             SyntaxKind.OnKeyword when LooksLikeOnErrorStatement() => ParseOnErrorStatement(),
             SyntaxKind.OnKeyword => ParseOnBranchStatement(),
@@ -1090,6 +1092,11 @@ public sealed class Parser
         return next.Kind == SyntaxKind.DotToken && next.LeadingTrivia.IsDefaultOrEmpty;
     }
 
+    private bool LooksLikeQualifiedCallAfterCall() =>
+        Current.Kind == SyntaxKind.CallKeyword &&
+        Peek(1).Kind == SyntaxKind.IdentifierToken &&
+        Peek(2).Kind == SyntaxKind.DotToken;
+
     /// <summary>
     /// Parses <c>receiver.Member arg, arg</c>. The receiver keeps its full member chain, and the
     /// arguments follow the same rules as any other call statement.
@@ -1110,6 +1117,12 @@ public sealed class Parser
             ? ImmutableArray<ExpressionSyntax>.Empty
             : ParseArguments(null);
         return new QualifiedInvocationStatementSyntax(target, arguments);
+    }
+
+    private QualifiedInvocationStatementSyntax ParseQualifiedInvocationStatementAfterCall()
+    {
+        _ = MatchToken(SyntaxKind.CallKeyword);
+        return ParseQualifiedInvocationStatement();
     }
 
     private DimStatementSyntax ParseDimStatement()
