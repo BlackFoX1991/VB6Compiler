@@ -456,6 +456,16 @@ public sealed class LlvmEmitter
                 return ZeroValue(runtime.ResultType);
             }
 
+            if (methodName is "AddSingle" or "SubtractSingle" or "MultiplySingle")
+            {
+                return RejectCheckedFloatingOperation(methodName, runtime.ResultType, "Single arithmetic");
+            }
+
+            if (methodName is "DivideSingle" or "DivideDouble")
+            {
+                return RejectCheckedFloatingOperation(methodName, runtime.ResultType, "floating-point division");
+            }
+
             if (methodName.StartsWith("Add", StringComparison.Ordinal) ||
                 methodName.StartsWith("Subtract", StringComparison.Ordinal) ||
                 methodName.StartsWith("Multiply", StringComparison.Ordinal))
@@ -473,11 +483,6 @@ public sealed class LlvmEmitter
                     ? unsigned ? "udiv" : "sdiv"
                     : unsigned ? "urem" : "srem";
                 return EmitBinary(runtime.ResultType, arguments, operation);
-            }
-
-            if (methodName is "DivideSingle" or "DivideDouble")
-            {
-                return EmitBinary(runtime.ResultType, arguments, "fdiv");
             }
 
             if (methodName.StartsWith("Negate", StringComparison.Ordinal))
@@ -523,6 +528,17 @@ public sealed class LlvmEmitter
                 "VB6L0001",
                 $"Native LLVM lowering for runtime method '{runtime.Method}' is not implemented yet.");
             return ZeroValue(runtime.ResultType);
+        }
+
+        private NativeValue RejectCheckedFloatingOperation(
+            string methodName,
+            TypeSymbol resultType,
+            string operation)
+        {
+            AddDiagnostic(
+                "VB6L0001",
+                $"Native LLVM lowering for runtime method '{methodName}' requires checked {operation} runtime semantics and is not implemented yet.");
+            return ZeroValue(resultType);
         }
 
         private NativeValue EmitScalarConversion(

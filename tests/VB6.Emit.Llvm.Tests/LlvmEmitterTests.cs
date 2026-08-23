@@ -300,6 +300,66 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
+    public void Emit_DiagnosesCheckedSingleArithmetic()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.AddSingle,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1f, TypeSymbol.Single)),
+                new IrCallArgument(new IrConstantExpression(2f, TypeSymbol.Single))),
+            TypeSymbol.Single);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Single,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked Single arithmetic runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("add float", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Emit_DiagnosesCheckedFloatingDivision()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.DivideDouble,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1d, TypeSymbol.Double)),
+                new IrCallArgument(new IrConstantExpression(0d, TypeSymbol.Double))),
+            TypeSymbol.Double);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Double,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked floating-point division runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("fdiv double", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void Emit_LowersScalarExternalDeclarationsAndCalls()
     {
         var parameterSymbol = new ParameterSymbol("value", TypeSymbol.Long, ParameterPassingMode.ByVal);
