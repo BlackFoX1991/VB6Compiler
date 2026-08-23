@@ -56,6 +56,7 @@ public static class VBVariants
             bool => 11,
             byte => 17,
             long => 20,
+            IntPtr => IntPtr.Size == 8 ? (short)20 : (short)3,
             decimal => 14,
             VBDateValue => 7,
             _ => 9
@@ -75,6 +76,7 @@ public static class VBVariants
             : elementType == typeof(short) ? 2
             : elementType == typeof(int) ? 3
             : elementType == typeof(long) ? 20
+            : elementType == typeof(IntPtr) ? (IntPtr.Size == 8 ? 20 : 3)
             : elementType == typeof(float) ? 4
             : elementType == typeof(double) ? 5
             : elementType == typeof(VBCurrency) ? 6

@@ -386,7 +386,7 @@ public static partial class VBOperators
             case string:
                 number = 0d;
                 return false;
-            case byte or short or int or long or float or double or decimal or VBCurrency or bool:
+            case byte or short or int or long or IntPtr or float or double or decimal or VBCurrency or bool:
                 number = VBConversions.CDbl(value);
                 return true;
             default:
@@ -416,6 +416,9 @@ public static partial class VBOperators
                 return true;
             case VBDateValue date:
                 number = Convert.ToDecimal(date.OADate, System.Globalization.CultureInfo.InvariantCulture);
+                return true;
+            case IntPtr pointer:
+                number = pointer.ToInt64();
                 return true;
             case byte or short or int or long or bool:
                 number = Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);

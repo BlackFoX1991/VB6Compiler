@@ -2172,6 +2172,7 @@ public sealed class Binder
             controlVariable.Type != TypeSymbol.Integer &&
             controlVariable.Type != TypeSymbol.Long &&
             controlVariable.Type != TypeSymbol.LongLong &&
+            controlVariable.Type != TypeSymbol.LongPtr &&
             controlVariable.Type != TypeSymbol.Single &&
             controlVariable.Type != TypeSymbol.Double &&
             controlVariable.Type != TypeSymbol.Currency &&
@@ -2216,6 +2217,7 @@ public sealed class Binder
         ReferenceEquals(type, TypeSymbol.Integer) ? new BoundLiteralExpression((short)1, type) :
         ReferenceEquals(type, TypeSymbol.Long) ? new BoundLiteralExpression(1, type) :
         ReferenceEquals(type, TypeSymbol.LongLong) ? new BoundLiteralExpression(1L, type) :
+        ReferenceEquals(type, TypeSymbol.LongPtr) ? new BoundLiteralExpression(1L, type) :
         ReferenceEquals(type, TypeSymbol.Single) ? new BoundLiteralExpression(1f, type) :
         ReferenceEquals(type, TypeSymbol.Double) ? new BoundLiteralExpression(1d, type) :
         ReferenceEquals(type, TypeSymbol.Currency) ? new BoundLiteralExpression(1m, type) :
@@ -3936,7 +3938,7 @@ public sealed class Binder
 
     private static bool IsNumericType(TypeSymbol type) =>
         type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long ||
-        type == TypeSymbol.LongLong || type == TypeSymbol.Single || type == TypeSymbol.Double ||
+        type == TypeSymbol.LongLong || type == TypeSymbol.LongPtr || type == TypeSymbol.Single || type == TypeSymbol.Double ||
         type == TypeSymbol.Currency;
 
     private static bool IsFloatingOrFixedPointType(TypeSymbol type) =>
@@ -3963,6 +3965,8 @@ public sealed class Binder
     private static TypeSymbol GetIntegerOperationType(TypeSymbol left, TypeSymbol right) =>
         left == TypeSymbol.LongLong || right == TypeSymbol.LongLong
             ? TypeSymbol.LongLong
+            : left == TypeSymbol.LongPtr || right == TypeSymbol.LongPtr
+                ? TypeSymbol.LongPtr
             : IsFloatingOrFixedPointType(left) || IsFloatingOrFixedPointType(right) ||
               left == TypeSymbol.Long || right == TypeSymbol.Long
                 ? TypeSymbol.Long
@@ -3982,8 +3986,8 @@ public sealed class Binder
             return TypeSymbol.Double;
         }
 
-        if ((left == TypeSymbol.Single && (right == TypeSymbol.Long || right == TypeSymbol.LongLong)) ||
-            (right == TypeSymbol.Single && (left == TypeSymbol.Long || left == TypeSymbol.LongLong)))
+        if ((left == TypeSymbol.Single && (right == TypeSymbol.Long || right == TypeSymbol.LongLong || right == TypeSymbol.LongPtr)) ||
+            (right == TypeSymbol.Single && (left == TypeSymbol.Long || left == TypeSymbol.LongLong || left == TypeSymbol.LongPtr)))
         {
             return TypeSymbol.Double;
         }
@@ -3996,6 +4000,11 @@ public sealed class Binder
         if (left == TypeSymbol.LongLong || right == TypeSymbol.LongLong)
         {
             return TypeSymbol.LongLong;
+        }
+
+        if (left == TypeSymbol.LongPtr || right == TypeSymbol.LongPtr)
+        {
+            return TypeSymbol.LongPtr;
         }
 
         if (left == TypeSymbol.Long || right == TypeSymbol.Long)

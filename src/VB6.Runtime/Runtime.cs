@@ -14,6 +14,11 @@ public static class VBConversions
 {
     public static byte CByte(object? value)
     {
+        if (value is IntPtr pointer)
+        {
+            return checked((byte)pointer.ToInt64());
+        }
+
         if (value is VBCurrency currency)
         {
             return checked((byte)currency.ToRoundedInt64());
@@ -26,6 +31,11 @@ public static class VBConversions
 
     public static short CInt(object? value)
     {
+        if (value is IntPtr pointer)
+        {
+            return checked((short)pointer.ToInt64());
+        }
+
         if (value is VBCurrency currency)
         {
             return checked((short)currency.ToRoundedInt64());
@@ -38,6 +48,11 @@ public static class VBConversions
 
     public static int CLng(object? value)
     {
+        if (value is IntPtr pointer)
+        {
+            return checked((int)pointer.ToInt64());
+        }
+
         if (value is VBCurrency currency)
         {
             return checked((int)currency.ToRoundedInt64());
@@ -50,6 +65,11 @@ public static class VBConversions
 
     public static long CLngLng(object? value)
     {
+        if (value is IntPtr pointer)
+        {
+            return pointer.ToInt64();
+        }
+
         if (value is VBCurrency currency)
         {
             return currency.ToRoundedInt64();
@@ -60,8 +80,26 @@ public static class VBConversions
             : Convert.ToInt64(value, CultureInfo.InvariantCulture);
     }
 
+    public static IntPtr CLngPtr(object? value)
+    {
+        if (value is IntPtr pointer)
+        {
+            return pointer;
+        }
+
+        var numeric = value is bool boolean
+            ? boolean ? -1L : 0L
+            : Convert.ToInt64(value, CultureInfo.InvariantCulture);
+        return new IntPtr(numeric);
+    }
+
     public static VBCurrency CCur(object? value)
     {
+        if (value is IntPtr pointer)
+        {
+            return VBCurrency.FromDecimal(pointer.ToInt64());
+        }
+
         if (value is VBCurrency currency)
         {
             return currency;
@@ -88,6 +126,11 @@ public static class VBConversions
             return currency.ToDecimal();
         }
 
+        if (value is IntPtr pointer)
+        {
+            return pointer.ToInt64();
+        }
+
         if (value is VBDateValue date)
         {
             return Convert.ToDecimal(date.OADate, CultureInfo.InvariantCulture);
@@ -105,6 +148,7 @@ public static class VBConversions
     {
         var result = value switch
         {
+            IntPtr pointer => pointer.ToInt64(),
             VBCurrency currency => currency.ToSingle(),
             bool boolean => boolean ? -1f : 0f,
             _ => Convert.ToSingle(value, CultureInfo.InvariantCulture)
@@ -114,6 +158,7 @@ public static class VBConversions
 
     public static double CDbl(object? value) => value switch
     {
+        IntPtr pointer => pointer.ToInt64(),
         VBCurrency currency => currency.ToDouble(),
         VBDateValue date => date.OADate,
         bool boolean => boolean ? -1d : 0d,
@@ -146,12 +191,16 @@ public static class VBConversions
         return Convert.ToDouble(value, CultureInfo.InvariantCulture);
     }
 
-    public static bool CBool(object? value) => value is VBCurrency currency
-        ? currency.ScaledValue != 0
-        : Convert.ToBoolean(value, CultureInfo.InvariantCulture);
+    public static bool CBool(object? value) => value switch
+    {
+        IntPtr pointer => pointer != IntPtr.Zero,
+        VBCurrency currency => currency.ScaledValue != 0,
+        _ => Convert.ToBoolean(value, CultureInfo.InvariantCulture)
+    };
 
     public static string CStr(object? value) => value switch
     {
+        IntPtr pointer => pointer.ToInt64().ToString(CultureInfo.InvariantCulture),
         VBCurrency currency => currency.ToString(),
         VBDateValue date => date.OADate.ToString("G15", CultureInfo.InvariantCulture),
         decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
@@ -228,6 +277,18 @@ public static partial class VBOperators
     public static long IntegerDivideLongLong(long left, long right) => checked(left / right);
 
     public static long ModLongLong(long left, long right) => checked(left % right);
+
+    public static IntPtr AddLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() + right.ToInt64()));
+
+    public static IntPtr SubtractLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() - right.ToInt64()));
+
+    public static IntPtr MultiplyLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() * right.ToInt64()));
+
+    public static IntPtr NegateLongPtr(IntPtr value) => FromLongPtr(checked(-value.ToInt64()));
+
+    public static IntPtr IntegerDivideLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() / right.ToInt64()));
+
+    public static IntPtr ModLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() % right.ToInt64()));
 
     public static VBCurrency AddCurrency(VBCurrency left, VBCurrency right) =>
         VBCurrency.FromScaled(checked(left.ScaledValue + right.ScaledValue));
@@ -326,6 +387,8 @@ public static partial class VBOperators
 
     public static long NotLongLong(long value) => ~value;
 
+    public static IntPtr NotLongPtr(IntPtr value) => FromLongPtr(~value.ToInt64());
+
     public static byte AndByte(byte left, byte right) => (byte)(left & right);
 
     public static short AndInteger(short left, short right) => (short)(left & right);
@@ -333,6 +396,8 @@ public static partial class VBOperators
     public static int AndLong(int left, int right) => left & right;
 
     public static long AndLongLong(long left, long right) => left & right;
+
+    public static IntPtr AndLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() & right.ToInt64());
 
     public static byte OrByte(byte left, byte right) => (byte)(left | right);
 
@@ -342,6 +407,8 @@ public static partial class VBOperators
 
     public static long OrLongLong(long left, long right) => left | right;
 
+    public static IntPtr OrLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() | right.ToInt64());
+
     public static byte XorByte(byte left, byte right) => (byte)(left ^ right);
 
     public static short XorInteger(short left, short right) => (short)(left ^ right);
@@ -350,11 +417,15 @@ public static partial class VBOperators
 
     public static long XorLongLong(long left, long right) => left ^ right;
 
+    public static IntPtr XorLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() ^ right.ToInt64());
+
     public static short EqvInteger(short left, short right) => unchecked((short)~(left ^ right));
 
     public static int EqvLong(int left, int right) => ~(left ^ right);
 
     public static long EqvLongLong(long left, long right) => ~(left ^ right);
+
+    public static IntPtr EqvLongPtr(IntPtr left, IntPtr right) => FromLongPtr(~(left.ToInt64() ^ right.ToInt64()));
 
     public static short ImpInteger(short left, short right) =>
         unchecked((short)((~left & 0xFFFF) | (right & 0xFFFF)));
@@ -362,6 +433,10 @@ public static partial class VBOperators
     public static int ImpLong(int left, int right) => ~left | right;
 
     public static long ImpLongLong(long left, long right) => ~left | right;
+
+    public static IntPtr ImpLongPtr(IntPtr left, IntPtr right) => FromLongPtr(~left.ToInt64() | right.ToInt64());
+
+    private static IntPtr FromLongPtr(long value) => new(value);
 
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
@@ -444,6 +519,7 @@ public static class VBDebug
             short number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             int number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             long number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            IntPtr pointer => FormatNumeric(pointer.ToInt64().ToString(CultureInfo.InvariantCulture)),
             float number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             decimal number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),

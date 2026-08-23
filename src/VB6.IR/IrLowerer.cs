@@ -2752,6 +2752,7 @@ public static class IrLowerer
                 : conversion.TargetType == TypeSymbol.Integer ? IrRuntimeMethod.CInt
                 : conversion.TargetType == TypeSymbol.Long ? IrRuntimeMethod.CLng
                 : conversion.TargetType == TypeSymbol.LongLong ? IrRuntimeMethod.CLngLng
+                : conversion.TargetType == TypeSymbol.LongPtr ? IrRuntimeMethod.CLngPtr
                 : conversion.TargetType == TypeSymbol.Currency ? IrRuntimeMethod.CCur
                 : conversion.TargetType == TypeSymbol.Date ? IrRuntimeMethod.CDate
                 : conversion.TargetType == TypeSymbol.Single ? IrRuntimeMethod.CSng
@@ -2793,6 +2794,7 @@ public static class IrLowerer
             {
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Variant => IrRuntimeMethod.NegateVariant,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.LongLong => IrRuntimeMethod.NegateLongLong,
+                SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.LongPtr => IrRuntimeMethod.NegateLongPtr,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Long => IrRuntimeMethod.NegateLong,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Currency => IrRuntimeMethod.NegateCurrency,
                 SyntaxKind.MinusToken when unary.ResultType == TypeSymbol.Single => IrRuntimeMethod.NegateSingle,
@@ -2800,6 +2802,7 @@ public static class IrLowerer
                 SyntaxKind.MinusToken => IrRuntimeMethod.NegateInteger,
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.Boolean => IrRuntimeMethod.NotBoolean,
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.LongLong => IrRuntimeMethod.NotLongLong,
+                SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.LongPtr => IrRuntimeMethod.NotLongPtr,
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.Long => IrRuntimeMethod.NotLong,
                 SyntaxKind.NotKeyword when unary.ResultType == TypeSymbol.Variant => IrRuntimeMethod.NotVariant,
                 SyntaxKind.NotKeyword => IrRuntimeMethod.NotInteger,
@@ -2973,6 +2976,7 @@ public static class IrLowerer
             ReferenceEquals(type, TypeSymbol.Integer) ? new IrConstantExpression((short)0, type) :
             ReferenceEquals(type, TypeSymbol.Long) ? new IrConstantExpression(0, type) :
             ReferenceEquals(type, TypeSymbol.LongLong) ? new IrConstantExpression(0L, type) :
+            ReferenceEquals(type, TypeSymbol.LongPtr) ? new IrConstantExpression(0L, type) :
             ReferenceEquals(type, TypeSymbol.Single) ? new IrConstantExpression(0f, type) :
             ReferenceEquals(type, TypeSymbol.Currency) ? new IrConstantExpression(0m, type) :
             ReferenceEquals(type, TypeSymbol.Date) || ReferenceEquals(type, TypeSymbol.Double)
@@ -2981,6 +2985,7 @@ public static class IrLowerer
 
         private static IrRuntimeMethod AddMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.AddByte
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.AddLongLong
+            : type == TypeSymbol.LongPtr ? IrRuntimeMethod.AddLongPtr
             : type == TypeSymbol.Long ? IrRuntimeMethod.AddLong
             : type == TypeSymbol.Currency ? IrRuntimeMethod.AddCurrency
             : type == TypeSymbol.Single ? IrRuntimeMethod.AddSingle
@@ -2989,6 +2994,7 @@ public static class IrLowerer
 
         private static IrRuntimeMethod SubtractMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.SubtractByte
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.SubtractLongLong
+            : type == TypeSymbol.LongPtr ? IrRuntimeMethod.SubtractLongPtr
             : type == TypeSymbol.Long ? IrRuntimeMethod.SubtractLong
             : type == TypeSymbol.Currency ? IrRuntimeMethod.SubtractCurrency
             : type == TypeSymbol.Single ? IrRuntimeMethod.SubtractSingle
@@ -2997,6 +3003,7 @@ public static class IrLowerer
 
         private static IrRuntimeMethod MultiplyMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.MultiplyByte
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.MultiplyLongLong
+            : type == TypeSymbol.LongPtr ? IrRuntimeMethod.MultiplyLongPtr
             : type == TypeSymbol.Long ? IrRuntimeMethod.MultiplyLong
             : type == TypeSymbol.Currency ? IrRuntimeMethod.MultiplyCurrency
             : type == TypeSymbol.Single ? IrRuntimeMethod.MultiplySingle
@@ -3005,11 +3012,13 @@ public static class IrLowerer
 
         private static IrRuntimeMethod IntegerDivideMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.IntegerDivideByte
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.IntegerDivideLongLong
+            : type == TypeSymbol.LongPtr ? IrRuntimeMethod.IntegerDivideLongPtr
             : type == TypeSymbol.Long ? IrRuntimeMethod.IntegerDivideLong
             : IrRuntimeMethod.IntegerDivideInteger;
 
         private static IrRuntimeMethod ModMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.ModByte
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.ModLongLong
+            : type == TypeSymbol.LongPtr ? IrRuntimeMethod.ModLongPtr
             : type == TypeSymbol.Long ? IrRuntimeMethod.ModLong
             : IrRuntimeMethod.ModInteger;
 
@@ -3018,6 +3027,7 @@ public static class IrLowerer
             var suffix = type == TypeSymbol.Boolean ? "Boolean"
                 : type == TypeSymbol.Byte ? "Byte"
                 : type == TypeSymbol.LongLong ? "LongLong"
+                : type == TypeSymbol.LongPtr ? "LongPtr"
                 : type == TypeSymbol.Long ? "Long"
                 : "Integer";
             return Enum.Parse<IrRuntimeMethod>(operation + suffix);
@@ -3167,6 +3177,7 @@ public static class IrLowerer
             "VBConversions.CByte" => IrRuntimeMethod.CByte,
             "VBConversions.CInt" => IrRuntimeMethod.CInt,
             "VBConversions.CLng" => IrRuntimeMethod.CLng,
+            "VBConversions.CLngPtr" => IrRuntimeMethod.CLngPtr,
             "VBConversions.CDec" => IrRuntimeMethod.CDec,
             "VBConversions.CDate" => IrRuntimeMethod.CDate,
             "VBConversions.CSng" => IrRuntimeMethod.CSng,
