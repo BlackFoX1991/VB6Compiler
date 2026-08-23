@@ -22,4 +22,16 @@ public sealed class StandardLibraryIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "-12.5", "FF", "713", "[ 459]", "[-459.65]", "True", "7", "xxx", "AAA" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_FormatsErrorVariantWithCStr()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print CStr(CVErr(11))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Error 11" }, output);
+    }
 }

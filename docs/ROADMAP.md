@@ -552,7 +552,12 @@ den erhaltenen `Currency`-Variant-Subtype. Der VISIA-Stand bleibt bei **1 semant
 beliebige kompatible Ausdrücke in denselben Date-Subtype um. `VarType`, `IsDate` und bestehende
 Date-Part-Intrinsics bleiben dadurch auf einem gemeinsamen OLE-Automation-Pfad. Der VISIA-Stand
 bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun
-**771 Tests**.
+**772 Tests**.
+
+`CStr` behandelt die verbliebenen Error-/Null-Variantfälle nun explizit: Error-Werte werden als
+`Error <Nummer>` formatiert, während `Null` einen kontrollierten Konversionsfehler auslöst. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **774 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-

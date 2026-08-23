@@ -121,6 +121,13 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void CStr_FormatsErrorVariantsAndRejectsNull()
+    {
+        Assert.AreEqual("Error 11", VBConversions.CStr(new VBErrorValue(11)));
+        Assert.ThrowsException<InvalidCastException>(() => VBConversions.CStr(VBVariants.NullValue()));
+    }
+
+    [TestMethod]
     public void String_RepeatsNumericAndStringCharacters()
     {
         Assert.AreEqual("xxx", VBStrings.String(3, "x"));

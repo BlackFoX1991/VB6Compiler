@@ -285,14 +285,23 @@ public static class VBConversions
         _ => Convert.ToBoolean(value, CultureInfo.InvariantCulture)
     };
 
-    public static string CStr(object? value) => value switch
+    public static string CStr(object? value)
     {
-        IntPtr pointer => pointer.ToInt64().ToString(CultureInfo.InvariantCulture),
-        VBCurrency currency => currency.ToString(),
-        VBDateValue date => date.OADate.ToString("G15", CultureInfo.InvariantCulture),
-        decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
-        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
-    };
+        if (VBVariants.IsNull(value))
+        {
+            throw new InvalidCastException("VB6 CStr cannot convert Null to String.");
+        }
+
+        return value switch
+        {
+            VBErrorValue error => $"Error {error.Code}",
+            IntPtr pointer => pointer.ToInt64().ToString(CultureInfo.InvariantCulture),
+            VBCurrency currency => currency.ToString(),
+            VBDateValue date => date.OADate.ToString("G15", CultureInfo.InvariantCulture),
+            decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+        };
+    }
 
     public static object? CVar(object? value) => value;
 
