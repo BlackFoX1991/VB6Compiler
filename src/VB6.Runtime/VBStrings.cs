@@ -286,7 +286,8 @@ public static class VBStrings
     /// Implements the deterministic numeric and string subset of VB6 Format/Format$.
     /// Numeric masks use the invariant culture and the .NET custom numeric grammar for the
     /// compatible VB6 placeholders <c>0</c>, <c>#</c>, grouping, decimals, percent and sections.
-    /// Date/time masks and locale-dependent named formats remain intentionally unsupported.
+    /// Date/time masks outside the explicitly supported token subset and locale-dependent named
+    /// formats remain intentionally unsupported.
     /// </summary>
     public static string FormatValue(
         object? expression,
@@ -308,10 +309,9 @@ public static class VBStrings
             return FormatString(text, format);
         }
 
-        if (expression is VBDateValue)
+        if (expression is VBDateValue date)
         {
-            throw new NotSupportedException(
-                "Format date/time masks are not supported by the current deterministic Format subset.");
+            return FormatDate(date, format);
         }
 
         if (!TryGetFormatNumber(expression, out var number))
@@ -346,6 +346,160 @@ public static class VBStrings
                 $"Format mask '{format}' is outside the current numeric Format subset.",
                 exception);
         }
+    }
+
+    private static string FormatDate(VBDateValue value, string format)
+    {
+        DateTime date;
+        try
+        {
+            date = DateTime.FromOADate(value.OADate);
+        }
+        catch (ArgumentException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                value.OADate,
+                "The VB6 Date value is outside the OLE Automation date range.");
+        }
+
+        if (format.Length == 0)
+        {
+            return date.ToString("G", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var namedFormat = format.ToUpperInvariant() switch
+        {
+            "GENERAL DATE" => "yyyy-mm-dd hh:nn:ss",
+            "SHORT DATE" => "yyyy-mm-dd",
+            "LONG DATE" => "dddd, dd mmmm yyyy",
+            "SHORT TIME" => "hh:nn",
+            "LONG TIME" => "hh:nn:ss",
+            _ => null
+        };
+        return FormatDateTokens(date, namedFormat ?? format);
+    }
+
+    private static string FormatDateTokens(DateTime value, string format)
+    {
+        var result = new System.Text.StringBuilder();
+        var hasAmPm = format.Contains("AM/PM", StringComparison.OrdinalIgnoreCase) ||
+                      format.Contains("A/P", StringComparison.OrdinalIgnoreCase);
+        var inTime = false;
+
+        for (var index = 0; index < format.Length;)
+        {
+            var character = format[index];
+            if (character is '\'' or '"')
+            {
+                var quote = character;
+                var end = format.IndexOf(quote, index + 1);
+                if (end < 0)
+                {
+                    throw new NotSupportedException($"Date Format mask '{format}' has an unterminated literal.");
+                }
+
+                result.Append(format, index + 1, end - index - 1);
+                index = end + 1;
+                continue;
+            }
+
+            if (format.AsSpan(index).StartsWith("AM/PM", StringComparison.OrdinalIgnoreCase))
+            {
+                var meridiem = value.Hour < 12 ? "AM" : "PM";
+                result.Append(char.IsLower(format[index]) ? meridiem.ToLowerInvariant() : meridiem);
+                index += "AM/PM".Length;
+                continue;
+            }
+
+            if (format.AsSpan(index).StartsWith("A/P", StringComparison.OrdinalIgnoreCase))
+            {
+                var meridiem = value.Hour < 12 ? "A" : "P";
+                result.Append(char.IsLower(format[index]) ? meridiem.ToLowerInvariant() : meridiem);
+                index += "A/P".Length;
+                continue;
+            }
+
+            var token = char.ToLowerInvariant(character);
+            if (token is not ('y' or 'm' or 'd' or 'h' or 'n' or 's'))
+            {
+                if (char.IsLetter(character))
+                {
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' is outside the current date/time subset.");
+                }
+
+                result.Append(character);
+                index++;
+                continue;
+            }
+
+            var count = CountToken(format, index, character);
+            switch (token)
+            {
+                case 'y':
+                    result.Append(count >= 4
+                        ? value.Year.ToString("D4", System.Globalization.CultureInfo.InvariantCulture)
+                        : count == 2
+                            ? value.Year.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)
+                            : value.DayOfYear.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'm' when inTime && count <= 2:
+                    result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'm' when count >= 4:
+                    result.Append(value.ToString("MMMM", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'm' when count == 3:
+                    result.Append(value.ToString("MMM", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'm':
+                    result.Append(value.Month.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'd' when count >= 4:
+                    result.Append(value.ToString("dddd", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'd' when count == 3:
+                    result.Append(value.ToString("ddd", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'd':
+                    result.Append(value.Day.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'h':
+                    inTime = true;
+                    var hour = hasAmPm ? value.Hour % 12 : value.Hour;
+                    if (hasAmPm && hour == 0)
+                    {
+                        hour = 12;
+                    }
+
+                    result.Append(hour.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'n':
+                    inTime = true;
+                    result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 's':
+                    inTime = true;
+                    result.Append(value.Second.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+            }
+
+            index += count;
+        }
+
+        return result.ToString();
+    }
+
+    private static int CountToken(string format, int start, char token)
+    {
+        var count = 1;
+        while (start + count < format.Length && format[start + count] == token)
+        {
+            count++;
+        }
+
+        return count;
     }
 
     private static string FormatString(string value, string format) => format switch

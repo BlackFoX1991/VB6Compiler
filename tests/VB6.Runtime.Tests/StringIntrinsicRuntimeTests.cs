@@ -104,10 +104,19 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void FormatValue_FormatsSupportedDateAndTimeMasks()
+    {
+        Assert.AreEqual("2020-01-02", VBStrings.FormatValue(new VBDateValue(43832), "yyyy-mm-dd", 0, 0));
+        Assert.AreEqual("12:00:00", VBStrings.FormatValue(new VBDateValue(0.5), "hh:nn:ss", 0, 0));
+        Assert.AreEqual("Thursday, 02 January 2020", VBStrings.FormatValue(new VBDateValue(43832), "dddd, dd mmmm yyyy", 0, 0));
+        Assert.AreEqual("12:00 PM", VBStrings.FormatValue(new VBDateValue(0.5), "h:nn AM/PM", 0, 0));
+    }
+
+    [TestMethod]
     public void FormatValue_RejectsUnsupportedDateAndStringMasks()
     {
         Assert.ThrowsException<NotSupportedException>(() =>
-            VBStrings.FormatValue(new VBDateValue(45292), "yyyy-mm-dd", 0, 0));
+            VBStrings.FormatValue(new VBDateValue(45292), "ww", 0, 0));
         Assert.ThrowsException<NotSupportedException>(() =>
             VBStrings.FormatValue("abc", "@@@", 0, 0));
     }

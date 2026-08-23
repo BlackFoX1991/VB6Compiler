@@ -89,7 +89,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Klassen-Property-Targets in `With`-Blöcken | **6** | **0** | **0** | **6** | **37 von 40** |
 | `LBound`/`UBound` mit leeren Arrayklammern | **3** | **0** | **0** | **3** | **38 von 40** |
 | RichTextBox-Dateityp-Konstanten (`rtfRTF`, `rtfText`) | **2** | **0** | **0** | **2** | **38 von 40** |
-| `Format`/`Format$`-Subset für deterministische Zahlen- und Stringmasken | **2** | **0** | **0** | **2** | **38 von 40** |
+| `Format`/`Format$`-Subset für deterministische Zahlen-, Datums-/Zeit- und Stringmasken | **2** | **0** | **0** | **2** | **38 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -406,13 +406,16 @@ Konstanten verfügbar und respektieren weiterhin die Überschreibung durch Benut
 Damit entfällt die `rtfText`-Diagnose aus `CodeEdit.ctl`; der VISIA-Stand sinkt auf **2 semantische
 Fehler**, bei weiterhin **38 von 40** fehlerfreien Dateien. Die Suite umfasst nun **715 Tests**.
 
-`Format` und `Format$` sind nun als Intrinsics bis zum Managed-Backend verdrahtet. Der erste
+`Format` und `Format$` sind nun als Intrinsics bis zum Managed-Backend verdrahtet. Der
 deterministische Teilumfang formatiert numerische Masken mit `0`, `#`, Gruppierung, Dezimalstellen,
 Prozent und Abschnitten sowie die Standardnamen `General Number`, `Currency`, `Fixed`, `Standard`,
-`Percent` und `Scientific`; bei Strings sind die `<`- und `>`-Fallmasken abgedeckt. Datums-/Zeitmasken,
-Locale-Auswahl und weitere String-Platzhalter bleiben bewusst offen, statt über eine unklare
-Annäherung als kompatibel zu gelten. Der VISIA-Stand bleibt unverändert bei **2 semantischen Fehlern**
-und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **719 Tests**.
+`Percent` und `Scientific`; bei Strings sind die `<`- und `>`-Fallmasken abgedeckt. Für
+`VBDateValue` kommen die gebräuchlichen Jahres-, Monats-, Tages-, Stunden-, Minuten-, Sekunden-
+und `AM/PM`-Token sowie die Standardnamen `General Date`, `Short Date`, `Long Date`, `Short Time`
+und `Long Time` hinzu. Wochenmasken, Locale-Auswahl und weitere String-Platzhalter bleiben bewusst
+offen, statt über eine unklare Annäherung als kompatibel zu gelten. Der VISIA-Stand bleibt
+unverändert bei **2 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst
+nun **720 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
@@ -915,9 +918,9 @@ Nach Korpusbedarf priorisiert:
 4. Math: `Abs`, `Sgn`, `Fix`, `Round` und `Sqr` sind als erster Scalar-Slice ergänzt; weitere
    Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
    für den aktuellen String-/Variant-Subset implementiert.
-5. [~] `Format$` — deterministische numerische Masken, Standardnamen und `<`/`>`-Stringmasken sind
-   ergänzt; Datums-/Zeitmasken, Locale-Auswahl, weitere String-Platzhalter und Finanzfunktionen
-   bleiben offen und sind im Korpus unbenutzt
+5. [~] `Format$` — deterministische numerische Masken, Standardnamen, gängige Datums-/Zeit-Token
+   und `<`/`>`-Stringmasken sind ergänzt; Wochenmasken, Locale-Auswahl, weitere String-Platzhalter
+   und Finanzfunktionen bleiben offen und sind im Korpus unbenutzt
 
 ## Meilenstein 8 — Interop
 

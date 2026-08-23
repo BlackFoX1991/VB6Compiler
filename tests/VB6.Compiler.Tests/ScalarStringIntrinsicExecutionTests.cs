@@ -46,11 +46,13 @@ public sealed class ScalarStringIntrinsicExecutionTests
                 Debug.Print Format$(5, "0.00%")
                 Debug.Print Format$("HELLO", "<")
                 Debug.Print Format$("hello", ">")
+                Debug.Print Format$(CDate(43832), "yyyy-mm-dd")
+                Debug.Print Format$(CDate(0.5), "hh:nn:ss")
             End Sub
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "5,459.40", "500.00%", "hello", "HELLO" },
+            new[] { "5,459.40", "500.00%", "hello", "HELLO", "2020-01-02", "12:00:00" },
             VB6TestProgram.SplitLines(output),
             output);
     }
