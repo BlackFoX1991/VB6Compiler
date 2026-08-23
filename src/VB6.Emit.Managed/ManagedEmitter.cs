@@ -2334,6 +2334,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.DateTimeAdd) return Static(typeof(VBDateTime), "DateAdd", typeof(string), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.DateTimeDiff) return Static(typeof(VBDateTime), "DateDiff", typeof(string), typeof(double), typeof(double), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.DateTimePart) return Static(typeof(VBDateTime), "DatePart", typeof(string), typeof(double), typeof(int), typeof(int));
+            if (m == IrRuntimeMethod.DateTimeWeekday) return Static(typeof(VBDateTime), "Weekday", typeof(double), typeof(int));
+            if (m == IrRuntimeMethod.DateTimeWeekdayName) return Static(typeof(VBDateTime), "WeekdayName", typeof(int), typeof(bool), typeof(int));
+            if (m == IrRuntimeMethod.DateTimeMonthName) return Static(typeof(VBDateTime), "MonthName", typeof(int), typeof(bool));
             if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
             if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));
             if (m == IrRuntimeMethod.ErrorSource) return Static(typeof(VBErrors), nameof(VBErrors.SourceValue));
