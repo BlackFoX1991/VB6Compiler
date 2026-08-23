@@ -588,8 +588,8 @@ Signaturen als LLVM-`declare`-Verträge ausgegeben und von generiertem Code aufg
 ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben. Currency-Literale
 werden als skalierte `i64`-Slots mit vier Nachkommastellen emittiert. Sichere skalare
 Konversionen wie native Integer-Erweiterungen, Integer-zu-Floating und Bool-Tests werden
-direkt emittiert; geprüfte/rundende Verengungen, geprüfte Integer-/Currency-Arithmetik,
-Currency-Multiplikationsskalierung und komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen
+direkt emittiert; geprüfte/rundende Verengungen, Currency-Multiplikationsskalierung und komplexe
+Variant-/String-/Objekt-/ByRef-Werte und Klassen
 bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
@@ -598,6 +598,9 @@ i64-Helper mit expliziten Guards für den Divisor `0` und signedem `MinValue / -
 Operationen ausgegeben; die Guard-Pfade trapen definiert, bis der native `Err`-/`On Error`-ABI
 für wiederaufnehmbare Fehler festgelegt ist. Single-Arithmetik und -Negation sowie Single-/Double-
 Division verwenden nun trap-guarded LLVM-Helper für Single-Overflow und Division durch `0`.
+Integer-Addieren/-Subtrahieren/-Multiplizieren und Currency-Addieren/-Subtrahieren/-Negieren
+verwenden nun Overflow-Intrinsics mit expliziten Zielbreiten-Guards; Currency-Multiplikation bleibt
+wegen der skalierten, gerundeten Zwischenrechnung offen.
 
 Der Missing-Variant-Slice ist nun ebenfalls geschlossen: ausgelassene `Optional Variant`-Argumente
 bleiben fuer `IsMissing` erkennbar, erscheinen ueber `TypeName` als `Error`, loesen bei expliziten
@@ -1149,7 +1152,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
-- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards sowie trap-geschützte Single-Arithmetik/-Negation und Single-/Double-Division sind ergänzt, aber geprüfte/rundende Konversionen, geprüfte Integer-/Currency-Arithmetik, Currency-Multiplikationsskalierung, der native `Err`-/`On Error`-ABI sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
+- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards, trap-geschützte Single-Arithmetik/-Negation und Single-/Double-Division sowie checked Integer-Add/Subtract/Multiply und Currency-Add/Subtract/Negate sind ergänzt, aber geprüfte/rundende Konversionen, Currency-Multiplikationsskalierung, der native `Err`-/`On Error`-ABI sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen

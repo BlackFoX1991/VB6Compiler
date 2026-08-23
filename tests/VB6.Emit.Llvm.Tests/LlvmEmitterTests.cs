@@ -263,7 +263,7 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedIntegerArithmetic()
+    public void Emit_LowersCheckedIntegerArithmetic()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.AddLong,
@@ -280,20 +280,49 @@ public sealed class LlvmEmitterTests
             ImmutableArray.Create(new IrBasicBlock(
                 0,
                 "entry",
-                ImmutableArray<IrInstruction>.Empty,
+                ImmutableArray.Create<IrInstruction>(
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.SubtractLong,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(4, TypeSymbol.Long)),
+                            new IrCallArgument(new IrConstantExpression(2, TypeSymbol.Long))),
+                        TypeSymbol.Long)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.MultiplyLong,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(3, TypeSymbol.Long)),
+                            new IrCallArgument(new IrConstantExpression(2, TypeSymbol.Long))),
+                        TypeSymbol.Long)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.AddUShort,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(3, TypeSymbol.UShort)),
+                            new IrCallArgument(new IrConstantExpression(2, TypeSymbol.UShort))),
+                        TypeSymbol.UShort)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.NegateUShort,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(0, TypeSymbol.UShort))),
+                        TypeSymbol.UShort))),
                 new IrReturnTerminator(expression))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked integer or Currency addition runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("add i32", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sadd_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_ssub_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_smul_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_uadd_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_uneg_checked_i64");
+        StringAssert.Contains(result.ModuleText, "@llvm.sadd.with.overflow.i64");
+        StringAssert.Contains(result.ModuleText, "@llvm.umul.with.overflow.i64");
+        StringAssert.Contains(result.ModuleText, "i64 -2147483648, i64 2147483647");
+        StringAssert.Contains(result.ModuleText, "i64 0, i64 65535");
+        StringAssert.Contains(result.ModuleText, "trunc i64 %t");
     }
 
     [TestMethod]
-    public void Emit_DiagnosesCheckedCurrencyNegation()
+    public void Emit_LowersCheckedCurrencyArithmetic()
     {
         var expression = new IrRuntimeCallExpression(
             IrRuntimeMethod.NegateCurrency,
@@ -309,16 +338,28 @@ public sealed class LlvmEmitterTests
             ImmutableArray.Create(new IrBasicBlock(
                 0,
                 "entry",
-                ImmutableArray<IrInstruction>.Empty,
+                ImmutableArray.Create<IrInstruction>(
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.AddCurrency,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(1m, TypeSymbol.Currency)),
+                            new IrCallArgument(new IrConstantExpression(2m, TypeSymbol.Currency))),
+                        TypeSymbol.Currency)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.SubtractCurrency,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(3m, TypeSymbol.Currency)),
+                            new IrCallArgument(new IrConstantExpression(1m, TypeSymbol.Currency))),
+                        TypeSymbol.Currency))),
                 new IrReturnTerminator(expression))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsFalse(result.Success);
-        StringAssert.Contains(
-            string.Join(Environment.NewLine, result.Diagnostics),
-            "requires checked integer or Currency negation runtime semantics");
-        Assert.IsFalse(result.ModuleText.Contains("sub i64", StringComparison.Ordinal));
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sadd_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_ssub_checked_i64");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sneg_checked_i64");
+        StringAssert.Contains(result.ModuleText, "i64 -9223372036854775808, i64 9223372036854775807");
     }
 
     [TestMethod]

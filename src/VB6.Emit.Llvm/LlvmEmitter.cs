@@ -81,11 +81,25 @@ public sealed class LlvmEmitter
     private static void EmitCheckedIntegerHelpers(StringBuilder builder)
     {
         builder.AppendLine("declare void @llvm.trap()");
+        builder.AppendLine("declare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)");
+        builder.AppendLine("declare { i64, i1 } @llvm.ssub.with.overflow.i64(i64, i64)");
+        builder.AppendLine("declare { i64, i1 } @llvm.smul.with.overflow.i64(i64, i64)");
+        builder.AppendLine("declare { i64, i1 } @llvm.uadd.with.overflow.i64(i64, i64)");
+        builder.AppendLine("declare { i64, i1 } @llvm.usub.with.overflow.i64(i64, i64)");
+        builder.AppendLine("declare { i64, i1 } @llvm.umul.with.overflow.i64(i64, i64)");
         builder.AppendLine();
         EmitCheckedIntegerHelper(builder, "__vb6_sdiv_checked_i64", "sdiv", checkSignedOverflow: true);
         EmitCheckedIntegerHelper(builder, "__vb6_srem_checked_i64", "srem", checkSignedOverflow: false);
         EmitCheckedIntegerHelper(builder, "__vb6_udiv_checked_i64", "udiv", checkSignedOverflow: false);
         EmitCheckedIntegerHelper(builder, "__vb6_urem_checked_i64", "urem", checkSignedOverflow: false);
+        EmitCheckedIntegerArithmeticHelper(builder, "__vb6_sadd_checked_i64", "sadd");
+        EmitCheckedIntegerArithmeticHelper(builder, "__vb6_ssub_checked_i64", "ssub");
+        EmitCheckedIntegerArithmeticHelper(builder, "__vb6_smul_checked_i64", "smul");
+        EmitCheckedIntegerArithmeticHelper(builder, "__vb6_uadd_checked_i64", "uadd");
+        EmitCheckedIntegerArithmeticHelper(builder, "__vb6_usub_checked_i64", "usub");
+        EmitCheckedIntegerArithmeticHelper(builder, "__vb6_umul_checked_i64", "umul");
+        EmitCheckedIntegerNegationHelper(builder, "__vb6_sneg_checked_i64", signed: true);
+        EmitCheckedIntegerNegationHelper(builder, "__vb6_uneg_checked_i64", signed: false);
     }
 
     private static void EmitCheckedIntegerHelper(
@@ -120,6 +134,64 @@ public sealed class LlvmEmitter
 
         builder.AppendLine("divide:");
         builder.Append("  %result = ").Append(operation).AppendLine(" i64 %left, %right");
+        builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedIntegerArithmeticHelper(
+        StringBuilder builder,
+        string name,
+        string operation)
+    {
+        var signed = operation[0] == 's';
+        var intrinsic = $"llvm.{operation}.with.overflow.i64";
+        var comparisonPrefix = signed ? "s" : "u";
+        builder.Append("define i64 @").Append(name)
+            .AppendLine("(i64 %left, i64 %right, i64 %min_value, i64 %max_value) {");
+        builder.AppendLine("entry:");
+        builder.Append("  %pair = call { i64, i1 } @").Append(intrinsic)
+            .AppendLine("(i64 %left, i64 %right)");
+        builder.AppendLine("  %result = extractvalue { i64, i1 } %pair, 0");
+        builder.AppendLine("  %intrinsic_overflow = extractvalue { i64, i1 } %pair, 1");
+        builder.Append("  %too_low = icmp ").Append(comparisonPrefix).AppendLine("lt i64 %result, %min_value");
+        builder.Append("  %too_high = icmp ").Append(comparisonPrefix).AppendLine("gt i64 %result, %max_value");
+        builder.AppendLine("  %range_overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  %overflow = or i1 %intrinsic_overflow, %range_overflow");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %done");
+        builder.AppendLine("done:");
+        builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedIntegerNegationHelper(
+        StringBuilder builder,
+        string name,
+        bool signed)
+    {
+        var operation = signed ? "ssub" : "usub";
+        var intrinsic = $"llvm.{operation}.with.overflow.i64";
+        var comparisonPrefix = signed ? "s" : "u";
+        builder.Append("define i64 @").Append(name)
+            .AppendLine("(i64 %value, i64 %min_value, i64 %max_value) {");
+        builder.AppendLine("entry:");
+        builder.Append("  %pair = call { i64, i1 } @").Append(intrinsic)
+            .AppendLine("(i64 0, i64 %value)");
+        builder.AppendLine("  %result = extractvalue { i64, i1 } %pair, 0");
+        builder.AppendLine("  %intrinsic_overflow = extractvalue { i64, i1 } %pair, 1");
+        builder.Append("  %too_low = icmp ").Append(comparisonPrefix).AppendLine("lt i64 %result, %min_value");
+        builder.Append("  %too_high = icmp ").Append(comparisonPrefix).AppendLine("gt i64 %result, %max_value");
+        builder.AppendLine("  %range_overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  %overflow = or i1 %intrinsic_overflow, %range_overflow");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %done");
+        builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
@@ -613,6 +685,11 @@ public sealed class LlvmEmitter
                     methodName.StartsWith("Subtract", StringComparison.Ordinal) ? "sub" : "mul";
                 if (!IsFloating(arguments))
                 {
+                    if (TryGetCheckedIntegerShape(runtime.ResultType, _architecture, out _, out _))
+                    {
+                        return EmitCheckedIntegerArithmetic(methodName, runtime.ResultType, arguments);
+                    }
+
                     var arithmetic = operation switch
                     {
                         "add" => "integer or Currency addition",
@@ -648,6 +725,11 @@ public sealed class LlvmEmitter
             {
                 if (!IsFloating(arguments))
                 {
+                    if (TryGetCheckedIntegerShape(runtime.ResultType, _architecture, out _, out _))
+                    {
+                        return EmitCheckedIntegerArithmetic(methodName, runtime.ResultType, arguments);
+                    }
+
                     return RejectCheckedOperation(
                         methodName,
                         runtime.ResultType,
@@ -767,6 +849,78 @@ public sealed class LlvmEmitter
             return new NativeValue(resultType, llvmType, call);
         }
 
+        private NativeValue EmitCheckedIntegerArithmetic(
+            string methodName,
+            TypeSymbol resultType,
+            NativeValue[] arguments)
+        {
+            var unary = methodName.StartsWith("Negate", StringComparison.Ordinal);
+            var expectedArgumentCount = unary ? 1 : 2;
+            if (arguments.Length != expectedArgumentCount)
+            {
+                AddDiagnostic(
+                    "VB6L0004",
+                    $"LLVM checked integer operation '{methodName}' requires {expectedArgumentCount} operand(s).");
+                return ZeroValue(resultType);
+            }
+
+            if (!TryGetCheckedIntegerShape(resultType, _architecture, out var bits, out var unsigned) ||
+                !TryGetLlvmType(resultType, _architecture, out var resultLlvmType))
+            {
+                AddDiagnostic("VB6L0004", $"LLVM checked integer operation '{methodName}' has an unsupported result type.");
+                return ZeroValue(resultType);
+            }
+
+            foreach (var argument in arguments)
+            {
+                if (!TryGetCheckedIntegerShape(argument.SemanticType, _architecture, out var argumentBits, out var argumentUnsigned) ||
+                    argumentBits != bits ||
+                    argumentUnsigned != unsigned ||
+                    argument.LlvmType != resultLlvmType)
+                {
+                    AddDiagnostic(
+                        "VB6L0004",
+                        $"LLVM checked integer operation '{methodName}' requires matching integer or Currency operands and result types.");
+                    return ZeroValue(resultType);
+                }
+            }
+
+            var helperName = unary
+                ? unsigned ? "__vb6_uneg_checked_i64" : "__vb6_sneg_checked_i64"
+                : methodName.StartsWith("Add", StringComparison.Ordinal)
+                    ? unsigned ? "__vb6_uadd_checked_i64" : "__vb6_sadd_checked_i64"
+                    : methodName.StartsWith("Subtract", StringComparison.Ordinal)
+                        ? unsigned ? "__vb6_usub_checked_i64" : "__vb6_ssub_checked_i64"
+                        : unsigned ? "__vb6_umul_checked_i64" : "__vb6_smul_checked_i64";
+            var left = ExtendIntegerToHelperWidth(arguments[0], unsigned);
+            var right = unary ? string.Empty : ExtendIntegerToHelperWidth(arguments[1], unsigned);
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call i64 @").Append(helperName).Append('(');
+            if (unary)
+            {
+                _builder.Append("i64 ").Append(left);
+            }
+            else
+            {
+                _builder.Append("i64 ").Append(left)
+                    .Append(", i64 ").Append(right);
+            }
+
+            _builder.Append(", i64 ").Append(unsigned ? "0" : SignedMinimumLiteral(bits))
+                .Append(", i64 ").Append(unsigned ? UnsignedMaximumLiteral(bits) : SignedMaximumLiteral(bits))
+                .AppendLine(")");
+
+            if (resultLlvmType == "i64")
+            {
+                return new NativeValue(resultType, resultLlvmType, call);
+            }
+
+            var narrowed = NextTemporary();
+            _builder.Append("  ").Append(narrowed).Append(" = trunc i64 ").Append(call)
+                .Append(" to ").AppendLine(resultLlvmType);
+            return new NativeValue(resultType, resultLlvmType, narrowed);
+        }
+
         private NativeValue EmitIntegerDivision(
             TypeSymbol resultType,
             NativeValue[] arguments,
@@ -822,6 +976,24 @@ public sealed class LlvmEmitter
             16 => "-32768",
             32 => "-2147483648",
             64 => "-9223372036854775808",
+            _ => throw new ArgumentOutOfRangeException(nameof(bits))
+        };
+
+        private static string SignedMaximumLiteral(int bits) => bits switch
+        {
+            8 => "127",
+            16 => "32767",
+            32 => "2147483647",
+            64 => "9223372036854775807",
+            _ => throw new ArgumentOutOfRangeException(nameof(bits))
+        };
+
+        private static string UnsignedMaximumLiteral(int bits) => bits switch
+        {
+            8 => "255",
+            16 => "65535",
+            32 => "4294967295",
+            64 => "-1",
             _ => throw new ArgumentOutOfRangeException(nameof(bits))
         };
 
@@ -1128,6 +1300,22 @@ public sealed class LlvmEmitter
             bits = 0;
             unsigned = false;
             return false;
+        }
+
+        private static bool TryGetCheckedIntegerShape(
+            TypeSymbol type,
+            LlvmArchitecture architecture,
+            out int bits,
+            out bool unsigned)
+        {
+            if (type == TypeSymbol.Currency)
+            {
+                bits = 64;
+                unsigned = false;
+                return true;
+            }
+
+            return TryGetIntegerShape(type, architecture, out bits, out unsigned);
         }
 
         private NativeValue EmitProcedureCall(IrProcedureCallExpression call)
