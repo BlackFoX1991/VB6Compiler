@@ -21,7 +21,7 @@ public static class VBDesignerParser
         var propertyGroups = new Stack<PropertyGroupFrame>();
         NodeBuilder? root = null;
         var sawDesignerHeader = false;
-        var sawBegin = false;
+        var sawDesignerBlock = false;
         var lineNumber = 0;
 
         using var reader = new StringReader(source);
@@ -72,6 +72,11 @@ public static class VBDesignerParser
             {
                 if (propertyGroups.Count == 0)
                 {
+                    if (!sawDesignerBlock)
+                    {
+                        continue;
+                    }
+
                     diagnostics.Add(new VBDesignerDiagnostic(
                         "VB6FRM0003",
                         "EndProperty does not match a BeginProperty block.",
@@ -88,7 +93,6 @@ public static class VBDesignerParser
 
             if (trimmed.StartsWith("Begin ", StringComparison.OrdinalIgnoreCase))
             {
-                sawBegin = true;
                 if (!TryParseBegin(trimmed["Begin ".Length..], out var typeName, out var name))
                 {
                     diagnostics.Add(new VBDesignerDiagnostic(
@@ -98,6 +102,8 @@ public static class VBDesignerParser
                         lineNumber));
                     continue;
                 }
+
+                sawDesignerBlock = true;
 
                 var builder = new NodeBuilder(typeName, name, lineNumber);
                 if (nodes.Count == 0)
@@ -126,6 +132,13 @@ public static class VBDesignerParser
 
             if (trimmed.Equals("End", StringComparison.OrdinalIgnoreCase))
             {
+                if (!sawDesignerBlock && nodes.Count == 0 && propertyGroups.Count == 0)
+                {
+                    // VB6 .cls metadata uses a standalone BEGIN/END block. It is not a form
+                    // designer object and must remain untouched for the source normalizer.
+                    continue;
+                }
+
                 if (propertyGroups.Count > 0)
                 {
                     diagnostics.Add(new VBDesignerDiagnostic(
@@ -199,7 +212,7 @@ public static class VBDesignerParser
             }
         }
 
-        if (sawDesignerHeader && sawBegin && root is null)
+        if (sawDesignerHeader && sawDesignerBlock && root is null)
         {
             diagnostics.Add(new VBDesignerDiagnostic(
                 "VB6FRM0010",
