@@ -1061,7 +1061,21 @@ public sealed class Binder
             {
                 if (erase.MemberDotToken is not null)
                 {
-                    ReportObjectModelGap("Erasing a member array", erase.MemberDotToken.Span);
+                    if (!erase.Identifiers.IsDefaultOrEmpty)
+                    {
+                        var memberSyntax = new MemberAccessExpressionSyntax(
+                            new WithReceiverExpressionSyntax(),
+                            erase.MemberDotToken,
+                            erase.Identifiers[0]);
+                        var memberTarget = BindMemberAccess(memberSyntax, variables, procedures);
+                        if (memberTarget.Type != TypeSymbol.Error)
+                        {
+                            bound.Add(WithLocation(
+                                BindErase(memberTarget, erase.Identifiers[0]),
+                                statement));
+                        }
+                    }
+
                     continue;
                 }
 
@@ -1845,37 +1859,49 @@ public sealed class Binder
                 $"Variable '{identifier.Text}' is not declared.",
                 identifier.Span);
             variable = new LocalVariableSymbol(identifier.Text, TypeSymbol.Error);
-            return new BoundEraseStatement(variable, Deallocate: false);
+            return new BoundEraseStatement(new BoundVariableExpression(variable), Deallocate: false);
         }
 
-        if (variable.Type is not ArrayTypeSymbol arrayType)
+        return BindErase(new BoundVariableExpression(variable), identifier);
+    }
+
+    private BoundEraseStatement BindErase(BoundExpression target, SyntaxToken anchor)
+    {
+        var targetName = target switch
+        {
+            BoundVariableExpression variable => variable.Variable.Name,
+            BoundMemberAccessExpression member => member.Member.Name,
+            _ => "expression"
+        };
+
+        if (target.Type is not ArrayTypeSymbol arrayType)
         {
             Report(
                 "VB6S0033",
-                $"Erase target '{identifier.Text}' is not an array.",
-                identifier.Span);
-            return new BoundEraseStatement(variable, Deallocate: false);
+                $"Erase target '{targetName}' is not an array.",
+                anchor.Span);
+            return new BoundEraseStatement(target, Deallocate: false);
         }
 
-        if (variable is ParameterSymbol { IsParamArray: true })
+        if (target is BoundVariableExpression { Variable: ParameterSymbol { IsParamArray: true } parameter })
         {
             Report(
                 "VB6S0066",
-                $"Erase cannot be used with ParamArray parameter '{identifier.Text}'.",
-                identifier.Span);
-            return new BoundEraseStatement(variable, Deallocate: false);
+                $"Erase cannot be used with ParamArray parameter '{parameter.Name}'.",
+                anchor.Span);
+            return new BoundEraseStatement(target, Deallocate: false);
         }
 
-        if (variable is ParameterSymbol)
+        if (target is BoundVariableExpression { Variable: ParameterSymbol parameterVariable })
         {
             Report(
                 "VB6S0036",
-                $"Erase on array parameter '{identifier.Text}' requires caller allocation semantics, which are not implemented yet.",
-                identifier.Span);
-            return new BoundEraseStatement(variable, Deallocate: false);
+                $"Erase on array parameter '{parameterVariable.Name}' requires caller allocation semantics, which are not implemented yet.",
+                anchor.Span);
+            return new BoundEraseStatement(target, Deallocate: false);
         }
 
-        return new BoundEraseStatement(variable, Deallocate: !arrayType.HasKnownRank);
+        return new BoundEraseStatement(target, Deallocate: !arrayType.HasKnownRank);
     }
 
     private BoundStatement BindAssignment(
