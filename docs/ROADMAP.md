@@ -69,6 +69,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Implizite Form-/UserControl-Host-Properties | **205** | **0** | **0** | **205** | **27 von 40** |
 | Qualifizierte Enum-Memberauflösung | **258** | **0** | **0** | **258** | **23 von 40** |
 | Modulkonstanten mit projektweiten Enum-Symbolen | **202** | **0** | **0** | **202** | **27 von 40** |
+| Externe VB6-/Win32-Konstantenverträge | **172** | **0** | **0** | **172** | **27 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -256,6 +257,12 @@ Symbole und zuvor deklarierte Modulvariablen. Dadurch können beispielsweise Enu
 typisierten Modulkonstanten verwendet werden, ohne die Duplikatprüfung eigener Deklarationen zu
 umgehen. Der VISIA-Stand sinkt um **3** auf **202 semantische Fehler**, bei weiterhin **27 von 40**
 fehlerfreien Dateien; die Suite umfasst **682 Tests**.
+
+Der projektweite Konstantenvertrag enthält nun auch die nachgewiesenen externen Werte für
+TreeView-Kindknoten, Win32-Rahmenflags, `vbGrayText` und `vbSrcCopy`. Die Konstanten bleiben
+typisierte Long-Werte und können weiterhin durch eigene Moduldeklarationen überschattet werden.
+Dadurch sinkt der VISIA-Stand um **30** auf **172 semantische Fehler**, bei weiterhin **27 von 40**
+fehlerfreien Dateien; die Suite umfasst **683 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
