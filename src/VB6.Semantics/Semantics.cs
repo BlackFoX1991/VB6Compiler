@@ -341,6 +341,7 @@ public enum BoundNodeKind
     DoStatement,
     ExitLoopStatement,
     ReturnStatement,
+    EndStatement,
     SelectCaseStatement,
     DebugPrintStatement,
     GraphicsLineStatement,
@@ -469,6 +470,9 @@ public sealed record BoundExitLoopStatement(
 
 public sealed record BoundReturnStatement()
     : BoundStatement(BoundNodeKind.ReturnStatement);
+
+public sealed record BoundEndStatement()
+    : BoundStatement(BoundNodeKind.EndStatement);
 
 public abstract record BoundCaseClause;
 

@@ -408,6 +408,7 @@ public enum IrRuntimeMethod
 
     DebugPrint,
     GraphicsLine,
+    EndProgram,
 
     StringLen,
     StringMid,

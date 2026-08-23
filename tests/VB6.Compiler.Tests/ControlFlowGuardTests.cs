@@ -42,6 +42,34 @@ public sealed class ControlFlowGuardTests
     }
 
     [TestMethod]
+    public void Lower_UsesEndProgramHostContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                End
+            End Sub
+            """);
+
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.EndProgram);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_EndTerminatesAfterPriorStatements()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Debug.Print "before"
+                End
+                Debug.Print "after"
+            End Sub
+            """);
+
+        Assert.AreEqual("before", output.Trim());
+    }
+
+    [TestMethod]
     public void Analyze_AcceptsResumeLabelInAnErrorHandler()
     {
         var analysis = VBCompilation.Create("""

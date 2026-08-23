@@ -74,6 +74,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Externe Control-/COM-Typaliase und TreeView-Node-Vertrag | **134** | **0** | **0** | **134** | **27 von 40** |
 | Graphics-`Line`-Runtimevertrag | **120** | **0** | **0** | **120** | **27 von 40** |
 | Verschachtelte Label-/`GoTo`-Auflösung | **80** | **0** | **0** | **80** | **31 von 40** |
+| `End`-Prozessbeendigungsvertrag | **77** | **0** | **0** | **77** | **31 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -294,7 +295,13 @@ Die Labelauflösung ist nun prozedurweit statt nur auf der äußersten Statement
 werden auch Sprünge in Labels innerhalb von `If`, Schleifen und `Select Case` als IR-Basic-Block-
 Ziele gebunden und im Managed-Backend ausgeführt. Die 40 bisherigen Label-/`GoTo`-Diagnosen
 entfallen; der VISIA-Stand sinkt auf **80 semantische Fehler** bei **31 von 40** fehlerfreien
-Dateien. Die noch offene Kontrollflussdiagnose betrifft ausschließlich `End`.
+Dateien.
+
+`End` wird nun als host-neutraler `EndProgram`-Runtimevertrag gebunden und im Managed-Backend
+prozessweit beendet. IDE- und Test-Hosts können den Vorgang über `EndProgramSink` übernehmen.
+Damit sind die drei verbliebenen `End`-Diagnosen entfernt: Der VISIA-Stand beträgt **77
+semantische Fehler** bei weiterhin **31 von 40** fehlerfreien Dateien; die Suite umfasst **691
+Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
