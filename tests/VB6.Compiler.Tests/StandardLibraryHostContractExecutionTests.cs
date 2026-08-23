@@ -43,6 +43,9 @@ public sealed class StandardLibraryHostContractExecutionTests
                 Set bag = Nothing
                 Call bag.WriteProperty("Caption", "value")
                 Debug.Print bag.ReadProperty("Caption", "fallback")
+                Debug.Print Command()
+                Debug.Print Command$
+                Debug.Print StrPtr("value")
             End Sub
             """).Analyze();
 

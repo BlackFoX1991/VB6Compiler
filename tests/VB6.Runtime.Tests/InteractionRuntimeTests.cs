@@ -32,4 +32,10 @@ public sealed class InteractionRuntimeTests
         bag.WriteProperty("Name", "value");
         Assert.AreEqual("value", bag.ReadProperty("name", "fallback"));
     }
+
+    [TestMethod]
+    public void Command_ReturnsEmptyValueInHeadlessRuntime()
+    {
+        Assert.AreEqual(string.Empty, VBInteraction.Command());
+    }
 }
