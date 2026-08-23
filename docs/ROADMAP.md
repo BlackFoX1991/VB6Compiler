@@ -583,7 +583,9 @@ Der native LLVM-Emitter trägt nun den ersten ausgabefähigen Skalar-Slice: `Byt
 `Currency` und `Boolean` werden mit x86-/x64-breiten Typen, lokalen und Parameter-Slots,
 arithmetischen/vergleichenden Runtime-Operationen, Returns und Basic-Block-Verzweigungen als
 LLVM-Text emittiert. Komplexe Variant-/String-/Objektwerte, ByRef-ABI, Globals und Klassen bleiben
-explizit diagnostiziert. Die Suite umfasst nun **785 Tests**.
+explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
+`.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
+**785 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
