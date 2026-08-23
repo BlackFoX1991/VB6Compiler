@@ -313,6 +313,7 @@ public enum IrRuntimeMethod
     CDbl,
     CBool,
     CStr,
+    CVar,
     CVErr,
 
     AddByte,
@@ -481,6 +482,7 @@ public enum IrRuntimeMethod
     StringAsc,
     StringVal,
     StringHex,
+    StringOct,
     StringRepeat,
     StringFormat,
     StringIsNumeric,

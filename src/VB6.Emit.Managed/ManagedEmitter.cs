@@ -2364,6 +2364,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CDbl) return Static(typeof(VBConversions), "CDbl", typeof(object));
             if (m == IrRuntimeMethod.CBool) return Static(typeof(VBConversions), "CBool", typeof(object));
             if (m == IrRuntimeMethod.CStr) return Static(typeof(VBConversions), "CStr", typeof(object));
+            if (m == IrRuntimeMethod.CVar) return Static(typeof(VBConversions), "CVar", typeof(object));
             if (m == IrRuntimeMethod.CVErr) return Static(typeof(VBConversions), "CVErr", typeof(object));
             if (m == IrRuntimeMethod.VariantToBoolean) return Static(typeof(VBVariants), "ToBoolean", typeof(object));
             if (m == IrRuntimeMethod.StringLike) return Static(typeof(VBStrings), nameof(VBStrings.Like), typeof(object), typeof(object), typeof(bool));
@@ -2494,6 +2495,7 @@ public sealed class ManagedEmitter
                 if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim" or "Asc") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
+                if (name == "Oct") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
                 if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int));
                 if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object));

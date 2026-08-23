@@ -260,6 +260,20 @@ public static class VBStrings
             : number.ToString("X", System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Formats a VB6 numeric value as an uppercase octal Variant string.</summary>
+    public static object? Oct(object? value)
+    {
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        var number = VBConversions.CLng(value ?? 0);
+        return number < 0
+            ? Convert.ToString(unchecked((long)(uint)number), 8)
+            : Convert.ToString(number, 8);
+    }
+
     /// <summary>Creates a repeated-character string for the VB6 String intrinsic.</summary>
     public static string String(int number, object? character)
     {

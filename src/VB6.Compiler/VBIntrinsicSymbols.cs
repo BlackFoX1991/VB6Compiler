@@ -44,6 +44,7 @@ internal static class VBIntrinsicSymbols
         Function("Asc", VBIntrinsicKind.Asc, "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),
         Function("Hex", VBIntrinsicKind.Hex, "VBStrings.Hex", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
+        Function("Oct", VBIntrinsicKind.Oct, "VBStrings.Oct", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
         Function("String", VBIntrinsicKind.String, "VBStrings.String", TypeSymbol.String, Parameter("Number", TypeSymbol.Long), Parameter("Character", TypeSymbol.Variant)),
         Function(
             "Format",
@@ -358,6 +359,7 @@ internal static class VBIntrinsicSymbols
         Function("CDbl", VBIntrinsicKind.CDbl, "VBConversions.CDbl", TypeSymbol.Double, Parameter("Expression", TypeSymbol.Variant)),
         Function("CBool", VBIntrinsicKind.CBool, "VBConversions.CBool", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("CStr", VBIntrinsicKind.CStr, "VBConversions.CStr", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CVar", VBIntrinsicKind.CVar, "VBConversions.CVar", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)),
         Function("CVErr", VBIntrinsicKind.CVErr, "VBConversions.CVErr", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)));
 
     private static readonly ImmutableArray<ProcedureSymbol> HostIntrinsics = ImmutableArray.Create(
