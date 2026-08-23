@@ -45,6 +45,22 @@ public sealed class ArrayLibraryExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UBoundAcceptsArrayNameWithEmptyParentheses()
+    {
+        const string source = """
+            Sub Main()
+                Dim values() As Long
+                ReDim values(4 To 6)
+                Debug.Print UBound(values())
+            End Sub
+            """;
+
+        CollectionAssert.AreEqual(
+            new[] { "6" },
+            CompileAndRun(source));
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_EraseRestoresEmptyStringElements()
     {
         const string source = """

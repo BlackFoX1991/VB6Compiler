@@ -87,6 +87,24 @@ public sealed class ArrayLibraryBinderTests
     }
 
     [TestMethod]
+    public void Bind_UBoundAcceptsArrayNameWithEmptyParentheses()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim values() As Long
+                Debug.Print UBound(values())
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length, FormatDiagnostics(model));
+        var print = model.Procedures.Single().Body.Statements.OfType<BoundDebugPrintStatement>().Single();
+        var bound = print.Expression as BoundArrayBoundExpression;
+        Assert.IsNotNull(bound);
+        Assert.IsInstanceOfType<BoundVariableExpression>(bound.Array);
+        Assert.IsInstanceOfType<ArrayTypeSymbol>(bound.Array.Type);
+    }
+
+    [TestMethod]
     public void Bind_ArrayBoundsRejectScalarAndWrongArity()
     {
         var scalar = BindSource("""

@@ -87,6 +87,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `Err.Source`-Runtimevertrag | **15** | **0** | **0** | **15** | **34 von 40** |
 | `For Each` über Host-/Control-Sammlungen | **9** | **0** | **0** | **9** | **36 von 40** |
 | Klassen-Property-Targets in `With`-Blöcken | **6** | **0** | **0** | **6** | **37 von 40** |
+| `LBound`/`UBound` mit leeren Arrayklammern | **3** | **0** | **0** | **3** | **38 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -391,6 +392,12 @@ liefern. Die IR-Absenkung wertet den indizierten Property-Get einmal aus und bin
 Klassenverweis lokal, während UDT-Targets weiterhin über echte Adressen laufen. Damit entfallen die
 drei `With`-Diagnosen aus `GpTabs.ctl`; der VISIA-Stand sinkt auf **6 semantische Fehler**, bei
 **37 von 40** fehlerfreien Dateien. Die Suite umfasst nun **712 Tests**.
+
+`LBound` und `UBound` akzeptieren nun auch die VB6-Schreibweise mit leeren Arrayklammern, etwa
+`UBound(values())`. Der Binder bewahrt in diesem Kontext die Arrayreferenz, statt den Ausdruck als
+elementlosen Zugriff mit dem Elementtyp zu behandeln. Damit entfallen die drei `UBound`-Diagnosen
+aus `mcToolBar.ctl`; der VISIA-Stand sinkt auf **3 semantische Fehler**, bei **38 von 40**
+fehlerfreien Dateien. Die Suite umfasst nun **714 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
