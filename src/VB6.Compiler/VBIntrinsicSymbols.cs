@@ -22,6 +22,7 @@ internal static class VBIntrinsicSymbols
             Parameter("Start", TypeSymbol.Long),
             Parameter("Length", TypeSymbol.Long)) with { IntrinsicMinimumArguments = 2 },
         Function("Chr", VBIntrinsicKind.Chr, "VBStrings.Chr", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
+        Function("ChrW", VBIntrinsicKind.ChrW, "VBStrings.ChrW", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
         Function(
             "Left",
             VBIntrinsicKind.Left,
@@ -42,6 +43,7 @@ internal static class VBIntrinsicSymbols
         Function("LTrim", VBIntrinsicKind.LTrim, "VBStrings.LTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
         Function("RTrim", VBIntrinsicKind.RTrim, "VBStrings.RTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
         Function("Asc", VBIntrinsicKind.Asc, "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
+        Function("AscW", VBIntrinsicKind.AscW, "VBStrings.AscW", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.String)),
         Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),
         Function("Hex", VBIntrinsicKind.Hex, "VBStrings.Hex", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
         Function("Oct", VBIntrinsicKind.Oct, "VBStrings.Oct", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
