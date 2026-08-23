@@ -1131,6 +1131,33 @@ public sealed class LlvmEmitter
             _ => throw new ArgumentOutOfRangeException(nameof(bits))
         };
 
+        private static string SignedFloatingMinimumLiteral(int bits) => bits switch
+        {
+            8 => "-128.0",
+            16 => "-32768.0",
+            32 => "-2147483648.0",
+            64 => "-9223372036854775808.0",
+            _ => throw new ArgumentOutOfRangeException(nameof(bits))
+        };
+
+        private static string SignedFloatingMaximumLiteral(int bits) => bits switch
+        {
+            8 => "127.0",
+            16 => "32767.0",
+            32 => "2147483647.0",
+            64 => "9223372036854774784.0",
+            _ => throw new ArgumentOutOfRangeException(nameof(bits))
+        };
+
+        private static string UnsignedFloatingMaximumLiteral(int bits) => bits switch
+        {
+            8 => "255.0",
+            16 => "65535.0",
+            32 => "4294967295.0",
+            64 => "18446744073709549568.0",
+            _ => throw new ArgumentOutOfRangeException(nameof(bits))
+        };
+
         private string ExtendIntegerToHelperWidth(NativeValue value, bool unsigned)
         {
             if (value.LlvmType == "i64")
@@ -1187,7 +1214,7 @@ public sealed class LlvmEmitter
 
             if ((source.SemanticType == TypeSymbol.Single || source.SemanticType == TypeSymbol.Double) &&
                 TryGetIntegerShape(targetType, _architecture, out var floatingTargetBits, out var floatingTargetUnsigned) &&
-                floatingTargetBits <= 32)
+                floatingTargetBits <= 64)
             {
                 return EmitFloatingToIntegerConversion(
                     targetType,
@@ -1264,13 +1291,18 @@ public sealed class LlvmEmitter
             {
                 _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_fptoui_checked_i64(double ")
                     .Append(floatingValue).Append(", double ")
-                    .Append(UnsignedMaximumLiteral(targetBits)).AppendLine(".0)");
+                    .Append(UnsignedFloatingMaximumLiteral(targetBits)).AppendLine(")");
             }
             else
             {
                 _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_fptosi_checked_i64(double ")
-                    .Append(floatingValue).Append(", double ").Append(SignedMinimumLiteral(targetBits))
-                    .Append(".0, double ").Append(SignedMaximumLiteral(targetBits)).AppendLine(".0)");
+                    .Append(floatingValue).Append(", double ").Append(SignedFloatingMinimumLiteral(targetBits))
+                    .Append(", double ").Append(SignedFloatingMaximumLiteral(targetBits)).AppendLine(")");
+            }
+
+            if (targetLlvmType == "i64")
+            {
+                return new NativeValue(targetType, targetLlvmType, call);
             }
 
             var narrowed = NextTemporary();

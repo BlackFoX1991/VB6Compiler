@@ -795,7 +795,17 @@ public sealed class LlvmEmitterTests
                         IrRuntimeMethod.CUShort,
                         ImmutableArray.Create<IrCallArgument>(
                             new IrCallArgument(new IrConstantExpression(65534.5d, TypeSymbol.Double))),
-                        TypeSymbol.UShort))),
+                        TypeSymbol.UShort)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CLngLng,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(2.5d, TypeSymbol.Double))),
+                        TypeSymbol.LongLong)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CULng,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(2.5d, TypeSymbol.Double))),
+                        TypeSymbol.ULong))),
                 new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
@@ -807,6 +817,8 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "double -32768.0, double 32767.0");
         StringAssert.Contains(result.ModuleText, "double 255.0");
         StringAssert.Contains(result.ModuleText, "double 65535.0");
+        StringAssert.Contains(result.ModuleText, "double -9223372036854775808.0, double 9223372036854774784.0");
+        StringAssert.Contains(result.ModuleText, "double 18446744073709549568.0");
         StringAssert.Contains(result.ModuleText, "fpext float 254.5 to double");
         StringAssert.Contains(result.ModuleText, "fptosi double %rounded to i64");
         StringAssert.Contains(result.ModuleText, "fptoui double %rounded to i64");
