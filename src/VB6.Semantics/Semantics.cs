@@ -139,7 +139,10 @@ public enum ParameterPassingMode
     ByVal
 }
 
-public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Name);
+public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Name)
+{
+    public bool IsConstant { get; init; }
+}
 
 public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
     : VariableSymbol(Name, Type);

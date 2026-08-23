@@ -54,7 +54,10 @@ internal static class VBEnumSymbols
                         continue;
                     }
 
-                    var symbol = new ModuleVariableSymbol(member.Identifier.Text, TypeSymbol.Long);
+                    var symbol = new ModuleVariableSymbol(member.Identifier.Text, TypeSymbol.Long)
+                    {
+                        IsConstant = true
+                    };
                     constants.Add(new BoundModuleVariable(
                         symbol,
                         new BoundLiteralExpression(value, TypeSymbol.Long),
