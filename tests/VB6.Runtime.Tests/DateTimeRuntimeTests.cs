@@ -21,6 +21,20 @@ public sealed class DateTimeRuntimeTests
     }
 
     [TestMethod]
+    public void DateAndTimeReturnDateVariants()
+    {
+        var date = VBDateTime.Date();
+        var time = VBDateTime.Time();
+        var converted = VBConversions.CVDate("2020-01-02");
+
+        Assert.AreEqual((short)7, VBVariants.VarType(date));
+        Assert.AreEqual((short)7, VBVariants.VarType(time));
+        Assert.AreEqual(43832d, ((VBDateValue)converted).OADate);
+        Assert.IsTrue(VBVariants.IsDate(date));
+        Assert.IsTrue(VBVariants.IsDate(time));
+    }
+
+    [TestMethod]
     public void DateSerialAndDateArithmetic_UseSupportedIntervals()
     {
         Assert.AreEqual(43832d, VBDateTime.DateSerial(2020, 1, 2));

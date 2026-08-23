@@ -252,6 +252,8 @@ public static class VBConversions
 
     public static object DateToVariant(double value) => new VBDateValue(value);
 
+    public static object CVDate(object? value) => new VBDateValue(CDate(value));
+
     public static double CDate(object? value)
     {
         if (value is VBDateValue date)
