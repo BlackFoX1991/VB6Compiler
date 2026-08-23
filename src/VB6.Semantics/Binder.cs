@@ -517,7 +517,7 @@ public sealed class Binder
                             availableScope[symbol.Name] = symbol;
                             bound.Add(new BoundModuleVariable(
                                 symbol,
-                                null,
+                                BindImplicitObjectInitializer(declarator, type),
                                 IsConstant: false,
                                 dimensions)
                             {
@@ -573,14 +573,6 @@ public sealed class Binder
 
     private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
     {
-        if (declarator.NewKeyword is not null)
-        {
-            Report(
-                "VB6S0063",
-                $"Implicit object construction for '{declarator.Identifier.Text}' using As New is not implemented yet.",
-                declarator.NewKeyword.Span);
-        }
-
         if (declarator.TypeToken is null)
         {
             var suffixType = GetIdentifierType(declarator.Identifier);
@@ -588,12 +580,14 @@ public sealed class Binder
             {
                 if (!declarator.IsArray)
                 {
-                    return suffixType;
+                    return ValidateImplicitObjectType(declarator, suffixType);
                 }
 
-                return declarator.Dimensions.IsDefaultOrEmpty
+                return ValidateImplicitObjectType(
+                    declarator,
+                    declarator.Dimensions.IsDefaultOrEmpty
                     ? new ArrayTypeSymbol(suffixType)
-                    : new ArrayTypeSymbol(suffixType, declarator.Dimensions.Length);
+                    : new ArrayTypeSymbol(suffixType, declarator.Dimensions.Length));
             }
 
             Report(
@@ -604,15 +598,33 @@ public sealed class Binder
         }
 
         var elementType = ResolveDeclaredType(declarator.TypeToken, declarator.TypeName);
-        if (!declarator.IsArray || elementType == TypeSymbol.Error)
-        {
-            return elementType;
-        }
-
-        return declarator.Dimensions.IsDefaultOrEmpty
+        var type = !declarator.IsArray || elementType == TypeSymbol.Error
+            ? elementType
+            : declarator.Dimensions.IsDefaultOrEmpty
             ? new ArrayTypeSymbol(elementType)
             : new ArrayTypeSymbol(elementType, declarator.Dimensions.Length);
+        return ValidateImplicitObjectType(declarator, type);
     }
+
+    private TypeSymbol ValidateImplicitObjectType(VariableDeclaratorSyntax declarator, TypeSymbol type)
+    {
+        if (declarator.NewKeyword is not null && type is not ClassTypeSymbol)
+        {
+            Report(
+                "VB6S0063",
+                $"As New requires an object type, but '{type.Name}' is not an object type.",
+                declarator.NewKeyword.Span);
+        }
+
+        return type;
+    }
+
+    private static BoundExpression? BindImplicitObjectInitializer(
+        VariableDeclaratorSyntax declarator,
+        TypeSymbol type) =>
+        declarator.NewKeyword is not null && type is ClassTypeSymbol classType
+            ? new BoundNewExpression(classType)
+            : null;
 
     private ImmutableArray<BoundArrayDimension> BindArrayDimensions(
         VariableDeclaratorSyntax declarator,
@@ -1024,7 +1036,7 @@ public sealed class Binder
 
             _staticVariables.Add(new BoundModuleVariable(
                 variable,
-                null,
+                BindImplicitObjectInitializer(declarator, type),
                 IsConstant: false,
                 ImmutableArray<BoundArrayDimension>.Empty));
         }
@@ -1760,7 +1772,8 @@ public sealed class Binder
 
         return new BoundVariableDeclarationStatement(
             local,
-            BindArrayDimensions(syntax, variables, procedures));
+            BindArrayDimensions(syntax, variables, procedures),
+            BindImplicitObjectInitializer(syntax, local.Type));
     }
 
     private BoundReDimStatement BindReDim(
