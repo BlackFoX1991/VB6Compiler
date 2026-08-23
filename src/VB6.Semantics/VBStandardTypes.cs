@@ -240,6 +240,9 @@ public static class VBStandardTypes
         properties.AddRange(ReadWriteProperties("MousePointer", TypeSymbol.Long));
         properties.AddRange(ReadWriteProperties("ScaleHeight", TypeSymbol.Long));
         properties.AddRange(ReadWriteProperties("ScaleWidth", TypeSymbol.Long));
+        properties.AddRange(ReadWriteProperties("CurrentX", TypeSymbol.Single));
+        properties.AddRange(ReadWriteProperties("CurrentY", TypeSymbol.Single));
+        properties.AddRange(ReadWriteProperties("FillStyle", TypeSymbol.Long));
         properties.AddRange(ReadWriteProperties("Picture", Picture));
         properties.AddRange(ReadWriteProperties("Image", Picture));
         properties.AddRange(ReadWriteProperties("Font", Font));

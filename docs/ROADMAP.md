@@ -66,6 +66,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Kontextuelle `LSet`-Zuweisungssyntax | **272** | **0** | **0** | **272** | **23 von 40** |
 | Variant-Guard für boolesche Vergleichsoperatoren | **268** | **0** | **0** | **268** | **23 von 40** |
 | Modulbezogener Designer-Control-Scope | **221** | **0** | **0** | **221** | **27 von 40** |
+| Implizite Form-/UserControl-Host-Properties | **205** | **0** | **0** | **205** | **27 von 40** |
 | Qualifizierte Enum-Memberauflösung | **258** | **0** | **0** | **258** | **23 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
@@ -243,6 +244,11 @@ Designer-Controls werden nun nur noch im eigenen Form- oder UserControl-Modul al
 Mitglieder gebunden. Dadurch überschattet ein Control wie `frmMain.Code` nicht mehr das gleichnamige
 öffentliche Enum-Mitglied `ENUM_SECTION_TYPE.Code` in Standardmodulen. Der VISIA-Stand sinkt um
 **37** auf **221 semantische Fehler**, und die Zahl der fehlerfreien Dateien steigt auf **27 von 40**.
+
+Form- und UserControl-Module binden nun auch bare Host-Properties wie Height, ScaleWidth, hWnd,
+CurrentX und FillStyle gegen Me. Der bestehende Host-Vertrag wird damit nicht nur für ScaleX,
+ScaleY und TextWidth, sondern auch für die häufige Property-Syntax sichtbar. Der VISIA-Stand sinkt
+um **16** auf **205 semantische Fehler**, bei weiterhin **27 von 40** fehlerfreien Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

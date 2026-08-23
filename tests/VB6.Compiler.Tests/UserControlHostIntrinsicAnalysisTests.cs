@@ -32,6 +32,13 @@ public sealed class UserControlHostIntrinsicAnalysisTests
                     Measure = ScaleX(Measure)
                     Measure = ScaleY(Measure)
                 End Function
+
+                Private Sub Paint()
+                    Height = ScaleHeight + ScaleWidth
+                    CurrentX = 0
+                    CurrentY = 0
+                    FillStyle = vbSolid
+                End Sub
                 """);
 
             var analysis = VBProjectCompilation.Create(projectPath).Analyze();

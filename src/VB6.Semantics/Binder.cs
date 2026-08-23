@@ -1736,7 +1736,7 @@ public sealed class Binder
         return new BoundEraseStatement(variable, Deallocate: !arrayType.HasKnownRank);
     }
 
-    private BoundAssignmentStatement BindAssignment(
+    private BoundStatement BindAssignment(
         AssignmentStatementSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
@@ -1745,11 +1745,21 @@ public sealed class Binder
 
         if (!variables.TryGetValue(syntax.Identifier.Text, out var variable))
         {
+            if (TryGetContainingClassProperty(
+                    syntax.Identifier.Text,
+                    PropertyAccessorKind.Let,
+                    variables,
+                    out var propertyTarget))
+            {
+                return new BoundMemberAssignmentStatement(
+                    propertyTarget,
+                    BindConversion(expression, propertyTarget.Type));
+            }
+
             Report(
                 "VB6S0001",
                 $"Variable '{syntax.Identifier.Text}' is not declared.",
                 syntax.Identifier.Span);
-
             variable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
             return new BoundAssignmentStatement(variable, expression);
         }
@@ -1768,6 +1778,11 @@ public sealed class Binder
                 BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Set),
             ElementAccessExpressionSyntax elementAccess =>
                 BindElementAccess(elementAccess, variables, procedures, PropertyAccessorKind.Set),
+            NameExpressionSyntax name when TryGetContainingClassProperty(
+                name.IdentifierToken.Text,
+                PropertyAccessorKind.Set,
+                variables,
+                out var propertyTarget) => propertyTarget,
             _ => BindExpression(syntax.Target, variables, procedures)
         };
         var expression = BindExpression(syntax.Expression, variables, procedures);
@@ -3229,6 +3244,15 @@ public sealed class Binder
             return new BoundVariableExpression(variable);
         }
 
+        if (TryGetContainingClassProperty(
+                syntax.IdentifierToken.Text,
+                PropertyAccessorKind.Get,
+                variables,
+                out var property))
+        {
+            return property;
+        }
+
         // A bare name is also how VB6 calls a function that takes no arguments, as in
         // FileNum = FreeFile. A variable of that name would have won above, which is the right
         // precedence.
@@ -3252,6 +3276,26 @@ public sealed class Binder
             $"Variable '{syntax.IdentifierToken.Text}' is not declared.",
             syntax.IdentifierToken.Span);
         return new BoundErrorExpression();
+    }
+
+    private bool TryGetContainingClassProperty(
+        string name,
+        PropertyAccessorKind accessor,
+        Dictionary<string, VariableSymbol> variables,
+        out BoundPropertyAccessExpression propertyAccess)
+    {
+        if (_containingClass is not null &&
+            variables.TryGetValue("Me", out var me) &&
+            _containingClass.TryGetProperty(name, accessor, out var property))
+        {
+            propertyAccess = new BoundPropertyAccessExpression(
+                new BoundVariableExpression(me),
+                property);
+            return true;
+        }
+
+        propertyAccess = null!;
+        return false;
     }
 
     private BoundExpression BindUnary(
