@@ -28,7 +28,7 @@ public sealed class ConformanceCorpusTests
     /// cascade hid, so a real improvement can raise the total. Cleanly analyzed files can only
     /// grow, which makes them the honest progress metric.
     /// </summary>
-    private const int VisiaCleanModuleBaseline = 21;
+    private const int VisiaCleanModuleBaseline = 22;
 
     /// <summary>
     /// Parser errors the corpus still produces.

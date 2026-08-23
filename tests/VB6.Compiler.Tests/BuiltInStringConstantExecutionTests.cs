@@ -54,6 +54,49 @@ public sealed class BuiltInStringConstantExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesNumericVbConstants()
+    {
+        const string source = """
+            Sub Main()
+                Debug.Print vbWhite
+                Debug.Print vbBlack
+                Debug.Print vbButtonFace
+                Debug.Print vbPicTypeBitmap
+                Debug.Print vbRetry
+                Debug.Print vbIgnore
+                Debug.Print vbAltMask
+                Debug.Print vbNormalFocus
+                Debug.Print vbSolid
+                Debug.Print vbTrue
+                Debug.Print vbObjectError
+            End Sub
+            """;
+
+        var output = VB6TestProgram.Run(source);
+
+        CollectionAssert.AreEqual(
+            new[] { "16777215", "0", "-2147483633", "0", "4", "5", "4", "1", "0", "-1", "-2147221504" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UserDeclarationShadowsNumericBuiltInConstant()
+    {
+        const string source = """
+            Private Const vbWhite As Long = 42
+
+            Sub Main()
+                Debug.Print vbWhite
+            End Sub
+            """;
+
+        var output = VB6TestProgram.Run(source);
+
+        CollectionAssert.AreEqual(new[] { "42" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    [TestMethod]
     public void ProjectAnalysis_ResolvesBuiltInConstantsAcrossModules()
     {
         var directory = Path.Combine(
