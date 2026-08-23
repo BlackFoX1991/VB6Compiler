@@ -61,7 +61,12 @@ public sealed class BuiltInStringConstantExecutionTests
                 Debug.Print vbWhite
                 Debug.Print vbBlack
                 Debug.Print vbButtonFace
+                Debug.Print vbGrayText
                 Debug.Print vbPicTypeBitmap
+                Debug.Print tvwChild
+                Debug.Print BF_RECT
+                Debug.Print EDGE_RAISED
+                Debug.Print vbSrcCopy
                 Debug.Print vbRetry
                 Debug.Print vbIgnore
                 Debug.Print vbAltMask
@@ -75,9 +80,25 @@ public sealed class BuiltInStringConstantExecutionTests
         var output = VB6TestProgram.Run(source);
 
         CollectionAssert.AreEqual(
-            new[] { "16777215", "0", "-2147483633", "0", "4", "5", "4", "1", "0", "-1", "-2147221504" },
+            new[] { "16777215", "0", "-2147483633", "-2147483631", "0", "4", "15", "5", "13369376", "4", "5", "4", "1", "0", "-1", "-2147221504" },
             VB6TestProgram.SplitLines(output),
             output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UserDeclarationShadowsExternalConstant()
+    {
+        const string source = """
+            Private Const tvwChild As Long = 99
+
+            Sub Main()
+                Debug.Print tvwChild
+            End Sub
+            """;
+
+        var output = VB6TestProgram.Run(source);
+
+        CollectionAssert.AreEqual(new[] { "99" }, VB6TestProgram.SplitLines(output), output);
     }
 
     [TestMethod]
