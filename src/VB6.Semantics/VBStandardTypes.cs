@@ -20,6 +20,7 @@ public static class VBStandardTypes
     public static ClassTypeSymbol Screen { get; } = CreateScreen();
     public static ClassTypeSymbol Ambient { get; } = CreateAmbient();
     public static ClassTypeSymbol PropertyBag { get; } = CreatePropertyBag();
+    public static ClassTypeSymbol Clipboard { get; } = CreateClipboard();
 
     private static ClassTypeSymbol CreateCollection()
     {
@@ -162,6 +163,25 @@ public static class VBStandardTypes
         }
 
         return bag;
+    }
+
+    private static ClassTypeSymbol CreateClipboard()
+    {
+        var clipboard = new ClassTypeSymbol("Clipboard");
+        var procedures = new[]
+        {
+            new ProcedureSymbol("GetText", ImmutableArray<ParameterSymbol>.Empty, TypeSymbol.String)
+        };
+        if (!clipboard.TryDefineMembers(
+                procedures,
+                Array.Empty<PropertySymbol>(),
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in Clipboard member '{duplicate}' is duplicated.");
+        }
+
+        return clipboard;
     }
 
     private static ClassTypeSymbol CreateFont()

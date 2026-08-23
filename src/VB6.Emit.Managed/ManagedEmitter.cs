@@ -2295,6 +2295,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
             if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
             if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));
+            if (m == IrRuntimeMethod.ErrorLineNumber) return Static(typeof(VBErrors), nameof(VBErrors.LineNumberValue));
             if (m == IrRuntimeMethod.ErrorClear) return Static(typeof(VBErrors), nameof(VBErrors.Clear));
             if (m == IrRuntimeMethod.ErrorRaise) return Static(typeof(VBErrors), nameof(VBErrors.Raise), typeof(int), typeof(string), typeof(string), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.FunctionTypeName) return Static(typeof(VBFunctions), nameof(VBFunctions.TypeName), typeof(object));

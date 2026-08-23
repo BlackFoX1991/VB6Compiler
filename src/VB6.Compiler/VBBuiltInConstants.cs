@@ -169,6 +169,7 @@ internal static class VBBuiltInConstants
             CreateObject("UserControl", VBStandardTypes.UserControl),
             CreateObject("Screen", VBStandardTypes.Screen),
             CreateObject("Ambient", VBStandardTypes.Ambient),
+            CreateObject("Clipboard", VBStandardTypes.Clipboard),
             CreateVariant("Err"));
 
     public static ImmutableArray<BoundModuleVariable> AddTo(

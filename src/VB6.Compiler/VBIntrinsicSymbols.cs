@@ -191,6 +191,7 @@ internal static class VBIntrinsicSymbols
             Parameter("PropertyName", TypeSymbol.String)),
         Function("FileLen", VBIntrinsicKind.FileLen, "VBFiles.FileLength", TypeSymbol.LongLong, Parameter("Path", TypeSymbol.String)),
         Function("Now", VBIntrinsicKind.Now, "VBDateTime.Now", TypeSymbol.Date),
+        Function("Erl", VBIntrinsicKind.Erl, "VBErrors.LineNumber", TypeSymbol.Long),
         Function("Command", VBIntrinsicKind.Command, "VBInteraction.Command", TypeSymbol.String),
         Sub("Load", VBIntrinsicKind.Load, "VBInteraction.Load", Parameter("Object", TypeSymbol.Variant)),
         Sub("Unload", VBIntrinsicKind.Unload, "VBInteraction.Unload", Parameter("Object", TypeSymbol.Variant)),

@@ -8,6 +8,7 @@ public static class VBErrors
 
     public static int NumberValue() => _state?.Number ?? 0;
     public static string DescriptionValue() => _state?.Description ?? string.Empty;
+    public static int LineNumberValue() => _state?.LineNumber ?? 0;
     public static int ResumeIndexValue() => _state?.ResumeIndex ?? -1;
 
     public static void Clear() => _state = null;
@@ -43,6 +44,7 @@ public static class VBErrors
         string Description,
         string HelpFile,
         int HelpContext,
+        int LineNumber = 0,
         int ResumeIndex = -1);
 }
 
