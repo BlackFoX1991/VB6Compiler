@@ -142,6 +142,17 @@ internal static class VBIntrinsicSymbols
         Function("Cos", VBIntrinsicKind.Cos, "VBMath.Cos", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
         Function("Tan", VBIntrinsicKind.Tan, "VBMath.Tan", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
         Function("Atn", VBIntrinsicKind.Atn, "VBMath.Atn", TypeSymbol.Double, Parameter("Number", TypeSymbol.Double)),
+        Function(
+            "Rnd",
+            VBIntrinsicKind.Rnd,
+            "VBMath.Rnd",
+            TypeSymbol.Single,
+            OptionalParameter("Number", TypeSymbol.Single, 0f)),
+        Sub(
+            "Randomize",
+            VBIntrinsicKind.Randomize,
+            "VBMath.Randomize",
+            OptionalParameter("Number", TypeSymbol.Variant)),
         Function("Int", VBIntrinsicKind.Int, "VBConversions.Int", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
         Function(
             "IIf",
@@ -506,5 +517,11 @@ internal static class VBIntrinsicSymbols
         {
             IsOptional = true,
             DefaultValue = defaultValue
+        };
+
+    private static ParameterSymbol OptionalParameter(string name, TypeSymbol type) =>
+        new(name, type, ParameterPassingMode.ByVal)
+        {
+            IsOptional = true
         };
 }

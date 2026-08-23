@@ -5,6 +5,67 @@ namespace VB6.Runtime;
 /// <summary>Scalar math intrinsics with VB6-compatible Variant preservation where applicable.</summary>
 public static class VBMath
 {
+    private const long RandomModulus = 1L << 24;
+    private const long RandomMultiplier = 1140671485L;
+    private const long RandomIncrement = 12820163L;
+    private const int InitialRandomSeed = 0x50000;
+    private static readonly object RandomGate = new();
+    private static int randomSeed = InitialRandomSeed;
+
+    /// <summary>
+    /// Implements the VB6 24-bit linear-congruential generator. The seed and constants match the
+    /// documented VB6 runtime so programs that depend on the legacy sequence remain repeatable.
+    /// </summary>
+    public static float Rnd() => Rnd(1f);
+
+    public static float Rnd(float number)
+    {
+        lock (RandomGate)
+        {
+            var seed = randomSeed;
+            if (number != 0f)
+            {
+                if (number < 0f)
+                {
+                    var bits = unchecked((uint)BitConverter.SingleToInt32Bits(number));
+                    seed = unchecked((int)((bits + (bits >> 24)) & (RandomModulus - 1)));
+                }
+
+                seed = unchecked((int)(((long)seed * RandomMultiplier + RandomIncrement) & (RandomModulus - 1)));
+            }
+
+            randomSeed = seed;
+            return seed / (float)RandomModulus;
+        }
+    }
+
+    /// <summary>
+    /// Seeds the VB6 generator. An omitted Variant argument uses the system timer; a numeric seed
+    /// follows the legacy runtime's high-word mixing before the next Rnd call advances the state.
+    /// </summary>
+    public static void Randomize(object? number)
+    {
+        lock (RandomGate)
+        {
+            if (VBVariants.IsMissing(number))
+            {
+                var timer = (float)(DateTime.Now - DateTime.Today).TotalSeconds;
+                randomSeed = MixRandomizeValue(BitConverter.SingleToInt32Bits(timer));
+                return;
+            }
+
+            var value = VBConversions.CDbl(number);
+            var bits = BitConverter.DoubleToInt64Bits(value);
+            randomSeed = MixRandomizeValue(unchecked((int)(bits >> 32)));
+        }
+    }
+
+    private static int MixRandomizeValue(int value)
+    {
+        var mixed = unchecked(((value & ushort.MaxValue) ^ (value >> 16)) << 8);
+        return (randomSeed & ~0x00FFFF00) | mixed;
+    }
+
     public static object? Abs(object? value)
     {
         if (VBVariants.IsNull(value))

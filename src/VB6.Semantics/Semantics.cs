@@ -304,6 +304,8 @@ public enum VBIntrinsicKind
     Cos,
     Tan,
     Atn,
+    Rnd,
+    Randomize,
     IIf,
     RGB,
     GetSetting,
@@ -662,6 +664,7 @@ public sealed record BoundArgument(
 {
     public bool RequiresByRefTemporary { get; init; }
     public bool IsByValAtCallSite { get; init; }
+    public bool IsOmitted { get; init; }
 }
 
     public sealed record BoundInvocationStatement(

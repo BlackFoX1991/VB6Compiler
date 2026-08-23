@@ -2577,8 +2577,14 @@ public static class IrLowerer
                 receiver = new IrLoadExpression(new IrThisPlace(_containingClass));
             }
 
-            var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(arguments.Length);
-            foreach (var argument in arguments)
+            var omittedRndArgument = procedure.IntrinsicKind == VBIntrinsicKind.Rnd &&
+                arguments.Length == 1 &&
+                arguments[0].IsOmitted;
+            var effectiveArguments = omittedRndArgument
+                ? ImmutableArray<BoundArgument>.Empty
+                : arguments;
+            var lowered = ImmutableArray.CreateBuilder<IrCallArgument>(effectiveArguments.Length);
+            foreach (var argument in effectiveArguments)
             {
                 if (procedure.IsExternal && argument.Parameter?.IsAny == true && argument.IsByValAtCallSite)
                 {
@@ -2610,8 +2616,13 @@ public static class IrLowerer
 
             if (procedure.IntrinsicTarget is not null)
             {
+                var runtimeMethod = procedure.IntrinsicKind == VBIntrinsicKind.Rnd
+                    ? effectiveArguments.Length == 0
+                        ? IrRuntimeMethod.MathRnd
+                        : IrRuntimeMethod.MathRndWithNumber
+                    : IntrinsicMethod(procedure.IntrinsicTarget);
                 return new IrRuntimeCallExpression(
-                    IntrinsicMethod(procedure.IntrinsicTarget),
+                    runtimeMethod,
                     lowered.ToImmutable(),
                     procedure.ReturnType ?? TypeSymbol.Error);
             }
@@ -3180,6 +3191,8 @@ public static class IrLowerer
             "VBMath.Cos" => IrRuntimeMethod.MathCos,
             "VBMath.Tan" => IrRuntimeMethod.MathTan,
             "VBMath.Atn" => IrRuntimeMethod.MathAtn,
+            "VBMath.Rnd" => IrRuntimeMethod.MathRnd,
+            "VBMath.Randomize" => IrRuntimeMethod.MathRandomize,
             "VBVariants.EmptyValue" => IrRuntimeMethod.VariantEmpty,
             "VBVariants.NullValue" => IrRuntimeMethod.VariantNull,
             "VBVariants.NothingValue" => IrRuntimeMethod.VariantNothing,

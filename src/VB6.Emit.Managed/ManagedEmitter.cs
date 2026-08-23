@@ -2537,6 +2537,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.MathCos) return Static(typeof(VBMath), "Cos", typeof(double));
             if (m == IrRuntimeMethod.MathTan) return Static(typeof(VBMath), "Tan", typeof(double));
             if (m == IrRuntimeMethod.MathAtn) return Static(typeof(VBMath), "Atn", typeof(double));
+            if (m == IrRuntimeMethod.MathRnd) return Static(typeof(VBMath), nameof(VBMath.Rnd));
+            if (m == IrRuntimeMethod.MathRndWithNumber) return Static(typeof(VBMath), nameof(VBMath.Rnd), typeof(float));
+            if (m == IrRuntimeMethod.MathRandomize) return Static(typeof(VBMath), nameof(VBMath.Randomize), typeof(object));
 
             if (m is IrRuntimeMethod.VariantEmpty or IrRuntimeMethod.VariantNull or
                 IrRuntimeMethod.VariantNothing or IrRuntimeMethod.VariantMissing)
