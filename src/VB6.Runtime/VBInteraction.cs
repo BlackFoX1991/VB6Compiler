@@ -126,6 +126,22 @@ public static class VBInteraction
     /// <summary>Returns a deterministic character-width approximation for headless control code.</summary>
     public static float TextWidth(string text) => text.Length;
 
+    /// <summary>Returns a deterministic line-height approximation for headless control code.</summary>
+    public static float TextHeight(string text) => text.Length == 0 ? 0f : 1f;
+
+    /// <summary>Forwards an unqualified control Print call to an optional host sink.</summary>
+    public static void Print(object? value) => PrintSink?.Invoke(value);
+
+    /// <summary>Forwards a control PaintPicture call to an optional host sink.</summary>
+    public static void PaintPicture(object? picture, float x, float y, float width, float height) =>
+        PaintPictureSink?.Invoke(new VBPaintPicture(picture, x, y, width, height));
+
+    /// <summary>Optional host callback for unqualified control Print calls.</summary>
+    public static Action<object?>? PrintSink { get; set; }
+
+    /// <summary>Optional host callback for the supported PaintPicture argument set.</summary>
+    public static Action<VBPaintPicture>? PaintPictureSink { get; set; }
+
     public static VBPicture LoadPicture(string fileName) => new(fileName);
 
     /// <summary>Signals a changed UserControl property to a host; headless execution has no sink.</summary>
@@ -176,6 +192,13 @@ public sealed record VBGraphicsLine(
     bool IsStep,
     bool DrawBox,
     bool Fill);
+
+public sealed record VBPaintPicture(
+    object? Picture,
+    float X,
+    float Y,
+    float Width,
+    float Height);
 
 public sealed record VBComObject(string ClassName, string ServerName);
 

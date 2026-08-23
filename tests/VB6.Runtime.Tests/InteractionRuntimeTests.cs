@@ -45,6 +45,35 @@ public sealed class InteractionRuntimeTests
         Assert.AreEqual(12f, VBInteraction.ScaleX(12f, 0, 0));
         Assert.AreEqual(8f, VBInteraction.ScaleY(8f, 0, 0));
         Assert.AreEqual(5f, VBInteraction.TextWidth("hello"));
+        Assert.AreEqual(1f, VBInteraction.TextHeight("hello"));
+        Assert.AreEqual(0f, VBInteraction.TextHeight(string.Empty));
+    }
+
+    [TestMethod]
+    public void ControlHostDrawingContracts_ForwardToHostSinks()
+    {
+        object? printed = null;
+        VBPaintPicture? painted = null;
+        var previousPrintSink = VBInteraction.PrintSink;
+        var previousPaintSink = VBInteraction.PaintPictureSink;
+        try
+        {
+            VBInteraction.PrintSink = value => printed = value;
+            VBInteraction.PaintPictureSink = value => painted = value;
+            VBInteraction.Print("caption");
+            VBInteraction.PaintPicture("icon", 1f, 2f, 3f, 4f);
+        }
+        finally
+        {
+            VBInteraction.PrintSink = previousPrintSink;
+            VBInteraction.PaintPictureSink = previousPaintSink;
+        }
+
+        Assert.AreEqual("caption", printed);
+        Assert.IsNotNull(painted);
+        Assert.AreEqual("icon", painted!.Picture);
+        Assert.AreEqual(1f, painted.X);
+        Assert.AreEqual(4f, painted.Height);
     }
 
     [TestMethod]

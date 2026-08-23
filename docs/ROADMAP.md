@@ -80,6 +80,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | ByRef-Konstanten als typisierte Temporaries | **65** | **0** | **0** | **65** | **33 von 40** |
 | Identifier-Typensuffixe in Bindung und impliziten Variablen | **55** | **0** | **0** | **55** | **34 von 40** |
 | Statement-Aufrufe von Functions mit verworfenem Rückgabewert | **50** | **0** | **0** | **50** | **34 von 40** |
+| Standardbibliotheks- und Host-Intrinsics (`Val`, `Hex`, `String`, `Input`, `TextHeight`, `Print`, `PaintPicture`) | **43** | **0** | **0** | **43** | **34 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -339,6 +340,14 @@ Damit verschwinden die fünf `Append`-Diagnosen aus `CodeEdit.ctl`. Der VISIA-St
 **50 semantische Fehler**, bei weiterhin **34 von 40** fehlerfreien Dateien. Die verbliebene
 `String`-zu-`Variant`-ByRef-Diagnose bleibt bewusst sichtbar, weil VB6 bei einem typisierten
 ByRef-Argument den exakten Parametertyp verlangt.
+
+Der anschließende Standardbibliotheks- und Host-Slice ergänzt `Val`, `Hex`, die wiederholende
+`String`-Funktion, die Ausdrucksform `Input`, sowie `TextHeight`, unqualifiziertes Control-`Print`
+und den beobachteten fünfargumentigen `PaintPicture`-Vertrag. Alle sieben Pfade laufen durch
+Intrinsic-Symbol, IR, Managed-Emitter und headless Runtime-Tests. Dadurch sinkt der VISIA-Stand
+auf **43 semantische Fehler**, weiterhin **34 von 40** fehlerfreien Dateien; die Suite umfasst nun
+**705 Tests**. Die verbleibende `String`-zu-`Variant`-ByRef-Diagnose sowie Host-/COM-/Forms-Lücken
+bleiben bewusst sichtbar.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
@@ -807,7 +816,7 @@ Blockstruktur, nicht mehr des Textgenerators.
 
 Nach Korpusbedarf priorisiert:
 
-1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`.
+1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`/`Val`/`Hex`/`String`.
    `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. `ProcedureSymbol.IntrinsicKind`
    trägt die backendunabhängige Identität, der Binder behandelt Intrinsics wie normale
    Prozeduren, und `IrRuntimeMethod` benennt die Runtime-Operation. Damit sind weitere
@@ -822,9 +831,10 @@ Nach Korpusbedarf priorisiert:
     `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
     End-to-End-Tests verdrahtet.
 1d. Host- und Kontrollintrinsics — `IIf`/`RGB`, `GetSetting`/`SaveSetting`, `SendKeys`,
-    `PopupMenu`, `LoadPicture` und `PropertyChanged` — ✅ als headless-fähige Runtime-Verträge;
+    `PopupMenu`, `LoadPicture`, `PropertyChanged`, `TextWidth`/`TextHeight`, `Print` und
+    `PaintPicture` — ✅ als headless-fähige Runtime-Verträge;
     echte UI-/Registry-Hostadapter folgen in M8/M9.
-2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Seek`, `LOF`,
+2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Input`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende
    Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben

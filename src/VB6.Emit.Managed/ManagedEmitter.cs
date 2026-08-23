@@ -2296,6 +2296,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionScaleX) return Static(typeof(VBInteraction), nameof(VBInteraction.ScaleX), typeof(float), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.InteractionScaleY) return Static(typeof(VBInteraction), nameof(VBInteraction.ScaleY), typeof(float), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.InteractionTextWidth) return Static(typeof(VBInteraction), nameof(VBInteraction.TextWidth), typeof(string));
+            if (m == IrRuntimeMethod.InteractionTextHeight) return Static(typeof(VBInteraction), nameof(VBInteraction.TextHeight), typeof(string));
+            if (m == IrRuntimeMethod.InteractionPrint) return Static(typeof(VBInteraction), nameof(VBInteraction.Print), typeof(object));
+            if (m == IrRuntimeMethod.InteractionPaintPicture) return Static(typeof(VBInteraction), nameof(VBInteraction.PaintPicture), typeof(object), typeof(float), typeof(float), typeof(float), typeof(float));
             if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryStrPtr) return Static(typeof(VBMemory), nameof(VBMemory.StrPtr), typeof(string));
@@ -2365,6 +2368,9 @@ public sealed class ManagedEmitter
                 if (name == "Chr") return Static(typeof(VBStrings), "Chr", typeof(int));
                 if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(string), typeof(int));
                 if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim" or "Asc") return Static(typeof(VBStrings), name, typeof(string));
+                if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
+                if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
+                if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
                 if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "InStr") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int));
                 if (name == "InStrRev") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
@@ -2450,6 +2456,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FilePutRawFixedString => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int)),
                 IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int)),
+                IrRuntimeMethod.FileInput => Static(typeof(VBFiles), "Input", typeof(long), typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
             };
         }

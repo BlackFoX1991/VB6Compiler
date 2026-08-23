@@ -29,6 +29,7 @@ public sealed class UserControlHostIntrinsicAnalysisTests
             File.WriteAllText(Path.Combine(directory, "Widget.ctl"), """
                 Private Function Measure(ByVal value As String) As Single
                     Measure = TextWidth(value)
+                    Measure = Measure + TextHeight(value)
                     Measure = ScaleX(Measure)
                     Measure = ScaleY(Measure)
                 End Function
@@ -38,6 +39,8 @@ public sealed class UserControlHostIntrinsicAnalysisTests
                     CurrentX = 0
                     CurrentY = 0
                     FillStyle = vbSolid
+                    Print "caption"
+                    PaintPicture Nothing, 0, 0, 1, 1
                 End Sub
                 """);
 
