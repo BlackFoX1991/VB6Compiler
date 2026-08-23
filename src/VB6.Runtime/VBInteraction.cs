@@ -1,3 +1,6 @@
+using System.Collections;
+using System.Globalization;
+
 namespace VB6.Runtime;
 
 /// <summary>Headless, deterministic implementations of VB6 interaction intrinsics.</summary>
@@ -70,6 +73,50 @@ public static class VBInteraction
 
     /// <summary>Returns an empty command line in headless runs; hosts can supply process arguments.</summary>
     public static string Command() => string.Empty;
+
+    /// <summary>
+    /// Returns an environment value by name or a complete <c>NAME=VALUE</c> entry by one-based
+    /// numeric position. The numeric snapshot is sorted by environment name so generated code has
+    /// stable behavior across managed hosts.
+    /// </summary>
+    public static string Environ(object? expression)
+    {
+        if (expression is string name)
+        {
+            return EnvironmentEntries()
+                .FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?.Value ?? string.Empty;
+        }
+
+        if (expression is null || VBVariants.IsNull(expression))
+        {
+            return string.Empty;
+        }
+
+        var index = VBConversions.CLng(expression);
+        if (index <= 0)
+        {
+            return string.Empty;
+        }
+
+        var entries = EnvironmentEntries();
+        return index <= entries.Length ? entries[index - 1].Text : string.Empty;
+    }
+
+    private static EnvironmentEntry[] EnvironmentEntries() =>
+        Environment.GetEnvironmentVariables()
+            .Cast<DictionaryEntry>()
+            .Select(entry => new EnvironmentEntry(
+                Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? string.Empty,
+                Convert.ToString(entry.Value, CultureInfo.InvariantCulture) ?? string.Empty))
+            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.Name, StringComparer.Ordinal)
+            .ToArray();
+
+    private sealed record EnvironmentEntry(string Name, string Value)
+    {
+        public string Text => $"{Name}={Value}";
+    }
 
     /// <summary>
     /// Provides a deterministic process-local replacement for the VB6 registry settings API.

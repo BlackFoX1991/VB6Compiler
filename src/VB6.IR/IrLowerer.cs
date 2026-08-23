@@ -3180,6 +3180,7 @@ public static class IrLowerer
             "VBInteraction.GetObject" => IrRuntimeMethod.InteractionGetObject,
             "VBInteraction.Shell" => IrRuntimeMethod.InteractionShell,
             "VBInteraction.Command" => IrRuntimeMethod.InteractionCommand,
+            "VBInteraction.Environ" => IrRuntimeMethod.InteractionEnviron,
             "VBInteraction.GetSetting" => IrRuntimeMethod.InteractionGetSetting,
             "VBInteraction.SaveSetting" => IrRuntimeMethod.InteractionSaveSetting,
             "VBInteraction.SendKeys" => IrRuntimeMethod.InteractionSendKeys,

@@ -289,6 +289,7 @@ internal static class VBIntrinsicSymbols
             OptionalParameter("Abbreviate", TypeSymbol.Boolean, false)),
         Function("Erl", VBIntrinsicKind.Erl, "VBErrors.LineNumber", TypeSymbol.Long),
         Function("Command", VBIntrinsicKind.Command, "VBInteraction.Command", TypeSymbol.String),
+        Function("Environ", VBIntrinsicKind.Environ, "VBInteraction.Environ", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)),
         Sub("Load", VBIntrinsicKind.Load, "VBInteraction.Load", Parameter("Object", TypeSymbol.Variant)),
         Sub("Unload", VBIntrinsicKind.Unload, "VBInteraction.Unload", Parameter("Object", TypeSymbol.Variant)),
         Function("VarPtr", VBIntrinsicKind.VarPtr, "VBMemory.VarPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
