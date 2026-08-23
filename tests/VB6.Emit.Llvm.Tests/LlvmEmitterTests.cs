@@ -315,6 +315,54 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "call i32 @\"NativeGetValue\"(i32 3, ptr %local_0)");
     }
 
+    [TestMethod]
+    public void Emit_LowersSafeScalarConversions()
+    {
+        var flag = new IrLocal(0, "flag", TypeSymbol.Boolean);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray.Create(flag),
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrStoreInstruction(
+                        new IrLocalPlace(flag),
+                        new IrConstantExpression(true, TypeSymbol.Boolean)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CLngPtr,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(7L, TypeSymbol.Long))),
+                        TypeSymbol.LongPtr)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CDbl,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(7L, TypeSymbol.Long))),
+                        TypeSymbol.Double)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CBool,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(7L, TypeSymbol.Long))),
+                        TypeSymbol.Boolean)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CLng,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrLoadExpression(new IrLocalPlace(flag)))),
+                        TypeSymbol.Long))),
+                new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "sext i32 7 to i64");
+        StringAssert.Contains(result.ModuleText, "sitofp i32 7 to double");
+        StringAssert.Contains(result.ModuleText, "icmp ne i32 7, 0");
+        StringAssert.Contains(result.ModuleText, "select i1 %t3, i32 -1, i32 0");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",

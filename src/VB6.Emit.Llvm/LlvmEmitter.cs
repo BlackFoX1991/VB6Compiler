@@ -506,10 +506,302 @@ public sealed class LlvmEmitter
                 return EmitComparison(runtime.ResultType, arguments, methodName);
             }
 
+            if (IsScalarConversion(methodName))
+            {
+                return EmitScalarConversion(methodName, runtime.ResultType, arguments);
+            }
+
             AddDiagnostic(
                 "VB6L0001",
                 $"Native LLVM lowering for runtime method '{runtime.Method}' is not implemented yet.");
             return ZeroValue(runtime.ResultType);
+        }
+
+        private NativeValue EmitScalarConversion(
+            string methodName,
+            TypeSymbol targetType,
+            NativeValue[] arguments)
+        {
+            if (arguments.Length != 1)
+            {
+                AddDiagnostic(
+                    "VB6L0004",
+                    $"LLVM conversion '{methodName}' requires one operand.");
+                return ZeroValue(targetType);
+            }
+
+            var source = arguments[0];
+            var targetLlvmType = GetTypeOrFallback(targetType, $"conversion '{methodName}' target type");
+            if (!TryGetLlvmType(targetType, _architecture, out _))
+            {
+                return new NativeValue(targetType, targetLlvmType, ZeroLiteral(targetLlvmType));
+            }
+
+            if (targetType == source.SemanticType && targetLlvmType == source.LlvmType)
+            {
+                return new NativeValue(targetType, targetLlvmType, source.Value);
+            }
+
+            if (targetType == TypeSymbol.Boolean)
+            {
+                return EmitBooleanConversion(methodName, targetType, source);
+            }
+
+            if (source.SemanticType == TypeSymbol.Boolean)
+            {
+                return EmitBooleanToScalar(methodName, targetType, targetLlvmType, source);
+            }
+
+            if (source.SemanticType == TypeSymbol.Currency || targetType == TypeSymbol.Currency)
+            {
+                return RejectScalarConversion(methodName, targetType, source);
+            }
+
+            if (TryGetIntegerShape(source.SemanticType, _architecture, out var sourceBits, out var sourceUnsigned) &&
+                TryGetIntegerShape(targetType, _architecture, out var targetBits, out var targetUnsigned))
+            {
+                return EmitIntegerConversion(
+                    methodName,
+                    targetType,
+                    targetLlvmType,
+                    source,
+                    sourceBits,
+                    sourceUnsigned,
+                    targetBits,
+                    targetUnsigned);
+            }
+
+            if (TryGetIntegerShape(source.SemanticType, _architecture, out sourceBits, out sourceUnsigned) &&
+                targetLlvmType is "float" or "double")
+            {
+                var operation = sourceUnsigned ? "uitofp" : "sitofp";
+                var temporary = NextTemporary();
+                _builder.Append("  ").Append(temporary).Append(" = ").Append(operation).Append(' ')
+                    .Append(source.LlvmType).Append(' ').Append(source.Value).Append(" to ")
+                    .AppendLine(targetLlvmType);
+                return new NativeValue(targetType, targetLlvmType, temporary);
+            }
+
+            if (source.LlvmType is "float" or "double" && targetLlvmType is "float" or "double")
+            {
+                if (source.LlvmType == targetLlvmType)
+                {
+                    return new NativeValue(targetType, targetLlvmType, source.Value);
+                }
+
+                if (source.LlvmType == "float" && targetLlvmType == "double")
+                {
+                    var temporary = NextTemporary();
+                    _builder.Append("  ").Append(temporary).Append(" = fpext float ")
+                        .Append(source.Value).AppendLine(" to double");
+                    return new NativeValue(targetType, targetLlvmType, temporary);
+                }
+
+                return RejectScalarConversion(methodName, targetType, source);
+            }
+
+            return RejectScalarConversion(methodName, targetType, source);
+        }
+
+        private NativeValue EmitBooleanConversion(
+            string methodName,
+            TypeSymbol targetType,
+            NativeValue source)
+        {
+            if (source.SemanticType == TypeSymbol.Boolean)
+            {
+                return new NativeValue(targetType, "i1", source.Value);
+            }
+
+            string operation;
+            string zero;
+            if (TryGetIntegerShape(source.SemanticType, _architecture, out _, out _) ||
+                source.SemanticType == TypeSymbol.Currency)
+            {
+                operation = "icmp ne";
+                zero = "0";
+            }
+            else if (source.SemanticType == TypeSymbol.Single)
+            {
+                operation = "fcmp une";
+                zero = "0.0";
+            }
+            else if (source.SemanticType == TypeSymbol.Date || source.SemanticType == TypeSymbol.Double)
+            {
+                operation = "fcmp une";
+                zero = "0.0";
+            }
+            else
+            {
+                return RejectScalarConversion(methodName, targetType, source);
+            }
+
+            var temporary = NextTemporary();
+            _builder.Append("  ").Append(temporary).Append(" = ").Append(operation).Append(' ')
+                .Append(source.LlvmType).Append(' ').Append(source.Value).Append(", ").AppendLine(zero);
+            return new NativeValue(targetType, "i1", temporary);
+        }
+
+        private NativeValue EmitBooleanToScalar(
+            string methodName,
+            TypeSymbol targetType,
+            string targetLlvmType,
+            NativeValue source)
+        {
+            if (TryGetIntegerShape(targetType, _architecture, out _, out _))
+            {
+                var trueValue = AllOnes(targetLlvmType);
+                var temporary = NextTemporary();
+                _builder.Append("  ").Append(temporary).Append(" = select i1 ")
+                    .Append(source.Value).Append(", ").Append(targetLlvmType).Append(' ').Append(trueValue)
+                    .Append(", ").Append(targetLlvmType).Append(" 0").AppendLine();
+                return new NativeValue(targetType, targetLlvmType, temporary);
+            }
+
+            if (targetType == TypeSymbol.Single || targetType == TypeSymbol.Double)
+            {
+                return EmitBooleanSelect(
+                    targetType,
+                    targetLlvmType,
+                    "-1.0",
+                    source.Value);
+            }
+
+            if (targetType == TypeSymbol.Date)
+            {
+                return EmitBooleanSelect(
+                    targetType,
+                    targetLlvmType,
+                    "1.0",
+                    source.Value);
+            }
+
+            return RejectScalarConversion(methodName, targetType, source);
+        }
+
+        private NativeValue EmitBooleanSelect(
+            TypeSymbol targetType,
+            string targetLlvmType,
+            string trueValue,
+            string sourceValue)
+        {
+            var temporary = NextTemporary();
+            _builder.Append("  ").Append(temporary).Append(" = select i1 ").Append(sourceValue).Append(", ")
+                .Append(targetLlvmType).Append(' ').Append(trueValue)
+                .Append(", ").Append(targetLlvmType).Append(" 0.0").AppendLine();
+            return new NativeValue(targetType, targetLlvmType, temporary);
+        }
+
+        private NativeValue EmitIntegerConversion(
+            string methodName,
+            TypeSymbol targetType,
+            string targetLlvmType,
+            NativeValue source,
+            int sourceBits,
+            bool sourceUnsigned,
+            int targetBits,
+            bool targetUnsigned)
+        {
+            if (sourceBits > targetBits ||
+                (sourceBits == targetBits && sourceUnsigned != targetUnsigned) ||
+                (!sourceUnsigned && targetUnsigned))
+            {
+                return RejectScalarConversion(methodName, targetType, source);
+            }
+
+            if (sourceBits == targetBits)
+            {
+                return new NativeValue(targetType, targetLlvmType, source.Value);
+            }
+
+            var operation = sourceUnsigned ? "zext" : "sext";
+            var temporary = NextTemporary();
+            _builder.Append("  ").Append(temporary).Append(" = ").Append(operation).Append(' ')
+                .Append(source.LlvmType).Append(' ').Append(source.Value).Append(" to ")
+                .AppendLine(targetLlvmType);
+            return new NativeValue(targetType, targetLlvmType, temporary);
+        }
+
+        private NativeValue RejectScalarConversion(
+            string methodName,
+            TypeSymbol targetType,
+            NativeValue source)
+        {
+            AddDiagnostic(
+                "VB6L0001",
+                $"Native LLVM conversion '{methodName}' requires checked or rounded runtime semantics for '{source.SemanticType.Name}' to '{targetType.Name}'.");
+            return ZeroValue(targetType);
+        }
+
+        private static bool IsScalarConversion(string methodName) => methodName is
+            "CByte" or "CInt" or "CLng" or "CLngPtr" or "CUShort" or "CUInt" or "CULng" or
+            "CDate" or "CVDate" or "CLngLng" or "CCur" or "CSng" or "CDbl" or "CBool";
+
+        private static bool TryGetIntegerShape(
+            TypeSymbol type,
+            LlvmArchitecture architecture,
+            out int bits,
+            out bool unsigned)
+        {
+            if (type == TypeSymbol.Byte)
+            {
+                bits = 8;
+                unsigned = true;
+                return true;
+            }
+
+            if (type == TypeSymbol.Integer)
+            {
+                bits = 16;
+                unsigned = false;
+                return true;
+            }
+
+            if (type == TypeSymbol.Long)
+            {
+                bits = 32;
+                unsigned = false;
+                return true;
+            }
+
+            if (type == TypeSymbol.LongLong)
+            {
+                bits = 64;
+                unsigned = false;
+                return true;
+            }
+
+            if (type == TypeSymbol.LongPtr)
+            {
+                bits = architecture == LlvmArchitecture.X86 ? 32 : 64;
+                unsigned = false;
+                return true;
+            }
+
+            if (type == TypeSymbol.UShort)
+            {
+                bits = 16;
+                unsigned = true;
+                return true;
+            }
+
+            if (type == TypeSymbol.UInteger)
+            {
+                bits = 32;
+                unsigned = true;
+                return true;
+            }
+
+            if (type == TypeSymbol.ULong)
+            {
+                bits = 64;
+                unsigned = true;
+                return true;
+            }
+
+            bits = 0;
+            unsigned = false;
+            return false;
         }
 
         private NativeValue EmitProcedureCall(IrProcedureCallExpression call)
