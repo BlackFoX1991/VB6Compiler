@@ -41,6 +41,7 @@ public sealed class LlvmEmitter
         builder.AppendLine($"; VB6 native module: {options.ModuleName}");
         builder.AppendLine($"target triple = \"{GetTargetTriple(options.Architecture)}\"");
         builder.AppendLine();
+        EmitNativeErrorRuntime(builder);
         EmitCheckedIntegerHelpers(builder);
         EmitCheckedFloatingHelpers(builder);
 
@@ -75,12 +76,61 @@ public sealed class LlvmEmitter
         return new LlvmEmitResult(
             diagnostics.Count == 0,
             builder.ToString(),
-            diagnostics.ToImmutable());
+        diagnostics.ToImmutable());
+    }
+
+    private static void EmitNativeErrorRuntime(StringBuilder builder)
+    {
+        builder.AppendLine("@__vb6_error_pending = thread_local global i1 false");
+        builder.AppendLine("@__vb6_error_number_state = thread_local global i32 0");
+        builder.AppendLine();
+        builder.AppendLine("define void @__vb6_error_set(i32 %number) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  store i32 %number, ptr @__vb6_error_number_state");
+        builder.AppendLine("  store i1 true, ptr @__vb6_error_pending");
+        builder.AppendLine("  ret void");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define i1 @__vb6_error_take_pending() {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %pending = load i1, ptr @__vb6_error_pending");
+        builder.AppendLine("  store i1 false, ptr @__vb6_error_pending");
+        builder.AppendLine("  ret i1 %pending");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define void @__vb6_error_clear_pending() {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  store i1 false, ptr @__vb6_error_pending");
+        builder.AppendLine("  ret void");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define i32 @__vb6_error_number() {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %number = load i32, ptr @__vb6_error_number_state");
+        builder.AppendLine("  ret i32 %number");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define void @__vb6_error_clear() {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  store i1 false, ptr @__vb6_error_pending");
+        builder.AppendLine("  store i32 0, ptr @__vb6_error_number_state");
+        builder.AppendLine("  ret void");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitNativeErrorReturn(
+        StringBuilder builder,
+        string errorNumber,
+        string returnType,
+        string returnValue)
+    {
+        builder.Append("  call void @__vb6_error_set(i32 ").Append(errorNumber).AppendLine(")");
+        builder.Append("  ret ").Append(returnType).Append(' ').AppendLine(returnValue);
     }
 
     private static void EmitCheckedIntegerHelpers(StringBuilder builder)
     {
-        builder.AppendLine("declare void @llvm.trap()");
         builder.AppendLine("declare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)");
         builder.AppendLine("declare { i64, i1 } @llvm.ssub.with.overflow.i64(i64, i64)");
         builder.AppendLine("declare { i64, i1 } @llvm.smul.with.overflow.i64(i64, i64)");
@@ -126,24 +176,28 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %is_zero = icmp eq i64 %right, 0");
         if (checkSignedOverflow)
         {
-            builder.AppendLine("  br i1 %is_zero, label %trap, label %check_overflow");
+            builder.AppendLine("  br i1 %is_zero, label %trap_divide, label %check_overflow");
             builder.AppendLine("check_overflow:");
             builder.AppendLine("  %is_min = icmp eq i64 %left, %min_value");
             builder.AppendLine("  %is_negative_one = icmp eq i64 %right, -1");
             builder.AppendLine("  %is_overflow = and i1 %is_min, %is_negative_one");
-            builder.AppendLine("  br i1 %is_overflow, label %trap, label %divide");
+            builder.AppendLine("  br i1 %is_overflow, label %trap_overflow, label %divide");
         }
         else
         {
-            builder.AppendLine("  br i1 %is_zero, label %trap, label %divide");
+            builder.AppendLine("  br i1 %is_zero, label %trap_divide, label %divide");
         }
 
         builder.AppendLine("divide:");
         builder.Append("  %result = ").Append(operation).AppendLine(" i64 %left, %right");
         builder.AppendLine("  ret i64 %result");
-        builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        builder.AppendLine("trap_divide:");
+        EmitNativeErrorReturn(builder, "11", "i64", "0");
+        if (checkSignedOverflow)
+        {
+            builder.AppendLine("trap_overflow:");
+            EmitNativeErrorReturn(builder, "6", "i64", "0");
+        }
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -164,8 +218,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %result = fptosi double %rounded to i64");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -193,8 +246,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -222,8 +274,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -260,8 +311,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %value");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -297,8 +347,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %narrowed = trunc i128 %result to i64");
         builder.AppendLine("  ret i64 %narrowed");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -327,8 +376,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %result = trunc i128 %scaled to i64");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -350,8 +398,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %result = fptosi double %rounded to i64");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
         builder.AppendLine("define i64 @__vb6_fptoui_checked_i64(double %value, double %max_value) {");
@@ -367,8 +414,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %result = fptoui double %rounded to i64");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
         EmitCheckedFloatingCurrencyConversionHelper(builder);
@@ -401,8 +447,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", "i64", "0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -426,7 +471,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  br i1 %is_infinite, label %trap, label %done");
         builder.AppendLine("done:");
         builder.AppendLine("  ret float %result");
-        EmitFloatingTrapBlock(builder);
+        EmitFloatingTrapBlock(builder, "float");
     }
 
     private static void EmitCheckedSingleUnaryHelper(StringBuilder builder, string name)
@@ -438,7 +483,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  br i1 %is_infinite, label %trap, label %done");
         builder.AppendLine("done:");
         builder.AppendLine("  ret float %result");
-        EmitFloatingTrapBlock(builder);
+        EmitFloatingTrapBlock(builder, "float");
     }
 
     private static void EmitCheckedFloatingDivisionHelper(
@@ -453,7 +498,7 @@ public sealed class LlvmEmitter
             .Append('(').Append(llvmType).AppendLine(" %left, " + llvmType + " %right) {");
         builder.AppendLine("entry:");
         builder.Append("  %is_zero = fcmp oeq ").Append(llvmType).AppendLine(" %right, 0.0");
-        builder.AppendLine("  br i1 %is_zero, label %trap, label %divide");
+        builder.AppendLine("  br i1 %is_zero, label %trap_divide, label %divide");
         builder.AppendLine("divide:");
         builder.Append("  %result = fdiv ").Append(llvmType).AppendLine(" %left, %right");
         if (checkInfinity)
@@ -463,7 +508,7 @@ public sealed class LlvmEmitter
             builder.Append("  %is_neg_inf = fcmp oeq ").Append(llvmType).Append(' ')
                 .AppendLine("%result, " + negativeInfinity);
             builder.AppendLine("  %is_infinite = or i1 %is_pos_inf, %is_neg_inf");
-            builder.AppendLine("  br i1 %is_infinite, label %trap, label %done");
+            builder.AppendLine("  br i1 %is_infinite, label %trap_overflow, label %done");
         }
         else
         {
@@ -472,7 +517,15 @@ public sealed class LlvmEmitter
 
         builder.AppendLine("done:");
         builder.Append("  ret ").Append(llvmType).AppendLine(" %result");
-        EmitFloatingTrapBlock(builder);
+        builder.AppendLine("trap_divide:");
+        EmitNativeErrorReturn(builder, "11", llvmType, "0.0");
+        if (checkInfinity)
+        {
+            builder.AppendLine("trap_overflow:");
+            EmitNativeErrorReturn(builder, "6", llvmType, "0.0");
+        }
+        builder.AppendLine("}");
+        builder.AppendLine();
     }
 
     private static void EmitSingleInfinityGuard(StringBuilder builder, string resultName)
@@ -482,11 +535,10 @@ public sealed class LlvmEmitter
         builder.AppendLine("  %is_infinite = or i1 %is_pos_inf, %is_neg_inf");
     }
 
-    private static void EmitFloatingTrapBlock(StringBuilder builder)
+    private static void EmitFloatingTrapBlock(StringBuilder builder, string llvmType)
     {
         builder.AppendLine("trap:");
-        builder.AppendLine("  call void @llvm.trap()");
-        builder.AppendLine("  unreachable");
+        EmitNativeErrorReturn(builder, "6", llvmType, "0.0");
         builder.AppendLine("}");
         builder.AppendLine();
     }
@@ -575,6 +627,8 @@ public sealed class LlvmEmitter
         private readonly Dictionary<int, string> _localSlots = new();
         private readonly Dictionary<int, string> _blockLabels = new();
         private int _temporaryId;
+        private int _errorBoundaryId;
+        private NativeErrorBoundary? _activeErrorBoundary;
 
         public NativeProcedureEmitter(
             StringBuilder builder,
@@ -596,6 +650,9 @@ public sealed class LlvmEmitter
                 .ToArray();
 
             _blockLabels.Clear();
+            _temporaryId = 0;
+            _errorBoundaryId = 0;
+            _activeErrorBoundary = null;
             foreach (var block in procedure.Blocks)
             {
                 _blockLabels[block.Id] = $"bb{block.Id}";
@@ -636,6 +693,14 @@ public sealed class LlvmEmitter
                 foreach (var instruction in block.Instructions)
                 {
                     EmitInstruction(instruction);
+                }
+
+                if (_activeErrorBoundary is not null)
+                {
+                    AddDiagnostic(
+                        "VB6L0004",
+                        "Native LLVM error handling region crosses a basic-block boundary.");
+                    _activeErrorBoundary = null;
                 }
 
                 EmitTerminator(block.Terminator, returnType);
@@ -688,6 +753,7 @@ public sealed class LlvmEmitter
 
         private void EmitStorage(IrProcedure procedure)
         {
+            _builder.AppendLine("  call void @__vb6_error_clear_pending()");
             foreach (var parameter in procedure.Parameters)
             {
                 if (parameter.PassingMode == ParameterPassingMode.ByRef)
@@ -711,6 +777,41 @@ public sealed class LlvmEmitter
                 _localSlots[local.Id] = slot;
                 _builder.Append("  ").Append(slot).Append(" = alloca ").AppendLine(llvmType);
             }
+        }
+
+        private void EmitErrorBoundary(NativeErrorBoundary boundary)
+        {
+            var pending = NextTemporary();
+            var errorLabel = $"__vb6_error_boundary_{boundary.Id}";
+            var continuationLabel = $"__vb6_error_continue_{boundary.Id}";
+            _builder.Append("  ").Append(pending)
+                .AppendLine(" = call i1 @__vb6_error_take_pending()");
+            _builder.Append("  br i1 ").Append(pending).Append(", label %")
+                .Append(errorLabel).Append(", label %").AppendLine(continuationLabel);
+            _builder.Append(errorLabel).AppendLine(":");
+            if (boundary.HandlerBlockId is int handlerBlockId)
+            {
+                _builder.Append("  br label %").AppendLine(GetBlockLabel(handlerBlockId));
+            }
+            else
+            {
+                _builder.Append("  br label %").AppendLine(continuationLabel);
+            }
+
+            _builder.Append(continuationLabel).AppendLine(":");
+        }
+
+        private void EmitResumeInstruction(IrResumeInstruction resume)
+        {
+            if (resume.Kind == IrResumeKind.Next)
+            {
+                _builder.AppendLine("  call void @__vb6_error_clear_pending()");
+                return;
+            }
+
+            AddDiagnostic(
+                "VB6L0001",
+                "Native LLVM lowering for 'Resume' without a target is not implemented yet.");
         }
 
         private string GetParameterLlvmType(IrParameter parameter)
@@ -749,10 +850,31 @@ public sealed class LlvmEmitter
                 case IrSubscribeEventInstruction:
                     AddDiagnostic("VB6L0001", "Native LLVM lowering for events is not implemented yet.");
                     return;
-                case IrErrorBoundaryStartInstruction:
+                case IrErrorBoundaryStartInstruction boundary:
+                    if (_activeErrorBoundary is not null)
+                    {
+                        AddDiagnostic("VB6L0004", "Nested native LLVM error handling regions are not supported.");
+                    }
+                    else
+                    {
+                        _activeErrorBoundary = new NativeErrorBoundary(
+                            _errorBoundaryId++,
+                            boundary.HandlerBlockId);
+                    }
+                    return;
                 case IrErrorBoundaryEndInstruction:
-                case IrResumeInstruction:
-                    AddDiagnostic("VB6L0001", "Native LLVM lowering for VB6 error handling is not implemented yet.");
+                    if (_activeErrorBoundary is null)
+                    {
+                        AddDiagnostic("VB6L0004", "Native LLVM error handling region ended without a start.");
+                    }
+                    else
+                    {
+                        EmitErrorBoundary(_activeErrorBoundary);
+                        _activeErrorBoundary = null;
+                    }
+                    return;
+                case IrResumeInstruction resume:
+                    EmitResumeInstruction(resume);
                     return;
                 default:
                     AddDiagnostic(
@@ -865,6 +987,24 @@ public sealed class LlvmEmitter
         {
             var arguments = runtime.Arguments.Select(argument => EmitExpression(argument.Expression)).ToArray();
             var methodName = runtime.Method.ToString();
+
+            if (runtime.Method == IrRuntimeMethod.ErrorNumber)
+            {
+                var call = NextTemporary();
+                _builder.Append("  ").Append(call).AppendLine(" = call i32 @__vb6_error_number()");
+                return new NativeValue(runtime.ResultType, "i32", call);
+            }
+
+            if (runtime.Method == IrRuntimeMethod.ErrorLineNumber)
+            {
+                return new NativeValue(runtime.ResultType, "i32", "0");
+            }
+
+            if (runtime.Method == IrRuntimeMethod.ErrorClear)
+            {
+                _builder.AppendLine("  call void @__vb6_error_clear()");
+                return new NativeValue(runtime.ResultType, "i32", "0");
+            }
 
             if (methodName == "MultiplyCurrency")
             {
@@ -2175,6 +2315,8 @@ public sealed class LlvmEmitter
 
         internal static string EscapeIdentifier(string identifier) =>
             identifier.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+
+        private sealed record NativeErrorBoundary(int Id, int? HandlerBlockId);
 
         private sealed record NativeValue(TypeSymbol SemanticType, string LlvmType, string Value);
     }
