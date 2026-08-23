@@ -374,6 +374,7 @@ public sealed class ProjectCompilationTests
 
                 Private Sub UseButtons()
                     Buttons(0).Caption = "Changed"
+                    Debug.Print Buttons.UBound
                 End Sub
                 """);
 

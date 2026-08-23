@@ -53,6 +53,25 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesMemberArrayBounds()
+    {
+        const string source = """
+            Sub Main()
+                Dim values(2 To 4) As Long
+                Debug.Print values.LBound
+                Debug.Print values.UBound
+            End Sub
+            """;
+
+        var compilation = VBCompilation.Create(source, "Module1.bas");
+        var standardOutput = VB6TestProgram.Run(compilation);
+        CollectionAssert.AreEqual(
+            new[] { "2", "4" },
+            standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
+            standardOutput);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PassesArrayElementByRef()
     {
         const string source = """

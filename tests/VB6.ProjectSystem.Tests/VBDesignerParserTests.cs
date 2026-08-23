@@ -57,4 +57,21 @@ public sealed class VBDesignerParserTests
         Assert.IsFalse(result.Success);
         Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6FRM0006"));
     }
+
+    [TestMethod]
+    public void Parse_IgnoresEndStatementsAfterDesignerRoot()
+    {
+        var result = VBDesignerParser.Parse("""
+            VERSION 5.00
+            Begin VB.Form Main
+            End
+            Attribute VB_Name = "Main"
+            Private Sub Main()
+                End
+            End Sub
+            """, Path.Combine(Path.GetTempPath(), "VB6Designer", "Main.frm"));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.IsNotNull(result.Document);
+    }
 }
