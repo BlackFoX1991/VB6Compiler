@@ -1177,11 +1177,13 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `ImageCombo`/`ComboItems`/`ComboItem`, `RichTextLib.RichTextBox` und
       `MSComDlg.CommonDialog` haben einen typisierten Managed-Late-Binding-Vertrag einschließlich
       der VB6-Control-Hierarchie bei ByRef. Windows-`.tlb`/`.olb`-/TypeLib-Referenzen aus `.dll`/`.ocx`
-      werden zusätzlich über `LoadTypeLibEx` als dynamische Klassen-, Methoden- und Property-
-      Verträge importiert; nicht sicher abbildbare Pointer-/UDT-Typen erhalten einen Object-Fallback.
+      werden zusätzlich über `LoadTypeLibEx` als dynamische Klassen-, Methoden-, Property-, Enum-
+      und Record-/UDT-Verträge importiert. Skalare Recordfelder und referenzierte UDTs werden in
+      Managed-Structs übernommen; nicht sicher abbildbare Pointer-/C-Array-Signaturen erhalten
+      einen Object-Fallback.
       `CreateObject` und Managed-`IDispatch`-Dispatch stehen; Enum-Konstanten aus Windows-TypeLibraries
       werden importiert und COM-Defaultzugriffe verwenden bei echten COM-Objekten `DISPID_VALUE`;
-      vollständiger UDT-Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
+      vollständiger COM-ByRef-/Event-ABI, natives OCX-Hosting und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1271,8 +1273,9 @@ ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate Kompatibilitätss
 Variant-Objektindizes verwenden nun den bestehenden Managed-Dispatch auch dann, wenn der
 Empfänger erst zur Laufzeit als Objekt bekannt ist: `value(index)` bleibt für echte `IVBArray`-
 Werte ein Arrayzugriff und fällt für Objekte auf `Item`-Get/Let zurück. Die Suite umfasst damit
-**853 Tests**; COM-Default-Member werden für echte COM-Objekte nun über `DISPID_VALUE` aufgelöst,
-die vollständige Dispatch-ABI bleibt offen.
+**854 Tests**; COM-Default-Member werden für echte COM-Objekte nun über `DISPID_VALUE` aufgelöst,
+Windows-TypeLib-Records wie `GUID` und `EXCEPINFO` werden mit skalaren Feldern in den Managed-
+UDT-Pfad übernommen, und die vollständige Dispatch-ABI bleibt offen.
 
 `.vbg`-Gruppen schreiben ihre Managed-Artefakte jetzt mit dem passenden Zieltyp: `Type=Exe`-
 Projekte erhalten `.exe`, Bibliotheksprojekte `.dll`. Die Abhängigkeitsreihenfolge und die

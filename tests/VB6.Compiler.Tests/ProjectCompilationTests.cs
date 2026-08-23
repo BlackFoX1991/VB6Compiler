@@ -279,6 +279,76 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ImportsRecordFieldsFromWindowsTypeLibraryReference()
+    {
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "System32",
+            "stdole2.tlb");
+        if (!OperatingSystem.IsWindows() || !File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The Windows stdole2.tlb test fixture is not available.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "TypeLibraryRecords.vbp");
+            File.WriteAllText(projectPath, $"""
+                Type=Exe
+                Startup="Sub Main"
+                Reference=*\G00020430-0000-0000-C000-000000000046#2.0#0#{typeLibraryPath}#stdole
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim identifier As stdole.GUID
+                    identifier.Data1 = 1
+                    identifier.Data2 = 2
+                    identifier.Data3 = 3
+                    Debug.Print identifier.Data1
+                    Dim exceptionInfo As stdole.EXCEPINFO
+                    exceptionInfo.scode = 5
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!
+                .Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
+            var identifier = main.Locals.Single(local =>
+                string.Equals(local.Name, "identifier", StringComparison.OrdinalIgnoreCase));
+            Assert.IsInstanceOfType<UserDefinedTypeSymbol>(identifier.Type);
+            var guid = (UserDefinedTypeSymbol)identifier.Type;
+            Assert.AreEqual(4, guid.Members.Length);
+            Assert.AreEqual(TypeSymbol.UInteger, guid.Members.Single(member => member.Name == "Data1").Type);
+            Assert.AreEqual(TypeSymbol.UShort, guid.Members.Single(member => member.Name == "Data2").Type);
+            Assert.AreEqual(TypeSymbol.UShort, guid.Members.Single(member => member.Name == "Data3").Type);
+            Assert.AreSame(VBStandardTypes.Object, guid.Members.Single(member => member.Name == "Data4").Type);
+
+            var exceptionInfo = main.Locals.Single(local =>
+                string.Equals(local.Name, "exceptionInfo", StringComparison.OrdinalIgnoreCase));
+            Assert.IsInstanceOfType<UserDefinedTypeSymbol>(exceptionInfo.Type);
+            var excepInfo = (UserDefinedTypeSymbol)exceptionInfo.Type;
+            Assert.AreEqual(TypeSymbol.String, excepInfo.Members.Single(member => member.Name == "bstrSource").Type);
+            Assert.AreEqual(TypeSymbol.UInteger, excepInfo.Members.Single(member => member.Name == "dwHelpContext").Type);
+
+            Assert.AreEqual("1", VB6TestProgram.RunProject(projectPath).Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_BindsDesignerActiveXControlContracts()
     {
         var directory = CreateTemporaryDirectory();
