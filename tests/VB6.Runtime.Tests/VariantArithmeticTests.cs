@@ -106,4 +106,13 @@ public sealed class VariantArithmeticTests
         Assert.IsTrue((bool)VBOperators.StringVariantLess("10", 2));
         Assert.IsTrue((bool)VBOperators.StringVariantEqual("10", 10));
     }
+
+    [TestMethod]
+    public void DecimalComparisons_PreservePrecisionAgainstFloatingVariants()
+    {
+        var value = VBConversions.CDec("0.100000000000000005");
+
+        Assert.IsTrue((bool)VBOperators.VariantGreater(value, 0.1d));
+        Assert.IsFalse((bool)VBOperators.VariantEqual(value, 0.1d));
+    }
 }

@@ -420,6 +420,9 @@ public static partial class VBOperators
             case byte or short or int or long or bool:
                 number = Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
                 return true;
+            case float or double:
+                number = Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
+                return true;
             case string text when decimal.TryParse(
                 text,
                 System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
