@@ -856,6 +856,43 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "fptoui double %rounded to i64");
     }
 
+    [TestMethod]
+    public void Emit_LowersRoundedFloatingCurrencyConversions()
+    {
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CCur,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(1.23455d, TypeSymbol.Double))),
+                        TypeSymbol.Currency)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CCur,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(1.23455f, TypeSymbol.Single))),
+                        TypeSymbol.Currency))),
+                new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "define i64 @__vb6_fptocurrency_checked_i64(double %value)");
+        StringAssert.Contains(result.ModuleText, "%scaled = fmul double %value, 10000.0");
+        StringAssert.Contains(result.ModuleText, "%rounded = call double @llvm.roundeven.f64(double %scaled)");
+        StringAssert.Contains(result.ModuleText, "-9223372036854775808.0");
+        StringAssert.Contains(result.ModuleText, "9223372036854774784.0");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_fptocurrency_checked_i64(double 1.23455");
+        StringAssert.Contains(result.ModuleText, "fpext float 1.2345499992370605 to double");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",
