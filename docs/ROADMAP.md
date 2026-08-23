@@ -559,6 +559,12 @@ bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
 VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
 umfasst nun **774 Tests**.
 
+`Environ` ist nun als hostneutraler Interaktions-Intrinsic verdrahtet. Der Compiler unterstützt
+case-insensitiven Namenszugriff sowie den numerischen, gerundeten 1-basierten Zugriff mit stabil
+sortierten `NAME=VALUE`-Einträgen; unbekannte Namen und Positionen liefern den leeren String. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **776 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen

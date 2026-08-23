@@ -241,6 +241,7 @@ public enum VBIntrinsicKind
     MonthName,
     Erl,
     Command,
+    Environ,
     Load,
     Unload,
     VarPtr,

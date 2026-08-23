@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -63,6 +65,42 @@ public sealed class InteractionRuntimeTests
     public void Command_ReturnsEmptyValueInHeadlessRuntime()
     {
         Assert.AreEqual(string.Empty, VBInteraction.Command());
+    }
+
+    [TestMethod]
+    public void Environ_ResolvesNamesAndStableNumericEntries()
+    {
+        var name = "VB6COMPILER_ENV_TEST_" + Guid.NewGuid().ToString("N");
+        var previous = Environment.GetEnvironmentVariable(name);
+        try
+        {
+            Environment.SetEnvironmentVariable(name, "compiled");
+
+            Assert.AreEqual("compiled", VBInteraction.Environ(name));
+            Assert.AreEqual(string.Empty, VBInteraction.Environ(name + "_MISSING"));
+
+            var entries = Environment.GetEnvironmentVariables()
+                .Cast<DictionaryEntry>()
+                .Select(entry => new
+                {
+                    Name = Convert.ToString(entry.Key) ?? string.Empty,
+                    Value = Convert.ToString(entry.Value) ?? string.Empty
+                })
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.Name, StringComparer.Ordinal)
+                .Select(entry => $"{entry.Name}={entry.Value}")
+                .ToArray();
+            var index = Array.FindIndex(entries, entry => entry.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase));
+
+            Assert.IsTrue(index >= 0);
+            Assert.AreEqual(entries[index], VBInteraction.Environ(index + 1.1));
+            Assert.AreEqual(string.Empty, VBInteraction.Environ(0));
+            Assert.AreEqual(string.Empty, VBInteraction.Environ(entries.Length + 1));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(name, previous);
+        }
     }
 
     [TestMethod]

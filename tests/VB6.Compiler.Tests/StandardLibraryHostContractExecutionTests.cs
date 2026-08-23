@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -27,6 +29,33 @@ public sealed class StandardLibraryHostContractExecutionTests
         CollectionAssert.AreEqual(
             new[] { "1", "2", "1", "197121", "saved", "fallback" },
             lines);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesEnvironNameAndIndexContracts()
+    {
+        var name = "VB6COMPILER_ENV_EXEC_" + Guid.NewGuid().ToString("N");
+        var previous = Environment.GetEnvironmentVariable(name);
+        try
+        {
+            Environment.SetEnvironmentVariable(name, "compiled");
+
+            var lines = VB6TestProgram.RunLines($"""
+                Sub Main()
+                    Debug.Print Environ("{name}")
+                    Debug.Print Len(Environ(1))
+                    Debug.Print Len(Environ("{name}_MISSING"))
+                End Sub
+                """);
+
+            Assert.AreEqual("compiled", lines[0]);
+            Assert.IsTrue(int.Parse(lines[1], CultureInfo.InvariantCulture) > 0);
+            Assert.AreEqual("0", lines[2]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(name, previous);
+        }
     }
 
     [TestMethod]

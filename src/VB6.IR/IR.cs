@@ -580,6 +580,7 @@ public enum IrRuntimeMethod
     InteractionGetObject,
     InteractionShell,
     InteractionCommand,
+    InteractionEnviron,
     MemoryVarPtr,
     MemoryObjPtr,
     MemoryStrPtr,
