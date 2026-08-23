@@ -478,11 +478,12 @@ public sealed class LlvmEmitter
             if (methodName.StartsWith("IntegerDivide", StringComparison.Ordinal) ||
                 methodName.StartsWith("Mod", StringComparison.Ordinal))
             {
-                var unsigned = arguments.Length > 0 && IsUnsigned(arguments[0].SemanticType);
-                var operation = methodName.StartsWith("IntegerDivide", StringComparison.Ordinal)
-                    ? unsigned ? "udiv" : "sdiv"
-                    : unsigned ? "urem" : "srem";
-                return EmitBinary(runtime.ResultType, arguments, operation);
+                return RejectCheckedIntegerOperation(
+                    methodName,
+                    runtime.ResultType,
+                    methodName.StartsWith("IntegerDivide", StringComparison.Ordinal)
+                        ? "integer division"
+                        : "integer remainder");
             }
 
             if (methodName.StartsWith("Negate", StringComparison.Ordinal))
@@ -531,6 +532,17 @@ public sealed class LlvmEmitter
         }
 
         private NativeValue RejectCheckedFloatingOperation(
+            string methodName,
+            TypeSymbol resultType,
+            string operation)
+        {
+            AddDiagnostic(
+                "VB6L0001",
+                $"Native LLVM lowering for runtime method '{methodName}' requires checked {operation} runtime semantics and is not implemented yet.");
+            return ZeroValue(resultType);
+        }
+
+        private NativeValue RejectCheckedIntegerOperation(
             string methodName,
             TypeSymbol resultType,
             string operation)
