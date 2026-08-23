@@ -118,4 +118,56 @@ public sealed class DirectManagedProjectExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManaged_EmitsOleDllProjectsAsLibrariesWithoutSubMain()
+    {
+        var projectDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerDirectProjectTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(projectDirectory);
+
+        try
+        {
+            var projectPath = Path.Combine(projectDirectory, "LegacyLibrary.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name="LegacyLibrary"
+                Module=Exports; Exports.bas
+                """);
+            File.WriteAllText(Path.Combine(projectDirectory, "Exports.bas"), """
+                Public Sub Register()
+                    Debug.Print 1
+                End Sub
+                """);
+
+            var result = DirectManagedCompilation.EmitManaged(
+                VBProjectCompilation.Create(projectPath),
+                Path.Combine(projectDirectory, "bin", "LegacyLibrary.dll"));
+
+            Assert.IsTrue(
+                result.Success,
+                string.Join(
+                    Environment.NewLine,
+                    result.Lowering.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(result.Lowering.Analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))
+                        .Concat(result.BackendResult?.Diagnostics.Select(diagnostic =>
+                            $"{diagnostic.Code}: {diagnostic.Message}") ?? [])));
+            Assert.IsNotNull(result.BackendResult?.PeImage);
+
+            using var imageStream = new MemoryStream(result.BackendResult!.PeImage!);
+            using var peReader = new System.Reflection.PortableExecutable.PEReader(imageStream);
+            Assert.AreEqual(
+                0,
+                peReader.PEHeaders.CorHeader!.EntryPointTokenOrRelativeVirtualAddress);
+        }
+        finally
+        {
+            if (Directory.Exists(projectDirectory))
+            {
+                Directory.Delete(projectDirectory, recursive: true);
+            }
+        }
+    }
 }

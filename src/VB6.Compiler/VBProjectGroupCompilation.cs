@@ -1,0 +1,168 @@
+using System.Collections.Immutable;
+using VB6.ProjectSystem;
+
+namespace VB6.Compiler;
+
+public sealed class VBProjectGroupCompilation
+{
+    private readonly string _groupFilePath;
+
+    private VBProjectGroupCompilation(string groupFilePath)
+    {
+        _groupFilePath = Path.GetFullPath(groupFilePath);
+    }
+
+    public static VBProjectGroupCompilation Create(string groupFilePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(groupFilePath);
+        return new VBProjectGroupCompilation(groupFilePath);
+    }
+
+    public VBProjectGroupAnalysis Analyze()
+    {
+        var loadResult = new VBProjectGroupLoader().Load(_groupFilePath);
+        var groupDiagnostics = ImmutableArray.CreateBuilder<VBProjectGroupCompilationDiagnostic>();
+        foreach (var diagnostic in loadResult.Diagnostics)
+        {
+            groupDiagnostics.Add(new VBProjectGroupCompilationDiagnostic(
+                diagnostic.Code,
+                diagnostic.Message,
+                loadResult.Group.FilePath,
+                diagnostic.Line));
+        }
+
+        var projects = ImmutableArray.CreateBuilder<VBProjectGroupProjectAnalysis>();
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var project in loadResult.Group.Projects)
+        {
+            var projectPath = project.GetFullPath(loadResult.Group.ProjectDirectory);
+            var projectDiagnostics = ImmutableArray.CreateBuilder<VBProjectGroupCompilationDiagnostic>();
+            if (!seenPaths.Add(projectPath))
+            {
+                projectDiagnostics.Add(new VBProjectGroupCompilationDiagnostic(
+                    "VB6VBG0005",
+                    $"Project '{project.RelativePath}' occurs more than once in the project group.",
+                    projectPath));
+            }
+
+            if (!File.Exists(projectPath))
+            {
+                projectDiagnostics.Add(new VBProjectGroupCompilationDiagnostic(
+                    "VB6VBG0006",
+                    $"Project '{project.RelativePath}' was not found.",
+                    projectPath));
+            }
+
+            VBProjectCompilationAnalysis? compilation = null;
+            if (projectDiagnostics.Count == 0)
+            {
+                compilation = VBProjectCompilation.Create(projectPath).Analyze();
+            }
+
+            projects.Add(new VBProjectGroupProjectAnalysis(
+                project,
+                projectPath,
+                compilation,
+                projectDiagnostics.ToImmutable()));
+        }
+
+        return new VBProjectGroupAnalysis(
+            loadResult.Group,
+            groupDiagnostics.ToImmutable(),
+            projects.ToImmutable());
+    }
+
+    public VBProjectGroupEmitResult EmitManagedApplications(string outputDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
+
+        var analysis = Analyze();
+        var fullOutputDirectory = Path.GetFullPath(outputDirectory);
+        Directory.CreateDirectory(fullOutputDirectory);
+
+        var emittedProjects = ImmutableArray.CreateBuilder<VBProjectGroupProjectEmitResult>();
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var project in analysis.Projects)
+        {
+            if (!project.Success || project.Compilation is null)
+            {
+                continue;
+            }
+
+            var stem = GetOutputStem(project.Compilation.Project);
+            var uniqueStem = stem;
+            var suffix = 2;
+            while (!usedNames.Add(uniqueStem))
+            {
+                uniqueStem = $"{stem}_{suffix++}";
+            }
+
+            var outputPath = Path.Combine(fullOutputDirectory, uniqueStem + ".dll");
+            var emit = VBProjectCompilation.Create(project.FullPath)
+                .EmitManagedApplication(outputPath);
+            emittedProjects.Add(new VBProjectGroupProjectEmitResult(project, outputPath, emit));
+        }
+
+        return new VBProjectGroupEmitResult(analysis, emittedProjects.ToImmutable());
+    }
+
+    private static string GetOutputStem(VBProject project)
+    {
+        var requestedName = string.IsNullOrWhiteSpace(project.Name)
+            ? Path.GetFileNameWithoutExtension(project.FilePath)
+            : project.Name!;
+        var invalidCharacters = Path.GetInvalidFileNameChars();
+        var sanitized = new string(requestedName
+            .Select(character => invalidCharacters.Contains(character) ? '_' : character)
+            .ToArray());
+        return string.IsNullOrWhiteSpace(sanitized) ? "VB6Project" : sanitized;
+    }
+}
+
+public sealed record VBProjectGroupCompilationDiagnostic(
+    string Code,
+    string Message,
+    string FilePath,
+    int? Line = null)
+{
+    public override string ToString() =>
+        Line is null
+            ? $"{Code} {FilePath}: {Message}"
+            : $"{Code} {FilePath}:{Line}: {Message}";
+}
+
+public sealed record VBProjectGroupProjectAnalysis(
+    VBProjectGroupProject Project,
+    string FullPath,
+    VBProjectCompilationAnalysis? Compilation,
+    ImmutableArray<VBProjectGroupCompilationDiagnostic> Diagnostics)
+{
+    public bool Success => Diagnostics.Length == 0 && Compilation?.Success == true;
+}
+
+public sealed record VBProjectGroupAnalysis(
+    VBProjectGroup Group,
+    ImmutableArray<VBProjectGroupCompilationDiagnostic> GroupDiagnostics,
+    ImmutableArray<VBProjectGroupProjectAnalysis> Projects)
+{
+    public bool Success =>
+        GroupDiagnostics.Length == 0 && Projects.Length > 0 && Projects.All(project => project.Success);
+}
+
+public sealed record VBProjectGroupProjectEmitResult(
+    VBProjectGroupProjectAnalysis Project,
+    string OutputPath,
+    VBProjectManagedApplicationEmitResult Emit)
+{
+    public bool Success => Emit.Success;
+}
+
+public sealed record VBProjectGroupEmitResult(
+    VBProjectGroupAnalysis Analysis,
+    ImmutableArray<VBProjectGroupProjectEmitResult> Projects)
+{
+    public bool Success =>
+        Analysis.Success &&
+        Projects.Length == Analysis.Projects.Length &&
+        Projects.All(project => project.Success);
+}
