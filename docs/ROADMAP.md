@@ -68,6 +68,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Modulbezogener Designer-Control-Scope | **221** | **0** | **0** | **221** | **27 von 40** |
 | Implizite Form-/UserControl-Host-Properties | **205** | **0** | **0** | **205** | **27 von 40** |
 | Qualifizierte Enum-Memberauflösung | **258** | **0** | **0** | **258** | **23 von 40** |
+| Modulkonstanten mit projektweiten Enum-Symbolen | **202** | **0** | **0** | **202** | **27 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -249,6 +250,12 @@ Form- und UserControl-Module binden nun auch bare Host-Properties wie Height, Sc
 CurrentX und FillStyle gegen Me. Der bestehende Host-Vertrag wird damit nicht nur für ScaleX,
 ScaleY und TextWidth, sondern auch für die häufige Property-Syntax sichtbar. Der VISIA-Stand sinkt
 um **16** auf **205 semantische Fehler**, bei weiterhin **27 von 40** fehlerfreien Dateien.
+
+Modulvariablen und Konstanten binden ihre Initializer nun gegen bereits bekannte projektweite
+Symbole und zuvor deklarierte Modulvariablen. Dadurch können beispielsweise Enum-Member in
+typisierten Modulkonstanten verwendet werden, ohne die Duplikatprüfung eigener Deklarationen zu
+umgehen. Der VISIA-Stand sinkt um **3** auf **202 semantische Fehler**, bei weiterhin **27 von 40**
+fehlerfreien Dateien; die Suite umfasst **682 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

@@ -53,6 +53,26 @@ public sealed class EnumExecutionTests
     }
 
     [TestMethod]
+    public void Analyze_AllowsModuleConstantsToUseEnumMembers()
+    {
+        var analysis = VBCompilation.Create("""
+            Enum SectionKind
+                Code = 2
+            End Enum
+
+            Public Const DefaultSection As SectionKind = Code
+
+            Sub Main()
+                Debug.Print DefaultSection
+            End Sub
+            """).Analyze();
+
+        Assert.IsTrue(
+            analysis.Success,
+            string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_SharesEnumAcrossVbpModules()
     {
         var directory = Path.Combine(

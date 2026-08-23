@@ -483,6 +483,11 @@ public sealed class Binder
             IReadOnlyDictionary<string, ModuleVariableSymbol>? existingSymbols = null)
     {
         var scope = new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase);
+        var availableScope = existingSymbols is null
+            ? new Dictionary<string, ModuleVariableSymbol>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, ModuleVariableSymbol>(
+                existingSymbols,
+                StringComparer.OrdinalIgnoreCase);
         var bound = ImmutableArray.CreateBuilder<BoundModuleVariable>();
         var noProcedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
 
@@ -501,15 +506,13 @@ public sealed class Binder
                 {
                     foreach (var declarator in declaration.Declarators)
                     {
-                        var visible = scope.ToDictionary(
-                            entry => entry.Key,
-                            entry => (VariableSymbol)entry.Value,
-                            StringComparer.OrdinalIgnoreCase);
+                        var visible = CreateVisibleModuleScope();
                         var type = ResolveVariableDeclaratorType(declarator);
                         var dimensions = BindArrayDimensions(declarator, visible, noProcedures);
                         var symbol = Declare(declarator.Identifier.Text, type);
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
+                            availableScope[symbol.Name] = symbol;
                             bound.Add(new BoundModuleVariable(
                                 symbol,
                                 null,
@@ -526,10 +529,7 @@ public sealed class Binder
 
                 case ConstDeclarationSyntax declaration:
                 {
-                    var visible = scope.ToDictionary(
-                        entry => entry.Key,
-                        entry => (VariableSymbol)entry.Value,
-                        StringComparer.OrdinalIgnoreCase);
+                    var visible = CreateVisibleModuleScope();
                     var value = BindExpression(declaration.Value, visible, noProcedures);
                     var type = declaration.TypeToken is null
                         ? value.Type
@@ -537,6 +537,7 @@ public sealed class Binder
                     var symbol = Declare(declaration.Identifier.Text, type);
                     if (TryDeclareModuleVariable(scope, symbol, declaration.Identifier))
                     {
+                        availableScope[symbol.Name] = symbol;
                         bound.Add(new BoundModuleVariable(
                             symbol,
                             BindConversion(value, type),
@@ -549,6 +550,20 @@ public sealed class Binder
         }
 
         return (scope, bound.ToImmutable());
+
+        Dictionary<string, VariableSymbol> CreateVisibleModuleScope()
+        {
+            var visible = availableScope.ToDictionary(
+                entry => entry.Key,
+                entry => (VariableSymbol)entry.Value,
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in scope)
+            {
+                visible[entry.Key] = entry.Value;
+            }
+
+            return visible;
+        }
     }
 
     private TypeSymbol ResolveVariableDeclaratorType(VariableDeclaratorSyntax declarator)
