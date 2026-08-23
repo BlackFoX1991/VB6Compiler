@@ -82,6 +82,7 @@ public static class IrDumper
         IrFieldPlace field => $"{FormatPlace(field.Receiver)}.{field.Field.Name}",
         IrArrayElementPlace element => $"{FormatExpression(element.Array)}[...]",
         IrArrayFlatElementPlace element => $"{FormatExpression(element.Array)}[flat]",
+        IrVariantArrayElementPlace element => $"{FormatExpression(element.Array)}[variant...]",
         IrIndirectPlace indirect => $"*{FormatExpression(indirect.Address)}",
         IrThisPlace thisPlace => $"this<{thisPlace.ClassType.Name}>",
         IrAccessorPlace => "<accessor>",

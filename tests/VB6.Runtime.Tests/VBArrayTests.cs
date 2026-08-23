@@ -92,6 +92,17 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void VariantArrayElementReferenceCanBePassedByReference()
+    {
+        var array = new VBArray<object>(new VBArrayBound(0, 0));
+        array[0] = "before";
+
+        Replace(ref VBArrayOperations.GetElementReference(array, new[] { 0 }));
+
+        Assert.AreEqual("changed", array[0]);
+    }
+
+    [TestMethod]
     public void Array_ClonePreservesBoundsAndCreatesIndependentStorage()
     {
         var array = new VBArray<int>(
@@ -228,6 +239,8 @@ public sealed class VBArrayTests
     }
 
     private static void Increment(ref int value) => value++;
+
+    private static void Replace(ref object? value) => value = "changed";
 
     private sealed class MutableValue
     {

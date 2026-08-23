@@ -921,6 +921,10 @@ public sealed class ManagedEmitter
                     EmitArrayFlatElementAddress(encoder, procedure, element);
                     EmitLoadIndirect(encoder, element.ElementType);
                     break;
+                case IrVariantArrayElementPlace element:
+                    EmitVariantArrayElementAddress(encoder, procedure, element);
+                    EmitLoadIndirect(encoder, element.Type);
+                    break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
                     EmitLoadIndirect(encoder, indirect.ElementType);
@@ -971,6 +975,11 @@ public sealed class ManagedEmitter
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
                     EmitStoreIndirect(encoder, element.ElementType);
                     break;
+                case IrVariantArrayElementPlace element:
+                    EmitVariantArrayElementAddress(encoder, procedure, element);
+                    EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.Type);
+                    EmitStoreIndirect(encoder, element.Type);
+                    break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, indirect.ElementType);
@@ -1018,6 +1027,9 @@ public sealed class ManagedEmitter
                     break;
                 case IrArrayFlatElementPlace element:
                     EmitArrayFlatElementAddress(encoder, procedure, element);
+                    break;
+                case IrVariantArrayElementPlace element:
+                    EmitVariantArrayElementAddress(encoder, procedure, element);
                     break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
@@ -1393,6 +1405,21 @@ public sealed class ManagedEmitter
                 returnByRef: true,
                 returnUsesTypeParameter: true,
                 typeof(int)));
+        }
+
+        private void EmitVariantArrayElementAddress(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrVariantArrayElementPlace element)
+        {
+            EmitExpression(encoder, procedure, element.Array);
+            EmitInt32Array(encoder, procedure, element.Indices);
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBArrayOperations).GetMethod(
+                    nameof(VBArrayOperations.GetElementReference),
+                    new[] { typeof(object), typeof(int[]) })
+                ?? throw new MissingMethodException(
+                    "VBArrayOperations.GetElementReference(object,int[]) is required.")));
         }
 
         private void EmitArrayCall(InstructionEncoder encoder, IrProcedure procedure, IrArrayCallExpression call)

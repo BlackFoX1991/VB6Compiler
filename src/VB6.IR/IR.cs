@@ -185,6 +185,10 @@ public sealed record IrArrayFlatElementPlace(
     IrExpression Index,
     TypeSymbol ElementType) : IrPlace(ElementType);
 
+public sealed record IrVariantArrayElementPlace(
+    IrExpression Array,
+    ImmutableArray<IrExpression> Indices) : IrPlace(TypeSymbol.Variant);
+
 public sealed record IrIndirectPlace(
     IrExpression Address,
     TypeSymbol ElementType) : IrPlace(ElementType);

@@ -609,9 +609,10 @@ normalen `CVErr`-Error-Variant ab.
 Array-Varianten bilden nun ebenfalls einen expliziten Grenzvertrag: `TypeName` liefert fuer
 `VBArray<T>` die VB6-Form `T()`, und skalare arithmetische, logische, relationale, String- und
 Konversionspfade melden bei Array-Operanden `Err.Number = 13` statt einer generischen CLR-Ausnahme.
-Elementzugriff mit Lesen und Schreiben laeuft nun ueber den Variant-Array-Runtimevertrag; UDT-Arrays,
-Default-Properties und vollstaendige Objekt-/Array-Promotion bleiben separate offene M4-/M5-Vertraege.
-Die Suite umfasst nun **815 Tests**.
+Elementzugriff mit Lesen und Schreiben laeuft nun ueber den Variant-Array-Runtimevertrag; Variant()-
+Elemente koennen an Variant-ByRef-Parameter weitergereicht werden. UDT-Arrays, Default-Properties
+und vollstaendige Objekt-/Array-Promotion bleiben separate offene M4-/M5-Vertraege. Die Suite
+umfasst nun **817 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1049,8 +1050,9 @@ Zwei Nachträge:
       Fehlerwert 448, und sonstige Variant-Verwendung meldet den dedizierten Runtime-Fehler 448
 - [~] Array-Variant-Vertrag: `IsArray`, `VarType` und typisierte `TypeName`-Ergebnisse stehen;
       skalare Operatoren und Konversionen melden fuer Array-Operanden Type Mismatch, und
-      Elementzugriff mit Lesen/Schreiben laeuft ueber den Variant-Array-Runtimevertrag; vollstaendige
-      Objekt-/Array-Promotion und ByRef-Elementverträge bleiben offen
+      Elementzugriff mit Lesen/Schreiben laeuft ueber den Variant-Array-Runtimevertrag; Variant()-
+      Elemente koennen an Variant-ByRef-Parameter weitergereicht werden. Vollstaendige
+      Objekt-/Array-Promotion und weitere Variant-ByRef-Faelle bleiben offen
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
