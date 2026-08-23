@@ -82,7 +82,7 @@ public sealed class VBProjectGroupCompilation
 
         var emittedProjects = ImmutableArray.CreateBuilder<VBProjectGroupProjectEmitResult>();
         var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var project in analysis.Projects)
+        foreach (var project in OrderProjectsForEmission(analysis))
         {
             if (!project.Success || project.Compilation is null)
             {
@@ -104,6 +104,62 @@ public sealed class VBProjectGroupCompilation
         }
 
         return new VBProjectGroupEmitResult(analysis, emittedProjects.ToImmutable());
+    }
+
+    private static ImmutableArray<VBProjectGroupProjectAnalysis> OrderProjectsForEmission(
+        VBProjectGroupAnalysis analysis)
+    {
+        var projectsByPath = new Dictionary<string, VBProjectGroupProjectAnalysis>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var project in analysis.Projects)
+        {
+            projectsByPath.TryAdd(project.FullPath, project);
+        }
+        var state = new Dictionary<string, VisitState>(StringComparer.OrdinalIgnoreCase);
+        var ordered = ImmutableArray.CreateBuilder<VBProjectGroupProjectAnalysis>();
+
+        foreach (var project in analysis.Projects)
+        {
+            Visit(project);
+        }
+
+        return ordered.ToImmutable();
+
+        void Visit(VBProjectGroupProjectAnalysis project)
+        {
+            if (state.TryGetValue(project.FullPath, out var currentState))
+            {
+                if (currentState is VisitState.Visited or VisitState.Visiting)
+                {
+                    return;
+                }
+            }
+
+            state[project.FullPath] = VisitState.Visiting;
+            if (project.Compilation is not null)
+            {
+                foreach (var reference in project.Compilation.Project.References.Where(reference =>
+                             reference.Metadata.Kind == VBProjectReferenceKind.Project))
+                {
+                    var referencePath = reference.Metadata.GetFullPath(
+                        project.Compilation.Project.ProjectDirectory);
+                    if (referencePath is not null &&
+                        projectsByPath.TryGetValue(referencePath, out var dependency))
+                    {
+                        Visit(dependency);
+                    }
+                }
+            }
+
+            state[project.FullPath] = VisitState.Visited;
+            ordered.Add(project);
+        }
+    }
+
+    private enum VisitState
+    {
+        Visiting,
+        Visited
     }
 
     private static string GetOutputStem(VBProject project)
