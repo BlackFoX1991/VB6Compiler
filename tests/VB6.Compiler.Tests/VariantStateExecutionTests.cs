@@ -86,11 +86,13 @@ public sealed class VariantStateExecutionTests
                 Debug.Print IsError(Empty)
                 Debug.Print VarType(value)
                 Debug.Print TypeName(value)
+                Debug.Print TypeName(Null)
+                Debug.Print TypeName(Nothing)
                 Debug.Print IsNull(CVErr(Null))
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "True", "False", "10", "Error", "True" }, output);
+        CollectionAssert.AreEqual(new[] { "True", "False", "10", "Error", "Null", "Nothing", "True" }, output);
     }
 
     [TestMethod]

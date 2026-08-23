@@ -16,25 +16,38 @@ public static class VBFunctions
         (ClampColor(green) << 8) |
         (ClampColor(blue) << 16);
 
-    public static string TypeName(object? value) => value switch
+    public static string TypeName(object? value)
     {
-        null => "Empty",
-        VB6RaisedError => "VB6RaisedError",
-        bool => "Boolean",
-        byte => "Byte",
-        short => "Integer",
-        int => "Long",
-        long => "LongLong",
-        float => "Single",
-        double => "Double",
-        decimal => "Decimal",
-        VBCurrency => "Currency",
-        VBDateValue => "Date",
-        VBErrorValue => "Error",
-        string => "String",
-        VBArray<object> => "Variant()",
-        _ => value.GetType().Name
-    };
+        if (VBVariants.IsNull(value))
+        {
+            return "Null";
+        }
+
+        if (VBVariants.IsNothing(value))
+        {
+            return "Nothing";
+        }
+
+        return value switch
+        {
+            null => "Empty",
+            VB6RaisedError => "VB6RaisedError",
+            bool => "Boolean",
+            byte => "Byte",
+            short => "Integer",
+            int => "Long",
+            long => "LongLong",
+            float => "Single",
+            double => "Double",
+            decimal => "Decimal",
+            VBCurrency => "Currency",
+            VBDateValue => "Date",
+            VBErrorValue => "Error",
+            string => "String",
+            VBArray<object> => "Variant()",
+            _ => value.GetType().Name
+        };
+    }
 
     /// <summary>Evaluates condition/value pairs and returns the first matching value.</summary>
     public static object? Switch(VBArray<object> arguments)
