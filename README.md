@@ -231,7 +231,7 @@ vb6c LegacyApp.vbp --emit-assembly LegacyApp.dll
 vb6c LegacyGroup.vbg --emit-assembly build
 ```
 
-The managed application output currently consists of the application DLL, its `.runtimeconfig.json`, and `VB6.Runtime.dll`. For a `.vbg` group, the output argument is a directory; referenced `.vbp` library projects are emitted before their consumers, while independent projects retain their declaration order, with project-name-based DLL names.
+The managed application output consists of the emitted `.exe` or `.dll`, its `.runtimeconfig.json`, and `VB6.Runtime.dll`. For a `.vbg` group, the output argument is a directory; referenced `.vbp` library projects are emitted before their consumers, while independent projects retain their declaration order. Library projects receive `.dll` names and executable projects receive `.exe` names based on the project name.
 
 Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point or an EXE startup `Form`, cross-module Sub and Function calls, the current ByRef/ByVal subset, `Optional` and `ParamArray` calls, persistent `Static` locals, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, LongPtr, UShort/UInt16, UInteger/UInt32, ULong/UInt64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
 

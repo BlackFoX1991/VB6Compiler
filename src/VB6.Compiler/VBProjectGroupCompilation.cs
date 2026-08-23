@@ -97,7 +97,11 @@ public sealed class VBProjectGroupCompilation
                 uniqueStem = $"{stem}_{suffix++}";
             }
 
-            var outputPath = Path.Combine(fullOutputDirectory, uniqueStem + ".dll");
+            var outputExtension = VBProjectCompilation.IsLibraryProjectType(
+                project.Compilation.Project.ProjectType)
+                ? ".dll"
+                : ".exe";
+            var outputPath = Path.Combine(fullOutputDirectory, uniqueStem + outputExtension);
             var emit = VBProjectCompilation.Create(project.FullPath)
                 .EmitManagedApplication(outputPath);
             emittedProjects.Add(new VBProjectGroupProjectEmitResult(project, outputPath, emit));

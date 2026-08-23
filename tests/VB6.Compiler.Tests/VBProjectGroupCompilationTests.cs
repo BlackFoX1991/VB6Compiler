@@ -34,8 +34,10 @@ public sealed class VBProjectGroupCompilationTests
 
             Assert.IsTrue(emit.Success, FormatDiagnostics(emit.Analysis));
             Assert.AreEqual(2, emit.Projects.Length);
-            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.dll")));
-            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.exe")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "First.dll")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Second.dll")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
         }
         finally
@@ -115,7 +117,8 @@ public sealed class VBProjectGroupCompilationTests
                 new[] { "Shared.vbp", "Consumer.vbp" },
                 result.Projects.Select(project => project.Project.Project.RelativePath).ToArray());
             Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Shared.dll")));
-            Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Consumer.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Consumer.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(directory, "bin", "Consumer.dll")));
         }
         finally
         {
