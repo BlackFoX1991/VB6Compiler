@@ -22,10 +22,7 @@ public sealed class Binder
     private readonly ImmutableArray<BoundModuleVariable>.Builder _staticVariables =
         ImmutableArray.CreateBuilder<BoundModuleVariable>();
     private readonly List<LoopBindingContext> _loopStack = new();
-    /// <summary>
-    /// Labels declared directly in the current procedure body. Only these can be jumped to, so a
-    /// label nested inside an If or a loop never enters the set and its jumps stay reported.
-    /// </summary>
+    /// <summary>Labels declared anywhere in the current procedure body.</summary>
     private readonly HashSet<string> _procedureLabels = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<WithBindingContext> _withStack = new();
     private ClassTypeSymbol? _containingClass;
@@ -801,10 +798,7 @@ public sealed class Binder
         PredeclareLocals(statements, locals, variables, procedures, identifier.Text);
 
         _procedureLabels.Clear();
-        foreach (var statement in statements.OfType<LabelStatementSyntax>())
-        {
-            _procedureLabels.Add(statement.Identifier.Text);
-        }
+        CollectProcedureLabels(statements);
 
         _activeLocals = locals;
         BoundBlockStatement body;
@@ -819,6 +813,49 @@ public sealed class Binder
         }
 
         return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
+    }
+
+    private void CollectProcedureLabels(ImmutableArray<StatementSyntax> statements)
+    {
+        foreach (var statement in statements)
+        {
+            switch (statement)
+            {
+                case LabelStatementSyntax label:
+                    _procedureLabels.Add(label.Identifier.Text);
+                    break;
+                case IfStatementSyntax @if:
+                    CollectProcedureLabels(@if.Statements);
+                    foreach (var clause in @if.ElseIfClauses)
+                    {
+                        CollectProcedureLabels(clause.Statements);
+                    }
+
+                    CollectProcedureLabels(@if.ElseStatements);
+                    break;
+                case ForStatementSyntax @for:
+                    CollectProcedureLabels(@for.Statements);
+                    break;
+                case ForEachStatementSyntax forEach:
+                    CollectProcedureLabels(forEach.Statements);
+                    break;
+                case WhileStatementSyntax @while:
+                    CollectProcedureLabels(@while.Statements);
+                    break;
+                case DoStatementSyntax @do:
+                    CollectProcedureLabels(@do.Statements);
+                    break;
+                case WithStatementSyntax with:
+                    CollectProcedureLabels(with.Statements);
+                    break;
+                case SelectCaseStatementSyntax select:
+                    foreach (var @case in select.Cases)
+                    {
+                        CollectProcedureLabels(@case.Statements);
+                    }
+                    break;
+            }
+        }
     }
 
     private void PredeclareLocals(

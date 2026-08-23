@@ -1,9 +1,8 @@
 namespace VB6.Compiler.Tests;
 
 /// <summary>
-/// The first piece of M6 that does not need the lowered representation: C# has labels and goto of
-/// its own, so a jump to a label in the same procedure body maps directly. What it cannot express
-/// is a jump *into* a block, which is exactly where the guard stays.
+/// Labels and jumps are lowered to procedure-level IR basic blocks, including targets nested in
+/// structured VB6 statements.
 /// </summary>
 [TestClass]
 public sealed class GoToExecutionTests
@@ -148,14 +147,10 @@ public sealed class GoToExecutionTests
             "9");
     }
 
-    /// <summary>
-    /// A label nested inside a block cannot be jumped to, because C# refuses a jump into a block.
-    /// Reported rather than emitted as something that happens to compile but jumps elsewhere.
-    /// </summary>
     [TestMethod]
-    public void Analyze_ReportsAJumpIntoABlock()
+    public void EmitManagedApplication_JumpsIntoAnIfBlock()
     {
-        var analysis = VBCompilation.Create("""
+        Run("""
             Sub Main()
                 Dim i As Long
                 GoTo Inside
@@ -164,10 +159,8 @@ public sealed class GoToExecutionTests
                     Debug.Print 1
                 End If
             End Sub
-            """, "Module1.bas").Analyze();
-
-        Assert.IsFalse(analysis.Success);
-        Assert.IsTrue(analysis.Diagnostics.Any(d => d.Code == "VB6S0061"));
+            """,
+            "1");
     }
 
     private static void Run(string source, params string[] expectedLines)
