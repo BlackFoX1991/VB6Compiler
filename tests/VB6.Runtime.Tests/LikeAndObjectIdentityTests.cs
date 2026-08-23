@@ -1,3 +1,6 @@
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -21,5 +24,54 @@ public sealed class LikeAndObjectIdentityTests
         Assert.IsTrue(VBObjectIdentity.IsSame(value, value));
         Assert.IsFalse(VBObjectIdentity.IsSame(value, new object()));
         Assert.IsTrue(VBObjectIdentity.IsSame(null, null));
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void ObjectIdentity_UsesComIUnknownIdentityAcrossRcws()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The COM identity test requires Windows.");
+            return;
+        }
+
+        var comType = Type.GetTypeFromProgID("htmlfile", throwOnError: false);
+        if (comType is null)
+        {
+            Assert.Inconclusive("The htmlfile COM class is not available.");
+            return;
+        }
+
+        var first = VBInteraction.CreateObject("htmlfile", string.Empty);
+        var second = VBInteraction.CreateObject("htmlfile", string.Empty);
+        Assert.IsTrue(Marshal.IsComObject(first));
+        Assert.IsTrue(Marshal.IsComObject(second));
+        Assert.IsFalse(VBObjectIdentity.IsSame(first, second));
+
+        nint unknown = IntPtr.Zero;
+        nint dispatch = IntPtr.Zero;
+        try
+        {
+            unknown = Marshal.GetIUnknownForObject(first);
+            var dispatchId = new Guid("00020400-0000-0000-C000-000000000046");
+            Marshal.QueryInterface(unknown, in dispatchId, out dispatch);
+            var secondWrapper = Marshal.GetObjectForIUnknown(dispatch);
+
+            Assert.IsTrue(Marshal.IsComObject(secondWrapper));
+            Assert.IsTrue(VBObjectIdentity.IsSame(first, secondWrapper));
+        }
+        finally
+        {
+            if (unknown != IntPtr.Zero)
+            {
+                Marshal.Release(unknown);
+            }
+
+            if (dispatch != IntPtr.Zero)
+            {
+                Marshal.Release(dispatch);
+            }
+        }
     }
 }

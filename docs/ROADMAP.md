@@ -1086,11 +1086,11 @@ Zwei Nachträge:
 - [x] `Static`-Local-Lebensdauer ueber compiler-generierten Modul-Storage inklusive String-/Array-Initialisierung
 - [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
       Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
-- [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-Identität/Interop bleibt offen
+- [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-RCW-Identität wird über `IUnknown` verglichen, die übrige COM-Interop bleibt offen
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; numerische Variant-Objektindizes fallen auf das Managed-Default-`Item` zurück; vollständige benannte Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
 - [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
-- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; vollständige COM-/IDispatch-Auflösung, COM-ByRef-/Event-ABI und Host-ABI bleiben offen
+- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; COM-Defaultzugriff über `DISPID_VALUE` und COM-RCW-Identität über `IUnknown` sind ergänzt, vollständige COM-/IDispatch-Auflösung, COM-ByRef-/Event-ABI und Host-ABI bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; vollständiger Host-/COM-Event-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
 
@@ -1273,9 +1273,10 @@ ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate Kompatibilitätss
 Variant-Objektindizes verwenden nun den bestehenden Managed-Dispatch auch dann, wenn der
 Empfänger erst zur Laufzeit als Objekt bekannt ist: `value(index)` bleibt für echte `IVBArray`-
 Werte ein Arrayzugriff und fällt für Objekte auf `Item`-Get/Let zurück. Die Suite umfasst damit
-**854 Tests**; COM-Default-Member werden für echte COM-Objekte nun über `DISPID_VALUE` aufgelöst,
+**855 Tests**; COM-Default-Member werden für echte COM-Objekte nun über `DISPID_VALUE` aufgelöst,
 Windows-TypeLib-Records wie `GUID` und `EXCEPINFO` werden mit skalaren Feldern in den Managed-
-UDT-Pfad übernommen, und die vollständige Dispatch-ABI bleibt offen.
+UDT-Pfad übernommen, und COM-RCW-Identität wird über `IUnknown` verglichen; die vollständige
+Dispatch-ABI bleibt offen.
 
 `.vbg`-Gruppen schreiben ihre Managed-Artefakte jetzt mit dem passenden Zieltyp: `Type=Exe`-
 Projekte erhalten `.exe`, Bibliotheksprojekte `.dll`. Die Abhängigkeitsreihenfolge und die
