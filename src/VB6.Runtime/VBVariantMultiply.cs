@@ -12,6 +12,7 @@ public static partial class VBOperators
     public static object? MultiplyInteger(object? left, object? right)
     {
         VBVariants.ThrowIfMissing(left, right);
+        VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
 
         var kind = PromoteVariantMultiplyKind(GetVariantNumericKind(left), GetVariantNumericKind(right));

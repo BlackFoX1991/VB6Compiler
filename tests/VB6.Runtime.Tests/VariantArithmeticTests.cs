@@ -159,4 +159,19 @@ public sealed class VariantArithmeticTests
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.AndVariant(missing, 1));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBDebug.Format(missing));
     }
+
+    [TestMethod]
+    public void ArrayVariants_RaiseTypeMismatchForScalarOperations()
+    {
+        var array = new VBArray<object>(new VBArrayBound(0, 1));
+
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AddVariant(array, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.MultiplyInteger(array, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.ConcatVariant(array, "value"));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.VariantEqual(array, array));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.NotVariant(array));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AndVariant(array, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBConversions.CInt(array));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBDebug.Format(array));
+    }
 }
