@@ -2311,6 +2311,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CollectionAdd) return Static(typeof(VBCollection), nameof(VBCollection.AddValue), typeof(VBCollection), typeof(object), typeof(object), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.CollectionRemove) return Static(typeof(VBCollection), nameof(VBCollection.RemoveValue), typeof(VBCollection), typeof(object));
             if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
+            if (m == IrRuntimeMethod.DateTimeValue) return Static(typeof(VBDateTime), "DateValue", typeof(object));
+            if (m == IrRuntimeMethod.TimeDateValue) return Static(typeof(VBDateTime), "TimeValue", typeof(object));
             if (m is IrRuntimeMethod.DateTimeYear or IrRuntimeMethod.DateTimeMonth or
                 IrRuntimeMethod.DateTimeDay or IrRuntimeMethod.DateTimeHour or
                 IrRuntimeMethod.DateTimeMinute or IrRuntimeMethod.DateTimeSecond)

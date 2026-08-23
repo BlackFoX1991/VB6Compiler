@@ -202,6 +202,8 @@ public enum VBIntrinsicKind
     InputBox,
     FileLen,
     Now,
+    DateValue,
+    TimeValue,
     Year,
     Month,
     Day,

@@ -3131,6 +3131,8 @@ public static class IrLowerer
             "VBMemory.StrPtr" => IrRuntimeMethod.MemoryStrPtr,
             "VBMemory.LSet" => IrRuntimeMethod.MemoryLSet,
             "VBDateTime.Now" => IrRuntimeMethod.DateTimeNow,
+            "VBDateTime.DateValue" => IrRuntimeMethod.DateTimeValue,
+            "VBDateTime.TimeValue" => IrRuntimeMethod.TimeDateValue,
             "VBDateTime.Year" => IrRuntimeMethod.DateTimeYear,
             "VBDateTime.Month" => IrRuntimeMethod.DateTimeMonth,
             "VBDateTime.Day" => IrRuntimeMethod.DateTimeDay,
