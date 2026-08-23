@@ -170,4 +170,59 @@ public sealed class DirectManagedProjectExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManaged_EmitsOleExeAndActiveXExeProjectsAsLibrariesWithoutSubMain()
+    {
+        foreach (var projectType in new[] { "OleExe", "ActiveX EXE" })
+        {
+            var projectDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "VB6CompilerDirectProjectTypes",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(projectDirectory);
+
+            try
+            {
+                var projectPath = Path.Combine(projectDirectory, "LegacyServer.vbp");
+                File.WriteAllText(projectPath, $"""
+                    Type={projectType}
+                    Name="LegacyServer"
+                    Module=Exports; Exports.bas
+                    """);
+                File.WriteAllText(Path.Combine(projectDirectory, "Exports.bas"), """
+                    Public Sub Register()
+                    End Sub
+                    """);
+
+                var result = DirectManagedCompilation.EmitManaged(
+                    VBProjectCompilation.Create(projectPath),
+                    Path.Combine(projectDirectory, "bin", "LegacyServer.dll"));
+
+                Assert.IsTrue(
+                    result.Success,
+                    string.Join(
+                        Environment.NewLine,
+                        result.Lowering.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                            .Concat(result.Lowering.Analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))
+                            .Concat(result.BackendResult?.Diagnostics.Select(diagnostic =>
+                                $"{diagnostic.Code}: {diagnostic.Message}") ?? [])));
+                Assert.IsNotNull(result.BackendResult?.PeImage);
+
+                using var imageStream = new MemoryStream(result.BackendResult!.PeImage!);
+                using var peReader = new System.Reflection.PortableExecutable.PEReader(imageStream);
+                Assert.AreEqual(
+                    0,
+                    peReader.PEHeaders.CorHeader!.EntryPointTokenOrRelativeVirtualAddress,
+                    projectType);
+            }
+            finally
+            {
+                if (Directory.Exists(projectDirectory))
+                {
+                    Directory.Delete(projectDirectory, recursive: true);
+                }
+            }
+        }
+    }
 }

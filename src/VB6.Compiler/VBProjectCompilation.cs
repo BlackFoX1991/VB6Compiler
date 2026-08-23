@@ -983,9 +983,11 @@ public sealed class VBProjectCompilation
     internal static bool IsLibraryProjectType(string? projectType) =>
         projectType?.Trim().ToUpperInvariant() is
             "OLEDLL" or
+            "OLEEXE" or
             "CONTROL" or
             "DLL" or
             "ACTIVEX DLL" or
+            "ACTIVEX EXE" or
             "ACTIVEX CONTROL";
 
     private static bool IsSourceModuleKind(VBProjectItemKind kind) =>
