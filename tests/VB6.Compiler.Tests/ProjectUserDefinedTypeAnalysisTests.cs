@@ -147,6 +147,55 @@ public sealed class ProjectUserDefinedTypeAnalysisTests
     }
 
     [TestMethod]
+    public void Analyze_BindsPrivateUdtArrayParametersInClassModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ClassUdt.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ClassUdt"
+                Module=Main; Main.bas
+                Class=Widget; Widget.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Widget.cls"), """
+                Private Type Point
+                    X As Long
+                End Type
+
+                Private Sub Fill(ByRef values() As Point)
+                    ReDim values(0)
+                    With values(0)
+                        .X = 1
+                    End With
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var fill = analysis.SemanticModel!.Procedures.Single(procedure => procedure.Symbol.Name == "Fill");
+            var arrayType = fill.Symbol.Parameters.Single().Type as ArrayTypeSymbol;
+            Assert.IsNotNull(arrayType);
+            Assert.IsInstanceOfType<UserDefinedTypeSymbol>(arrayType!.ElementType);
+            Assert.AreEqual("Point", arrayType.ElementType.Name);
+            Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0003"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Lower_UsesDistinctStorageTypesForPrivateUdtShadowing()
     {
         var directory = CreateTemporaryDirectory();
