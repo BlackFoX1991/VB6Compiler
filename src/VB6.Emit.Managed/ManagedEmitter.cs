@@ -590,6 +590,9 @@ public sealed class ManagedEmitter
                 case IrStoreInstruction store:
                     EmitStore(encoder, procedure, store.Target, store.Value);
                     break;
+                case IrVariantArraySetInstruction set:
+                    EmitVariantArraySet(encoder, procedure, set);
+                    break;
                 case IrStoreAddressInstruction address:
                     EmitExpression(encoder, procedure, address.Address);
                     encoder.StoreLocal(address.AddressLocal.Id);
@@ -1456,6 +1459,21 @@ public sealed class ManagedEmitter
                     methodName,
                     new[] { typeof(object), typeof(int) })
                 ?? throw new MissingMethodException($"VBArrayOperations.{methodName}(object,int) is required.")));
+        }
+
+        private void EmitVariantArraySet(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrVariantArraySetInstruction set)
+        {
+            EmitExpression(encoder, procedure, set.Array);
+            EmitInt32Array(encoder, procedure, set.Arguments);
+            EmitExpressionWithAssignmentConversion(encoder, procedure, set.Value, TypeSymbol.Variant);
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBArrayOperations).GetMethod(
+                    nameof(VBArrayOperations.SetElement),
+                    new[] { typeof(object), typeof(int[]), typeof(object) })
+                ?? throw new MissingMethodException("VBArrayOperations.SetElement(object,int[],object) is required.")));
         }
 
         private void EmitEnsureArray(

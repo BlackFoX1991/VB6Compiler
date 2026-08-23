@@ -66,6 +66,15 @@ internal static class VB6TestIr
                         Visit(store.Target, collected);
                         Visit(store.Value, collected);
                         break;
+                    case IrVariantArraySetInstruction set:
+                        Visit(set.Array, collected);
+                        foreach (var argument in set.Arguments)
+                        {
+                            Visit(argument, collected);
+                        }
+
+                        Visit(set.Value, collected);
+                        break;
                     case IrStoreAddressInstruction storeAddress:
                         Visit(storeAddress.Address, collected);
                         break;

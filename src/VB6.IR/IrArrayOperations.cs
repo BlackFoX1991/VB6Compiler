@@ -34,5 +34,11 @@ public sealed record IrVariantArrayCallExpression(
     TypeSymbol ResultType)
     : IrExpression(ResultType);
 
+public sealed record IrVariantArraySetInstruction(
+    IrExpression Array,
+    ImmutableArray<IrExpression> Arguments,
+    IrExpression Value)
+    : IrInstruction;
+
 public sealed record IrNullExpression(TypeSymbol NullType)
     : IrExpression(NullType);

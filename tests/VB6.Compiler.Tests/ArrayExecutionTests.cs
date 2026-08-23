@@ -129,6 +129,28 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_WritesVariantArrayElements()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim values As Variant
+
+                values = Array(1, "two", True)
+                values(0) = 42
+                values(1) = "changed"
+                values(2) = False
+                Debug.Print values(0)
+                Debug.Print values(1)
+                Debug.Print values(2)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "42", "changed", "False" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesChooseWithRoundedAndOutOfRangeIndexes()
     {
         var output = VB6TestProgram.RunLines("""
