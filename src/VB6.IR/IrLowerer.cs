@@ -3215,6 +3215,7 @@ public static class IrLowerer
             "VBErrors.Clear" => IrRuntimeMethod.ErrorClear,
             "VBErrors.Raise" => IrRuntimeMethod.ErrorRaise,
             "VBFunctions.TypeName" => IrRuntimeMethod.FunctionTypeName,
+            "VBFunctions.Array" => IrRuntimeMethod.FunctionArray,
             "VBFunctions.Switch" => IrRuntimeMethod.FunctionSwitch,
             "VBFunctions.IIf" => IrRuntimeMethod.FunctionIIf,
             "VBFunctions.RGB" => IrRuntimeMethod.FunctionRGB,

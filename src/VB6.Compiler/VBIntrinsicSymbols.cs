@@ -296,6 +296,15 @@ internal static class VBIntrinsicSymbols
             OptionalParameter("WindowStyle", TypeSymbol.Integer, 1L)),
         Function("TypeName", VBIntrinsicKind.TypeName, "VBFunctions.TypeName", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)),
         Function(
+            "Array",
+            VBIntrinsicKind.Array,
+            "VBFunctions.Array",
+            TypeSymbol.Variant,
+            new ParameterSymbol("Arguments", new ArrayTypeSymbol(TypeSymbol.Variant), ParameterPassingMode.ByVal)
+            {
+                IsParamArray = true
+            }),
+        Function(
             "Switch",
             VBIntrinsicKind.Switch,
             "VBFunctions.Switch",

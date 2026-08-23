@@ -510,6 +510,11 @@ als Objekt erkannt, und Datumserkennung umfasst den erhaltenen Date-Subtype sowi
 invariante Datums-/Zeitstrings. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von
 40** fehlerfreien Dateien; die Suite umfasst nun **756 Tests**.
 
+Die Standardfunktion `Array(...)` erzeugt jetzt über denselben ParamArray-/Array-Emitter ein
+nullbasiertes Variant-Array. Leere Aufrufe und gemischte Werte sind durch Runtime- und End-to-End-
+Tests abgedeckt; der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien
+Dateien, die Suite umfasst nun **758 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen

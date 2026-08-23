@@ -57,4 +57,14 @@ public sealed class VariantStateTests
         Assert.IsFalse(VBVariants.IsObject(VBVariants.NullValue()));
         Assert.IsFalse(VBVariants.IsObject(new VBArray<object>(new VBArrayBound(0, 0))));
     }
+
+    [TestMethod]
+    public void ArrayIntrinsic_ReturnsItsVariantArguments()
+    {
+        var values = (VBArray<object>)VBFunctions.Array(new VBArray<object>(
+            new VBArrayBound(0, 2)));
+
+        Assert.AreEqual(0, values.LBound());
+        Assert.AreEqual(2, values.UBound());
+    }
 }

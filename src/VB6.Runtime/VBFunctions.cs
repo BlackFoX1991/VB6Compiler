@@ -49,6 +49,9 @@ public static class VBFunctions
         };
     }
 
+    /// <summary>Returns the supplied values as a zero-based Variant array.</summary>
+    public static object Array(VBArray<object> arguments) => arguments;
+
     /// <summary>Evaluates condition/value pairs and returns the first matching value.</summary>
     public static object? Switch(VBArray<object> arguments)
     {
