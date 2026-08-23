@@ -588,11 +588,12 @@ Signaturen als LLVM-`declare`-Verträge ausgegeben und von generiertem Code aufg
 ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben. Currency-Literale
 werden als skalierte `i64`-Slots mit vier Nachkommastellen emittiert. Sichere skalare
 Konversionen wie native Integer-Erweiterungen, Integer-zu-Floating und Bool-Tests werden
-direkt emittiert; geprüfte/rundende Verengungen, Currency-Multiplikationsskalierung und
+direkt emittiert; geprüfte/rundende Verengungen, geprüfte Single-Arithmetik, Floating-Division,
+Currency-Multiplikationsskalierung und
 komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**791 Tests**.
+**793 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1121,7 +1122,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
-- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; geprüfte/rundende Konversionen, Currency-Multiplikationsskalierung sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
+- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; geprüfte/rundende Konversionen, geprüfte Single-Arithmetik, Floating-Division, Currency-Multiplikationsskalierung sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
