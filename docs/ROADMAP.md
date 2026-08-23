@@ -82,6 +82,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Statement-Aufrufe von Functions mit verworfenem Rückgabewert | **50** | **0** | **0** | **50** | **34 von 40** |
 | Standardbibliotheks- und Host-Intrinsics (`Val`, `Hex`, `String`, `Input`, `TextHeight`, `Print`, `PaintPicture`) | **43** | **0** | **0** | **43** | **34 von 40** |
 | Standardtypen `Picture`-/`Screen`-Properties | **36** | **0** | **0** | **36** | **34 von 40** |
+| Case-insensitive Standard-Property-Bindung für UserControl-Hosts | **20** | **0** | **0** | **20** | **34 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -355,6 +356,12 @@ Der folgende Host-Object-Slice ergänzt die lesbaren Standardmitglieder `Picture
 `LoadPicture` liefert dafür deterministische headless Defaults. Die sieben `VB6S0064`-Diagnosen
 entfallen; der VISIA-Stand sinkt auf **36 semantische Fehler**, weiterhin **34 von 40** fehlerfreien
 Dateien. Die Suite umfasst nun **706 Tests**.
+
+Die Standard-Property-Schlüssel werden nun case-insensitiv verglichen, wie es VB6 für Namen
+verlangt. Dadurch binden unqualifizierte Host-Mitglieder wie `hdc` und `hwnd` an die vorhandenen
+`hDC`-/`hWnd`-Verträge, auch unter `Option Explicit`; die 16 entsprechenden `VB6S0001`-Diagnosen
+entfallen. Der VISIA-Stand sinkt auf **20 semantische Fehler**, weiterhin **34 von 40** fehlerfreien
+Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
