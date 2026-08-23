@@ -19,9 +19,14 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.AreEqual(2, VBStrings.Len((short)42));
         Assert.AreEqual(4, VBStrings.Len(42));
         Assert.AreEqual(8, VBStrings.Len(42L));
+        Assert.AreEqual(2, VBStrings.Len((ushort)42));
+        Assert.AreEqual(4, VBStrings.Len(42u));
+        Assert.AreEqual(8, VBStrings.Len(42UL));
+        Assert.AreEqual(IntPtr.Size, VBStrings.Len(new IntPtr(42)));
         Assert.AreEqual(4, VBStrings.Len(42f));
         Assert.AreEqual(8, VBStrings.Len(42d));
         Assert.AreEqual(2, VBStrings.Len(true));
+        Assert.AreEqual(8, VBStrings.Len(new VBDateValue(43832d)));
         Assert.AreEqual(8, VBStrings.Len(VBConversions.CCur(42m)));
     }
 

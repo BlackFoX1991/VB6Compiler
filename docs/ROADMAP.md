@@ -594,7 +594,7 @@ geprüfte Integer-Division und Restbildung, Currency-Multiplikationsskalierung u
 komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**797 Tests**.
+**799 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-

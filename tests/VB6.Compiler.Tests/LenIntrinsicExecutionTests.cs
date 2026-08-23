@@ -25,6 +25,20 @@ public sealed class LenIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesLenForDateVariant()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Dim value
+                value = CDate(43832)
+                Debug.Print Len(value)
+            End Sub
+            """);
+
+        Assert.AreEqual("8", output.Trim());
+    }
+
+    [TestMethod]
     /// <summary>A user-defined Len shadows the intrinsic, exactly as in VB6.</summary>
     public void EmitManagedApplication_PrefersAUserFunctionOverTheIntrinsicLen()
     {

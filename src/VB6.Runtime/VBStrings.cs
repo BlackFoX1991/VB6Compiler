@@ -18,9 +18,14 @@ public static class VBStrings
         short => 2,
         int => 4,
         long => 8,
+        ushort => 2,
+        uint => 4,
+        ulong => 8,
+        IntPtr => IntPtr.Size,
         float => 4,
         double => 8,
         bool => 2,
+        VBDateValue => 8,
         VBCurrency => 8,
         _ => throw new InvalidCastException(
             $"CLR value of type '{value.GetType().FullName}' is not supported by the VB6 Len intrinsic.")
