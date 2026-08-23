@@ -2272,6 +2272,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionCreateObject) return Static(typeof(VBInteraction), nameof(VBInteraction.CreateObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionGetObject) return Static(typeof(VBInteraction), nameof(VBInteraction.GetObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));
+            if (m == IrRuntimeMethod.InteractionCommand) return Static(typeof(VBInteraction), nameof(VBInteraction.Command));
             if (m == IrRuntimeMethod.InteractionGetSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.GetSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSaveSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.SaveSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSendKeys) return Static(typeof(VBInteraction), nameof(VBInteraction.SendKeys), typeof(string), typeof(bool));
@@ -2280,6 +2281,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionPropertyChanged) return Static(typeof(VBInteraction), nameof(VBInteraction.PropertyChanged), typeof(string));
             if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
+            if (m == IrRuntimeMethod.MemoryStrPtr) return Static(typeof(VBMemory), nameof(VBMemory.StrPtr), typeof(string));
             if (m == IrRuntimeMethod.MemoryLSet) return Static(typeof(VBMemory), nameof(VBMemory.LSet), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.CollectionCreate) return Static(typeof(VBCollection), nameof(VBCollection.Create));
             if (m == IrRuntimeMethod.CollectionEnumerateValues) return Static(typeof(VBCollection), nameof(VBCollection.EnumerateValues), typeof(VBCollection));

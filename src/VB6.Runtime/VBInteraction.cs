@@ -68,6 +68,9 @@ public static class VBInteraction
         return defaultResponse;
     }
 
+    /// <summary>Returns an empty command line in headless runs; hosts can supply process arguments.</summary>
+    public static string Command() => string.Empty;
+
     /// <summary>
     /// Provides a deterministic process-local replacement for the VB6 registry settings API.
     /// Hosts may replace this store at their boundary without changing generated call sites.

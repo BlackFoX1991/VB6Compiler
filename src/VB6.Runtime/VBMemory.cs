@@ -13,6 +13,9 @@ public static class VBMemory
     public static int ObjPtr(object? value) =>
         throw new PlatformNotSupportedException("ObjPtr requires a native COM/native object backend.");
 
+    public static int StrPtr(string? value) =>
+        throw new PlatformNotSupportedException("StrPtr requires a native string memory backend.");
+
     public static void LSet(object? target, object? source) =>
         throw new PlatformNotSupportedException("LSet requires native UDT layout semantics.");
 }

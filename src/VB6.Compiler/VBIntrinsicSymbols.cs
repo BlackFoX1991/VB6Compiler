@@ -191,10 +191,12 @@ internal static class VBIntrinsicSymbols
             Parameter("PropertyName", TypeSymbol.String)),
         Function("FileLen", VBIntrinsicKind.FileLen, "VBFiles.FileLength", TypeSymbol.LongLong, Parameter("Path", TypeSymbol.String)),
         Function("Now", VBIntrinsicKind.Now, "VBDateTime.Now", TypeSymbol.Date),
+        Function("Command", VBIntrinsicKind.Command, "VBInteraction.Command", TypeSymbol.String),
         Sub("Load", VBIntrinsicKind.Load, "VBInteraction.Load", Parameter("Object", TypeSymbol.Variant)),
         Sub("Unload", VBIntrinsicKind.Unload, "VBInteraction.Unload", Parameter("Object", TypeSymbol.Variant)),
         Function("VarPtr", VBIntrinsicKind.VarPtr, "VBMemory.VarPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
         Function("ObjPtr", VBIntrinsicKind.ObjPtr, "VBMemory.ObjPtr", TypeSymbol.Long, Parameter("Object", TypeSymbol.Variant)),
+        Function("StrPtr", VBIntrinsicKind.StrPtr, "VBMemory.StrPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Sub("LSet", VBIntrinsicKind.LSet, "VBMemory.LSet", Parameter("Target", TypeSymbol.Variant), Parameter("Source", TypeSymbol.Variant)),
         Function(
             "CreateObject",
