@@ -149,6 +149,22 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InvokesUnsignedWidthDeclareFunctions()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Function GetCurrentProcessId Lib "kernel32" () As UInt16
+            Private Declare Function GetCurrentProcessIdWide Lib "kernel32" Alias "GetCurrentProcessId" () As UInt64
+
+            Sub Main()
+                Debug.Print CLng(GetCurrentProcessId) > 0
+                Debug.Print CBool(CULng(GetCurrentProcessIdWide) > 0)
+            End Sub
+            """);
+
+        Assert.AreEqual("True" + Environment.NewLine + "True", output.Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_AcceptsAnsiDeclareStringMarshalling()
     {
         var result = VBCompilation.Create("""

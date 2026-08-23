@@ -18,6 +18,9 @@ public static partial class VBOperators
             VariantNumericKind.Integer => MultiplyVariantInteger(left, right),
             VariantNumericKind.Long => MultiplyVariantLong(left, right),
             VariantNumericKind.LongLong => MultiplyVariantLongLong(left, right),
+            VariantNumericKind.UShort => MultiplyUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
+            VariantNumericKind.UInteger => MultiplyUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
+            VariantNumericKind.ULong => MultiplyULong(VBConversions.CULng(left), VBConversions.CULng(right)),
             VariantNumericKind.Single => MultiplyVariantSingle(left, right),
             VariantNumericKind.Currency => MultiplyCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) * VariantDecimal(right)),
@@ -105,8 +108,10 @@ public static partial class VBOperators
             byte => VariantNumericKind.Byte,
             short => VariantNumericKind.Integer,
             int => VariantNumericKind.Long,
-            uint => VariantNumericKind.LongLong,
+            ushort => VariantNumericKind.UShort,
+            uint => VariantNumericKind.UInteger,
             long => VariantNumericKind.LongLong,
+            ulong => VariantNumericKind.ULong,
             IntPtr => VariantNumericKind.LongLong,
             float => VariantNumericKind.Single,
             VBCurrency => VariantNumericKind.Currency,
@@ -147,9 +152,31 @@ public static partial class VBOperators
         if (left == VariantNumericKind.Single || right == VariantNumericKind.Single)
         {
             var other = left == VariantNumericKind.Single ? right : left;
-            return other is VariantNumericKind.Long or VariantNumericKind.LongLong
+            return other is VariantNumericKind.Long or VariantNumericKind.LongLong or
+                VariantNumericKind.UInteger or VariantNumericKind.ULong
                 ? VariantNumericKind.Double
                 : VariantNumericKind.Single;
+        }
+
+        if (left == VariantNumericKind.ULong || right == VariantNumericKind.ULong)
+        {
+            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
+                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+                ? VariantNumericKind.Decimal
+                : VariantNumericKind.ULong;
+        }
+
+        if (left == VariantNumericKind.UInteger || right == VariantNumericKind.UInteger)
+        {
+            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
+                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+                ? VariantNumericKind.Decimal
+                : VariantNumericKind.UInteger;
+        }
+
+        if (left == VariantNumericKind.UShort || right == VariantNumericKind.UShort)
+        {
+            return VariantNumericKind.UShort;
         }
 
         if (left == VariantNumericKind.LongLong || right == VariantNumericKind.LongLong)
@@ -192,9 +219,31 @@ public static partial class VBOperators
         if (left == VariantNumericKind.Single || right == VariantNumericKind.Single)
         {
             var other = left == VariantNumericKind.Single ? right : left;
-            return other is VariantNumericKind.Long or VariantNumericKind.LongLong
+            return other is VariantNumericKind.Long or VariantNumericKind.LongLong or
+                VariantNumericKind.UInteger or VariantNumericKind.ULong
                 ? VariantNumericKind.Double
                 : VariantNumericKind.Single;
+        }
+
+        if (left == VariantNumericKind.ULong || right == VariantNumericKind.ULong)
+        {
+            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
+                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+                ? VariantNumericKind.Decimal
+                : VariantNumericKind.ULong;
+        }
+
+        if (left == VariantNumericKind.UInteger || right == VariantNumericKind.UInteger)
+        {
+            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
+                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+                ? VariantNumericKind.Decimal
+                : VariantNumericKind.UInteger;
+        }
+
+        if (left == VariantNumericKind.UShort || right == VariantNumericKind.UShort)
+        {
+            return VariantNumericKind.UShort;
         }
 
         if (left == VariantNumericKind.LongLong || right == VariantNumericKind.LongLong)
@@ -221,6 +270,9 @@ public static partial class VBOperators
         Integer,
         Long,
         LongLong,
+        UShort,
+        UInteger,
+        ULong,
         Single,
         Currency,
         Decimal,
