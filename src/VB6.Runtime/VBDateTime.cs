@@ -5,6 +5,15 @@ public static class VBDateTime
 {
     public static double Now() => DateTime.Now.ToOADate();
 
+    public static double DateValue(object? value) =>
+        FromOleDate(VBConversions.CDate(value)).Date.ToOADate();
+
+    public static double TimeValue(object? value)
+    {
+        var time = FromOleDate(VBConversions.CDate(value)).TimeOfDay;
+        return new DateTime(1899, 12, 30).Add(time).ToOADate();
+    }
+
     public static short Year(double value) => checked((short)FromOleDate(value).Year);
 
     public static short Month(double value) => checked((short)FromOleDate(value).Month);

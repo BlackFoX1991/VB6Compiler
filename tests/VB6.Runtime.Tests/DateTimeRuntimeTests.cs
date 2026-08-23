@@ -33,4 +33,11 @@ public sealed class DateTimeRuntimeTests
         Assert.AreEqual(30, time.Minute);
         Assert.AreEqual(45, time.Second);
     }
+
+    [TestMethod]
+    public void DateValueAndTimeValue_NormalizeOleDateParts()
+    {
+        Assert.AreEqual(43832d, VBDateTime.DateValue(43832.75d));
+        Assert.AreEqual(0.75d, VBDateTime.TimeValue(43832.75d));
+    }
 }

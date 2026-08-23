@@ -516,6 +516,8 @@ public enum IrRuntimeMethod
     CollectionAdd,
     CollectionRemove,
     DateTimeNow,
+    DateTimeValue,
+    TimeDateValue,
     DateTimeYear,
     DateTimeMonth,
     DateTimeDay,

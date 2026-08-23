@@ -26,4 +26,17 @@ public sealed class DateTimeIntrinsicExecutionTests
             VB6TestProgram.SplitLines(output),
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesDateValueAndTimeValue()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print Format$(DateValue(CDate(43832.75)), "yyyy-mm-dd")
+                Debug.Print Format$(TimeValue(CDate(43832.75)), "hh:nn:ss")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00" }, output);
+    }
 }

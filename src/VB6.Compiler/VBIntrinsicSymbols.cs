@@ -203,6 +203,8 @@ internal static class VBIntrinsicSymbols
             Parameter("PropertyName", TypeSymbol.String)),
         Function("FileLen", VBIntrinsicKind.FileLen, "VBFiles.FileLength", TypeSymbol.LongLong, Parameter("Path", TypeSymbol.String)),
         Function("Now", VBIntrinsicKind.Now, "VBDateTime.Now", TypeSymbol.Date),
+        Function("DateValue", VBIntrinsicKind.DateValue, "VBDateTime.DateValue", TypeSymbol.Date, Parameter("Date", TypeSymbol.Variant)),
+        Function("TimeValue", VBIntrinsicKind.TimeValue, "VBDateTime.TimeValue", TypeSymbol.Date, Parameter("Time", TypeSymbol.Variant)),
         Function("Year", VBIntrinsicKind.Year, "VBDateTime.Year", TypeSymbol.Integer, Parameter("Date", TypeSymbol.Date)),
         Function("Month", VBIntrinsicKind.Month, "VBDateTime.Month", TypeSymbol.Integer, Parameter("Date", TypeSymbol.Date)),
         Function("Day", VBIntrinsicKind.Day, "VBDateTime.Day", TypeSymbol.Integer, Parameter("Date", TypeSymbol.Date)),
