@@ -2825,6 +2825,17 @@ public sealed class Binder
             return new BoundErrorExpression();
         }
 
+        if (accessor == PropertyAccessorKind.Get &&
+            receiver.Type is ArrayTypeSymbol &&
+            (syntax.MemberToken.Text.Equals("UBound", StringComparison.OrdinalIgnoreCase) ||
+             syntax.MemberToken.Text.Equals("LBound", StringComparison.OrdinalIgnoreCase)))
+        {
+            return new BoundArrayBoundExpression(
+                receiver,
+                new BoundLiteralExpression(1L, TypeSymbol.Long),
+                IsUpperBound: syntax.MemberToken.Text.Equals("UBound", StringComparison.OrdinalIgnoreCase));
+        }
+
         if (receiver.Type is ClassTypeSymbol classType)
         {
             if (classType.TryGetProperty(syntax.MemberToken.Text, accessor, out var property))

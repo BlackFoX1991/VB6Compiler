@@ -132,6 +132,13 @@ public static class VBDesignerParser
 
             if (trimmed.Equals("End", StringComparison.OrdinalIgnoreCase))
             {
+                if (root is not null && nodes.Count == 0)
+                {
+                    // The designer envelope is complete. A later standalone "End" can be
+                    // ordinary VB6 source (for example an End statement in a procedure).
+                    continue;
+                }
+
                 if (!sawDesignerBlock && nodes.Count == 0 && propertyGroups.Count == 0)
                 {
                     // VB6 .cls metadata uses a standalone BEGIN/END block. It is not a form

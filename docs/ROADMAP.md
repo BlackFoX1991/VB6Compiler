@@ -1255,8 +1255,10 @@ und die verbreiteten `MSComctlLib`-/
 mit diesen Typverträgen als Klassenfelder gebunden; der Managed-Pfad nutzt dafür Late Binding und
 emittiert keine falschen CLR-Typreferenzen auf OCX-Dateien. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**845 Tests**. `.frm`-/`.ctl`-Designerhüllen werden jetzt offsettreu geparst, verschachtelte
-Controls und Control-Arrays werden in die Klassenfelder übernommen, und `.frx`-Verweise behalten
+**847 Tests**. `.frm`-/`.ctl`-Designerhüllen werden jetzt offsettreu geparst, verschachtelte
+Controls und Control-Arrays werden in die Klassenfelder übernommen; die Legacy-Schreibweise
+`controls.LBound`/`controls.UBound` wird als Array-Bound gebunden, und ein späteres `End` im
+Quellcode wird nicht mehr als Designerabschluss diagnostiziert. `.frx`-Verweise behalten
 ihren aufgelösten Pfad sowie Hex-Offset. `Type=OleDll` und `Type=Control` werden dabei als
 Managed-Libraries ohne `Sub Main`
 emittiert. EXE-Projekte mit `Startup="FormName"` erhalten einen generierten Einstiegspunkt, der
