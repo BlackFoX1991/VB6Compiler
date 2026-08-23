@@ -31,11 +31,11 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_LowersScalarStorageAndArithmetic()
+    public void Emit_LowersScalarStorageAndBitwiseOperation()
     {
         var local = new IrLocal(0, "value", TypeSymbol.Long);
-        var sum = new IrRuntimeCallExpression(
-            IrRuntimeMethod.AddLong,
+        var resultExpression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.AndLong,
             ImmutableArray.Create<IrCallArgument>(
                 new(new IrLoadExpression(new IrLocalPlace(local))),
                 new(new IrConstantExpression(2L, TypeSymbol.Long))),
@@ -51,7 +51,7 @@ public sealed class LlvmEmitterTests
                 "entry",
                 ImmutableArray.Create<IrInstruction>(
                     new IrStoreInstruction(new IrLocalPlace(local), new IrConstantExpression(4L, TypeSymbol.Long))),
-                new IrReturnTerminator(sum))));
+                new IrReturnTerminator(resultExpression))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
@@ -59,7 +59,7 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "%local_0 = alloca i32");
         StringAssert.Contains(result.ModuleText, "store i32 4, ptr %local_0");
         StringAssert.Contains(result.ModuleText, "load i32, ptr %local_0");
-        StringAssert.Contains(result.ModuleText, "add i32");
+        StringAssert.Contains(result.ModuleText, "and i32");
         StringAssert.Contains(result.ModuleText, "ret i32");
     }
 
@@ -241,13 +241,64 @@ public sealed class LlvmEmitterTests
     }
 
     [TestMethod]
-    public void Emit_UsesScaledCurrencyStorageAndAddition()
+    public void Emit_UsesScaledCurrencyLiterals()
     {
-        var sum = new IrRuntimeCallExpression(
-            IrRuntimeMethod.AddCurrency,
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Currency,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(new IrConstantExpression(1.2345m, TypeSymbol.Currency)))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "define i64 @\"Main\"()");
+        StringAssert.Contains(result.ModuleText, "ret i64 12345");
+    }
+
+    [TestMethod]
+    public void Emit_DiagnosesCheckedIntegerArithmetic()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.AddLong,
             ImmutableArray.Create<IrCallArgument>(
-                new IrCallArgument(new IrConstantExpression(1.2345m, TypeSymbol.Currency)),
-                new IrCallArgument(new IrConstantExpression(0.5m, TypeSymbol.Currency))),
+                new IrCallArgument(new IrConstantExpression(1, TypeSymbol.Long)),
+                new IrCallArgument(new IrConstantExpression(2, TypeSymbol.Long))),
+            TypeSymbol.Long);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked integer or Currency addition runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("add i32", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Emit_DiagnosesCheckedCurrencyNegation()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.NegateCurrency,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1m, TypeSymbol.Currency))),
             TypeSymbol.Currency);
         var procedure = new IrProcedure(
             null,
@@ -259,14 +310,15 @@ public sealed class LlvmEmitterTests
                 0,
                 "entry",
                 ImmutableArray<IrInstruction>.Empty,
-                new IrReturnTerminator(sum))));
+                new IrReturnTerminator(expression))));
 
         var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
 
-        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-        StringAssert.Contains(result.ModuleText, "define i64 @\"Main\"()");
-        StringAssert.Contains(result.ModuleText, "add i64 12345, 5000");
-        StringAssert.Contains(result.ModuleText, "ret i64 %t0");
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked integer or Currency negation runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("sub i64", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -327,6 +379,35 @@ public sealed class LlvmEmitterTests
             string.Join(Environment.NewLine, result.Diagnostics),
             "requires checked Single arithmetic runtime semantics");
         Assert.IsFalse(result.ModuleText.Contains("add float", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Emit_DiagnosesCheckedSingleNegation()
+    {
+        var expression = new IrRuntimeCallExpression(
+            IrRuntimeMethod.NegateSingle,
+            ImmutableArray.Create<IrCallArgument>(
+                new IrCallArgument(new IrConstantExpression(1f, TypeSymbol.Single))),
+            TypeSymbol.Single);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Single,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray<IrInstruction>.Empty,
+                new IrReturnTerminator(expression))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, result.Diagnostics),
+            "requires checked Single negation runtime semantics");
+        Assert.IsFalse(result.ModuleText.Contains("fneg float", StringComparison.Ordinal));
     }
 
     [TestMethod]

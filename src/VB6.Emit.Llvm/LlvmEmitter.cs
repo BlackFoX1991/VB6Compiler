@@ -456,14 +456,17 @@ public sealed class LlvmEmitter
                 return ZeroValue(runtime.ResultType);
             }
 
-            if (methodName is "AddSingle" or "SubtractSingle" or "MultiplySingle")
+            if (methodName is "AddSingle" or "SubtractSingle" or "MultiplySingle" or "NegateSingle")
             {
-                return RejectCheckedFloatingOperation(methodName, runtime.ResultType, "Single arithmetic");
+                return RejectCheckedOperation(
+                    methodName,
+                    runtime.ResultType,
+                    methodName == "NegateSingle" ? "Single negation" : "Single arithmetic");
             }
 
             if (methodName is "DivideSingle" or "DivideDouble")
             {
-                return RejectCheckedFloatingOperation(methodName, runtime.ResultType, "floating-point division");
+                return RejectCheckedOperation(methodName, runtime.ResultType, "floating-point division");
             }
 
             if (methodName.StartsWith("Add", StringComparison.Ordinal) ||
@@ -472,13 +475,24 @@ public sealed class LlvmEmitter
             {
                 var operation = methodName.StartsWith("Add", StringComparison.Ordinal) ? "add" :
                     methodName.StartsWith("Subtract", StringComparison.Ordinal) ? "sub" : "mul";
+                if (!IsFloating(arguments))
+                {
+                    var arithmetic = operation switch
+                    {
+                        "add" => "integer or Currency addition",
+                        "sub" => "integer or Currency subtraction",
+                        _ => "integer or Currency multiplication"
+                    };
+                    return RejectCheckedOperation(methodName, runtime.ResultType, arithmetic);
+                }
+
                 return EmitBinary(runtime.ResultType, arguments, operation);
             }
 
             if (methodName.StartsWith("IntegerDivide", StringComparison.Ordinal) ||
                 methodName.StartsWith("Mod", StringComparison.Ordinal))
             {
-                return RejectCheckedIntegerOperation(
+                return RejectCheckedOperation(
                     methodName,
                     runtime.ResultType,
                     methodName.StartsWith("IntegerDivide", StringComparison.Ordinal)
@@ -488,6 +502,14 @@ public sealed class LlvmEmitter
 
             if (methodName.StartsWith("Negate", StringComparison.Ordinal))
             {
+                if (!IsFloating(arguments))
+                {
+                    return RejectCheckedOperation(
+                        methodName,
+                        runtime.ResultType,
+                        "integer or Currency negation");
+                }
+
                 return EmitUnary(runtime.ResultType, arguments, IsFloating(arguments) ? "fneg" : "neg");
             }
 
@@ -531,18 +553,7 @@ public sealed class LlvmEmitter
             return ZeroValue(runtime.ResultType);
         }
 
-        private NativeValue RejectCheckedFloatingOperation(
-            string methodName,
-            TypeSymbol resultType,
-            string operation)
-        {
-            AddDiagnostic(
-                "VB6L0001",
-                $"Native LLVM lowering for runtime method '{methodName}' requires checked {operation} runtime semantics and is not implemented yet.");
-            return ZeroValue(resultType);
-        }
-
-        private NativeValue RejectCheckedIntegerOperation(
+        private NativeValue RejectCheckedOperation(
             string methodName,
             TypeSymbol resultType,
             string operation)
