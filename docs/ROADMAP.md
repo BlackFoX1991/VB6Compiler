@@ -1236,7 +1236,8 @@ relativ zum Gruppenverzeichnis in stabiler Reihenfolge aufgelöst, einzeln analy
 und projektbezogene Fehler behalten den aufgelösten Pfad. `Reference=`/`Object=` werden mit
 GUID-, Versions-, LCID- und Pfadmetadaten erfasst; fehlende explizite `.vbp`-Verweise erzeugen
 aufgelöste Compilerdiagnosen; vorhandene Referenzprojekte liefern ihre Klassenverträge unter
-Projekt- und Klassennamen in die semantische Sicht, und die verbreiteten `MSComctlLib`-/
+Projekt- und Klassennamen in die semantische Sicht und in Managed-IL-Assembly-/Member-References,
+und die verbreiteten `MSComctlLib`-/
 `RichTextLib`-/`MSComDlg`-Controltypen werden projektlokal erkannt. Die Projektgruppenregressionen
 erhöhen die Suite auf
 **837 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`

@@ -24,6 +24,11 @@ public sealed record ClassTypeSymbol : TypeSymbol
     }
 
     public string? SourcePath { get; }
+    /// <summary>
+    /// Assembly identity used when this class contract comes from a referenced Managed project.
+    /// Null means the class is emitted by the current compilation.
+    /// </summary>
+    public string? ExternalAssemblyName { get; init; }
     public ImmutableArray<ProcedureSymbol> Procedures => _definition.Procedures;
     public ImmutableArray<PropertySymbol> Properties => _definition.Properties;
     public ImmutableArray<EventSymbol> Events => _definition.Events;
