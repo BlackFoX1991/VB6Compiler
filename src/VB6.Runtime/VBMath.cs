@@ -65,6 +65,32 @@ public static class VBMath
         return Math.Sqrt(value);
     }
 
+    public static double Exp(double value)
+    {
+        var result = Math.Exp(value);
+        return double.IsInfinity(result)
+            ? throw new OverflowException("VB6 Exp result is outside the range of Double.")
+            : result;
+    }
+
+    public static double Log(double value)
+    {
+        if (value <= 0d)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), "VB6 Log requires a positive value.");
+        }
+
+        return Math.Log(value);
+    }
+
+    public static double Sin(double value) => Math.Sin(value);
+
+    public static double Cos(double value) => Math.Cos(value);
+
+    public static double Tan(double value) => Math.Tan(value);
+
+    public static double Atn(double value) => Math.Atan(value);
+
     private static InvalidCastException Unsupported(object value, string function) =>
         new($"VB6 {function} does not support CLR value type '{value.GetType().FullName}'.");
 }

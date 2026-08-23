@@ -18,4 +18,30 @@ public sealed class MathIntrinsicExecutionTests
 
         CollectionAssert.AreEqual(new[] { "12", "-1", "-1", "2", "3" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesExtendedScalarMathIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print Exp(1)
+                Debug.Print Log(Exp(1))
+                Debug.Print Sin(0)
+                Debug.Print Cos(0)
+                Debug.Print Tan(0)
+                Debug.Print Atn(1)
+            End Sub
+            """);
+
+        var expected = new[]
+        {
+            Math.E.ToString("G15", System.Globalization.CultureInfo.InvariantCulture),
+            "1",
+            "0",
+            "1",
+            "0",
+            (Math.PI / 4d).ToString("G15", System.Globalization.CultureInfo.InvariantCulture)
+        };
+        CollectionAssert.AreEqual(expected, output);
+    }
 }
