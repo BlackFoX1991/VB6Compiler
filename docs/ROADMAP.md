@@ -83,6 +83,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Standardbibliotheks- und Host-Intrinsics (`Val`, `Hex`, `String`, `Input`, `TextHeight`, `Print`, `PaintPicture`) | **43** | **0** | **0** | **43** | **34 von 40** |
 | Standardtypen `Picture`-/`Screen`-Properties | **36** | **0** | **0** | **36** | **34 von 40** |
 | Case-insensitive Standard-Property-Bindung für UserControl-Hosts | **20** | **0** | **0** | **20** | **34 von 40** |
+| `As New`-Klassendeklaratoren | **16** | **0** | **0** | **16** | **34 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -362,6 +363,12 @@ verlangt. Dadurch binden unqualifizierte Host-Mitglieder wie `hdc` und `hwnd` an
 `hDC`-/`hWnd`-Verträge, auch unter `Option Explicit`; die 16 entsprechenden `VB6S0001`-Diagnosen
 entfallen. Der VISIA-Stand sinkt auf **20 semantische Fehler**, weiterhin **34 von 40** fehlerfreien
 Dateien.
+
+`As New`-Deklaratoren werden nun als Objektinitialisierer gebunden und über denselben IR-/Managed-
+Konstruktorpfad wie explizites `New` ausgeführt; `Class_Initialize` wird dabei erreicht. Dadurch
+entfallen die vier verbliebenen impliziten Objektkonstruktionsdiagnosen aus `clsFont` und `CodeEdit`.
+Der VISIA-Stand sinkt auf **16 semantische Fehler**, weiterhin **34 von 40** fehlerfreien Dateien;
+die Suite umfasst nun **707 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
