@@ -1271,3 +1271,7 @@ Variant-Objektindizes verwenden nun den bestehenden Managed-Dispatch auch dann, 
 Empfänger erst zur Laufzeit als Objekt bekannt ist: `value(index)` bleibt für echte `IVBArray`-
 Werte ein Arrayzugriff und fällt für Objekte auf `Item`-Get/Let zurück. Die Suite umfasst damit
 **849 Tests**; benannte COM-Default-Member und die vollständige Dispatch-ABI bleiben offen.
+
+`.vbg`-Gruppen schreiben ihre Managed-Artefakte jetzt mit dem passenden Zieltyp: `Type=Exe`-
+Projekte erhalten `.exe`, Bibliotheksprojekte `.dll`. Die Abhängigkeitsreihenfolge und die
+expliziten Einzelprojekt-Ausgabepfade bleiben unverändert.
