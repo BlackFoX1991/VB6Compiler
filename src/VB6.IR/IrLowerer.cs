@@ -542,7 +542,7 @@ public static class IrLowerer
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ParameterSymbol, IrParameter> _parameters =
             new(ReferenceEqualityComparer.Instance);
-        private readonly Dictionary<int, IrLocal> _withAddresses = new();
+        private readonly Dictionary<int, IrPlace> _withPlaces = new();
         private readonly Dictionary<int, int> _loopExits = new();
         private readonly Dictionary<string, int> _labels = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<BoundGoSubStatement, (int TargetBlockId, int ReturnIndex)> _goSubs =
@@ -1914,12 +1914,28 @@ public static class IrLowerer
 
         private void LowerWith(BoundWithStatement statement)
         {
-            var target = LowerPlace(statement.Target);
-            var address = NewLocal($"__with_addr_{statement.WithId}", statement.Target.Type, true, managedAddress: true);
-            _withAddresses.Add(statement.WithId, address);
-            Emit(new IrStoreAddressInstruction(address, new IrAddressExpression(target)));
+            if (statement.Target.Type is ClassTypeSymbol)
+            {
+                var receiver = NewLocal($"__with_receiver_{statement.WithId}", statement.Target.Type, true);
+                _withPlaces.Add(statement.WithId, new IrLocalPlace(receiver));
+                Emit(new IrStoreInstruction(
+                    new IrLocalPlace(receiver),
+                    LowerExpression(statement.Target)));
+            }
+            else
+            {
+                var target = LowerPlace(statement.Target);
+                var address = NewLocal($"__with_addr_{statement.WithId}", statement.Target.Type, true, managedAddress: true);
+                _withPlaces.Add(
+                    statement.WithId,
+                    new IrIndirectPlace(
+                        new IrLocalAddressExpression(address),
+                        statement.Target.Type));
+                Emit(new IrStoreAddressInstruction(address, new IrAddressExpression(target)));
+            }
+
             LowerBlock(statement.Body);
-            _withAddresses.Remove(statement.WithId);
+            _withPlaces.Remove(statement.WithId);
         }
 
         private void LowerExit(BoundExitLoopStatement statement)
@@ -2471,12 +2487,12 @@ public static class IrLowerer
 
         private IrPlace LowerWithPlace(BoundWithReceiverExpression expression)
         {
-            if (!_withAddresses.TryGetValue(expression.WithId, out var address))
+            if (!_withPlaces.TryGetValue(expression.WithId, out var place))
             {
                 throw new InvalidOperationException($"With receiver {expression.WithId} is not active while lowering.");
             }
 
-            return new IrIndirectPlace(new IrLocalAddressExpression(address), expression.ReceiverType);
+            return place;
         }
 
         /// <summary>
