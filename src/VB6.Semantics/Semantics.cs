@@ -214,6 +214,7 @@ public enum VBIntrinsicKind
     Shell,
     ErrNumber,
     ErrDescription,
+    ErrSource,
     ErrClear,
     ErrRaise,
     TypeName,

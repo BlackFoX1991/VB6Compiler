@@ -54,4 +54,28 @@ public sealed class RuntimeTests
     {
         Assert.IsTrue(VBOperators.Less("A", "a"));
     }
+
+    [TestMethod]
+    public void ErrSource_TracksRaisedAndRuntimeErrors()
+    {
+        try
+        {
+            VBErrors.Raise(5, "unit", "message", string.Empty, 0);
+        }
+        catch (VB6RaisedError)
+        {
+            Assert.AreEqual("unit", VBErrors.SourceValue());
+            Assert.AreEqual("message", VBErrors.DescriptionValue());
+        }
+
+        VBErrors.Set(new InvalidOperationException("failure"));
+        try
+        {
+            Assert.AreEqual("InvalidOperationException", VBErrors.SourceValue());
+        }
+        finally
+        {
+            VBErrors.Clear();
+        }
+    }
 }

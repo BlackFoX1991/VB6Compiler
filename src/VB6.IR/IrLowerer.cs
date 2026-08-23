@@ -3105,6 +3105,7 @@ public static class IrLowerer
             "VBDateTime.Now" => IrRuntimeMethod.DateTimeNow,
             "VBErrors.NumberValue" => IrRuntimeMethod.ErrorNumber,
             "VBErrors.DescriptionValue" => IrRuntimeMethod.ErrorDescription,
+            "VBErrors.SourceValue" => IrRuntimeMethod.ErrorSource,
             "VBErrors.LineNumber" => IrRuntimeMethod.ErrorLineNumber,
             "VBErrors.Clear" => IrRuntimeMethod.ErrorClear,
             "VBErrors.Raise" => IrRuntimeMethod.ErrorRaise,

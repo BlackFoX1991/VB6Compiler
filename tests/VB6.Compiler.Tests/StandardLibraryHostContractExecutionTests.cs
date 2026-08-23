@@ -84,6 +84,20 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesErrSourceRuntimeContract()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error Resume Next
+                Err.Raise 5, "unit", "message"
+                Debug.Print Err.Source
+            End Sub
+            """);
+
+        Assert.AreEqual("unit", output.Trim());
+    }
+
+    [TestMethod]
     public void Lower_UsesGraphicsLineHostContract()
     {
         var program = VB6TestIr.Lower("""

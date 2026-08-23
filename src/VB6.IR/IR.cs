@@ -516,6 +516,7 @@ public enum IrRuntimeMethod
     DateTimeNow,
     ErrorNumber,
     ErrorDescription,
+    ErrorSource,
     ErrorLineNumber,
     ErrorClear,
     ErrorRaise,
