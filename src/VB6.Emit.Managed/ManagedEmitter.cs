@@ -1547,12 +1547,12 @@ public sealed class ManagedEmitter
             EmitExpression(encoder, procedure, call.Array);
             if (call.Operation == IrVariantArrayOperation.GetElement)
             {
-                EmitInt32Array(encoder, procedure, call.Arguments);
+                EmitObjectArray(encoder, procedure, call.Arguments);
                 encoder.Call(GetRuntimeMethodReference(
                     typeof(VBArrayOperations).GetMethod(
                         nameof(VBArrayOperations.GetElement),
-                        new[] { typeof(object), typeof(int[]) })
-                    ?? throw new MissingMethodException("VBArrayOperations.GetElement(object,int[]) is required.")));
+                        new[] { typeof(object), typeof(object[]) })
+                    ?? throw new MissingMethodException("VBArrayOperations.GetElement(object,object[]) is required.")));
                 return;
             }
 
@@ -1578,13 +1578,13 @@ public sealed class ManagedEmitter
             IrVariantArraySetInstruction set)
         {
             EmitExpression(encoder, procedure, set.Array);
-            EmitInt32Array(encoder, procedure, set.Arguments);
+            EmitObjectArray(encoder, procedure, set.Arguments);
             EmitExpressionWithAssignmentConversion(encoder, procedure, set.Value, TypeSymbol.Variant);
             encoder.Call(GetRuntimeMethodReference(
                 typeof(VBArrayOperations).GetMethod(
                     nameof(VBArrayOperations.SetElement),
-                    new[] { typeof(object), typeof(int[]), typeof(object) })
-                ?? throw new MissingMethodException("VBArrayOperations.SetElement(object,int[],object) is required.")));
+                    new[] { typeof(object), typeof(object[]), typeof(object) })
+                ?? throw new MissingMethodException("VBArrayOperations.SetElement(object,object[],object) is required.")));
         }
 
         private void EmitEnsureArray(
@@ -1662,6 +1662,26 @@ public sealed class ManagedEmitter
                 encoder.LoadConstantI4(index);
                 EmitExpression(encoder, procedure, indices[index]);
                 encoder.OpCode(ILOpCode.Stelem_i4);
+            }
+        }
+
+        private void EmitObjectArray(InstructionEncoder encoder, IrProcedure procedure, ImmutableArray<IrExpression> values)
+        {
+            encoder.LoadConstantI4(values.Length);
+            encoder.OpCode(ILOpCode.Newarr);
+            encoder.Token(GetReflectionTypeReference(typeof(object)));
+            for (var index = 0; index < values.Length; index++)
+            {
+                encoder.OpCode(ILOpCode.Dup);
+                encoder.LoadConstantI4(index);
+                EmitExpression(encoder, procedure, values[index]);
+                if (IsValueType(values[index].Type))
+                {
+                    encoder.OpCode(ILOpCode.Box);
+                    encoder.Token(GetTypeEntityHandle(values[index].Type));
+                }
+
+                encoder.OpCode(ILOpCode.Stelem_ref);
             }
         }
 

@@ -294,8 +294,11 @@ public static class VBArrayOperations
 
     public static int UBound(object? value, int dimension = 1) => GetArray(value).UBound(dimension);
 
-    public static object? GetElement(object? value, int[] indices) => value is IVBArray array
-        ? array.GetObjectValue(indices)
+    public static object? GetElement(object? value, int[] indices) =>
+        GetElement(value, indices.Cast<object?>().ToArray());
+
+    public static object? GetElement(object? value, object?[] indices) => value is IVBArray array
+        ? array.GetObjectValue(ToArrayIndices(indices))
         : VBDynamicDispatch.GetDefaultMember(value, indices);
 
     /// <summary>
@@ -314,16 +317,22 @@ public static class VBArrayOperations
             "A Variant array element is ByRef-addressable only when the runtime array stores Variant elements.");
     }
 
-    public static void SetElement(object? value, int[] indices, object? element)
+    public static void SetElement(object? value, int[] indices, object? element) =>
+        SetElement(value, indices.Cast<object?>().ToArray(), element);
+
+    public static void SetElement(object? value, object?[] indices, object? element)
     {
         if (value is IVBArray array)
         {
-            array.SetObjectValue(indices, element);
+            array.SetObjectValue(ToArrayIndices(indices), element);
             return;
         }
 
         VBDynamicDispatch.SetDefaultMember(value, indices, element);
     }
+
+    private static int[] ToArrayIndices(object?[] indices) =>
+        indices.Select(index => VBConversions.ConvertCLng(index)).ToArray();
 
     private static IVBArray GetArray(object? value) => value switch
     {

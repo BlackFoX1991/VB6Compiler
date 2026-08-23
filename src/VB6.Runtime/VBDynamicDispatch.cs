@@ -37,22 +37,28 @@ public static class VBDynamicDispatch
         SetMemberCore(target, memberName, arguments.EnumerateValues().ToArray(), value);
     }
 
-    public static object? GetDefaultMember(object? target, int[] arguments)
+    public static object? GetDefaultMember(object? target, int[] arguments) =>
+        GetDefaultMember(target, arguments.Cast<object?>().ToArray());
+
+    public static object? GetDefaultMember(object? target, object?[] arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         return InvokeMember(
             target,
             ResolveDefaultMemberName(target),
-            arguments.Cast<object?>().ToArray());
+            arguments);
     }
 
-    public static void SetDefaultMember(object? target, int[] arguments, object? value)
+    public static void SetDefaultMember(object? target, int[] arguments, object? value) =>
+        SetDefaultMember(target, arguments.Cast<object?>().ToArray(), value);
+
+    public static void SetDefaultMember(object? target, object?[] arguments, object? value)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         SetMemberCore(
             target,
             ResolveDefaultMemberName(target),
-            arguments.Cast<object?>().ToArray(),
+            arguments,
             value);
     }
 

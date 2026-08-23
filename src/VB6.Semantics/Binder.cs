@@ -2132,7 +2132,13 @@ public sealed class Binder
         }
 
         return indexSyntaxes
-            .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+            .Select(index =>
+            {
+                var expression = BindExpression(index, variables, procedures);
+                return arrayType is null
+                    ? expression
+                    : BindConversion(expression, TypeSymbol.Long);
+            })
             .ToImmutableArray();
     }
 
@@ -2964,7 +2970,7 @@ public sealed class Binder
             return new BoundVariantArrayAccessExpression(
                 receiver,
                 syntax.Indices
-                    .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+                    .Select(index => BindExpression(index, variables, procedures))
                     .ToImmutableArray());
         }
 
@@ -3050,7 +3056,7 @@ public sealed class Binder
             return new BoundVariantArrayAccessExpression(
                 new BoundVariableExpression(variable),
                 syntax.Arguments
-                    .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+                    .Select(index => BindExpression(index, variables, procedures))
                     .ToImmutableArray());
         }
 
