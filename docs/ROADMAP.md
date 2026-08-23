@@ -55,7 +55,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
 | Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
 | Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
-| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **163** | **80** | **0** | **83** | **21 von 40** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **779** | **0** | **0** | **779** | **21 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -150,6 +150,15 @@ Kaskadenfehler aus den betroffenen VISIA-Quellen; die implizite Objektinstanziie
 separater Semantikbaustein offen. Der Stand sinkt auf **163 Gesamtfehler**, davon **80 Parser**,
 **0 Lexer** und **83 Semantik**, bei weiterhin **21 von 40** fehlerfreien Dateien. Die Suite umfasst
 **656 Tests**.
+
+Der nächste Syntaxabschluss verarbeitet nun die restliche VISIA-Parseroberfläche: numerische `!`-/`#`-
+Suffixe, Grafik-`Line` mit Koordinaten, `On Local Error`, `End` in Einzeilenbedingungen, Array-
+Rückgabetypen, `#Const`, `Erase .Member`, Graphics-`Print` sowie kommentierte Fortsetzungszeilen.
+Damit analysiert der Parser alle 40 VISIA-Projektdateien ohne Parserdiagnose. Die Semantikzahl steigt
+bewusst auf **779**, weil zuvor versteckte Bindungs- und Objektmodelllücken jetzt sichtbar werden; die
+fehlerfreien Dateien bleiben bei **21 von 40**. Die nächste Arbeit liegt daher im Binder-/Runtime-
+Vertrag für Controls, Late Binding, Standardbibliothek und COM, nicht mehr in der VISIA-Syntax-
+Wiederherstellung.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

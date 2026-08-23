@@ -7,5 +7,6 @@ namespace VB6.Syntax.Nodes;
 /// </summary>
 public sealed record EraseStatementSyntax(
     SyntaxToken EraseKeyword,
-    ImmutableArray<SyntaxToken> Identifiers)
+    ImmutableArray<SyntaxToken> Identifiers,
+    SyntaxToken? MemberDotToken = null)
     : StatementSyntax(SyntaxKind.EraseStatement);

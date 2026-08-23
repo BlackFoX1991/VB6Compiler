@@ -56,10 +56,10 @@ public sealed class Binder
         return new ProcedureSymbol(
             declaration.Identifier.Text,
             CreateParameterSymbols(declaration.Parameters),
-            declaration.ReturnTypeToken is null
-                ? TypeSymbol.Variant
-                : TypeSymbol.Lookup(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)!) ??
-                  TypeSymbol.Error);
+            CreateProcedureReturnType(
+                declaration.ReturnTypeToken,
+                declaration.ReturnTypeName,
+                declaration.ReturnOpenParenthesisToken is not null));
     }
 
     public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
@@ -328,11 +328,10 @@ public sealed class Binder
         var isFunction = declaration.ProcedureKindKeyword.Kind == SyntaxKind.FunctionKeyword;
         var returnType = !isFunction
             ? null
-            : declaration.ReturnTypeToken is null ||
-              string.Equals(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName), "Any", StringComparison.OrdinalIgnoreCase)
-                ? TypeSymbol.Variant
-                : TypeSymbol.Lookup(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)!) ??
-                  TypeSymbol.Error;
+            : CreateProcedureReturnType(
+                declaration.ReturnTypeToken,
+                declaration.ReturnTypeName,
+                declaration.ReturnOpenParenthesisToken is not null);
         return new ProcedureSymbol(
             declaration.Identifier.Text,
             CreateParameterSymbols(declaration.Parameters),
@@ -352,8 +351,10 @@ public sealed class Binder
         var type = declaration.IsGet
             ? declaration.ReturnTypeToken is null
                 ? TypeSymbol.Variant
-                : TypeSymbol.Lookup(GetDeclaredTypeName(declaration.ReturnTypeToken, declaration.ReturnTypeName)!) ??
-                  TypeSymbol.Error
+                : CreateProcedureReturnType(
+                    declaration.ReturnTypeToken,
+                    declaration.ReturnTypeName,
+                    declaration.ReturnOpenParenthesisToken is not null)
             : parameters.Length == 0
                 ? TypeSymbol.Variant
                 : parameters[^1].Type;
@@ -615,6 +616,23 @@ public sealed class Binder
 
     private static string? GetDeclaredTypeName(SyntaxToken? typeToken, TypeNameSyntax? typeName) =>
         typeName?.Text ?? typeToken?.Text;
+
+    private static TypeSymbol CreateProcedureReturnType(
+        SyntaxToken? typeToken,
+        TypeNameSyntax? typeName,
+        bool isArray)
+    {
+        if (typeToken is null ||
+            string.Equals(GetDeclaredTypeName(typeToken, typeName), "Any", StringComparison.OrdinalIgnoreCase))
+        {
+            return TypeSymbol.Variant;
+        }
+
+        var type = TypeSymbol.Lookup(GetDeclaredTypeName(typeToken, typeName)!) ?? TypeSymbol.Error;
+        return isArray && type != TypeSymbol.Error
+            ? new ArrayTypeSymbol(type)
+            : type;
+    }
 
     private TypeSymbol ResolveDeclaredType(SyntaxToken typeToken, TypeNameSyntax? typeName = null)
     {
@@ -984,6 +1002,12 @@ public sealed class Binder
 
             if (statement is EraseStatementSyntax erase)
             {
+                if (erase.MemberDotToken is not null)
+                {
+                    ReportObjectModelGap("Erasing a member array", erase.MemberDotToken.Span);
+                    continue;
+                }
+
                 foreach (var eraseIdentifier in erase.Identifiers)
                 {
                     bound.Add(WithLocation(BindErase(eraseIdentifier, variables), statement));
@@ -1092,6 +1116,8 @@ public sealed class Binder
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
             LineInputStatementSyntax lineInput => BindLineInput(lineInput, variables, procedures),
             FileInputStatementSyntax fileInput => BindFileInput(fileInput, variables, procedures),
+            LineStatementSyntax line => ReportObjectModelGap("Graphics Line statement", line.LineKeyword.Span),
+            EndStatementSyntax end => ReportControlFlowGap("End statement", end.EndKeyword.Span),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
                 variables,
@@ -2094,7 +2120,8 @@ public sealed class Binder
 
     private BoundStatement BindExit(ExitStatementSyntax syntax)
     {
-        if (syntax.TargetKeyword.Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword)
+        if (syntax.TargetKeyword.Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword ||
+            string.Equals(syntax.TargetKeyword.Text, "Property", StringComparison.OrdinalIgnoreCase))
         {
             return new BoundReturnStatement();
         }

@@ -514,9 +514,41 @@ public sealed class Lexer
             if (Current == '\'')
             {
                 var start = _position;
-                while (Current != '\0' && Current is not '\r' and not '\n')
+                while (true)
                 {
-                    _position++;
+                    while (Current != '\0' && Current is not '\r' and not '\n')
+                    {
+                        _position++;
+                    }
+
+                    var lineEnd = _position;
+                    var contentEnd = lineEnd - 1;
+                    while (contentEnd >= start && _text[contentEnd] is ' ' or '\t' or '\f')
+                    {
+                        contentEnd--;
+                    }
+
+                    if (contentEnd < start || _text[contentEnd] != '_')
+                    {
+                        break;
+                    }
+
+                    if (Current == '\r')
+                    {
+                        _position++;
+                        if (Current == '\n')
+                        {
+                            _position++;
+                        }
+                    }
+                    else if (Current == '\n')
+                    {
+                        _position++;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
 
                 var span = TextSpan.FromBounds(start, _position);
