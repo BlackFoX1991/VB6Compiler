@@ -118,6 +118,40 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void ComActivation_UsesHostSinksBeforePlatformFallback()
+    {
+        var created = new object();
+        var running = new object();
+        var previousCreateSink = VBInteraction.CreateObjectSink;
+        var previousGetSink = VBInteraction.GetObjectSink;
+        try
+        {
+            VBInteraction.CreateObjectSink = (className, serverName) =>
+                className == "Host.Widget" && serverName == "" ? created : null;
+            VBInteraction.GetObjectSink = (pathName, className) =>
+                pathName == "Host.Widget" && className == "" ? running : null;
+
+            Assert.AreSame(created, VBInteraction.CreateObject("Host.Widget", ""));
+            Assert.AreSame(running, VBInteraction.GetObject("Host.Widget", ""));
+        }
+        finally
+        {
+            VBInteraction.CreateObjectSink = previousCreateSink;
+            VBInteraction.GetObjectSink = previousGetSink;
+        }
+    }
+
+    [TestMethod]
+    public void ComActivation_UsesDeterministicPlaceholderForUnknownHeadlessClass()
+    {
+        var value = VBInteraction.CreateObject(
+            "VB6Compiler.Unknown." + Guid.NewGuid().ToString("N"),
+            "");
+
+        Assert.IsInstanceOfType<VBComObject>(value);
+    }
+
+    [TestMethod]
     public void LoadPicture_ExposesDeterministicHostMetadataDefaults()
     {
         var picture = VBInteraction.LoadPicture(string.Empty);

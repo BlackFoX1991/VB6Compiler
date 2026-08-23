@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace VB6.Runtime;
 
@@ -66,6 +68,11 @@ public static class VBDynamicDispatch
             return property.GetValue(target, converted);
         }
 
+        if (TryInvokeComMember(target!, memberName, arguments, setProperty: false, out var comResult))
+        {
+            return comResult;
+        }
+
         throw MissingMember(target, memberName);
     }
 
@@ -93,7 +100,58 @@ public static class VBDynamicDispatch
             return;
         }
 
+        var comArguments = new object?[arguments.Length + 1];
+        Array.Copy(arguments, comArguments, arguments.Length);
+        comArguments[^1] = value;
+        if (TryInvokeComMember(target!, memberName, comArguments, setProperty: true, out _))
+        {
+            return;
+        }
+
         throw MissingMember(target, memberName);
+    }
+
+    private static bool TryInvokeComMember(
+        object target,
+        string memberName,
+        object?[] arguments,
+        bool setProperty,
+        out object? result)
+    {
+        var flags = BindingFlags.Instance |
+            BindingFlags.Public |
+            BindingFlags.NonPublic |
+            BindingFlags.OptionalParamBinding |
+            (setProperty
+                ? BindingFlags.SetProperty
+                : BindingFlags.InvokeMethod | BindingFlags.GetProperty);
+
+        try
+        {
+            result = target.GetType().InvokeMember(
+                memberName,
+                flags,
+                binder: null,
+                target,
+                arguments,
+                CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (MissingMethodException)
+        {
+            result = null;
+            return false;
+        }
+        catch (MissingFieldException)
+        {
+            result = null;
+            return false;
+        }
+        catch (COMException exception) when (exception.ErrorCode == unchecked((int)0x80020003))
+        {
+            result = null;
+            return false;
+        }
     }
 
     private static object? InvokeMethod(object target, MethodInfo method, object?[] arguments)

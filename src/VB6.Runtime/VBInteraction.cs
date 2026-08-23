@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace VB6.Runtime;
 
@@ -10,6 +11,18 @@ public static class VBInteraction
     private static readonly Dictionary<string, string> Settings = new(StringComparer.Ordinal);
     private static readonly object SettingsGate = new();
     private static readonly VBApplication ApplicationValue = VBApplication.Create();
+
+    /// <summary>
+    /// Optional host activation hook for <c>CreateObject</c>. Returning <see langword="null"/>
+    /// lets the runtime continue with its Windows COM activation or deterministic placeholder.
+    /// </summary>
+    public static Func<string, string, object?>? CreateObjectSink { get; set; }
+
+    /// <summary>
+    /// Optional host activation hook for <c>GetObject</c>. Returning <see langword="null"/>
+    /// lets the runtime continue with its Windows moniker activation or deterministic placeholder.
+    /// </summary>
+    public static Func<string, string, object?>? GetObjectSink { get; set; }
 
     /// <summary>Yielding to a UI message pump is a host concern; the compiler runtime has no pump.</summary>
     public static void DoEvents()
@@ -27,14 +40,49 @@ public static class VBInteraction
     }
 
     /// <summary>
-    /// Creates a host-owned COM object placeholder. Native/COM hosts can replace this contract
-    /// with IDispatch activation without changing generated call sites.
+    /// Creates a COM object through the host hook or Windows ProgID activation. Unknown ProgIDs
+    /// remain a deterministic placeholder so headless compiler tests do not require a COM server.
     /// </summary>
-    public static object CreateObject(string className, string serverName) =>
-        new VBComObject(className, serverName);
+    public static object CreateObject(string className, string serverName)
+    {
+        var resolved = CreateObjectSink?.Invoke(className, serverName);
+        if (resolved is not null)
+        {
+            return resolved;
+        }
 
-    public static object GetObject(string pathName, string className) =>
-        new VBComObject(className, pathName);
+        if (OperatingSystem.IsWindows())
+        {
+            var comType = string.IsNullOrWhiteSpace(serverName)
+                ? Type.GetTypeFromProgID(className, throwOnError: false)
+                : Type.GetTypeFromProgID(className, serverName, throwOnError: false);
+            if (comType is not null)
+            {
+                return Activator.CreateInstance(comType)
+                    ?? throw new COMException($"COM class '{className}' could not be activated.");
+            }
+        }
+
+        return new VBComObject(className, serverName);
+    }
+
+    /// <summary>Gets a running COM object through a host hook or a Windows moniker.</summary>
+    public static object GetObject(string pathName, string className)
+    {
+        var resolved = GetObjectSink?.Invoke(pathName, className);
+        if (resolved is not null)
+        {
+            return resolved;
+        }
+
+        if (OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(pathName))
+        {
+            return Marshal.BindToMoniker(pathName)
+                ?? throw new COMException($"COM moniker '{pathName}' could not be resolved.");
+        }
+
+        return new VBComObject(className, pathName);
+    }
 
     /// <summary>Process launching is delegated to the host; headless builds return a stable id.</summary>
     public static int Shell(string pathName, short windowStyle) => 0;
