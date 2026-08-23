@@ -93,6 +93,31 @@ public static class VBConversions
         return new IntPtr(numeric);
     }
 
+    public static uint CUInt(object? value)
+    {
+        if (value is uint number)
+        {
+            return number;
+        }
+
+        if (value is IntPtr pointer)
+        {
+            return checked((uint)pointer.ToInt64());
+        }
+
+        if (value is bool boolean)
+        {
+            return boolean ? uint.MaxValue : 0u;
+        }
+
+        if (value is VBCurrency currency)
+        {
+            return checked((uint)currency.ToRoundedInt64());
+        }
+
+        return Convert.ToUInt32(value, CultureInfo.InvariantCulture);
+    }
+
     public static VBCurrency CCur(object? value)
     {
         if (value is IntPtr pointer)
@@ -290,6 +315,18 @@ public static partial class VBOperators
 
     public static IntPtr ModLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() % right.ToInt64()));
 
+    public static uint AddUInteger(uint left, uint right) => checked(left + right);
+
+    public static uint SubtractUInteger(uint left, uint right) => checked(left - right);
+
+    public static uint MultiplyUInteger(uint left, uint right) => checked(left * right);
+
+    public static uint NegateUInteger(uint value) => checked(0u - value);
+
+    public static uint IntegerDivideUInteger(uint left, uint right) => left / right;
+
+    public static uint ModUInteger(uint left, uint right) => left % right;
+
     public static VBCurrency AddCurrency(VBCurrency left, VBCurrency right) =>
         VBCurrency.FromScaled(checked(left.ScaledValue + right.ScaledValue));
 
@@ -389,6 +426,8 @@ public static partial class VBOperators
 
     public static IntPtr NotLongPtr(IntPtr value) => FromLongPtr(~value.ToInt64());
 
+    public static uint NotUInteger(uint value) => ~value;
+
     public static byte AndByte(byte left, byte right) => (byte)(left & right);
 
     public static short AndInteger(short left, short right) => (short)(left & right);
@@ -398,6 +437,8 @@ public static partial class VBOperators
     public static long AndLongLong(long left, long right) => left & right;
 
     public static IntPtr AndLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() & right.ToInt64());
+
+    public static uint AndUInteger(uint left, uint right) => left & right;
 
     public static byte OrByte(byte left, byte right) => (byte)(left | right);
 
@@ -409,6 +450,8 @@ public static partial class VBOperators
 
     public static IntPtr OrLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() | right.ToInt64());
 
+    public static uint OrUInteger(uint left, uint right) => left | right;
+
     public static byte XorByte(byte left, byte right) => (byte)(left ^ right);
 
     public static short XorInteger(short left, short right) => (short)(left ^ right);
@@ -419,6 +462,8 @@ public static partial class VBOperators
 
     public static IntPtr XorLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() ^ right.ToInt64());
 
+    public static uint XorUInteger(uint left, uint right) => left ^ right;
+
     public static short EqvInteger(short left, short right) => unchecked((short)~(left ^ right));
 
     public static int EqvLong(int left, int right) => ~(left ^ right);
@@ -426,6 +471,8 @@ public static partial class VBOperators
     public static long EqvLongLong(long left, long right) => ~(left ^ right);
 
     public static IntPtr EqvLongPtr(IntPtr left, IntPtr right) => FromLongPtr(~(left.ToInt64() ^ right.ToInt64()));
+
+    public static uint EqvUInteger(uint left, uint right) => ~(left ^ right);
 
     public static short ImpInteger(short left, short right) =>
         unchecked((short)((~left & 0xFFFF) | (right & 0xFFFF)));
@@ -435,6 +482,8 @@ public static partial class VBOperators
     public static long ImpLongLong(long left, long right) => ~left | right;
 
     public static IntPtr ImpLongPtr(IntPtr left, IntPtr right) => FromLongPtr(~left.ToInt64() | right.ToInt64());
+
+    public static uint ImpUInteger(uint left, uint right) => ~left | right;
 
     private static IntPtr FromLongPtr(long value) => new(value);
 
@@ -519,6 +568,7 @@ public static class VBDebug
             short number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             int number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             long number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            uint number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             IntPtr pointer => FormatNumeric(pointer.ToInt64().ToString(CultureInfo.InvariantCulture)),
             float number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),

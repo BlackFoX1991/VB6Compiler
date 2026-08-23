@@ -320,6 +320,7 @@ internal static class VBIntrinsicSymbols
         Function("CInt", VBIntrinsicKind.CInt, "VBConversions.CInt", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
         Function("CLng", VBIntrinsicKind.CLng, "VBConversions.CLng", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
         Function("CLngPtr", VBIntrinsicKind.CLngPtr, "VBConversions.CLngPtr", TypeSymbol.LongPtr, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CUInt", VBIntrinsicKind.CUInt, "VBConversions.CUInt", TypeSymbol.UInteger, Parameter("Expression", TypeSymbol.Variant)),
         Function("CDec", VBIntrinsicKind.CDec, "VBConversions.CDec", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)),
         Function("CDate", VBIntrinsicKind.CDate, "VBConversions.CDate", TypeSymbol.Date, Parameter("Expression", TypeSymbol.Variant)),
         Function("CSng", VBIntrinsicKind.CSng, "VBConversions.CSng", TypeSymbol.Single, Parameter("Expression", TypeSymbol.Variant)),

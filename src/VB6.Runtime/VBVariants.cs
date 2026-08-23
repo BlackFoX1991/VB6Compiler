@@ -55,6 +55,7 @@ public static class VBVariants
             MissingValueMarker => 10,
             bool => 11,
             byte => 17,
+            uint => 20,
             long => 20,
             IntPtr => IntPtr.Size == 8 ? (short)20 : (short)3,
             decimal => 14,
@@ -75,6 +76,7 @@ public static class VBVariants
             : elementType == typeof(byte) ? 17
             : elementType == typeof(short) ? 2
             : elementType == typeof(int) ? 3
+            : elementType == typeof(uint) ? 20
             : elementType == typeof(long) ? 20
             : elementType == typeof(IntPtr) ? (IntPtr.Size == 8 ? 20 : 3)
             : elementType == typeof(float) ? 4

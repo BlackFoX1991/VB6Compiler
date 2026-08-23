@@ -815,6 +815,11 @@ public sealed class ManagedEmitter
                 encoder.Call(GetRuntimeMethodReference(Static(typeof(VBConversions), "CLngPtr", typeof(object))));
                 return;
             }
+            if (constant.ConstantType == TypeSymbol.UInteger)
+            {
+                encoder.LoadConstantI4(unchecked((int)Convert.ToUInt32(constant.Value, CultureInfo.InvariantCulture)));
+                return;
+            }
             if (constant.ConstantType == TypeSymbol.Single)
             {
                 encoder.LoadConstantR4(Convert.ToSingle(constant.Value, CultureInfo.InvariantCulture));
@@ -1545,6 +1550,7 @@ public sealed class ManagedEmitter
             if (type == TypeSymbol.Long) { encoder.Int32(); return; }
             if (type == TypeSymbol.LongLong) { encoder.Int64(); return; }
             if (type == TypeSymbol.LongPtr) { encoder.Type(GetReflectionTypeReference(typeof(IntPtr)), isValueType: true); return; }
+            if (type == TypeSymbol.UInteger) { encoder.UInt32(); return; }
             if (type == TypeSymbol.Single) { encoder.Single(); return; }
             if (type == TypeSymbol.Date) { encoder.Double(); return; }
             if (type == TypeSymbol.Double) { encoder.Double(); return; }
@@ -1629,6 +1635,7 @@ public sealed class ManagedEmitter
             if (type == TypeSymbol.Long) return GetReflectionTypeReference(typeof(int));
             if (type == TypeSymbol.LongLong) return GetReflectionTypeReference(typeof(long));
             if (type == TypeSymbol.LongPtr) return GetReflectionTypeReference(typeof(IntPtr));
+            if (type == TypeSymbol.UInteger) return GetReflectionTypeReference(typeof(uint));
             if (type == TypeSymbol.Single) return GetReflectionTypeReference(typeof(float));
             if (type == TypeSymbol.Date) return GetReflectionTypeReference(typeof(double));
             if (type == TypeSymbol.Double) return GetReflectionTypeReference(typeof(double));
@@ -1959,6 +1966,7 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Long ||
             type == TypeSymbol.LongLong ||
             type == TypeSymbol.LongPtr ||
+            type == TypeSymbol.UInteger ||
             type == TypeSymbol.Single ||
             type == TypeSymbol.Date ||
             type == TypeSymbol.Double ||
@@ -2041,6 +2049,7 @@ public sealed class ManagedEmitter
             if (type == typeof(byte)) { encoder.Byte(); return; }
             if (type == typeof(short)) { encoder.Int16(); return; }
             if (type == typeof(int)) { encoder.Int32(); return; }
+            if (type == typeof(uint)) { encoder.UInt32(); return; }
             if (type == typeof(long)) { encoder.Int64(); return; }
             if (type == typeof(float)) { encoder.Single(); return; }
             if (type == typeof(double)) { encoder.Double(); return; }
@@ -2274,6 +2283,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CInt) return Static(typeof(VBConversions), "CInt", typeof(object));
             if (m == IrRuntimeMethod.CLng) return Static(typeof(VBConversions), "CLng", typeof(object));
             if (m == IrRuntimeMethod.CLngPtr) return Static(typeof(VBConversions), "CLngPtr", typeof(object));
+            if (m == IrRuntimeMethod.CUInt) return Static(typeof(VBConversions), "CUInt", typeof(object));
             if (m == IrRuntimeMethod.CDec) return Static(typeof(VBConversions), "CDec", typeof(object));
             if (m == IrRuntimeMethod.CDate) return Static(typeof(VBConversions), "CDate", typeof(object));
             if (m == IrRuntimeMethod.DateToVariant) return Static(typeof(VBConversions), "DateToVariant", typeof(double));
@@ -2570,6 +2580,7 @@ public sealed class ManagedEmitter
             : type == TypeSymbol.Long ? typeof(int)
             : type == TypeSymbol.LongLong ? typeof(long)
             : type == TypeSymbol.LongPtr ? typeof(IntPtr)
+            : type == TypeSymbol.UInteger ? typeof(uint)
             : type == TypeSymbol.Single ? typeof(float)
             : type == TypeSymbol.Date ? typeof(double)
             : type == TypeSymbol.Double ? typeof(double)
