@@ -486,6 +486,13 @@ ergänzen nun dieselben checked Managed-, Variant-, `For`- und skalaren `Declare
 für 16 und 64 Bit mit `CUShort` und `CULng`. Der VISIA-Stand bleibt bei **2 semantischen Fehlern**
 und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **749 Tests**.
 
+`AddressOf` löst jetzt direkte Prozedurziele semantisch auf und senkt sie über IR und Managed-Emitter
+zu einer echten Funktionsadresse. `LongPtr` verwendet dabei `ldftn` und native-width `System.IntPtr`,
+während Legacy-Callback-Deklarationen mit `Long` explizit auf den 32-Bit-Vertrag konvertiert werden.
+Signaturprüfung, native Callback-ABI und die Lebensdauer von Callback-Delegates bleiben als eigener
+Interop-Schritt offen. Der VISIA-Stand verbessert sich dadurch auf **1 semantischen Fehler** und
+**39 von 40** fehlerfreien Dateien; die Suite umfasst nun **751 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -1005,7 +1012,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 - [~] `Declare` -> P/Invoke für skalare Signaturen mit `Lib`/`Alias` und echter Managed-
       Invocation; ANSI-String-Marshalling sowie Scalar-Pointer-Transfers für `As Any` stehen,
-      komplexes String-/UDT-Marshalling bleibt offen
+      `AddressOf` erzeugt Managed-Funktionsadressen für direkte Prozedurziele, komplexes
+      String-/UDT-Marshalling sowie vollständige Callback-ABI-/Delegate-Verträge bleiben offen
 - [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
@@ -1015,6 +1023,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
 - [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
       sind mit `CUShort`, `CUInt` und `CULng` sowie checked Managed-/P/Invoke-/Variant-Verträgen ergänzt
+- [x] `AddressOf` — direkte Prozedurziele werden als `LongPtr`-Funktionsadresse emittiert und für
+      Legacy-`Long`-Callbackparameter konvertiert; native Callback-ABI und Delegate-Lebensdauer offen
 
 ## Meilenstein 9 — Forms
 

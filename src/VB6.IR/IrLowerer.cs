@@ -2052,6 +2052,7 @@ public static class IrLowerer
             return expression switch
             {
                 BoundLiteralExpression literal => new IrConstantExpression(literal.Value, literal.LiteralType),
+                BoundAddressOfExpression addressOf => new IrAddressOfExpression(addressOf.Procedure, addressOf.Type),
                 BoundNewExpression @new => new IrNewClassExpression(@new.ClassType),
                 BoundTypeOfExpression typeOf => new IrTypeOfExpression(
                     LowerExpression(typeOf.Expression),
@@ -2738,6 +2739,12 @@ public static class IrLowerer
 
         private IrExpression LowerConversion(BoundConversionExpression conversion)
         {
+            if (conversion.Expression is BoundAddressOfExpression addressOf &&
+                (conversion.TargetType == TypeSymbol.Long || conversion.TargetType == TypeSymbol.LongPtr))
+            {
+                return new IrAddressOfExpression(addressOf.Procedure, conversion.TargetType);
+            }
+
             var operand = LowerExpression(conversion.Expression);
             if (conversion.TargetType == conversion.Expression.Type)
             {
