@@ -255,6 +255,7 @@ public enum VBIntrinsicKind
     TypeName,
     Array,
     Switch,
+    Choose,
     IsEmpty,
     IsNull,
     IsMissing,

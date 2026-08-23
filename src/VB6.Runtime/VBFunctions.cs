@@ -71,5 +71,17 @@ public static class VBFunctions
         return null;
     }
 
+    /// <summary>Returns the one-based choice selected by the rounded index, or Variant Null.</summary>
+    public static object? Choose(int index, VBArray<object> choices)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        if (index < 1 || index > choices.Length)
+        {
+            return VBVariants.NullValue();
+        }
+
+        return choices[choices.LBound() + index - 1];
+    }
+
     private static int ClampColor(int value) => Math.Clamp(value, 0, 255);
 }

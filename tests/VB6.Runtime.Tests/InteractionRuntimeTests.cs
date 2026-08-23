@@ -11,6 +11,20 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void Choose_ReturnsSelectedChoiceOrNullOutsideTheChoiceRange()
+    {
+        var choices = new VBArray<object>(new VBArrayBound(0, 2));
+        choices[0] = "one";
+        choices[1] = "two";
+        choices[2] = "three";
+
+        Assert.AreEqual("one", VBFunctions.Choose(1, choices));
+        Assert.AreEqual("three", VBFunctions.Choose(3, choices));
+        Assert.IsTrue(VBVariants.IsNull(VBFunctions.Choose(0, choices)));
+        Assert.IsTrue(VBVariants.IsNull(VBFunctions.Choose(4, choices)));
+    }
+
+    [TestMethod]
     public void Settings_AreCaseInsensitiveAndReturnDefaults()
     {
         VBInteraction.SaveSetting("RuntimeTests", "Settings", "Answer", "42");

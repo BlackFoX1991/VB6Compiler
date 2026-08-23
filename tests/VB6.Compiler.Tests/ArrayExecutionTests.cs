@@ -129,6 +129,31 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesChooseWithRoundedAndOutOfRangeIndexes()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Function NextValue() As Long
+                Static value As Long
+                value = value + 1
+                NextValue = value
+            End Function
+
+            Sub Main()
+                Debug.Print Choose(1, NextValue(), NextValue(), NextValue())
+                Debug.Print NextValue()
+                Debug.Print Choose(1, "one", "two", "three")
+                Debug.Print Choose(2.6, "one", "two", "three")
+                Debug.Print IsNull(Choose(0, "one", "two", "three"))
+                Debug.Print IsNull(Choose(4, "one", "two", "three"))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "1", "4", "one", "three", "True", "True" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesJoinAndFilterForStringArrays()
     {
         var output = VB6TestProgram.RunLines("""
