@@ -3231,9 +3231,9 @@ public sealed class Binder
             return new BoundErrorExpression();
         }
 
-        // Any array-valued expression works, not just a bare name: UBound(Section(2).Bytes) asks for
-        // the bounds of an array that lives inside a user-defined type element.
-        var array = BindExpression(syntax.Arguments[0], variables, procedures);
+        // VB6 also permits the array name with empty parentheses: UBound(values()). That syntax
+        // is otherwise an array-element invocation, so preserve the array variable in this context.
+        var array = BindArrayBoundTarget(syntax.Arguments[0], variables, procedures);
         if (array.Type == TypeSymbol.Error)
         {
             return new BoundErrorExpression();
@@ -3256,6 +3256,24 @@ public sealed class Binder
             array,
             dimension,
             IsUpperBound: string.Equals(syntax.Identifier.Text, "UBound", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private BoundExpression BindArrayBoundTarget(
+        ExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (syntax is InvocationExpressionSyntax invocation &&
+            invocation.Arguments.Length == 0 &&
+            variables.TryGetValue(invocation.Identifier.Text, out var variable) &&
+            variable.Type is ArrayTypeSymbol)
+        {
+            return new BoundVariableExpression(variable);
+        }
+
+        // Any array-valued expression works, not just a bare name: UBound(Section(2).Bytes) asks for
+        // the bounds of an array that lives inside a user-defined type element.
+        return BindExpression(syntax, variables, procedures);
     }
 
     private ImmutableArray<BoundArgument> BindArguments(
