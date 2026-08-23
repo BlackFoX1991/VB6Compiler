@@ -199,6 +199,47 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "define i32 @\"AddWithOutput\"(i32 %arg0, ptr %arg1)");
     }
 
+    [TestMethod]
+    public void Emit_LowersScalarModuleGlobalsAsNativeSlots()
+    {
+        var symbol = new ModuleVariableSymbol("counter", TypeSymbol.Long);
+        var global = new IrGlobal(
+            symbol,
+            "counter",
+            TypeSymbol.Long,
+            new IrConstantExpression(4L, TypeSymbol.Long),
+            false);
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrStoreInstruction(
+                        new IrGlobalPlace(global),
+                        new IrConstantExpression(7L, TypeSymbol.Long))),
+                new IrReturnTerminator(new IrLoadExpression(new IrGlobalPlace(global))))));
+        var program = new IrProgram(
+            ImmutableArray.Create(new IrModule(
+                "Module1",
+                null,
+                ImmutableArray.Create(global),
+                ImmutableArray.Create(procedure))),
+            ImmutableArray<IrTypeDefinition>.Empty,
+            procedure);
+
+        var result = new LlvmEmitter().Emit(program, new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "@\"__vb6_global_Module1_counter_0\" = internal global i32 4");
+        StringAssert.Contains(result.ModuleText, "store i32 7, ptr @\"__vb6_global_Module1_counter_0\"");
+        StringAssert.Contains(result.ModuleText, "load i32, ptr @\"__vb6_global_Module1_counter_0\"");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",

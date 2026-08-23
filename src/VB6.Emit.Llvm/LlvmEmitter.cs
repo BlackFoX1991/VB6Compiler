@@ -49,16 +49,11 @@ public sealed class LlvmEmitter
                 "Native LLVM lowering for user-defined and class types is not implemented yet."));
         }
 
-        if (program.Modules.SelectMany(module => module.Globals).Any())
-        {
-            diagnostics.Add(new LlvmEmitDiagnostic(
-                "VB6L0007",
-                "Native LLVM lowering for module globals is not implemented yet."));
-        }
+        var globalSlots = EmitGlobals(program.Modules, builder, diagnostics, options.Architecture);
 
         foreach (var procedure in program.Modules.SelectMany(module => module.Procedures))
         {
-            var emitter = new NativeProcedureEmitter(builder, diagnostics, options.Architecture);
+            var emitter = new NativeProcedureEmitter(builder, diagnostics, options.Architecture, globalSlots);
             emitter.Emit(procedure);
             builder.AppendLine();
         }
@@ -74,6 +69,66 @@ public sealed class LlvmEmitter
             diagnostics.ToImmutable());
     }
 
+    private static Dictionary<IrGlobal, string> EmitGlobals(
+        ImmutableArray<IrModule> modules,
+        StringBuilder builder,
+        ImmutableArray<LlvmEmitDiagnostic>.Builder diagnostics,
+        LlvmArchitecture architecture)
+    {
+        var slots = new Dictionary<IrGlobal, string>(ReferenceEqualityComparer.Instance);
+        var globalIndex = 0;
+        foreach (var module in modules)
+        {
+            foreach (var global in module.Globals)
+            {
+                if (slots.ContainsKey(global))
+                {
+                    continue;
+                }
+
+                if (!NativeProcedureEmitter.TryGetLlvmType(global.Type, architecture, out var llvmType))
+                {
+                    diagnostics.Add(new LlvmEmitDiagnostic(
+                        "VB6L0007",
+                        $"Native LLVM type for module global '{global.Symbol.Name}' ({global.Type.Name}) is not implemented yet."));
+                    continue;
+                }
+
+                var name = $"__vb6_global_{MangleIdentifier(module.Name)}_{MangleIdentifier(global.Name)}_{globalIndex++}";
+                slots.Add(global, name);
+
+                var initializer = NativeProcedureEmitter.ZeroLiteral(llvmType);
+                if (global.Initializer is IrConstantExpression constant)
+                {
+                    if (!NativeProcedureEmitter.TryFormatConstant(constant.Value, global.Type, out initializer))
+                    {
+                        diagnostics.Add(new LlvmEmitDiagnostic(
+                            "VB6L0003",
+                            $"Initializer for module global '{global.Symbol.Name}' cannot be emitted as LLVM type '{llvmType}'."));
+                        initializer = NativeProcedureEmitter.ZeroLiteral(llvmType);
+                    }
+                }
+                else if (global.Initializer is not null and not IrDefaultExpression)
+                {
+                    diagnostics.Add(new LlvmEmitDiagnostic(
+                        "VB6L0001",
+                        $"Native LLVM lowering for initializer of module global '{global.Symbol.Name}' is not implemented yet."));
+                }
+
+                builder.Append("@\"").Append(NativeProcedureEmitter.EscapeIdentifier(name)).Append("\" = internal ")
+                    .Append(global.IsConstant ? "constant " : "global ")
+                    .Append(llvmType).Append(' ').AppendLine(initializer);
+            }
+        }
+
+        if (slots.Count > 0)
+        {
+            builder.AppendLine();
+        }
+
+        return slots;
+    }
+
     private static string GetTargetTriple(LlvmArchitecture architecture) => architecture switch
     {
         LlvmArchitecture.X86 => "i686-pc-windows-msvc",
@@ -81,11 +136,19 @@ public sealed class LlvmEmitter
         _ => throw new ArgumentOutOfRangeException(nameof(architecture))
     };
 
+    private static string MangleIdentifier(string identifier)
+    {
+        var characters = identifier.Select(character =>
+            char.IsLetterOrDigit(character) || character == '_' ? character : '_').ToArray();
+        return characters.Length == 0 ? "unnamed" : new string(characters);
+    }
+
     private sealed class NativeProcedureEmitter
     {
         private readonly StringBuilder _builder;
         private readonly ImmutableArray<LlvmEmitDiagnostic>.Builder _diagnostics;
         private readonly LlvmArchitecture _architecture;
+        private readonly Dictionary<IrGlobal, string> _globalSlots;
         private readonly Dictionary<int, string> _parameterSlots = new();
         private readonly Dictionary<int, string> _localSlots = new();
         private readonly Dictionary<int, string> _blockLabels = new();
@@ -94,11 +157,13 @@ public sealed class LlvmEmitter
         public NativeProcedureEmitter(
             StringBuilder builder,
             ImmutableArray<LlvmEmitDiagnostic>.Builder diagnostics,
-            LlvmArchitecture architecture)
+            LlvmArchitecture architecture,
+            Dictionary<IrGlobal, string> globalSlots)
         {
             _builder = builder;
             _diagnostics = diagnostics;
             _architecture = architecture;
+            _globalSlots = globalSlots;
         }
 
         public void Emit(IrProcedure procedure)
@@ -279,6 +344,8 @@ public sealed class LlvmEmitter
                     return localSlot;
                 case IrParameterPlace parameter when _parameterSlots.TryGetValue(parameter.Parameter.Index, out var parameterSlot):
                     return parameterSlot;
+                case IrGlobalPlace global when _globalSlots.TryGetValue(global.Global, out var globalName):
+                    return "@\"" + EscapeIdentifier(globalName) + "\"";
                 default:
                     AddDiagnostic(
                         "VB6L0001",
@@ -702,7 +769,7 @@ public sealed class LlvmEmitter
 
         private string NextTemporary() => $"%t{_temporaryId++}";
 
-        private static bool TryGetLlvmType(TypeSymbol type, LlvmArchitecture architecture, out string llvmType)
+        internal static bool TryGetLlvmType(TypeSymbol type, LlvmArchitecture architecture, out string llvmType)
         {
             llvmType = type switch
             {
@@ -723,7 +790,7 @@ public sealed class LlvmEmitter
             return llvmType.Length != 0;
         }
 
-        private static bool TryFormatConstant(object? value, TypeSymbol type, out string literal)
+        internal static bool TryFormatConstant(object? value, TypeSymbol type, out string literal)
         {
             if (type == TypeSymbol.Boolean)
             {
@@ -794,7 +861,7 @@ public sealed class LlvmEmitter
             return false;
         }
 
-        private static string ZeroLiteral(string llvmType) => llvmType switch
+        internal static string ZeroLiteral(string llvmType) => llvmType switch
         {
             "float" or "double" => "0.0",
             "void" => string.Empty,
@@ -814,7 +881,7 @@ public sealed class LlvmEmitter
         private static bool IsUnsigned(TypeSymbol type) =>
             type == TypeSymbol.Byte || type == TypeSymbol.UShort || type == TypeSymbol.UInteger || type == TypeSymbol.ULong;
 
-        private static string EscapeIdentifier(string identifier) =>
+        internal static string EscapeIdentifier(string identifier) =>
             identifier.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
 
         private sealed record NativeValue(TypeSymbol SemanticType, string LlvmType, string Value);
