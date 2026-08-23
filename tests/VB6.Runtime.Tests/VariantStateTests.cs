@@ -40,4 +40,21 @@ public sealed class VariantStateTests
         Assert.AreEqual((short)8200, VBVariants.VarType(new VBArray<string>(new VBArrayBound(0, 1))));
         Assert.AreEqual((short)8204, VBVariants.VarType(new VBArray<object>(new VBArrayBound(0, 1))));
     }
+
+    [TestMethod]
+    public void TypePredicates_DistinguishArraysDatesAndObjects()
+    {
+        Assert.IsTrue(VBVariants.IsArray(new VBArray<int>(new VBArrayBound(0, 1))));
+        Assert.IsFalse(VBVariants.IsArray("value"));
+
+        Assert.IsTrue(VBVariants.IsDate(new VBDateValue(43832d)));
+        Assert.IsTrue(VBVariants.IsDate("April 28, 2014"));
+        Assert.IsFalse(VBVariants.IsDate("not a date"));
+
+        Assert.IsTrue(VBVariants.IsObject(VBVariants.NothingValue()));
+        Assert.IsTrue(VBVariants.IsObject(new object()));
+        Assert.IsFalse(VBVariants.IsObject(VBVariants.EmptyValue()));
+        Assert.IsFalse(VBVariants.IsObject(VBVariants.NullValue()));
+        Assert.IsFalse(VBVariants.IsObject(new VBArray<object>(new VBArrayBound(0, 0))));
+    }
 }

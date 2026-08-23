@@ -512,6 +512,9 @@ public enum IrRuntimeMethod
     VariantIsNull,
     VariantIsMissing,
     VariantIsError,
+    VariantIsArray,
+    VariantIsDate,
+    VariantIsObject,
     VariantVarType,
 
     FileOpenBinary,

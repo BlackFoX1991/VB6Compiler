@@ -504,6 +504,12 @@ Defaults, und die Reihenfolge kann damit unabhängig von der Deklaration verwend
 VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
 umfasst nun **754 Tests**.
 
+`IsArray`, `IsDate` und `IsObject` sind jetzt als eigene Variant-Typprädikate durch Symbolik, IR,
+Managed-Emitter und Runtime geführt. Arrays bleiben gegenüber Objekten getrennt, `Nothing` wird
+als Objekt erkannt, und Datumserkennung umfasst den erhaltenen Date-Subtype sowie parsebare
+invariante Datums-/Zeitstrings. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von
+40** fehlerfreien Dateien; die Suite umfasst nun **756 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -931,7 +937,7 @@ Zwei Nachträge:
 - [x] Untypisierte `Dim`-, `Static`- und Modul-Deklaratoren werden vor dem Binden zu Variant normalisiert
 - [x] `Function` ohne `As`-Klausel liefert Variant — Syntax, Normalisierung, Bindung und Ausführung
 - [x] Untypisierte `Optional`-Parameter werden Variant; ausgelassene Werte erhalten den `Missing`-Zustand
-- [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsNumeric` fuer die aktuell unterstuetzten Scalar-Variantwerte sowie VB6-Array-Subtype-Codes; der Date-Subtype typisierter `Date`-Werte bleibt erhalten, Objekt-, Array-Arithmetik- und Error-Varianten folgen mit den jeweiligen Typmodellen
+- [x] `VBVariant`: `Empty`, `Null`, `Nothing`, `Missing`, `VarType`, `IsEmpty`/`IsNull`/`IsMissing`/`IsError`, `IsArray`/`IsDate`/`IsObject` und `IsNumeric` fuer die aktuell unterstuetzten Scalar-Variantwerte sowie VB6-Array-Subtype-Codes; der Date-Subtype typisierter `Date`-Werte bleibt erhalten, Objekt-, Array-Arithmetik- und Error-Varianten folgen mit den jeweiligen Typmodellen
 - [x] Error-Variant-Grundlage: `CVErr` erzeugt einen typisierten Fehlerwert, `IsError` erkennt ihn,
       `VarType` liefert `vbError` und `TypeName` liefert `Error`; Fehler-Propagation und `CVErr`-
       Integrationen in weitere Operator-/Objektmodelle bleiben offen

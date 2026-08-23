@@ -2531,7 +2531,9 @@ public sealed class ManagedEmitter
             }
 
             if (m is IrRuntimeMethod.VariantIsEmpty or IrRuntimeMethod.VariantIsNull or
-                IrRuntimeMethod.VariantIsMissing or IrRuntimeMethod.VariantIsError or IrRuntimeMethod.VariantVarType)
+                IrRuntimeMethod.VariantIsMissing or IrRuntimeMethod.VariantIsError or
+                IrRuntimeMethod.VariantIsArray or IrRuntimeMethod.VariantIsDate or
+                IrRuntimeMethod.VariantIsObject or IrRuntimeMethod.VariantVarType)
             {
                 var name = m switch
                 {
@@ -2539,6 +2541,9 @@ public sealed class ManagedEmitter
                     IrRuntimeMethod.VariantIsNull => "IsNull",
                     IrRuntimeMethod.VariantIsMissing => "IsMissing",
                     IrRuntimeMethod.VariantIsError => "IsError",
+                    IrRuntimeMethod.VariantIsArray => "IsArray",
+                    IrRuntimeMethod.VariantIsDate => "IsDate",
+                    IrRuntimeMethod.VariantIsObject => "IsObject",
                     _ => "VarType"
                 };
                 return Static(typeof(VBVariants), name, typeof(object));
