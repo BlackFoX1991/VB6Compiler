@@ -84,6 +84,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Standardtypen `Picture`-/`Screen`-Properties | **36** | **0** | **0** | **36** | **34 von 40** |
 | Case-insensitive Standard-Property-Bindung für UserControl-Hosts | **20** | **0** | **0** | **20** | **34 von 40** |
 | `As New`-Klassendeklaratoren | **16** | **0** | **0** | **16** | **34 von 40** |
+| `Err.Source`-Runtimevertrag | **15** | **0** | **0** | **15** | **34 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -369,6 +370,12 @@ Konstruktorpfad wie explizites `New` ausgeführt; `Class_Initialize` wird dabei 
 entfallen die vier verbliebenen impliziten Objektkonstruktionsdiagnosen aus `clsFont` und `CodeEdit`.
 Der VISIA-Stand sinkt auf **16 semantische Fehler**, weiterhin **34 von 40** fehlerfreien Dateien;
 die Suite umfasst nun **707 Tests**.
+
+`Err.Source` wird nun als lesbares Standardmitglied gebunden und über IR, Managed-Emitter und
+Runtime aufgelöst. Der Fehlerzustand bewahrt dabei auch den explizit an `Err.Raise` übergebenen
+Quelltext, statt ihn beim Fehlerhandler durch den CLR-Fehlertyp zu ersetzen. Damit entfällt die
+letzte `Err.Source`-Diagnose; der VISIA-Stand sinkt auf **15 semantische Fehler**, weiterhin
+**34 von 40** fehlerfreien Dateien. Die Suite umfasst nun **709 Tests**.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
