@@ -5,19 +5,27 @@ namespace VB6.Runtime;
 /// <summary>Scalar math intrinsics with VB6-compatible Variant preservation where applicable.</summary>
 public static class VBMath
 {
-    public static object? Abs(object? value) => value switch
+    public static object? Abs(object? value)
     {
-        null => null,
-        byte number => number,
-        short number => checked((short)Math.Abs(number)),
-        int number => Math.Abs(number),
-        long number => Math.Abs(number),
-        float number => Math.Abs(number),
-        double number => Math.Abs(number),
-        decimal number => Math.Abs(number),
-        VBCurrency currency => VBCurrency.FromScaled(Math.Abs(currency.ScaledValue)),
-        _ => throw Unsupported(value, nameof(Abs))
-    };
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        return value switch
+        {
+            null => (short)0,
+            byte number => number,
+            short number => checked((short)Math.Abs(number)),
+            int number => Math.Abs(number),
+            long number => Math.Abs(number),
+            float number => Math.Abs(number),
+            double number => Math.Abs(number),
+            decimal number => Math.Abs(number),
+            VBCurrency currency => VBCurrency.FromScaled(Math.Abs(currency.ScaledValue)),
+            _ => throw Unsupported(value, nameof(Abs))
+        };
+    }
 
     public static short Sgn(object? value)
     {
@@ -30,25 +38,38 @@ public static class VBMath
         return number < 0 ? (short)-1 : number > 0 ? (short)1 : (short)0;
     }
 
-    public static object? Fix(object? value) => value switch
+    public static object? Fix(object? value)
     {
-        null => null,
-        byte number => number,
-        short number => number,
-        int number => number,
-        long number => number,
-        float number => MathF.Truncate(number),
-        double number => Math.Truncate(number),
-        decimal number => decimal.Truncate(number),
-        VBCurrency currency => currency,
-        _ => throw Unsupported(value, nameof(Fix))
-    };
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        return value switch
+        {
+            null => (short)0,
+            byte number => number,
+            short number => number,
+            int number => number,
+            long number => number,
+            float number => MathF.Truncate(number),
+            double number => Math.Truncate(number),
+            decimal number => decimal.Truncate(number),
+            VBCurrency currency => currency,
+            _ => throw Unsupported(value, nameof(Fix))
+        };
+    }
 
     public static object? Round(object? value, short digits)
     {
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
         if (value is null)
         {
-            return null;
+            return (short)0;
         }
 
         var number = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
