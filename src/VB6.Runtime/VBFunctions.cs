@@ -28,6 +28,11 @@ public static class VBFunctions
             return "Nothing";
         }
 
+        if (VBVariants.IsMissing(value))
+        {
+            return "Error";
+        }
+
         return value switch
         {
             null => "Empty",

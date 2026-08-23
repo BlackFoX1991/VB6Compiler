@@ -151,6 +151,40 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesMissingVariantAsError448OutsideIsMissing()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Private Sub Inspect(Optional value)
+                Debug.Print IsMissing(value)
+                Debug.Print TypeName(value)
+                Debug.Print CInt(value)
+
+                On Error Resume Next
+                Debug.Print value + 1
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print value & "x"
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print value = 1
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print CStr(value)
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+
+            Sub Main()
+                Inspect
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "Error", "448", "448", "448", "448", "448" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesDateSubtypeInsideVariant()
     {
         var output = VB6TestProgram.RunLines("""

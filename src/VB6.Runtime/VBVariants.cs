@@ -13,6 +13,8 @@ public sealed record VBErrorValue(int Code);
 /// </summary>
 public static class VBVariants
 {
+    public const int MissingErrorNumber = 448;
+
     private sealed class NullValueMarker { }
     private sealed class NothingValueMarker { }
     private sealed class MissingValueMarker { }
@@ -28,6 +30,22 @@ public static class VBVariants
     public static object NothingValue() => NothingMarker;
 
     public static object MissingValue() => MissingMarker;
+
+    public static void ThrowIfMissing(object? value)
+    {
+        if (IsMissing(value))
+        {
+            throw new VB6MissingArgumentException();
+        }
+    }
+
+    public static void ThrowIfMissing(object? left, object? right)
+    {
+        if (IsMissing(left) || IsMissing(right))
+        {
+            throw new VB6MissingArgumentException();
+        }
+    }
 
     public static bool IsEmpty(object? value) => value is null;
 
@@ -65,7 +83,11 @@ public static class VBVariants
         _ => true
     };
 
-    public static bool ToBoolean(object? value) => IsNull(value) ? false : VBConversions.CBool(value);
+    public static bool ToBoolean(object? value)
+    {
+        ThrowIfMissing(value);
+        return IsNull(value) ? false : VBConversions.CBool(value);
+    }
 
     public static short VarType(object? value)
     {

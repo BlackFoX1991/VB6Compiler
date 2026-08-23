@@ -594,7 +594,14 @@ geprüfte Integer-Division und Restbildung, Currency-Multiplikationsskalierung u
 komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**804 Tests**.
+**810 Tests**.
+
+Der Missing-Variant-Slice ist nun ebenfalls geschlossen: ausgelassene `Optional Variant`-Argumente
+bleiben fuer `IsMissing` erkennbar, erscheinen ueber `TypeName` als `Error`, loesen bei expliziten
+numerischen Konversionen den stabil dokumentierten Fehlerwert **448** auf und melden bei sonstiger
+Verwendung (Variant-Operatoren, String-Konversion, Bool-Kontext und `Debug.Print`) `Err.Number =
+448`. Die Runtime-, Error-Handling- und Managed-End-to-End-Regressionen decken diese Trennung vom
+normalen `CVErr`-Error-Variant ab.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1027,6 +1034,9 @@ Zwei Nachträge:
 - [x] Error-Variant-Grundlage: `CVErr` erzeugt einen typisierten Fehlerwert, `IsError` erkennt ihn,
       `VarType` liefert `vbError` und `TypeName` liefert `Error`; `Debug.Print` stellt Error-Werte als `Error <Nummer>` dar; explizite C*-Konversionen uebernehmen die Error-Nummer, implizite Zuweisungen und Parameter-Konversionen melden Type Mismatch (`Err.Number = 13`); Relationen vergleichen zwei Error-Varianten ueber ihre Error-Nummer, waehrend arithmetische, logische und String-Konkatenationsoperatoren Error-Operanden mit Type Mismatch (`Err.Number = 13`) ablehnen; Fehler-Propagation und `CVErr`-
       Integrationen in weitere Operator-/Objektmodelle bleiben offen
+- [x] Missing-Variant-Vertrag: ausgelassene `Optional Variant`-Argumente bleiben fuer `IsMissing`
+      erkennbar, `TypeName` liefert `Error`, explizite numerische Konversionen verwenden den
+      Fehlerwert 448, und sonstige Variant-Verwendung meldet den dedizierten Runtime-Fehler 448
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
