@@ -55,6 +55,9 @@ internal static class VBIntrinsicSymbols
             OptionalParameter("FirstDayOfWeek", TypeSymbol.Long, 0L),
             OptionalParameter("FirstWeekOfYear", TypeSymbol.Long, 0L)),
         Function("IsNumeric", VBIntrinsicKind.IsNumeric, "VBStrings.IsNumeric", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("IsArray", VBIntrinsicKind.IsArray, "VBVariants.IsArray", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("IsDate", VBIntrinsicKind.IsDate, "VBVariants.IsDate", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
+        Function("IsObject", VBIntrinsicKind.IsObject, "VBVariants.IsObject", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function(
             "InStr",
             VBIntrinsicKind.InStr,

@@ -39,6 +39,32 @@ public static class VBVariants
 
     public static bool IsError(object? value) => value is VBErrorValue;
 
+    public static bool IsArray(object? value) => value is IVBArray;
+
+    public static bool IsDate(object? value)
+    {
+        if (value is VBDateValue or DateTime)
+        {
+            return true;
+        }
+
+        return value is string text && DateTime.TryParse(
+            text,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AllowWhiteSpaces |
+                System.Globalization.DateTimeStyles.AssumeLocal,
+            out _);
+    }
+
+    public static bool IsObject(object? value) => value switch
+    {
+        NothingValueMarker => true,
+        null or NullValueMarker or MissingValueMarker or VBErrorValue or VBDateValue or
+            VBCurrency or string or bool or byte or ushort or uint or ulong or
+            short or int or long or float or double or decimal or IntPtr or IVBArray => false,
+        _ => true
+    };
+
     public static bool ToBoolean(object? value) => IsNull(value) ? false : VBConversions.CBool(value);
 
     public static short VarType(object? value)
