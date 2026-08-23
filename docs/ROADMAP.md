@@ -594,12 +594,14 @@ trap-geschützte i64-Helper emittiert. Currency-Multiplikation wird nun über ei
 Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**820 Tests**. Gerundete Single-/Double-zu-Integer-Konversionen bis 64 Bit verwenden nun
+**821 Tests**. Gerundete Single-/Double-zu-Integer-Konversionen bis 64 Bit verwenden nun
 `llvm.roundeven.f64`, NaN-/Range-Guards und sichere `fptosi`/`fptoui`-Konversionen mit darstellbaren
 Grenzwerten. Currency-zu-Integer-Konversionen verwenden nun denselben skalierten
 Ties-to-even-Helper; exakte Integer- und Boolean-zu-Currency-Konversionen
 skalieren nun mit i128, prüfen den Int64-Currency-Bereich und bilden `True`
-als `-10000` ab. Gerundete Floating-zu-Currency-Konversionen bleiben offen.
+als `-10000` ab. Gerundete Single-/Double-zu-Currency-Konversionen skalieren
+nun mit `roundeven`, prüfen NaN-/Range-Fälle und verwenden eine geprüfte
+`fptosi`-Konversion.
 Typisierte
 Integer-Division und Restbildung werden über sign-/zero-erweiterte
 i64-Helper mit expliziten Guards für den Divisor `0` und signedem `MinValue / -1` als LLVM-
@@ -1160,7 +1162,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
-- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards, trap-geschützte Single-Arithmetik/-Negation und Single-/Double-Division, checked Integer-Add/Subtract/Multiply und Currency-Add/Subtract/Negate, checked Integer-Verengungen/Vorzeichenwechsel, skalierte Currency-Multiplikation mit `i128`-Zwischenrechnung, gerundete Floating-Konversionen bis 64 Bit mit sicheren Grenzwerten, Currency-zu-Integer-Konversionen sowie exakte Integer-/Boolean-zu-Currency-Konversionen mit i128-Skalierung sind ergänzt, aber gerundete Floating-zu-Currency-Konversionen, die native `Err`-/`On Error`-ABI sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
+- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards, trap-geschützte Single-Arithmetik/-Negation und Single-/Double-Division, checked Integer-Add/Subtract/Multiply und Currency-Add/Subtract/Negate, checked Integer-Verengungen/Vorzeichenwechsel, skalierte Currency-Multiplikation mit `i128`-Zwischenrechnung, gerundete Floating-Konversionen bis 64 Bit mit sicheren Grenzwerten, Currency-zu-Integer-Konversionen, exakte Integer-/Boolean-zu-Currency-Konversionen mit i128-Skalierung sowie gerundete Single-/Double-zu-Currency-Konversionen mit `roundeven` und Range-Guards sind ergänzt; die native `Err`-/`On Error`-ABI sowie native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen

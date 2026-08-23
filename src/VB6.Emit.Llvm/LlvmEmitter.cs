@@ -148,6 +148,28 @@ public sealed class LlvmEmitter
         builder.AppendLine();
     }
 
+    private static void EmitCheckedFloatingCurrencyConversionHelper(StringBuilder builder)
+    {
+        builder.AppendLine("define i64 @__vb6_fptocurrency_checked_i64(double %value) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %scaled = fmul double %value, 10000.0");
+        builder.AppendLine("  %rounded = call double @llvm.roundeven.f64(double %scaled)");
+        builder.AppendLine("  %is_nan = fcmp uno double %rounded, %rounded");
+        builder.AppendLine("  %too_low = fcmp olt double %rounded, -9223372036854775808.0");
+        builder.AppendLine("  %too_high = fcmp ogt double %rounded, 9223372036854774784.0");
+        builder.AppendLine("  %range_overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  %overflow = or i1 %is_nan, %range_overflow");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %convert");
+        builder.AppendLine("convert:");
+        builder.AppendLine("  %result = fptosi double %rounded to i64");
+        builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
     private static void EmitCheckedIntegerArithmeticHelper(
         StringBuilder builder,
         string name,
@@ -349,6 +371,7 @@ public sealed class LlvmEmitter
         builder.AppendLine("  unreachable");
         builder.AppendLine("}");
         builder.AppendLine();
+        EmitCheckedFloatingCurrencyConversionHelper(builder);
     }
 
     private static void EmitCheckedCurrencyToIntegerHelper(StringBuilder builder)
@@ -1282,6 +1305,12 @@ public sealed class LlvmEmitter
                     currencySourceUnsigned);
             }
 
+            if (targetType == TypeSymbol.Currency &&
+                (source.SemanticType == TypeSymbol.Single || source.SemanticType == TypeSymbol.Double))
+            {
+                return EmitFloatingToCurrencyConversion(targetType, targetLlvmType, source);
+            }
+
             if (source.SemanticType == TypeSymbol.Currency &&
                 TryGetIntegerShape(targetType, _architecture, out var currencyTargetBits, out var currencyTargetUnsigned))
             {
@@ -1410,6 +1439,26 @@ public sealed class LlvmEmitter
             var call = NextTemporary();
             _builder.Append("  ").Append(call).Append(" = call i64 @").Append(helper)
                 .Append("(i64 ").Append(widened).AppendLine(")");
+            return new NativeValue(targetType, targetLlvmType, call);
+        }
+
+        private NativeValue EmitFloatingToCurrencyConversion(
+            TypeSymbol targetType,
+            string targetLlvmType,
+            NativeValue source)
+        {
+            var floatingValue = source.Value;
+            if (source.LlvmType == "float")
+            {
+                var widened = NextTemporary();
+                _builder.Append("  ").Append(widened).Append(" = fpext float ")
+                    .Append(source.Value).AppendLine(" to double");
+                floatingValue = widened;
+            }
+
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_fptocurrency_checked_i64(double ")
+                .Append(floatingValue).AppendLine(")");
             return new NativeValue(targetType, targetLlvmType, call);
         }
 
