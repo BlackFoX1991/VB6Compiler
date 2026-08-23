@@ -211,6 +211,47 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EmitsFormStartupProject()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "FormApp.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Splash"
+                Name="FormApp"
+                Form=Splash.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Splash.frm"), """
+                VERSION 5.00
+                Begin VB.Form Splash
+                End
+                Attribute VB_Name = "Splash"
+                Attribute VB_PredeclaredId = True
+                Option Explicit
+
+                Private Sub Form_Load()
+                End Sub
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "FormApp.dll"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            Assert.IsNotNull(result.Lowering.Program);
+            Assert.AreEqual("Main", result.Lowering.Program!.EntryPoint!.Name);
+            Assert.IsTrue(File.Exists(result.AssemblyPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_BindsClassTypesFromReferencedVbp()
     {
         var directory = CreateTemporaryDirectory();

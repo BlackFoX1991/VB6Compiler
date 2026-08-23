@@ -57,7 +57,43 @@ public static class DirectManagedCompilation
         var program = IrLowerer.Lower(
             modules,
             analysis.SemanticModel.ModuleVariables.Concat(analysis.SemanticModel.StaticVariables));
+        if (VBProjectCompilation.TryGetStartupForm(analysis, out var startupForm))
+        {
+            program = AddStartupFormEntryPoint(program, startupForm!);
+        }
+
         return new VBProjectLoweringResult(analysis, program);
+    }
+
+    private static IrProgram AddStartupFormEntryPoint(IrProgram program, ClassTypeSymbol startupForm)
+    {
+        // Form startup currently constructs the generated form class. Window creation and the
+        // host message loop remain runtime-host responsibilities, but Class_Initialize is kept.
+        var entryPoint = new IrProcedure(
+            null,
+            "Main",
+            null,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(
+                new IrBasicBlock(
+                    0,
+                    "startup_form_entry",
+                    ImmutableArray.Create<IrInstruction>(
+                        new IrEvaluateInstruction(new IrNewClassExpression(startupForm))),
+                    new IrReturnTerminator(null))),
+            IsStatic: true,
+            IsCompilerGenerated: true);
+        var startupModule = new IrModule(
+            "__VB6Startup",
+            null,
+            ImmutableArray<IrGlobal>.Empty,
+            ImmutableArray.Create(entryPoint));
+        return program with
+        {
+            Modules = program.Modules.Add(startupModule),
+            EntryPoint = entryPoint
+        };
     }
 
     public static ManagedApplicationEmitResult EmitManaged(
