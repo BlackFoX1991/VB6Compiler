@@ -68,7 +68,7 @@ public static class VBFunctions
             }
         }
 
-        return null;
+        return VBVariants.NullValue();
     }
 
     /// <summary>Returns the one-based choice selected by the rounded index, or Variant Null.</summary>
