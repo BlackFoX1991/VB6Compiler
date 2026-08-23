@@ -98,6 +98,8 @@ public sealed class LlvmEmitter
         EmitCheckedIntegerArithmeticHelper(builder, "__vb6_uadd_checked_i64", "uadd");
         EmitCheckedIntegerArithmeticHelper(builder, "__vb6_usub_checked_i64", "usub");
         EmitCheckedIntegerArithmeticHelper(builder, "__vb6_umul_checked_i64", "umul");
+        EmitCheckedIntegerConversionHelper(builder, "__vb6_sconvert_checked_i64", signed: true);
+        EmitCheckedIntegerConversionHelper(builder, "__vb6_uconvert_checked_i64", signed: false);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_sneg_checked_i64", signed: true);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_uneg_checked_i64", signed: false);
     }
@@ -193,6 +195,44 @@ public sealed class LlvmEmitter
         builder.AppendLine("  br i1 %overflow, label %trap, label %done");
         builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedIntegerConversionHelper(
+        StringBuilder builder,
+        string name,
+        bool signed)
+    {
+        if (signed)
+        {
+            builder.Append("define i64 @").Append(name)
+                .AppendLine("(i64 %value, i64 %min_value, i64 %max_value) {");
+        }
+        else
+        {
+            builder.Append("define i64 @").Append(name)
+                .AppendLine("(i64 %value, i64 %max_value) {");
+        }
+
+        builder.AppendLine("entry:");
+        if (signed)
+        {
+            builder.AppendLine("  %too_low = icmp slt i64 %value, %min_value");
+            builder.AppendLine("  %too_high = icmp sgt i64 %value, %max_value");
+            builder.AppendLine("  %overflow = or i1 %too_low, %too_high");
+        }
+        else
+        {
+            builder.AppendLine("  %overflow = icmp ugt i64 %value, %max_value");
+        }
+
+        builder.AppendLine("  br i1 %overflow, label %trap, label %done");
+        builder.AppendLine("done:");
+        builder.AppendLine("  ret i64 %value");
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
         builder.AppendLine("  unreachable");
@@ -1196,24 +1236,52 @@ public sealed class LlvmEmitter
             int targetBits,
             bool targetUnsigned)
         {
-            if (sourceBits > targetBits ||
-                (sourceBits == targetBits && sourceUnsigned != targetUnsigned) ||
-                (!sourceUnsigned && targetUnsigned))
-            {
-                return RejectScalarConversion(methodName, targetType, source);
-            }
-
-            if (sourceBits == targetBits)
+            if (sourceBits == targetBits && sourceUnsigned == targetUnsigned)
             {
                 return new NativeValue(targetType, targetLlvmType, source.Value);
             }
 
-            var operation = sourceUnsigned ? "zext" : "sext";
-            var temporary = NextTemporary();
-            _builder.Append("  ").Append(temporary).Append(" = ").Append(operation).Append(' ')
-                .Append(source.LlvmType).Append(' ').Append(source.Value).Append(" to ")
-                .AppendLine(targetLlvmType);
-            return new NativeValue(targetType, targetLlvmType, temporary);
+            var safeWidening = sourceBits < targetBits &&
+                (sourceUnsigned == targetUnsigned || sourceUnsigned && !targetUnsigned);
+            if (safeWidening)
+            {
+                var operation = sourceUnsigned ? "zext" : "sext";
+                var temporary = NextTemporary();
+                _builder.Append("  ").Append(temporary).Append(" = ").Append(operation).Append(' ')
+                    .Append(source.LlvmType).Append(' ').Append(source.Value).Append(" to ")
+                    .AppendLine(targetLlvmType);
+                return new NativeValue(targetType, targetLlvmType, temporary);
+            }
+
+            var widened = ExtendIntegerToHelperWidth(source, sourceUnsigned);
+            var call = NextTemporary();
+            if (sourceUnsigned)
+            {
+                _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_uconvert_checked_i64(i64 ")
+                    .Append(widened).Append(", i64 ")
+                    .Append(targetUnsigned ? UnsignedMaximumLiteral(targetBits) : SignedMaximumLiteral(targetBits))
+                    .AppendLine(")");
+            }
+            else
+            {
+                var minimum = targetUnsigned ? "0" : SignedMinimumLiteral(targetBits);
+                var maximum = targetUnsigned
+                    ? targetBits == 64 ? SignedMaximumLiteral(64) : UnsignedMaximumLiteral(targetBits)
+                    : SignedMaximumLiteral(targetBits);
+                _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_sconvert_checked_i64(i64 ")
+                    .Append(widened).Append(", i64 ").Append(minimum)
+                    .Append(", i64 ").Append(maximum).AppendLine(")");
+            }
+
+            if (targetLlvmType == "i64")
+            {
+                return new NativeValue(targetType, targetLlvmType, call);
+            }
+
+            var narrowed = NextTemporary();
+            _builder.Append("  ").Append(narrowed).Append(" = trunc i64 ").Append(call)
+                .Append(" to ").AppendLine(targetLlvmType);
+            return new NativeValue(targetType, targetLlvmType, narrowed);
         }
 
         private NativeValue RejectScalarConversion(

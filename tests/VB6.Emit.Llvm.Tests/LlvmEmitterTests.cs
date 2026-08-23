@@ -718,6 +718,53 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "select i1 %t3, i32 -1, i32 0");
     }
 
+    [TestMethod]
+    public void Emit_LowersCheckedIntegerConversions()
+    {
+        var procedure = new IrProcedure(
+            null,
+            "Main",
+            TypeSymbol.Long,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(new IrBasicBlock(
+                0,
+                "entry",
+                ImmutableArray.Create<IrInstruction>(
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CByte,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(255, TypeSymbol.Long))),
+                        TypeSymbol.Byte)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CInt,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(-7, TypeSymbol.Long))),
+                        TypeSymbol.Integer)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CLng,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(7u, TypeSymbol.UInteger))),
+                        TypeSymbol.Long)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CUShort,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(65535UL, TypeSymbol.ULong))),
+                        TypeSymbol.UShort))),
+                new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
+
+        var result = new LlvmEmitter().Emit(CreateProgram(procedure), new LlvmEmitOptions(LlvmArchitecture.X64));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_sconvert_checked_i64");
+        StringAssert.Contains(result.ModuleText, "i64 0, i64 255");
+        StringAssert.Contains(result.ModuleText, "i64 -32768, i64 32767");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_uconvert_checked_i64");
+        StringAssert.Contains(result.ModuleText, "i64 2147483647");
+        StringAssert.Contains(result.ModuleText, "i64 65535");
+        StringAssert.Contains(result.ModuleText, "trunc i64");
+    }
+
     private static IrProgram CreateProgram(IrProcedure procedure) => new(
         ImmutableArray.Create(new IrModule(
             "Module1",
