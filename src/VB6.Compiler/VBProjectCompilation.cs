@@ -122,14 +122,22 @@ public sealed class VBProjectCompilation
             parsedModules,
             loadResult.Project.Items,
             projectDiagnostics);
+        var externalTypeCatalog = VBExternalTypeCatalog.Create(loadResult.Project);
         using var externalTypeScope = UserDefinedTypeLookupScope.PushAliases(
-            VBExternalTypeCatalog.Create(loadResult.Project));
+            externalTypeCatalog.Aliases);
         var referencedClassTypes = LoadReferencedClassTypes(
             loadResult.Project,
             activeProjects,
             projectDiagnostics);
         var enumSymbols = VBEnumSymbols.Bind(parsedModules.Select(module => module.SemanticRoot));
         using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
+        var qualifiedEnumMembers = new Dictionary<string, long>(
+            enumSymbols.QualifiedMembers,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var member in externalTypeCatalog.QualifiedEnumMembers)
+        {
+            qualifiedEnumMembers.TryAdd(member.Key, member.Value);
+        }
         var classTypeAliases = classTypes.ToDictionary(
             entry => entry.Key,
             entry => (TypeSymbol)entry.Value,
@@ -172,6 +180,7 @@ public sealed class VBProjectCompilation
             }
         }
         var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
+        var visibleExternalConstants = externalTypeCatalog.AddMemberSymbols(moduleVariableSymbols);
         var visibleBuiltInConstants = VBBuiltInConstants.AddTo(moduleVariableSymbols);
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
@@ -211,7 +220,7 @@ public sealed class VBProjectCompilation
             SemanticModel preliminaryModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                preliminaryModel = new Binder(module.Text, enumSymbols.QualifiedMembers)
+                preliminaryModel = new Binder(module.Text, qualifiedEnumMembers)
                     .BindCompilationUnit(
                         module.SemanticRoot,
                         availableProcedures,
@@ -224,7 +233,7 @@ public sealed class VBProjectCompilation
             SemanticModel semanticModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                semanticModel = new Binder(module.Text, enumSymbols.QualifiedMembers)
+                semanticModel = new Binder(module.Text, qualifiedEnumMembers)
                     .BindCompilationUnit(
                         forEachRoot,
                         availableProcedures,
@@ -305,6 +314,7 @@ public sealed class VBProjectCompilation
             Events = events.ToImmutable(),
             ModuleVariables = moduleVariables.ToImmutable()
                 .AddRange(visibleEnumConstants)
+                .AddRange(visibleExternalConstants)
                 .AddRange(visibleBuiltInConstants),
             StaticVariables = staticVariables.ToImmutable()
         };

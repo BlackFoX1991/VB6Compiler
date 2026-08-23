@@ -2815,10 +2815,8 @@ public sealed class Binder
         PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
         if (accessor == PropertyAccessorKind.Get &&
-            syntax.Receiver is NameExpressionSyntax enumName &&
-            _qualifiedEnumMembers.TryGetValue(
-                $"{enumName.IdentifierToken.Text}.{syntax.MemberToken.Text}",
-                out var enumValue))
+            TryGetQualifiedName(syntax, out var qualifiedName) &&
+            _qualifiedEnumMembers.TryGetValue(qualifiedName, out var enumValue))
         {
             return new BoundLiteralExpression(enumValue, TypeSymbol.Long);
         }
@@ -3825,6 +3823,25 @@ public sealed class Binder
             $"Variable '{syntax.IdentifierToken.Text}' is not declared.",
             syntax.IdentifierToken.Span);
         return new BoundErrorExpression();
+    }
+
+    private static bool TryGetQualifiedName(ExpressionSyntax expression, out string qualifiedName)
+    {
+        switch (expression)
+        {
+            case NameExpressionSyntax name:
+                qualifiedName = name.IdentifierToken.Text;
+                return true;
+
+            case MemberAccessExpressionSyntax member
+                when TryGetQualifiedName(member.Receiver, out var receiverName):
+                qualifiedName = $"{receiverName}.{member.MemberToken.Text}";
+                return true;
+
+            default:
+                qualifiedName = string.Empty;
+                return false;
+        }
     }
 
     private bool TryGetContainingClassProperty(
