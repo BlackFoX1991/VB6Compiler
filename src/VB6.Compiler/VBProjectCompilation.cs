@@ -27,6 +27,18 @@ public sealed class VBProjectCompilation
 
     public VBProjectCompilationAnalysis Analyze()
     {
+        var activeProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return Analyze(activeProjects);
+    }
+
+    private VBProjectCompilationAnalysis Analyze(HashSet<string> activeProjects)
+    {
+        if (!activeProjects.Add(_projectFilePath))
+        {
+            throw new InvalidOperationException($"Project reference cycle reached '{_projectFilePath}'.");
+        }
+
+        using var activeProjectScope = new ActiveProjectScope(activeProjects, _projectFilePath);
         var loadResult = new VBProjectLoader().Load(_projectFilePath);
         var projectDiagnostics = ImmutableArray.CreateBuilder<VBProjectCompilationDiagnostic>();
         var sourceDiagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
@@ -96,12 +108,20 @@ public sealed class VBProjectCompilation
             projectDiagnostics);
         using var externalTypeScope = UserDefinedTypeLookupScope.PushAliases(
             VBExternalTypeCatalog.Create(loadResult.Project));
+        var referencedClassTypes = LoadReferencedClassTypes(
+            loadResult.Project,
+            activeProjects,
+            projectDiagnostics);
         var enumSymbols = VBEnumSymbols.Bind(parsedModules.Select(module => module.SemanticRoot));
         using var enumTypeScope = UserDefinedTypeLookupScope.PushAliases(enumSymbols.TypeAliases);
         var classTypeAliases = classTypes.ToDictionary(
             entry => entry.Key,
             entry => (TypeSymbol)entry.Value,
             StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in referencedClassTypes)
+        {
+            classTypeAliases.TryAdd(entry.Key, entry.Value);
+        }
         using var classTypeScope = UserDefinedTypeLookupScope.PushAliases(classTypeAliases);
         var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
             parsedModules.Select(module =>
@@ -326,6 +346,64 @@ public sealed class VBProjectCompilation
                     referencePath));
             }
         }
+    }
+
+    private static Dictionary<string, ClassTypeSymbol> LoadReferencedClassTypes(
+        VBProject project,
+        HashSet<string> activeProjects,
+        ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
+    {
+        var classTypes = new Dictionary<string, ClassTypeSymbol>(StringComparer.OrdinalIgnoreCase);
+        foreach (var reference in project.References.Where(reference =>
+                     reference.Metadata.Kind == VBProjectReferenceKind.Project))
+        {
+            var referencePath = reference.Metadata.GetFullPath(project.ProjectDirectory);
+            if (referencePath is null || !File.Exists(referencePath))
+            {
+                continue;
+            }
+
+            if (activeProjects.Contains(referencePath))
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    "VB6PRJ0017",
+                    $"Project reference cycle detected through '{referencePath}'.",
+                    project.FilePath));
+                continue;
+            }
+
+            var referencedAnalysis = VBProjectCompilation.Create(referencePath).Analyze(activeProjects);
+            if (!referencedAnalysis.Success || referencedAnalysis.SemanticModel is null)
+            {
+                var hasCycle = referencedAnalysis.ProjectDiagnostics.Any(diagnostic =>
+                    diagnostic.Code == "VB6PRJ0017");
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    hasCycle ? "VB6PRJ0017" : "VB6PRJ0018",
+                    hasCycle
+                        ? $"Project reference cycle detected through '{referencePath}'."
+                        : $"Referenced project '{referencePath}' has compilation errors and cannot provide class symbols.",
+                    referencePath));
+                continue;
+            }
+
+            var projectName = referencedAnalysis.Project.Name;
+            if (string.IsNullOrWhiteSpace(projectName))
+            {
+                projectName = Path.GetFileNameWithoutExtension(referencePath);
+            }
+
+            foreach (var classType in referencedAnalysis.SemanticModel.ClassTypes)
+            {
+                classTypes.TryAdd(classType.Name, classType);
+                classTypes.TryAdd($"{projectName}.{classType.Name}", classType);
+                if (!string.IsNullOrWhiteSpace(reference.Metadata.DisplayName))
+                {
+                    classTypes.TryAdd($"{reference.Metadata.DisplayName}.{classType.Name}", classType);
+                }
+            }
+        }
+
+        return classTypes;
     }
 
     private static IEnumerable<string> ReadDesignerControlNames(string path)
@@ -833,6 +911,30 @@ public sealed class VBProjectCompilation
         SourceText Text,
         ParseResult ParseResult,
         CompilationUnitSyntax SemanticRoot);
+
+    private sealed class ActiveProjectScope : IDisposable
+    {
+        private readonly HashSet<string> _activeProjects;
+        private readonly string _projectFilePath;
+        private bool _disposed;
+
+        public ActiveProjectScope(HashSet<string> activeProjects, string projectFilePath)
+        {
+            _activeProjects = activeProjects;
+            _projectFilePath = projectFilePath;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _activeProjects.Remove(_projectFilePath);
+            _disposed = true;
+        }
+    }
 }
 
 public sealed record VBProjectCompilationUnit(
