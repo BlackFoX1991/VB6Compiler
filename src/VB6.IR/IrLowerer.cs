@@ -3220,6 +3220,7 @@ public static class IrLowerer
             "VBFunctions.TypeName" => IrRuntimeMethod.FunctionTypeName,
             "VBFunctions.Array" => IrRuntimeMethod.FunctionArray,
             "VBFunctions.Switch" => IrRuntimeMethod.FunctionSwitch,
+            "VBFunctions.Choose" => IrRuntimeMethod.FunctionChoose,
             "VBFunctions.IIf" => IrRuntimeMethod.FunctionIIf,
             "VBFunctions.RGB" => IrRuntimeMethod.FunctionRGB,
             "VBConversions.CByte" => IrRuntimeMethod.CByte,

@@ -330,6 +330,16 @@ internal static class VBIntrinsicSymbols
             {
                 IsParamArray = true
             }),
+        Function(
+            "Choose",
+            VBIntrinsicKind.Choose,
+            "VBFunctions.Choose",
+            TypeSymbol.Variant,
+            Parameter("Index", TypeSymbol.Long),
+            new ParameterSymbol("Choices", new ArrayTypeSymbol(TypeSymbol.Variant), ParameterPassingMode.ByVal)
+            {
+                IsParamArray = true
+            }),
         Function("IsEmpty", VBIntrinsicKind.IsEmpty, "VBVariants.IsEmpty", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("IsNull", VBIntrinsicKind.IsNull, "VBVariants.IsNull", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("IsMissing", VBIntrinsicKind.IsMissing, "VBVariants.IsMissing", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),

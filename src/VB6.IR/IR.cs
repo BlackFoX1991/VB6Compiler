@@ -614,6 +614,7 @@ public enum IrRuntimeMethod
     FunctionTypeName,
     FunctionArray,
     FunctionSwitch,
+    FunctionChoose,
     FunctionIIf,
     FunctionRGB,
     ObjectIs,

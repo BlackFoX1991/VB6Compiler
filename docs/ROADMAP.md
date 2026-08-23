@@ -526,6 +526,11 @@ umfasst nun **760 Tests**.
 bewahrt Date-Subtype und Variant-Zustände. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und
 **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **762 Tests**.
 
+`Choose` ergänzt die Variant-ParamArray-Familie um eine 1-basierte Auswahl mit gerundetem Index,
+eager Auswertung aller Auswahlargumente und `Null` für Indizes außerhalb des gültigen Bereichs.
+Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
+Suite umfasst nun **764 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
