@@ -142,6 +142,15 @@ internal static class VBTypeLibraryImporter
             aliases.TryAdd(record.Name, symbol);
         }
 
+        foreach (var record in records.Where(record => record.Kind == TYPEKIND.TKIND_ALIAS))
+        {
+            var typeName = QualifiedName(libraryName, record.Name);
+            var aliasType = ReadType(record.Attribute.tdescAlias, record.TypeInfo, libraryName, recordTypes);
+            recordTypes[typeName] = aliasType;
+            aliases[typeName] = aliasType;
+            aliases[record.Name] = aliasType;
+        }
+
         foreach (var record in records.Where(record => record.Kind == TYPEKIND.TKIND_ENUM))
         {
             ImportEnumMembers(
