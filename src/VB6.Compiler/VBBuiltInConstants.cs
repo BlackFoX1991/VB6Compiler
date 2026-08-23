@@ -160,6 +160,8 @@ internal static class VBBuiltInConstants
             CreateLong("vbPicTypeIcon", 1),
             CreateLong("vbPicTypeMetafile", 2),
             CreateLong("vbPicTypeEnhMetafile", 3),
+            CreateLong("rtfRTF", 0),
+            CreateLong("rtfText", 1),
             CreateLong("vbSrcCopy", 13369376),
             CreateLong("tvwChild", 4),
             CreateLong("BF_RECT", 15),
