@@ -753,6 +753,16 @@ public sealed class LlvmEmitterTests
                         IrRuntimeMethod.CUShort,
                         ImmutableArray.Create<IrCallArgument>(
                             new IrCallArgument(new IrConstantExpression(65535UL, TypeSymbol.ULong))),
+                        TypeSymbol.UShort)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CInt,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(2.5m, TypeSymbol.Currency))),
+                        TypeSymbol.Integer)),
+                    new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                        IrRuntimeMethod.CUShort,
+                        ImmutableArray.Create<IrCallArgument>(
+                            new IrCallArgument(new IrConstantExpression(65534.5m, TypeSymbol.Currency))),
                         TypeSymbol.UShort))),
                 new IrReturnTerminator(new IrConstantExpression(0L, TypeSymbol.Long)))));
 
@@ -765,6 +775,9 @@ public sealed class LlvmEmitterTests
         StringAssert.Contains(result.ModuleText, "call i64 @__vb6_uconvert_checked_i64");
         StringAssert.Contains(result.ModuleText, "i64 2147483647");
         StringAssert.Contains(result.ModuleText, "i64 65535");
+        StringAssert.Contains(result.ModuleText, "call i64 @__vb6_currency_to_integer_checked_i64");
+        StringAssert.Contains(result.ModuleText, "%quotient = sdiv i64 %scaled, 10000");
+        StringAssert.Contains(result.ModuleText, "i64 25000, i64 -32768, i64 32767");
         StringAssert.Contains(result.ModuleText, "trunc i64");
     }
 

@@ -101,6 +101,7 @@ public sealed class LlvmEmitter
         EmitCheckedIntegerConversionHelper(builder, "__vb6_sconvert_checked_i64", signed: true);
         EmitCheckedIntegerConversionHelper(builder, "__vb6_uconvert_checked_i64", signed: false);
         EmitCheckedCurrencyMultiplicationHelper(builder);
+        EmitCheckedCurrencyToIntegerHelper(builder);
         EmitCheckedFloatingIntegerConversionHelpers(builder);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_sneg_checked_i64", signed: true);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_uneg_checked_i64", signed: false);
@@ -311,6 +312,39 @@ public sealed class LlvmEmitter
         builder.AppendLine("  br i1 %overflow, label %trap, label %convert");
         builder.AppendLine("convert:");
         builder.AppendLine("  %result = fptoui double %rounded to i64");
+        builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedCurrencyToIntegerHelper(StringBuilder builder)
+    {
+        builder.AppendLine("define i64 @__vb6_currency_to_integer_checked_i64(i64 %scaled, i64 %min_value, i64 %max_value) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %quotient = sdiv i64 %scaled, 10000");
+        builder.AppendLine("  %remainder = srem i64 %scaled, 10000");
+        builder.AppendLine("  %remainder_is_negative = icmp slt i64 %remainder, 0");
+        builder.AppendLine("  %absolute_remainder = sub i64 0, %remainder");
+        builder.AppendLine("  %absolute_or_remainder = select i1 %remainder_is_negative, i64 %absolute_remainder, i64 %remainder");
+        builder.AppendLine("  %twice_remainder = mul i64 %absolute_or_remainder, 2");
+        builder.AppendLine("  %more_than_half = icmp sgt i64 %twice_remainder, 10000");
+        builder.AppendLine("  %exactly_half = icmp eq i64 %twice_remainder, 10000");
+        builder.AppendLine("  %quotient_remainder = srem i64 %quotient, 2");
+        builder.AppendLine("  %quotient_is_odd = icmp ne i64 %quotient_remainder, 0");
+        builder.AppendLine("  %tie_round = and i1 %exactly_half, %quotient_is_odd");
+        builder.AppendLine("  %should_round = or i1 %more_than_half, %tie_round");
+        builder.AppendLine("  %scaled_is_negative = icmp slt i64 %scaled, 0");
+        builder.AppendLine("  %round_direction = select i1 %scaled_is_negative, i64 -1, i64 1");
+        builder.AppendLine("  %rounded_quotient = add i64 %quotient, %round_direction");
+        builder.AppendLine("  %result = select i1 %should_round, i64 %rounded_quotient, i64 %quotient");
+        builder.AppendLine("  %too_low = icmp slt i64 %result, %min_value");
+        builder.AppendLine("  %too_high = icmp sgt i64 %result, %max_value");
+        builder.AppendLine("  %overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %done");
+        builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
@@ -1207,6 +1241,17 @@ public sealed class LlvmEmitter
                 return EmitBooleanToScalar(methodName, targetType, targetLlvmType, source);
             }
 
+            if (source.SemanticType == TypeSymbol.Currency &&
+                TryGetIntegerShape(targetType, _architecture, out var currencyTargetBits, out var currencyTargetUnsigned))
+            {
+                return EmitCurrencyToIntegerConversion(
+                    targetType,
+                    targetLlvmType,
+                    source,
+                    currencyTargetBits,
+                    currencyTargetUnsigned);
+            }
+
             if (source.SemanticType == TypeSymbol.Currency || targetType == TypeSymbol.Currency)
             {
                 return RejectScalarConversion(methodName, targetType, source);
@@ -1299,6 +1344,33 @@ public sealed class LlvmEmitter
                     .Append(floatingValue).Append(", double ").Append(SignedFloatingMinimumLiteral(targetBits))
                     .Append(", double ").Append(SignedFloatingMaximumLiteral(targetBits)).AppendLine(")");
             }
+
+            if (targetLlvmType == "i64")
+            {
+                return new NativeValue(targetType, targetLlvmType, call);
+            }
+
+            var narrowed = NextTemporary();
+            _builder.Append("  ").Append(narrowed).Append(" = trunc i64 ").Append(call)
+                .Append(" to ").AppendLine(targetLlvmType);
+            return new NativeValue(targetType, targetLlvmType, narrowed);
+        }
+
+        private NativeValue EmitCurrencyToIntegerConversion(
+            TypeSymbol targetType,
+            string targetLlvmType,
+            NativeValue source,
+            int targetBits,
+            bool targetUnsigned)
+        {
+            var minimum = targetUnsigned ? "0" : SignedMinimumLiteral(targetBits);
+            var maximum = targetUnsigned && targetBits == 64
+                ? SignedMaximumLiteral(64)
+                : targetUnsigned ? UnsignedMaximumLiteral(targetBits) : SignedMaximumLiteral(targetBits);
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_currency_to_integer_checked_i64(i64 ")
+                .Append(source.Value).Append(", i64 ").Append(minimum)
+                .Append(", i64 ").Append(maximum).AppendLine(")");
 
             if (targetLlvmType == "i64")
             {
