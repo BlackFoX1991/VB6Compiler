@@ -44,4 +44,22 @@ public sealed class MathIntrinsicExecutionTests
         };
         CollectionAssert.AreEqual(expected, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesNullAndEmptyMathSemantics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = Null
+
+                Debug.Print IsNull(Abs(value))
+                Debug.Print IsNull(Fix(value))
+                Debug.Print IsNull(Round(value))
+                Debug.Print Abs(Empty)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True", "0" }, output);
+    }
 }
