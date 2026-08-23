@@ -185,6 +185,36 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesArrayVariantTypeAndOperatorContracts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim values As Variant
+                values = Array(1, 2)
+
+                Debug.Print IsArray(values)
+                Debug.Print TypeName(values)
+                Debug.Print VarType(values)
+
+                On Error Resume Next
+                Debug.Print values + 1
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print values & "x"
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print values = values
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "Variant()", "8204", "13", "13", "13" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesDateSubtypeInsideVariant()
     {
         var output = VB6TestProgram.RunLines("""

@@ -47,6 +47,22 @@ public static class VBVariants
         }
     }
 
+    public static void ThrowIfArray(object? value)
+    {
+        if (IsArray(value))
+        {
+            throw new VB6TypeMismatchException("Array Variant values cannot be used with this operator.");
+        }
+    }
+
+    public static void ThrowIfArray(object? left, object? right)
+    {
+        if (IsArray(left) || IsArray(right))
+        {
+            throw new VB6TypeMismatchException("Array Variant values cannot be used with this operator.");
+        }
+    }
+
     public static bool IsEmpty(object? value) => value is null;
 
     public static bool IsNull(object? value) => ReferenceEquals(value, NullMarker);
@@ -86,7 +102,23 @@ public static class VBVariants
     public static bool ToBoolean(object? value)
     {
         ThrowIfMissing(value);
+        ThrowIfArray(value);
         return IsNull(value) ? false : VBConversions.CBool(value);
+    }
+
+    public static string ArrayTypeName(object? value)
+    {
+        if (value is not IVBArray array)
+        {
+            throw new VB6TypeMismatchException("The Variant does not contain an array.");
+        }
+
+        var arrayType = array.GetType();
+        var elementType = arrayType.IsGenericType &&
+                          arrayType.GetGenericTypeDefinition() == typeof(VBArray<>)
+            ? arrayType.GetGenericArguments()[0]
+            : typeof(object);
+        return GetTypeName(elementType) + "()";
     }
 
     public static short VarType(object? value)
@@ -146,4 +178,22 @@ public static class VBVariants
             : 36;
         return checked((short)(8192 + elementVarType));
     }
+
+    private static string GetTypeName(Type type) => type == typeof(object) ? "Variant"
+        : type == typeof(string) ? "String"
+        : type == typeof(bool) ? "Boolean"
+        : type == typeof(byte) ? "Byte"
+        : type == typeof(ushort) ? "UShort"
+        : type == typeof(short) ? "Integer"
+        : type == typeof(uint) ? "UInteger"
+        : type == typeof(int) ? "Long"
+        : type == typeof(ulong) ? "ULong"
+        : type == typeof(long) ? "LongLong"
+        : type == typeof(IntPtr) ? "LongPtr"
+        : type == typeof(float) ? "Single"
+        : type == typeof(double) ? "Double"
+        : type == typeof(VBCurrency) ? "Currency"
+        : type == typeof(decimal) ? "Decimal"
+        : type == typeof(VBDateValue) ? "Date"
+        : type.Name;
 }

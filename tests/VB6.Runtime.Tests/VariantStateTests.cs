@@ -59,6 +59,14 @@ public sealed class VariantStateTests
     }
 
     [TestMethod]
+    public void TypeName_ReportsVb6ArrayElementNames()
+    {
+        Assert.AreEqual("Long()", VBFunctions.TypeName(new VBArray<int>(new VBArrayBound(0, 1))));
+        Assert.AreEqual("String()", VBFunctions.TypeName(new VBArray<string>(new VBArrayBound(0, 1))));
+        Assert.AreEqual("Variant()", VBFunctions.TypeName(new VBArray<object>(new VBArrayBound(0, 1))));
+    }
+
+    [TestMethod]
     public void ArrayIntrinsic_ReturnsItsVariantArguments()
     {
         var values = (VBArray<object>)VBFunctions.Array(new VBArray<object>(

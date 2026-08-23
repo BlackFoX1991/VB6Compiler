@@ -49,7 +49,7 @@ public static class VBFunctions
             VBDateValue => "Date",
             VBErrorValue => "Error",
             string => "String",
-            VBArray<object> => "Variant()",
+            IVBArray array => VBVariants.ArrayTypeName(array),
             _ => value.GetType().Name
         };
     }
