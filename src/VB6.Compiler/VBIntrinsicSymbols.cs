@@ -366,6 +366,7 @@ internal static class VBIntrinsicSymbols
         Function("CUShort", VBIntrinsicKind.CUShort, "VBConversions.CUShort", TypeSymbol.UShort, Parameter("Expression", TypeSymbol.Variant)),
         Function("CUInt", VBIntrinsicKind.CUInt, "VBConversions.CUInt", TypeSymbol.UInteger, Parameter("Expression", TypeSymbol.Variant)),
         Function("CULng", VBIntrinsicKind.CULng, "VBConversions.CULng", TypeSymbol.ULong, Parameter("Expression", TypeSymbol.Variant)),
+        Function("CCur", VBIntrinsicKind.CCur, "VBConversions.CCur", TypeSymbol.Currency, Parameter("Expression", TypeSymbol.Variant)),
         Function("CDec", VBIntrinsicKind.CDec, "VBConversions.CDec", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)),
         Function("CDate", VBIntrinsicKind.CDate, "VBConversions.CDate", TypeSymbol.Date, Parameter("Expression", TypeSymbol.Variant)),
         Function("CSng", VBIntrinsicKind.CSng, "VBConversions.CSng", TypeSymbol.Single, Parameter("Expression", TypeSymbol.Variant)),

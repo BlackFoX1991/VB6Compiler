@@ -543,6 +543,11 @@ und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **767 Tests**.
 signiertem `AscW`-Integer-Vertrag. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von
 40** fehlerfreien Dateien; die Suite umfasst nun **769 Tests**.
 
+`CCur` ist nun als vollständiger Compiler-Intrinsic an die vorhandene Currency-Runtime angebunden.
+Die Managed-Ausführung prüft die VB6-kompatible Vier-Dezimalstellen-Rundung, boolesche Werte und
+den erhaltenen `Currency`-Variant-Subtype. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und
+**39 von 40** fehlerfreien Dateien; die Suite umfasst nun **770 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
@@ -1026,7 +1031,7 @@ Nach Korpusbedarf priorisiert:
    `MsgBox`, `Split`, `InStrRev`, `LSet` und `CopyMemory`, zusammen der größte Posten der
    Restfehler. Wirklich an spätere Meilensteine gebunden sind nur `frmMain` (25×, M9), `App`
    und `Err` (M6)
-1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CDec`/`CDate`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
+1b. Konvertierungen — `CByte`/`CInt`/`CLng`/`CCur`/`CDec`/`CDate`/`CSng`/`CDbl`/`CBool`/`CStr` ✅
 1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
     VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.

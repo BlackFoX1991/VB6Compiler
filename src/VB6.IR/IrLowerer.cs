@@ -3233,6 +3233,7 @@ public static class IrLowerer
             "VBConversions.CUShort" => IrRuntimeMethod.CUShort,
             "VBConversions.CUInt" => IrRuntimeMethod.CUInt,
             "VBConversions.CULng" => IrRuntimeMethod.CULng,
+            "VBConversions.CCur" => IrRuntimeMethod.CCur,
             "VBConversions.CDec" => IrRuntimeMethod.CDec,
             "VBConversions.CDate" => IrRuntimeMethod.CDate,
             "VBConversions.CSng" => IrRuntimeMethod.CSng,
