@@ -101,6 +101,7 @@ public sealed class LlvmEmitter
         EmitCheckedIntegerConversionHelper(builder, "__vb6_sconvert_checked_i64", signed: true);
         EmitCheckedIntegerConversionHelper(builder, "__vb6_uconvert_checked_i64", signed: false);
         EmitCheckedCurrencyMultiplicationHelper(builder);
+        EmitCheckedFloatingIntegerConversionHelpers(builder);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_sneg_checked_i64", signed: true);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_uneg_checked_i64", signed: false);
     }
@@ -271,6 +272,46 @@ public sealed class LlvmEmitter
         builder.AppendLine("done:");
         builder.AppendLine("  %narrowed = trunc i128 %result to i64");
         builder.AppendLine("  ret i64 %narrowed");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedFloatingIntegerConversionHelpers(StringBuilder builder)
+    {
+        builder.AppendLine("declare double @llvm.roundeven.f64(double)");
+        builder.AppendLine();
+        builder.AppendLine("define i64 @__vb6_fptosi_checked_i64(double %value, double %min_value, double %max_value) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %rounded = call double @llvm.roundeven.f64(double %value)");
+        builder.AppendLine("  %is_nan = fcmp uno double %rounded, %rounded");
+        builder.AppendLine("  %too_low = fcmp olt double %rounded, %min_value");
+        builder.AppendLine("  %too_high = fcmp ogt double %rounded, %max_value");
+        builder.AppendLine("  %range_overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  %overflow = or i1 %is_nan, %range_overflow");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %convert");
+        builder.AppendLine("convert:");
+        builder.AppendLine("  %result = fptosi double %rounded to i64");
+        builder.AppendLine("  ret i64 %result");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("define i64 @__vb6_fptoui_checked_i64(double %value, double %max_value) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %rounded = call double @llvm.roundeven.f64(double %value)");
+        builder.AppendLine("  %is_nan = fcmp uno double %rounded, %rounded");
+        builder.AppendLine("  %too_low = fcmp olt double %rounded, 0.0");
+        builder.AppendLine("  %too_high = fcmp ogt double %rounded, %max_value");
+        builder.AppendLine("  %range_overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  %overflow = or i1 %is_nan, %range_overflow");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %convert");
+        builder.AppendLine("convert:");
+        builder.AppendLine("  %result = fptoui double %rounded to i64");
+        builder.AppendLine("  ret i64 %result");
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
         builder.AppendLine("  unreachable");
@@ -1144,6 +1185,18 @@ public sealed class LlvmEmitter
                 return RejectScalarConversion(methodName, targetType, source);
             }
 
+            if ((source.SemanticType == TypeSymbol.Single || source.SemanticType == TypeSymbol.Double) &&
+                TryGetIntegerShape(targetType, _architecture, out var floatingTargetBits, out var floatingTargetUnsigned) &&
+                floatingTargetBits <= 32)
+            {
+                return EmitFloatingToIntegerConversion(
+                    targetType,
+                    targetLlvmType,
+                    source,
+                    floatingTargetBits,
+                    floatingTargetUnsigned);
+            }
+
             if (TryGetIntegerShape(source.SemanticType, _architecture, out var sourceBits, out var sourceUnsigned) &&
                 TryGetIntegerShape(targetType, _architecture, out var targetBits, out var targetUnsigned))
             {
@@ -1188,6 +1241,42 @@ public sealed class LlvmEmitter
             }
 
             return RejectScalarConversion(methodName, targetType, source);
+        }
+
+        private NativeValue EmitFloatingToIntegerConversion(
+            TypeSymbol targetType,
+            string targetLlvmType,
+            NativeValue source,
+            int targetBits,
+            bool targetUnsigned)
+        {
+            var floatingValue = source.Value;
+            if (source.LlvmType == "float")
+            {
+                var widened = NextTemporary();
+                _builder.Append("  ").Append(widened).Append(" = fpext float ")
+                    .Append(source.Value).AppendLine(" to double");
+                floatingValue = widened;
+            }
+
+            var call = NextTemporary();
+            if (targetUnsigned)
+            {
+                _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_fptoui_checked_i64(double ")
+                    .Append(floatingValue).Append(", double ")
+                    .Append(UnsignedMaximumLiteral(targetBits)).AppendLine(".0)");
+            }
+            else
+            {
+                _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_fptosi_checked_i64(double ")
+                    .Append(floatingValue).Append(", double ").Append(SignedMinimumLiteral(targetBits))
+                    .Append(".0, double ").Append(SignedMaximumLiteral(targetBits)).AppendLine(".0)");
+            }
+
+            var narrowed = NextTemporary();
+            _builder.Append("  ").Append(narrowed).Append(" = trunc i64 ").Append(call)
+                .Append(" to ").AppendLine(targetLlvmType);
+            return new NativeValue(targetType, targetLlvmType, narrowed);
         }
 
         private NativeValue EmitBooleanConversion(
