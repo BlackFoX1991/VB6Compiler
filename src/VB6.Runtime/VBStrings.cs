@@ -969,4 +969,27 @@ public static class VBStrings
 
         return ((char)charCode).ToString();
     }
+
+    /// <summary>Returns the UTF-16 character represented by a VB6 ChrW code.</summary>
+    public static string ChrW(int code)
+    {
+        if (code < short.MinValue || code > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(code), "VB6 ChrW accepts values from -32768 through 65535.");
+        }
+
+        return ((char)(ushort)code).ToString();
+    }
+
+    /// <summary>Returns the signed UTF-16 code unit of the first character in a string.</summary>
+    public static short AscW(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Length == 0)
+        {
+            throw new ArgumentException("VB6 AscW requires a non-empty string.", nameof(value));
+        }
+
+        return unchecked((short)value[0]);
+    }
 }

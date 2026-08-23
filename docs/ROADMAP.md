@@ -539,6 +539,10 @@ Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **766 Tes
 Vorzeichen-Leerzeichen für nichtnegative Werte. Der VISIA-Stand bleibt bei **1 semantischen Fehler**
 und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **767 Tests**.
 
+`ChrW` und `AscW` ergänzen die String-Intrinsics um Unicode-UTF-16-Codeunit-Konvertierung mit
+signiertem `AscW`-Integer-Vertrag. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von
+40** fehlerfreien Dateien; die Suite umfasst nun **769 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen

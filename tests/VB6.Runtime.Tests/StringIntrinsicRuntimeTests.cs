@@ -57,6 +57,17 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void ChrWAndAscW_RoundTripUnicodeCodeUnits()
+    {
+        Assert.AreEqual("\u20AC", VBStrings.ChrW(0x20AC));
+        Assert.AreEqual("\uFFFF", VBStrings.ChrW(-1));
+        Assert.AreEqual((short)0x20AC, VBStrings.AscW("\u20AC"));
+        Assert.AreEqual((short)-1, VBStrings.AscW("\uFFFF"));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.ChrW(-32769));
+        Assert.ThrowsException<ArgumentException>(() => VBStrings.AscW(string.Empty));
+    }
+
+    [TestMethod]
     public void Chr_RejectsExtendedAnsiUntilCodePageSemanticsAreModeled()
     {
         Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(-1));

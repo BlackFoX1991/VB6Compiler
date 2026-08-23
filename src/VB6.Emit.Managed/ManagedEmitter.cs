@@ -2492,8 +2492,10 @@ public sealed class ManagedEmitter
                     ? Static(typeof(VBStrings), "Mid", typeof(string), typeof(int))
                     : Static(typeof(VBStrings), "Mid", typeof(string), typeof(int), typeof(int));
                 if (name == "Chr") return Static(typeof(VBStrings), "Chr", typeof(int));
+                if (name == "ChrW") return Static(typeof(VBStrings), "ChrW", typeof(int));
                 if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(string), typeof(int));
                 if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim" or "Asc") return Static(typeof(VBStrings), name, typeof(string));
+                if (name == "AscW") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Oct") return Static(typeof(VBStrings), name, typeof(object));

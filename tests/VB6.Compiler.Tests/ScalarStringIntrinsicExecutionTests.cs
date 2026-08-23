@@ -22,6 +22,19 @@ public sealed class ScalarStringIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesUnicodeStringIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print AscW(ChrW(&H20AC))
+                Debug.Print AscW("A")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "8364", "65" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesBoundsAndElementsOfAnArrayHeldInVariant()
     {
         var output = VB6TestProgram.Run("""
