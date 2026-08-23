@@ -594,7 +594,7 @@ trap-geschützte i64-Helper emittiert. Currency-Multiplikation wird nun über ei
 Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**822 Tests**. Gerundete Single-/Double-zu-Integer-Konversionen bis 64 Bit verwenden nun
+**823 Tests**. Gerundete Single-/Double-zu-Integer-Konversionen bis 64 Bit verwenden nun
 `llvm.roundeven.f64`, NaN-/Range-Guards und sichere `fptosi`/`fptoui`-Konversionen mit darstellbaren
 Grenzwerten. Currency-zu-Integer-Konversionen verwenden nun denselben skalierten
 Ties-to-even-Helper; exakte Integer- und Boolean-zu-Currency-Konversionen
@@ -608,7 +608,8 @@ i64-Helper mit expliziten Guards für den Divisor `0` und signedem `MinValue / -
 Operationen ausgegeben; die Guard-Pfade schreiben nun Fehlernummer `11` bzw. `6` in einen
 thread-lokalen pending-Status. `On Error Resume Next` und label-directed Handler-Boundaries
 verzweigen auf dieser Basis, `Err.Number` und `Err.Clear` sind nativ lesbar bzw. nutzbar.
-`Resume` ohne Ziel sowie stringwertige Err-Felder bleiben offen. Single-Arithmetik und -Negation
+`Resume Next` und targetloses `Resume` verwenden die gespeicherte Boundary-ID für Fortsetzung bzw.
+Wiederholung. Stringwertige Err-Felder bleiben offen. Single-Arithmetik und -Negation
 sowie Single-/Double-Division verwenden nun ebenfalls pending-error-aware LLVM-Helper für
 Single-Overflow und Division durch `0`.
 Integer-Addieren/-Subtrahieren/-Multiplizieren und Currency-Addieren/-Subtrahieren/-Negieren
@@ -1165,7 +1166,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
-- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards, pending-error-aware Single-Arithmetik/-Negation und Single-/Double-Division, checked Integer-Add/Subtract/Multiply und Currency-Add/Subtract/Negate, checked Integer-Verengungen/Vorzeichenwechsel, skalierte Currency-Multiplikation mit `i128`-Zwischenrechnung, gerundete Floating-Konversionen bis 64 Bit mit sicheren Grenzwerten, Currency-zu-Integer-Konversionen, exakte Integer-/Boolean-zu-Currency-Konversionen mit i128-Skalierung, gerundete Single-/Double-zu-Currency-Konversionen mit `roundeven` und Range-Guards sowie native `On Error`-Boundaries für skalare Fehler sind ergänzt; `Resume` ohne Ziel, stringwertige Err-Felder und native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
+- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots, skalierter Currency-Literale, sicherer skalare Konversionen und skalarer `Declare`-Verträge steht; typisierte Integer-Division und Restbildung mit definierten Zero-/Overflow-Guards, pending-error-aware Single-Arithmetik/-Negation und Single-/Double-Division, checked Integer-Add/Subtract/Multiply und Currency-Add/Subtract/Negate, checked Integer-Verengungen/Vorzeichenwechsel, skalierte Currency-Multiplikation mit `i128`-Zwischenrechnung, gerundete Floating-Konversionen bis 64 Bit mit sicheren Grenzwerten, Currency-zu-Integer-Konversionen, exakte Integer-/Boolean-zu-Currency-Konversionen mit i128-Skalierung, gerundete Single-/Double-zu-Currency-Konversionen mit `roundeven` und Range-Guards sowie native `On Error`-Boundaries mit gespeicherter Resume-Boundary-ID sind ergänzt; stringwertige Err-Felder und native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
