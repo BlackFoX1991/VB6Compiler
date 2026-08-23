@@ -670,6 +670,11 @@ public sealed class VBProjectCompilation
             }
         }
 
+        if (module.Item.Kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl)
+        {
+            VBIntrinsicSymbols.AddHostProcedures(procedures);
+        }
+
         return procedures;
     }
 

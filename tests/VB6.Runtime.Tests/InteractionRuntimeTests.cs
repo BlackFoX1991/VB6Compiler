@@ -38,4 +38,12 @@ public sealed class InteractionRuntimeTests
     {
         Assert.AreEqual(string.Empty, VBInteraction.Command());
     }
+
+    [TestMethod]
+    public void ControlHostContracts_AreDeterministicInHeadlessRuntime()
+    {
+        Assert.AreEqual(12f, VBInteraction.ScaleX(12f, 0, 0));
+        Assert.AreEqual(8f, VBInteraction.ScaleY(8f, 0, 0));
+        Assert.AreEqual(5f, VBInteraction.TextWidth("hello"));
+    }
 }

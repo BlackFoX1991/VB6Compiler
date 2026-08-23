@@ -528,6 +528,9 @@ public enum IrRuntimeMethod
     InteractionPopupMenu,
     InteractionLoadPicture,
     InteractionPropertyChanged,
+    InteractionScaleX,
+    InteractionScaleY,
+    InteractionTextWidth,
 
     ArrayClear,
     ArrayLBound,

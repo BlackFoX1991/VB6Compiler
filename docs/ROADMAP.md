@@ -62,6 +62,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Modulbezogene UDT-Scope-Auflösung in Klassen/Forms/Controls | **289** | **0** | **0** | **289** | **22 von 40** |
 | Kontextuelle `Set`-Zuweisung auf indizierte Member | **286** | **0** | **0** | **286** | **22 von 40** |
 | `Command`-/`StrPtr`-Standardverträge | **278** | **0** | **0** | **278** | **22 von 40** |
+| Implizite UserControl-Host-Intrinsics | **276** | **0** | **0** | **276** | **22 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -210,6 +211,12 @@ Die Standardverträge umfassen nun auch `Command()`/`Command$` für headless Hos
 als explizit typisierten Native-ABI-Vertrag. `Command` liefert im headless Runtime einen stabilen
 leeren Wert; `StrPtr` bleibt bis zum nativen Backend bewusst geschützt. Der VISIA-Stand sinkt damit
 um **8** auf **278 semantische Fehler**, weiterhin **22 von 40** fehlerfreien Dateien.
+
+`ScaleX`, `ScaleY` und `TextWidth` werden nun als implizite Host-Intrinsics nur für Form- und
+UserControl-Module ergänzt. Der headless Runtime-Vertrag nutzt Identitätsskalierung und eine
+deterministische Zeichenbreiten-Näherung; ein UI-Host kann diese Verträge später ersetzen. Der
+VISIA-Stand sinkt um **2** auf **276 semantische Fehler**, weiterhin **22 von 40** fehlerfreien
+Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

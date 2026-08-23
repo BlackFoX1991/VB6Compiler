@@ -253,6 +253,30 @@ internal static class VBIntrinsicSymbols
         Function("CBool", VBIntrinsicKind.CBool, "VBConversions.CBool", TypeSymbol.Boolean, Parameter("Expression", TypeSymbol.Variant)),
         Function("CStr", VBIntrinsicKind.CStr, "VBConversions.CStr", TypeSymbol.String, Parameter("Expression", TypeSymbol.Variant)));
 
+    private static readonly ImmutableArray<ProcedureSymbol> HostIntrinsics = ImmutableArray.Create(
+        Function(
+            "ScaleX",
+            VBIntrinsicKind.ScaleX,
+            "VBInteraction.ScaleX",
+            TypeSymbol.Single,
+            Parameter("Expression", TypeSymbol.Single),
+            OptionalParameter("FromScale", TypeSymbol.Long, 0L),
+            OptionalParameter("ToScale", TypeSymbol.Long, 0L)),
+        Function(
+            "ScaleY",
+            VBIntrinsicKind.ScaleY,
+            "VBInteraction.ScaleY",
+            TypeSymbol.Single,
+            Parameter("Expression", TypeSymbol.Single),
+            OptionalParameter("FromScale", TypeSymbol.Long, 0L),
+            OptionalParameter("ToScale", TypeSymbol.Long, 0L)),
+        Function(
+            "TextWidth",
+            VBIntrinsicKind.TextWidth,
+            "VBInteraction.TextWidth",
+            TypeSymbol.Single,
+            Parameter("Text", TypeSymbol.String)));
+
     public static Dictionary<string, ProcedureSymbol> CreateProcedureTable(CompilationUnitSyntax root)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -283,6 +307,19 @@ internal static class VBIntrinsicSymbols
         ArgumentNullException.ThrowIfNull(procedures);
 
         foreach (var intrinsic in Intrinsics)
+        {
+            if (!procedures.ContainsKey(intrinsic.Name))
+            {
+                procedures.Add(intrinsic.Name, intrinsic);
+            }
+        }
+    }
+
+    public static void AddHostProcedures(IDictionary<string, ProcedureSymbol> procedures)
+    {
+        ArgumentNullException.ThrowIfNull(procedures);
+
+        foreach (var intrinsic in HostIntrinsics)
         {
             if (!procedures.ContainsKey(intrinsic.Name))
             {
