@@ -129,6 +129,27 @@ public static class VBInteraction
     /// <summary>Returns a deterministic line-height approximation for headless control code.</summary>
     public static float TextHeight(string text) => text.Length == 0 ? 0f : 1f;
 
+    /// <summary>
+    /// Enumerates controls supplied by a UI or COM host. Headless runs return an empty snapshot;
+    /// the callback keeps generated code independent of a concrete Forms implementation.
+    /// </summary>
+    public static VBArray<object> EnumerateControls(object? target)
+    {
+        var values = ControlEnumerationSink?.Invoke(target)?.ToArray() ??
+            (target is VBCollection collection
+                ? VBCollection.EnumerateValues(collection).EnumerateValues().Cast<object?>().ToArray()
+                : target is System.Collections.IEnumerable enumerable
+                ? enumerable.Cast<object?>().ToArray()
+                : Array.Empty<object?>());
+        var result = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
+        for (var index = 0; index < values.Length; index++)
+        {
+            result[index] = values[index]!;
+        }
+
+        return result;
+    }
+
     /// <summary>Forwards an unqualified control Print call to an optional host sink.</summary>
     public static void Print(object? value) => PrintSink?.Invoke(value);
 
@@ -138,6 +159,9 @@ public static class VBInteraction
 
     /// <summary>Optional host callback for unqualified control Print calls.</summary>
     public static Action<object?>? PrintSink { get; set; }
+
+    /// <summary>Optional host callback supplying the controls exposed by a Form or UserControl.</summary>
+    public static Func<object?, IEnumerable<object?>>? ControlEnumerationSink { get; set; }
 
     /// <summary>Optional host callback for the supported PaintPicture argument set.</summary>
     public static Action<VBPaintPicture>? PaintPictureSink { get; set; }

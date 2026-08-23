@@ -2229,29 +2229,44 @@ public sealed class Binder
     {
         if (!variables.TryGetValue(syntax.Identifier.Text, out var controlVariable))
         {
-            Report(
-                "VB6S0001",
-                $"Variable '{syntax.Identifier.Text}' is not declared.",
-                syntax.Identifier.Span);
-            controlVariable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            if (!_optionExplicit && _activeLocals is not null)
+            {
+                var implicitControlVariable = new LocalVariableSymbol(
+                    syntax.Identifier.Text,
+                    GetIdentifierType(syntax.Identifier) ?? TypeSymbol.Variant);
+                controlVariable = implicitControlVariable;
+                variables[implicitControlVariable.Name] = implicitControlVariable;
+                _activeLocals[implicitControlVariable.Name] = implicitControlVariable;
+            }
+            else
+            {
+                Report(
+                    "VB6S0001",
+                    $"Variable '{syntax.Identifier.Text}' is not declared.",
+                    syntax.Identifier.Span);
+                controlVariable = new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error);
+            }
         }
 
-        if (controlVariable.Type != TypeSymbol.Variant && controlVariable.Type != TypeSymbol.Error)
+        if (controlVariable.Type != TypeSymbol.Variant &&
+            controlVariable.Type != TypeSymbol.Error &&
+            controlVariable.Type is not ClassTypeSymbol)
         {
             Report(
                 "VB6S0054",
-                $"For Each control variable '{controlVariable.Name}' must be Variant in the current compiler subset.",
+                $"For Each control variable '{controlVariable.Name}' must be Variant or an object type in the current compiler subset.",
                 syntax.Identifier.Span);
         }
 
         var collection = BindExpression(syntax.Collection, variables, procedures);
         ArrayTypeSymbol arrayType;
         var isCollection = ReferenceEquals(collection.Type, VBStandardTypes.Collection);
+        var isHostCollection = IsHostCollectionType(collection.Type);
         if (collection.Type is ArrayTypeSymbol boundArrayType)
         {
             arrayType = boundArrayType;
         }
-        else if (isCollection)
+        else if (isCollection || isHostCollection)
         {
             arrayType = new ArrayTypeSymbol(TypeSymbol.Variant);
         }
@@ -2271,7 +2286,7 @@ public sealed class Binder
         // Not a compiler gap: For Each requires a Variant control variable, and VB6 coerces a
         // user-defined type into a Variant only for public types declared in public object
         // modules. A Type in a standard module never qualifies.
-        if (!isCollection && arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
+        if (!isCollection && !isHostCollection && arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
         {
             Report(
                 "VB6S0056",
@@ -2295,8 +2310,23 @@ public sealed class Binder
         var body = BindStatements(syntax.Statements, variables, procedures);
         _loopStack.RemoveAt(_loopStack.Count - 1);
 
-        return new BoundForEachStatement(loopId, controlVariable, collection, arrayType, isCollection, body);
+        return new BoundForEachStatement(
+            loopId,
+            controlVariable,
+            collection,
+            arrayType,
+            isCollection,
+            isHostCollection,
+            body);
     }
+
+    private static bool IsHostCollectionType(TypeSymbol type) =>
+        ReferenceEquals(type, VBStandardTypes.Object) ||
+        ReferenceEquals(type, VBStandardTypes.Control) ||
+        ReferenceEquals(type, VBStandardTypes.Form) ||
+        ReferenceEquals(type, VBStandardTypes.UserControl) ||
+        type is ClassTypeSymbol classType &&
+        classType.TryGetProperty("Controls", PropertyAccessorKind.Get, out _);
 
     private BoundWhileStatement BindWhile(
         WhileStatementSyntax syntax,

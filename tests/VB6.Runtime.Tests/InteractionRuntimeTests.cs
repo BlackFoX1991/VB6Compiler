@@ -61,6 +61,25 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void ControlEnumeration_UsesHostSinkAndPreservesOrder()
+    {
+        var previousSink = VBInteraction.ControlEnumerationSink;
+        try
+        {
+            VBInteraction.ControlEnumerationSink = _ => new object?[] { "first", "second" };
+            var values = VBInteraction.EnumerateControls(new object());
+
+            Assert.AreEqual(2, values.Length);
+            Assert.AreEqual("first", values[0]);
+            Assert.AreEqual("second", values[1]);
+        }
+        finally
+        {
+            VBInteraction.ControlEnumerationSink = previousSink;
+        }
+    }
+
+    [TestMethod]
     public void ControlHostDrawingContracts_ForwardToHostSinks()
     {
         object? printed = null;

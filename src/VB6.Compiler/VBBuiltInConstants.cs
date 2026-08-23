@@ -165,7 +165,6 @@ internal static class VBBuiltInConstants
             CreateLong("BF_RECT", 15),
             CreateLong("EDGE_RAISED", 5),
             CreateObject("App", VBStandardTypes.App),
-            CreateObject("Control", VBStandardTypes.Control),
             CreateObject("UserControl", VBStandardTypes.UserControl),
             CreateObject("Screen", VBStandardTypes.Screen),
             CreateObject("Ambient", VBStandardTypes.Ambient),
