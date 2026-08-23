@@ -186,6 +186,7 @@ public enum VBIntrinsicKind
     Val,
     Hex,
     String,
+    Format,
     IsNumeric,
     InStr,
     InStrRev,
