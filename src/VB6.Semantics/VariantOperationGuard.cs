@@ -172,8 +172,9 @@ public static class VariantOperationGuard
         {
             case BoundUnaryExpression unary:
                 var isSupportedVariantUnary =
-                    unary.Operand.Type == TypeSymbol.Variant &&
-                    unary.OperatorKind is SyntaxKind.PlusToken or SyntaxKind.MinusToken or SyntaxKind.NotKeyword;
+                    (unary.Operand.Type == TypeSymbol.Variant &&
+                     unary.OperatorKind is SyntaxKind.PlusToken or SyntaxKind.MinusToken or SyntaxKind.NotKeyword) ||
+                    (unary.OperatorKind == SyntaxKind.NotKeyword && unary.ResultType == TypeSymbol.Boolean);
                 if (ContainsVariantValue(unary.Operand) && !isSupportedVariantUnary)
                 {
                     AddOperatorDiagnostic(
@@ -198,13 +199,16 @@ public static class VariantOperationGuard
                     binary.Type == TypeSymbol.Boolean;
                 var isVariantObjectIdentity = binary.OperatorKind == SyntaxKind.IsKeyword &&
                     binary.Type == TypeSymbol.Boolean;
+                var isBooleanLogicalOperation = binary.Type == TypeSymbol.Boolean &&
+                    binary.OperatorKind is SyntaxKind.AndKeyword or SyntaxKind.OrKeyword or
+                        SyntaxKind.XorKeyword or SyntaxKind.EqvKeyword or SyntaxKind.ImpKeyword;
                 var isSupportedVariantOperation =
                     (binary.Type == TypeSymbol.Variant && binary.OperatorKind is
                         SyntaxKind.CaretToken or SyntaxKind.PlusToken or SyntaxKind.MinusToken or
                         SyntaxKind.StarToken or SyntaxKind.SlashToken or SyntaxKind.BackslashToken or
                         SyntaxKind.ModKeyword or SyntaxKind.AndKeyword or SyntaxKind.OrKeyword or
                         SyntaxKind.XorKeyword or SyntaxKind.EqvKeyword or SyntaxKind.ImpKeyword) ||
-                    isVariantComparison || isVariantLike || isVariantObjectIdentity;
+                    isVariantComparison || isVariantLike || isVariantObjectIdentity || isBooleanLogicalOperation;
                 var isBoundStringConcatenation =
                     binary.OperatorKind == SyntaxKind.AmpersandToken &&
                     binary.Type == TypeSymbol.String &&
