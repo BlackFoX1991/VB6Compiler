@@ -99,8 +99,6 @@ public sealed class VBProjectCompilation
             entry => (TypeSymbol)entry.Value,
             StringComparer.OrdinalIgnoreCase);
         using var classTypeScope = UserDefinedTypeLookupScope.PushAliases(classTypeAliases);
-        DefineProjectClassMembers(parsedModules, classTypes, projectDiagnostics);
-
         var userDefinedTypes = new ProjectUserDefinedTypeDeclarationBinder().Bind(
             parsedModules.Select(module =>
                 new UserDefinedTypeModuleInput(module.Text, module.SemanticRoot)));
@@ -108,6 +106,11 @@ public sealed class VBProjectCompilation
         var userDefinedTypesByPath = userDefinedTypes.Modules.ToDictionary(
             module => module.Module.Text.FilePath ?? string.Empty,
             StringComparer.OrdinalIgnoreCase);
+        DefineProjectClassMembers(
+            parsedModules,
+            classTypes,
+            userDefinedTypesByPath,
+            projectDiagnostics);
 
         var procedureSymbols = DeclareProjectProcedures(
             parsedModules,
@@ -171,7 +174,10 @@ public sealed class VBProjectCompilation
             }
 
             userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
-            var availableProcedures = GetProcedureScope(module, procedureSymbols);
+            var availableProcedures = GetProcedureScope(
+                module,
+                procedureSymbols,
+                userDefinedTypesByPath);
             classTypes.TryGetValue(
                 module.Item.Name ?? Path.GetFileNameWithoutExtension(module.FilePath),
                 out var containingClass);
@@ -363,6 +369,7 @@ public sealed class VBProjectCompilation
     private static void DefineProjectClassMembers(
         IEnumerable<ParsedProjectModule> modules,
         IReadOnlyDictionary<string, ClassTypeSymbol> classTypes,
+        IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var interfaceRelations = new List<(ClassTypeSymbol Implementor, ImplementsStatementSyntax Declaration, string FilePath)>();
@@ -377,6 +384,8 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
+            userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
+            using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
             var procedures = module.SemanticRoot.Members
                 .Select(member => member switch
                 {
@@ -629,7 +638,8 @@ public sealed class VBProjectCompilation
 
     private static IReadOnlyDictionary<string, ProcedureSymbol> GetProcedureScope(
         ParsedProjectModule module,
-        IReadOnlyDictionary<string, ProcedureSymbol> projectProcedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> projectProcedures,
+        IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath)
     {
             if (module.Item.Kind is not (VBProjectItemKind.Class or VBProjectItemKind.Form or
                 VBProjectItemKind.UserControl))
@@ -640,6 +650,8 @@ public sealed class VBProjectCompilation
         var procedures = new Dictionary<string, ProcedureSymbol>(
             projectProcedures,
             StringComparer.OrdinalIgnoreCase);
+        userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
+        using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
         foreach (var member in module.SemanticRoot.Members)
         {
             var symbol = member switch

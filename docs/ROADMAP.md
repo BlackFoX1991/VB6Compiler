@@ -59,6 +59,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Standard-VB-Konstanten und Host-unabhängige Numeric-Verträge | **680** | **0** | **0** | **680** | **22 von 40** |
 | Standardbibliotheks- und hostfähige Interaktionsverträge | **515** | **0** | **0** | **515** | **22 von 40** |
 | `Call`-qualifizierte Objektaufrufe | **335** | **0** | **0** | **335** | **22 von 40** |
+| Modulbezogene UDT-Scope-Auflösung in Klassen/Forms/Controls | **289** | **0** | **0** | **289** | **22 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -189,6 +190,13 @@ Punktzugriffe in verschachtelten `With`-Blöcken ihren Empfängerkontext. Der ko
 bewahrt den vollständigen Empfänger und bindet die vorhandene Late-Binding-/PropertyBag-Semantik.
 Damit verschwinden **180** semantische Kaskadenfehler; der VISIA-Stand beträgt **335 semantische
 Fehler**, bei weiterhin **22 von 40** fehlerfreien Dateien.
+
+Die UDT-Auflösung wird nun auch beim Aufbau von Member- und Prozedursymbolen für Klassen, Forms und
+UserControls unter dem jeweiligen Modul-Scope ausgeführt. Zuvor wurden private Typen wie `POINTAPI`
+bei der frühen Signaturerzeugung als unbekannt markiert; dadurch zerfielen dynamische UDT-Arrays und
+`With`-Zugriffe in Folgefehler. Der Scope-Fix entfernt **46** semantische Kaskaden, darunter alle
+`DstPoint`-/`POINTAPI`-Fehler in `GpTabs.ctl`. Der aktuelle VISIA-Stand beträgt **289 semantische
+Fehler**, weiterhin **22 von 40** fehlerfreien Dateien.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
