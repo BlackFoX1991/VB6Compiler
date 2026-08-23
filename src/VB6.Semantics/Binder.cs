@@ -3142,6 +3142,8 @@ public sealed class Binder
             SyntaxKind.IntegerLiteralToken => BindIntegerLiteral(syntax.LiteralToken.Value),
             SyntaxKind.FloatingLiteralToken when syntax.LiteralToken.Value is decimal =>
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Currency),
+            SyntaxKind.FloatingLiteralToken when syntax.LiteralToken.Value is float =>
+                new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Single),
             SyntaxKind.FloatingLiteralToken =>
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Double),
             SyntaxKind.StringLiteralToken =>

@@ -23,6 +23,20 @@ public sealed class FloatingLiteralLexerTests
     }
 
     [TestMethod]
+    public void Lex_RecognizesSingleAndDoubleLiteralTypeSuffixes()
+    {
+        var result = new LexerType(SourceText.From("1! 1#", "test.bas")).Lex();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        var tokens = result.Tokens.Where(token => token.Kind != SyntaxKind.EndOfFileToken).ToArray();
+        Assert.AreEqual(2, tokens.Length);
+        Assert.AreEqual(1f, (float)tokens[0].Value!, 0f);
+        Assert.AreEqual(1d, (double)tokens[1].Value!, 0d);
+        Assert.AreEqual("1!", tokens[0].Text);
+        Assert.AreEqual("1#", tokens[1].Text);
+    }
+
+    [TestMethod]
     public void Lex_KeepsDebugPrintDotSeparateFromFloatingLiteral()
     {
         var result = new LexerType(SourceText.From("Debug.Print 1.5", "test.bas")).Lex();

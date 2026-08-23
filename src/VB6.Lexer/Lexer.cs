@@ -216,6 +216,14 @@ public sealed class Lexer
             _position++;
         }
 
+        var floatingSuffix = '\0';
+        if (Current is '!' or '#')
+        {
+            isFloating = true;
+            floatingSuffix = Current;
+            _position++;
+        }
+
         var span = TextSpan.FromBounds(start, _position);
         var text = _text.ToString(span);
         var numericText = _text.ToString(TextSpan.FromBounds(start, numericEnd));
@@ -238,7 +246,17 @@ public sealed class Lexer
         {
             if (double.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingValue))
             {
-                return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, floatingValue, leadingTrivia);
+                object value;
+                if (floatingSuffix == '!')
+                {
+                    value = (float)floatingValue;
+                }
+                else
+                {
+                    value = floatingValue;
+                }
+
+                return new SyntaxToken(SyntaxKind.FloatingLiteralToken, span, text, value, leadingTrivia);
             }
 
             Report("VB6L0004", "Invalid floating-point literal.", span);
