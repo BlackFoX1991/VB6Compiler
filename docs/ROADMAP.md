@@ -1179,8 +1179,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       der VB6-Control-Hierarchie bei ByRef. Windows-`.tlb`/`.olb`-/TypeLib-Referenzen aus `.dll`/`.ocx`
       werden zusätzlich über `LoadTypeLibEx` als dynamische Klassen-, Methoden- und Property-
       Verträge importiert; nicht sicher abbildbare Pointer-/UDT-Typen erhalten einen Object-Fallback.
-      `CreateObject` und Managed-`IDispatch`-Dispatch stehen;
-      vollständiger Enum-/UDT-Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
+      `CreateObject` und Managed-`IDispatch`-Dispatch stehen; Enum-Konstanten aus Windows-TypeLibraries
+      werden importiert und COM-Defaultzugriffe verwenden bei echten COM-Objekten `DISPID_VALUE`;
+      vollständiger UDT-Typbibliotheksimport, natives OCX-Hosting, COM-ByRef-/Event-ABI und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1270,7 +1271,8 @@ ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate Kompatibilitätss
 Variant-Objektindizes verwenden nun den bestehenden Managed-Dispatch auch dann, wenn der
 Empfänger erst zur Laufzeit als Objekt bekannt ist: `value(index)` bleibt für echte `IVBArray`-
 Werte ein Arrayzugriff und fällt für Objekte auf `Item`-Get/Let zurück. Die Suite umfasst damit
-**852 Tests**; benannte COM-Default-Member und die vollständige Dispatch-ABI bleiben offen.
+**853 Tests**; COM-Default-Member werden für echte COM-Objekte nun über `DISPID_VALUE` aufgelöst,
+die vollständige Dispatch-ABI bleibt offen.
 
 `.vbg`-Gruppen schreiben ihre Managed-Artefakte jetzt mit dem passenden Zieltyp: `Type=Exe`-
 Projekte erhalten `.exe`, Bibliotheksprojekte `.dll`. Die Abhängigkeitsreihenfolge und die
@@ -1278,13 +1280,14 @@ expliziten Einzelprojekt-Ausgabepfade bleiben unverändert.
 
 Variant-Indizes behalten nun ihren ursprünglichen Ausdruckstyp: echte Variant-Arrays konvertieren
 ihre Subscripte weiterhin nach `Long`, während Objekt-Default-Properties auch String-Schlüssel
-über den Managed-Dispatch erhalten. Die vollständige COM-`IDispatch`-Default-Member-Auflösung und
-der ByRef-Writeback für solche Ziele bleiben offen.
+über den Managed-Dispatch erhalten. Echte COM-Objekte verwenden für Defaultzugriffe zuerst den
+leeren Dispatch-Namen (`DISPID_VALUE`); der ByRef-Writeback und die übrige COM-ABI bleiben offen.
 
 Statisch deklarierte `Object`-Empfänger nutzen denselben dynamischen `Item`-Default-Property-
 Vertrag wie `Variant`: String-Indizes werden gebunden, an den Managed-Dispatch weitergereicht
 und können gelesen sowie geschrieben werden. Die direkte COM-Aktivierung und vollständige
-`IDispatch`-Default-Member-Ermittlung bleiben offen.
+`IDispatch`-Default-Member-Ermittlung für COM-Objekte ist über `DISPID_VALUE` angebunden; vollständige
+COM-ByRef-/Event- und Aktivierungsregeln bleiben offen.
 
 VB6-`VB_UserMemId = 0`-Namen werden für erzeugte Klassen nun als CLR-
 `DefaultMemberAttribute` emittiert. Dadurch verwenden late-bound `Variant`- und `Object`-

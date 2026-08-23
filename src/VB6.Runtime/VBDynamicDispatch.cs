@@ -43,6 +43,11 @@ public static class VBDynamicDispatch
     public static object? GetDefaultMember(object? target, object?[] arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
+        if (TryInvokeComDefaultMember(target, arguments, setProperty: false, out var comResult))
+        {
+            return comResult;
+        }
+
         return InvokeMember(
             target,
             ResolveDefaultMemberName(target),
@@ -55,11 +60,36 @@ public static class VBDynamicDispatch
     public static void SetDefaultMember(object? target, object?[] arguments, object? value)
     {
         ArgumentNullException.ThrowIfNull(arguments);
+        var setterArguments = new object?[arguments.Length + 1];
+        Array.Copy(arguments, setterArguments, arguments.Length);
+        setterArguments[^1] = value;
+        if (TryInvokeComDefaultMember(target, setterArguments, setProperty: true, out _))
+        {
+            return;
+        }
+
         SetMemberCore(
             target,
             ResolveDefaultMemberName(target),
             arguments,
             value);
+    }
+
+    private static bool TryInvokeComDefaultMember(
+        object? target,
+        object?[] arguments,
+        bool setProperty,
+        out object? result)
+    {
+        if (target is null ||
+            !OperatingSystem.IsWindows() ||
+            !Marshal.IsComObject(target))
+        {
+            result = null;
+            return false;
+        }
+
+        return TryInvokeComMember(target, string.Empty, arguments, setProperty, out result);
     }
 
     public static object? InvokeMember(
@@ -175,12 +205,21 @@ public static class VBDynamicDispatch
             result = null;
             return false;
         }
-        catch (COMException exception) when (exception.ErrorCode == unchecked((int)0x80020003))
+        catch (COMException exception) when (IsMissingComMember(exception))
+        {
+            result = null;
+            return false;
+        }
+        catch (TargetInvocationException exception)
+            when (exception.InnerException is COMException comException && IsMissingComMember(comException))
         {
             result = null;
             return false;
         }
     }
+
+    private static bool IsMissingComMember(COMException exception) =>
+        exception.ErrorCode is unchecked((int)0x80020003) or unchecked((int)0x80020006);
 
     private static object? InvokeMethod(object target, MethodInfo method, object?[] arguments)
     {
