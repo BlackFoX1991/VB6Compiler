@@ -27,6 +27,22 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void DateVariants_PreserveDateSubtypeForAdditionAndSingleDateSubtraction()
+    {
+        var date = VBConversions.DateToVariant(43832d);
+
+        var next = VBOperators.AddVariant(date, 1);
+        Assert.IsInstanceOfType<VBDateValue>(next);
+        Assert.AreEqual(43833d, ((VBDateValue)next!).OADate);
+
+        var previous = VBOperators.SubtractVariant(date, 1);
+        Assert.IsInstanceOfType<VBDateValue>(previous);
+        Assert.AreEqual(43831d, ((VBDateValue)previous!).OADate);
+
+        Assert.AreEqual(1d, VBOperators.SubtractVariant(next, date));
+    }
+
+    [TestMethod]
     public void DecimalVariant_PreservesDecimalPrecisionAndUsesDoubleForPower()
     {
         var decimalValue = VBConversions.CDec("7922816251426433759354395033.5");

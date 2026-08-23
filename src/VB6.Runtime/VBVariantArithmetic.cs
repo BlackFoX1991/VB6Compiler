@@ -9,6 +9,11 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
+        if (left is VBDateValue || right is VBDateValue)
+        {
+            return new VBDateValue(VBConversions.CDbl(left) + VBConversions.CDbl(right));
+        }
+
         if (left is null)
         {
             return right ?? (short)0;
@@ -54,6 +59,14 @@ public static partial class VBOperators
         if (HasNullOperand(left, right))
         {
             return VBVariants.NullValue();
+        }
+
+        if (left is VBDateValue || right is VBDateValue)
+        {
+            var result = VBConversions.CDbl(left) - VBConversions.CDbl(right);
+            return left is VBDateValue && right is VBDateValue
+                ? result
+                : new VBDateValue(result);
         }
 
         var kind = PromoteVariantAddKind(GetVariantNumericKind(left), GetVariantNumericKind(right));
