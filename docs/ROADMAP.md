@@ -515,6 +515,12 @@ nullbasiertes Variant-Array. Leere Aufrufe und gemischte Werte sind durch Runtim
 Tests abgedeckt; der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien
 Dateien, die Suite umfasst nun **758 Tests**.
 
+`Join` und `Filter` verarbeiten jetzt typisierte `String()`-Arrays über eigene Intrinsic-, IR-,
+Emitter- und Runtime-Verträge. `Join` unterstützt das optionale Trennzeichen; `Filter` bewahrt die
+Reihenfolge und unterstützt Include-/Binary-/Text-Vergleiche, auch bei leeren Ergebnissen. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **760 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen

@@ -120,4 +120,26 @@ public sealed class StringFunctionTests
         Assert.AreEqual(1, limited.UBound());
         Assert.AreEqual("b,c", limited[1]);
     }
+
+    [TestMethod]
+    public void JoinAndFilter_PreserveOrderAndComparisonMode()
+    {
+        var values = VBStrings.Split("alpha,beta,BETA,gamma", ",", -1, 0);
+
+        Assert.AreEqual("alpha-beta-BETA-gamma", VBStrings.Join(values, "-"));
+        Assert.AreEqual("alpha beta BETA gamma", VBStrings.Join(values, " "));
+
+        var binary = VBStrings.Filter(values, "beta", true, 0);
+        Assert.AreEqual(0, binary.UBound());
+        Assert.AreEqual("beta", binary[0]);
+
+        var excluded = VBStrings.Filter(values, "beta", false, 1);
+        Assert.AreEqual(1, excluded.UBound());
+        Assert.AreEqual("alpha", excluded[0]);
+        Assert.AreEqual("gamma", excluded[1]);
+
+        var empty = VBStrings.Filter(values, "missing", true, 0);
+        Assert.AreEqual(-1, empty.UBound());
+        Assert.AreEqual(string.Empty, VBStrings.Join(empty, ","));
+    }
 }
