@@ -100,6 +100,7 @@ public sealed class LlvmEmitter
         EmitCheckedIntegerArithmeticHelper(builder, "__vb6_umul_checked_i64", "umul");
         EmitCheckedIntegerConversionHelper(builder, "__vb6_sconvert_checked_i64", signed: true);
         EmitCheckedIntegerConversionHelper(builder, "__vb6_uconvert_checked_i64", signed: false);
+        EmitCheckedCurrencyMultiplicationHelper(builder);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_sneg_checked_i64", signed: true);
         EmitCheckedIntegerNegationHelper(builder, "__vb6_uneg_checked_i64", signed: false);
     }
@@ -233,6 +234,43 @@ public sealed class LlvmEmitter
         builder.AppendLine("  br i1 %overflow, label %trap, label %done");
         builder.AppendLine("done:");
         builder.AppendLine("  ret i64 %value");
+        builder.AppendLine("trap:");
+        builder.AppendLine("  call void @llvm.trap()");
+        builder.AppendLine("  unreachable");
+        builder.AppendLine("}");
+        builder.AppendLine();
+    }
+
+    private static void EmitCheckedCurrencyMultiplicationHelper(StringBuilder builder)
+    {
+        builder.AppendLine("define i64 @__vb6_mcurrency_checked_i64(i64 %left, i64 %right) {");
+        builder.AppendLine("entry:");
+        builder.AppendLine("  %left_wide = sext i64 %left to i128");
+        builder.AppendLine("  %right_wide = sext i64 %right to i128");
+        builder.AppendLine("  %product = mul i128 %left_wide, %right_wide");
+        builder.AppendLine("  %quotient = sdiv i128 %product, 10000");
+        builder.AppendLine("  %remainder = srem i128 %product, 10000");
+        builder.AppendLine("  %remainder_is_negative = icmp slt i128 %remainder, 0");
+        builder.AppendLine("  %absolute_remainder = sub i128 0, %remainder");
+        builder.AppendLine("  %absolute_or_remainder = select i1 %remainder_is_negative, i128 %absolute_remainder, i128 %remainder");
+        builder.AppendLine("  %twice_remainder = mul i128 %absolute_or_remainder, 2");
+        builder.AppendLine("  %more_than_half = icmp sgt i128 %twice_remainder, 10000");
+        builder.AppendLine("  %exactly_half = icmp eq i128 %twice_remainder, 10000");
+        builder.AppendLine("  %quotient_remainder = srem i128 %quotient, 2");
+        builder.AppendLine("  %quotient_is_odd = icmp ne i128 %quotient_remainder, 0");
+        builder.AppendLine("  %tie_round = and i1 %exactly_half, %quotient_is_odd");
+        builder.AppendLine("  %should_round = or i1 %more_than_half, %tie_round");
+        builder.AppendLine("  %product_is_negative = icmp slt i128 %product, 0");
+        builder.AppendLine("  %round_direction = select i1 %product_is_negative, i128 -1, i128 1");
+        builder.AppendLine("  %rounded_quotient = add i128 %quotient, %round_direction");
+        builder.AppendLine("  %result = select i1 %should_round, i128 %rounded_quotient, i128 %quotient");
+        builder.AppendLine("  %too_low = icmp slt i128 %result, -9223372036854775808");
+        builder.AppendLine("  %too_high = icmp sgt i128 %result, 9223372036854775807");
+        builder.AppendLine("  %overflow = or i1 %too_low, %too_high");
+        builder.AppendLine("  br i1 %overflow, label %trap, label %done");
+        builder.AppendLine("done:");
+        builder.AppendLine("  %narrowed = trunc i128 %result to i64");
+        builder.AppendLine("  ret i64 %narrowed");
         builder.AppendLine("trap:");
         builder.AppendLine("  call void @llvm.trap()");
         builder.AppendLine("  unreachable");
@@ -701,10 +739,7 @@ public sealed class LlvmEmitter
 
             if (methodName == "MultiplyCurrency")
             {
-                AddDiagnostic(
-                    "VB6L0001",
-                    "Native LLVM lowering for Currency multiplication requires checked scaled arithmetic and is not implemented yet.");
-                return ZeroValue(runtime.ResultType);
+                return EmitCheckedCurrencyMultiplication(runtime.ResultType, arguments);
             }
 
             if (methodName is "AddSingle" or "SubtractSingle" or "MultiplySingle" or "NegateSingle")
@@ -887,6 +922,24 @@ public sealed class LlvmEmitter
                 .Append(helperName).Append('(').Append(llvmType).Append(' ').Append(arguments[0].Value)
                 .Append(", ").Append(llvmType).Append(' ').Append(arguments[1].Value).AppendLine(")");
             return new NativeValue(resultType, llvmType, call);
+        }
+
+        private NativeValue EmitCheckedCurrencyMultiplication(
+            TypeSymbol resultType,
+            NativeValue[] arguments)
+        {
+            if (resultType != TypeSymbol.Currency ||
+                arguments.Length != 2 ||
+                arguments.Any(argument => argument.SemanticType != TypeSymbol.Currency || argument.LlvmType != "i64"))
+            {
+                AddDiagnostic("VB6L0004", "LLVM Currency multiplication requires two Currency operands.");
+                return ZeroValue(resultType);
+            }
+
+            var call = NextTemporary();
+            _builder.Append("  ").Append(call).Append(" = call i64 @__vb6_mcurrency_checked_i64(i64 ")
+                .Append(arguments[0].Value).Append(", i64 ").Append(arguments[1].Value).AppendLine(")");
+            return new NativeValue(resultType, "i64", call);
         }
 
         private NativeValue EmitCheckedIntegerArithmetic(
