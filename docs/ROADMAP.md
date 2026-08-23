@@ -1168,7 +1168,11 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Invocation; ANSI-String-Marshalling sowie Scalar-Pointer-Transfers für `As Any` stehen,
       `AddressOf` erzeugt Managed-Funktionsadressen für direkte Prozedurziele, komplexes
       String-/UDT-Marshalling sowie vollständige Callback-ABI-/Delegate-Verträge bleiben offen
-- [~] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`; der
+- [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
+      GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
+      Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
+      Projektliste gebunden. `CreateObject` und Managed-`IDispatch`-Dispatch stehen; vollständiger
+      Typbibliotheksimport, COM-ByRef-/Event-ABI und der native LLVM-Pfad bleiben offen. Der
       Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1229,7 +1233,10 @@ separater Interop-Schritt offen.
 Die Projektintegration unterstützt nun zusätzlich `.vbg`-Gruppen: deklarierte `.vbp`-Pfade werden
 relativ zum Gruppenverzeichnis in stabiler Reihenfolge aufgelöst, einzeln analysiert und über
 `vb6c <gruppe.vbg> --emit-assembly <ausgabeverzeichnis>` als Managed-Artefakte ausgegeben. Gruppen-
-und projektbezogene Fehler behalten den aufgelösten Pfad. Die Projektgruppenregressionen erhöhen die
-Suite auf **831 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne
-`Sub Main` emittiert; Projektverweise und vollständige ActiveX-/COM-Server-Erzeugung bleiben separate
+und projektbezogene Fehler behalten den aufgelösten Pfad. `Reference=`/`Object=` werden mit
+GUID-, Versions-, LCID- und Pfadmetadaten erfasst; fehlende explizite `.vbp`-Verweise erzeugen
+aufgelöste Compilerdiagnosen, und die verbreiteten `MSComctlLib`-/`RichTextLib`-/`MSComDlg`-
+Controltypen werden projektlokal erkannt. Die Projektgruppenregressionen erhöhen die Suite auf
+**834 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
+emittiert; vollständiger ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate
 Kompatibilitätsstufen.

@@ -41,7 +41,23 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
             $"Items: {project.Items.Length} " +
             $"(modules: {project.Modules.Count()}, classes: {project.Classes.Count()}, forms: {project.Forms.Count()})");
         Console.WriteLine($"References: {project.References.Length}");
+        foreach (var reference in project.References)
+        {
+            var metadata = reference.Metadata;
+            var target = metadata.FilePath is null
+                ? metadata.DisplayName ?? "unresolved"
+                : metadata.GetFullPath(project.ProjectDirectory)!;
+            Console.WriteLine($"  Reference [{metadata.Kind}]: {target}");
+        }
         Console.WriteLine($"Components: {project.Objects.Length}");
+        foreach (var component in project.Objects)
+        {
+            var metadata = component.Metadata;
+            var target = metadata.FilePath is null
+                ? metadata.DisplayName ?? "unresolved"
+                : metadata.GetFullPath(project.ProjectDirectory)!;
+            Console.WriteLine($"  Object: {target}");
+        }
         return loadResult.Success ? 0 : 1;
     }
 

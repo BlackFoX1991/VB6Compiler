@@ -31,6 +31,22 @@ public sealed class VBProjectLoaderTests
         Assert.AreEqual(4, result.Project.Items.Length);
         Assert.AreEqual(1, result.Project.References.Length);
         Assert.AreEqual(1, result.Project.Objects.Length);
+        var reference = result.Project.References[0];
+        Assert.AreEqual(VBProjectReferenceKind.TypeLibrary, reference.Metadata.Kind);
+        Assert.AreEqual(Guid.Parse("00025E01-0000-0000-C000-000000000046"), reference.Metadata.LibraryId);
+        Assert.AreEqual(0, reference.Metadata.MajorVersion);
+        Assert.AreEqual(0, reference.Metadata.MinorVersion);
+        Assert.AreEqual(0, reference.Metadata.LocaleId);
+        Assert.AreEqual("C:\\WINDOWS\\SYSTEM\\DAO2516.DLL", reference.Metadata.FilePath);
+        Assert.AreEqual("Microsoft DAO 2.5 Object Library", reference.Metadata.DisplayName);
+        Assert.IsTrue(reference.Metadata.IsWellFormed);
+        var @object = result.Project.Objects[0];
+        Assert.AreEqual(Guid.Parse("831FDD16-0C5C-11D2-A9FC-0000F8754DA1"), @object.Metadata.ClassId);
+        Assert.AreEqual(2, @object.Metadata.MajorVersion);
+        Assert.AreEqual(0, @object.Metadata.MinorVersion);
+        Assert.AreEqual(0, @object.Metadata.LocaleId);
+        Assert.AreEqual("MSCOMCTL.OCX", @object.Metadata.FilePath);
+        Assert.IsTrue(@object.Metadata.IsWellFormed);
         Assert.AreEqual(1, result.Project.Modules.Count());
         Assert.AreEqual(1, result.Project.Classes.Count());
         Assert.AreEqual(1, result.Project.Forms.Count());
@@ -92,5 +108,34 @@ public sealed class VBProjectLoaderTests
         Assert.AreEqual(1, result.Diagnostics.Length);
         Assert.AreEqual("VB6VBP0001", result.Diagnostics[0].Code);
         Assert.AreEqual(2, result.Diagnostics[0].Line);
+    }
+
+    [TestMethod]
+    public void Parse_PreservesMalformedBindingEntriesWithoutThrowing()
+    {
+        const string source = "Reference=legacy-reference\nObject=legacy-object\n";
+
+        var result = new VBProjectLoader().Parse(
+            source,
+            Path.Combine(Path.GetTempPath(), "MalformedBindings.vbp"));
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("legacy-reference", result.Project.References[0].RawValue);
+        Assert.IsFalse(result.Project.References[0].Metadata.IsWellFormed);
+        Assert.AreEqual("legacy-object", result.Project.Objects[0].RawValue);
+        Assert.IsFalse(result.Project.Objects[0].Metadata.IsWellFormed);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesProjectReferencePath()
+    {
+        var result = new VBProjectLoader().Parse(
+            "Reference=*\\G{00025E01-0000-0000-C000-000000000046}#1.0#0#..\\Shared\\Shared.vbp#Shared\n",
+            Path.Combine(Path.GetTempPath(), "Consumer", "Consumer.vbp"));
+
+        Assert.AreEqual(VBProjectReferenceKind.Project, result.Project.References[0].Metadata.Kind);
+        Assert.AreEqual(
+            Path.GetFullPath(Path.Combine(Path.GetDirectoryName(result.Project.FilePath)!, "..", "Shared", "Shared.vbp")),
+            result.Project.References[0].Metadata.GetFullPath(result.Project.ProjectDirectory));
     }
 }
