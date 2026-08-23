@@ -481,9 +481,10 @@ als echte pointergroße P/Invoke-Signatur. Der VISIA-Stand bleibt bei **2 semant
 
 `UInteger` mit dem Alias `UInt32` ergänzt die unsigned Integer-Basis. `CUInt`, checked Arithmetic
 und Bitwise-Operationen, `For`-Zähler, boxed-Variant-Konvertierung sowie skalare `Declare`-/P/Invoke-
-Signaturen nutzen den vollständigen Bereich 0 bis 4.294.967.295. `UShort` und `ULong` bleiben als
-separate Breitenverträge offen. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und **38 von 40**
-fehlerfreien Dateien; die Suite umfasst nun **745 Tests**.
+Signaturen nutzen den vollständigen Bereich 0 bis 4.294.967.295. `UShort`/`UInt16` und `ULong`/`UInt64`
+ergänzen nun dieselben checked Managed-, Variant-, `For`- und skalaren `Declare`-/P/Invoke-Verträge
+für 16 und 64 Bit mit `CUShort` und `CULng`. Der VISIA-Stand bleibt bei **2 semantischen Fehlern**
+und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **749 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1012,8 +1013,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
-- [~] vorzeichenlose Ganzzahltypen — `UInteger`/`UInt32` und `CUInt` sind mit checked
-      Managed-/P/Invoke-/Variant-Verträgen ergänzt; `UShort` und `ULong` bleiben offen
+- [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
+      sind mit `CUShort`, `CUInt` und `CULng` sowie checked Managed-/P/Invoke-/Variant-Verträgen ergänzt
 
 ## Meilenstein 9 — Forms
 

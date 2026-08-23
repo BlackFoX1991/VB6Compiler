@@ -55,8 +55,10 @@ public static class VBVariants
             MissingValueMarker => 10,
             bool => 11,
             byte => 17,
+            ushort => 18,
             uint => 20,
             long => 20,
+            ulong => 21,
             IntPtr => IntPtr.Size == 8 ? (short)20 : (short)3,
             decimal => 14,
             VBDateValue => 7,
@@ -74,10 +76,12 @@ public static class VBVariants
             : elementType == typeof(string) ? 8
             : elementType == typeof(bool) ? 11
             : elementType == typeof(byte) ? 17
+            : elementType == typeof(ushort) ? 18
             : elementType == typeof(short) ? 2
             : elementType == typeof(int) ? 3
             : elementType == typeof(uint) ? 20
             : elementType == typeof(long) ? 20
+            : elementType == typeof(ulong) ? 21
             : elementType == typeof(IntPtr) ? (IntPtr.Size == 8 ? 20 : 3)
             : elementType == typeof(float) ? 4
             : elementType == typeof(double) ? 5

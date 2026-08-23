@@ -36,6 +36,9 @@ public static partial class VBOperators
             VariantNumericKind.Integer => AddVariantInteger(left, right),
             VariantNumericKind.Long => AddVariantLong(left, right),
             VariantNumericKind.LongLong => AddLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
+            VariantNumericKind.UShort => AddUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
+            VariantNumericKind.UInteger => AddUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
+            VariantNumericKind.ULong => AddULong(VBConversions.CULng(left), VBConversions.CULng(right)),
             VariantNumericKind.Single => AddSingle(VBConversions.CSng(left), VBConversions.CSng(right)),
             VariantNumericKind.Currency => AddCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) + VariantDecimal(right)),
@@ -76,6 +79,9 @@ public static partial class VBOperators
             VariantNumericKind.Integer => SubtractVariantInteger(left, right),
             VariantNumericKind.Long => SubtractVariantLong(left, right),
             VariantNumericKind.LongLong => SubtractLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
+            VariantNumericKind.UShort => SubtractUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
+            VariantNumericKind.UInteger => SubtractUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
+            VariantNumericKind.ULong => SubtractULong(VBConversions.CULng(left), VBConversions.CULng(right)),
             VariantNumericKind.Single => SubtractSingle(VBConversions.CSng(left), VBConversions.CSng(right)),
             VariantNumericKind.Currency => SubtractCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) - VariantDecimal(right)),
@@ -112,6 +118,9 @@ public static partial class VBOperators
                 (object)IntegerDivideLong(VBConversions.CLng(left), VBConversions.CLng(right)),
             VariantNumericKind.LongLong =>
                 (object)IntegerDivideLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
+            VariantNumericKind.UShort => (object)IntegerDivideUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
+            VariantNumericKind.UInteger => (object)IntegerDivideUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
+            VariantNumericKind.ULong => (object)IntegerDivideULong(VBConversions.CULng(left), VBConversions.CULng(right)),
             VariantNumericKind.Decimal => (object)IntegerDivideLong(VBConversions.CLng(left), VBConversions.CLng(right)),
             _ => (object)IntegerDivideLong(VBConversions.CLng(left), VBConversions.CLng(right))
         };
@@ -133,6 +142,9 @@ public static partial class VBOperators
                 (object)ModLong(VBConversions.CLng(left), VBConversions.CLng(right)),
             VariantNumericKind.LongLong =>
                 (object)ModLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
+            VariantNumericKind.UShort => (object)ModUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
+            VariantNumericKind.UInteger => (object)ModUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
+            VariantNumericKind.ULong => (object)ModULong(VBConversions.CULng(left), VBConversions.CULng(right)),
             VariantNumericKind.Decimal => VariantDecimal(left) % VariantDecimal(right),
             _ => (object)ModLong(VBConversions.CLng(left), VBConversions.CLng(right))
         };
@@ -161,6 +173,9 @@ public static partial class VBOperators
                 (object)NegateInteger(VBConversions.CInt(value)),
             VariantNumericKind.Long => (object)NegateLong(VBConversions.CLng(value)),
             VariantNumericKind.LongLong => (object)NegateLongLong(VBConversions.CLngLng(value)),
+            VariantNumericKind.UShort => (object)NegateUShort(VBConversions.CUShort(value)),
+            VariantNumericKind.UInteger => (object)NegateUInteger(VBConversions.CUInt(value)),
+            VariantNumericKind.ULong => (object)NegateULong(VBConversions.CULng(value)),
             VariantNumericKind.Single => (object)NegateSingle(VBConversions.CSng(value)),
             VariantNumericKind.Currency => (object)NegateCurrency(VBConversions.CCur(value)),
             VariantNumericKind.Decimal => checked(-VariantDecimal(value)),
@@ -187,21 +202,24 @@ public static partial class VBOperators
                 (object)NotInteger(VBConversions.CInt(value)),
             VariantNumericKind.Long => (object)NotLong(VBConversions.CLng(value)),
             VariantNumericKind.LongLong => (object)NotLongLong(VBConversions.CLngLng(value)),
+            VariantNumericKind.UShort => (object)NotUShort(VBConversions.CUShort(value)),
+            VariantNumericKind.UInteger => (object)NotUInteger(VBConversions.CUInt(value)),
+            VariantNumericKind.ULong => (object)NotULong(VBConversions.CULng(value)),
             VariantNumericKind.Single or VariantNumericKind.Currency or VariantNumericKind.Decimal or VariantNumericKind.Double =>
                 (object)NotLong(VBConversions.CLng(value)),
             _ => (object)NotInteger(VBConversions.CInt(value))
         };
     }
 
-    public static object? AndVariant(object? left, object? right) => ApplyVariantBitwise(left, right, AndBoolean, AndByte, AndInteger, AndLong, AndLongLong);
+    public static object? AndVariant(object? left, object? right) => ApplyVariantBitwise(left, right, AndBoolean, AndByte, AndInteger, AndLong, AndLongLong, AndUShort, AndUInteger, AndULong);
 
-    public static object? OrVariant(object? left, object? right) => ApplyVariantBitwise(left, right, OrBoolean, OrByte, OrInteger, OrLong, OrLongLong);
+    public static object? OrVariant(object? left, object? right) => ApplyVariantBitwise(left, right, OrBoolean, OrByte, OrInteger, OrLong, OrLongLong, OrUShort, OrUInteger, OrULong);
 
-    public static object? XorVariant(object? left, object? right) => ApplyVariantBitwise(left, right, XorBoolean, XorByte, XorInteger, XorLong, XorLongLong);
+    public static object? XorVariant(object? left, object? right) => ApplyVariantBitwise(left, right, XorBoolean, XorByte, XorInteger, XorLong, XorLongLong, XorUShort, XorUInteger, XorULong);
 
-    public static object? EqvVariant(object? left, object? right) => ApplyVariantBitwise(left, right, EqvBoolean, null, EqvInteger, EqvLong, EqvLongLong);
+    public static object? EqvVariant(object? left, object? right) => ApplyVariantBitwise(left, right, EqvBoolean, null, EqvInteger, EqvLong, EqvLongLong, EqvUShort, EqvUInteger, EqvULong);
 
-    public static object? ImpVariant(object? left, object? right) => ApplyVariantBitwise(left, right, ImpBoolean, null, ImpInteger, ImpLong, ImpLongLong);
+    public static object? ImpVariant(object? left, object? right) => ApplyVariantBitwise(left, right, ImpBoolean, null, ImpInteger, ImpLong, ImpLongLong, ImpUShort, ImpUInteger, ImpULong);
 
     public static object VariantEqual(object? left, object? right) => CompareVariant(left, right, comparison => comparison == 0);
 
@@ -386,7 +404,7 @@ public static partial class VBOperators
             case string:
                 number = 0d;
                 return false;
-            case byte or short or int or uint or long or IntPtr or float or double or decimal or VBCurrency or bool:
+            case byte or short or int or ushort or uint or long or ulong or IntPtr or float or double or decimal or VBCurrency or bool:
                 number = VBConversions.CDbl(value);
                 return true;
             default:
@@ -420,7 +438,7 @@ public static partial class VBOperators
             case IntPtr pointer:
                 number = pointer.ToInt64();
                 return true;
-            case byte or short or int or uint or long or bool:
+            case byte or short or int or ushort or uint or long or ulong or bool:
                 number = Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
                 return true;
             case float or double:
@@ -445,7 +463,10 @@ public static partial class VBOperators
         Func<byte, byte, byte>? byteOperation,
         Func<short, short, short> integerOperation,
         Func<int, int, int> longOperation,
-        Func<long, long, long> longLongOperation)
+        Func<long, long, long> longLongOperation,
+        Func<ushort, ushort, ushort>? ushortOperation,
+        Func<uint, uint, uint>? uintOperation,
+        Func<ulong, ulong, ulong>? ulongOperation)
     {
         if (HasNullOperand(left, right))
         {
@@ -468,6 +489,12 @@ public static partial class VBOperators
                 (object)longOperation(VBConversions.CLng(left), VBConversions.CLng(right)),
             VariantNumericKind.LongLong =>
                 (object)longLongOperation(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
+            VariantNumericKind.UShort when ushortOperation is not null =>
+                (object)ushortOperation(VBConversions.CUShort(left), VBConversions.CUShort(right)),
+            VariantNumericKind.UInteger when uintOperation is not null =>
+                (object)uintOperation(VBConversions.CUInt(left), VBConversions.CUInt(right)),
+            VariantNumericKind.ULong when ulongOperation is not null =>
+                (object)ulongOperation(VBConversions.CULng(left), VBConversions.CULng(right)),
             VariantNumericKind.Single or VariantNumericKind.Currency or VariantNumericKind.Decimal or VariantNumericKind.Double =>
                 (object)longOperation(VBConversions.CLng(left), VBConversions.CLng(right)),
             _ => (object)integerOperation(VBConversions.CInt(left), VBConversions.CInt(right))

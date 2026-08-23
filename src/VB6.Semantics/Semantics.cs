@@ -15,7 +15,9 @@ public record TypeSymbol(string Name) : Symbol(Name)
     public static readonly TypeSymbol Long = new("Long");
     public static readonly TypeSymbol LongLong = new("LongLong");
     public static readonly TypeSymbol LongPtr = new("LongPtr");
+    public static readonly TypeSymbol UShort = new("UShort");
     public static readonly TypeSymbol UInteger = new("UInteger");
+    public static readonly TypeSymbol ULong = new("ULong");
     public static readonly TypeSymbol Single = new("Single");
     public static readonly TypeSymbol Date = new("Date");
     public static readonly TypeSymbol String = new("String");
@@ -32,8 +34,12 @@ public record TypeSymbol(string Name) : Symbol(Name)
         "LONGLONG" => LongLong,
         "INT64" => LongLong,
         "LONGPTR" => LongPtr,
+        "USHORT" => UShort,
+        "UINT16" => UShort,
         "UINTEGER" => UInteger,
         "UINT32" => UInteger,
+        "ULONG" => ULong,
+        "UINT64" => ULong,
         "SINGLE" => Single,
         "DATE" => Date,
         "STRING" => String,
@@ -259,7 +265,9 @@ public enum VBIntrinsicKind
     CInt,
     CLng,
     CLngPtr,
+    CUShort,
     CUInt,
+    CULng,
     CDec,
     CDate,
     CSng,

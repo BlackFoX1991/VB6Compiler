@@ -93,6 +93,31 @@ public static class VBConversions
         return new IntPtr(numeric);
     }
 
+    public static ushort CUShort(object? value)
+    {
+        if (value is ushort number)
+        {
+            return number;
+        }
+
+        if (value is IntPtr pointer)
+        {
+            return checked((ushort)pointer.ToInt64());
+        }
+
+        if (value is bool boolean)
+        {
+            return boolean ? ushort.MaxValue : (ushort)0;
+        }
+
+        if (value is VBCurrency currency)
+        {
+            return checked((ushort)currency.ToRoundedInt64());
+        }
+
+        return Convert.ToUInt16(value, CultureInfo.InvariantCulture);
+    }
+
     public static uint CUInt(object? value)
     {
         if (value is uint number)
@@ -116,6 +141,31 @@ public static class VBConversions
         }
 
         return Convert.ToUInt32(value, CultureInfo.InvariantCulture);
+    }
+
+    public static ulong CULng(object? value)
+    {
+        if (value is ulong number)
+        {
+            return number;
+        }
+
+        if (value is IntPtr pointer)
+        {
+            return checked((ulong)pointer.ToInt64());
+        }
+
+        if (value is bool boolean)
+        {
+            return boolean ? ulong.MaxValue : 0UL;
+        }
+
+        if (value is VBCurrency currency)
+        {
+            return checked((ulong)currency.ToRoundedInt64());
+        }
+
+        return Convert.ToUInt64(value, CultureInfo.InvariantCulture);
     }
 
     public static VBCurrency CCur(object? value)
@@ -315,6 +365,18 @@ public static partial class VBOperators
 
     public static IntPtr ModLongPtr(IntPtr left, IntPtr right) => FromLongPtr(checked(left.ToInt64() % right.ToInt64()));
 
+    public static ushort AddUShort(ushort left, ushort right) => checked((ushort)(left + right));
+
+    public static ushort SubtractUShort(ushort left, ushort right) => checked((ushort)(left - right));
+
+    public static ushort MultiplyUShort(ushort left, ushort right) => checked((ushort)(left * right));
+
+    public static ushort NegateUShort(ushort value) => checked((ushort)(0 - value));
+
+    public static ushort IntegerDivideUShort(ushort left, ushort right) => (ushort)(left / right);
+
+    public static ushort ModUShort(ushort left, ushort right) => (ushort)(left % right);
+
     public static uint AddUInteger(uint left, uint right) => checked(left + right);
 
     public static uint SubtractUInteger(uint left, uint right) => checked(left - right);
@@ -326,6 +388,18 @@ public static partial class VBOperators
     public static uint IntegerDivideUInteger(uint left, uint right) => left / right;
 
     public static uint ModUInteger(uint left, uint right) => left % right;
+
+    public static ulong AddULong(ulong left, ulong right) => checked(left + right);
+
+    public static ulong SubtractULong(ulong left, ulong right) => checked(left - right);
+
+    public static ulong MultiplyULong(ulong left, ulong right) => checked(left * right);
+
+    public static ulong NegateULong(ulong value) => checked(0UL - value);
+
+    public static ulong IntegerDivideULong(ulong left, ulong right) => left / right;
+
+    public static ulong ModULong(ulong left, ulong right) => left % right;
 
     public static VBCurrency AddCurrency(VBCurrency left, VBCurrency right) =>
         VBCurrency.FromScaled(checked(left.ScaledValue + right.ScaledValue));
@@ -426,7 +500,11 @@ public static partial class VBOperators
 
     public static IntPtr NotLongPtr(IntPtr value) => FromLongPtr(~value.ToInt64());
 
+    public static ushort NotUShort(ushort value) => (ushort)~value;
+
     public static uint NotUInteger(uint value) => ~value;
+
+    public static ulong NotULong(ulong value) => ~value;
 
     public static byte AndByte(byte left, byte right) => (byte)(left & right);
 
@@ -438,7 +516,11 @@ public static partial class VBOperators
 
     public static IntPtr AndLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() & right.ToInt64());
 
+    public static ushort AndUShort(ushort left, ushort right) => (ushort)(left & right);
+
     public static uint AndUInteger(uint left, uint right) => left & right;
+
+    public static ulong AndULong(ulong left, ulong right) => left & right;
 
     public static byte OrByte(byte left, byte right) => (byte)(left | right);
 
@@ -450,7 +532,11 @@ public static partial class VBOperators
 
     public static IntPtr OrLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() | right.ToInt64());
 
+    public static ushort OrUShort(ushort left, ushort right) => (ushort)(left | right);
+
     public static uint OrUInteger(uint left, uint right) => left | right;
+
+    public static ulong OrULong(ulong left, ulong right) => left | right;
 
     public static byte XorByte(byte left, byte right) => (byte)(left ^ right);
 
@@ -462,7 +548,11 @@ public static partial class VBOperators
 
     public static IntPtr XorLongPtr(IntPtr left, IntPtr right) => FromLongPtr(left.ToInt64() ^ right.ToInt64());
 
+    public static ushort XorUShort(ushort left, ushort right) => (ushort)(left ^ right);
+
     public static uint XorUInteger(uint left, uint right) => left ^ right;
+
+    public static ulong XorULong(ulong left, ulong right) => left ^ right;
 
     public static short EqvInteger(short left, short right) => unchecked((short)~(left ^ right));
 
@@ -472,7 +562,11 @@ public static partial class VBOperators
 
     public static IntPtr EqvLongPtr(IntPtr left, IntPtr right) => FromLongPtr(~(left.ToInt64() ^ right.ToInt64()));
 
+    public static ushort EqvUShort(ushort left, ushort right) => (ushort)~(left ^ right);
+
     public static uint EqvUInteger(uint left, uint right) => ~(left ^ right);
+
+    public static ulong EqvULong(ulong left, ulong right) => ~(left ^ right);
 
     public static short ImpInteger(short left, short right) =>
         unchecked((short)((~left & 0xFFFF) | (right & 0xFFFF)));
@@ -483,7 +577,11 @@ public static partial class VBOperators
 
     public static IntPtr ImpLongPtr(IntPtr left, IntPtr right) => FromLongPtr(~left.ToInt64() | right.ToInt64());
 
+    public static ushort ImpUShort(ushort left, ushort right) => (ushort)(~left | right);
+
     public static uint ImpUInteger(uint left, uint right) => ~left | right;
+
+    public static ulong ImpULong(ulong left, ulong right) => ~left | right;
 
     private static IntPtr FromLongPtr(long value) => new(value);
 
@@ -568,7 +666,9 @@ public static class VBDebug
             short number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             int number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             long number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            ushort number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             uint number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
+            ulong number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             IntPtr pointer => FormatNumeric(pointer.ToInt64().ToString(CultureInfo.InvariantCulture)),
             float number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),

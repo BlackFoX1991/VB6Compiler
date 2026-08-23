@@ -27,6 +27,26 @@ public sealed class UnsignedIntegerTypeBinderTests
         Assert.AreEqual(TypeSymbol.UInteger, add.Right.Type);
     }
 
+    [TestMethod]
+    public void Bind_RecognizesUShortAndULongAliases()
+    {
+        var model = BindSource("""
+            Function AddSmall(ByVal value As UInt16) As UShort
+                AddSmall = value + 1
+            End Function
+
+            Function AddWide(ByVal value As UInt64) As ULong
+                AddWide = value + 1
+            End Function
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        Assert.AreEqual(TypeSymbol.UShort, model.Procedures[0].Symbol.ReturnType);
+        Assert.AreEqual(TypeSymbol.UShort, model.Procedures[0].Symbol.Parameters.Single().Type);
+        Assert.AreEqual(TypeSymbol.ULong, model.Procedures[1].Symbol.ReturnType);
+        Assert.AreEqual(TypeSymbol.ULong, model.Procedures[1].Symbol.Parameters.Single().Type);
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");
