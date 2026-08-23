@@ -583,11 +583,13 @@ Der native LLVM-Emitter trägt nun den ersten ausgabefähigen Skalar-Slice: `Byt
 `Currency` und `Boolean` werden mit x86-/x64-breiten Typen, lokalen, globalen und Parameter-Slots,
 arithmetischen/vergleichenden Runtime-Operationen, Returns und Basic-Block-Verzweigungen als
 LLVM-Text emittiert. Direkte interne skalare Prozeduraufrufe werden mit Wert- und Pointer-Argumenten
-ebenfalls als native Calls emittiert. Skalare ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben;
+ebenfalls als native Calls emittiert. Skalare externe `Declare`-Prozeduren werden mit x86-/x64-
+Signaturen als LLVM-`declare`-Verträge ausgegeben und von generiertem Code aufgerufen. Skalare
+ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben;
 komplexe Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
 explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
 `.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
-**787 Tests**.
+**788 Tests**.
 
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
@@ -1116,7 +1118,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [ ] COM/ActiveX-Konsum: Typbibliotheken aus `Reference=`/`Object=`, `CreateObject`, `IDispatch`
 - [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
 - [ ] .NET-Backend als kompatibler Zielpfad neben dem nativen Backend stabilisieren
-- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots steht; native ABI-/Runtime-Emission für komplexe VB6-Werte bleibt offen
+- [~] LLVM-natives Windows-Backend für x86 und x64 — primitive skalare IR-Emission für x86/x64 einschließlich globaler Slots und skalarer `Declare`-Verträge steht; native ABI-/Runtime-Emission für komplexe VB6-Werte bleibt offen
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
