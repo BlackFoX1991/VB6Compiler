@@ -79,6 +79,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | `Erase` auf UDT-Memberarrays | **71** | **0** | **0** | **71** | **31 von 40** |
 | ByRef-Konstanten als typisierte Temporaries | **65** | **0** | **0** | **65** | **33 von 40** |
 | Identifier-Typensuffixe in Bindung und impliziten Variablen | **55** | **0** | **0** | **55** | **34 von 40** |
+| Statement-Aufrufe von Functions mit verworfenem Rückgabewert | **50** | **0** | **0** | **50** | **34 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -331,6 +332,13 @@ und `@` typisieren deklarierte und implizite Variablen, Parameter sowie Funktion
 VB6-Regeln; dadurch werden unter anderem die `lphKey&`-/`ret&`-Pfade in `envAssociation.bas`
 korrekt als `Long` gebunden. Der VISIA-Stand sinkt auf **55 semantische Fehler**, bei **34 von
 40** fehlerfreien Dateien. Die Suite umfasst nun **699 Tests**.
+
+Statementartige Aufrufe von Klassen-Functions dürfen ihren Rückgabewert nun wie in VB6 verwerfen;
+der Aufruf bleibt als ausgewertete IR-Anweisung erhalten, damit Seiteneffekte ausgeführt werden.
+Damit verschwinden die fünf `Append`-Diagnosen aus `CodeEdit.ctl`. Der VISIA-Stand sinkt auf
+**50 semantische Fehler**, bei weiterhin **34 von 40** fehlerfreien Dateien. Die verbliebene
+`String`-zu-`Variant`-ByRef-Diagnose bleibt bewusst sichtbar, weil VB6 bei einem typisierten
+ByRef-Argument den exakten Parametertyp verlangt.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
