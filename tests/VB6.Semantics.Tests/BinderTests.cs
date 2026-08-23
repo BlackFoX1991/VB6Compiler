@@ -100,6 +100,48 @@ public sealed class BinderTests
     }
 
     [TestMethod]
+    public void Bind_UsesDynamicDispatchForVariantMemberStatements()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim value As Variant
+                value.Navigate 1
+                value.ListImages(1).Draw 0, 0, 0, 1
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var statements = model.Procedures.Single().Body.Statements
+            .OfType<BoundMemberInvocationStatement>()
+            .ToArray();
+        Assert.AreEqual(2, statements.Length);
+        Assert.IsTrue(statements.All(statement => statement.Procedure.IsLateBound));
+        Assert.AreEqual("Navigate", statements[0].Procedure.Name);
+        Assert.AreEqual("Draw", statements[1].Procedure.Name);
+    }
+
+    [TestMethod]
+    public void Bind_CombinesWhitespaceSeparatedIndexedMemberArguments()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim form As Form
+                form.PSet (1, 2), 0
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var invocation = model.Procedures.Single().Body.Statements
+            .OfType<BoundMemberInvocationStatement>()
+            .Single();
+        Assert.AreEqual("PSet", invocation.Procedure.Name);
+        var dynamicArguments = invocation.Arguments.Single().Expression as BoundArrayLiteralExpression;
+        Assert.IsNotNull(dynamicArguments);
+        Assert.AreEqual(3, dynamicArguments.Elements.Length);
+        Assert.IsTrue(invocation.Procedure.IsLateBound);
+    }
+
+    [TestMethod]
     public void Bind_ReportsUndefinedProcedure()
     {
         var model = BindSource("""

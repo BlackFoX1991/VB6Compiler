@@ -1180,16 +1180,18 @@ public sealed class Parser
 
     /// <summary>
     /// Parses <c>receiver.Member arg, arg</c>. The receiver keeps its full member chain, and the
-    /// arguments follow the same rules as any other call statement.
+    /// arguments follow the same rules as any other call statement. Parenthesized arguments may
+    /// be separated from the member by whitespace, as in <c>control.Refresh (1)</c>.
     /// </summary>
     private QualifiedInvocationStatementSyntax ParseQualifiedInvocationStatement()
     {
         var target = ParsePrimaryExpression();
         if (target is ElementAccessExpressionSyntax
             {
-                Receiver: MemberAccessExpressionSyntax memberTarget,
-                OpenParenthesisToken.LeadingTrivia.IsDefaultOrEmpty: true
-            } elementCall)
+                Receiver: MemberAccessExpressionSyntax memberTarget
+            } elementCall &&
+            (elementCall.OpenParenthesisToken.LeadingTrivia.IsDefaultOrEmpty ||
+             Current.Kind != SyntaxKind.CommaToken))
         {
             return new QualifiedInvocationStatementSyntax(memberTarget, elementCall.Indices);
         }
