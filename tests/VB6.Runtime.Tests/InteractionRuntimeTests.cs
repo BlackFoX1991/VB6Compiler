@@ -104,6 +104,20 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void Application_ProvidesStableHeadlessMetadata()
+    {
+        var application = VBInteraction.Application();
+
+        Assert.IsFalse(string.IsNullOrWhiteSpace(application.EXEName));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(application.Path));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(application.Title));
+        Assert.AreEqual(0, application.hInstance);
+        Assert.IsTrue(application.Major >= 0);
+        Assert.IsTrue(application.Minor >= 0);
+        Assert.IsTrue(application.Revision >= 0);
+    }
+
+    [TestMethod]
     public void LoadPicture_ExposesDeterministicHostMetadataDefaults()
     {
         var picture = VBInteraction.LoadPicture(string.Empty);

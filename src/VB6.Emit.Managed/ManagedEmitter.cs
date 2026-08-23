@@ -2385,6 +2385,14 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));
             if (m == IrRuntimeMethod.InteractionCommand) return Static(typeof(VBInteraction), nameof(VBInteraction.Command));
             if (m == IrRuntimeMethod.InteractionEnviron) return Static(typeof(VBInteraction), nameof(VBInteraction.Environ), typeof(object));
+            if (m == IrRuntimeMethod.InteractionApplication) return Static(typeof(VBInteraction), nameof(VBInteraction.Application));
+            if (m == IrRuntimeMethod.InteractionApplicationExeName) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationExeName));
+            if (m == IrRuntimeMethod.InteractionApplicationPath) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationPath));
+            if (m == IrRuntimeMethod.InteractionApplicationTitle) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationTitle));
+            if (m == IrRuntimeMethod.InteractionApplicationHInstance) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationHInstance));
+            if (m == IrRuntimeMethod.InteractionApplicationMajor) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationMajor));
+            if (m == IrRuntimeMethod.InteractionApplicationMinor) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationMinor));
+            if (m == IrRuntimeMethod.InteractionApplicationRevision) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationRevision));
             if (m == IrRuntimeMethod.InteractionGetSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.GetSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSaveSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.SaveSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSendKeys) return Static(typeof(VBInteraction), nameof(VBInteraction.SendKeys), typeof(string), typeof(bool));
@@ -2685,6 +2693,7 @@ public sealed class ManagedEmitter
 
         private static bool IsRuntimeObjectContract(ClassTypeSymbol type) =>
             ReferenceEquals(type, VBStandardTypes.Object) ||
+            ReferenceEquals(type, VBStandardTypes.App) ||
             ReferenceEquals(type, VBStandardTypes.Control) ||
             ReferenceEquals(type, VBStandardTypes.Form) ||
             ReferenceEquals(type, VBStandardTypes.UserControl);

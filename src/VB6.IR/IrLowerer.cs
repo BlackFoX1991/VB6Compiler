@@ -2213,6 +2213,11 @@ public static class IrLowerer
                     expression.Property.Type);
             }
 
+            if (IsApplicationObject(expression.Receiver))
+            {
+                return LowerApplicationProperty(expression.Property.Name);
+            }
+
             if (expression.Receiver.Type is ClassTypeSymbol classType &&
                 ReferenceEquals(classType, VBStandardTypes.Collection))
             {
@@ -2504,6 +2509,11 @@ public static class IrLowerer
         /// </summary>
         private IrExpression LowerVariableRead(VariableSymbol symbol)
         {
+            if (symbol is ModuleVariableSymbol application && IsApplicationObject(application))
+            {
+                return Runtime(IrRuntimeMethod.InteractionApplication, application.Type);
+            }
+
             if (symbol is ModuleVariableSymbol module &&
                 _program.TryGetConstantValue(module, out var value))
             {
@@ -2512,6 +2522,26 @@ public static class IrLowerer
 
             return new IrLoadExpression(LowerVariablePlace(symbol));
         }
+
+        private static IrExpression LowerApplicationProperty(string name) =>
+            name.ToUpperInvariant() switch
+            {
+                "EXENAME" => Runtime(IrRuntimeMethod.InteractionApplicationExeName, TypeSymbol.String),
+                "PATH" => Runtime(IrRuntimeMethod.InteractionApplicationPath, TypeSymbol.String),
+                "TITLE" => Runtime(IrRuntimeMethod.InteractionApplicationTitle, TypeSymbol.String),
+                "HINSTANCE" => Runtime(IrRuntimeMethod.InteractionApplicationHInstance, TypeSymbol.Long),
+                "MAJOR" => Runtime(IrRuntimeMethod.InteractionApplicationMajor, TypeSymbol.Long),
+                "MINOR" => Runtime(IrRuntimeMethod.InteractionApplicationMinor, TypeSymbol.Long),
+                "REVISION" => Runtime(IrRuntimeMethod.InteractionApplicationRevision, TypeSymbol.Long),
+                _ => throw new NotSupportedException($"App property '{name}' has no runtime contract.")
+            };
+
+        private static bool IsApplicationObject(BoundExpression expression) =>
+            expression.Type is ClassTypeSymbol classType &&
+            ReferenceEquals(classType, VBStandardTypes.App);
+
+        private static bool IsApplicationObject(ModuleVariableSymbol symbol) =>
+            ReferenceEquals(symbol.Type, VBStandardTypes.App);
 
         private IrPlace LowerVariablePlace(VariableSymbol symbol)
         {

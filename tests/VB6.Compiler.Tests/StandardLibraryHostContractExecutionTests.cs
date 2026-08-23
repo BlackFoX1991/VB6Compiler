@@ -59,6 +59,24 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesApplicationObjectContract()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print Len(App.EXEName)
+                Debug.Print Len(App.Path)
+                Debug.Print App.hInstance
+                Debug.Print App.Major
+            End Sub
+            """);
+
+        Assert.IsTrue(int.Parse(lines[0], CultureInfo.InvariantCulture) > 0);
+        Assert.IsTrue(int.Parse(lines[1], CultureInfo.InvariantCulture) > 0);
+        Assert.AreEqual("0", lines[2]);
+        Assert.IsTrue(int.Parse(lines[3], CultureInfo.InvariantCulture) >= 0);
+    }
+
+    [TestMethod]
     public void Analyze_ResolvesScreenAmbientPictureFontAndPropertyBagContracts()
     {
         var analysis = VBCompilation.Create("""

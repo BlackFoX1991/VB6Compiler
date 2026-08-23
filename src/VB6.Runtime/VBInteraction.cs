@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Globalization;
+using System.Reflection;
 
 namespace VB6.Runtime;
 
@@ -8,6 +9,7 @@ public static class VBInteraction
 {
     private static readonly Dictionary<string, string> Settings = new(StringComparer.Ordinal);
     private static readonly object SettingsGate = new();
+    private static readonly VBApplication ApplicationValue = VBApplication.Create();
 
     /// <summary>Yielding to a UI message pump is a host concern; the compiler runtime has no pump.</summary>
     public static void DoEvents()
@@ -117,6 +119,23 @@ public static class VBInteraction
     {
         public string Text => $"{Name}={Value}";
     }
+
+    /// <summary>Returns the process application object used by the built-in <c>App</c> global.</summary>
+    public static VBApplication Application() => ApplicationValue;
+
+    public static string ApplicationExeName() => ApplicationValue.EXEName;
+
+    public static string ApplicationPath() => ApplicationValue.Path;
+
+    public static string ApplicationTitle() => ApplicationValue.Title;
+
+    public static int ApplicationHInstance() => ApplicationValue.hInstance;
+
+    public static int ApplicationMajor() => ApplicationValue.Major;
+
+    public static int ApplicationMinor() => ApplicationValue.Minor;
+
+    public static int ApplicationRevision() => ApplicationValue.Revision;
 
     /// <summary>
     /// Provides a deterministic process-local replacement for the VB6 registry settings API.
@@ -252,6 +271,69 @@ public static class VBInteraction
             appName.ToUpperInvariant(),
             section.ToUpperInvariant(),
             key.ToUpperInvariant());
+}
+
+/// <summary>
+/// Host-neutral application metadata exposed through VB6's global <c>App</c> object. A UI or
+/// native host can supply a richer instance without changing generated member access.
+/// </summary>
+public sealed class VBApplication
+{
+    private VBApplication(
+        string exeName,
+        string path,
+        string title,
+        int major,
+        int minor,
+        int revision)
+    {
+        EXEName = exeName;
+        Path = path;
+        Title = title;
+        Major = major;
+        Minor = minor;
+        Revision = revision;
+    }
+
+    public string EXEName { get; }
+
+    public string Path { get; }
+
+    public string Title { get; }
+
+    public int hInstance => 0;
+
+    public int Major { get; }
+
+    public int Minor { get; }
+
+    public int Revision { get; }
+
+    internal static VBApplication Create()
+    {
+        var assembly = Assembly.GetEntryAssembly();
+        var assemblyPath = assembly?.Location;
+        var fullPath = string.IsNullOrWhiteSpace(assemblyPath)
+            ? Environment.ProcessPath
+            : assemblyPath;
+        var exeName = string.IsNullOrWhiteSpace(fullPath)
+            ? assembly?.GetName().Name ?? string.Empty
+            : System.IO.Path.GetFileNameWithoutExtension(fullPath);
+        var path = string.IsNullOrWhiteSpace(fullPath)
+            ? AppContext.BaseDirectory.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)
+            : System.IO.Path.GetDirectoryName(fullPath) ?? string.Empty;
+        var assemblyName = assembly?.GetName();
+        var version = assemblyName?.Version;
+        var title = assembly?.GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
+
+        return new VBApplication(
+            exeName,
+            path,
+            string.IsNullOrEmpty(title) ? assemblyName?.Name ?? exeName : title,
+            version?.Major ?? 0,
+            version?.Minor ?? 0,
+            version?.Revision ?? 0);
+    }
 }
 
 public sealed record VBGraphicsLine(

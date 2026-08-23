@@ -565,6 +565,13 @@ sortierten `NAME=VALUE`-Einträgen; unbekannte Namen und Positionen liefern den 
 VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
 umfasst nun **776 Tests**.
 
+Das globale `App`-Objekt besitzt nun einen hostneutralen Managed-Vertrag. `EXEName`, `Path`,
+`Title`, `Major`, `Minor` und `Revision` werden aus der Entry-Assembly abgeleitet; `hInstance`
+liefert im Headless-Profil deterministisch `0`. Die Properties werden mit typisierten IR-/Runtime-
+Aufrufen emittiert, damit numerische Werte nicht über den objektbasierten Late-Bound-Pfad laufen.
+Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
+Suite umfasst nun **778 Tests**.
+
 Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
 Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
 Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
