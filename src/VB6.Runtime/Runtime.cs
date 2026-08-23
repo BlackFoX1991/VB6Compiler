@@ -683,6 +683,7 @@ public static class VBDebug
         return value switch
         {
             null => string.Empty,
+            VBErrorValue error => $"Error {error.Code}",
             string text => text,
             bool boolean => boolean ? "True" : "False",
             byte number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),

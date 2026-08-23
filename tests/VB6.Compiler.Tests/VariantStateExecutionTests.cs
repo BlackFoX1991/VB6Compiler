@@ -82,6 +82,7 @@ public sealed class VariantStateExecutionTests
                 Dim value As Variant
                 value = CVErr(11)
 
+                Debug.Print value
                 Debug.Print IsError(value)
                 Debug.Print IsError(Empty)
                 Debug.Print VarType(value)
@@ -92,7 +93,7 @@ public sealed class VariantStateExecutionTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "True", "False", "10", "Error", "Null", "Nothing", "True" }, output);
+        CollectionAssert.AreEqual(new[] { "Error 11", "True", "False", "10", "Error", "Null", "Nothing", "True" }, output);
     }
 
     [TestMethod]
