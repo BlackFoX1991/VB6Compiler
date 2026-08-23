@@ -64,6 +64,19 @@ public sealed class MemberAccessParserTests
         Assert.IsInstanceOfType<InvocationExpressionSyntax>(target.Receiver);
     }
 
+    [TestMethod]
+    public void Parse_RecognizesSetAssignmentAfterIndexedMember()
+    {
+        var statement = ParseSingleStatement("Set points(i).X = value");
+
+        var assignment = statement as SetAssignmentStatementSyntax;
+        Assert.IsNotNull(assignment);
+        var target = assignment.Target as MemberAccessExpressionSyntax;
+        Assert.IsNotNull(target);
+        Assert.AreEqual("X", target.MemberToken.Text);
+        Assert.IsInstanceOfType<InvocationExpressionSyntax>(target.Receiver);
+    }
+
     private static StatementSyntax ParseSingleStatement(string statement)
     {
         var source = $"Sub Main()\n    {statement}\nEnd Sub";
