@@ -407,6 +407,7 @@ public enum IrRuntimeMethod
     StringVariantGreaterOrEqual,
 
     DebugPrint,
+    GraphicsLine,
 
     StringLen,
     StringMid,

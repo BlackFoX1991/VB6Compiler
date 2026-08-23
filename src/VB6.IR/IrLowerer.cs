@@ -944,6 +944,21 @@ public static class IrLowerer
                         TypeSymbol.Error,
                         LowerExpression(print.Expression))));
                     break;
+                case BoundGraphicsLineStatement line:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.GraphicsLine,
+                        TypeSymbol.Error,
+                        LowerExpression(line.StartX),
+                        LowerExpression(line.StartY),
+                        LowerExpression(line.EndX),
+                        LowerExpression(line.EndY),
+                        line.Color is null
+                            ? new IrNullExpression(TypeSymbol.Variant)
+                            : LowerExpression(line.Color),
+                        new IrConstantExpression(line.IsStep, TypeSymbol.Boolean),
+                        new IrConstantExpression(line.DrawBox, TypeSymbol.Boolean),
+                        new IrConstantExpression(line.Fill, TypeSymbol.Boolean))));
+                    break;
                 case BoundFilePrintStatement print:
                     Emit(new IrEvaluateInstruction(Runtime(
                         IrRuntimeMethod.FilePrint,

@@ -79,6 +79,23 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void Lower_UsesGraphicsLineHostContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim x As Long
+                x = 10
+                Line (x, 2)-(x + 3, 4), vbRed, B, F
+                Line Step (1, 2)-(3, 4), vbBlue
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { VB6.IR.IrRuntimeMethod.GraphicsLine, VB6.IR.IrRuntimeMethod.GraphicsLine },
+            VB6TestIr.RuntimeCalls(program).Where(method => method == VB6.IR.IrRuntimeMethod.GraphicsLine).ToArray());
+    }
+
+    [TestMethod]
     public void Analyze_ResolvesExternalControlAndComTypeAliases()
     {
         var analysis = VBCompilation.Create("""

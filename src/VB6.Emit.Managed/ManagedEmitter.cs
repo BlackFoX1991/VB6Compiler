@@ -2244,6 +2244,17 @@ public sealed class ManagedEmitter
             skippedArgument = -1;
             var m = call.Method;
             if (m == IrRuntimeMethod.DebugPrint) return Static(typeof(VBDebug), "Print", typeof(object));
+            if (m == IrRuntimeMethod.GraphicsLine) return Static(
+                typeof(VBInteraction),
+                nameof(VBInteraction.GraphicsLine),
+                typeof(float),
+                typeof(float),
+                typeof(float),
+                typeof(float),
+                typeof(object),
+                typeof(bool),
+                typeof(bool),
+                typeof(bool));
             if (m == IrRuntimeMethod.CByte) return Static(typeof(VBConversions), "CByte", typeof(object));
             if (m == IrRuntimeMethod.CInt) return Static(typeof(VBConversions), "CInt", typeof(object));
             if (m == IrRuntimeMethod.CLng) return Static(typeof(VBConversions), "CLng", typeof(object));

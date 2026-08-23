@@ -72,6 +72,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Externe VB6-/Win32-Konstantenverträge | **172** | **0** | **0** | **172** | **27 von 40** |
 | `Erl`- und `Clipboard.GetText`-Hostverträge | **169** | **0** | **0** | **169** | **27 von 40** |
 | Externe Control-/COM-Typaliase und TreeView-Node-Vertrag | **134** | **0** | **0** | **134** | **27 von 40** |
+| Graphics-`Line`-Runtimevertrag | **120** | **0** | **0** | **120** | **27 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -278,6 +279,15 @@ ist als eigener Minimalvertrag mit `Key`, `Text` und `Index` modelliert. Damit v
 Typ-/Folgefehler; der VISIA-Stand beträgt **134 semantische Fehler**, weiterhin **27 von 40**
 fehlerfreien Dateien, bei **686 Tests**. COM-Identität, echtes OCX-Hosting und vollständige
 Memberbibliotheken bleiben bewusst spätere Interop-Slices.
+
+Graphics-`Line`-Anweisungen werden nun semantisch gebunden, nach `Single` konvertiert und über
+einen host-neutralen IR-/Managed-Runtimevertrag emittiert. Der Vertrag trägt Farbwert, `Step`
+sowie die Box-/Fill-Optionen `B` und `F`; ein UI-Host kann die strukturierte Operation über den
+`GraphicsLineSink` übernehmen, während Headless-Läufe ohne Sink deterministisch bleiben. Dadurch
+fallen **14** bisherige VISIA-Diagnosen weg: Der Stand sinkt auf **120 semantische Fehler** bei
+weiterhin **27 von 40** fehlerfreien Dateien; die Suite umfasst **688 Tests**. Die verbleibenden
+Objektmodellfälle wie `End`, `Erase` auf Objektmembern und echte Control-/COM-Methoden bleiben
+separate Compiler-/Interop-Slices.
 
 Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
 `Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen

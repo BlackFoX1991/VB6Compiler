@@ -131,6 +131,34 @@ public static class VBInteraction
     /// <summary>Signals a changed UserControl property to a host; headless execution has no sink.</summary>
     public static void PropertyChanged(string propertyName) => _ = propertyName;
 
+    /// <summary>
+    /// Sends a VB6 graphics Line operation to the active UI host. Headless runs keep the contract
+    /// deterministic and perform no drawing when no sink is installed.
+    /// </summary>
+    public static void GraphicsLine(
+        float startX,
+        float startY,
+        float endX,
+        float endY,
+        object? color,
+        bool isStep,
+        bool drawBox,
+        bool fill)
+    {
+        GraphicsLineSink?.Invoke(new VBGraphicsLine(
+            startX,
+            startY,
+            endX,
+            endY,
+            color is null ? null : VBConversions.CLng(color),
+            isStep,
+            drawBox,
+            fill));
+    }
+
+    /// <summary>Host callback for drawing operations; null means a headless no-op backend.</summary>
+    public static Action<VBGraphicsLine>? GraphicsLineSink { get; set; }
+
     private static string MakeSettingKey(string appName, string section, string key) =>
         string.Join(
             '\u001f',
@@ -138,6 +166,16 @@ public static class VBInteraction
             section.ToUpperInvariant(),
             key.ToUpperInvariant());
 }
+
+public sealed record VBGraphicsLine(
+    float StartX,
+    float StartY,
+    float EndX,
+    float EndY,
+    int? Color,
+    bool IsStep,
+    bool DrawBox,
+    bool Fill);
 
 public sealed record VBComObject(string ClassName, string ServerName);
 

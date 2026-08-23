@@ -46,4 +46,30 @@ public sealed class InteractionRuntimeTests
         Assert.AreEqual(8f, VBInteraction.ScaleY(8f, 0, 0));
         Assert.AreEqual(5f, VBInteraction.TextWidth("hello"));
     }
+
+    [TestMethod]
+    public void GraphicsLine_ForwardsTypedOperationToHostSink()
+    {
+        VBGraphicsLine? captured = null;
+        var previousSink = VBInteraction.GraphicsLineSink;
+        try
+        {
+            VBInteraction.GraphicsLineSink = line => captured = line;
+            VBInteraction.GraphicsLine(10f, 2f, 13f, 4f, 255, false, true, true);
+        }
+        finally
+        {
+            VBInteraction.GraphicsLineSink = previousSink;
+        }
+
+        Assert.IsNotNull(captured);
+        Assert.AreEqual(10f, captured!.StartX);
+        Assert.AreEqual(2f, captured.StartY);
+        Assert.AreEqual(13f, captured.EndX);
+        Assert.AreEqual(4f, captured.EndY);
+        Assert.AreEqual(255, captured.Color);
+        Assert.IsFalse(captured.IsStep);
+        Assert.IsTrue(captured.DrawBox);
+        Assert.IsTrue(captured.Fill);
+    }
 }
