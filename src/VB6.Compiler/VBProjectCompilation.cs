@@ -55,9 +55,7 @@ public sealed class VBProjectCompilation
 
         ValidateProjectReferences(loadResult.Project, projectDiagnostics);
 
-        foreach (var module in loadResult.Project.Items.Where(item =>
-                     item.Kind is VBProjectItemKind.Module or VBProjectItemKind.Class or
-                         VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        foreach (var module in loadResult.Project.Items.Where(item => IsSourceModuleKind(item.Kind)))
         {
             var modulePath = module.GetFullPath(loadResult.Project.ProjectDirectory);
             if (!File.Exists(modulePath))
@@ -83,8 +81,7 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            var normalizedSource = module.Kind is VBProjectItemKind.Class or
-                VBProjectItemKind.Form or VBProjectItemKind.UserControl
+            var normalizedSource = IsClassModuleKind(module.Kind)
                 ? VBClassModuleSource.Normalize(source)
                 : source;
             var text = SourceText.From(normalizedSource, modulePath);
@@ -144,8 +141,7 @@ public sealed class VBProjectCompilation
             parsedModules,
             userDefinedTypesByPath,
             projectDiagnostics);
-        foreach (var item in loadResult.Project.Items.Where(item =>
-                     item.Kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        foreach (var item in loadResult.Project.Items.Where(item => IsHostModuleKind(item.Kind)))
         {
             var name = string.IsNullOrWhiteSpace(item.Name)
                 ? Path.GetFileNameWithoutExtension(item.RelativePath)
@@ -184,8 +180,7 @@ public sealed class VBProjectCompilation
             classTypes.TryGetValue(
                 module.Item.Name ?? Path.GetFileNameWithoutExtension(module.FilePath),
                 out var containingClass);
-            if (module.Item.Kind is not (VBProjectItemKind.Class or VBProjectItemKind.Form or
-                VBProjectItemKind.UserControl))
+            if (!IsClassModuleKind(module.Item.Kind))
             {
                 containingClass = null;
             }
@@ -288,7 +283,7 @@ public sealed class VBProjectCompilation
         var variables = new Dictionary<string, ModuleVariableSymbol>(
             projectVariables,
             StringComparer.OrdinalIgnoreCase);
-        if (module.Item.Kind is not (VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        if (!IsHostModuleKind(module.Item.Kind))
         {
             return variables;
         }
@@ -484,8 +479,7 @@ public sealed class VBProjectCompilation
     {
         var classTypes = new Dictionary<string, ClassTypeSymbol>(StringComparer.OrdinalIgnoreCase);
         var origins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var module in modules.Where(module => module.Item.Kind is
-                     VBProjectItemKind.Class or VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        foreach (var module in modules.Where(module => IsClassModuleKind(module.Item.Kind)))
         {
             var name = string.IsNullOrWhiteSpace(module.Item.Name)
                 ? Path.GetFileNameWithoutExtension(module.FilePath)
@@ -503,8 +497,7 @@ public sealed class VBProjectCompilation
                 module.FilePath));
         }
 
-        foreach (var item in projectItems.Where(item => item.Kind is
-                     VBProjectItemKind.Class or VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        foreach (var item in projectItems.Where(item => IsClassModuleKind(item.Kind)))
         {
             var name = string.IsNullOrWhiteSpace(item.Name)
                 ? Path.GetFileNameWithoutExtension(item.RelativePath)
@@ -524,8 +517,7 @@ public sealed class VBProjectCompilation
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var interfaceRelations = new List<(ClassTypeSymbol Implementor, ImplementsStatementSyntax Declaration, string FilePath)>();
-        foreach (var module in modules.Where(module => module.Item.Kind is
-                     VBProjectItemKind.Class or VBProjectItemKind.Form or VBProjectItemKind.UserControl))
+        foreach (var module in modules.Where(module => IsClassModuleKind(module.Item.Kind)))
         {
             var name = string.IsNullOrWhiteSpace(module.Item.Name)
                 ? Path.GetFileNameWithoutExtension(module.FilePath)
@@ -561,7 +553,7 @@ public sealed class VBProjectCompilation
                 AddReadWriteProperty(properties, variable.Name, variable.Type);
             }
 
-            if (module.Item.Kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl)
+            if (IsHostModuleKind(module.Item.Kind))
             {
                 var hostType = module.Item.Kind == VBProjectItemKind.Form
                     ? VBStandardTypes.Form
@@ -812,8 +804,7 @@ public sealed class VBProjectCompilation
         IReadOnlyDictionary<string, ProcedureSymbol> projectProcedures,
         IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath)
     {
-            if (module.Item.Kind is not (VBProjectItemKind.Class or VBProjectItemKind.Form or
-                VBProjectItemKind.UserControl))
+            if (!IsClassModuleKind(module.Item.Kind))
         {
             return projectProcedures;
         }
@@ -841,7 +832,7 @@ public sealed class VBProjectCompilation
             }
         }
 
-        if (module.Item.Kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl)
+        if (IsHostModuleKind(module.Item.Kind))
         {
             VBIntrinsicSymbols.AddHostProcedures(procedures);
         }
@@ -949,6 +940,24 @@ public sealed class VBProjectCompilation
             "DLL" or
             "ACTIVEX DLL" or
             "ACTIVEX CONTROL";
+
+    private static bool IsSourceModuleKind(VBProjectItemKind kind) =>
+        kind is VBProjectItemKind.Module or
+            VBProjectItemKind.Class or
+            VBProjectItemKind.Form or
+            VBProjectItemKind.UserControl or
+            VBProjectItemKind.PropertyPage or
+            VBProjectItemKind.UserDocument;
+
+    private static bool IsClassModuleKind(VBProjectItemKind kind) =>
+        kind is VBProjectItemKind.Class or
+            VBProjectItemKind.Form or
+            VBProjectItemKind.UserControl or
+            VBProjectItemKind.PropertyPage or
+            VBProjectItemKind.UserDocument;
+
+    private static bool IsHostModuleKind(VBProjectItemKind kind) =>
+        kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl;
 
     private sealed record ParsedProjectModule(
         VBProjectItem Item,

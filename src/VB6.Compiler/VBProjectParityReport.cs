@@ -28,7 +28,9 @@ public sealed record VBProjectParityReport(
             VBProjectItemKind.Module,
             VBProjectItemKind.Class,
             VBProjectItemKind.Form,
-            VBProjectItemKind.UserControl);
+            VBProjectItemKind.UserControl,
+            VBProjectItemKind.PropertyPage,
+            VBProjectItemKind.UserDocument);
 
     public int TotalItemCount => ItemKinds.Sum(kind => kind.Count);
 

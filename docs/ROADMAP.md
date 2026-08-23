@@ -1241,8 +1241,9 @@ Projekt- und Klassennamen in die semantische Sicht und in Managed-IL-Assembly-/M
 und die verbreiteten `MSComctlLib`-/
 `RichTextLib`-/`MSComDlg`-Controltypen werden projektlokal erkannt. Die Projektgruppenregressionen
 erhöhen die Suite auf
-**839 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
+**840 Tests**. `Type=OleDll` und `Type=Control` werden dabei als Managed-Libraries ohne `Sub Main`
 emittiert. EXE-Projekte mit `Startup="FormName"` erhalten einen generierten Einstiegspunkt, der
 die erzeugte Formklasse konstruiert; Fenstererzeugung, Message Loop und OCX-Hosting bleiben
-Host-/Interop-Aufgaben; vollständiger ActiveX-/COM-Server- und Typbibliotheksimport bleiben
-separate Kompatibilitätsstufen.
+Host-/Interop-Aufgaben. `PropertyPage`- und `UserDocument`-Quellen werden ebenfalls als
+Projektklassen analysiert und in Managed-Libraries aufgenommen; vollständiger
+ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate Kompatibilitätsstufen.
