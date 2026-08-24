@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using VB6.Compiler;
+using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
+using VB6.Syntax.Nodes;
 using VB6.Syntax.Text;
 
 namespace VB6.LanguageServer;
@@ -72,10 +74,20 @@ public sealed class LspServer
                 await PublishDiagnosticsAsync(message, cancellationToken);
                 break;
 
+            case "textDocument/didClose":
+                CloseDocument(message);
+                break;
+
             case "textDocument/completion":
+                await ReplyAsync(id, Completion(message), cancellationToken);
+                break;
+
             case "textDocument/definition":
+                await ReplyAsync(id, Definitions(message), cancellationToken);
+                break;
+
             case "textDocument/documentSymbol":
-                await ReplyAsync(id, new JsonArray(), cancellationToken);
+                await ReplyAsync(id, DocumentSymbols(message), cancellationToken);
                 break;
         }
     }
@@ -98,6 +110,242 @@ public sealed class LspServer
                 : _documents.TryGetValue(uri, out var existing) ? existing.Text : string.Empty;
         _documents[uri] = new Document(uri, UriToPath(uri), text);
     }
+
+    private void CloseDocument(JsonElement message)
+    {
+        if (!message.TryGetProperty("params", out var parameters) ||
+            !parameters.TryGetProperty("textDocument", out var textDocument) ||
+            !textDocument.TryGetProperty("uri", out var uriValue))
+        {
+            return;
+        }
+
+        var uri = uriValue.GetString() ?? string.Empty;
+        _documents.TryRemove(uri, out _);
+    }
+
+    private JsonArray Completion(JsonElement message)
+    {
+        if (!TryGetRequestDocument(message, out var document, out var parameters))
+        {
+            return new JsonArray();
+        }
+
+        var source = SourceText.From(document.Text, document.Path);
+        var root = VBCompilation.Create(document.Text, document.Path).Analyze().ParseResult.Root;
+        var prefix = GetWordPrefix(source, parameters);
+        var candidates = GetDeclarations(root)
+            .Select(declaration => (
+                Name: declaration.Name,
+                Kind: declaration.Kind,
+                Detail: declaration.Detail))
+            .Concat(CommonIntrinsicNames.Select(name => (
+                Name: name,
+                Kind: SymbolKind.Function,
+                Detail: "VB6 intrinsic")))
+            .Where(candidate => prefix.Length == 0 ||
+                candidate.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase);
+
+        var result = new JsonArray();
+        foreach (var candidate in candidates)
+        {
+            result.Add(new JsonObject
+            {
+                ["label"] = candidate.Name,
+                ["kind"] = candidate.Kind,
+                ["detail"] = candidate.Detail
+            });
+        }
+
+        return result;
+    }
+
+    private JsonArray Definitions(JsonElement message)
+    {
+        if (!TryGetRequestDocument(message, out var document, out var parameters))
+        {
+            return new JsonArray();
+        }
+
+        var source = SourceText.From(document.Text, document.Path);
+        var root = VBCompilation.Create(document.Text, document.Path).Analyze().ParseResult.Root;
+        var word = GetWordAtPosition(source, parameters);
+        var result = new JsonArray();
+        foreach (var declaration in GetDeclarations(root).Where(declaration =>
+                     string.Equals(declaration.Name, word, StringComparison.OrdinalIgnoreCase)))
+        {
+            result.Add(new JsonObject
+            {
+                ["uri"] = document.Uri,
+                ["range"] = Range(source.GetLinePositionSpan(declaration.Span))
+            });
+        }
+
+        return result;
+    }
+
+    private JsonArray DocumentSymbols(JsonElement message)
+    {
+        if (!TryGetRequestDocument(message, out var document, out _))
+        {
+            return new JsonArray();
+        }
+
+        var source = SourceText.From(document.Text, document.Path);
+        var root = VBCompilation.Create(document.Text, document.Path).Analyze().ParseResult.Root;
+        var result = new JsonArray();
+        foreach (var declaration in GetDeclarations(root))
+        {
+            var range = Range(source.GetLinePositionSpan(declaration.Span));
+            result.Add(new JsonObject
+            {
+                ["name"] = declaration.Name,
+                ["kind"] = declaration.Kind,
+                ["detail"] = declaration.Detail,
+                ["range"] = range,
+                ["selectionRange"] = range.DeepClone()
+            });
+        }
+
+        return result;
+    }
+
+    private bool TryGetRequestDocument(
+        JsonElement message,
+        out Document document,
+        out JsonElement parameters)
+    {
+        document = null!;
+        parameters = default;
+        if (!message.TryGetProperty("params", out parameters) ||
+            !parameters.TryGetProperty("textDocument", out var textDocument) ||
+            !textDocument.TryGetProperty("uri", out var uriValue))
+        {
+            return false;
+        }
+
+        var uri = uriValue.GetString() ?? string.Empty;
+        return _documents.TryGetValue(uri, out document!);
+    }
+
+    private static string GetWordPrefix(SourceText source, JsonElement parameters)
+    {
+        var position = ReadPosition(parameters);
+        var line = GetLineText(source, position.Line);
+        var character = Math.Clamp(position.Character, 0, line.Length);
+        var start = character;
+        while (start > 0 && IsIdentifierPart(line[start - 1]))
+        {
+            start--;
+        }
+
+        return line[start..character];
+    }
+
+    private static string GetWordAtPosition(SourceText source, JsonElement parameters)
+    {
+        var position = ReadPosition(parameters);
+        var line = GetLineText(source, position.Line);
+        var character = Math.Clamp(position.Character, 0, line.Length);
+        var start = character;
+        var end = character;
+        while (start > 0 && IsIdentifierPart(line[start - 1]))
+        {
+            start--;
+        }
+
+        while (end < line.Length && IsIdentifierPart(line[end]))
+        {
+            end++;
+        }
+
+        return line[start..end];
+    }
+
+    private static LspPosition ReadPosition(JsonElement parameters)
+    {
+        if (!parameters.TryGetProperty("position", out var position))
+        {
+            return new LspPosition(0, 0);
+        }
+
+        return new LspPosition(
+            position.TryGetProperty("line", out var line) ? line.GetInt32() : 0,
+            position.TryGetProperty("character", out var character) ? character.GetInt32() : 0);
+    }
+
+    private static string GetLineText(SourceText source, int line)
+    {
+        if (line < 0 || line >= source.Lines.Length)
+        {
+            return string.Empty;
+        }
+
+        return source.ToString(source.Lines[line].Span);
+    }
+
+    private static bool IsIdentifierPart(char value) =>
+        char.IsLetterOrDigit(value) || value == '_' || "$%&!#@".Contains(value);
+
+    private static IEnumerable<DeclarationInfo> GetDeclarations(CompilationUnitSyntax root)
+    {
+        foreach (var member in root.Members)
+        {
+            switch (member)
+            {
+                case SubDeclarationSyntax sub:
+                    yield return Declaration(sub.Identifier, SymbolKind.Method, "Sub");
+                    break;
+                case FunctionDeclarationSyntax function:
+                    yield return Declaration(function.Identifier, SymbolKind.Function, "Function");
+                    break;
+                case PropertyDeclarationSyntax property:
+                    yield return Declaration(property.Identifier, SymbolKind.Property, "Property " + property.AccessorKeyword.Text);
+                    break;
+                case EventDeclarationSyntax @event:
+                    yield return Declaration(@event.Identifier, SymbolKind.Event, "Event");
+                    break;
+                case DeclareDeclarationSyntax declare:
+                    yield return Declaration(declare.Identifier, SymbolKind.Function, "Declare");
+                    break;
+                case EnumDeclarationSyntax @enum:
+                    yield return Declaration(@enum.Identifier, SymbolKind.Enum, "Enum");
+                    foreach (var memberSymbol in @enum.Members)
+                    {
+                        yield return Declaration(memberSymbol.Identifier, SymbolKind.EnumMember, "Enum member");
+                    }
+
+                    break;
+                case TypeDeclarationSyntax type:
+                    yield return Declaration(type.Identifier, SymbolKind.Struct, "Type");
+                    break;
+                case ConstDeclarationSyntax constant:
+                    yield return Declaration(constant.Identifier, SymbolKind.Constant, "Const");
+                    break;
+                case ModuleVariableDeclarationSyntax variables:
+                    foreach (var variable in variables.Declarators)
+                    {
+                        yield return Declaration(variable.Identifier, SymbolKind.Variable, "Variable");
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    private static DeclarationInfo Declaration(SyntaxToken token, int kind, string detail) =>
+        new(token.Text, token.Span, kind, detail);
+
+    private static readonly string[] CommonIntrinsicNames =
+    {
+        "Abs", "Asc", "CByte", "CDate", "CDec", "CDbl", "CInt", "CLng", "CStr", "CSng",
+        "Date", "DateAdd", "DateDiff", "DatePart", "Debug", "DoEvents", "Format", "Hex",
+        "IIf", "InStr", "Left", "Len", "Like", "LCase", "Mid", "MsgBox", "RGB", "Right",
+        "Round", "Sgn", "Sin", "Sqr", "String", "Time", "Trim", "UCase", "Val"
+    };
 
     private async Task PublishDiagnosticsAsync(JsonElement message, CancellationToken cancellationToken)
     {
@@ -225,6 +473,12 @@ public sealed class LspServer
         ["character"] = position.Character
     };
 
+    private static JsonObject Range(LinePositionSpan span) => new()
+    {
+        ["start"] = Position(span.Start),
+        ["end"] = Position(span.End)
+    };
+
     private static string UriToPath(string uri)
     {
         if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
@@ -236,4 +490,19 @@ public sealed class LspServer
     }
 
     private sealed record Document(string Uri, string Path, string Text);
+    private sealed record DeclarationInfo(string Name, TextSpan Span, int Kind, string Detail);
+    private readonly record struct LspPosition(int Line, int Character);
+
+    private static class SymbolKind
+    {
+        public const int Method = 6;
+        public const int Property = 7;
+        public const int Variable = 13;
+        public const int Constant = 14;
+        public const int Function = 12;
+        public const int Enum = 10;
+        public const int EnumMember = 22;
+        public const int Struct = 23;
+        public const int Event = 24;
+    }
 }
