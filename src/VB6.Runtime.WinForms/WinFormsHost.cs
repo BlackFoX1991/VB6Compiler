@@ -913,6 +913,41 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return binding;
     }
 
+    private bool TryGetFormBinding(Form form, out FormBinding binding)
+    {
+        binding = _bindings.Values.FirstOrDefault(candidate =>
+            ReferenceEquals(candidate.Form, form))!;
+        return binding is not null;
+    }
+
+    private void ApplyMdiParent(FormBinding binding)
+    {
+        if (!binding.IsMdiChild || binding.Form.IsDisposed)
+        {
+            binding.Form.MdiParent = null;
+            return;
+        }
+
+        var parent = _bindings.Values.FirstOrDefault(candidate =>
+            !ReferenceEquals(candidate, binding) &&
+            candidate.Form.IsMdiContainer &&
+            !candidate.Form.IsDisposed);
+        if (parent is not null)
+        {
+            binding.Form.MdiParent = parent.Form;
+        }
+    }
+
+    private void ApplyMdiChildren(Form parent)
+    {
+        foreach (var binding in _bindings.Values
+                     .Where(candidate => candidate.IsMdiChild)
+                     .ToArray())
+        {
+            ApplyMdiParent(binding);
+        }
+    }
+
     private static MenuStrip GetOrCreateMenuStrip(FormBinding binding)
     {
         if (binding.MenuStrip is not null)
@@ -1879,6 +1914,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (control is Form mdiForm &&
+            string.Equals(memberName, "MDIChild", StringComparison.OrdinalIgnoreCase) &&
+            TryGetFormBinding(mdiForm, out var mdiBinding))
+        {
+            value = mdiBinding.IsMdiChild;
+            return true;
+        }
+
         if (TryReadDesignerControlProperty(control, memberName, out value))
         {
             return true;
@@ -1925,6 +1968,34 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     {
         if (control is Form form && TryWriteFormProperty(form, memberName, value))
         {
+            return true;
+        }
+
+        if (control is Form mdiForm &&
+            string.Equals(memberName, "MDIForm", StringComparison.OrdinalIgnoreCase))
+        {
+            mdiForm.IsMdiContainer = VBConversions.CBool(value);
+            if (mdiForm.IsMdiContainer)
+            {
+                ApplyMdiChildren(mdiForm);
+            }
+
+            return true;
+        }
+
+        if (control is Form mdiChild &&
+            string.Equals(memberName, "MDIChild", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryGetFormBinding(mdiChild, out var mdiBinding))
+            {
+                mdiBinding.IsMdiChild = VBConversions.CBool(value);
+                ApplyMdiParent(mdiBinding);
+            }
+            else if (!VBConversions.CBool(value))
+            {
+                mdiChild.MdiParent = null;
+            }
+
             return true;
         }
 
@@ -3140,6 +3211,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public bool IsGeneratedUserControl { get; set; }
 
         public VBPropertyBag? UserControlPropertyBag { get; set; }
+
+        public bool IsMdiChild { get; set; }
 
         public MenuStrip? MenuStrip { get; set; }
     }

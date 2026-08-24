@@ -15,7 +15,7 @@ public static class VBStandardTypes
     public static ClassTypeSymbol Picture { get; } = CreatePicture();
     public static ClassTypeSymbol Font { get; } = CreateFont();
     public static ClassTypeSymbol Control { get; } = CreateControl("Control");
-    public static ClassTypeSymbol Form { get; } = CreateControl("Form");
+    public static ClassTypeSymbol Form { get; } = CreateControl("Form", includeMdiProperties: true);
     public static ClassTypeSymbol UserControl { get; } = CreateControl("UserControl");
     public static ClassTypeSymbol Screen { get; } = CreateScreen();
     public static ClassTypeSymbol Ambient { get; } = CreateAmbient();
@@ -525,7 +525,7 @@ public static class VBStandardTypes
         return type;
     }
 
-    private static ClassTypeSymbol CreateControl(string name)
+    private static ClassTypeSymbol CreateControl(string name, bool includeMdiProperties = false)
     {
         var type = new ClassTypeSymbol(name);
         type.MarkAsRuntimeObjectContract();
@@ -573,6 +573,10 @@ public static class VBStandardTypes
         properties.AddRange(ReadWriteProperties("Image", Picture));
         properties.AddRange(ReadWriteProperties("Font", Font));
         properties.AddRange(ReadWriteProperties("hDC", TypeSymbol.Long));
+        if (includeMdiProperties)
+        {
+            properties.AddRange(ReadWriteProperties("MDIChild", TypeSymbol.Boolean));
+        }
         if (!type.TryDefineMembers(
                 procedures.Select(procedure => procedure with { IsLateBound = true }),
                 properties.Select(property => property with { IsLateBound = true }),

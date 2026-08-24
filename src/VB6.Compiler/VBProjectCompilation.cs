@@ -629,6 +629,12 @@ public sealed class VBProjectCompilation
             }
         }
 
+        if (node.TypeName.Equals("VB.MDIForm", StringComparison.OrdinalIgnoreCase) ||
+            node.TypeName.Equals("MDIForm", StringComparison.OrdinalIgnoreCase))
+        {
+            initializers.Add(new DesignerPropertyInitializer("MDIForm", true));
+        }
+
         return initializers.ToImmutable();
     }
 
@@ -681,6 +687,7 @@ public sealed class VBProjectCompilation
         name.Equals("ShowInTaskbar", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("StartUpPosition", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("WindowState", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("MDIChild", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("ImageWidth", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("ImageHeight", StringComparison.OrdinalIgnoreCase) ||
         IsImageListDesignerProperty(name);

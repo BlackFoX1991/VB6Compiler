@@ -820,6 +820,59 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PreservesMdiFormDesignerKind()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "MdiApp.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Main"
+                Name="MdiApp"
+                Form=Main.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.MDIForm Main
+                   Caption = "Main"
+                End
+                Attribute VB_Name = "Main"
+                Attribute VB_PredeclaredId = True
+                Option Explicit
+
+                Private Sub Form_Load()
+                End Sub
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "MdiApp.dll"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            var constructor = result.Lowering.Program!.ClassDefinitions
+                .Single(definition => definition.Name == "Main")
+                .Methods
+                .Single(method => method.Name == ".ctor");
+            var mdiInitializer = constructor.Blocks
+                .SelectMany(block => block.Instructions)
+                .OfType<IrEvaluateInstruction>()
+                .Select(instruction => instruction.Expression)
+                .OfType<IrRuntimeCallExpression>()
+                .Single(call =>
+                    call.Method == IrRuntimeMethod.InteractionSetMember &&
+                    ((IrConstantExpression)call.Arguments[1].Expression).Value is "MDIForm");
+
+            Assert.AreEqual(true, ((IrConstantExpression)mdiInitializer.Arguments[2].Expression).Value);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_EmitsShapeAndLineDesignerValues()
     {
         var directory = CreateTemporaryDirectory();
