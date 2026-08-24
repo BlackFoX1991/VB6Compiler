@@ -66,6 +66,21 @@ public sealed class VBEventsTests
     }
 
     [TestMethod]
+    public void SubscribeMethod_DoesNotBindComProvidersToWrapperClrEvents()
+    {
+        var source = new ComProviderEventSource();
+        var target = new ComProviderEventTarget();
+
+        VBEvents.SubscribeMethod(source, "Changed", target, "OnChanged");
+        source.Raise();
+        Assert.AreEqual(0, target.CallCount);
+
+        VBEvents.Raise(source, "Changed", Array.Empty<object?>());
+        Assert.AreEqual(1, target.CallCount);
+        VBEvents.UnsubscribeMethod(source, "Changed", target, "OnChanged");
+    }
+
+    [TestMethod]
     public void UnsubscribeMethod_RemovesTheRequestedMethodSubscription()
     {
         var source = new ClrEventSource();
@@ -145,6 +160,22 @@ public sealed class VBEventsTests
     private sealed class ByRefEventTarget
     {
         private void OnChanged(ref int value) => value += 5;
+    }
+
+    private sealed class ComProviderEventSource : IVBComObjectProvider
+    {
+        public object? ComObject => null;
+
+        public event Action? Changed;
+
+        public void Raise() => Changed?.Invoke();
+    }
+
+    private sealed class ComProviderEventTarget
+    {
+        public int CallCount { get; private set; }
+
+        private void OnChanged() => CallCount++;
     }
 
     private delegate void ByRefChangedHandler(ref int value);
