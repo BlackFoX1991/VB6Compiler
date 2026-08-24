@@ -114,6 +114,32 @@ public sealed class CliProcessTests
         }
     }
 
+    [TestMethod]
+    public void EmitAssembly_AcceptsX64ForSourceFiles()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Module1.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\n    Debug.Print 1\nEnd Sub\n");
+            var outputPath = Path.Combine(directory, "bin", "Module1.exe");
+
+            var result = RunCli(sourcePath, "--emit-assembly", outputPath, "--x64");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            using var stream = File.OpenRead(outputPath);
+            using var peReader = new PEReader(stream);
+            Assert.AreEqual(Machine.Amd64, peReader.PEHeaders.CoffHeader.Machine);
+            Assert.IsFalse(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static CliResult RunCli(string inputPath, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("dotnet")

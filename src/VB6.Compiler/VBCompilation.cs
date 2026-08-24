@@ -94,8 +94,10 @@ public sealed class VBCompilation
     public LoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
     /// <summary>Emits an executable assembly, its debug information and its runtime files.</summary>
-    public ManagedApplicationEmitResult EmitManagedApplication(string outputPath) =>
-        DirectManagedCompilation.EmitManaged(this, outputPath);
+    public ManagedApplicationEmitResult EmitManagedApplication(
+        string outputPath,
+        VB6.Emit.Managed.ManagedEmitOptions? options = null) =>
+        DirectManagedCompilation.EmitManaged(this, outputPath, options);
 }
 
 public sealed record CompilationAnalysis(

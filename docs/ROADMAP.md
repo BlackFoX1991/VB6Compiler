@@ -1342,6 +1342,10 @@ Legacy-OCX-/ActiveX-Projekte `Machine.I386` und `Requires32Bit`, ohne die projek
 Ausgabeentscheidung zwischen `.exe` und `.dll` zu überschreiben. Der CLI-Prozesspfad ist dafür
 regression-getestet. Die Gesamtsuite umfasst **889 Tests**.
 
+Der gleiche Architekturvertrag gilt jetzt auch für direkte `.bas`-Emission; `--x64` erzeugt
+einen PE-Header mit `Machine.Amd64`, während die Projekt- und Gruppenpfade weiterhin ihre
+projektabhängige `.exe`-/`.dll`-Ausgabe beibehalten. Die Gesamtsuite umfasst **890 Tests**.
+
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
