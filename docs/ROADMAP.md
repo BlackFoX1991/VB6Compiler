@@ -2084,3 +2084,13 @@ Standardfehler an den Build zurückgehen statt eine native Messagebox zu öffnen
 bewusst auf Dateien mit `.comhost.dll`-Suffix begrenzt; Typbibliotheks-Emission und UDT-/Pointer-
 Marshalling bleiben separate COM-Verträge. Die Compiler-Regression umfasst nun **347** Tests,
 die Gesamtsuite **977**.
+
+## Aktueller direkter ActiveX-ProgID-Nachtrag
+
+Der native WinForms-Host versucht bei qualifizierten, im Projekt auftretenden Typnamen neben den
+bisherigen Standard-Aliassen jetzt auch den direkt registrierten ProgID. Vor der Erstellung des
+`AxHost` wird per `IOleObject`-Query geprüft, dass die COM-Klasse tatsächlich ein visuelles
+ActiveX-Control ist; nonvisual Komponenten wie `MSComDlg.CommonDialog` fallen weiterhin in den
+dedizierten COM-Adapter. Der verpflichtende x86-Lauf mit den registrierten Standard-OCX umfasst
+weiterhin **34/34** Tests, die Gesamtsuite **977**. Vollständiges generisches OCX-Event-/UDT- und
+Pointer-Marshalling bleibt ein separater ABI-Vertrag.

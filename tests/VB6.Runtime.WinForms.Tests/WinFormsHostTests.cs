@@ -450,6 +450,14 @@ public sealed class WinFormsHostTests
             Assert.IsNotNull(((IVBComObjectProvider)control).ComObject, typeName);
         }
 
+        var directProgIdControl = host.CreateControl(
+            owner,
+            "DirectTree",
+            "MSComctlLib.TreeCtrl.2")!;
+        Assert.IsInstanceOfType<AxHost>(directProgIdControl);
+        ((Control)directProgIdControl).CreateControl();
+        Assert.IsNotNull(((IVBComObjectProvider)directProgIdControl).ComObject);
+
         var imageList = host.CreateControl(owner, "Images", "MSComctlLib.ImageList")!;
         Assert.IsTrue(host.TrySetMember(imageList, "ImageWidth", Array.Empty<object?>(), (short)16));
         Assert.IsTrue(host.TryGetMember(imageList, "ImageWidth", Array.Empty<object?>(), out var imageWidth));
