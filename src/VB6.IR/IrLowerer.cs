@@ -34,6 +34,8 @@ public static class IrLowerer
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ModuleVariableSymbol, BoundExpression> _constantValues =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<string, BoundExpression> _constantValuesByName =
+            new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<UserDefinedTypeSymbol, IrTypeDefinition> _types =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<UserDefinedTypeMemberSymbol, IrField> _fields =
@@ -77,6 +79,28 @@ public static class IrLowerer
                                 this,
                                 procedure,
                                 containingClass: containingClass).Lower());
+                    }
+
+                    foreach (var external in input.SemanticModel.ExternalProcedures)
+                    {
+                        classProcedures.Add(new IrProcedure(
+                            external,
+                            external.Name,
+                            external.ReturnType,
+                            external.Parameters
+                                .Select((parameter, index) => new IrParameter(
+                                    parameter,
+                                    index,
+                                    Mangle(parameter.Name),
+                                    parameter.Type,
+                                    parameter.PassingMode))
+                                .ToImmutableArray(),
+                            ImmutableArray<IrLocal>.Empty,
+                            ImmutableArray<IrBasicBlock>.Empty,
+                            IsExternal: true,
+                            ExternalLibrary: external.ExternalLibrary,
+                            ExternalAlias: external.ExternalAlias,
+                            DeclaringClass: containingClass));
                     }
 
                     if (!containingClass.IsInterfaceContract)
@@ -196,6 +220,27 @@ public static class IrLowerer
         public bool TryGetClassField(ModuleVariableSymbol symbol, out IrField field) =>
             _classFields.TryGetValue(symbol, out field!);
 
+        public bool TryGetClassField(
+            ClassTypeSymbol classType,
+            string name,
+            out IrField field)
+        {
+            if (_classVariables.TryGetValue(classType, out var variables))
+            {
+                foreach (var variable in variables)
+                {
+                    if (string.Equals(variable.Symbol.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                        _classFields.TryGetValue(variable.Symbol, out field!))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            field = null!;
+            return false;
+        }
+
         public bool TryGetWithEventsHandlers(
             ModuleVariableSymbol symbol,
             out ImmutableArray<(EventSymbol Event, ProcedureSymbol Handler)> handlers) =>
@@ -234,7 +279,8 @@ public static class IrLowerer
             foreach (var variable in _inputs.SelectMany(input => input.SemanticModel.ModuleVariables)
                          .Concat(_additionalGlobals))
             {
-                if (_globals.ContainsKey(variable.Symbol))
+                if (_globals.ContainsKey(variable.Symbol) ||
+                    _constantValues.ContainsKey(variable.Symbol))
                 {
                     continue;
                 }
@@ -242,6 +288,7 @@ public static class IrLowerer
                 if (variable.IsConstant && variable.Initializer is not null)
                 {
                     _constantValues.Add(variable.Symbol, variable.Initializer);
+                    _constantValuesByName.TryAdd(variable.Symbol.Name, variable.Initializer);
                     continue;
                 }
 
@@ -382,8 +429,15 @@ public static class IrLowerer
              variable.Symbol.Type is ArrayTypeSymbol && !variable.ArrayDimensions.IsDefaultOrEmpty);
 
         /// <summary>The bound value of a module-level constant, which is substituted at each read.</summary>
-        public bool TryGetConstantValue(ModuleVariableSymbol symbol, out BoundExpression value) =>
-            _constantValues.TryGetValue(symbol, out value!);
+        public bool TryGetConstantValue(ModuleVariableSymbol symbol, out BoundExpression value)
+        {
+            if (_constantValues.TryGetValue(symbol, out value!))
+            {
+                return true;
+            }
+
+            return symbol.IsConstant && _constantValuesByName.TryGetValue(symbol.Name, out value!);
+        }
 
         private void PredeclareTypes()
         {
@@ -499,6 +553,19 @@ public static class IrLowerer
                     foreach (var local in procedure.Locals)
                     {
                         pending.Push(local.Type);
+                    }
+                }
+
+                foreach (var external in model.ExternalProcedures)
+                {
+                    if (external.ReturnType is not null)
+                    {
+                        pending.Push(external.ReturnType);
+                    }
+
+                    foreach (var parameter in external.Parameters)
+                    {
+                        pending.Push(parameter.Type);
                     }
                 }
             }
@@ -818,10 +885,8 @@ public static class IrLowerer
                         break;
                     }
 
-                    if (assignment.Target is BoundPropertyAccessExpression
-                        {
-                            Property.IsLateBound: true
-                        } dynamicProperty)
+                    if (assignment.Target is BoundPropertyAccessExpression dynamicProperty &&
+                        (dynamicProperty.Property.IsLateBound || IsRuntimeObject(dynamicProperty.Receiver)))
                     {
                         Emit(new IrEvaluateInstruction(LowerDynamicSet(
                             dynamicProperty.Receiver,
@@ -831,10 +896,9 @@ public static class IrLowerer
                         break;
                     }
 
-                    if (assignment.Target is BoundPropertyInvocationExpression
-                        {
-                            Property.IsLateBound: true
-                        } indexedDynamicProperty)
+                    if (assignment.Target is BoundPropertyInvocationExpression indexedDynamicProperty &&
+                        (indexedDynamicProperty.Property.IsLateBound ||
+                         IsRuntimeObject(indexedDynamicProperty.Receiver)))
                     {
                         Emit(new IrEvaluateInstruction(LowerDynamicSet(
                             indexedDynamicProperty.Receiver,
@@ -2157,7 +2221,12 @@ public static class IrLowerer
                 BoundPropertyAccessExpression property => LowerPropertyPlace(property),
                 BoundPropertyInvocationExpression propertyInvocation => LowerPropertyPlace(propertyInvocation),
                 BoundWithReceiverExpression with => LowerWithPlace(with),
-            _ => throw new InvalidOperationException($"Bound expression '{expression.GetType().Name}' is not an addressable place.")
+            _ => throw new InvalidOperationException(
+                $"Bound expression '{expression.GetType().Name}' ({expression}) is not an addressable place" +
+                (expression.SourceLocation is { } location
+                    ? $" ({location.FilePath}:{location.Lines.Start.Line + 1})"
+                    : string.Empty) +
+                ".")
         };
 
         /// <summary>
@@ -2214,7 +2283,7 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyRead(BoundPropertyAccessExpression expression)
         {
-            if (expression.Property.IsLateBound)
+            if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
                     expression.Receiver,
@@ -2226,6 +2295,11 @@ public static class IrLowerer
             if (IsApplicationObject(expression.Receiver))
             {
                 return LowerApplicationProperty(expression.Property.Name);
+            }
+
+            if (TryGetClassFieldPlace(expression.Receiver, expression.Property, out var fieldPlace))
+            {
+                return new IrLoadExpression(fieldPlace);
             }
 
             if (expression.Receiver.Type is ClassTypeSymbol classType &&
@@ -2274,7 +2348,7 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyInvocation(BoundPropertyInvocationExpression expression)
         {
-            if (expression.Property.IsLateBound)
+            if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
                     expression.Receiver,
@@ -2290,6 +2364,12 @@ public static class IrLowerer
                     expression.Property,
                     expression.Receiver,
                     expression.Arguments);
+            }
+
+            if (expression.Arguments.IsDefaultOrEmpty &&
+                TryGetClassFieldPlace(expression.Receiver, expression.Property, out var fieldPlace))
+            {
+                return new IrLoadExpression(fieldPlace);
             }
 
             if (expression.Receiver.Type is not ClassTypeSymbol classType)
@@ -2332,7 +2412,7 @@ public static class IrLowerer
             ProcedureSymbol requested,
             ImmutableArray<BoundArgument> arguments)
         {
-            if (requested.IsLateBound)
+            if (requested.IsLateBound || IsRuntimeObject(receiver))
             {
                 return LowerDynamicInvoke(receiver, requested.Name, arguments);
             }
@@ -2377,6 +2457,12 @@ public static class IrLowerer
             {
                 throw new NotSupportedException(
                     "A late-bound property cannot be passed ByRef until object write-back semantics are lowered.");
+            }
+
+            if (arguments.IsDefaultOrEmpty &&
+                TryGetClassFieldPlace(receiver, property, out var fieldPlace))
+            {
+                return fieldPlace;
             }
 
             if (receiver.Type is ClassTypeSymbol collectionType &&
@@ -2429,6 +2515,23 @@ public static class IrLowerer
                 setter,
                 property.Type,
                 arguments.Select(argument => LowerValueCopy(argument.Expression)).ToImmutableArray());
+        }
+
+        private bool TryGetClassFieldPlace(
+            BoundExpression receiver,
+            PropertySymbol property,
+            out IrFieldPlace fieldPlace)
+        {
+            if (receiver.Type is ClassTypeSymbol classType &&
+                property.Parameters.IsEmpty &&
+                _program.TryGetClassField(classType, property.Name, out var field))
+            {
+                fieldPlace = new IrFieldPlace(LowerPlace(receiver), field);
+                return true;
+            }
+
+            fieldPlace = null!;
+            return false;
         }
 
         private static ProcedureSymbol? TryGetExternalPropertyProcedure(
@@ -2625,6 +2728,12 @@ public static class IrLowerer
         private static bool IsApplicationObject(BoundExpression expression) =>
             expression.Type is ClassTypeSymbol classType &&
             ReferenceEquals(classType, VBStandardTypes.App);
+
+        private static bool IsRuntimeObject(BoundExpression expression) =>
+            expression.Type is ClassTypeSymbol classType &&
+            (classType.IsRuntimeObjectContract ||
+             classType.IsLateBoundObject ||
+             classType.IsControlContract);
 
         private static bool IsApplicationObject(ModuleVariableSymbol symbol) =>
             ReferenceEquals(symbol.Type, VBStandardTypes.App);

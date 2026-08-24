@@ -96,6 +96,21 @@ public sealed class ArrayBoundBinderTests
         Assert.IsInstanceOfType<ArrayTypeSymbol>(declaration.Variable.Type);
     }
 
+    [TestMethod]
+    public void Bind_StaticArrayResolvesLocalConstantBounds()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Const Limit As Long = 4
+                Static values(1 To Limit) As Long
+            End Sub
+            """);
+
+        var dimension = model.StaticVariables.Single().ArrayDimensions.Single();
+
+        AssertBound(dimension, 1, 4);
+    }
+
     private static void AssertBound(BoundArrayDimension dimension, long expectedLower, long expectedUpper)
     {
         Assert.AreEqual(expectedLower, GetIntegerValue(dimension.LowerBound));

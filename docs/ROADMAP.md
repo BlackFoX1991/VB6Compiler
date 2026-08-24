@@ -1298,3 +1298,16 @@ VB6-`VB_UserMemId = 0`-Namen werden für erzeugte Klassen nun als CLR-
 `DefaultMemberAttribute` emittiert. Dadurch verwenden late-bound `Variant`- und `Object`-
 Zugriffe auch benannte Default-Properties wie `Text(...)`; die vollständige COM-Dispatch-ABI
 bleibt separat offen.
+
+## Aktueller CLI-Legacy-Nachtrag
+
+Der Managed-CLI-Pfad kompiliert nun reale Legacy-Projekte über beide Projektcontainer: Für
+`conformance/VISIA/4.8.7.1/prjVisia.vbp` liefert `vb6c ... --report` 40 von 40 fehlerfrei
+analysierte Projektitems, und `vb6c ... --emit-assembly` erzeugt erfolgreich die Managed-
+Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter anderem lokale
+Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
+UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
+`.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **861 Tests**.
+Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
+Abdeckung von Legacy-Projektsonderfällen.

@@ -1216,7 +1216,7 @@ public sealed class ManagedEmitter
                     call.Procedure.Parameters[index].Type);
             }
             EntityHandle target;
-            if (!_procedureSymbolHandles.TryGetValue(call.Procedure, out var localTarget))
+            if (!TryGetProcedureHandle(call.Procedure, out var localTarget))
             {
                 if (call.Receiver?.Type is ClassTypeSymbol externalClass &&
                     externalClass.ExternalAssemblyName is not null)
@@ -1242,6 +1242,65 @@ public sealed class ManagedEmitter
             {
                 encoder.Call(target);
             }
+        }
+
+        private bool TryGetProcedureHandle(
+            ProcedureSymbol procedure,
+            out MethodDefinitionHandle handle)
+        {
+            if (_procedureSymbolHandles.TryGetValue(procedure, out handle))
+            {
+                return true;
+            }
+
+            // Project binding may create a module-local Declare symbol that is structurally the
+            // same native contract as the project-wide symbol. The IR keeps both scopes distinct,
+            // while the managed metadata only needs the matching method definition.
+            foreach (var candidate in AllProcedures())
+            {
+                if (candidate.Symbol is null ||
+                    !_methodHandles.TryGetValue(candidate, out handle) ||
+                    !EquivalentProcedureContract(candidate.Symbol, procedure))
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
+            handle = default;
+            return false;
+        }
+
+        private static bool EquivalentProcedureContract(
+            ProcedureSymbol left,
+            ProcedureSymbol right)
+        {
+            if (!string.Equals(left.Name, right.Name, StringComparison.OrdinalIgnoreCase) ||
+                left.IsExternal != right.IsExternal ||
+                !string.Equals(left.ExternalLibrary, right.ExternalLibrary, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(left.ExternalAlias, right.ExternalAlias, StringComparison.OrdinalIgnoreCase) ||
+                left.PropertyAccessor != right.PropertyAccessor ||
+                left.ReturnType != right.ReturnType ||
+                left.Parameters.Length != right.Parameters.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Parameters.Length; index++)
+            {
+                var leftParameter = left.Parameters[index];
+                var rightParameter = right.Parameters[index];
+                if (leftParameter.Type != rightParameter.Type ||
+                    leftParameter.PassingMode != rightParameter.PassingMode ||
+                    leftParameter.IsAny != rightParameter.IsAny ||
+                    leftParameter.IsParamArray != rightParameter.IsParamArray)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void EmitAccessorGet(
@@ -1302,7 +1361,9 @@ public sealed class ManagedEmitter
         {
             if (accessor.Setter is null)
             {
-                throw new NotSupportedException("A property assignment has no Let/Set accessor.");
+                throw new NotSupportedException(
+                    $"Property assignment for '{accessor.Getter?.Name ?? "<unknown>"}' on " +
+                    $"'{accessor.Receiver?.Type.Name ?? "<module>"}' has no Let/Set accessor.");
             }
 
             if (accessor.Receiver is not null)
@@ -1363,6 +1424,17 @@ public sealed class ManagedEmitter
                         BindingFlags.Public | BindingFlags.Static,
                         Type.EmptyTypes)
                     ?? throw new MissingMethodException("VBCollection.Create is required.")));
+                return;
+            }
+
+            if (ReferenceEquals(expression.ClassType, VBStandardTypes.Font))
+            {
+                encoder.Call(GetRuntimeMethodReference(
+                    typeof(VBInteraction).GetMethod(
+                        nameof(VBInteraction.CreateFont),
+                        BindingFlags.Public | BindingFlags.Static,
+                        Type.EmptyTypes)
+                    ?? throw new MissingMethodException("VBInteraction.CreateFont is required.")));
                 return;
             }
 
@@ -2264,6 +2336,9 @@ public sealed class ManagedEmitter
         }
 
         private static bool IsPInvokeScalar(TypeSymbol type) =>
+            type is UserDefinedTypeSymbol ||
+            type is ClassTypeSymbol { IsRuntimeObjectContract: true } ||
+            type == TypeSymbol.Variant ||
             type == TypeSymbol.Byte ||
             type == TypeSymbol.Integer ||
             type == TypeSymbol.Long ||
