@@ -75,6 +75,22 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PromotesIntegerVariantDivisionToSingle()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CInt(5)
+
+                Debug.Print TypeName(value / CInt(2))
+                Debug.Print value / CInt(2)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Single", "2.5" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PromotesCurrencyAndDoubleToDouble()
     {
         var output = VB6TestProgram.RunLines("""

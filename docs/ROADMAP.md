@@ -1316,7 +1316,7 @@ UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berüc
 `.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
 Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
 bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
-**875 Tests**.
+**877 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
@@ -1339,5 +1339,6 @@ UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap
 `Sgn` ist als Variant-Intrinsic typisiert und bewahrt nun `Null`, während `Empty` weiterhin als
 numerische Null behandelt wird. `Int` prüft Missing-/Array-Zustände, bewahrt `Null` und nutzt die
 zentrale Variant-Konversion für Date-/Currency-/Boolean-Werte. Die Verträge laufen durch Symbolik,
-Managed-Emission und Runtime-Regressionen; die vollständige VB6-Promotionstabelle sowie Objekt- und
-Array-Varianten bleiben offen.
+Managed-Emission und Runtime-Regressionen. Variant-`/` liefert für Byte-/Integer-/Single-Paare
+nun `Single`, für Decimal-Beteiligung `Decimal` und sonst `Double`; die vollständige VB6-
+Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen.
