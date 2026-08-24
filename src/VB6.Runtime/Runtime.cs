@@ -561,12 +561,16 @@ public static class VBConversions
     /// <summary>Implements VB6 Int, including floor semantics for negative fractional values.</summary>
     public static object Int(object? value)
     {
+        VBVariants.ThrowIfMissing(value);
+        VBVariants.ThrowIfArray(value);
+        RejectImplicitError(value, "Double");
+
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
         }
 
-        var numeric = value is null ? 0d : Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        var numeric = value is null ? 0d : VBConversions.CDbl(value);
         return Math.Floor(numeric);
     }
 

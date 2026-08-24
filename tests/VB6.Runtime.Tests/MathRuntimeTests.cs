@@ -31,6 +31,21 @@ public sealed class MathRuntimeTests
     }
 
     [TestMethod]
+    public void Int_UsesVariantStateAndCentralConversions()
+    {
+        var nullValue = VBVariants.NullValue();
+        var array = new VBArray<object>(new VBArrayBound(0, 0));
+
+        Assert.IsTrue(VBVariants.IsNull(VBConversions.Int(nullValue)));
+        Assert.AreEqual(0d, VBConversions.Int(null));
+        Assert.AreEqual(1d, VBConversions.Int(VBConversions.CCur(1.75m)));
+        Assert.AreEqual(43832d, VBConversions.Int(new VBDateValue(43832.75d)));
+        Assert.ThrowsException<VB6MissingArgumentException>(
+            () => VBConversions.Int(VBVariants.MissingValue()));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBConversions.Int(array));
+    }
+
+    [TestMethod]
     public void Rnd_UsesTheVB6SequenceAndHonorsArgumentModes()
     {
         Assert.AreEqual(0.7055475f, VBMath.Rnd(), 0.0000001f);

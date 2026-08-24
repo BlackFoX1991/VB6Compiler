@@ -66,6 +66,28 @@ public sealed class MathIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesVariantStateForInt()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = Null
+
+                Debug.Print IsNull(Int(value))
+                Debug.Print Int(Empty)
+                Debug.Print Int(CDate(43832.75))
+
+                On Error Resume Next
+                Debug.Print Int(Missing)
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "0", "43832", "448" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesRndAndRandomizeContracts()
     {
         var output = VB6TestProgram.RunLines("""
