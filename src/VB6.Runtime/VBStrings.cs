@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace VB6.Runtime;
@@ -29,9 +30,17 @@ public static class VBStrings
         bool => 2,
         VBDateValue => 8,
         VBCurrency => 8,
+        _ when IsGeneratedUserDefinedType(value) => Marshal.SizeOf(value),
         _ => throw new InvalidCastException(
             $"CLR value of type '{value.GetType().FullName}' is not supported by the VB6 Len intrinsic.")
     };
+
+    private static bool IsGeneratedUserDefinedType(object value)
+    {
+        var type = value.GetType();
+        return type.IsValueType &&
+               string.Equals(type.Namespace, "VB6.Generated", StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Implements the three-argument VB6 Mid/Mid$ intrinsic. VB6 positions are one-based.
