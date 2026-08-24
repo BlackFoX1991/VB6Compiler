@@ -1661,3 +1661,14 @@ Managed-Vertrag; eine echte native `ImageList`-Zuordnung zu OCX-Controls und der
 bleibt ein separater ActiveX-Host-Schritt. Die Regression deckt sowohl den verschachtelten
 Designerpfad als auch den bestehenden `ListImages`-Late-Bound-Vertrag ab. Die Gesamtsuite
 umfasst **935 Tests**.
+
+## Aktueller Shape-/Line-Forms-Nachtrag
+
+`VB.Shape` und `VB.Line` werden im Managed-WinForms-Host nicht mehr als generische Panels
+angelegt. `Shape` rendert Rechteck, Quadrat, Oval, Kreis und abgerundete Varianten mit
+`BackColor`, `FillColor`, `FillStyle`, `BackStyle`, `BorderColor` und `BorderWidth`; `Line`
+zeichnet seine Endpunkte über die VB6-Twips-Konvertierung aus `X1`, `Y1`, `X2` und `Y2`.
+Die Designer-Allowlist übernimmt diese Werte in den generierten Formkonstruktor, und die
+Regression prüft sowohl die IR-Emission als auch gerenderte Pixel im STA-Host. Native
+Zeichen-APIs wie `PaintPicture`, vollständige AutoRedraw-/DrawMode-Semantik und MDI bleiben
+separate Forms-Schritte. Die Gesamtsuite umfasst **937 Tests**.
