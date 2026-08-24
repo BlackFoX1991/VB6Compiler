@@ -308,6 +308,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             _richTextBoxStates.Remove(richTextBox);
         }
 
+        DisposeComponents(binding);
+
         foreach (var control in binding.Controls.Values)
         {
             if (_designerControlStates.Remove(control, out var state))
@@ -403,6 +405,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             else if (hostObject is ImageListProxy imageList)
             {
                 imageList.Name = logicalName;
+            }
+            else if (hostObject is NativeComComponent nativeComponent)
+            {
+                nativeComponent.Name = logicalName;
             }
 
             binding.Components.Add(name, hostObject);
@@ -567,6 +573,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
 
+        if (VBDynamicDispatch.TryGetComMember(target, memberName, arguments, out value))
+        {
+            return true;
+        }
+
         if (TryResolveControl(target, memberName, arguments, out var resolved))
         {
             if (string.Equals(memberName, "Controls", StringComparison.OrdinalIgnoreCase))
@@ -579,6 +590,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 arguments.Length > 0)
             {
                 value = GetIndexedControl(resolved!, arguments[0]);
+                return true;
+            }
+
+            if (resolved is IVBComObjectProvider &&
+                VBDynamicDispatch.TryGetComMember(resolved, memberName, arguments, out value))
+            {
                 return true;
             }
 
@@ -698,13 +715,20 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
 
+        if (VBDynamicDispatch.TrySetComMember(target, memberName, arguments, value))
+        {
+            return true;
+        }
+
         if (!TryResolveControl(target, memberName, arguments, out var resolved) ||
             resolved is null)
         {
             return false;
         }
 
-        return TryWriteControlProperty(resolved, memberName, value) ||
+        return (resolved is IVBComObjectProvider &&
+                VBDynamicDispatch.TrySetComMember(resolved, memberName, arguments, value)) ||
+               TryWriteControlProperty(resolved, memberName, value) ||
                TryWriteListProperty(resolved, memberName, arguments, value) ||
                VBDynamicDispatch.TrySetComMember(resolved, memberName, arguments, value);
     }
@@ -718,6 +742,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ThrowIfDisposed();
         result = null;
         if (target is MenuProxy menu && TryInvokeMenuMember(menu, memberName, arguments))
+        {
+            return true;
+        }
+
+        if (VBDynamicDispatch.TryInvokeComMember(target, memberName, arguments, out result))
         {
             return true;
         }
@@ -890,6 +919,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         foreach (var entry in _bindings.ToArray())
         {
             InvokeBindingTermination(entry.Key, entry.Value);
+            DisposeComponents(entry.Value);
             entry.Value.Form.Dispose();
         }
 
@@ -2929,6 +2959,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return nativeControl!;
         }
 
+        if (_preferNativeActiveX && TryCreateNativeComComponent(typeName, out var nativeComponent))
+        {
+            return nativeComponent!;
+        }
+
         return typeName.ToUpperInvariant() switch
         {
             "COMMANDBUTTON" => new Button(),
@@ -2965,6 +3000,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "MSCOMCTLLIB.STATUSBAR" or "MSCOMCTLLIB.SBARCTRL" => "MSComctlLib.SBarCtrl.2",
             "MSCOMCTLLIB.TABSTRIP" => "MSComctlLib.TabStrip.2",
             "MSCOMCTLLIB.TOOLBAR" => "MSComctlLib.Toolbar.2",
+            "MSCOMCTLLIB.IMAGELIST" => "MSComctlLib.ImageListCtrl.2",
+            "MSCOMCTLLIB.IMAGECOMBO" => "MSComctlLib.ImageComboCtl.2",
             "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => "RICHTEXT.RichtextCtrl.1",
             _ => null
         };
@@ -3008,6 +3045,55 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         catch (NotSupportedException)
         {
             return false;
+        }
+    }
+
+    private static bool TryCreateNativeComComponent(
+        string typeName,
+        out NativeComComponent? component)
+    {
+        component = null;
+        var progId = typeName.ToUpperInvariant() switch
+        {
+            "COMMONDIALOG" or "MSCOMDLG.COMMONDIALOG" => "MSComDlg.CommonDialog.1",
+            _ => null
+        };
+        if (progId is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var comType = Type.GetTypeFromProgID(progId, throwOnError: false);
+            var instance = comType is null ? null : Activator.CreateInstance(comType);
+            if (instance is null || !Marshal.IsComObject(instance))
+            {
+                return false;
+            }
+
+            component = new NativeComComponent(instance);
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static void DisposeComponents(FormBinding binding)
+    {
+        foreach (var component in binding.Components.Values.Distinct().OfType<IDisposable>())
+        {
+            component.Dispose();
         }
     }
 
@@ -3147,6 +3233,29 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 {
                     return null;
                 }
+            }
+        }
+    }
+
+    private sealed class NativeComComponent : IVBComObjectProvider, IDisposable
+    {
+        private object? _comObject;
+
+        public NativeComComponent(object comObject)
+        {
+            _comObject = comObject;
+        }
+
+        public string Name { get; set; } = string.Empty;
+
+        public object? ComObject => _comObject;
+
+        public void Dispose()
+        {
+            var comObject = Interlocked.Exchange(ref _comObject, null);
+            if (comObject is not null && Marshal.IsComObject(comObject))
+            {
+                Marshal.FinalReleaseComObject(comObject);
             }
         }
     }
