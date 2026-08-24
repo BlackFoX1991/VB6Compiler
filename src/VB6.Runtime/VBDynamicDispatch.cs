@@ -190,6 +190,7 @@ public static class VBDynamicDispatch
         var flags = BindingFlags.Instance |
             BindingFlags.Public |
             BindingFlags.NonPublic |
+            BindingFlags.IgnoreCase |
             BindingFlags.OptionalParamBinding |
             (setProperty
                 ? BindingFlags.SetProperty
