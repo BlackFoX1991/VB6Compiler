@@ -1,12 +1,75 @@
 <Project>
+  <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
+
+  <PropertyGroup>
+    <VB6Project Condition="'$(VB6Project)' == '' and '$(VB6ProjectGroup)' == ''">$(MSBuildProjectDirectory)\$(MSBuildProjectName).vbp</VB6Project>
+    <VB6ProjectFullPath Condition="'$(VB6Project)' != ''">$([System.IO.Path]::GetFullPath('$(VB6Project)'))</VB6ProjectFullPath>
+    <VB6ProjectDirectory Condition="'$(VB6ProjectFullPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(VB6ProjectFullPath)'))</VB6ProjectDirectory>
+    <VB6ProjectGroupFullPath Condition="'$(VB6ProjectGroup)' != ''">$([System.IO.Path]::GetFullPath('$(VB6ProjectGroup)'))</VB6ProjectGroupFullPath>
+    <VB6ProjectGroupDirectory Condition="'$(VB6ProjectGroupFullPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(VB6ProjectGroupFullPath)'))</VB6ProjectGroupDirectory>
+    <VB6CompilerOutput Condition="'$(VB6Project)' != '' and '$(VB6CompilerOutput)' == ''">$(TargetDir)$(AssemblyName).dll</VB6CompilerOutput>
+    <VB6CompilerOutputFullPath Condition="'$(VB6CompilerOutput)' != ''">$([System.IO.Path]::GetFullPath('$(VB6CompilerOutput)'))</VB6CompilerOutputFullPath>
+    <VB6CompilerOutputDirectory Condition="'$(VB6CompilerOutputFullPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(VB6CompilerOutputFullPath)'))</VB6CompilerOutputDirectory>
+    <VB6CompilerRuntimeOutput Condition="'$(VB6CompilerOutputDirectory)' != ''">$(VB6CompilerOutputDirectory)\VB6.Runtime.dll</VB6CompilerRuntimeOutput>
+    <VB6CompilerComHostOutput Condition="'$(VB6EnableComHosting)' == 'true' and '$(VB6CompilerOutputFullPath)' != ''">$(VB6CompilerOutputDirectory)\$([System.IO.Path]::GetFileNameWithoutExtension('$(VB6CompilerOutputFullPath)')).comhost.dll</VB6CompilerComHostOutput>
+    <VB6CompilerComHostArgument Condition="'$(VB6EnableComHosting)' == 'true'"> --com-host</VB6CompilerComHostArgument>
+    <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == '' and '$(TargetDir)' != ''">$(TargetDir)</VB6CompilerGroupOutputDirectory>
+    <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == '' and '$(OutputPath)' != ''">$(MSBuildProjectDirectory)\$(OutputPath)</VB6CompilerGroupOutputDirectory>
+    <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == ''">$(MSBuildProjectDirectory)\bin\$(Configuration)</VB6CompilerGroupOutputDirectory>
+    <VB6CompilerGroupOutputDirectoryFullPath Condition="'$(VB6CompilerGroupOutputDirectory)' != ''">$([System.IO.Path]::GetFullPath('$(VB6CompilerGroupOutputDirectory)'))</VB6CompilerGroupOutputDirectoryFullPath>
+    <VB6CompilerGroupOutputDirectoryArgument Condition="'$(VB6CompilerGroupOutputDirectoryFullPath)' != ''">$([System.String]::Copy('$(VB6CompilerGroupOutputDirectoryFullPath)').TrimEnd('\'))</VB6CompilerGroupOutputDirectoryArgument>
+    <VB6CompilerGroupStamp Condition="'$(VB6ProjectGroup)' != '' and '$(BaseIntermediateOutputPath)' != ''">$([System.IO.Path]::Combine('$(BaseIntermediateOutputPath)', '$(Configuration)', 'VB6GroupCompile.stamp'))</VB6CompilerGroupStamp>
+    <VB6CompilerGroupStamp Condition="'$(VB6ProjectGroup)' != '' and '$(VB6CompilerGroupStamp)' == ''">$(MSBuildProjectDirectory)\obj\$(Configuration)\VB6GroupCompile.stamp</VB6CompilerGroupStamp>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(VB6ProjectFullPath)')">
+    <None Include="$(VB6ProjectFullPath)" Visible="false" />
+    <VB6CompilerInput Include="$(VB6ProjectFullPath)" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.bas" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.cls" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ctl" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dob" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frm" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frx" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.pag" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.res" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(VB6ProjectGroupFullPath)')">
+    <None Include="$(VB6ProjectGroupFullPath)" Visible="false" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupFullPath)" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.vbp" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.bas" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.cls" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.ctl" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dob" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frm" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frx" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.pag" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.res" />
+  </ItemGroup>
+
   <Target
     Name="CompileVB6Project"
     BeforeTargets="Build"
-    Condition="Exists('$(VB6ProjectFullPath)')"
+    Condition="'$(VB6ProjectGroup)' == '' and Exists('$(VB6ProjectFullPath)')"
     Inputs="@(VB6CompilerInput)"
     Outputs="$(VB6CompilerOutputFullPath);$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'));$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'));$(VB6CompilerRuntimeOutput);$(VB6CompilerComHostOutput)">
     <MakeDir Directories="$(TargetDir)" />
     <MakeDir Directories="$(VB6CompilerOutputDirectory)" />
     <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;$(VB6CompilerComHostArgument)" />
+  </Target>
+
+  <Target
+    Name="CompileVB6ProjectGroup"
+    BeforeTargets="Build"
+    Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)')"
+    Inputs="@(VB6CompilerGroupInput)"
+    Outputs="$(VB6CompilerGroupStamp)">
+    <MakeDir Directories="$(TargetDir)" Condition="'$(TargetDir)' != ''" />
+    <MakeDir Directories="$(VB6CompilerGroupOutputDirectoryFullPath)" />
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --emit-assembly &quot;$(VB6CompilerGroupOutputDirectoryArgument)&quot;$(VB6CompilerComHostArgument)" />
+    <Touch Files="$(VB6CompilerGroupStamp)" AlwaysCreate="true" />
   </Target>
 </Project>

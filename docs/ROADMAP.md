@@ -1216,6 +1216,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Err-Felder und native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen. Dieser Pfad
       blockiert den Managed/.NET-Abschluss nicht.
 - [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; NuGet-Packaging und inkrementelle Input-/Output-Verfolgung sind mit `VB6.Compiler.Sdk.1.0.0.nupkg` verifiziert
+- [~] MSBuild-SDK für VB6-Projektgruppen — `VB6ProjectGroup` verfolgt `.vbg`-, `.vbp`-, Quell- und Designerinputs, ruft die vorhandene CLI-Gruppenemission auf und verwendet einen eigenen inkrementellen Compile-Stempel; vollständige Visual-Studio-Projektmodellintegration und Design-Time-Build-Verträge bleiben offen
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
 - [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
