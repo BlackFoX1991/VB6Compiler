@@ -1575,3 +1575,16 @@ Regression prüft den Late-Bound-Collection-Pfad, Dateibild-Metadaten, einsbasie
 Auswahl und die Verknüpfung beider Controls. Native OCX-Rendering, `.frx`-Dekodierung und
 vollständiges ActiveX-/Connection-Point-Hosting bleiben offen. Die Gesamtsuite umfasst
 **927 Tests**.
+
+## Aktueller Generated-Assembly-Runner-Nachtrag
+
+`VB6.Runtime.WinForms.Runner` ergänzt den Compiler um einen separaten Startvertrag für erzeugte
+Form-Assemblies. `GeneratedApplicationRunner` lädt den Entry-Point auf einem STA-Thread,
+installiert den `WinFormsHost` nur für diesen Prozess und startet nach `Load`/`Show` die
+WinForms-Message-Pump. Reine `Sub Main`-Assemblies können denselben Runner verwenden und kehren
+ohne Formularschleife zurück. Dadurch bleibt die Compiler-Assembly headless und von Visual Studio
+oder einem anderen Host aufrufbar, während eine erzeugte Form-Anwendung direkt mit
+`dotnet run --project src/VB6.Runtime.WinForms.Runner -- <assembly.exe>` gestartet werden kann.
+Die Regression prüft den Launcher-Fehlervertrag für fehlende Assemblies; vollständige Form-
+End-to-End-Läufe mit echten OCX-Abhängigkeiten bleiben separat. Die Gesamtsuite umfasst
+**928 Tests**.
