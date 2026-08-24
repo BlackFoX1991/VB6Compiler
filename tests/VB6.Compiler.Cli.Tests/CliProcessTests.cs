@@ -82,7 +82,10 @@ public sealed class CliProcessTests
                 "Attribute VB_Name = \"Widget\"\n" +
                 "Public Function Add(ByVal left As Long, ByVal right As Long) As Long\n" +
                 "    Add = left + right\n" +
-                "End Function\n");
+                "End Function\n" +
+                "Public Sub Increment(ByRef value As Long)\n" +
+                "    value = value + 1\n" +
+                "End Sub\n");
             var outputPath = Path.Combine(directory, "bin", "ComSample.dll");
 
             var result = RunCli(
@@ -117,7 +120,7 @@ public sealed class CliProcessTests
             var probeError = probe.StandardError.ReadToEnd();
             probe.WaitForExit();
             Assert.AreEqual(0, probe.ExitCode, probeError);
-            Assert.AreEqual("7", probeOutput.Trim());
+            Assert.AreEqual("7|42", probeOutput.Trim());
         }
         finally
         {

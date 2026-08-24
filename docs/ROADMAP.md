@@ -1094,7 +1094,7 @@ Zwei Nachträge:
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; numerische Variant-Objektindizes fallen auf das Managed-Default-`Item` zurück; vollständige benannte Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
 - [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
-- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; COM-Defaultzugriff über `DISPID_VALUE` und COM-RCW-Identität über `IUnknown` sind ergänzt, vollständige COM-/IDispatch-Auflösung, COM-ByRef-/Event-ABI und Host-ABI bleiben offen
+- [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; COM-Defaultzugriff über `DISPID_VALUE`, COM-RCW-Identität über `IUnknown` und TypeInfo-gesteuertes typisiertes COM-ByRef-Marshalling für unterstützte Automation-Typen sind ergänzt, vollständige COM-/IDispatch-Auflösung, UDT-/Pointer-/Event-ABI und Host-ABI bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; TypeLib-Coclass-Source-Interfaces liefern importierte Event-Signaturen, der vollständige Host-/COM-Connection-Point-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
 
@@ -1201,8 +1201,10 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Signaturen erhalten einen Object-Fallback.
       `CreateObject` und Managed-`IDispatch`-Dispatch stehen; Enum-Konstanten aus Windows-TypeLibraries
       werden importiert und COM-Defaultzugriffe verwenden bei echten COM-Objekten `DISPID_VALUE`;
-      `FSOURCE`-Event-Signaturen aus TypeLib-Coclasses werden ebenfalls importiert; vollständiger
-      COM-ByRef-/Connection-Point-Event-ABI, natives OCX-Hosting und der native
+      `FSOURCE`-Event-Signaturen aus TypeLib-Coclasses werden ebenfalls importiert; TypeInfo-gesteuertes
+      typisiertes COM-ByRef-Marshalling für unterstützte Automation-Skalare, `DATE`, `CURRENCY` und
+      kompatible SAFEARRAYs steht mit sicherem ByVal-Fallback; vollständiger Connection-Point-
+      Event-ABI, UDT-/Pointer-Marshalling, natives OCX-Hosting und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; Registry-Registrierung, Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1899,14 +1901,17 @@ WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite blei
 
 ## Aktueller TypeInfo-gesteuerter COM-ByRef-Nachtrag
 
-Die Raw-`IDispatch`-Brücke liest vor einem Aufruf die `FUNCDESC`-/`PARAMDESC`-Metadaten der
-TypeLibrary und setzt `VT_BYREF | VT_VARIANT` nur für Parameter mit `PARAMFLAG_FOUT`. Die nach
-`Invoke` geänderten Werte werden in das ursprüngliche Late-Bound-Argumentarray zurückgeschrieben;
-Parameter ohne `[out]`-Kennzeichnung bleiben als normale `VARIANTARG`-Werte geschützt. Falls ein
-Server trotz TypeInfo den ByRef-Aufruf ablehnt, wird derselbe Aufruf nochmals vollständig ByVal
-ausgeführt. Die bestehenden Scripting-Dictionary- und nativen x86-OCX-Regressionspfade bleiben
-stabil. Vollständige `[in]`-/`[out]`-Typkonversion, SAFEARRAY-/UDT-ByRef-Marshalling und
-Connection-Point-Events bleiben separate COM-ABI-Schritte.
+Die Raw-`IDispatch`-Brücke liest vor einem Aufruf die `FUNCDESC`-/`PARAMDESC`-/`TYPEDESC`-Metadaten
+der TypeLibrary und setzt für `PARAMFLAG_FOUT`-Parameter den passenden Automation-Typ. Die
+unterstützten skalaren `VARTYPE`s, `DATE`, `CURRENCY`, `VARIANT` und kompatible SAFEARRAYs werden
+mit einer inneren VARIANT initialisiert; bei typisierten ByRef-Werten zeigt der äußere VARIANT
+auf die Datenunion, bei `VT_BYREF|VT_VARIANT` auf die innere VARIANT. Nach `Invoke` werden die
+geänderten Werte in das ursprüngliche Late-Bound-Argumentarray zurückgeschrieben. Nicht
+abbildbare UDT-, C-Array- und Pointer-Verträge oder nicht konvertierbare Eingaben lösen einen
+sicheren vollständigen ByVal-Wiederholungsversuch aus. Die bestehenden Scripting-Dictionary-,
+emittierten COM-Host- und nativen x86-OCX-Regressionspfade bleiben stabil; vollständige
+`[in]`-/`[out]`-Sonderfälle, UDT-/Pointer-/SAFEARRAY-Descriptor-Marshalling und Connection-Point-
+Events bleiben separate COM-ABI-Schritte.
 
 ## Aktueller SAFEARRAY-/CLR-Array-Variant-Nachtrag
 
@@ -1943,6 +1948,7 @@ erzeugt über `IClassFactory` eine Instanz und erreicht die `IDispatch`-Methode 
 VB6-Klassenmoduls.
 
 Der Schalter ist bewusst auf `ManagedOutputKind.Library` begrenzt. COM-Registry-Installation,
-Reg-Free-Manifest-/Typbibliotheks-Emission, vollständige `[in]`-/`[out]`-Konversion und ein
-eigener Raw-`IUnknown`-/`IDispatch`-Serververtrag bleiben nachgelagerte Interop-Schritte. Die
+Reg-Free-Manifest-/Typbibliotheks-Emission, vollständige `[in]`-/`[out]`-Konversion über alle
+Automation- und User-Defined-Typen und ein eigener Raw-`IUnknown`-/`IDispatch`-Serververtrag
+bleiben nachgelagerte Interop-Schritte. Die
 Gesamtsuite umfasst **959 Tests**.
