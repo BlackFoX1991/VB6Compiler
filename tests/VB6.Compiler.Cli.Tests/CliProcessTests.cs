@@ -97,6 +97,7 @@ public sealed class CliProcessTests
             Assert.AreEqual(0, result.ExitCode, result.StandardError);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Shared.dll")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Consumer.exe")));
+            Assert.IsTrue(IsNativeWindowsAppHost(Path.Combine(outputDirectory, "Consumer.exe")));
 
             var startInfo = new ProcessStartInfo(Path.Combine(outputDirectory, "Consumer.exe"))
             {
@@ -310,6 +311,13 @@ public sealed class CliProcessTests
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();
         return new CliResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static bool IsNativeWindowsAppHost(string path)
+    {
+        using var stream = File.OpenRead(path);
+        using var peReader = new PEReader(stream);
+        return peReader.PEHeaders.CorHeader is null;
     }
 
     private static void WriteExecutableProject(string directory, string name)

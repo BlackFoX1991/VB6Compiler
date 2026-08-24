@@ -85,7 +85,10 @@ internal static class ManagedAppHostWriter
             try
             {
                 versions = Directory.EnumerateDirectories(packRoot)
-                    .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase);
+                    .OrderByDescending(path => IsRuntimeVersion(path, out var version) &&
+                                                version.Major == Environment.Version.Major &&
+                                                version.Minor == Environment.Version.Minor)
+                    .ThenByDescending(path => GetRuntimeVersion(path));
             }
             catch (IOException)
             {
@@ -108,6 +111,14 @@ internal static class ManagedAppHostWriter
 
         return null;
     }
+
+    private static bool IsRuntimeVersion(string path, out Version version)
+    {
+        return Version.TryParse(Path.GetFileName(path), out version!);
+    }
+
+    private static Version GetRuntimeVersion(string path) =>
+        IsRuntimeVersion(path, out var version) ? version : new Version(0, 0);
 
     private static int Find(byte[] image, byte[] value)
     {

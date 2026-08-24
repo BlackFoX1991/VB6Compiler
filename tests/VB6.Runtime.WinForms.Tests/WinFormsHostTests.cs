@@ -86,6 +86,8 @@ public sealed class WinFormsHostTests
         var generated = host.CreateControl(owner, "Widget1", typeName);
 
         Assert.IsInstanceOfType<GeneratedUserControlStub>(generated);
+        var generatedStub = (GeneratedUserControlStub)generated!;
+        Assert.AreEqual(1, generatedStub.InitializeCount);
         Assert.IsTrue(host.TryGetMember(owner, "Widget1", Array.Empty<object?>(), out var named));
         Assert.AreSame(generated, named);
         Assert.IsTrue(host.TrySetMember(generated!, "Width", Array.Empty<object?>(), 1440));
@@ -97,6 +99,7 @@ public sealed class WinFormsHostTests
         Assert.AreEqual(1, host.EnumerateControls(owner)!.OfType<Form>().Count());
 
         host.Unload(owner);
+        Assert.AreEqual(1, generatedStub.TerminateCount);
     }
 
     [STATestMethod]
@@ -840,6 +843,12 @@ public sealed class WinFormsHostTests
 
     private sealed class GeneratedUserControlStub
     {
+        public int InitializeCount { get; private set; }
+        public int TerminateCount { get; private set; }
+
+        private void UserControl_Initialize() => InitializeCount++;
+
+        private void UserControl_Terminate() => TerminateCount++;
     }
 
     private static VBArray<object> Arguments(params object?[] values)

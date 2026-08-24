@@ -267,10 +267,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     public void Unload(object target)
     {
         ThrowIfDisposed();
-        if (!_bindings.Remove(target, out var binding))
+        if (!_bindings.TryGetValue(target, out var binding))
         {
             return;
         }
+
+        if (binding.IsGeneratedUserControl)
+        {
+            InvokeGeneratedUserControlLifecycle(target, "UserControl_Terminate");
+        }
+
+        _bindings.Remove(target);
 
         foreach (var hostedObject in binding.HostedObjects.ToArray())
         {
@@ -1081,6 +1088,37 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(target, "KeyDown", target, "Form_KeyDown");
         TrySubscribeEvent(target, "KeyPress", target, "Form_KeyPress");
         TrySubscribeEvent(target, "KeyUp", target, "Form_KeyUp");
+    }
+
+    private void AttachGeneratedUserControlEvents(object target)
+    {
+        TrySubscribeEvent(target, "Click", target, "UserControl_Click");
+        TrySubscribeEvent(target, "DoubleClick", target, "UserControl_DblClick");
+        TrySubscribeEvent(target, "Resize", target, "UserControl_Resize");
+        TrySubscribeEvent(target, "MouseDown", target, "UserControl_MouseDown");
+        TrySubscribeEvent(target, "MouseUp", target, "UserControl_MouseUp");
+        TrySubscribeEvent(target, "MouseMove", target, "UserControl_MouseMove");
+        TrySubscribeEvent(target, "KeyDown", target, "UserControl_KeyDown");
+        TrySubscribeEvent(target, "KeyPress", target, "UserControl_KeyPress");
+        TrySubscribeEvent(target, "KeyUp", target, "UserControl_KeyUp");
+    }
+
+    private static void InvokeGeneratedUserControlLifecycle(object target, string methodName)
+    {
+        var method = FindHandler(target.GetType(), methodName);
+        if (method is null || method.GetParameters().Length != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            method.Invoke(target, null);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            throw exception.InnerException;
+        }
     }
 
     private void RemoveEventBinding(EventBinding binding)
@@ -2751,6 +2789,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         var generatedBinding = GetOrCreateBinding(generatedUserControl);
+        generatedBinding.IsGeneratedUserControl = true;
         var hostedForm = generatedBinding.Form;
         hostedForm.TopLevel = false;
         hostedForm.FormBorderStyle = FormBorderStyle.None;
@@ -2761,6 +2800,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ownerBinding.Components[qualifiedName] = generatedUserControl;
         ownerBinding.Components.TryAdd(logicalName, generatedUserControl);
         ownerBinding.HostedObjects.Add(generatedUserControl);
+        AttachGeneratedUserControlEvents(generatedUserControl);
+        InvokeGeneratedUserControlLifecycle(generatedUserControl, "UserControl_Initialize");
         hostedForm.Show();
         return true;
     }
@@ -3001,6 +3042,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             new(StringComparer.OrdinalIgnoreCase);
 
         public List<object> HostedObjects { get; } = new();
+
+        public bool IsGeneratedUserControl { get; set; }
 
         public MenuStrip? MenuStrip { get; set; }
     }

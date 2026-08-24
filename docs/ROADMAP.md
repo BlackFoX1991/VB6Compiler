@@ -1247,7 +1247,8 @@ Größter Einzelblock.
       DrawMode-/AutoRedraw-/ScaleMode-Semantik bleiben offen
 - [~] `UserControl` (ActiveX) — generierte parameterlose `.ctl`-Klassen werden aus der Projektassembly
       instanziiert und als eingebettete borderlose WinForms-Hostflächen in Designer-Controls
-      aufgenommen; vollständige UserControl-Lebenszyklen, PropertyBag-/Connection-Point-ABI und
+      aufgenommen; `UserControl_Initialize`/`UserControl_Terminate` sowie die konventionellen
+      `UserControl_*`-UI-Handler werden an die eingebettete Hostfläche gebunden; PropertyBag-/Connection-Point-ABI und
       echte OCX-Komposition bleiben offen
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
 
@@ -1700,8 +1701,10 @@ Ladeexception durch eine Managed-Assembly mit `.exe`-Endung entfällt. Der WinFo
 beide Ausgabeteile und lädt automatisch die Managed-Assembly, sodass bestehende Runner-Aufrufe
 weiter funktionieren. Der direkte AppHost bleibt headless; sichtbare Formulare laufen weiterhin
 über den optionalen `VB6.Runtime.WinForms.Runner`. Die CLI-Regression startet `.vbp`-/`.vbg`-
-Ausgaben direkt und prüft die Architektur der Companion-Assembly. Die Gesamtsuite umfasst
-**938 Tests**.
+Ausgaben direkt und prüft die Architektur der Companion-Assembly. Die AppHost-Auswahl bevorzugt
+jetzt die zur erzeugenden Runtime passende Major-/Minor-Version und sortiert verbleibende Packs
+numerisch statt lexikografisch, damit ein installiertes `10.x` nicht versehentlich mit einem
+`8.x`-AppHost ausgegeben wird. Die Gesamtsuite umfasst **946 Tests**.
 
 ## Aktueller PopupMenu-Forms-Nachtrag
 
@@ -1735,4 +1738,4 @@ als borderlose, eingebettete Formfläche. Dadurch können `.ctl`-Klassen als ver
 Designerkomponenten geladen werden, ohne den Compilerkern an WinForms zu koppeln. Vollständige
 UserControl-Ereignis-/PropertyBag-Semantik, ActiveX-Connection-Points und natives OCX-Hosting
 bleiben bewusst separate Kompatibilitätsschritte. Die Regression umfasst den Instanzierungs-,
-Komponenten- und Unload-Lifecycle. Die Gesamtsuite umfasst **946 Tests**.
+Komponenten- und Initialize-/Terminate-/Unload-Lifecycle. Die Gesamtsuite umfasst **946 Tests**.
