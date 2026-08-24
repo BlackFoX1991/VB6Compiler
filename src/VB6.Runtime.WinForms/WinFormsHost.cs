@@ -19,6 +19,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 {
     private const string FrxResourcePrefix = "__VB6_FRX_BASE64__";
 
+    private readonly bool _preferNativeActiveX;
+
     private readonly Dictionary<object, FormBinding> _bindings =
         new(ReferenceEqualityComparer.Instance);
     private readonly List<EventBinding> _events = new();
@@ -31,6 +33,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         new(ReferenceEqualityComparer.Instance);
     private readonly ToolTip _toolTip = new();
     private bool _disposed;
+
+    public WinFormsHost(bool preferNativeActiveX = false)
+    {
+        _preferNativeActiveX = preferNativeActiveX;
+    }
 
     public void Register(object vbObject, Form form)
     {
@@ -2909,8 +2916,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return state;
     }
 
-    private static object CreateControlInstance(string typeName) =>
-        typeName.ToUpperInvariant() switch
+    private object CreateControlInstance(string typeName)
+    {
+        if (_preferNativeActiveX && TryCreateNativeActiveX(typeName, out var nativeControl))
+        {
+            return nativeControl!;
+        }
+
+        return typeName.ToUpperInvariant() switch
         {
             "COMMANDBUTTON" => new Button(),
             "TEXTBOX" => new TextBox(),
@@ -2933,6 +2946,63 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "SHAPE" => new ShapeControl(),
             _ => new Panel()
         };
+    }
+
+    private static bool TryCreateNativeActiveX(string typeName, out Control? control)
+    {
+        control = null;
+        var progId = typeName.ToUpperInvariant() switch
+        {
+            "MSCOMCTLLIB.LISTVIEW" or "MSCOMCTLLIB.LISTVIEWCTRL" => "MSComctlLib.ListViewCtrl.2",
+            "MSCOMCTLLIB.PROGRESSBAR" or "MSCOMCTLLIB.PROGCTRL" => "MSComctlLib.ProgCtrl.2",
+            "MSCOMCTLLIB.SLIDER" => "MSComctlLib.Slider.2",
+            "MSCOMCTLLIB.STATUSBAR" or "MSCOMCTLLIB.SBARCTRL" => "MSComctlLib.SBarCtrl.2",
+            "MSCOMCTLLIB.TABSTRIP" => "MSComctlLib.TabStrip.2",
+            "MSCOMCTLLIB.TOOLBAR" => "MSComctlLib.Toolbar.2",
+            _ => null
+        };
+        if (progId is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var comType = Type.GetTypeFromProgID(progId, throwOnError: false);
+            if (comType is null || comType.GUID == Guid.Empty)
+            {
+                return false;
+            }
+
+            // Activation first distinguishes a registered control from one registered in the
+            // other process architecture. Managed adapters remain the deterministic fallback.
+            var instance = Activator.CreateInstance(comType);
+            if (instance is null)
+            {
+                return false;
+            }
+
+            if (Marshal.IsComObject(instance))
+            {
+                Marshal.FinalReleaseComObject(instance);
+            }
+
+            control = new NativeActiveXControl(comType.GUID);
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
 
     private bool TryCreateGeneratedUserControl(
         object owner,
@@ -3030,6 +3100,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
 
             base.Dispose(disposing);
+        }
+    }
+
+    private sealed class NativeActiveXControl : AxHost
+    {
+        public NativeActiveXControl(Guid clsid)
+            : base(clsid.ToString("B"))
+        {
+            SetStyle(ControlStyles.ResizeRedraw, true);
         }
     }
 

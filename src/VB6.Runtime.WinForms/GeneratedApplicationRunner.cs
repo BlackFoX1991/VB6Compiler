@@ -103,7 +103,7 @@ public static class GeneratedApplicationRunner
             _ => throw new InvalidOperationException("The generated entry point has an unsupported signature.")
         };
 
-        using var host = new WinFormsHost();
+        using var host = new WinFormsHost(preferNativeActiveX: true);
         var previousHost = VBInteraction.Host;
         try
         {

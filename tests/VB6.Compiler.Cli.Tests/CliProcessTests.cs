@@ -169,6 +169,7 @@ public sealed class CliProcessTests
             using var peReader = new PEReader(stream);
             Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
             Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
+            Assert.IsTrue(IsNativeWindowsAppHost(outputPath));
         }
         finally
         {
