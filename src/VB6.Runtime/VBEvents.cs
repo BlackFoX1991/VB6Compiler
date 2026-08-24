@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 
 namespace VB6.Runtime;
 
@@ -121,6 +123,20 @@ public static class VBEvents
                 return;
             }
 
+            if (TrySubscribeClrEvent(source, eventName, target, method, out var eventInfo, out var @delegate))
+            {
+                MethodSubscriptions.Add(new MethodSubscription(
+                    source,
+                    eventName,
+                    target,
+                    methodName,
+                    handler: null,
+                    host: null,
+                    eventInfo,
+                    @delegate));
+                return;
+            }
+
             AddHandlerLocked(source, eventName, handler);
             MethodSubscriptions.Add(new MethodSubscription(
                 source,
@@ -128,7 +144,9 @@ public static class VBEvents
                 target,
                 methodName,
                 handler,
-                host: null));
+                host: null,
+                eventInfo: null,
+                @delegate: null));
         }
     }
 
@@ -210,10 +228,150 @@ public static class VBEvents
                 subscription.Target,
                 subscription.MethodName);
         }
+        else if (subscription.EventInfo is not null && subscription.Delegate is not null)
+        {
+            subscription.EventInfo.RemoveEventHandler(subscription.Source, subscription.Delegate);
+        }
         else if (subscription.Handler is not null)
         {
             RemoveHandlerLocked(subscription.Source, subscription.EventName, subscription.Handler);
         }
+    }
+
+    private static bool TrySubscribeClrEvent(
+        object source,
+        string eventName,
+        object target,
+        MethodInfo method,
+        out EventInfo? eventInfo,
+        out Delegate? @delegate)
+    {
+        eventInfo = source.GetType()
+            .GetEvents(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, eventName, StringComparison.OrdinalIgnoreCase));
+        @delegate = null;
+        if (eventInfo?.EventHandlerType is null || eventInfo.GetAddMethod(true) is null)
+        {
+            eventInfo = null;
+            return false;
+        }
+
+        try
+        {
+            var callback = new EventCallback(target, method);
+            @delegate = CreateEventDelegate(eventInfo.EventHandlerType, callback);
+            eventInfo.AddEventHandler(source, @delegate);
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            InvalidOperationException or
+            NotSupportedException or
+            TargetException or
+            TargetInvocationException or
+            COMException)
+        {
+            eventInfo = null;
+            @delegate = null;
+            return false;
+        }
+    }
+
+    private static Delegate CreateEventDelegate(Type eventHandlerType, EventCallback callback)
+    {
+        var invoke = eventHandlerType.GetMethod("Invoke")
+            ?? throw new InvalidOperationException($"Event delegate '{eventHandlerType}' has no Invoke method.");
+        if (invoke.ReturnType != typeof(void))
+        {
+            throw new NotSupportedException("VB6 event handlers must use void-returning delegates.");
+        }
+
+        var eventParameters = invoke.GetParameters();
+        var dynamicParameters = new[] { typeof(EventCallback) }
+            .Concat(eventParameters.Select(parameter => parameter.ParameterType))
+            .ToArray();
+        var dynamicMethod = new DynamicMethod(
+            "VB6EventAdapter",
+            typeof(void),
+            dynamicParameters,
+            typeof(VBEvents).Module,
+            skipVisibility: true);
+        var generator = dynamicMethod.GetILGenerator();
+        var arguments = generator.DeclareLocal(typeof(object[]));
+        generator.Emit(OpCodes.Ldc_I4, eventParameters.Length);
+        generator.Emit(OpCodes.Newarr, typeof(object));
+        generator.Emit(OpCodes.Stloc, arguments);
+
+        for (var index = 0; index < eventParameters.Length; index++)
+        {
+            generator.Emit(OpCodes.Ldloc, arguments);
+            generator.Emit(OpCodes.Ldc_I4, index);
+            EmitBoxedArgument(generator, eventParameters[index].ParameterType, index + 1);
+            generator.Emit(OpCodes.Stelem_Ref);
+        }
+
+        generator.Emit(OpCodes.Ldarg_0);
+        generator.Emit(OpCodes.Ldloc, arguments);
+        generator.Emit(OpCodes.Callvirt, typeof(EventCallback).GetMethod(nameof(EventCallback.Invoke))!);
+
+        for (var index = 0; index < eventParameters.Length; index++)
+        {
+            var parameterType = eventParameters[index].ParameterType;
+            if (!parameterType.IsByRef)
+            {
+                continue;
+            }
+
+            var elementType = parameterType.GetElementType()!;
+            generator.Emit(OpCodes.Ldarg, index + 1);
+            generator.Emit(OpCodes.Ldloc, arguments);
+            generator.Emit(OpCodes.Ldc_I4, index);
+            generator.Emit(OpCodes.Ldelem_Ref);
+            if (elementType.IsValueType)
+            {
+                generator.Emit(OpCodes.Unbox_Any, elementType);
+                generator.Emit(OpCodes.Stobj, elementType);
+            }
+            else
+            {
+                generator.Emit(OpCodes.Castclass, elementType);
+                generator.Emit(OpCodes.Stind_Ref);
+            }
+        }
+
+        generator.Emit(OpCodes.Ret);
+        return dynamicMethod.CreateDelegate(eventHandlerType, callback);
+    }
+
+    private static void EmitBoxedArgument(ILGenerator generator, Type parameterType, int argumentIndex)
+    {
+        generator.Emit(OpCodes.Ldarg, argumentIndex);
+        if (parameterType.IsByRef)
+        {
+            var elementType = parameterType.GetElementType()!;
+            generator.Emit(OpCodes.Ldobj, elementType);
+            parameterType = elementType;
+        }
+
+        if (parameterType.IsValueType)
+        {
+            generator.Emit(OpCodes.Box, parameterType);
+        }
+    }
+
+    private sealed class EventCallback
+    {
+        private readonly object _target;
+        private readonly MethodInfo _method;
+
+        public EventCallback(object target, MethodInfo method)
+        {
+            _target = target;
+            _method = method;
+        }
+
+        public void Invoke(object?[] arguments) => _method.Invoke(_target, arguments);
     }
 
     private sealed class MethodSubscription
@@ -224,7 +382,9 @@ public static class VBEvents
             object target,
             string methodName,
             Action<object?[]>? handler,
-            IVB6Host? host)
+            IVB6Host? host,
+            EventInfo? eventInfo = null,
+            Delegate? @delegate = null)
         {
             Source = source;
             EventName = eventName;
@@ -232,6 +392,8 @@ public static class VBEvents
             MethodName = methodName;
             Handler = handler;
             Host = host;
+            EventInfo = eventInfo;
+            Delegate = @delegate;
         }
 
         public object Source { get; }
@@ -240,5 +402,7 @@ public static class VBEvents
         public string MethodName { get; }
         public Action<object?[]>? Handler { get; }
         public IVB6Host? Host { get; }
+        public EventInfo? EventInfo { get; }
+        public Delegate? Delegate { get; }
     }
 }

@@ -1403,5 +1403,16 @@ Variablendeklarationen und ergänzen eine kleine Liste häufig genutzter VB6-Int
 und Cursorpositionen werden als LSP-Zeilen-/Spaltenpositionen aufgelöst; `didClose` entfernt
 Dokumente wieder aus dem Serverzustand. Der vollständige JSON-RPC-Pfad ist mit einer Regression
 für Completion, Definition und Dokument-Symbole abgesichert. Die Gesamtsuite umfasst
-**896 Tests**. Vollständige Typermittlung, projektübergreifende Definitionen und semantisch
+**897 Tests**. Vollständige Typermittlung, projektübergreifende Definitionen und semantisch
 kontextabhängige Completion bleiben nachgelagerte Visual-Studio-Integrationsschritte.
+
+## Aktueller COM-Event-Nachtrag
+
+`VBEvents.SubscribeMethod` verbindet neben dem portablen Host-Hook nun auch CLR- und COM-RCW-
+Events, wenn die Eventquelle ihre Ereignisse als `EventInfo` exponiert. Ein dynamischer Delegate-
+Adapter packt die Eventargumente in den bestehenden VB6-Handlervertrag, schreibt geänderte
+`ByRef`-Argumente wieder in die ursprünglichen Eventparameter und entfernt die Verbindung bei
+`WithEvents`-Reassignment. Das hält generierte VB6-Klassen und Standard-/ActiveX-Hostobjekte auf
+demselben Runtimepfad. Der Umfang ist mit normalen CLR-Events und einem echten `ByRef`-Event
+regressionsgesichert. Direkte `IConnectionPoint`-/`IDispatch`-Implementierungen ohne reflektierbare
+`EventInfo`, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
