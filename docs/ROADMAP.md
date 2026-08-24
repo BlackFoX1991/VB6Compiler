@@ -1790,6 +1790,8 @@ Properties und `DISPID_VALUE`-Defaultzugriffe auf das echte COM-Objekt weiter, o
 WinForms-Geometrie des Wrappers zu verlieren. Der bestehende `ComEventsHelper`-Pfad verwendet
 für `WithEvents`-Subscriptions und deren Abmeldung ebenfalls das entpackte RCW; damit können
 TypeLib-importierte Source-IIDs/DISPIDs auch für native OCX-Wrapper verwendet werden. Der
-Regressionstest deckt diesen Vertrag mit einem realen `Scripting.Dictionary`-RCW ab. Raw-
+Regressionstest deckt diesen Vertrag mit einem realen `Scripting.Dictionary`-RCW ab. Die Runtime
+stellt außerdem `VBEvents.UnsubscribeMethod` als explizite, quellenbezogene Abmeldung bereit;
+ein `null`-Quellobjekt entfernt alle passenden Verbindungen. Raw-
 `IDispatch`-ABI-Marshalling, vollständige OCX-Event-Signaturabdeckung und COM-Server-Emission
-bleiben separate Interop-Schritte. Die Gesamtsuite umfasst **951 Tests**.
+bleiben separate Interop-Schritte. Die Gesamtsuite umfasst **952 Tests**.
