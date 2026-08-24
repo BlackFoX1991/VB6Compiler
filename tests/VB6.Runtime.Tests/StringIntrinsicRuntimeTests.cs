@@ -166,9 +166,19 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void FormatValue_UsesWeekdayWeekQuarterAndWeekArguments()
+    {
+        var date = new VBDateValue(43835); // Sunday, 5 January 2020.
+
+        Assert.AreEqual("1 2 1 5", VBStrings.FormatValue(date, "w ww q y", 1, 1));
+        Assert.AreEqual("1 2 1 5", VBStrings.FormatValue(date, "W WW Q Y", 1, 1));
+        Assert.AreEqual("7 1 1 5", VBStrings.FormatValue(date, "w ww q y", 2, 2));
+    }
+
+    [TestMethod]
     public void FormatValue_RejectsUnsupportedDateMasks()
     {
         Assert.ThrowsException<NotSupportedException>(() =>
-            VBStrings.FormatValue(new VBDateValue(45292), "ww", 0, 0));
+            VBStrings.FormatValue(new VBDateValue(45292), "zzz", 0, 0));
     }
 }

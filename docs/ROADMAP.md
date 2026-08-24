@@ -1172,8 +1172,9 @@ Nach Korpusbedarf priorisiert:
    Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
    für den aktuellen String-/Variant-Subset implementiert.
 5. [~] `Format$` — deterministische numerische Masken, Standardnamen, gängige Datums-/Zeit-Token
-   und `<`/`>`-Stringmasken sind ergänzt; Wochenmasken, Locale-Auswahl, weitere String-Platzhalter
-   und Finanzfunktionen bleiben offen und sind im Korpus unbenutzt
+   und `<`/`>`-Stringmasken sind ergänzt; `w`/`ww`/`q` berücksichtigen nun die übergebenen
+   `FirstDayOfWeek`-/`FirstWeekOfYear`-Regeln. Locale-Auswahl, weitere String-Platzhalter und
+   Finanzfunktionen bleiben offen und sind im Korpus unbenutzt
 
 ## Meilenstein 8 — Interop
 
@@ -1816,6 +1817,17 @@ Messagebox stabil. `MSComctlLib.TreeView` bleibt vorerst beim Managed-Adapter, d
 `Nodes`-Collection-ABI noch nicht stabil genug für den Runner ist. Die vollständige native
 TreeView-/ImageList-/ImageCombo-/CommonDialog-Oberfläche und ihre Event-ABIs bleiben offen.
 
+## Aktueller Format-Nachtrag
+
+`Format$` verarbeitet die VBA-Datums-Token `w` (Wochentag), `ww` (Kalenderwoche) und `q`
+(Quartal) jetzt auch im vollständigen Managed-Compilerpfad. `FirstDayOfWeek` unterstützt die
+VB6-Werte `vbUseSystem`/`vbSunday` bis `vbSaturday`; `FirstWeekOfYear` unterstützt
+`vbUseSystem`/`vbFirstJan1`/`vbFirstFourDays`/`vbFirstFullWeek`. Die Woche wird mit dem
+invariant-gregorianischen Kalender berechnet; `vbUseSystem` übernimmt die aktuellen
+Culture-Einstellungen für Wochenbeginn und Wochenregel, systemabhängige Text-/Locale-Ausgabe
+bleibt ein separater Schritt. Runtime- und E2E-Regressionen decken die Token und Parameter ab.
+Die Gesamtsuite umfasst nun **954 Tests**.
+
 ## Aktueller Standard-OCX-Hosting-Nachtrag
 
 Die auf dem Testsystem registrierten 32-Bit-Standard-OCX werden jetzt im x86-Runner konkret
@@ -1826,5 +1838,5 @@ seine Properties werden direkt über das RCW gelesen und geschrieben. Die native
 opt-in und fällt bei fehlender Registrierung oder falscher Bitness auf die bestehenden Managed-
 Adapter zurück. TreeView bleibt wegen des noch instabilen nativen `Nodes`-ABI bewusst beim
 Managed-Adapter. Der x86- und der x64-WinForms-Testlauf umfassen jeweils **28 Tests**; die
-Gesamtsuite liegt nun bei **953 Tests**. Native Connection-Point-Events, vollständiges
+Gesamtsuite liegt nun bei **954 Tests**. Native Connection-Point-Events, vollständiges
 `IDispatch`-ByRef-Marshalling und die komplette TreeView-Collection bleiben offen.
