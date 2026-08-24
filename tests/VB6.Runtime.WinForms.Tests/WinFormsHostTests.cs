@@ -75,6 +75,31 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostEmbedsGeneratedUserControlClassesAsDesignerComponents()
+    {
+        using var host = new WinFormsHost();
+        var owner = new UserControlOwner();
+        host.Load(owner);
+        Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 1440));
+
+        var typeName = typeof(GeneratedUserControlStub).FullName!;
+        var generated = host.CreateControl(owner, "Widget1", typeName);
+
+        Assert.IsInstanceOfType<GeneratedUserControlStub>(generated);
+        Assert.IsTrue(host.TryGetMember(owner, "Widget1", Array.Empty<object?>(), out var named));
+        Assert.AreSame(generated, named);
+        Assert.IsTrue(host.TrySetMember(generated!, "Width", Array.Empty<object?>(), 1440));
+        Assert.IsTrue(host.TryGetMember(generated!, "Width", Array.Empty<object?>(), out var width));
+        Assert.IsTrue((int)width! > 0);
+        Assert.IsTrue(host.TrySetMember(generated!, "Visible", Array.Empty<object?>(), false));
+        Assert.IsTrue(host.TryGetMember(generated!, "Visible", Array.Empty<object?>(), out var visible));
+        Assert.AreEqual(false, visible);
+        Assert.AreEqual(1, host.EnumerateControls(owner)!.OfType<Form>().Count());
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostShowsStartupFormThroughInteractionDispatch()
     {
         using var host = new WinFormsHost();
@@ -807,6 +832,14 @@ public sealed class WinFormsHostTests
         public int TickCount { get; private set; }
 
         private void Timer1_Timer() => TickCount++;
+    }
+
+    private sealed class UserControlOwner
+    {
+    }
+
+    private sealed class GeneratedUserControlStub
+    {
     }
 
     private static VBArray<object> Arguments(params object?[] values)

@@ -272,6 +272,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return;
         }
 
+        foreach (var hostedObject in binding.HostedObjects.ToArray())
+        {
+            if (_bindings.ContainsKey(hostedObject))
+            {
+                Unload(hostedObject);
+            }
+        }
+
         foreach (var treeView in binding.Controls.Values.OfType<TreeView>())
         {
             _treeViewStates.Remove(treeView);
@@ -330,6 +338,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         var parent = parentName is not null && binding.Controls.TryGetValue(parentName, out var parentControl)
             ? parentControl
             : null;
+        if (TryCreateGeneratedUserControl(
+                owner,
+                binding,
+                logicalName,
+                name,
+                typeName,
+                parent,
+                out var generatedUserControl))
+        {
+            return generatedUserControl;
+        }
+
         var hostObject = CreateControlInstance(typeName);
         if (hostObject is not Control control)
         {
@@ -2699,6 +2719,52 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             _ => new Panel()
         };
 
+    private bool TryCreateGeneratedUserControl(
+        object owner,
+        FormBinding ownerBinding,
+        string logicalName,
+        string qualifiedName,
+        string typeName,
+        Control? parent,
+        out object? generatedUserControl)
+    {
+        generatedUserControl = null;
+        var generatedType = owner.GetType().Assembly.GetType(
+            typeName,
+            throwOnError: false,
+            ignoreCase: true);
+        if (generatedType is null ||
+            generatedType.IsAbstract ||
+            generatedType.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                types: Type.EmptyTypes,
+                modifiers: null) is null)
+        {
+            return false;
+        }
+
+        generatedUserControl = Activator.CreateInstance(generatedType, nonPublic: true);
+        if (generatedUserControl is null)
+        {
+            return false;
+        }
+
+        var generatedBinding = GetOrCreateBinding(generatedUserControl);
+        var hostedForm = generatedBinding.Form;
+        hostedForm.TopLevel = false;
+        hostedForm.FormBorderStyle = FormBorderStyle.None;
+        hostedForm.ShowInTaskbar = false;
+        hostedForm.Dock = DockStyle.Fill;
+        (parent?.Controls ?? ownerBinding.Form.Controls).Add(hostedForm);
+
+        ownerBinding.Components[qualifiedName] = generatedUserControl;
+        ownerBinding.Components.TryAdd(logicalName, generatedUserControl);
+        ownerBinding.HostedObjects.Add(generatedUserControl);
+        hostedForm.Show();
+        return true;
+    }
+
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -2933,6 +2999,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         public Dictionary<string, object> Components { get; } =
             new(StringComparer.OrdinalIgnoreCase);
+
+        public List<object> HostedObjects { get; } = new();
 
         public MenuStrip? MenuStrip { get; set; }
     }
