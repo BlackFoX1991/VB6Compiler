@@ -734,6 +734,7 @@ public sealed class ProjectCompilationTests
             File.WriteAllText(Path.Combine(directory, "Splash.frm"), """
                 VERSION 5.00
                 Begin VB.Form Splash
+                   Caption = "Splash"
                    Begin VB.Frame Frame1
                       Begin VB.CommandButton StartButton
                          Caption = "Start"
@@ -791,14 +792,24 @@ public sealed class ProjectCompilationTests
                 .ToArray();
             CollectionAssert.Contains(controlNames, "Frame1");
             CollectionAssert.Contains(controlNames, "Frame1.StartButton");
-            var captionInitializer = constructor.Blocks
+            var designerInitializers = constructor.Blocks
                 .SelectMany(block => block.Instructions)
                 .OfType<IrEvaluateInstruction>()
                 .Select(instruction => instruction.Expression)
                 .OfType<IrRuntimeCallExpression>()
-                .Single(call => call.Method == IrRuntimeMethod.InteractionSetMember);
-            Assert.AreEqual("Caption", ((IrConstantExpression)captionInitializer.Arguments[1].Expression).Value);
-            Assert.AreEqual("Start", ((IrConstantExpression)captionInitializer.Arguments[2].Expression).Value);
+                .Where(call => call.Method == IrRuntimeMethod.InteractionSetMember)
+                .ToArray();
+            Assert.AreEqual(2, designerInitializers.Length);
+            CollectionAssert.AreEquivalent(
+                new[] { "Splash", "Start" },
+                designerInitializers
+                    .Select(call => ((IrConstantExpression)call.Arguments[2].Expression).Value)
+                    .Cast<string>()
+                    .ToArray());
+            foreach (var initializer in designerInitializers)
+            {
+                Assert.AreEqual("Caption", ((IrConstantExpression)initializer.Arguments[1].Expression).Value);
+            }
             Assert.IsTrue(File.Exists(result.AssemblyPath));
             Assert.AreEqual(string.Empty, VB6TestProgram.RunProject(projectPath));
         }

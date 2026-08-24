@@ -181,7 +181,7 @@ public static class VBDesignerParser
                     continue;
                 }
 
-                var resource = ParseResourceReference(rawValue, fullPath);
+                var resource = ParseResourceReference(StripInlineComment(rawValue), fullPath);
                 var resourceData = ReadResourceData(resource, fullPath, lineNumber, diagnostics);
                 var propertyName = propertyGroups.Count == 0
                     ? propertyKey
@@ -307,6 +307,7 @@ public static class VBDesignerParser
 
     private static object? ParseValue(string rawValue)
     {
+        rawValue = StripInlineComment(rawValue);
         if (rawValue.Length >= 2 && rawValue[0] == '"' && rawValue[^1] == '"')
         {
             return rawValue[1..^1].Replace("\"\"", "\"", StringComparison.Ordinal);
@@ -344,6 +345,34 @@ public static class VBDesignerParser
         }
 
         return rawValue;
+    }
+
+    private static string StripInlineComment(string rawValue)
+    {
+        var quoted = false;
+        for (var index = 0; index < rawValue.Length; index++)
+        {
+            if (rawValue[index] != '"')
+            {
+                if (rawValue[index] == '\'' && !quoted)
+                {
+                    return rawValue[..index].TrimEnd();
+                }
+
+                continue;
+            }
+
+            if (quoted && index + 1 < rawValue.Length && rawValue[index + 1] == '"')
+            {
+                index++;
+            }
+            else
+            {
+                quoted = !quoted;
+            }
+        }
+
+        return rawValue.Trim();
     }
 
     private static (string? Path, int? Offset) ParseResourceReference(string rawValue, string sourcePath)

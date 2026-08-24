@@ -290,9 +290,14 @@ public sealed class VBProjectCompilation
                     });
                 }
 
+                var designerInitializers = designerDocuments.TryGetValue(module.FilePath, out var designerDocument)
+                    ? ReadDesignerInitializers(designerDocument.Root)
+                    : ImmutableArray<DesignerPropertyInitializer>.Empty;
+
                 semanticModel = semanticModel with
                 {
-                    InstanceVariables = instanceVariables.ToImmutable()
+                    InstanceVariables = instanceVariables.ToImmutable(),
+                    DesignerInitializers = designerInitializers
                 };
             }
             var userDefinedTypeValueDiagnostics = moduleUserDefinedTypes is null
@@ -593,54 +598,71 @@ public sealed class VBProjectCompilation
             }
         }
 
-        static ImmutableArray<DesignerPropertyInitializer> ReadDesignerInitializers(VBDesignerNode node)
-        {
-            var initializers = ImmutableArray.CreateBuilder<DesignerPropertyInitializer>();
-            foreach (var property in node.Properties)
-            {
-                if (!IsSupportedDesignerProperty(property.Name))
-                {
-                    continue;
-                }
+    }
 
-                object? value = property.Name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) &&
-                                property.ResourceData is not null
-                    ? Encoding.ASCII.GetString(property.ResourceData)
-                    : property.ResourcePath is null
-                        ? property.Value
-                        : null;
-                if (value is string or bool or long or int)
-                {
-                    initializers.Add(new DesignerPropertyInitializer(property.Name, value));
-                }
+    private static ImmutableArray<DesignerPropertyInitializer> ReadDesignerInitializers(VBDesignerNode node)
+    {
+        var initializers = ImmutableArray.CreateBuilder<DesignerPropertyInitializer>();
+        foreach (var property in node.Properties)
+        {
+            if (!IsSupportedDesignerProperty(property.Name))
+            {
+                continue;
             }
 
-            return initializers.ToImmutable();
+            object? value = property.Name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) &&
+                            property.ResourceData is not null
+                ? Encoding.ASCII.GetString(property.ResourceData)
+                : property.ResourcePath is null
+                    ? property.Value
+                    : null;
+            if (value is string or bool or long or int)
+            {
+                initializers.Add(new DesignerPropertyInitializer(property.Name, value));
+            }
         }
 
-        static bool IsSupportedDesignerProperty(string name) =>
-            name.Equals("Caption", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Visible", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Left", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Top", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Width", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Height", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("BackColor", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("ForeColor", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelStart", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelLength", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelText", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelColor", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelBold", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelItalic", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("SelUnderline", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("RightMargin", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("HideSelection", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Interval", StringComparison.OrdinalIgnoreCase);
+        return initializers.ToImmutable();
     }
+
+    private static bool IsSupportedDesignerProperty(string name) =>
+        name.Equals("Caption", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Visible", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Left", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Top", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Width", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Height", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("BackColor", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ForeColor", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelStart", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelLength", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelText", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelColor", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelBold", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelItalic", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("SelUnderline", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("RightMargin", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("HideSelection", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Interval", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("BorderStyle", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Appearance", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("AutoRedraw", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("FillStyle", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("MousePointer", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ScaleMode", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Tag", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ToolTipText", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ControlBox", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("MaxButton", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("MinButton", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ShowInTaskbar", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("StartUpPosition", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("WindowState", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ImageWidth", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ImageHeight", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);

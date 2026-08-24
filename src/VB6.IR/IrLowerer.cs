@@ -44,6 +44,8 @@ public static class IrLowerer
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ClassTypeSymbol, ImmutableArray<BoundModuleVariable>> _classVariables =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ClassTypeSymbol, ImmutableArray<DesignerPropertyInitializer>>
+            _classDesignerInitializers = new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ClassTypeSymbol, Dictionary<string, ProcedureSymbol>> _classProcedures =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ModuleVariableSymbol, ImmutableArray<(EventSymbol Event, ProcedureSymbol Handler)>>
@@ -382,6 +384,14 @@ public static class IrLowerer
                 }
             }
 
+            if (_classDesignerInitializers.TryGetValue(classType, out var designerInitializers))
+            {
+                AddDesignerInitializers(
+                    instructions,
+                    new IrThisPlace(classType),
+                    designerInitializers);
+            }
+
             if (TryGetClassProcedure(classType, "Class_Initialize", null, out var initializer))
             {
                 instructions.Add(new IrEvaluateInstruction(
@@ -619,6 +629,7 @@ public static class IrLowerer
                 }
 
                 _classVariables[classType] = input.SemanticModel.InstanceVariables;
+                _classDesignerInitializers[classType] = input.SemanticModel.DesignerInitializers;
                 var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
                 foreach (var procedure in input.SemanticModel.Procedures)
                 {

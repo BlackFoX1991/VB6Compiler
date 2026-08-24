@@ -29,6 +29,18 @@ public sealed class WinFormsHostTests
         Assert.IsTrue(host.TrySetMember(control!, "Caption", Array.Empty<object?>(), "Run"));
         Assert.IsTrue(host.TrySetMember(control!, "Left", Array.Empty<object?>(), 1440));
         Assert.IsTrue(host.TrySetMember(control!, "Width", Array.Empty<object?>(), 2880));
+        Assert.IsTrue(host.TrySetMember(control!, "Appearance", Array.Empty<object?>(), 0));
+        Assert.IsTrue(host.TrySetMember(control!, "Tag", Array.Empty<object?>(), "command"));
+        Assert.IsTrue(host.TrySetMember(control!, "ToolTipText", Array.Empty<object?>(), "Run it"));
+        Assert.IsTrue(host.TrySetMember(control!, "AutoRedraw", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(control!, "FillStyle", Array.Empty<object?>(), 1));
+        Assert.IsTrue(host.TrySetMember(control!, "MousePointer", Array.Empty<object?>(), 2));
+        Assert.IsTrue(host.TrySetMember(control!, "ScaleMode", Array.Empty<object?>(), 3));
+
+        Assert.IsTrue(host.TrySetMember(owner, "Caption", Array.Empty<object?>(), "Main window"));
+        Assert.IsTrue(host.TrySetMember(owner, "BorderStyle", Array.Empty<object?>(), 1));
+        Assert.IsTrue(host.TrySetMember(owner, "ControlBox", Array.Empty<object?>(), false));
+        Assert.IsTrue(host.TrySetMember(owner, "StartUpPosition", Array.Empty<object?>(), 2));
 
         Assert.IsTrue(host.TryGetMember(control!, "Text", Array.Empty<object?>(), out var text));
         Assert.AreEqual("Run", text);
@@ -36,6 +48,22 @@ public sealed class WinFormsHostTests
         Assert.AreEqual("Run", caption);
         Assert.IsTrue(host.TryGetMember(control!, "Left", Array.Empty<object?>(), out var left));
         Assert.AreEqual(1440, left);
+        Assert.IsTrue(host.TryGetMember(control!, "Appearance", Array.Empty<object?>(), out var appearance));
+        Assert.AreEqual(0, appearance);
+        Assert.IsTrue(host.TryGetMember(control!, "Tag", Array.Empty<object?>(), out var tag));
+        Assert.AreEqual("command", tag);
+        Assert.IsTrue(host.TryGetMember(control!, "ToolTipText", Array.Empty<object?>(), out var toolTip));
+        Assert.AreEqual("Run it", toolTip);
+        Assert.IsTrue(host.TryGetMember(control!, "AutoRedraw", Array.Empty<object?>(), out var autoRedraw));
+        Assert.AreEqual(true, autoRedraw);
+        Assert.IsTrue(host.TryGetMember(owner, "Caption", Array.Empty<object?>(), out var formCaption));
+        Assert.AreEqual("Main window", formCaption);
+        Assert.IsTrue(host.TryGetMember(owner, "BorderStyle", Array.Empty<object?>(), out var formBorderStyle));
+        Assert.AreEqual(1, formBorderStyle);
+        Assert.IsTrue(host.TryGetMember(owner, "ControlBox", Array.Empty<object?>(), out var controlBox));
+        Assert.AreEqual(false, controlBox);
+        Assert.IsTrue(host.TryGetMember(owner, "StartUpPosition", Array.Empty<object?>(), out var startUpPosition));
+        Assert.AreEqual(2, startUpPosition);
         Assert.IsTrue(host.TryGetMember(owner, "Button1", Array.Empty<object?>(), out var named));
         Assert.AreSame(control, named);
 
@@ -238,6 +266,12 @@ public sealed class WinFormsHostTests
             VBInteraction.Host = host;
             host.Load(owner);
             var imageList = host.CreateControl(owner, "Images", "MSComctlLib.ImageList")!;
+            Assert.IsTrue(host.TrySetMember(imageList, "ImageWidth", Array.Empty<object?>(), 16));
+            Assert.IsTrue(host.TrySetMember(imageList, "ImageHeight", Array.Empty<object?>(), 24));
+            Assert.IsTrue(host.TryGetMember(imageList, "ImageWidth", Array.Empty<object?>(), out var imageWidth));
+            Assert.AreEqual(16, imageWidth);
+            Assert.IsTrue(host.TryGetMember(imageList, "ImageHeight", Array.Empty<object?>(), out var imageHeight));
+            Assert.AreEqual(24, imageHeight);
             var listImages = VBDynamicDispatch.GetMember(imageList, "ListImages")!;
             VBDynamicDispatch.InvokeMember(listImages, "Add", Arguments(null, "Folder", "folder.bmp"));
             Assert.AreEqual(1, VBDynamicDispatch.GetMember(listImages, "Count"));

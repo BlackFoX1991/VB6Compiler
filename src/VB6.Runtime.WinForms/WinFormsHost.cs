@@ -22,6 +22,9 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<RichTextBox, RichTextBoxState> _richTextBoxStates =
         new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Control, DesignerControlState> _designerControlStates =
+        new(ReferenceEqualityComparer.Instance);
+    private readonly ToolTip _toolTip = new();
     private bool _disposed;
 
     public void Register(object vbObject, Form form)
@@ -99,6 +102,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             _richTextBoxStates.Remove(richTextBox);
         }
 
+        foreach (var control in binding.Controls.Values)
+        {
+            _designerControlStates.Remove(control);
+        }
+
         foreach (var eventBinding in _events
                      .Where(eventBinding =>
                          ReferenceEquals(eventBinding.Source, target) ||
@@ -169,6 +177,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return control;
     }
 
+    public void EnsureForm(object target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ThrowIfDisposed();
+        _ = GetOrCreateBinding(target);
+    }
+
     public bool TryGetMember(
         object target,
         string memberName,
@@ -190,6 +205,60 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             value = namedComponent;
             return true;
+        }
+
+        if (target is ImageListProxy imageList && arguments.Length == 0)
+        {
+            if (string.Equals(memberName, "ImageWidth", StringComparison.OrdinalIgnoreCase))
+            {
+                value = imageList.ImageWidth;
+                return true;
+            }
+
+            if (string.Equals(memberName, "ImageHeight", StringComparison.OrdinalIgnoreCase))
+            {
+                value = imageList.ImageHeight;
+                return true;
+            }
+        }
+
+        if (target is CommonDialogProxy commonDialog && arguments.Length == 0)
+        {
+            if (string.Equals(memberName, "FileName", StringComparison.OrdinalIgnoreCase))
+            {
+                value = commonDialog.FileName;
+                return true;
+            }
+
+            if (string.Equals(memberName, "Filter", StringComparison.OrdinalIgnoreCase))
+            {
+                value = commonDialog.Filter;
+                return true;
+            }
+
+            if (string.Equals(memberName, "DialogTitle", StringComparison.OrdinalIgnoreCase))
+            {
+                value = commonDialog.DialogTitle;
+                return true;
+            }
+
+            if (string.Equals(memberName, "FilterIndex", StringComparison.OrdinalIgnoreCase))
+            {
+                value = commonDialog.FilterIndex;
+                return true;
+            }
+
+            if (string.Equals(memberName, "CancelError", StringComparison.OrdinalIgnoreCase))
+            {
+                value = commonDialog.CancelError;
+                return true;
+            }
+
+            if (string.Equals(memberName, "DefaultExt", StringComparison.OrdinalIgnoreCase))
+            {
+                value = commonDialog.DefaultExt;
+                return true;
+            }
         }
 
         if (target is TreeView treeView)
@@ -274,6 +343,60 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             imageCombo.ImageList = value;
             return true;
+        }
+
+        if (target is ImageListProxy imageList && arguments.Length == 0)
+        {
+            if (string.Equals(memberName, "ImageWidth", StringComparison.OrdinalIgnoreCase))
+            {
+                imageList.ImageWidth = VBConversions.CLng(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "ImageHeight", StringComparison.OrdinalIgnoreCase))
+            {
+                imageList.ImageHeight = VBConversions.CLng(value);
+                return true;
+            }
+        }
+
+        if (target is CommonDialogProxy commonDialog && arguments.Length == 0)
+        {
+            if (string.Equals(memberName, "FileName", StringComparison.OrdinalIgnoreCase))
+            {
+                commonDialog.FileName = VBConversions.CStr(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "Filter", StringComparison.OrdinalIgnoreCase))
+            {
+                commonDialog.Filter = VBConversions.CStr(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "DialogTitle", StringComparison.OrdinalIgnoreCase))
+            {
+                commonDialog.DialogTitle = VBConversions.CStr(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "FilterIndex", StringComparison.OrdinalIgnoreCase))
+            {
+                commonDialog.FilterIndex = VBConversions.CLng(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "CancelError", StringComparison.OrdinalIgnoreCase))
+            {
+                commonDialog.CancelError = VBConversions.CBool(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "DefaultExt", StringComparison.OrdinalIgnoreCase))
+            {
+                commonDialog.DefaultExt = VBConversions.CStr(value);
+                return true;
+            }
         }
 
         if (target is TreeView treeView && arguments.Length == 0)
@@ -462,6 +585,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         _bindings.Clear();
         _treeViewStates.Clear();
         _richTextBoxStates.Clear();
+        _designerControlStates.Clear();
+        _toolTip.Dispose();
     }
 
     private FormBinding GetOrCreateBinding(object target)
@@ -1209,6 +1334,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         string memberName,
         out object? value)
     {
+        if (control is Form form && TryReadFormProperty(form, memberName, out value))
+        {
+            return true;
+        }
+
+        if (TryReadDesignerControlProperty(control, memberName, out value))
+        {
+            return true;
+        }
+
         var twipsPerPixelX = 1440f / control.DeviceDpi;
         var twipsPerPixelY = 1440f / control.DeviceDpi;
         if (string.Equals(memberName, "Left", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.Left, twipsPerPixelX);
@@ -1248,6 +1383,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private bool TryWriteControlProperty(Control control, string memberName, object? value)
     {
+        if (control is Form form && TryWriteFormProperty(form, memberName, value))
+        {
+            return true;
+        }
+
+        if (TryWriteDesignerControlProperty(control, memberName, value))
+        {
+            return true;
+        }
+
         var twipsPerPixelX = 1440f / control.DeviceDpi;
         var twipsPerPixelY = 1440f / control.DeviceDpi;
         if (string.Equals(memberName, "Left", StringComparison.OrdinalIgnoreCase)) control.Left = FromTwips(value, twipsPerPixelX);
@@ -1279,6 +1424,275 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         return true;
     }
+
+    private bool TryReadFormProperty(Form form, string memberName, out object? value)
+    {
+        if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ToVbFormBorderStyle(form.FormBorderStyle);
+            return true;
+        }
+
+        if (string.Equals(memberName, "ControlBox", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.ControlBox;
+            return true;
+        }
+
+        if (string.Equals(memberName, "MaxButton", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.MaximizeBox;
+            return true;
+        }
+
+        if (string.Equals(memberName, "MinButton", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.MinimizeBox;
+            return true;
+        }
+
+        if (string.Equals(memberName, "ShowInTaskbar", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.ShowInTaskbar;
+            return true;
+        }
+
+        if (string.Equals(memberName, "StartUpPosition", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ToVbStartUpPosition(form.StartPosition);
+            return true;
+        }
+
+        if (string.Equals(memberName, "WindowState", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.WindowState switch
+            {
+                FormWindowState.Minimized => 1,
+                FormWindowState.Maximized => 2,
+                _ => 0
+            };
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private bool TryWriteFormProperty(Form form, string memberName, object? value)
+    {
+        if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            form.FormBorderStyle = FromVbFormBorderStyle(VBConversions.CLng(value));
+            return true;
+        }
+
+        if (string.Equals(memberName, "ControlBox", StringComparison.OrdinalIgnoreCase))
+        {
+            form.ControlBox = VBConversions.CBool(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "MaxButton", StringComparison.OrdinalIgnoreCase))
+        {
+            form.MaximizeBox = VBConversions.CBool(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "MinButton", StringComparison.OrdinalIgnoreCase))
+        {
+            form.MinimizeBox = VBConversions.CBool(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "ShowInTaskbar", StringComparison.OrdinalIgnoreCase))
+        {
+            form.ShowInTaskbar = VBConversions.CBool(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "StartUpPosition", StringComparison.OrdinalIgnoreCase))
+        {
+            form.StartPosition = FromVbStartUpPosition(VBConversions.CLng(value));
+            return true;
+        }
+
+        if (string.Equals(memberName, "WindowState", StringComparison.OrdinalIgnoreCase))
+        {
+            form.WindowState = VBConversions.CLng(value) switch
+            {
+                1 => FormWindowState.Minimized,
+                2 => FormWindowState.Maximized,
+                _ => FormWindowState.Normal
+            };
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryReadDesignerControlProperty(
+        Control control,
+        string memberName,
+        out object? value)
+    {
+        if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control switch
+            {
+                TextBoxBase textBox => (int)textBox.BorderStyle,
+                PictureBox pictureBox => (int)pictureBox.BorderStyle,
+                Panel panel => (int)panel.BorderStyle,
+                _ => GetDesignerControlState(control).BorderStyle
+            };
+            return true;
+        }
+
+        if (string.Equals(memberName, "Appearance", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control is ButtonBase button
+                ? button.FlatStyle == FlatStyle.Flat ? 0 : 1
+                : GetDesignerControlState(control).Appearance;
+            return true;
+        }
+
+        if (string.Equals(memberName, "Tag", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.Tag;
+            return true;
+        }
+
+        if (string.Equals(memberName, "ToolTipText", StringComparison.OrdinalIgnoreCase))
+        {
+            value = _toolTip.GetToolTip(control);
+            return true;
+        }
+
+        var state = GetDesignerControlState(control);
+        if (string.Equals(memberName, "AutoRedraw", StringComparison.OrdinalIgnoreCase)) value = state.AutoRedraw;
+        else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) value = state.FillStyle;
+        else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) value = state.MousePointer;
+        else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) value = state.ScaleMode;
+        else
+        {
+            value = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryWriteDesignerControlProperty(
+        Control control,
+        string memberName,
+        object? value)
+    {
+        if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            var borderStyle = (BorderStyle)Math.Clamp(VBConversions.CLng(value), 0, 2);
+            switch (control)
+            {
+                case TextBoxBase textBox:
+                    textBox.BorderStyle = borderStyle;
+                    break;
+                case PictureBox pictureBox:
+                    pictureBox.BorderStyle = borderStyle;
+                    break;
+                case Panel panel:
+                    panel.BorderStyle = borderStyle;
+                    break;
+                default:
+                    GetDesignerControlState(control).BorderStyle = (int)borderStyle;
+                    break;
+            }
+
+            return true;
+        }
+
+        if (string.Equals(memberName, "Appearance", StringComparison.OrdinalIgnoreCase))
+        {
+            var appearance = VBConversions.CLng(value);
+            if (control is ButtonBase button)
+            {
+                button.FlatStyle = appearance == 0 ? FlatStyle.Flat : FlatStyle.Standard;
+            }
+            else
+            {
+                GetDesignerControlState(control).Appearance = appearance;
+            }
+
+            return true;
+        }
+
+        if (string.Equals(memberName, "Tag", StringComparison.OrdinalIgnoreCase))
+        {
+            control.Tag = value;
+            return true;
+        }
+
+        if (string.Equals(memberName, "ToolTipText", StringComparison.OrdinalIgnoreCase))
+        {
+            _toolTip.SetToolTip(control, VBConversions.CStr(value));
+            return true;
+        }
+
+        var state = GetDesignerControlState(control);
+        if (string.Equals(memberName, "AutoRedraw", StringComparison.OrdinalIgnoreCase)) state.AutoRedraw = VBConversions.CBool(value);
+        else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) state.FillStyle = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) state.MousePointer = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = VBConversions.CLng(value);
+        else return false;
+
+        return true;
+    }
+
+    private DesignerControlState GetDesignerControlState(Control control)
+    {
+        if (_designerControlStates.TryGetValue(control, out var state))
+        {
+            return state;
+        }
+
+        state = new DesignerControlState();
+        _designerControlStates.Add(control, state);
+        return state;
+    }
+
+    private static int ToVbFormBorderStyle(FormBorderStyle style) => style switch
+    {
+        FormBorderStyle.None => 0,
+        FormBorderStyle.FixedSingle => 1,
+        FormBorderStyle.Fixed3D => 2,
+        FormBorderStyle.FixedDialog => 3,
+        FormBorderStyle.FixedToolWindow => 4,
+        FormBorderStyle.SizableToolWindow => 5,
+        _ => 2
+    };
+
+    private static FormBorderStyle FromVbFormBorderStyle(int style) => style switch
+    {
+        0 => FormBorderStyle.None,
+        1 => FormBorderStyle.FixedSingle,
+        3 => FormBorderStyle.FixedDialog,
+        4 => FormBorderStyle.FixedToolWindow,
+        5 => FormBorderStyle.SizableToolWindow,
+        _ => FormBorderStyle.Sizable
+    };
+
+    private static int ToVbStartUpPosition(FormStartPosition position) => position switch
+    {
+        FormStartPosition.CenterParent => 1,
+        FormStartPosition.CenterScreen => 2,
+        FormStartPosition.WindowsDefaultLocation => 3,
+        _ => 0
+    };
+
+    private static FormStartPosition FromVbStartUpPosition(int position) => position switch
+    {
+        1 => FormStartPosition.CenterParent,
+        2 => FormStartPosition.CenterScreen,
+        3 => FormStartPosition.WindowsDefaultLocation,
+        _ => FormStartPosition.Manual
+    };
 
     private static VBFont ToVBFont(Font font) => new()
     {
@@ -1421,6 +1835,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public int Style { get; set; }
 
         public int LineStyle { get; set; }
+    }
+
+    private sealed class DesignerControlState
+    {
+        public int BorderStyle { get; set; }
+
+        public int Appearance { get; set; }
+
+        public bool AutoRedraw { get; set; }
+
+        public int FillStyle { get; set; }
+
+        public int MousePointer { get; set; }
+
+        public int ScaleMode { get; set; }
     }
 
     private sealed class RichTextBoxState

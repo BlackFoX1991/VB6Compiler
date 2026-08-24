@@ -78,6 +78,7 @@ public static class VBInteraction
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
+        Host?.EnsureForm(target);
         Host?.TrySetMember(target, memberName, Array.Empty<object?>(), value);
     }
 
