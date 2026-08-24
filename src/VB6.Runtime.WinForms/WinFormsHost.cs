@@ -259,7 +259,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     public void Load(object target)
     {
         ThrowIfDisposed();
-        _ = GetOrCreateBinding(target);
+        var binding = GetOrCreateBinding(target);
+        if (binding.FormInitialized)
+        {
+            return;
+        }
+
+        binding.FormInitialized = true;
+        InvokeGeneratedUserControlLifecycle(target, "Form_Initialize");
         TrySubscribeEvent(target, "Load", target, "Form_Load");
         AttachGeneratedFormEvents(target);
     }
@@ -272,18 +279,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return;
         }
 
-        if (binding.IsGeneratedUserControl)
-        {
-            if (binding.UserControlPropertyBag is { } propertyBag)
-            {
-                InvokeGeneratedUserControlPropertyBagLifecycle(
-                    target,
-                    "UserControl_WriteProperties",
-                    propertyBag);
-            }
-
-            InvokeGeneratedUserControlLifecycle(target, "UserControl_Terminate");
-        }
+        InvokeBindingTermination(target, binding);
 
         _bindings.Remove(target);
 
@@ -878,9 +874,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         _popups.Clear();
-        foreach (var binding in _bindings.Values)
+        foreach (var entry in _bindings.ToArray())
         {
-            binding.Form.Dispose();
+            InvokeBindingTermination(entry.Key, entry.Value);
+            entry.Value.Form.Dispose();
         }
 
         _bindings.Clear();
@@ -1165,6 +1162,26 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
             throw exception.InnerException;
+        }
+    }
+
+    private static void InvokeBindingTermination(object target, FormBinding binding)
+    {
+        if (binding.IsGeneratedUserControl)
+        {
+            if (binding.UserControlPropertyBag is { } propertyBag)
+            {
+                InvokeGeneratedUserControlPropertyBagLifecycle(
+                    target,
+                    "UserControl_WriteProperties",
+                    propertyBag);
+            }
+
+            InvokeGeneratedUserControlLifecycle(target, "UserControl_Terminate");
+        }
+        else if (binding.FormInitialized)
+        {
+            InvokeGeneratedUserControlLifecycle(target, "Form_Terminate");
         }
     }
 
@@ -3213,6 +3230,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public VBPropertyBag? UserControlPropertyBag { get; set; }
 
         public bool IsMdiChild { get; set; }
+
+        public bool FormInitialized { get; set; }
 
         public MenuStrip? MenuStrip { get; set; }
     }
