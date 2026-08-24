@@ -135,6 +135,23 @@ public static class VBVariants
             return ArrayVarType(value.GetType());
         }
 
+        return VarType(value, depth: 0);
+    }
+
+    private static short VarType(object? value, int depth)
+    {
+        if (value is IVBArray or Array)
+        {
+            return ArrayVarType(value.GetType());
+        }
+
+        if (depth < 8 &&
+            VBVariantObject.TryGetDefaultValue(value, out var defaultValue) &&
+            !ReferenceEquals(value, defaultValue))
+        {
+            return VarType(defaultValue, depth + 1);
+        }
+
         return value switch
         {
             null => 0,

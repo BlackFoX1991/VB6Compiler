@@ -1973,3 +1973,14 @@ Reg-Free-Manifest-/Typbibliotheks-Emission, vollständige `[in]`-/`[out]`-Konver
 Automation- und User-Defined-Typen und ein eigener Raw-`IUnknown`-/`IDispatch`-Serververtrag
 bleiben nachgelagerte Interop-Schritte. Die
 Gesamtsuite umfasst **960 Tests**.
+
+## Aktueller Variant-Objekt-Default-Nachtrag
+
+Objektwerte in Variant-Kontexten lösen jetzt die VB6-Default-Property aus, wenn der numerische,
+zeichenbezogene oder typbezogene Kontext einen Wert benötigt. Das gilt für `+`, `-`, `*`, `/`,
+`\`, `Mod`, `^`, bitweise Operatoren, Vergleiche, `&`, `VarType`, die numerischen/string-
+bezogenen Konvertierungen sowie `Debug.Print`; Default-Property-Ketten werden begrenzt verfolgt,
+und Objekte ohne passende Default-Property behalten den bisherigen Objektvertrag. `VarType`
+liefert dadurch den Subtyp des Default-Wertes, während echte Fehler aus einem Default-Getter
+unverändert weitergereicht werden. Runtime- und End-to-End-Regressionen decken Managed-Klassen
+mit `VB_UserMemId = 0` sowie CLR-Default-Properties ab. Die Gesamtsuite umfasst nun **963 Tests**.

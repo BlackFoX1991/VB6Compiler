@@ -11,6 +11,8 @@ public static partial class VBOperators
     /// </summary>
     public static object? MultiplyInteger(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
