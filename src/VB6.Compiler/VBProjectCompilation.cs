@@ -288,7 +288,8 @@ public sealed class VBProjectCompilation
                         DesignerParentName = control.ParentName,
                         DesignerTypeName = control.TypeName,
                         DesignerInitializers = control.Initializers,
-                        ArrayDimensions = control.ArrayDimensions
+                        ArrayDimensions = control.ArrayDimensions,
+                        DesignerArrayIndices = control.ArrayIndices
                     });
                 }
 
@@ -557,7 +558,8 @@ public sealed class VBProjectCompilation
         var controls = new Dictionary<
             string,
             (TypeSymbol Type, string TypeName, bool IsArray, int? ArrayLower, int? ArrayUpper,
-                string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers)>(
+                string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers,
+                ImmutableArray<int> ArrayIndices)>(
             StringComparer.OrdinalIgnoreCase);
         foreach (var child in document.Root.Children)
         {
@@ -574,7 +576,8 @@ public sealed class VBProjectCompilation
                 control.Value.TypeName,
                 control.Value.ParentName,
                 control.Value.Initializers,
-                CreateArrayDimensions(control.Value));
+                CreateArrayDimensions(control.Value),
+                control.Value.ArrayIndices);
         }
 
         void Visit(VBDesignerNode node, string? parentName)
@@ -593,13 +596,16 @@ public sealed class VBProjectCompilation
                     MinArrayBound(existing.ArrayLower, arrayIndex),
                     MaxArrayBound(existing.ArrayUpper, arrayIndex),
                     existing.ParentName,
-                    existing.Initializers);
+                    existing.Initializers,
+                    AddArrayIndex(existing.ArrayIndices, arrayIndex));
             }
             else
             {
                 controls.Add(
                     node.Name,
-                    (type, typeName, node.IsControlArray, arrayIndex, arrayIndex, parentName, ReadDesignerInitializers(node)));
+                    (type, typeName, node.IsControlArray, arrayIndex, arrayIndex, parentName,
+                        ReadDesignerInitializers(node),
+                        arrayIndex is int index ? ImmutableArray.Create(index) : ImmutableArray<int>.Empty));
             }
 
             var currentName = parentName is null
@@ -613,7 +619,8 @@ public sealed class VBProjectCompilation
 
         static ImmutableArray<BoundArrayDimension> CreateArrayDimensions(
             (TypeSymbol Type, string TypeName, bool IsArray, int? ArrayLower, int? ArrayUpper,
-                string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers) control)
+                string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers,
+                ImmutableArray<int> ArrayIndices) control)
         {
             if (!control.IsArray)
             {
@@ -639,6 +646,16 @@ public sealed class VBProjectCompilation
             : candidate is null
                 ? current
                 : Math.Max(current.Value, candidate.Value);
+
+        static ImmutableArray<int> AddArrayIndex(ImmutableArray<int> current, int? candidate)
+        {
+            if (candidate is not int index || current.Contains(index))
+            {
+                return current;
+            }
+
+            return current.Add(index);
+        }
 
     }
 
@@ -1293,7 +1310,8 @@ public sealed class VBProjectCompilation
         string TypeName,
         string? ParentName,
         ImmutableArray<DesignerPropertyInitializer> Initializers,
-        ImmutableArray<BoundArrayDimension> ArrayDimensions);
+        ImmutableArray<BoundArrayDimension> ArrayDimensions,
+        ImmutableArray<int> ArrayIndices);
 
     private sealed class ActiveProjectScope : IDisposable
     {

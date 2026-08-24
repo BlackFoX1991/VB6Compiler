@@ -795,6 +795,10 @@ public sealed record BoundModuleVariable(
     public ImmutableArray<DesignerPropertyInitializer> DesignerInitializers { get; init; } =
         ImmutableArray<DesignerPropertyInitializer>.Empty;
 
+    /// <summary>Explicit one-dimensional indexes present in a designer control array.</summary>
+    public ImmutableArray<int> DesignerArrayIndices { get; init; } =
+        ImmutableArray<int>.Empty;
+
     public BoundModuleVariable(
         ModuleVariableSymbol Symbol,
         BoundExpression? Initializer,

@@ -2176,6 +2176,15 @@ Position und kann `KeyAscii` zurückschreiben. Der kompilierte `.vbp`/`.frm`-Reg
 beide Elemente und beide Ereignispfade; die Gesamtsuite umfasst damit **982** Tests, davon
 **36/36** im WinForms-Lauf.
 
+## Aktueller lückenhafter Control-Array-Index-Nachtrag
+
+Die Designer-Indexliste wird jetzt zusätzlich zur Array-Range bewahrt. Bei nicht zusammenhängenden
+VB6-Designer-Arrays wie `Buttons(0)` und `Buttons(2)` erzeugt der Formkonstruktor dadurch nur die
+tatsächlich vorhandenen Controls; ein nicht vorhandenes `Buttons(1)` wird weder als Host-Control
+angelegt noch an einen konventionellen Event-Handler gebunden. Der bestehende kompilierte
+`.vbp`/`.frm`-Regressionstest deckt den lückenhaften Click- und KeyPress-Pfad ab; die
+Testgesamtzahl bleibt bei **983**, davon **36/36** im WinForms-Lauf.
+
 ## Aktueller MSBuild-VBG-SDK-Nachtrag
 
 Der MSBuild-SDK-Gruppenpfad ist jetzt über den tatsächlich gepackten

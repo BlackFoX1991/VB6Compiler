@@ -409,7 +409,7 @@ public sealed class WinFormsHostTests
                       Caption = "First"
                    End
                    Begin VB.CommandButton Buttons
-                      Index = 1
+                      Index = 2
                       Caption = "Second"
                    End
                 End
@@ -457,7 +457,8 @@ public sealed class WinFormsHostTests
             host.Load(form);
             Assert.IsTrue(host.TryInvokeMember(form, "Show", Array.Empty<object?>(), out _));
             Assert.IsTrue(host.TryGetMember(form, "Buttons(0)", Array.Empty<object?>(), out var first));
-            Assert.IsTrue(host.TryGetMember(form, "Buttons(1)", Array.Empty<object?>(), out var second));
+            Assert.IsTrue(host.TryGetMember(form, "Buttons(2)", Array.Empty<object?>(), out var second));
+            Assert.IsFalse(host.TryGetMember(form, "Buttons(1)", Array.Empty<object?>(), out _));
             Assert.IsInstanceOfType<Button>(first);
             Assert.IsInstanceOfType<Button>(second);
 
@@ -469,7 +470,7 @@ public sealed class WinFormsHostTests
 
             ((Button)second!).PerformClick();
             Application.DoEvents();
-            Assert.AreEqual((short)1, lastIndexGetter.Invoke(form, null));
+            Assert.AreEqual((short)2, lastIndexGetter.Invoke(form, null));
 
             var lastKeyIndexGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single(method => method.Name.Contains("LastKeyIndex", StringComparison.OrdinalIgnoreCase));
@@ -481,7 +482,7 @@ public sealed class WinFormsHostTests
             secondControl.Focus();
             _ = SendMessage(secondControl.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);
             Application.DoEvents();
-            Assert.AreEqual((short)1, lastKeyIndexGetter.Invoke(form, null));
+            Assert.AreEqual((short)2, lastKeyIndexGetter.Invoke(form, null));
             Assert.AreEqual((short)120, lastKeyGetter.Invoke(form, null));
         }
         finally

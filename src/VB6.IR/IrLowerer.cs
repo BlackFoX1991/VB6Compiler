@@ -333,7 +333,11 @@ public static class IrLowerer
                             target,
                             new IrNewVBArrayExpression(controlArray, bounds)));
 
-                        foreach (var indices in EnumerateArrayIndices(bounds))
+                        var designerIndices = variable.DesignerArrayIndices.IsDefaultOrEmpty
+                            ? EnumerateArrayIndices(bounds)
+                            : variable.DesignerArrayIndices.Select(index =>
+                                ImmutableArray.Create((long)index));
+                        foreach (var indices in designerIndices)
                         {
                             var displayName = variable.Symbol.Name + "(" +
                                 string.Join(",", indices.Select(index => index.ToString(System.Globalization.CultureInfo.InvariantCulture))) +
