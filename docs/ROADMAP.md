@@ -2031,3 +2031,11 @@ ab. Die Connection-Point-Regression übergibt `Button`, `Shift`, `X` und `Y` aus
 Windows-Nachricht an den VB6-Handler und prüft die Automation-Typkonversion (`I2`/`R4`). Der
 erzwungene x86-WinForms-Lauf umfasst damit **34/34** Tests; vollständige Event-Signatur- und
 Connection-Point-Lifecycle-Regeln bleiben offen. Die Gesamtsuite umfasst nun **973 Tests**.
+
+## Aktueller x86-AppHost-Start-Nachtrag
+
+Ein aus einem Legacy-`.vbp` mit `--x86` erzeugtes EXE wird jetzt in der CLI-Regression tatsächlich
+gestartet. Der native .NET-AppHost lädt die danebenliegende Managed-DLL, `VB6.Runtime.dll` und
+die Runtime-Konfiguration korrekt, führt `Sub Main` aus und beendet sich ohne
+`System.Private.CoreLib`-Ladefehler. Damit ist der zuvor nur über PE-Header geprüfte x86-Output-
+Vertrag auch als Prozessstart abgesichert. Die Gesamtsuite umfasst nun **974 Tests**.
