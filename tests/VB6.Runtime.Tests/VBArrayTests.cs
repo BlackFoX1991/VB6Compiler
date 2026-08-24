@@ -103,6 +103,27 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void ClrArraysFollowTheVariantArrayContract()
+    {
+        var array = Array.CreateInstance(typeof(int), new[] { 2 }, new[] { 1 });
+        array.SetValue(10, 1);
+
+        Assert.IsTrue(VBVariants.IsArray(array));
+        Assert.IsFalse(VBVariants.IsObject(array));
+        Assert.AreEqual("Long()", VBFunctions.TypeName(array));
+        Assert.AreEqual((short)8195, VBVariants.VarType(array));
+        Assert.AreEqual(1, VBArrayOperations.LBound(array));
+        Assert.AreEqual(2, VBArrayOperations.UBound(array));
+        Assert.AreEqual(10, VBArrayOperations.GetElement(array, new object?[] { 1 }));
+
+        VBArrayOperations.SetElement(array, new object?[] { 2 }, 30);
+
+        Assert.AreEqual(30, array.GetValue(2));
+        Assert.ThrowsException<InvalidOperationException>(() =>
+            VBArrayOperations.GetElementReference(array, new[] { 1 }));
+    }
+
+    [TestMethod]
     public void Array_ClonePreservesBoundsAndCreatesIndependentStorage()
     {
         var array = new VBArray<int>(
