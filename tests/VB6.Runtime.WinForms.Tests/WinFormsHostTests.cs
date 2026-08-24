@@ -75,6 +75,33 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostDispatchesMembersThroughNativeActiveXComObjectWhenX86OcxIsAvailable()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.ListViewCtrl.2", throwOnError: false) is null)
+        {
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+
+        var control = host.CreateControl(owner, "List1", "MSComctlLib.ListView")!;
+        Assert.IsInstanceOfType<AxHost>(control);
+        Assert.IsInstanceOfType<IVBComObjectProvider>(control);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+        ((Control)control).CreateControl();
+        Assert.IsNotNull(((IVBComObjectProvider)control).ComObject);
+
+        Assert.IsTrue(host.TrySetMember(control, "View", Array.Empty<object?>(), (short)1));
+        Assert.IsTrue(host.TryGetMember(control, "View", Array.Empty<object?>(), out var view));
+        Assert.AreEqual(1, view);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostEmbedsGeneratedUserControlClassesAsDesignerComponents()
     {
         using var host = new WinFormsHost();

@@ -1795,3 +1795,14 @@ stellt außerdem `VBEvents.UnsubscribeMethod` als explizite, quellenbezogene Abm
 ein `null`-Quellobjekt entfernt alle passenden Verbindungen. Raw-
 `IDispatch`-ABI-Marshalling, vollständige OCX-Event-Signaturabdeckung und COM-Server-Emission
 bleiben separate Interop-Schritte. Die Gesamtsuite umfasst **952 Tests**.
+
+## Aktueller Native-OCX-Dispatch-Nachtrag
+
+Der WinForms-Host leitet Memberzugriffe auf native `AxHost`-Controls jetzt nach den normalen
+VB6-/WinForms-Sonderregeln direkt an das zugrunde liegende COM-RCW weiter. Damit funktionieren
+auch COM-Properties und Methoden, die der CLR-Wrapper selbst nicht als Managed-Property anbietet.
+Der x86-Test aktiviert die auf diesem Rechner registrierte `MSCOMCTL.OCX` als echtes
+`MSComctlLib.ListViewCtrl.2`, setzt `View` und liest den Automation-Wert wieder aus. Die
+64-Bit-Fallback-Regel bleibt aktiv, weil die 32-Bit-OCX dort trotz sichtbarer ProgID nicht
+aktivierbar ist. Vollständiges `IDispatch`-ABI-Marshalling, native OCX-Events und die weiteren
+MSComctl-/RichText-/CommonDialog-Oberflächen bleiben offen.

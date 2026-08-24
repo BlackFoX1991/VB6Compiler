@@ -75,6 +75,68 @@ public static class VBDynamicDispatch
             value);
     }
 
+    /// <summary>
+    /// Tries to read a member directly from a COM object or an object that exposes its RCW
+    /// through <see cref="IVBComObjectProvider"/>. Hosts use this boundary when a native
+    /// ActiveX wrapper is also a WinForms <see cref="System.Windows.Forms.Control"/>.
+    /// </summary>
+    public static bool TryGetComMember(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        out object? result)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
+        ArgumentNullException.ThrowIfNull(arguments);
+        return TryInvokeComBoundary(target, memberName, arguments, setProperty: false, out result);
+    }
+
+    /// <summary>Tries to write a COM property, including indexed properties.</summary>
+    public static bool TrySetComMember(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        object? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
+        ArgumentNullException.ThrowIfNull(arguments);
+        var setterArguments = new object?[arguments.Length + 1];
+        Array.Copy(arguments, setterArguments, arguments.Length);
+        setterArguments[^1] = value;
+        return TryInvokeComBoundary(target, memberName, setterArguments, setProperty: true, out _);
+    }
+
+    /// <summary>Tries to invoke a method or property on a COM object.</summary>
+    public static bool TryInvokeComMember(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        out object? result)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
+        ArgumentNullException.ThrowIfNull(arguments);
+        return TryInvokeComBoundary(target, memberName, arguments, setProperty: false, out result);
+    }
+
+    private static bool TryInvokeComBoundary(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        bool setProperty,
+        out object? result)
+    {
+        var comObject = GetComObject(target);
+        if (comObject is null ||
+            !OperatingSystem.IsWindows() ||
+            !Marshal.IsComObject(comObject))
+        {
+            result = null;
+            return false;
+        }
+
+        return TryInvokeComMember(comObject, memberName, arguments, setProperty, out result);
+    }
+
     private static bool TryInvokeComDefaultMember(
         object? target,
         object?[] arguments,

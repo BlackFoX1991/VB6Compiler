@@ -591,6 +591,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             {
                 return true;
             }
+
+            if (VBDynamicDispatch.TryGetComMember(resolved, memberName, arguments, out value))
+            {
+                return true;
+            }
         }
 
         value = null;
@@ -700,7 +705,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return TryWriteControlProperty(resolved, memberName, value) ||
-               TryWriteListProperty(resolved, memberName, arguments, value);
+               TryWriteListProperty(resolved, memberName, arguments, value) ||
+               VBDynamicDispatch.TrySetComMember(resolved, memberName, arguments, value);
     }
 
     public bool TryInvokeMember(
@@ -779,7 +785,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
-        return false;
+        return VBDynamicDispatch.TryInvokeComMember(resolved, memberName, arguments, out result);
     }
 
     public bool TrySubscribeEvent(
