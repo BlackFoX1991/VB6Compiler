@@ -384,7 +384,7 @@ public static class VBInteraction
         bool drawBox,
         bool fill)
     {
-        GraphicsLineSink?.Invoke(new VBGraphicsLine(
+        var line = new VBGraphicsLine(
             startX,
             startY,
             endX,
@@ -392,7 +392,15 @@ public static class VBInteraction
             color is null ? null : VBConversions.CLng(color),
             isStep,
             drawBox,
-            fill));
+            fill);
+        if (Host is { } host)
+        {
+            host.GraphicsLine(line);
+        }
+        else
+        {
+            GraphicsLineSink?.Invoke(line);
+        }
     }
 
     /// <summary>Host callback for drawing operations; null means a headless no-op backend.</summary>

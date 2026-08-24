@@ -15,6 +15,11 @@ public interface IVB6Host
     {
     }
 
+    /// <summary>Draws a VB6 graphics Line operation on the active host surface.</summary>
+    void GraphicsLine(VBGraphicsLine line)
+    {
+    }
+
     void Load(object target);
 
     void Unload(object target);

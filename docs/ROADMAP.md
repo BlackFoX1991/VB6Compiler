@@ -1240,7 +1240,9 @@ Größter Einzelblock.
 - [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
       als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
       initialisiert; die vollständige Laufzeit-/WinForms-Nachbildung bleibt offen.
-- [ ] Zeichnen auf Form/PictureBox, MDI
+- [~] Zeichnen auf Form/PictureBox, MDI — persistentes `GraphicsLine`-Rendering auf der aktiven
+      Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; PictureBox-
+      Zielauflösung, MDI und vollständige DrawMode-/AutoRedraw-Semantik bleiben offen
 - [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
 
@@ -1706,3 +1708,13 @@ bereits am Original-Menü verdrahteten VB6-Handler weitergeleitet. Flags, vollst
 VB6-Shortcut-Konvertierung und MDI-Popup-Menüs bleiben weitere Kompatibilitätsschritte. Die
 Regression prüft Delegation, Snapshot-Verhalten, Originalhierarchie und Handlerauslösung. Die
 Gesamtsuite umfasst **939 Tests**.
+
+## Aktueller GraphicsLine-Forms-Nachtrag
+
+Der portable `IVB6Host`-Vertrag übernimmt nun `VBGraphicsLine`-Operationen vom Runtime-Pfad. Der
+WinForms-Host zeichnet Linien sowie B-/F-Rechtecke persistent auf einer Bitmap-Oberfläche der
+aktiven Form, übernimmt vorhandene Hintergrundbilder, interpretiert `Step`-Koordinaten und
+skaliert VB6-Twips, Punkte und Pixel in die aktuelle DPI-Auflösung. Die Regression prüft echte
+gerenderte Pixel und die Füll-/Rahmensemantik. PictureBox-Zielbindung, `PaintPicture`, MDI,
+DrawMode sowie vollständige AutoRedraw-/ScaleMode-Regeln bleiben weitere Graphics-/Forms-Slices.
+Die Gesamtsuite umfasst **940 Tests**.
