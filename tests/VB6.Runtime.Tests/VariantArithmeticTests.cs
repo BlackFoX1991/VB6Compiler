@@ -27,6 +27,19 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void Division_PromotesByteIntegerAndSingleVariantsToSingle()
+    {
+        var integerResult = VBOperators.DivideVariant((short)5, (short)2);
+        var singleResult = VBOperators.DivideVariant(5f, 2f);
+
+        Assert.IsInstanceOfType<float>(integerResult);
+        Assert.AreEqual(2.5f, integerResult);
+        Assert.IsInstanceOfType<float>(singleResult);
+        Assert.AreEqual(2.5f, singleResult);
+        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant(5, 2));
+    }
+
+    [TestMethod]
     public void DateVariants_PreserveDateSubtypeForAdditionAndSingleDateSubtraction()
     {
         var date = VBConversions.DateToVariant(43832d);

@@ -113,9 +113,13 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
-        return PromoteVariantMultiplyKind(GetVariantNumericKind(left), GetVariantNumericKind(right)) == VariantNumericKind.Decimal
-            ? checked(VariantDecimal(left) / VariantDecimal(right))
-            : DivideDouble(VBConversions.CDbl(left), VBConversions.CDbl(right));
+        var kind = PromoteVariantDivideKind(left, right);
+        return kind switch
+        {
+            VariantNumericKind.Decimal => checked(VariantDecimal(left) / VariantDecimal(right)),
+            VariantNumericKind.Single => DivideSingle(VBConversions.CSng(left), VBConversions.CSng(right)),
+            _ => DivideDouble(VBConversions.CDbl(left), VBConversions.CDbl(right))
+        };
     }
 
     public static object? IntegerDivideVariant(object? left, object? right)
@@ -362,6 +366,23 @@ public static partial class VBOperators
     private static decimal VariantDecimal(object? value) => VBConversions.CDec(value) is decimal decimalValue
         ? decimalValue
         : throw new InvalidCastException("VB6 Variant value is not a Decimal subtype.");
+
+    private static VariantNumericKind PromoteVariantDivideKind(object? left, object? right)
+    {
+        var leftKind = GetVariantNumericKind(left);
+        var rightKind = GetVariantNumericKind(right);
+        if (leftKind == VariantNumericKind.Decimal || rightKind == VariantNumericKind.Decimal)
+        {
+            return VariantNumericKind.Decimal;
+        }
+
+        return IsSingleDivisionOperand(left) && IsSingleDivisionOperand(right)
+            ? VariantNumericKind.Single
+            : VariantNumericKind.Double;
+    }
+
+    private static bool IsSingleDivisionOperand(object? value) =>
+        value is byte or short or float;
 
     private static void ThrowIfErrorOperand(object? value)
     {
