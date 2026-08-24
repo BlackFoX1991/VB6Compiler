@@ -80,6 +80,15 @@ public interface IVB6Host
 }
 
 /// <summary>
+/// Exposes the underlying RCW when a host wraps a native COM object in a managed control shell.
+/// This keeps WinForms geometry and COM automation/event dispatch on the same VB6 value.
+/// </summary>
+public interface IVBComObjectProvider
+{
+    object? ComObject { get; }
+}
+
+/// <summary>
 /// Headless control object used when no UI host is installed. It keeps the standard VB6 control
 /// properties available to compiled code and can be replaced by a concrete host control later.
 /// </summary>
