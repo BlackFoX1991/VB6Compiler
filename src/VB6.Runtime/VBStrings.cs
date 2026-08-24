@@ -13,27 +13,37 @@ public static class VBStrings
     /// Strings return their character count; non-string scalar Variants return their VB6 storage size.
     /// The current Variant Empty representation (<see langword="null"/>) has length zero.
     /// </summary>
-    public static int Len(object? value) => value switch
+    public static object Len(object? value)
     {
-        null => 0,
-        string text => text.Length,
-        byte => 1,
-        short => 2,
-        int => 4,
-        long => 8,
-        ushort => 2,
-        uint => 4,
-        ulong => 8,
-        IntPtr => IntPtr.Size,
-        float => 4,
-        double => 8,
-        bool => 2,
-        VBDateValue => 8,
-        VBCurrency => 8,
-        _ when IsGeneratedUserDefinedType(value) => Marshal.SizeOf(value),
-        _ => throw new InvalidCastException(
-            $"CLR value of type '{value.GetType().FullName}' is not supported by the VB6 Len intrinsic.")
-    };
+        VBVariants.ThrowIfMissing(value);
+        VBVariants.ThrowIfArray(value);
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        return value switch
+        {
+            null => 0,
+            string text => text.Length,
+            byte => 1,
+            short => 2,
+            int => 4,
+            long => 8,
+            ushort => 2,
+            uint => 4,
+            ulong => 8,
+            IntPtr => IntPtr.Size,
+            float => 4,
+            double => 8,
+            bool => 2,
+            VBDateValue => 8,
+            VBCurrency => 8,
+            _ when IsGeneratedUserDefinedType(value) => Marshal.SizeOf(value),
+            _ => throw new InvalidCastException(
+                $"CLR value of type '{value.GetType().FullName}' is not supported by the VB6 Len intrinsic.")
+        };
+    }
 
     private static bool IsGeneratedUserDefinedType(object value)
     {
