@@ -7,16 +7,20 @@ namespace VB6.Compiler;
 public sealed class VBProjectGroupCompilation
 {
     private readonly string _groupFilePath;
+    private readonly VBCompilationOptions? _options;
 
-    private VBProjectGroupCompilation(string groupFilePath)
+    private VBProjectGroupCompilation(string groupFilePath, VBCompilationOptions? options)
     {
         _groupFilePath = Path.GetFullPath(groupFilePath);
+        _options = options;
     }
 
-    public static VBProjectGroupCompilation Create(string groupFilePath)
+    public static VBProjectGroupCompilation Create(
+        string groupFilePath,
+        VBCompilationOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(groupFilePath);
-        return new VBProjectGroupCompilation(groupFilePath);
+        return new VBProjectGroupCompilation(groupFilePath, options);
     }
 
     public VBProjectGroupAnalysis Analyze()
@@ -57,7 +61,7 @@ public sealed class VBProjectGroupCompilation
             VBProjectCompilationAnalysis? compilation = null;
             if (projectDiagnostics.Count == 0)
             {
-                compilation = VBProjectCompilation.Create(projectPath).Analyze();
+                compilation = VBProjectCompilation.Create(projectPath, _options).Analyze();
             }
 
             projects.Add(new VBProjectGroupProjectAnalysis(
@@ -123,7 +127,7 @@ public sealed class VBProjectGroupCompilation
                 ? ".dll"
                 : ".exe";
             var outputPath = Path.Combine(fullOutputDirectory, uniqueStem + outputExtension);
-            var emit = VBProjectCompilation.Create(project.FullPath)
+            var emit = VBProjectCompilation.Create(project.FullPath, _options)
                 .EmitManagedApplication(outputPath, options);
             emittedProjects.Add(new VBProjectGroupProjectEmitResult(project, outputPath, emit));
         }

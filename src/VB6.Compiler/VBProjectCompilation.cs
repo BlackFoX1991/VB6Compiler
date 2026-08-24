@@ -13,16 +13,20 @@ namespace VB6.Compiler;
 public sealed class VBProjectCompilation
 {
     private readonly string _projectFilePath;
+    private readonly VBCompilationOptions? _options;
 
-    private VBProjectCompilation(string projectFilePath)
+    private VBProjectCompilation(string projectFilePath, VBCompilationOptions? options)
     {
         _projectFilePath = Path.GetFullPath(projectFilePath);
+        _options = options;
     }
 
-    public static VBProjectCompilation Create(string projectFilePath)
+    public static VBProjectCompilation Create(
+        string projectFilePath,
+        VBCompilationOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectFilePath);
-        return new VBProjectCompilation(projectFilePath);
+        return new VBProjectCompilation(projectFilePath, options);
     }
 
     public VBProjectCompilationAnalysis Analyze()
@@ -425,7 +429,7 @@ public sealed class VBProjectCompilation
         }
     }
 
-    private static Dictionary<string, ClassTypeSymbol> LoadReferencedClassTypes(
+    private Dictionary<string, ClassTypeSymbol> LoadReferencedClassTypes(
         VBProject project,
         HashSet<string> activeProjects,
         ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
@@ -449,7 +453,7 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            var referencedAnalysis = VBProjectCompilation.Create(referencePath).Analyze(activeProjects);
+            var referencedAnalysis = new VBProjectCompilation(referencePath, _options).Analyze(activeProjects);
             if (!referencedAnalysis.Success || referencedAnalysis.SemanticModel is null)
             {
                 var hasCycle = referencedAnalysis.ProjectDiagnostics.Any(diagnostic =>

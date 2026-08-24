@@ -1478,5 +1478,8 @@ Mac-Plattformkonstanten vor Parser und Binder aus. Inaktive Zeilen bleiben durch
 positionsstabile Leerzeichen und Zeilenumbrüche im Quelltext erhalten; fehlerhafte oder nicht
 abgeschlossene Blöcke liefern datei- und zeilenbezogene `VB6CC`-Diagnosen. Der gleiche Vertrag
 gilt für direkte `.bas`-Emission und echte `.vbp`-Projektquellen, einschließlich Designer-
-Klassenmodulen. Die vollständige Release-Suite umfasst **912 Tests**; der VISIA-CLI-Report
-analysiert weiterhin 40 von 40 Projektitems ohne Fehler.
+Klassenmodulen. Die expliziten CLI-Ziele `--x86` und `--x64` werden bis in die
+Conditional-Compilation-Konstanten durchgereicht, sodass `Win64` nicht mehr versehentlich aus
+der Breite des Compilerprozesses gewählt wird; `Win32` bleibt dabei auch auf Win64 wahr. Die
+vollständige Release-Suite umfasst **914 Tests**; der VISIA-CLI-Report analysiert weiterhin 40 von
+40 Projektitems ohne Fehler.

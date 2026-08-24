@@ -22,9 +22,12 @@ public sealed class VBCompilation
 
     public SourceText Text { get; }
 
-    public static VBCompilation Create(string source, string? filePath = null)
+    public static VBCompilation Create(
+        string source,
+        string? filePath = null,
+        VBCompilationOptions? options = null)
     {
-        var preprocessed = VBConditionalCompilation.Process(source, filePath);
+        var preprocessed = VBConditionalCompilation.Process(source, filePath, options);
         return new(
             SourceText.From(preprocessed.Source, filePath),
             preprocessed.Diagnostics);
@@ -110,6 +113,13 @@ public sealed class VBCompilation
         VB6.Emit.Managed.ManagedEmitOptions? options = null) =>
         DirectManagedCompilation.EmitManaged(this, outputPath, options);
 }
+
+/// <summary>
+/// Target information used while evaluating VB6 conditional-compilation constants. A null value
+/// follows the current compiler process width; explicit x86/x64 CLI targets set it so a build does
+/// not choose a branch from the host process by accident.
+/// </summary>
+public sealed record VBCompilationOptions(bool? TargetIs64Bit = null);
 
 public sealed record CompilationAnalysis(
     ParseResult ParseResult,
