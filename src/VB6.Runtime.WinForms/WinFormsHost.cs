@@ -274,6 +274,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         if (binding.IsGeneratedUserControl)
         {
+            if (binding.UserControlPropertyBag is { } propertyBag)
+            {
+                InvokeGeneratedUserControlPropertyBagLifecycle(
+                    target,
+                    "UserControl_WriteProperties",
+                    propertyBag);
+            }
+
             InvokeGeneratedUserControlLifecycle(target, "UserControl_Terminate");
         }
 
@@ -1114,6 +1122,35 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         try
         {
             method.Invoke(target, null);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            throw exception.InnerException;
+        }
+    }
+
+    private static void InvokeGeneratedUserControlPropertyBagLifecycle(
+        object target,
+        string methodName,
+        VBPropertyBag propertyBag)
+    {
+        var method = FindHandler(target.GetType(), methodName);
+        if (method is null || method.GetParameters() is not [{ } parameter])
+        {
+            return;
+        }
+
+        var parameterType = parameter.ParameterType.IsByRef
+            ? parameter.ParameterType.GetElementType()!
+            : parameter.ParameterType;
+        if (!parameterType.IsAssignableFrom(propertyBag.GetType()))
+        {
+            return;
+        }
+
+        try
+        {
+            method.Invoke(target, new object?[] { propertyBag });
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
@@ -2800,8 +2837,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ownerBinding.Components[qualifiedName] = generatedUserControl;
         ownerBinding.Components.TryAdd(logicalName, generatedUserControl);
         ownerBinding.HostedObjects.Add(generatedUserControl);
+        generatedBinding.UserControlPropertyBag = new VBPropertyBag();
         AttachGeneratedUserControlEvents(generatedUserControl);
         InvokeGeneratedUserControlLifecycle(generatedUserControl, "UserControl_Initialize");
+        InvokeGeneratedUserControlPropertyBagLifecycle(
+            generatedUserControl,
+            "UserControl_ReadProperties",
+            generatedBinding.UserControlPropertyBag);
         hostedForm.Show();
         return true;
     }
@@ -3044,6 +3086,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public List<object> HostedObjects { get; } = new();
 
         public bool IsGeneratedUserControl { get; set; }
+
+        public VBPropertyBag? UserControlPropertyBag { get; set; }
 
         public MenuStrip? MenuStrip { get; set; }
     }

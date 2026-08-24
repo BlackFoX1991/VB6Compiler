@@ -88,6 +88,8 @@ public sealed class WinFormsHostTests
         Assert.IsInstanceOfType<GeneratedUserControlStub>(generated);
         var generatedStub = (GeneratedUserControlStub)generated!;
         Assert.AreEqual(1, generatedStub.InitializeCount);
+        Assert.AreEqual(1, generatedStub.ReadPropertiesCount);
+        Assert.AreEqual("persisted", generatedStub.ReadPropertyValue);
         Assert.IsTrue(host.TryGetMember(owner, "Widget1", Array.Empty<object?>(), out var named));
         Assert.AreSame(generated, named);
         Assert.IsTrue(host.TrySetMember(generated!, "Width", Array.Empty<object?>(), 1440));
@@ -99,6 +101,8 @@ public sealed class WinFormsHostTests
         Assert.AreEqual(1, host.EnumerateControls(owner)!.OfType<Form>().Count());
 
         host.Unload(owner);
+        Assert.AreEqual(1, generatedStub.WritePropertiesCount);
+        Assert.AreEqual("persisted", generatedStub.WritePropertyValue);
         Assert.AreEqual(1, generatedStub.TerminateCount);
     }
 
@@ -846,7 +850,26 @@ public sealed class WinFormsHostTests
         public int InitializeCount { get; private set; }
         public int TerminateCount { get; private set; }
 
+        public int ReadPropertiesCount { get; private set; }
+        public int WritePropertiesCount { get; private set; }
+        public object? ReadPropertyValue { get; private set; }
+        public object? WritePropertyValue { get; private set; }
+
         private void UserControl_Initialize() => InitializeCount++;
+
+        private void UserControl_ReadProperties(object propertyBag)
+        {
+            ReadPropertiesCount++;
+            var bag = (VBPropertyBag)propertyBag;
+            bag.WriteProperty("Caption", "persisted");
+            ReadPropertyValue = bag.ReadProperty("Caption");
+        }
+
+        private void UserControl_WriteProperties(object propertyBag)
+        {
+            WritePropertiesCount++;
+            WritePropertyValue = ((VBPropertyBag)propertyBag).ReadProperty("Caption");
+        }
 
         private void UserControl_Terminate() => TerminateCount++;
     }
