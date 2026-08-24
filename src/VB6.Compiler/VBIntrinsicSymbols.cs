@@ -126,7 +126,7 @@ internal static class VBIntrinsicSymbols
             Parameter("Conversion", TypeSymbol.Long),
             OptionalParameter("LCID", TypeSymbol.Long, 0L)),
         Function("Abs", VBIntrinsicKind.Abs, "VBMath.Abs", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
-        Function("Sgn", VBIntrinsicKind.Sgn, "VBMath.Sgn", TypeSymbol.Integer, Parameter("Number", TypeSymbol.Variant)),
+        Function("Sgn", VBIntrinsicKind.Sgn, "VBMath.Sgn", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
         Function("Fix", VBIntrinsicKind.Fix, "VBMath.Fix", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
         Function(
             "Round",

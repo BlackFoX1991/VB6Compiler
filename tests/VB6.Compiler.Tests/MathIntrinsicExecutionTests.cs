@@ -54,13 +54,15 @@ public sealed class MathIntrinsicExecutionTests
                 value = Null
 
                 Debug.Print IsNull(Abs(value))
+                Debug.Print IsNull(Sgn(value))
                 Debug.Print IsNull(Fix(value))
                 Debug.Print IsNull(Round(value))
+                Debug.Print Sgn(Empty)
                 Debug.Print Abs(Empty)
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "True", "True", "True", "0" }, output);
+        CollectionAssert.AreEqual(new[] { "True", "True", "True", "True", "0", "0" }, output);
     }
 
     [TestMethod]

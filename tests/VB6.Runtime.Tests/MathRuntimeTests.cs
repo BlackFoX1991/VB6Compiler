@@ -20,10 +20,12 @@ public sealed class MathRuntimeTests
         var nullValue = VBVariants.NullValue();
 
         Assert.IsTrue(VBVariants.IsNull(VBMath.Abs(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBMath.Sgn(nullValue)));
         Assert.IsTrue(VBVariants.IsNull(VBMath.Fix(nullValue)));
         Assert.IsTrue(VBVariants.IsNull(VBMath.Round(nullValue, 0)));
 
         Assert.AreEqual((short)0, VBMath.Abs(null));
+        Assert.AreEqual((short)0, VBMath.Sgn(null));
         Assert.AreEqual((short)0, VBMath.Fix(null));
         Assert.AreEqual((short)0, VBMath.Round(null, 0));
     }
