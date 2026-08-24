@@ -18,6 +18,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private readonly Dictionary<object, FormBinding> _bindings =
         new(ReferenceEqualityComparer.Instance);
     private readonly List<EventBinding> _events = new();
+    private readonly Dictionary<TreeView, TreeViewState> _treeViewStates =
+        new(ReferenceEqualityComparer.Instance);
     private bool _disposed;
 
     public void Register(object vbObject, Form form)
@@ -68,6 +70,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         if (!_bindings.Remove(target, out var binding))
         {
             return;
+        }
+
+        foreach (var treeView in binding.Controls.Values.OfType<TreeView>())
+        {
+            _treeViewStates.Remove(treeView);
         }
 
         foreach (var eventBinding in _events
@@ -159,6 +166,25 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (target is TreeView treeView)
+        {
+            if (string.Equals(memberName, "Nodes", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                value = new TreeNodesProxy(treeView);
+                return true;
+            }
+
+            if (string.Equals(memberName, "SelectedItem", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                value = treeView.SelectedNode is { } selected
+                    ? new TreeNodeProxy(treeView, selected)
+                    : null;
+                return true;
+            }
+        }
+
         if (TryResolveControl(target, memberName, arguments, out var resolved))
         {
             if (string.Equals(memberName, "Controls", StringComparison.OrdinalIgnoreCase))
@@ -196,6 +222,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object? value)
     {
         ThrowIfDisposed();
+        if (target is TreeView treeView && arguments.Length == 0)
+        {
+            if (string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase))
+            {
+                GetTreeViewState(treeView).Style = VBConversions.CLng(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "LineStyle", StringComparison.OrdinalIgnoreCase))
+            {
+                GetTreeViewState(treeView).LineStyle = VBConversions.CLng(value);
+                return true;
+            }
+        }
+
         if (!TryResolveControl(target, memberName, arguments, out var resolved) ||
             resolved is null)
         {
@@ -871,7 +912,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         _ => null
     };
 
-    private static bool TryReadControlProperty(
+    private bool TryReadControlProperty(
         Control control,
         string memberName,
         out object? value)
@@ -895,6 +936,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "hWnd", StringComparison.OrdinalIgnoreCase)) value = control.Handle.ToInt64();
         else if (string.Equals(memberName, "hDC", StringComparison.OrdinalIgnoreCase)) value = 0L;
         else if (string.Equals(memberName, "hInstance", StringComparison.OrdinalIgnoreCase)) value = 0L;
+        else if (control is TreeView treeStyle && string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase)) value = GetTreeViewState(treeStyle).Style;
+        else if (control is TreeView treeLineStyle && string.Equals(memberName, "LineStyle", StringComparison.OrdinalIgnoreCase)) value = GetTreeViewState(treeLineStyle).LineStyle;
         else if (string.Equals(memberName, "Font", StringComparison.OrdinalIgnoreCase)) value = ToVBFont(control.Font);
         else
         {
@@ -905,7 +948,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return true;
     }
 
-    private static bool TryWriteControlProperty(Control control, string memberName, object? value)
+    private bool TryWriteControlProperty(Control control, string memberName, object? value)
     {
         var twipsPerPixelX = 1440f / control.DeviceDpi;
         var twipsPerPixelY = 1440f / control.DeviceDpi;
@@ -930,6 +973,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) control.Text = VBConversions.CStr(value);
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) control.BackColor = ColorTranslator.FromOle(VBConversions.CLng(value));
         else if (string.Equals(memberName, "ForeColor", StringComparison.OrdinalIgnoreCase)) control.ForeColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+        else if (control is TreeView treeStyle && string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase)) GetTreeViewState(treeStyle).Style = VBConversions.CLng(value);
+        else if (control is TreeView treeLineStyle && string.Equals(memberName, "LineStyle", StringComparison.OrdinalIgnoreCase)) GetTreeViewState(treeLineStyle).LineStyle = VBConversions.CLng(value);
         else if (string.Equals(memberName, "Font", StringComparison.OrdinalIgnoreCase) && value is VBFont font) control.Font = FromVBFont(font, control.Font);
         else return false;
 
@@ -964,6 +1009,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private static int FromTwips(object? value, float twipsPerPixel) =>
         Convert.ToInt32(Math.Round(VBConversions.CDbl(value) / twipsPerPixel, MidpointRounding.AwayFromZero));
+
+    private TreeViewState GetTreeViewState(TreeView treeView)
+    {
+        if (_treeViewStates.TryGetValue(treeView, out var state))
+        {
+            return state;
+        }
+
+        state = new TreeViewState();
+        _treeViewStates.Add(treeView, state);
+        return state;
+    }
 
     private static object CreateControlInstance(string typeName) =>
         typeName.ToUpperInvariant() switch
@@ -1044,6 +1101,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         public Dictionary<string, object> Components { get; } =
             new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class TreeViewState
+    {
+        public int Style { get; set; }
+
+        public int LineStyle { get; set; }
     }
 
     private sealed class EventBinding

@@ -110,6 +110,45 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostAdaptsTreeViewNodesToVb6OneBasedLateBoundContract()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            var tree = (TreeView)host.CreateControl(owner, "Tree1", "MSComctlLib.TreeView")!;
+            var nodes = VBDynamicDispatch.GetMember(tree, "Nodes")!;
+            var root = (TreeNodeProxy)VBDynamicDispatch.InvokeMember(
+                nodes,
+                "Add",
+                Arguments(null, null, "Root", "Root", "Folder"))!;
+            VBDynamicDispatch.InvokeMember(
+                nodes,
+                "Add",
+                Arguments("Root", 4, "Child", "Child", "Item"));
+
+            Assert.AreEqual(2, VBDynamicDispatch.GetMember(nodes, "Count"));
+            var child = (TreeNodeProxy)VBDynamicDispatch.GetIndexedMember(nodes, "Item", Arguments(2))!;
+            Assert.AreEqual("Child", child.Text);
+            Assert.AreEqual("Folder", root.Image);
+
+            VBDynamicDispatch.SetMember(child, "Text", "Changed");
+            Assert.AreEqual("Changed", tree.Nodes[0].Nodes[0].Text);
+            VBDynamicDispatch.InvokeMember(nodes, "Remove", Arguments(1));
+            Assert.AreEqual(0, tree.Nodes.Count);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostCreatesTimerControlsAndConnectsTimerHandlers()
     {
         using var host = new WinFormsHost();
@@ -280,5 +319,16 @@ public sealed class WinFormsHostTests
         public int TickCount { get; private set; }
 
         private void Timer1_Timer() => TickCount++;
+    }
+
+    private static VBArray<object> Arguments(params object?[] values)
+    {
+        var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
+        for (var index = 0; index < values.Length; index++)
+        {
+            arguments[index] = values[index]!;
+        }
+
+        return arguments;
     }
 }

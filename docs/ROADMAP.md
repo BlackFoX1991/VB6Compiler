@@ -1549,3 +1549,16 @@ VB6-Objektvertrag. Die Komponente bleibt aus der visuellen Control-Hierarchie he
 über die bestehende Form-/Control-Namensauflösung und den Late-Bound-Dispatch erreichbar.
 Vollständiges ActiveX-OCX-Hosting, insbesondere die echte `MSComDlg`-Typbibliothek und deren
 gesamte Ereignis-/ABI-Oberfläche, bleibt separat offen. Die Gesamtsuite umfasst **925 Tests**.
+
+## Aktueller TreeView-Nachtrag
+
+Der WinForms-Host stellt `MSComctlLib.TreeView.Nodes` jetzt als Managed-Adapter bereit. Der
+Adapter unterstützt den VB6-Aufruf `Nodes.Add` mit `Relative`, `Relationship`, `Key`, `Text`,
+`Image` und `SelectedImage`, einsbasierte numerische oder schlüsselbasierte `Item`-Auflösung,
+`Remove`, `Clear`, `Count` sowie `Node`-Properties für `Key`, `Text`, `Index`, `Expanded`,
+`Image`, `SelectedImage`, `Selected` und `Parent`. `Style` und `LineStyle` werden am TreeView
+hostseitig gespeichert, ohne die native WinForms-Control-Hierarchie zu verfälschen. Die Regression
+läuft durch den bestehenden Late-Bound-Dispatch und prüft Parent/Child-Aufbau, Bilder,
+einsbasierte Indizes, Text-Writeback und Entfernen. Vollständiges ActiveX-Hosting, ImageList-
+Ressourcendekodierung und die übrige COM-Connection-Point-ABI bleiben offen. Die Gesamtsuite
+umfasst **926 Tests**.
