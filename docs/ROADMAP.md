@@ -1241,8 +1241,9 @@ Größter Einzelblock.
       als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
       initialisiert; die vollständige Laufzeit-/WinForms-Nachbildung bleibt offen.
 - [~] Zeichnen auf Form/PictureBox, MDI — persistentes `GraphicsLine`-Rendering auf der aktiven
-      Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; PictureBox-
-      Zielauflösung, MDI und vollständige DrawMode-/AutoRedraw-Semantik bleiben offen
+      Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; ein unterstütztes
+      `PaintPicture`-Subset zeichnet `Bitmap`-/FRX-/`VBPicture`-Quellen persistent mit; PictureBox-
+      Zielauflösung, MDI und vollständige DrawMode-/AutoRedraw-/ScaleMode-Semantik bleiben offen
 - [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
 
@@ -1715,6 +1716,7 @@ Der portable `IVB6Host`-Vertrag übernimmt nun `VBGraphicsLine`-Operationen vom 
 WinForms-Host zeichnet Linien sowie B-/F-Rechtecke persistent auf einer Bitmap-Oberfläche der
 aktiven Form, übernimmt vorhandene Hintergrundbilder, interpretiert `Step`-Koordinaten und
 skaliert VB6-Twips, Punkte und Pixel in die aktuelle DPI-Auflösung. Die Regression prüft echte
-gerenderte Pixel und die Füll-/Rahmensemantik. PictureBox-Zielbindung, `PaintPicture`, MDI,
-DrawMode sowie vollständige AutoRedraw-/ScaleMode-Regeln bleiben weitere Graphics-/Forms-Slices.
-Die Gesamtsuite umfasst **940 Tests**.
+gerenderte Pixel und die Füll-/Rahmensemantik. Ein `PaintPicture`-Subset verarbeitet `Bitmap`-,
+FRX- und dateibasierte `VBPicture`-Quellen auf derselben persistenten Oberfläche. PictureBox-
+Zielbindung, MDI, DrawMode sowie vollständige AutoRedraw-/ScaleMode-Regeln bleiben weitere
+Graphics-/Forms-Slices. Die Gesamtsuite umfasst **941 Tests**.

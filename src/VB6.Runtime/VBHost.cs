@@ -20,6 +20,11 @@ public interface IVB6Host
     {
     }
 
+    /// <summary>Draws a supported VB6 PaintPicture operation on the active host surface.</summary>
+    void PaintPicture(VBPaintPicture picture)
+    {
+    }
+
     void Load(object target);
 
     void Unload(object target);

@@ -178,6 +178,38 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostRendersPaintPictureOnFormSurface()
+    {
+        using var host = new WinFormsHost();
+        using var source = new Bitmap(2, 2);
+        using var sourceGraphics = Graphics.FromImage(source);
+        sourceGraphics.Clear(Color.Lime);
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+
+            VBInteraction.PaintPicture(source, 1440, 720, 1440, 720);
+
+            Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var image));
+            Assert.IsInstanceOfType<Bitmap>(image);
+            using var snapshot = new Bitmap((Bitmap)image!);
+            var painted = snapshot.GetPixel(144, 72);
+            Assert.IsTrue(painted.G > 180 && painted.R < 120 && painted.B < 120);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostDecodesFrxPicturePayloadsForPictureBoxes()
     {
         using var host = new WinFormsHost();

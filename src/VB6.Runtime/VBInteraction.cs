@@ -308,9 +308,19 @@ public static class VBInteraction
     /// <summary>Forwards an unqualified control Print call to an optional host sink.</summary>
     public static void Print(object? value) => PrintSink?.Invoke(value);
 
-    /// <summary>Forwards a control PaintPicture call to an optional host sink.</summary>
-    public static void PaintPicture(object? picture, float x, float y, float width, float height) =>
-        PaintPictureSink?.Invoke(new VBPaintPicture(picture, x, y, width, height));
+    /// <summary>Sends a supported control PaintPicture call to the active host or headless sink.</summary>
+    public static void PaintPicture(object? picture, float x, float y, float width, float height)
+    {
+        var operation = new VBPaintPicture(picture, x, y, width, height);
+        if (Host is { } host)
+        {
+            host.PaintPicture(operation);
+        }
+        else
+        {
+            PaintPictureSink?.Invoke(operation);
+        }
+    }
 
     /// <summary>Optional host callback for unqualified control Print calls.</summary>
     public static Action<object?>? PrintSink { get; set; }
