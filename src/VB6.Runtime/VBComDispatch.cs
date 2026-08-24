@@ -59,15 +59,33 @@ internal static class VBComDispatch
                     ? DispatchPropertyPutRef
                     : DispatchPropertyPut
                 : (ushort)(DispatchMethod | DispatchPropertyGet);
+            var argumentTypes = TryGetByValArrayArgumentTypes(
+                dispatch,
+                dispId,
+                arguments.Length);
             var byRefArguments = setProperty
                 ? null
                 : TryGetByRefArgumentTypes(dispatch, dispId, arguments.Length);
-            var hr = Invoke(dispatch, dispId, arguments, flags, byRefArguments, out result);
+            var hr = Invoke(
+                dispatch,
+                dispId,
+                arguments,
+                flags,
+                argumentTypes,
+                byRefArguments,
+                out result);
             if (hr < 0 && byRefArguments is not null)
             {
                 // A type library can describe an [out] parameter while an individual server
                 // still requires its legacy ByVal call shape. Preserve the safe fallback.
-                hr = Invoke(dispatch, dispId, arguments, flags, null, out result);
+                hr = Invoke(
+                    dispatch,
+                    dispId,
+                    arguments,
+                    flags,
+                    argumentTypes,
+                    null,
+                    out result);
             }
             if (hr < 0 && setProperty)
             {
@@ -77,7 +95,14 @@ internal static class VBComDispatch
                 var fallbackFlags = flags == DispatchPropertyPutRef
                     ? DispatchPropertyPut
                     : DispatchPropertyPutRef;
-                hr = Invoke(dispatch, dispId, arguments, fallbackFlags, null, out result);
+                hr = Invoke(
+                    dispatch,
+                    dispId,
+                    arguments,
+                    fallbackFlags,
+                    argumentTypes,
+                    null,
+                    out result);
             }
 
             return hr >= 0;
@@ -446,6 +471,107 @@ internal static class VBComDispatch
             : value;
 
     [SupportedOSPlatform("windows")]
+    private static ushort?[]? TryGetByValArrayArgumentTypes(
+        INativeDispatch dispatch,
+        int dispId,
+        int argumentCount)
+    {
+        if (argumentCount == 0 ||
+            dispatch.GetTypeInfoCount(out var typeInfoCount) < 0 ||
+            typeInfoCount == 0 ||
+            dispatch.GetTypeInfo(0, 1033, out var typeInfoPointer) < 0 ||
+            typeInfoPointer == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        ITypeInfo? typeInfo = null;
+        IntPtr typeAttributePointer = IntPtr.Zero;
+        try
+        {
+            typeInfo = (ITypeInfo)Marshal.GetObjectForIUnknown(typeInfoPointer);
+            typeInfo.GetTypeAttr(out typeAttributePointer);
+            var typeAttribute = Marshal.PtrToStructure<TYPEATTR>(typeAttributePointer);
+            var elementSize = Marshal.SizeOf<ELEMDESC>();
+            for (var functionIndex = 0; functionIndex < typeAttribute.cFuncs; functionIndex++)
+            {
+                typeInfo.GetFuncDesc(functionIndex, out var functionPointer);
+                try
+                {
+                    var function = Marshal.PtrToStructure<FUNCDESC>(functionPointer);
+                    if (function.memid != dispId ||
+                        function.cParams < argumentCount ||
+                        function.lprgelemdescParam == IntPtr.Zero)
+                    {
+                        continue;
+                    }
+
+                    var types = new ushort?[argumentCount];
+                    for (var parameterIndex = 0; parameterIndex < argumentCount; parameterIndex++)
+                    {
+                        var elementPointer = IntPtr.Add(
+                            function.lprgelemdescParam,
+                            parameterIndex * elementSize);
+                        var element = Marshal.PtrToStructure<ELEMDESC>(elementPointer);
+                        if (!TryGetVariantType(element.tdesc, out var variantType))
+                        {
+                            continue;
+                        }
+
+                        if ((variantType & VariantArray) == 0 ||
+                            (element.desc.paramdesc.wParamFlags & PARAMFLAG.PARAMFLAG_FOUT) != 0 ||
+                            (element.tdesc.vt & VariantByRef) != 0 ||
+                            (element.tdesc.vt & VariantTypeMask) == VariantPointer)
+                        {
+                            continue;
+                        }
+
+                        types[parameterIndex] = variantType;
+                    }
+
+                    return types.Any(value => value is not null) ? types : null;
+                }
+                finally
+                {
+                    typeInfo.ReleaseFuncDesc(functionPointer);
+                }
+            }
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+        catch (InvalidCastException)
+        {
+            return null;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (typeAttributePointer != IntPtr.Zero && typeInfo is not null)
+            {
+                typeInfo.ReleaseTypeAttr(typeAttributePointer);
+            }
+
+            if (typeInfo is not null && Marshal.IsComObject(typeInfo))
+            {
+                _ = Marshal.ReleaseComObject(typeInfo);
+            }
+
+            _ = Marshal.Release(typeInfoPointer);
+        }
+
+        return null;
+    }
+
+    [SupportedOSPlatform("windows")]
     private static ushort?[]? TryGetByRefArgumentTypes(
         INativeDispatch dispatch,
         int dispId,
@@ -489,7 +615,7 @@ internal static class VBComDispatch
                             parameterIndex * elementSize);
                         var element = Marshal.PtrToStructure<ELEMDESC>(elementPointer);
                         if ((element.desc.paramdesc.wParamFlags & PARAMFLAG.PARAMFLAG_FOUT) == 0 ||
-                            !TryGetByRefVariantType(element.tdesc, out var variantType))
+                            !TryGetVariantType(element.tdesc, out var variantType))
                         {
                             continue;
                         }
@@ -571,6 +697,7 @@ internal static class VBComDispatch
         int dispId,
         object?[] arguments,
         ushort flags,
+        ushort?[]? argumentTypes,
         ushort?[]? byRefArguments,
         out object? result)
     {
@@ -599,7 +726,7 @@ internal static class VBComDispatch
                     var valueVariant = IntPtr.Add(
                         byRefValues,
                         index * VariantSize);
-                    if (!TryInitializeByRefVariant(
+                    if (!TryInitializeVariant(
                             UnwrapComValue(arguments[sourceIndex]),
                             valueVariant,
                             byRefType))
@@ -615,6 +742,18 @@ internal static class VBComDispatch
                         ? valueVariant
                         : IntPtr.Add(valueVariant, VariantDataOffset);
                     Marshal.WriteIntPtr(variant, VariantDataOffset, byRefStorage);
+                }
+                else if (argumentTypes?[sourceIndex] is { } argumentType &&
+                         (argumentType & VariantArray) != 0)
+                {
+                    if (!TryInitializeVariant(
+                            UnwrapComValue(arguments[sourceIndex]),
+                            variant,
+                            argumentType))
+                    {
+                        _ = VariantClear(variant);
+                        return unchecked((int)0x80070057); // E_INVALIDARG.
+                    }
                 }
                 else
                 {
@@ -708,7 +847,7 @@ internal static class VBComDispatch
     }
 
     [SupportedOSPlatform("windows")]
-    private static bool TryGetByRefVariantType(
+    private static bool TryGetVariantType(
         TYPEDESC description,
         out ushort variantType)
     {
@@ -724,7 +863,7 @@ internal static class VBComDispatch
             }
 
             var pointedType = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
-            return TryGetByRefVariantType(pointedType, out variantType);
+            return TryGetVariantType(pointedType, out variantType);
         }
 
         if (baseType == VariantSafeArray)
@@ -736,7 +875,7 @@ internal static class VBComDispatch
             }
 
             var elementType = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
-            if (!TryGetByRefVariantType(elementType, out var elementVariantType) ||
+            if (!TryGetVariantType(elementType, out var elementVariantType) ||
                 (elementVariantType & VariantArray) != 0)
             {
                 variantType = 0;
@@ -787,7 +926,7 @@ internal static class VBComDispatch
             0x0017;   // UINT
 
     [SupportedOSPlatform("windows")]
-    private static bool TryInitializeByRefVariant(
+    internal static bool TryInitializeVariant(
         object? value,
         IntPtr destination,
         ushort expectedType)

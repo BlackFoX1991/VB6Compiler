@@ -32,6 +32,41 @@ public sealed class ComDispatchRuntimeTests
 
     [TestMethod]
     [SupportedOSPlatform("windows")]
+    public void AutomationArrayMarshalling_InitializesByValSafeArrayVariant()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The COM SAFEARRAY test requires Windows.");
+            return;
+        }
+
+        var source = new VBArray<object>(new VBArrayBound(-1, 0));
+        source[-1] = "first";
+        source[0] = "second";
+        var variant = Marshal.AllocCoTaskMem(16);
+        try
+        {
+            Assert.IsTrue(
+                VBComDispatch.TryInitializeVariant(
+                    source,
+                    variant,
+                    (ushort)(0x2000 | 0x000C)));
+            Assert.AreEqual((short)(0x2000 | 0x000C), Marshal.ReadInt16(variant));
+            var automationArray = Marshal.GetObjectForNativeVariant(variant) as Array;
+            Assert.IsNotNull(automationArray);
+            Assert.AreEqual(-1, automationArray!.GetLowerBound(0));
+            Assert.AreEqual("first", automationArray.GetValue(-1));
+            Assert.AreEqual("second", automationArray.GetValue(0));
+        }
+        finally
+        {
+            _ = VariantClear(variant);
+            Marshal.FreeCoTaskMem(variant);
+        }
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
     public void AutomationDispatch_InvokesMethodsPropertiesAndDefaultItem()
     {
         if (!OperatingSystem.IsWindows())
@@ -164,4 +199,7 @@ public sealed class ComDispatchRuntimeTests
 
         public object? ComObject { get; }
     }
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
+    private static extern int VariantClear(IntPtr variant);
 }
