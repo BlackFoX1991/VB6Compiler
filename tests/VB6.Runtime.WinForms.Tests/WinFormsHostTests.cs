@@ -1160,10 +1160,12 @@ public sealed class WinFormsHostTests
                     20,
                     0)
             });
+        var keyDown = new KeyEventArgs(Keys.A | Keys.Shift | Keys.Control);
         typeof(Control).GetMethod("OnKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(textBox, new object[] { new KeyEventArgs(Keys.A | Keys.Shift | Keys.Control) });
+            .Invoke(textBox, new object[] { keyDown });
+        var keyPress = new KeyPressEventArgs('x');
         typeof(Control).GetMethod("OnKeyPress", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(textBox, new object[] { new KeyPressEventArgs('x') });
+            .Invoke(textBox, new object[] { keyPress });
 
         Assert.AreEqual(3, owner.MouseButton);
         Assert.AreEqual((short)0, owner.MouseShift);
@@ -1172,6 +1174,8 @@ public sealed class WinFormsHostTests
         Assert.AreEqual(65, owner.KeyCode);
         Assert.AreEqual((short)3, owner.KeyShift);
         Assert.AreEqual((short)'x', owner.KeyAscii);
+        Assert.IsTrue(keyDown.SuppressKeyPress);
+        Assert.AreEqual('y', keyPress.KeyChar);
 
         host.Unload(owner);
     }
@@ -1335,13 +1339,18 @@ public sealed class WinFormsHostTests
             MouseY = y;
         }
 
-        private void OnKeyDown(short keyCode, short shift)
+        private void OnKeyDown(ref short keyCode, short shift)
         {
             KeyCode = keyCode;
             KeyShift = shift;
+            keyCode = 0;
         }
 
-        private void OnKeyPress(short keyAscii) => KeyAscii = keyAscii;
+        private void OnKeyPress(ref short keyAscii)
+        {
+            KeyAscii = keyAscii;
+            keyAscii = (short)'y';
+        }
 
         private void Form_Resize() => FormResizeCount++;
     }

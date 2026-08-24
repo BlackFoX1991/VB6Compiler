@@ -2051,3 +2051,14 @@ Identität durch ein fremdes CLR-Array zu ersetzen. Ein echter emittierter `comh
 weiterhin den zweidimensionalen, nicht bei null beginnenden `ByRef Variant`-SAFEARRAY-ABI. UDT-,
 Pointer- und nicht kompatible SAFEARRAY-Descriptoren bleiben bewusst separate Interop-Schritte.
 Die Gesamtsuite umfasst nun **974 Tests**.
+
+## Aktueller Managed-WinForms-Event-ByRef-Nachtrag
+
+Der Managed-WinForms-Host schreibt `ByRef`-Änderungen aus `KeyPress`-Handlern jetzt in das
+zugrunde liegende `KeyPressEventArgs.KeyChar` zurück. Für `KeyDown` und `KeyUp` wird ein vom
+VB6-Handler geänderter `KeyCode` über den verfügbaren WinForms-Vertrag als `Handled`/`SuppressKeyPress`
+abgebildet, da WinForms den KeyCode selbst schreibgeschützt anbietet. ByVal-Handler bleiben davon
+unverändert; der Rückweg wird nur für tatsächlich deklarierte ByRef-Parameter aktiviert. Der
+Managed-Lauf und der verpflichtende x86-Lauf mit registrierten Standard-OCX-Komponenten umfassen
+weiterhin jeweils **34/34** Tests. Vollständige Event-Signaturkonversion und der native
+Connection-Point-Lifecycle bleiben separate ABI-Schritte.
