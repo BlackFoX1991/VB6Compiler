@@ -98,6 +98,19 @@ public sealed class WinFormsHostTests
         Assert.IsTrue(host.TryGetMember(control, "View", Array.Empty<object?>(), out var view));
         Assert.AreEqual(1, view);
 
+        if (Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is not null)
+        {
+            var richText = host.CreateControl(owner, "Editor", "RichTextLib.RichTextBox")!;
+            if (richText is AxHost)
+            {
+                Assert.IsInstanceOfType<IVBComObjectProvider>(richText);
+                const string rtf = "{\\rtf1\\ansi Native OCX}";
+                Assert.IsTrue(host.TrySetMember(richText, "TextRTF", Array.Empty<object?>(), rtf));
+                Assert.IsTrue(host.TryGetMember(richText, "TextRTF", Array.Empty<object?>(), out var textRtf));
+                StringAssert.Contains((string)textRtf!, "Native OCX");
+            }
+        }
+
         host.Unload(owner);
     }
 

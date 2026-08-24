@@ -2965,6 +2965,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "MSCOMCTLLIB.STATUSBAR" or "MSCOMCTLLIB.SBARCTRL" => "MSComctlLib.SBarCtrl.2",
             "MSCOMCTLLIB.TABSTRIP" => "MSComctlLib.TabStrip.2",
             "MSCOMCTLLIB.TOOLBAR" => "MSComctlLib.Toolbar.2",
+            "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => "RICHTEXT.RichtextCtrl.1",
             _ => null
         };
         if (progId is null)
