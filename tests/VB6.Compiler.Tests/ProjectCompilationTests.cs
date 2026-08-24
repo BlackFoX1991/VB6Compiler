@@ -77,6 +77,43 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EvaluatesConditionalCompilationInProjectSources()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ConditionalProject.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                #Const UseLegacy = 0
+                #If UseLegacy Then
+                    Public Sub Main()
+                        Debug.Print 1
+                    End Sub
+                #Else
+                    Public Sub Main()
+                        Debug.Print 2
+                    End Sub
+                #End If
+                """);
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+
+            Assert.AreEqual("2", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesControlFlowCrossModuleCallsAndFunction()
     {
         var directory = CreateTemporaryDirectory();
