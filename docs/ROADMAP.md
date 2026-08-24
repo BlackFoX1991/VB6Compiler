@@ -1907,3 +1907,14 @@ Server trotz TypeInfo den ByRef-Aufruf ablehnt, wird derselbe Aufruf nochmals vo
 ausgeführt. Die bestehenden Scripting-Dictionary- und nativen x86-OCX-Regressionspfade bleiben
 stabil. Vollständige `[in]`-/`[out]`-Typkonversion, SAFEARRAY-/UDT-ByRef-Marshalling und
 Connection-Point-Events bleiben separate COM-ABI-Schritte.
+
+## Aktueller SAFEARRAY-/CLR-Array-Variant-Nachtrag
+
+Automation-Arrays, die über COM als `System.Array` in die Managed-Runtime gelangen, werden jetzt
+wie Variant-Arrays erkannt. `IsArray`, `IsObject`, `VarType` und `TypeName` liefern die passenden
+VB6-Array-Subtypen; `LBound`/`UBound` berücksichtigen die echten CLR-Untergrenzen und der
+Variant-Elementzugriff liest und schreibt auch mehrdimensionale beziehungsweise nicht bei null
+beginnende CLR-Arrays. Die bisherigen `VBArray<T>`-Pfade und Default-Property-Indizes für normale
+Managed-Objekte bleiben unverändert. ByRef-Elementadressen von CLR-/SAFEARRAY-Werten, vollständige
+SAFEARRAY-Descriptor-Konvertierung und SAFEARRAYs mit UDT-/Pointer-Elementen bleiben separate
+Interop-Schritte. Die Gesamtsuite umfasst **958 Tests**.

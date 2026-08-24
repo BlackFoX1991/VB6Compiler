@@ -46,10 +46,11 @@ public static class VBFunctions
             double => "Double",
             decimal => "Decimal",
             VBCurrency => "Currency",
-            VBDateValue => "Date",
+            VBDateValue or DateTime => "Date",
             VBErrorValue => "Error",
             string => "String",
             IVBArray array => VBVariants.ArrayTypeName(array),
+            Array array => VBVariants.ArrayTypeName(array),
             _ => value.GetType().Name
         };
     }

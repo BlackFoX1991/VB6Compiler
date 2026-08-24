@@ -285,21 +285,37 @@ public sealed class VBArray<T> : IVBArray
 /// <summary>Late-bound array operations for Variant values.</summary>
 public static class VBArrayOperations
 {
-    public static bool IsAllocated(object? value) => value is IVBArray;
+    public static bool IsAllocated(object? value) => value is IVBArray or Array;
 
     public static object RequireAllocated(object? value) => value ??
         throw new InvalidOperationException("The array must be allocated before file data can be read into it.");
 
-    public static int LBound(object? value, int dimension = 1) => GetArray(value).LBound(dimension);
+    public static int LBound(object? value, int dimension = 1) => value switch
+    {
+        IVBArray array => array.LBound(dimension),
+        Array array => array.GetLowerBound(dimension - 1),
+        _ => throw new InvalidOperationException("The Variant does not contain an array.")
+    };
 
-    public static int UBound(object? value, int dimension = 1) => GetArray(value).UBound(dimension);
+    public static int UBound(object? value, int dimension = 1) => value switch
+    {
+        IVBArray array => array.UBound(dimension),
+        Array array => array.GetUpperBound(dimension - 1),
+        _ => throw new InvalidOperationException("The Variant does not contain an array.")
+    };
 
     public static object? GetElement(object? value, int[] indices) =>
         GetElement(value, indices.Cast<object?>().ToArray());
 
-    public static object? GetElement(object? value, object?[] indices) => value is IVBArray array
-        ? array.GetObjectValue(ToArrayIndices(indices))
-        : VBDynamicDispatch.GetDefaultMember(value, indices);
+    public static object? GetElement(object? value, object?[] indices)
+    {
+        return value switch
+        {
+            IVBArray array => array.GetObjectValue(ToArrayIndices(indices)),
+            Array array => array.GetValue(ToArrayIndices(indices)),
+            _ => VBDynamicDispatch.GetDefaultMember(value, indices)
+        };
+    }
 
     /// <summary>
     /// Returns a writable reference for an element of a Variant() array. A Variant array created
@@ -328,17 +344,62 @@ public static class VBArrayOperations
             return;
         }
 
+        if (value is Array clrArray)
+        {
+            clrArray.SetValue(
+                ConvertArrayElement(element, clrArray.GetType().GetElementType() ?? typeof(object)),
+                ToArrayIndices(indices));
+            return;
+        }
+
         VBDynamicDispatch.SetDefaultMember(value, indices, element);
     }
 
     private static int[] ToArrayIndices(object?[] indices) =>
         indices.Select(index => VBConversions.ConvertCLng(index)).ToArray();
 
-    private static IVBArray GetArray(object? value) => value switch
+    private static object GetArray(object? value) => value switch
     {
         IVBArray array => array,
+        Array array => array,
         _ => throw new InvalidOperationException("The Variant does not contain an array.")
     };
+
+    private static object? ConvertArrayElement(object? value, Type elementType)
+    {
+        if (value is null)
+        {
+            return elementType.IsValueType ? Activator.CreateInstance(elementType) : null;
+        }
+
+        if (elementType == typeof(object) || elementType.IsInstanceOfType(value))
+        {
+            return value;
+        }
+
+        if (elementType == typeof(byte)) return VBConversions.CByte(value);
+        if (elementType == typeof(short)) return VBConversions.CInt(value);
+        if (elementType == typeof(int)) return VBConversions.CLng(value);
+        if (elementType == typeof(long)) return VBConversions.CLngLng(value);
+        if (elementType == typeof(ushort)) return VBConversions.CUShort(value);
+        if (elementType == typeof(uint)) return VBConversions.CUInt(value);
+        if (elementType == typeof(ulong)) return VBConversions.CULng(value);
+        if (elementType == typeof(IntPtr)) return VBConversions.CLngPtr(value);
+        if (elementType == typeof(float)) return VBConversions.CSng(value);
+        if (elementType == typeof(double)) return VBConversions.CDbl(value);
+        if (elementType == typeof(decimal)) return VBConversions.CDec(value);
+        if (elementType == typeof(bool)) return VBConversions.CBool(value);
+        if (elementType == typeof(string)) return VBConversions.CStr(value);
+        if (elementType == typeof(VBCurrency)) return VBConversions.CCur(value);
+        if (elementType == typeof(DateTime)) return DateTime.FromOADate(VBConversions.CDbl(value));
+        if (elementType.IsEnum)
+        {
+            var underlying = ConvertArrayElement(value, Enum.GetUnderlyingType(elementType));
+            return Enum.ToObject(elementType, underlying!);
+        }
+
+        return Convert.ChangeType(value, elementType, System.Globalization.CultureInfo.InvariantCulture);
+    }
 }
 
 /// <summary>

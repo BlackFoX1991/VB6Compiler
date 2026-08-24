@@ -73,7 +73,7 @@ public static class VBVariants
 
     public static bool IsError(object? value) => value is VBErrorValue;
 
-    public static bool IsArray(object? value) => value is IVBArray;
+    public static bool IsArray(object? value) => value is IVBArray or Array;
 
     public static bool IsDate(object? value)
     {
@@ -95,7 +95,7 @@ public static class VBVariants
         NothingValueMarker => true,
         null or NullValueMarker or MissingValueMarker or VBErrorValue or VBDateValue or
             VBCurrency or string or bool or byte or ushort or uint or ulong or
-            short or int or long or float or double or decimal or IntPtr or IVBArray => false,
+            short or int or long or float or double or decimal or IntPtr or DateTime or IVBArray or Array => false,
         _ => true
     };
 
@@ -108,22 +108,29 @@ public static class VBVariants
 
     public static string ArrayTypeName(object? value)
     {
-        if (value is not IVBArray array)
+        var elementType = value switch
         {
-            throw new VB6TypeMismatchException("The Variant does not contain an array.");
+            IVBArray array => GetArrayElementType(array.GetType()),
+            Array array => array.GetType().GetElementType() ?? typeof(object),
+            _ => throw new VB6TypeMismatchException("The Variant does not contain an array.")
+        };
+        return GetTypeName(elementType) + "()";
+    }
+
+    private static Type GetArrayElementType(Type arrayType)
+    {
+        if (arrayType.IsGenericType &&
+            arrayType.GetGenericTypeDefinition() == typeof(VBArray<>))
+        {
+            return arrayType.GetGenericArguments()[0];
         }
 
-        var arrayType = array.GetType();
-        var elementType = arrayType.IsGenericType &&
-                          arrayType.GetGenericTypeDefinition() == typeof(VBArray<>)
-            ? arrayType.GetGenericArguments()[0]
-            : typeof(object);
-        return GetTypeName(elementType) + "()";
+        return arrayType.GetElementType() ?? typeof(object);
     }
 
     public static short VarType(object? value)
     {
-        if (value is IVBArray)
+        if (value is IVBArray or Array)
         {
             return ArrayVarType(value.GetType());
         }
@@ -150,16 +157,14 @@ public static class VBVariants
             IntPtr => IntPtr.Size == 8 ? (short)20 : (short)3,
             decimal => 14,
             VBDateValue => 7,
+            DateTime => 7,
             _ => 9
         };
     }
 
     private static short ArrayVarType(Type arrayType)
     {
-        var elementType = arrayType.IsGenericType &&
-                          arrayType.GetGenericTypeDefinition() == typeof(VBArray<>)
-            ? arrayType.GetGenericArguments()[0]
-            : typeof(object);
+        var elementType = GetArrayElementType(arrayType);
         var elementVarType = elementType == typeof(object) ? 12
             : elementType == typeof(string) ? 8
             : elementType == typeof(bool) ? 11
@@ -175,6 +180,7 @@ public static class VBVariants
             : elementType == typeof(double) ? 5
             : elementType == typeof(VBCurrency) ? 6
             : elementType == typeof(decimal) ? 14
+            : elementType == typeof(VBDateValue) || elementType == typeof(DateTime) ? 7
             : 36;
         return checked((short)(8192 + elementVarType));
     }
@@ -194,6 +200,6 @@ public static class VBVariants
         : type == typeof(double) ? "Double"
         : type == typeof(VBCurrency) ? "Currency"
         : type == typeof(decimal) ? "Decimal"
-        : type == typeof(VBDateValue) ? "Date"
+        : type == typeof(VBDateValue) || type == typeof(DateTime) ? "Date"
         : type.Name;
 }
