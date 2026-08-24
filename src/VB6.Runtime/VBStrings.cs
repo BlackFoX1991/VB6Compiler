@@ -43,6 +43,43 @@ public static class VBStrings
     }
 
     /// <summary>
+    /// Implements the VB6 LenB intrinsic. Managed VB6 strings are UTF-16, so each UTF-16 code
+    /// unit contributes two bytes. A Null Variant remains Null; generated UDTs use their native
+    /// managed layout, including padding between fields.
+    /// </summary>
+    public static object LenB(object? value)
+    {
+        VBVariants.ThrowIfMissing(value);
+        VBVariants.ThrowIfArray(value);
+        if (VBVariants.IsNull(value))
+        {
+            return VBVariants.NullValue();
+        }
+
+        return value switch
+        {
+            null => 0,
+            string text => checked(text.Length * sizeof(char)),
+            byte => 1,
+            short => 2,
+            int => 4,
+            long => 8,
+            ushort => 2,
+            uint => 4,
+            ulong => 8,
+            IntPtr => IntPtr.Size,
+            float => 4,
+            double => 8,
+            bool => 2,
+            VBDateValue => 8,
+            VBCurrency => 8,
+            _ when IsGeneratedUserDefinedType(value) => Marshal.SizeOf(value),
+            _ => throw new InvalidCastException(
+                $"CLR value of type '{value.GetType().FullName}' is not supported by the VB6 LenB intrinsic.")
+        };
+    }
+
+    /// <summary>
     /// Implements the three-argument VB6 Mid/Mid$ intrinsic. VB6 positions are one-based.
     /// A start beyond the end of the string returns an empty string and length is clipped to the
     /// remaining characters.

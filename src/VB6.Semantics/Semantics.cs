@@ -184,6 +184,7 @@ public sealed record ReturnValueSymbol(string Name, TypeSymbol Type)
 public enum VBIntrinsicKind
 {
     Len,
+    LenB,
     Mid,
     Chr,
     ChrW,

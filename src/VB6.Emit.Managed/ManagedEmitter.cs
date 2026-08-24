@@ -2996,6 +2996,7 @@ public sealed class ManagedEmitter
             {
                 var name = m.ToString()["String".Length..];
                 if (name == "Len") return Static(typeof(VBStrings), "Len", typeof(object));
+                if (name == "LenB") return Static(typeof(VBStrings), "LenB", typeof(object));
                 if (name == "Mid") return call.Arguments.Length == 2
                     ? Static(typeof(VBStrings), "Mid", typeof(string), typeof(int))
                     : Static(typeof(VBStrings), "Mid", typeof(string), typeof(int), typeof(int));

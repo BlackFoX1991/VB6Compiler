@@ -494,6 +494,7 @@ public enum IrRuntimeMethod
     EndProgram,
 
     StringLen,
+    StringLenB,
     StringMid,
     StringChr,
     StringChrW,

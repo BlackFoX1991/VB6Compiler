@@ -1125,7 +1125,7 @@ Blockstruktur, nicht mehr des Textgenerators.
 Nach Korpusbedarf priorisiert:
 
 1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`/`Val`/`Hex`/`String`.
-   `Len`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. `ProcedureSymbol.IntrinsicKind`
+    `Len`/`LenB`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. `ProcedureSymbol.IntrinsicKind`
    trägt die backendunabhängige Identität, der Binder behandelt Intrinsics wie normale
    Prozeduren, und `IrRuntimeMethod` benennt die Runtime-Operation. Damit sind weitere
    Bibliotheksfunktionen reine Tabelleneinträge — das gilt auch für `DoEvents`, `Kill`, `Dir`,
@@ -1526,3 +1526,11 @@ ursprüngliches Ziel zurückgeschrieben; Rückgabewerte von Funktionen mit gleic
 Write-back bleiben über Compiler-Temporaries erhalten. `GetComputerNameA` ist als echter Windows-
 End-to-End-Aufruf regressionsgesichert. Array-Marshalling, nicht-blittable UDTs und Callback-
 Delegates bleiben separate ABI-Schritte. Die Gesamtsuite umfasst **918 Tests**.
+
+## Aktueller LenB-Nachtrag
+
+`LenB` ist jetzt als eigene Intrinsic-Signatur mit Variant-Rückgabe durch Binder, IR, Managed-
+Emitter und Runtime verdrahtet. Unicode-Strings liefern zwei Bytes je UTF-16-Codeeinheit,
+Scalar-Varianten behalten ihre VB6-Speicherbreite, `Null` bleibt `Null`, und emittierte UDTs
+verwenden den nativen In-Memory-Umfang einschließlich Padding. Die direkte Ausführung ist mit
+String-, Scalar-, `Null`- und UDT-Fällen regressionsgesichert. Die Gesamtsuite umfasst **923 Tests**.
