@@ -63,6 +63,98 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void MsBuildSdk_CompilesAndTracksVbgProjectGroupsIncrementally()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacySuite.vbg");
+            File.WriteAllText(
+                groupPath,
+                "Type=Group\nProject=First.vbp\nProject=Second.vbp\n");
+            WriteExecutableProject(directory, "First");
+            WriteExecutableProject(directory, "Second");
+
+            var repositoryRoot = FindRepositoryRoot();
+            var packageDirectory = Path.Combine(directory, "packages");
+            var packResult = RunDotNet(
+                "pack",
+                Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
+                "-c",
+                "Release",
+                "--no-build",
+                "--no-restore",
+                "--nologo",
+                "-p:PackageVersion=1.0.0-test",
+                "-p:PackageOutputPath=" + packageDirectory);
+            Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
+            File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{packageDirectory}" />
+                  </packageSources>
+                </configuration>
+                """);
+
+            var projectPath = Path.Combine(directory, "LegacySuite.csproj");
+            var outputDirectory = Path.Combine(directory, "bin", "Release", "legacy");
+            var compilerPath = Path.Combine(AppContext.BaseDirectory, "vb6c.exe");
+            File.WriteAllText(projectPath, $"""
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-test" DefaultTargets="Build">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Configuration>Release</Configuration>
+                    <OutputPath>bin\Release\</OutputPath>
+                    <VB6ProjectGroup>{groupPath}</VB6ProjectGroup>
+                    <VB6CompilerPath>{compilerPath}</VB6CompilerPath>
+                    <VB6CompilerGroupOutputDirectory>{outputDirectory}</VB6CompilerGroupOutputDirectory>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var firstBuild = RunMsBuild(projectPath, restore: true);
+            Assert.AreEqual(0, firstBuild.ExitCode, firstBuild.StandardError + firstBuild.StandardOutput);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.exe")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
+
+            var stampPath = Directory
+                .GetFiles(directory, "VB6GroupCompile.stamp", SearchOption.AllDirectories)
+                .Single();
+            var firstStamp = File.GetLastWriteTimeUtc(stampPath);
+            Thread.Sleep(1100);
+
+            var secondBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, secondBuild.ExitCode, secondBuild.StandardError + secondBuild.StandardOutput);
+            Assert.AreEqual(firstStamp, File.GetLastWriteTimeUtc(stampPath));
+
+            Thread.Sleep(1100);
+            File.Delete(Path.Combine(outputDirectory, "Second.exe"));
+            var recoveryBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, recoveryBuild.ExitCode, recoveryBuild.StandardError + recoveryBuild.StandardOutput);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
+
+            var recoveryStamp = File.GetLastWriteTimeUtc(stampPath);
+            Thread.Sleep(1100);
+            File.WriteAllText(
+                Path.Combine(directory, "First.bas"),
+                "Sub Main()\n    Debug.Print 2\nEnd Sub\n");
+            var thirdBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, thirdBuild.ExitCode, thirdBuild.StandardError + thirdBuild.StandardOutput);
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > recoveryStamp);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesVbgProjectWithNativeOcxDesignerThroughTheCli()
     {
         var typeLibraryPath = Path.Combine(
@@ -477,6 +569,74 @@ public sealed class CliProcessTests
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();
         return new CliResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static CliResult RunMsBuild(string projectPath, bool restore = false)
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = Path.GetDirectoryName(projectPath)!,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("msbuild");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("/t:Build");
+        startInfo.ArgumentList.Add("/p:Configuration=Release");
+        startInfo.ArgumentList.Add("/v:minimal");
+        startInfo.ArgumentList.Add("/nologo");
+        if (restore)
+        {
+            startInfo.ArgumentList.Add("/restore");
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start the MSBuild process.");
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return new CliResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static CliResult RunDotNet(params string[] arguments)
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = FindRepositoryRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start the dotnet process.");
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return new CliResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "src", "VB6.Compiler.Sdk", "Sdk", "Sdk.targets")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the VB6Compiler repository root.");
     }
 
     private static bool IsNativeWindowsAppHost(string path)

@@ -39,4 +39,7 @@ For a Visual Basic 6 project group, set `VB6ProjectGroup` instead of `VB6Project
 The group target invokes `vb6c <group>.vbg --emit-assembly <output-directory>` and emits each
 declared `.vbp` into that directory in dependency order. The group file, project files, source
 files and designer resources are tracked as MSBuild inputs; a group compile stamp makes unchanged
-groups incremental. `VB6EnableComHosting=true` remains available for library projects in the group.
+groups incremental. A companion output manifest invalidates the stamp when a previously emitted
+assembly, apphost, runtime file, PDB or runtime configuration is missing, so incomplete output
+directories are repaired by the next build. `VB6EnableComHosting=true` remains available for
+library projects in the group.
