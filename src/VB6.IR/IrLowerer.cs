@@ -1189,6 +1189,13 @@ public static class IrLowerer
                         TypeSymbol.Error,
                         openArguments)));
                     break;
+                case BoundNameStatement name:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.FileRename,
+                        TypeSymbol.Error,
+                        LowerExpression(name.OldPath),
+                        LowerExpression(name.NewPath))));
+                    break;
                 case BoundCloseStatement close:
                     if (close.FileNumbers.IsDefaultOrEmpty)
                     {
@@ -3547,6 +3554,7 @@ public static class IrLowerer
             "VBFiles.Kill" => IrRuntimeMethod.FileKill,
             "VBFiles.Dir" => IrRuntimeMethod.FileDir,
             "VBFiles.FileCopy" => IrRuntimeMethod.FileCopy,
+            "VBFiles.Rename" => IrRuntimeMethod.FileRename,
             "VBFiles.MakeDirectory" => IrRuntimeMethod.FileMakeDirectory,
             "VBFiles.RemoveDirectory" => IrRuntimeMethod.FileRemoveDirectory,
             "VBFiles.ChangeDirectory" => IrRuntimeMethod.FileChangeDirectory,

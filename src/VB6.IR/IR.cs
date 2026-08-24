@@ -591,6 +591,7 @@ public enum IrRuntimeMethod
     FileKill,
     FileDir,
     FileCopy,
+    FileRename,
     FileMakeDirectory,
     FileRemoveDirectory,
     FileChangeDirectory,

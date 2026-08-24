@@ -176,6 +176,7 @@ public enum SyntaxKind
     TypeName,
     ConditionalCompilationDirective,
     OpenStatement,
+    NameStatement,
     CloseStatement,
     GetStatement,
     PutStatement,

@@ -651,6 +651,8 @@ public sealed class FileIoExecutionTests
                 FileCopy "source.txt", "copy.txt"
                 Debug.Print FileLen("copy.txt")
                 Debug.Print IsDate(FileDateTime("copy.txt"))
+                Name "copy.txt" As "renamed.txt"
+                Debug.Print FileLen("renamed.txt")
 
                 MkDir "nested"
                 Debug.Print (GetAttr("nested") And 16) = 16
@@ -658,16 +660,17 @@ public sealed class FileIoExecutionTests
                 Debug.Print Len(CurDir()) > Len(original)
                 ChDir ".."
 
-                SetAttr "copy.txt", 1
-                Debug.Print (GetAttr("copy.txt") And 1) = 1
-                SetAttr "copy.txt", 0
+                SetAttr "renamed.txt", 1
+                Debug.Print (GetAttr("renamed.txt") And 1) = 1
+                SetAttr "renamed.txt", 0
                 RmDir "nested"
                 Kill "source.txt"
-                Kill "copy.txt"
+                Kill "renamed.txt"
             End Sub
             """,
             "7",
             "True",
+            "7",
             "True",
             "True",
             "True");

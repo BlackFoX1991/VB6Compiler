@@ -2971,6 +2971,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileKill => Static(typeof(VBFiles), "Kill", typeof(string)),
                 IrRuntimeMethod.FileDir => Static(typeof(VBFiles), "Dir", typeof(string), typeof(int)),
                 IrRuntimeMethod.FileCopy => Static(typeof(VBFiles), nameof(VBFiles.FileCopy), typeof(string), typeof(string)),
+                IrRuntimeMethod.FileRename => Static(typeof(VBFiles), nameof(VBFiles.Rename), typeof(string), typeof(string)),
                 IrRuntimeMethod.FileMakeDirectory => Static(typeof(VBFiles), nameof(VBFiles.MakeDirectory), typeof(string)),
                 IrRuntimeMethod.FileRemoveDirectory => Static(typeof(VBFiles), nameof(VBFiles.RemoveDirectory), typeof(string)),
                 IrRuntimeMethod.FileChangeDirectory => Static(typeof(VBFiles), nameof(VBFiles.ChangeDirectory), typeof(string)),

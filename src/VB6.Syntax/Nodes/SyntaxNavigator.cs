@@ -49,6 +49,7 @@ public static class SyntaxNavigator
             OnErrorStatementSyntax onError => onError.OnKeyword,
             ResumeStatementSyntax resume => resume.ResumeKeyword,
             OpenStatementSyntax open => open.OpenKeyword,
+            NameStatementSyntax name => name.NameKeyword,
             CloseStatementSyntax close => close.CloseKeyword,
             GetStatementSyntax get => get.GetKeyword,
             PutStatementSyntax put => put.PutKeyword,
