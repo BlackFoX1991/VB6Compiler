@@ -637,6 +637,43 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesFilesystemPathIntrinsics()
+    {
+        Run("""
+            Public Sub Main()
+                Dim original As String
+
+                original = CurDir()
+                Open "source.txt" For Output As #1
+                Print #1, "hello"
+                Close #1
+
+                FileCopy "source.txt", "copy.txt"
+                Debug.Print FileLen("copy.txt")
+                Debug.Print IsDate(FileDateTime("copy.txt"))
+
+                MkDir "nested"
+                Debug.Print (GetAttr("nested") And 16) = 16
+                ChDir "nested"
+                Debug.Print Len(CurDir()) > Len(original)
+                ChDir ".."
+
+                SetAttr "copy.txt", 1
+                Debug.Print (GetAttr("copy.txt") And 1) = 1
+                SetAttr "copy.txt", 0
+                RmDir "nested"
+                Kill "source.txt"
+                Kill "copy.txt"
+            End Sub
+            """,
+            "7",
+            "True",
+            "True",
+            "True",
+            "True");
+    }
+
+    [TestMethod]
     public void Analyze_ReportsTransfersThatHaveNoLayoutRuleYet()
     {
         var analysis = VBCompilation.Create("""

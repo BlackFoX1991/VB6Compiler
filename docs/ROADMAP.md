@@ -1142,6 +1142,9 @@ Nach Korpusbedarf priorisiert:
 1e. `LSet` — die kontextuelle `LSet target = source`-Syntax sowie Managed-Ausführung für feste
     String-Ziele und gleichartige UDT-Werte sind ✅; unterschiedliche UDT-Layouts benötigen
     weiterhin den nativen ABI-/Padding-Vertrag.
+1f. Dateisystem-Pfad-Intrinsics — `FileCopy`, `MkDir`, `RmDir`, `ChDir`, `CurDir`, `GetAttr`,
+    `SetAttr` und `FileDateTime` sind ✅ über Symboltabelle, IR, Managed-Emitter und Runtime
+    verdrahtet und durch direkte Runtime- sowie generierte Programmtests abgesichert.
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Input`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende
