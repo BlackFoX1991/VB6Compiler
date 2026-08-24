@@ -59,6 +59,31 @@ public sealed class CliProcessTests
         }
     }
 
+    [TestMethod]
+    public void Report_ReturnsNonZeroForUndeclaredVbgStartupProject()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(
+                groupPath,
+                "Type=Group\nProject=Actual.vbp\nStartupProject=Missing.vbp\n");
+            WriteExecutableProject(directory, "Actual");
+
+            var result = RunCli(groupPath, "--report");
+
+            Assert.AreNotEqual(0, result.ExitCode, result.StandardError);
+            StringAssert.Contains(result.StandardError, "VB6VBG0007");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static CliResult RunCli(string inputPath, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("dotnet")

@@ -1367,3 +1367,10 @@ wechseln bei `MinValue`-Überlauf ebenfalls auf die nächste darstellbare Breite
 `Double`-Überläufe werden bei `+`, `-`, `*` und `/` als Fehler abgelehnt. Die vollständige VB6-
 Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen. Die Gesamtsuite umfasst
 **887 Tests**.
+
+## Aktueller VBG-Diagnostik-Nachtrag
+
+`StartupProject=` wird nun gegen die tatsächlich deklarierten `.vbp`-Einträge aufgelöst.
+Fehlende oder falsch geschriebene Startprojekte erzeugen `VB6VBG0007`, verhindern die Batch-
+Emission und liefern über den CLI-Report einen Fehler-Exitcode. Der Prozesspfad ist mit einer
+echten `.vbg`-Regression abgesichert. Die Gesamtsuite umfasst **888 Tests**.
