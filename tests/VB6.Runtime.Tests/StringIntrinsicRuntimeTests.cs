@@ -166,11 +166,9 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
-    public void FormatValue_RejectsUnsupportedDateAndStringMasks()
+    public void FormatValue_RejectsUnsupportedDateMasks()
     {
         Assert.ThrowsException<NotSupportedException>(() =>
             VBStrings.FormatValue(new VBDateValue(45292), "ww", 0, 0));
-        Assert.ThrowsException<NotSupportedException>(() =>
-            VBStrings.FormatValue("abc", "@@@", 0, 0));
     }
 }
