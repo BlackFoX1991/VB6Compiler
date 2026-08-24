@@ -73,6 +73,14 @@ public static class VBInteraction
             ?? new VBControlProxy(name, typeName, owner);
     }
 
+    /// <summary>Applies a scalar value from a Form/UserControl designer envelope through the host.</summary>
+    public static void SetMember(object target, string memberName, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
+        Host?.TrySetMember(target, memberName, Array.Empty<object?>(), value);
+    }
+
     /// <summary>
     /// Creates a COM object through the host hook or Windows ProgID activation. Unknown ProgIDs
     /// remain a deterministic placeholder so headless compiler tests do not require a COM server.
