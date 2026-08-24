@@ -1314,7 +1314,9 @@ Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter an
 Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
 UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
 `.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
-Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **874 Tests**.
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
+bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
+**875 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
