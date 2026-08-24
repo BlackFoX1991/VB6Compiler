@@ -22,6 +22,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private readonly Dictionary<object, FormBinding> _bindings =
         new(ReferenceEqualityComparer.Instance);
     private readonly List<EventBinding> _events = new();
+    private readonly List<ContextMenuStrip> _popups = new();
     private readonly Dictionary<TreeView, TreeViewState> _treeViewStates =
         new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<RichTextBox, RichTextBoxState> _richTextBoxStates =
@@ -64,6 +65,49 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     }
 
     public void DoEvents() => Application.DoEvents();
+
+    public void PopupMenu(object? menu, int flags, float x, float y)
+    {
+        ThrowIfDisposed();
+        _ = flags;
+
+        if (menu is not MenuProxy menuProxy)
+        {
+            return;
+        }
+
+        var binding = _bindings.Values.FirstOrDefault(candidate =>
+            candidate.Components.Values.Any(component => ReferenceEquals(component, menuProxy)));
+        if (binding is null)
+        {
+            return;
+        }
+
+        var popup = new ContextMenuStrip();
+        var sourceItems = menuProxy.DropDownItems.Count > 0
+            ? menuProxy.DropDownItems.Cast<ToolStripItem>()
+            : new[] { (ToolStripItem)menuProxy };
+        foreach (var item in sourceItems)
+        {
+            popup.Items.Add(ClonePopupItem(item));
+        }
+
+        _popups.Add(popup);
+        popup.Closed += (_, _) =>
+        {
+            _popups.Remove(popup);
+            popup.Dispose();
+        };
+
+        var form = binding.Form;
+        var dpi = form.DeviceDpi > 0 ? form.DeviceDpi : 96;
+        var location = x == 0 && y == 0
+            ? form.PointToClient(Cursor.Position)
+            : new Point(
+                FromTwips(x, 1440f / dpi),
+                FromTwips(y, 1440f / dpi));
+        popup.Show(form, location);
+    }
 
     public int RunMessageLoop()
     {
@@ -647,6 +691,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         _events.Clear();
+        foreach (var popup in _popups.ToArray())
+        {
+            popup.Dispose();
+        }
+
+        _popups.Clear();
         foreach (var binding in _bindings.Values)
         {
             binding.Form.Dispose();
@@ -693,6 +743,41 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         binding.Form.MainMenuStrip = menuStrip;
         binding.Form.Controls.Add(menuStrip);
         return menuStrip;
+    }
+
+    private static ToolStripItem ClonePopupItem(ToolStripItem source)
+    {
+        if (source is ToolStripSeparator || string.Equals(source.Text, "-", StringComparison.Ordinal))
+        {
+            return new ToolStripSeparator();
+        }
+
+        if (source is not ToolStripMenuItem sourceMenu)
+        {
+            return new ToolStripMenuItem(source.Text)
+            {
+                Enabled = source.Enabled,
+                Visible = source.Visible,
+                Tag = source.Tag
+            };
+        }
+
+        var clone = new ToolStripMenuItem(sourceMenu.Text)
+        {
+            Name = sourceMenu.Name,
+            Enabled = sourceMenu.Enabled,
+            Visible = sourceMenu.Visible,
+            Checked = sourceMenu.Checked,
+            CheckOnClick = sourceMenu.CheckOnClick,
+            Tag = sourceMenu.Tag
+        };
+        clone.Click += (_, _) => sourceMenu.PerformClick();
+        foreach (ToolStripItem child in sourceMenu.DropDownItems)
+        {
+            clone.DropDownItems.Add(ClonePopupItem(child));
+        }
+
+        return clone;
     }
 
     private bool TryResolveControl(

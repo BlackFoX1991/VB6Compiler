@@ -1695,3 +1695,14 @@ weiter funktionieren. Der direkte AppHost bleibt headless; sichtbare Formulare l
 über den optionalen `VB6.Runtime.WinForms.Runner`. Die CLI-Regression startet `.vbp`-/`.vbg`-
 Ausgaben direkt und prüft die Architektur der Companion-Assembly. Die Gesamtsuite umfasst
 **938 Tests**.
+
+## Aktueller PopupMenu-Forms-Nachtrag
+
+`VBInteraction.PopupMenu` delegiert nun an den konfigurierten `IVB6Host`. Der WinForms-Host baut
+für ein `VB.Menu` einen separaten `ContextMenuStrip`-Snapshot auf, sodass der vorhandene
+`MenuStrip`-Baum an Ort und Stelle bleibt. Verschachtelte Items, Separatoren, Sichtbarkeit,
+Aktivierung, Checkzustand und Tags werden in den Snapshot übernommen; Popup-Klicks werden auf die
+bereits am Original-Menü verdrahteten VB6-Handler weitergeleitet. Flags, vollständige
+VB6-Shortcut-Konvertierung und MDI-Popup-Menüs bleiben weitere Kompatibilitätsschritte. Die
+Regression prüft Delegation, Snapshot-Verhalten, Originalhierarchie und Handlerauslösung. Die
+Gesamtsuite umfasst **939 Tests**.

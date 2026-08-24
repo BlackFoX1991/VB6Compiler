@@ -10,6 +10,11 @@ public interface IVB6Host
 {
     void DoEvents();
 
+    /// <summary>Shows a VB6 menu through the configured UI host.</summary>
+    void PopupMenu(object? menu, int flags, float x, float y)
+    {
+    }
+
     void Load(object target);
 
     void Unload(object target);

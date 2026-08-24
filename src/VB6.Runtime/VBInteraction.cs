@@ -268,10 +268,7 @@ public static class VBInteraction
     /// <summary>Context-menu display belongs to the UI host; headless execution intentionally does nothing.</summary>
     public static void PopupMenu(object? menu, int flags, float x, float y)
     {
-        _ = menu;
-        _ = flags;
-        _ = x;
-        _ = y;
+        Host?.PopupMenu(menu, flags, x, y);
     }
 
     /// <summary>Headless controls use identity scaling; a UI host can supply its scale modes.</summary>
