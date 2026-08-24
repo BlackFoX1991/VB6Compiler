@@ -71,6 +71,31 @@ public sealed class VBProjectGroupCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ReportsStartupProjectThatIsNotDeclaredInTheGroup()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=Actual.vbp\nStartupProject=Missing.vbp\n");
+            WriteProject(directory, "Actual", "Actual.vbp", "Actual.bas", "1");
+
+            var analysis = VBProjectGroupCompilation.Create(groupPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            var diagnostic = analysis.GroupDiagnostics.Single(diagnostic => diagnostic.Code == "VB6VBG0007");
+            StringAssert.Contains(diagnostic.Message, "Missing.vbp");
+            Assert.AreEqual(groupPath, diagnostic.FilePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplications_UsesExeName32ForExecutableProjects()
     {
         var directory = CreateTemporaryDirectory();

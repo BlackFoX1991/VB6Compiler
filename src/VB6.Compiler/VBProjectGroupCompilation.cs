@@ -66,6 +66,24 @@ public sealed class VBProjectGroupCompilation
                 projectDiagnostics.ToImmutable()));
         }
 
+        if (!string.IsNullOrWhiteSpace(loadResult.Group.StartupProject))
+        {
+            var startupPath = Path.GetFullPath(Path.Combine(
+                loadResult.Group.ProjectDirectory,
+                loadResult.Group.StartupProject));
+            if (!loadResult.Group.Projects.Any(project =>
+                    string.Equals(
+                        project.GetFullPath(loadResult.Group.ProjectDirectory),
+                        startupPath,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                groupDiagnostics.Add(new VBProjectGroupCompilationDiagnostic(
+                    "VB6VBG0007",
+                    $"Startup project '{loadResult.Group.StartupProject}' is not declared in the project group.",
+                    loadResult.Group.FilePath));
+            }
+        }
+
         return new VBProjectGroupAnalysis(
             loadResult.Group,
             groupDiagnostics.ToImmutable(),
