@@ -522,12 +522,12 @@ internal static class VBTypeLibraryImporter
         {
             var pointer = IntPtr.Add(function.lprgelemdescParam, index * elementSize);
             var element = Marshal.PtrToStructure<ELEMDESC>(pointer);
-            var type = ReadType(element.tdesc, typeInfo, libraryName, types);
+            var type = ReadParameterType(element.tdesc, typeInfo, libraryName, types);
             var parameterDescription = Marshal.PtrToStructure<PARAMDESC>(
                 IntPtr.Add(pointer, Marshal.SizeOf<TYPEDESC>()));
             var flags = parameterDescription.wParamFlags;
             var passingMode = (flags & PARAMFLAG.PARAMFLAG_FOUT) != 0 ||
-                (element.tdesc.vt & VariantByRef) != 0
+                IsParameterByRef(element.tdesc)
                 ? ParameterPassingMode.ByRef
                 : ParameterPassingMode.ByVal;
             var parameterName = index + 1 < names.Length && !string.IsNullOrWhiteSpace(names[index + 1])
@@ -542,6 +542,35 @@ internal static class VBTypeLibraryImporter
 
         return parameters.ToImmutable();
     }
+
+    private static TypeSymbol ReadParameterType(
+        TYPEDESC description,
+        ITypeInfo owner,
+        string libraryName,
+        IReadOnlyDictionary<string, TypeSymbol> types)
+    {
+        if ((description.vt & VariantTypeMask) != VtPtr ||
+            description.lpValue == IntPtr.Zero)
+        {
+            return ReadType(description, owner, libraryName, types);
+        }
+
+        // Automation event parameters in classic OCX type libraries are commonly encoded as
+        // VT_PTR to the actual scalar type, even when PARAMFLAG_FOUT is absent. A second pointer
+        // is an opaque native/COM pointer contract and must not be guessed as a VB scalar.
+        var pointedType = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+        var pointedBaseType = (short)(pointedType.vt & VariantTypeMask);
+        if (pointedBaseType is VtPtr or VtEmpty)
+        {
+            return VBStandardTypes.Object;
+        }
+
+        return ReadType(pointedType, owner, libraryName, types);
+    }
+
+    private static bool IsParameterByRef(TYPEDESC description) =>
+        (description.vt & VariantByRef) != 0 ||
+        (description.vt & VariantTypeMask) == VtPtr;
 
     private static TypeSymbol ReadType(
         TYPEDESC description,
