@@ -39,6 +39,18 @@ public sealed class LenIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PropagatesNullThroughLen()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Debug.Print IsNull(Len(Null))
+            End Sub
+            """);
+
+        Assert.AreEqual("True", output.Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesLenForPackedUserDefinedType()
     {
         var output = VB6TestProgram.Run("""

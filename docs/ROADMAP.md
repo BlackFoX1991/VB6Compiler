@@ -1529,8 +1529,9 @@ Delegates bleiben separate ABI-Schritte. Die Gesamtsuite umfasst **918 Tests**.
 
 ## Aktueller LenB-Nachtrag
 
-`LenB` ist jetzt als eigene Intrinsic-Signatur mit Variant-Rückgabe durch Binder, IR, Managed-
-Emitter und Runtime verdrahtet. Unicode-Strings liefern zwei Bytes je UTF-16-Codeeinheit,
-Scalar-Varianten behalten ihre VB6-Speicherbreite, `Null` bleibt `Null`, und emittierte UDTs
-verwenden den nativen In-Memory-Umfang einschließlich Padding. Die direkte Ausführung ist mit
-String-, Scalar-, `Null`- und UDT-Fällen regressionsgesichert. Die Gesamtsuite umfasst **923 Tests**.
+`Len` und `LenB` verwenden jetzt Variant-Rückgaben, sodass `Null` gemäß dem VB6-Vertrag erhalten
+bleibt. `LenB` ist als eigene Intrinsic-Signatur durch Binder, IR, Managed-Emitter und Runtime
+verdrahtet: Unicode-Strings liefern zwei Bytes je UTF-16-Codeeinheit, Scalar-Varianten behalten
+ihre VB6-Speicherbreite, und emittierte UDTs verwenden den nativen In-Memory-Umfang einschließlich
+Padding. Die direkte Ausführung ist mit String-, Scalar-, `Null`- und UDT-Fällen regressions-
+gesichert. Die Gesamtsuite umfasst **924 Tests**.
