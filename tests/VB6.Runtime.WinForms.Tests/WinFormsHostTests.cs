@@ -128,6 +128,56 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostRendersGraphicsLineOnFormSurface()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+
+            VBInteraction.GraphicsLine(
+                0,
+                0,
+                1440,
+                1440,
+                ColorTranslator.ToOle(Color.Red),
+                false,
+                false,
+                false);
+
+            Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var image));
+            Assert.IsInstanceOfType<Bitmap>(image);
+            using var snapshot = new Bitmap((Bitmap)image!);
+            var diagonal = snapshot.GetPixel(48, 48);
+            Assert.IsTrue(diagonal.R > 180 && diagonal.G < 120 && diagonal.B < 120);
+
+            VBInteraction.GraphicsLine(
+                1440,
+                0,
+                2880,
+                1440,
+                ColorTranslator.ToOle(Color.Blue),
+                false,
+                true,
+                true);
+            using var filledSnapshot = new Bitmap((Bitmap)image);
+            var filled = filledSnapshot.GetPixel(144, 48);
+            Assert.IsTrue(filled.B > 150 && filled.R < 120);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostDecodesFrxPicturePayloadsForPictureBoxes()
     {
         using var host = new WinFormsHost();

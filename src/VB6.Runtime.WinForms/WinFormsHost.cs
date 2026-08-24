@@ -109,6 +109,69 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         popup.Show(form, location);
     }
 
+    public void GraphicsLine(VBGraphicsLine line)
+    {
+        ThrowIfDisposed();
+        var target = _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(form => !form.IsDisposed);
+        if (target is null)
+        {
+            return;
+        }
+
+        var surface = GetDrawingSurface(target);
+        var state = GetDesignerControlState(target);
+        var scale = state.ScaleMode switch
+        {
+            3 => 1f,
+            2 => target.DeviceDpi / 72f,
+            _ => target.DeviceDpi / 1440f
+        };
+        var startX = line.StartX * scale;
+        var startY = line.StartY * scale;
+        var endX = (line.IsStep ? line.StartX + line.EndX : line.EndX) * scale;
+        var endY = (line.IsStep ? line.StartY + line.EndY : line.EndY) * scale;
+        var color = Color.Black;
+        if (line.Color is int oleColor)
+        {
+            try
+            {
+                color = ColorTranslator.FromOle(oleColor);
+            }
+            catch (ArgumentException)
+            {
+                color = Color.Black;
+            }
+        }
+
+        using var graphics = Graphics.FromImage(surface);
+        using var pen = new Pen(color, 1f);
+        if (line.DrawBox)
+        {
+            var rectangle = RectangleF.FromLTRB(
+                Math.Min(startX, endX),
+                Math.Min(startY, endY),
+                Math.Max(startX, endX),
+                Math.Max(startY, endY));
+            if (line.Fill)
+            {
+                using var brush = new SolidBrush(color);
+                graphics.FillRectangle(brush, rectangle);
+            }
+            else
+            {
+                graphics.DrawRectangle(pen, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+            }
+        }
+        else
+        {
+            graphics.DrawLine(pen, startX, startY, endX, endY);
+        }
+
+        target.Invalidate();
+    }
+
     public int RunMessageLoop()
     {
         ThrowIfDisposed();
@@ -160,7 +223,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         foreach (var control in binding.Controls.Values)
         {
-            _designerControlStates.Remove(control);
+            if (_designerControlStates.Remove(control, out var state))
+            {
+                state.Dispose();
+            }
+        }
+
+        if (_designerControlStates.Remove(binding.Form, out var formState))
+        {
+            formState.Dispose();
         }
 
         foreach (var eventBinding in _events
@@ -705,6 +776,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         _bindings.Clear();
         _treeViewStates.Clear();
         _richTextBoxStates.Clear();
+        foreach (var state in _designerControlStates.Values)
+        {
+            state.Dispose();
+        }
+
         _designerControlStates.Clear();
         _toolTip.Dispose();
     }
@@ -778,6 +854,52 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return clone;
+    }
+
+    private Bitmap GetDrawingSurface(Control target)
+    {
+        var state = GetDesignerControlState(target);
+        var width = Math.Max(1, target.ClientSize.Width);
+        var height = Math.Max(1, target.ClientSize.Height);
+        if (state.DrawingSurface is { } existing &&
+            existing.Width == width &&
+            existing.Height == height)
+        {
+            return existing;
+        }
+
+        var surface = new Bitmap(width, height);
+        using (var graphics = Graphics.FromImage(surface))
+        {
+            graphics.Clear(Color.Transparent);
+            var source = target is PictureBox pictureBox
+                ? pictureBox.Image
+                : target.BackgroundImage;
+            if (source is not null)
+            {
+                graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+            }
+
+            if (state.DrawingSurface is { } previous)
+            {
+                graphics.DrawImage(previous, 0, 0, previous.Width, previous.Height);
+                previous.Dispose();
+            }
+        }
+
+        state.DrawingSurface = surface;
+        if (target is PictureBox picture)
+        {
+            picture.Image = surface;
+            picture.SizeMode = PictureBoxSizeMode.Normal;
+        }
+        else
+        {
+            target.BackgroundImage = surface;
+            target.BackgroundImageLayout = ImageLayout.None;
+        }
+
+        return surface;
     }
 
     private bool TryResolveControl(
@@ -2697,7 +2819,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         public int MousePointer { get; set; }
 
-        public int ScaleMode { get; set; }
+        public int ScaleMode { get; set; } = 1;
+
+        public Bitmap? DrawingSurface { get; set; }
+
+        public void Dispose() => DrawingSurface?.Dispose();
     }
 
     private sealed class RichTextBoxState
