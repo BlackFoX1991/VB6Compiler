@@ -451,13 +451,20 @@ public static class VBEvents
         }
     }
 
-    private static MethodInfo? FindHandler(object target, string methodName) =>
-        target.GetType().GetMethod(
-            methodName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ??
-        target.GetType().GetMethod(
-            "__vb6_" + Mangle(methodName),
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+    private static MethodInfo? FindHandler(object target, string methodName)
+    {
+        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        var type = target.GetType();
+        return type.GetMethods(flags)
+                   .FirstOrDefault(candidate =>
+                       string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase)) ??
+               type.GetMethods(flags)
+                   .FirstOrDefault(candidate =>
+                       string.Equals(
+                           candidate.Name,
+                           "__vb6_" + Mangle(methodName),
+                           StringComparison.OrdinalIgnoreCase));
+    }
 
     private static bool TrySubscribeComEvent(
         object source,

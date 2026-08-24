@@ -2122,3 +2122,14 @@ Provider und verbindet konventionelle Designer-Handler wie `Editor_KeyPress` üb
 Connection Point. Der Wrapper-CLR-Eventpfad wird dabei nicht doppelt aktiviert; Abmeldung und
 Lifecycle-Aufräumen laufen weiterhin über `VBEvents`. Der echte x86-RichTextBox-ByRef-Test deckt
 diesen Host-Hook ab; Runtime und WinForms bleiben bei **201** beziehungsweise **34/34** Tests.
+
+## Aktueller generierter nativer OCX-Designer-End-to-End-Nachtrag
+
+Ein echtes kompiliertes `.vbp`/`.frm` mit `RichTextLib.RichTextBox` erzeugt und hostet jetzt den
+nativen `AxHost` vollständig über den Managed-Compilerpfad. Die konventionelle VB6-Prozedur
+`Editor_KeyPress` wird nach der Handle-Erzeugung automatisch am COM-Connection-Point verbunden;
+die Handlerauflösung bleibt dabei VB6-konform case-insensitive. Der x86-Test prüft den gesamten
+Weg vom TypeLib-importierten `Integer ByRef` über den generierten Formkonstruktor bis zum
+geänderten Zeichenwert im OCX. Native Designerbindungen werden nach `Show` erneut aufgebaut,
+weil ein `AxHost` im Konstruktor noch kein COM-Objekt besitzen muss. Runtime und WinForms umfassen
+damit **201** beziehungsweise **35/35** Tests; die Gesamtsuite umfasst **980 Tests**.

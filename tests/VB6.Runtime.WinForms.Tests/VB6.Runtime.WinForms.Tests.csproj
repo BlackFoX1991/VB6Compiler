@@ -14,6 +14,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/VB6.Compiler/VB6.Compiler.csproj" />
+    <ProjectReference Include="../../src/VB6.Emit.Managed/VB6.Emit.Managed.csproj" />
     <ProjectReference Include="../../src/VB6.Runtime.WinForms/VB6.Runtime.WinForms.csproj" />
+    <ProjectReference Include="../../src/VB6.Syntax/VB6.Syntax.csproj" />
   </ItemGroup>
 </Project>
