@@ -292,11 +292,25 @@ public sealed class WinFormsHostTests
         Assert.IsTrue(host.TrySetMember(imageList, "ImageWidth", Array.Empty<object?>(), (short)16));
         Assert.IsTrue(host.TryGetMember(imageList, "ImageWidth", Array.Empty<object?>(), out var imageWidth));
         Assert.AreEqual((short)16, imageWidth);
+        Assert.IsTrue(host.TryGetMember(imageList, "ListImages", Array.Empty<object?>(), out var listImages));
+        using var imageBitmap = new Bitmap(1, 1);
+        imageBitmap.SetPixel(0, 0, Color.Red);
+        var picture = typeof(AxHost).GetMethod(
+            "GetIPictureDispFromPicture",
+            BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object?[] { imageBitmap });
+        Assert.IsTrue(VBDynamicDispatch.TryInvokeComMember(
+            listImages,
+            "Add",
+            new object?[] { (short)1, "root", picture },
+            out _));
 
         var imageCombo = host.CreateControl(owner, "Combo", "MSComctlLib.ImageCombo")!;
         Assert.IsTrue(host.TrySetMember(imageCombo, "Locked", Array.Empty<object?>(), true));
         Assert.IsTrue(host.TryGetMember(imageCombo, "Locked", Array.Empty<object?>(), out var locked));
         Assert.AreEqual(true, locked);
+        Assert.IsTrue(host.TrySetMember(imageCombo, "ImageList", Array.Empty<object?>(), imageList));
+        Assert.IsTrue(host.TryGetMember(imageCombo, "ImageList", Array.Empty<object?>(), out var assignedImageList));
+        Assert.IsNotNull(assignedImageList);
 
         var dialog = host.CreateControl(owner, "Dialog", "MSComDlg.CommonDialog")!;
         Assert.IsInstanceOfType<IVBComObjectProvider>(dialog);

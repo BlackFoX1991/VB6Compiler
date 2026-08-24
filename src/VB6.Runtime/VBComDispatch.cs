@@ -13,6 +13,7 @@ internal static class VBComDispatch
     private const ushort DispatchMethod = 0x1;
     private const ushort DispatchPropertyGet = 0x2;
     private const ushort DispatchPropertyPut = 0x4;
+    private const ushort DispatchPropertyPutRef = 0x8;
     private const int DispIdPropertyPut = -3;
     private const int VariantSize = 16;
 
@@ -42,14 +43,23 @@ internal static class VBComDispatch
                 return false;
             }
 
-            var hr = Invoke(
-                dispatch,
-                dispId,
-                arguments,
-                setProperty
+            var flags = setProperty
+                ? ShouldUsePropertyPutRef(arguments)
+                    ? DispatchPropertyPutRef
+                    : DispatchPropertyPut
+                : (ushort)(DispatchMethod | DispatchPropertyGet);
+            var hr = Invoke(dispatch, dispId, arguments, flags, out result);
+            if (hr < 0 && setProperty)
+            {
+                // Automation servers disagree on whether object-valued properties require
+                // PROPERTYPUT or PROPERTYPUTREF. Retry with the other contract before the
+                // reflection fallback gets a chance to touch an old OCX RCW.
+                var fallbackFlags = flags == DispatchPropertyPutRef
                     ? DispatchPropertyPut
-                    : (ushort)(DispatchMethod | DispatchPropertyGet),
-                out result);
+                    : DispatchPropertyPutRef;
+                hr = Invoke(dispatch, dispId, arguments, fallbackFlags, out result);
+            }
+
             return hr >= 0;
         }
         catch (COMException)
@@ -67,7 +77,22 @@ internal static class VBComDispatch
             result = null;
             return false;
         }
+        catch (NotSupportedException)
+        {
+            result = null;
+            return false;
+        }
     }
+
+    private static bool ShouldUsePropertyPutRef(object?[] arguments) =>
+        arguments.Length > 0 &&
+        UnwrapComValue(arguments[^1]) is { } value &&
+        Marshal.IsComObject(value);
+
+    private static object? UnwrapComValue(object? value) =>
+        value is IVBComObjectProvider provider && provider.ComObject is { } comObject
+            ? comObject
+            : value;
 
     private static bool TryGetDispId(
         INativeDispatch dispatch,
@@ -106,7 +131,7 @@ internal static class VBComDispatch
         var variants = arguments.Length == 0
             ? IntPtr.Zero
             : Marshal.AllocCoTaskMem(VariantSize * arguments.Length);
-        var namedArguments = flags == DispatchPropertyPut
+        var namedArguments = flags is DispatchPropertyPut or DispatchPropertyPutRef
             ? Marshal.AllocCoTaskMem(sizeof(int))
             : IntPtr.Zero;
         var initialized = 0;
@@ -119,7 +144,7 @@ internal static class VBComDispatch
                     variants,
                     index * VariantSize);
                 Marshal.GetNativeVariantForObject(
-                    arguments[arguments.Length - index - 1],
+                    UnwrapComValue(arguments[arguments.Length - index - 1]),
                     variant);
                 initialized++;
             }

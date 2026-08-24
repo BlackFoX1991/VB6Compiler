@@ -286,13 +286,24 @@ public static class VBDynamicDispatch
             result = null;
             return false;
         }
+        catch (InvalidCastException)
+        {
+            result = null;
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            result = null;
+            return false;
+        }
         catch (COMException exception) when (IsMissingComMember(exception))
         {
             result = null;
             return false;
         }
         catch (TargetInvocationException exception)
-            when (exception.InnerException is COMException comException && IsMissingComMember(comException))
+            when (exception.InnerException is InvalidCastException or ArgumentException ||
+                  exception.InnerException is COMException comException && IsMissingComMember(comException))
         {
             result = null;
             return false;

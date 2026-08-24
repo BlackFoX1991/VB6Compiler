@@ -1871,3 +1871,17 @@ Start der neu emittierten VISIA-Ausgabe endet ohne `System.Private.CoreLib`-Lade
 automatisierte Runner-Lauf bleibt in der nicht-interaktiven Testumgebung ohne sichtbaren
 Fenster-Handle und muss für eine visuelle GUI-Abnahme in einer interaktiven Windows-Sitzung
 geprüft werden.
+
+## Aktueller nativer OCX-Objektübergabe-Nachtrag
+
+Native OCX-Properties verwenden bei objektwertigen Zuweisungen jetzt den passenden
+`PROPERTYPUTREF`-Vertrag und entpacken `IVBComObjectProvider`-Wrapper vor der VARIANT-
+Marshalling-Grenze auf ihr zugrunde liegendes COM-RCW. Falls ein OCX die alternative
+Automation-Konvention erwartet, wird mit `PROPERTYPUT` beziehungsweise `PROPERTYPUTREF`
+erneut versucht, bevor der Reflection-Fallback greift. Der x86-Regressionspfad erzeugt ein
+echtes `IPictureDisp`, fügt damit ein Bild in die native `ImageList.ListImages`-Collection ein
+und weist anschließend die native ImageList der `ImageCombo.ImageList`-Property zu. Damit ist
+die Objektübergabe zwischen zwei real aktivierten Standard-OCX abgesichert. Die x86- und
+x64-WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
+**957 Tests**. Vollständiges COM-ByRef-Marshalling, Connection-Point-Events und die restlichen
+nativen ABI-Sonderfälle bleiben separate Roadmap-Schritte.
