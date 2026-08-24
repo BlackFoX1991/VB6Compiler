@@ -90,6 +90,44 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostRendersShapeAndLineDesignerControls()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        var shape = (Control)host.CreateControl(owner, "Shape1", "Shape")!;
+        Assert.AreEqual("ShapeControl", shape.GetType().Name);
+        Assert.IsTrue(host.TrySetMember(shape, "Width", Array.Empty<object?>(), 1440));
+        Assert.IsTrue(host.TrySetMember(shape, "Height", Array.Empty<object?>(), 1440));
+        Assert.IsTrue(host.TrySetMember(shape, "BackColor", Array.Empty<object?>(), ColorTranslator.ToOle(Color.Red)));
+        Assert.IsTrue(host.TrySetMember(shape, "Shape", Array.Empty<object?>(), 2));
+        Assert.IsTrue(host.TrySetMember(shape, "BorderColor", Array.Empty<object?>(), ColorTranslator.ToOle(Color.Blue)));
+
+        using var shapeBitmap = new Bitmap(96, 96);
+        shape.DrawToBitmap(shapeBitmap, new Rectangle(0, 0, 96, 96));
+        var shapePixel = shapeBitmap.GetPixel(48, 48);
+        Assert.IsTrue(shapePixel.R > 150 && shapePixel.G < 120);
+
+        var line = (Control)host.CreateControl(owner, "Line1", "Line")!;
+        Assert.AreEqual("LineControl", line.GetType().Name);
+        line.Dock = DockStyle.None;
+        line.Size = new Size(96, 96);
+        Assert.IsTrue(host.TrySetMember(line, "X1", Array.Empty<object?>(), 0));
+        Assert.IsTrue(host.TrySetMember(line, "Y1", Array.Empty<object?>(), 0));
+        Assert.IsTrue(host.TrySetMember(line, "X2", Array.Empty<object?>(), 1440));
+        Assert.IsTrue(host.TrySetMember(line, "Y2", Array.Empty<object?>(), 1440));
+        Assert.IsTrue(host.TrySetMember(line, "BorderColor", Array.Empty<object?>(), ColorTranslator.ToOle(Color.Blue)));
+
+        using var lineBitmap = new Bitmap(96, 96);
+        line.DrawToBitmap(lineBitmap, new Rectangle(0, 0, 96, 96));
+        var linePixel = lineBitmap.GetPixel(48, 48);
+        Assert.IsTrue(linePixel.B > 120 && linePixel.R < 150);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostDecodesFrxPicturePayloadsForPictureBoxes()
     {
         using var host = new WinFormsHost();

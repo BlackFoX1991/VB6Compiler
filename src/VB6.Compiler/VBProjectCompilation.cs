@@ -655,9 +655,18 @@ public sealed class VBProjectCompilation
         name.Equals("HideSelection", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Interval", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("BorderStyle", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("BorderColor", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("BorderWidth", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Appearance", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("AutoRedraw", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("BackStyle", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("FillStyle", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("FillColor", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Shape", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("X1", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Y1", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("X2", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Y2", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("MousePointer", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("ScaleMode", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Tag", StringComparison.OrdinalIgnoreCase) ||

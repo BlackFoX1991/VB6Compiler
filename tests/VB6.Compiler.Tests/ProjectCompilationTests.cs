@@ -820,6 +820,75 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EmitsShapeAndLineDesignerValues()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "DrawingApp.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Splash"
+                Name="DrawingApp"
+                Form=Splash.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Splash.frm"), """
+                VERSION 5.00
+                Begin VB.Form Splash
+                   Begin VB.Shape Oval
+                      BackColor = &H000000FF&
+                      BorderColor = &H00000000&
+                      BorderWidth = 2
+                      Height = 1440
+                      Shape = 2
+                      Width = 1440
+                   End
+                   Begin VB.Line Diagonal
+                      BorderColor = &H00FF0000&
+                      BorderWidth = 2
+                      X1 = 0
+                      X2 = 1440
+                      Y1 = 0
+                      Y2 = 1440
+                   End
+                End
+                Attribute VB_Name = "Splash"
+                Attribute VB_PredeclaredId = True
+                Option Explicit
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "DrawingApp.dll"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            var formClass = result.Lowering.Program!.ClassDefinitions
+                .Single(classDefinition => classDefinition.Name == "Splash");
+            var constructor = formClass.Methods.Single(method => method.Name == ".ctor");
+            var initializers = constructor.Blocks
+                .SelectMany(block => block.Instructions)
+                .OfType<IrEvaluateInstruction>()
+                .Select(instruction => instruction.Expression)
+                .OfType<IrRuntimeCallExpression>()
+                .Where(call => call.Method == IrRuntimeMethod.InteractionSetMember)
+                .Select(call => ((IrConstantExpression)call.Arguments[1].Expression).Value)
+                .Cast<string>()
+                .ToArray();
+
+            CollectionAssert.Contains(initializers, "BorderColor");
+            CollectionAssert.Contains(initializers, "BorderWidth");
+            CollectionAssert.Contains(initializers, "Shape");
+            CollectionAssert.Contains(initializers, "X1");
+            CollectionAssert.Contains(initializers, "Y2");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedLibrary_CompilesPropertyPageAndUserDocumentSources()
     {
         var directory = CreateTemporaryDirectory();

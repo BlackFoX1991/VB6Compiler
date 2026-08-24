@@ -1,6 +1,7 @@
 using System.Collections;
 using System.ComponentModel;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -1594,6 +1595,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         string memberName,
         out object? value)
     {
+        if (control is ShapeControl shape && TryReadShapeProperty(shape, memberName, out value))
+        {
+            return true;
+        }
+
+        if (control is LineControl line && TryReadLineProperty(line, memberName, out value))
+        {
+            return true;
+        }
+
         if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
         {
             value = control switch
@@ -1653,6 +1664,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         string memberName,
         object? value)
     {
+        if (control is ShapeControl shape && TryWriteShapeProperty(shape, memberName, value))
+        {
+            return true;
+        }
+
+        if (control is LineControl line && TryWriteLineProperty(line, memberName, value))
+        {
+            return true;
+        }
+
         if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
         {
             var borderStyle = (BorderStyle)Math.Clamp(VBConversions.CLng(value), 0, 2);
@@ -1726,6 +1747,158 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = VBConversions.CLng(value);
         else return false;
 
+        return true;
+    }
+
+    private static bool TryReadShapeProperty(
+        ShapeControl shape,
+        string memberName,
+        out object? value)
+    {
+        if (string.Equals(memberName, "BorderColor", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ColorTranslator.ToOle(shape.BorderColor);
+        }
+        else if (string.Equals(memberName, "BorderWidth", StringComparison.OrdinalIgnoreCase))
+        {
+            value = shape.BorderWidth;
+        }
+        else if (string.Equals(memberName, "BackStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            value = shape.BackStyle;
+        }
+        else if (string.Equals(memberName, "FillColor", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ColorTranslator.ToOle(shape.FillColor.IsEmpty ? shape.BackColor : shape.FillColor);
+        }
+        else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            value = shape.FillStyle;
+        }
+        else if (string.Equals(memberName, "Shape", StringComparison.OrdinalIgnoreCase))
+        {
+            value = shape.Shape;
+        }
+        else
+        {
+            value = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryWriteShapeProperty(
+        ShapeControl shape,
+        string memberName,
+        object? value)
+    {
+        if (string.Equals(memberName, "BorderColor", StringComparison.OrdinalIgnoreCase))
+        {
+            shape.BorderColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+        }
+        else if (string.Equals(memberName, "BorderWidth", StringComparison.OrdinalIgnoreCase))
+        {
+            shape.BorderWidth = Math.Max(0, VBConversions.CLng(value));
+        }
+        else if (string.Equals(memberName, "BackStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            shape.BackStyle = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "FillColor", StringComparison.OrdinalIgnoreCase))
+        {
+            shape.FillColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+        }
+        else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase))
+        {
+            shape.FillStyle = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "Shape", StringComparison.OrdinalIgnoreCase))
+        {
+            shape.Shape = VBConversions.CLng(value);
+        }
+        else
+        {
+            return false;
+        }
+
+        shape.Invalidate();
+        return true;
+    }
+
+    private static bool TryReadLineProperty(
+        LineControl line,
+        string memberName,
+        out object? value)
+    {
+        if (string.Equals(memberName, "BorderColor", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ColorTranslator.ToOle(line.BorderColor);
+        }
+        else if (string.Equals(memberName, "BorderWidth", StringComparison.OrdinalIgnoreCase))
+        {
+            value = line.BorderWidth;
+        }
+        else if (string.Equals(memberName, "X1", StringComparison.OrdinalIgnoreCase))
+        {
+            value = line.X1;
+        }
+        else if (string.Equals(memberName, "Y1", StringComparison.OrdinalIgnoreCase))
+        {
+            value = line.Y1;
+        }
+        else if (string.Equals(memberName, "X2", StringComparison.OrdinalIgnoreCase))
+        {
+            value = line.X2;
+        }
+        else if (string.Equals(memberName, "Y2", StringComparison.OrdinalIgnoreCase))
+        {
+            value = line.Y2;
+        }
+        else
+        {
+            value = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryWriteLineProperty(
+        LineControl line,
+        string memberName,
+        object? value)
+    {
+        if (string.Equals(memberName, "BorderColor", StringComparison.OrdinalIgnoreCase))
+        {
+            line.BorderColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+        }
+        else if (string.Equals(memberName, "BorderWidth", StringComparison.OrdinalIgnoreCase))
+        {
+            line.BorderWidth = Math.Max(0, VBConversions.CLng(value));
+        }
+        else if (string.Equals(memberName, "X1", StringComparison.OrdinalIgnoreCase))
+        {
+            line.X1 = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "Y1", StringComparison.OrdinalIgnoreCase))
+        {
+            line.Y1 = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "X2", StringComparison.OrdinalIgnoreCase))
+        {
+            line.X2 = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "Y2", StringComparison.OrdinalIgnoreCase))
+        {
+            line.Y2 = VBConversions.CLng(value);
+        }
+        else
+        {
+            return false;
+        }
+
+        line.Invalidate();
         return true;
     }
 
@@ -1979,6 +2152,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "FRAME" => new GroupBox(),
             "PICTUREBOX" => new PictureBox(),
             "IMAGE" => new PictureBox(),
+            "LINE" => new LineControl(),
             "LABEL" => new Label(),
             "CHECKBOX" => new CheckBox(),
             "OPTIONBUTTON" => new RadioButton(),
@@ -1990,6 +2164,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "COMMONDIALOG" or "MSCOMDLG.COMMONDIALOG" => new CommonDialogProxy(),
             "IMAGELIST" or "MSCOMCTLLIB.IMAGELIST" => new ImageListProxy(),
             "IMAGECOMBO" or "MSCOMCTLLIB.IMAGECOMBO" => new ImageComboControl(),
+            "SHAPE" => new ShapeControl(),
             _ => new Panel()
         };
 
@@ -2035,6 +2210,172 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
 
             base.Dispose(disposing);
+        }
+    }
+
+    private sealed class LineControl : Control
+    {
+        public LineControl()
+        {
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer |
+                    ControlStyles.ResizeRedraw |
+                    ControlStyles.SupportsTransparentBackColor |
+                    ControlStyles.UserPaint,
+                true);
+            BackColor = Color.Transparent;
+            Dock = DockStyle.Fill;
+            BorderColor = Color.Black;
+            BorderWidth = 1;
+        }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int X1 { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int Y1 { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int X2 { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int Y2 { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color BorderColor { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int BorderWidth { get; set; }
+
+        protected override void OnPaint(PaintEventArgs eventArgs)
+        {
+            base.OnPaint(eventArgs);
+            if (BorderWidth <= 0)
+            {
+                return;
+            }
+
+            var scale = DeviceDpi / 1440f;
+            using var pen = new Pen(BorderColor, Math.Max(1f, BorderWidth * scale));
+            eventArgs.Graphics.DrawLine(
+                pen,
+                X1 * scale,
+                Y1 * scale,
+                X2 * scale,
+                Y2 * scale);
+        }
+    }
+
+    private sealed class ShapeControl : Control
+    {
+        public ShapeControl()
+        {
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer |
+                    ControlStyles.ResizeRedraw |
+                    ControlStyles.SupportsTransparentBackColor |
+                    ControlStyles.UserPaint,
+                true);
+            BackColor = Color.Transparent;
+            BorderColor = Color.Black;
+            BorderWidth = 1;
+            BackStyle = 1;
+        }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color BorderColor { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int BorderWidth { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int BackStyle { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color FillColor { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int FillStyle { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int Shape { get; set; }
+
+        protected override void OnPaint(PaintEventArgs eventArgs)
+        {
+            base.OnPaint(eventArgs);
+            var rectangle = ClientRectangle;
+            if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            {
+                return;
+            }
+
+            var borderWidth = Math.Max(0, BorderWidth);
+            var inset = Math.Max(0, (int)Math.Ceiling(borderWidth / 2f));
+            rectangle.Inflate(-inset, -inset);
+            if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            {
+                return;
+            }
+
+            using var path = CreateShapePath(rectangle, Shape);
+            if (BackStyle != 0 && FillStyle == 0)
+            {
+                using var brush = new SolidBrush(FillColor.IsEmpty ? BackColor : FillColor);
+                eventArgs.Graphics.FillPath(brush, path);
+            }
+
+            if (borderWidth > 0)
+            {
+                using var pen = new Pen(BorderColor, borderWidth);
+                eventArgs.Graphics.DrawPath(pen, path);
+            }
+        }
+
+        private static GraphicsPath CreateShapePath(Rectangle rectangle, int shape)
+        {
+            var path = new GraphicsPath();
+            switch (shape)
+            {
+                case 1:
+                case 3:
+                    var size = Math.Min(rectangle.Width, rectangle.Height);
+                    rectangle = new Rectangle(
+                        rectangle.X + (rectangle.Width - size) / 2,
+                        rectangle.Y + (rectangle.Height - size) / 2,
+                        size,
+                        size);
+                    break;
+            }
+
+            switch (shape)
+            {
+                case 2:
+                case 3:
+                    path.AddEllipse(rectangle);
+                    break;
+                case 4:
+                case 5:
+                    var radius = Math.Min(rectangle.Width, rectangle.Height) / 4;
+                    AddRoundedRectangle(path, rectangle, radius);
+                    break;
+                default:
+                    path.AddRectangle(rectangle);
+                    break;
+            }
+
+            return path;
+        }
+
+        private static void AddRoundedRectangle(GraphicsPath path, Rectangle rectangle, int radius)
+        {
+            var diameter = Math.Max(1, radius * 2);
+            path.AddArc(rectangle.X, rectangle.Y, diameter, diameter, 180, 90);
+            path.AddArc(rectangle.Right - diameter, rectangle.Y, diameter, diameter, 270, 90);
+            path.AddArc(rectangle.Right - diameter, rectangle.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(rectangle.X, rectangle.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
         }
     }
 
