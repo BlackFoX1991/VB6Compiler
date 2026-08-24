@@ -1588,3 +1588,15 @@ oder einem anderen Host aufrufbar, während eine erzeugte Form-Anwendung direkt 
 Die Regression prüft den Launcher-Fehlervertrag für fehlende Assemblies; vollständige Form-
 End-to-End-Läufe mit echten OCX-Abhängigkeiten bleiben separat. Die Gesamtsuite umfasst
 **928 Tests**.
+
+## Aktueller RichTextBox-Host-Nachtrag
+
+Der Managed-WinForms-Host bildet für `RichTextLib.RichTextBox` nun den häufigen VB6-Vertrag
+für `TextRTF`, `SelStart`, `SelLength`, `SelText`, `SelColor`, `SelBold`, `SelItalic` und
+`SelUnderline` ab. `FileName`, `Modified`, `RightMargin`, `HideSelection` und
+`GetLineFromChar` sind ebenfalls verdrahtet; `LoadFile` und `SaveFile` akzeptieren den
+optionalen `rtfRTF`-/`rtfText`-Dateityp und führen PlainText-Zeilenenden am Host auf VB6-`CRLF`
+zurück. Die Regression nutzt den echten Late-Bound-Hostpfad und prüft Auswahlformatierung,
+RTF-Roundtrip, Zeilenauflösung sowie Textdatei-Laden/Speichern. Vollständige RichTextLib-OCX-
+ABI- und native Connection-Point-Kompatibilität bleiben offen. Die Gesamtsuite umfasst
+**929 Tests**.

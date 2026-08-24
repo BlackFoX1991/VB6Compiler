@@ -20,6 +20,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private readonly List<EventBinding> _events = new();
     private readonly Dictionary<TreeView, TreeViewState> _treeViewStates =
         new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<RichTextBox, RichTextBoxState> _richTextBoxStates =
+        new(ReferenceEqualityComparer.Instance);
     private bool _disposed;
 
     public void Register(object vbObject, Form form)
@@ -90,6 +92,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         foreach (var treeView in binding.Controls.Values.OfType<TreeView>())
         {
             _treeViewStates.Remove(treeView);
+        }
+
+        foreach (var richTextBox in binding.Controls.Values.OfType<RichTextBox>())
+        {
+            _richTextBoxStates.Remove(richTextBox);
         }
 
         foreach (var eventBinding in _events
@@ -313,6 +320,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (resolved is RichTextBox richTextBox &&
+            TryInvokeRichTextBoxMember(richTextBox, memberName, arguments, out result))
+        {
+            return true;
+        }
+
         if (string.Equals(memberName, "Show", StringComparison.OrdinalIgnoreCase))
         {
             if (resolved is Form form)
@@ -447,6 +460,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         _bindings.Clear();
+        _treeViewStates.Clear();
+        _richTextBoxStates.Clear();
     }
 
     private FormBinding GetOrCreateBinding(object target)
@@ -801,7 +816,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return false;
     }
 
-    private static bool TryReadListProperty(
+    private bool TryReadListProperty(
         Control control,
         string memberName,
         object?[] arguments,
@@ -853,9 +868,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
             if (string.Equals(memberName, "SelText", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
             {
-                value = textBox.SelectedText;
+                value = textBox is RichTextBox
+                    ? NormalizeVbLineEndings(textBox.SelectedText)
+                    : textBox.SelectedText;
                 return true;
             }
+        }
+
+        if (control is RichTextBox richTextBox &&
+            TryReadRichTextBoxProperty(richTextBox, memberName, arguments, out value))
+        {
+            return true;
         }
 
         if (control is CheckBox checkBox &&
@@ -878,7 +901,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return false;
     }
 
-    private static bool TryWriteListProperty(
+    private bool TryWriteListProperty(
         Control control,
         string memberName,
         object?[] arguments,
@@ -933,6 +956,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
 
+        if (control is RichTextBox richTextBox &&
+            TryWriteRichTextBoxProperty(richTextBox, memberName, arguments, value))
+        {
+            return true;
+        }
+
         if (control is CheckBox checkBox &&
             string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase) &&
             arguments.Length == 0)
@@ -951,6 +980,222 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         return false;
     }
+
+    private bool TryReadRichTextBoxProperty(
+        RichTextBox richTextBox,
+        string memberName,
+        object?[] arguments,
+        out object? value)
+    {
+        if (arguments.Length != 0)
+        {
+            value = null;
+            return false;
+        }
+
+        if (string.Equals(memberName, "TextRTF", StringComparison.OrdinalIgnoreCase))
+        {
+            value = richTextBox.Rtf;
+            return true;
+        }
+
+        if (string.Equals(memberName, "SelColor", StringComparison.OrdinalIgnoreCase))
+        {
+            value = ColorTranslator.ToOle(richTextBox.SelectionColor);
+            return true;
+        }
+
+        if (string.Equals(memberName, "SelBold", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(memberName, "SelItalic", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(memberName, "SelUnderline", StringComparison.OrdinalIgnoreCase))
+        {
+            var style = richTextBox.SelectionFont?.Style ?? richTextBox.Font.Style;
+            value = string.Equals(memberName, "SelBold", StringComparison.OrdinalIgnoreCase)
+                ? style.HasFlag(FontStyle.Bold)
+                : string.Equals(memberName, "SelItalic", StringComparison.OrdinalIgnoreCase)
+                    ? style.HasFlag(FontStyle.Italic)
+                    : style.HasFlag(FontStyle.Underline);
+            return true;
+        }
+
+        if (string.Equals(memberName, "FileName", StringComparison.OrdinalIgnoreCase))
+        {
+            value = GetRichTextBoxState(richTextBox).FileName;
+            return true;
+        }
+
+        if (string.Equals(memberName, "Modified", StringComparison.OrdinalIgnoreCase))
+        {
+            value = richTextBox.Modified;
+            return true;
+        }
+
+        if (string.Equals(memberName, "RightMargin", StringComparison.OrdinalIgnoreCase))
+        {
+            value = richTextBox.RightMargin;
+            return true;
+        }
+
+        if (string.Equals(memberName, "HideSelection", StringComparison.OrdinalIgnoreCase))
+        {
+            value = richTextBox.HideSelection;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private bool TryWriteRichTextBoxProperty(
+        RichTextBox richTextBox,
+        string memberName,
+        object?[] arguments,
+        object? value)
+    {
+        if (arguments.Length != 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(memberName, "TextRTF", StringComparison.OrdinalIgnoreCase))
+        {
+            var rtf = VBConversions.CStr(value);
+            if (rtf.Length == 0)
+            {
+                richTextBox.Clear();
+            }
+            else
+            {
+                richTextBox.Rtf = rtf;
+            }
+
+            return true;
+        }
+
+        if (string.Equals(memberName, "SelColor", StringComparison.OrdinalIgnoreCase))
+        {
+            richTextBox.SelectionColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+            return true;
+        }
+
+        if (string.Equals(memberName, "SelBold", StringComparison.OrdinalIgnoreCase))
+        {
+            SetSelectionStyle(richTextBox, FontStyle.Bold, VBConversions.CBool(value));
+            return true;
+        }
+
+        if (string.Equals(memberName, "SelItalic", StringComparison.OrdinalIgnoreCase))
+        {
+            SetSelectionStyle(richTextBox, FontStyle.Italic, VBConversions.CBool(value));
+            return true;
+        }
+
+        if (string.Equals(memberName, "SelUnderline", StringComparison.OrdinalIgnoreCase))
+        {
+            SetSelectionStyle(richTextBox, FontStyle.Underline, VBConversions.CBool(value));
+            return true;
+        }
+
+        if (string.Equals(memberName, "FileName", StringComparison.OrdinalIgnoreCase))
+        {
+            GetRichTextBoxState(richTextBox).FileName = VBConversions.CStr(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "Modified", StringComparison.OrdinalIgnoreCase))
+        {
+            richTextBox.Modified = VBConversions.CBool(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "RightMargin", StringComparison.OrdinalIgnoreCase))
+        {
+            richTextBox.RightMargin = VBConversions.CLng(value);
+            return true;
+        }
+
+        if (string.Equals(memberName, "HideSelection", StringComparison.OrdinalIgnoreCase))
+        {
+            richTextBox.HideSelection = VBConversions.CBool(value);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void SetSelectionStyle(RichTextBox richTextBox, FontStyle style, bool enabled)
+    {
+        var current = richTextBox.SelectionFont ?? richTextBox.Font;
+        var nextStyle = enabled ? current.Style | style : current.Style & ~style;
+        using var nextFont = new Font(current.FontFamily, current.Size, nextStyle);
+        richTextBox.SelectionFont = nextFont;
+    }
+
+    private bool TryInvokeRichTextBoxMember(
+        RichTextBox richTextBox,
+        string memberName,
+        object?[] arguments,
+        out object? result)
+    {
+        result = null;
+        if (string.Equals(memberName, "LoadFile", StringComparison.OrdinalIgnoreCase))
+        {
+            if (arguments.Length is < 1 or > 2)
+            {
+                throw new TargetParameterCountException("LoadFile expects a file name and an optional file type.");
+            }
+
+            var path = VBConversions.CStr(arguments[0]);
+            var streamType = GetRichTextBoxStreamType(arguments, defaultType: 0);
+            richTextBox.LoadFile(path, streamType);
+            if (streamType == RichTextBoxStreamType.PlainText)
+            {
+                richTextBox.Text = NormalizeVbLineEndings(richTextBox.Text);
+            }
+
+            GetRichTextBoxState(richTextBox).FileName = path;
+            richTextBox.Modified = false;
+            return true;
+        }
+
+        if (string.Equals(memberName, "SaveFile", StringComparison.OrdinalIgnoreCase))
+        {
+            if (arguments.Length is < 1 or > 2)
+            {
+                throw new TargetParameterCountException("SaveFile expects a file name and an optional file type.");
+            }
+
+            var path = VBConversions.CStr(arguments[0]);
+            richTextBox.SaveFile(path, GetRichTextBoxStreamType(arguments, defaultType: 0));
+            GetRichTextBoxState(richTextBox).FileName = path;
+            richTextBox.Modified = false;
+            return true;
+        }
+
+        if (string.Equals(memberName, "GetLineFromChar", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 1)
+        {
+            result = richTextBox.GetLineFromCharIndex(VBConversions.CLng(arguments[0]));
+            return true;
+        }
+
+        return false;
+    }
+
+    private static RichTextBoxStreamType GetRichTextBoxStreamType(
+        object?[] arguments,
+        int defaultType)
+    {
+        var fileType = arguments.Length == 2 ? VBConversions.CLng(arguments[1]) : defaultType;
+        return fileType == 1
+            ? RichTextBoxStreamType.PlainText
+            : RichTextBoxStreamType.RichText;
+    }
+
+    private static string NormalizeVbLineEndings(string value) =>
+        value.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Replace("\n", "\r\n", StringComparison.Ordinal);
 
     private static IList? GetListItems(Control control) => control switch
     {
@@ -975,7 +1220,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (control is TimerControl timer && string.Equals(memberName, "Interval", StringComparison.OrdinalIgnoreCase)) value = timer.Interval;
         else if (string.Equals(memberName, "Name", StringComparison.OrdinalIgnoreCase)) value = control.Name;
         else if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) value = control.Text;
+                 string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control is RichTextBox
+                ? NormalizeVbLineEndings(control.Text)
+                : control.Text;
+        }
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) value = ColorTranslator.ToOle(control.BackColor);
         else if (string.Equals(memberName, "ForeColor", StringComparison.OrdinalIgnoreCase)) value = ColorTranslator.ToOle(control.ForeColor);
         else if (string.Equals(memberName, "ScaleWidth", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.ClientSize.Width, twipsPerPixelX);
@@ -1071,6 +1321,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return state;
     }
 
+    private RichTextBoxState GetRichTextBoxState(RichTextBox richTextBox)
+    {
+        if (_richTextBoxStates.TryGetValue(richTextBox, out var state))
+        {
+            return state;
+        }
+
+        state = new RichTextBoxState();
+        _richTextBoxStates.Add(richTextBox, state);
+        return state;
+    }
+
     private static object CreateControlInstance(string typeName) =>
         typeName.ToUpperInvariant() switch
         {
@@ -1159,6 +1421,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public int Style { get; set; }
 
         public int LineStyle { get; set; }
+    }
+
+    private sealed class RichTextBoxState
+    {
+        public string FileName { get; set; } = string.Empty;
     }
 
     private sealed class EventBinding
