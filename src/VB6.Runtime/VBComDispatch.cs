@@ -16,7 +16,13 @@ internal static class VBComDispatch
     private const ushort DispatchPropertyPut = 0x4;
     private const ushort DispatchPropertyPutRef = 0x8;
     private const ushort VariantByRef = 0x4000;
+    private const ushort VariantArray = 0x2000;
+    private const ushort VariantTypeMask = 0x0FFF;
     private const ushort VariantVariant = 0x000C;
+    private const ushort VariantDate = 0x0007;
+    private const ushort VariantCurrency = 0x0006;
+    private const ushort VariantPointer = 0x001A;
+    private const ushort VariantSafeArray = 0x001B;
     private const int DispIdPropertyPut = -3;
     private const int VariantSize = 16;
     private const int VariantDataOffset = 8;
@@ -54,7 +60,7 @@ internal static class VBComDispatch
                 : (ushort)(DispatchMethod | DispatchPropertyGet);
             var byRefArguments = setProperty
                 ? null
-                : TryGetByRefArgumentMask(dispatch, dispId, arguments.Length);
+                : TryGetByRefArgumentTypes(dispatch, dispId, arguments.Length);
             var hr = Invoke(dispatch, dispId, arguments, flags, byRefArguments, out result);
             if (hr < 0 && byRefArguments is not null)
             {
@@ -274,7 +280,7 @@ internal static class VBComDispatch
             : value;
 
     [SupportedOSPlatform("windows")]
-    private static bool[]? TryGetByRefArgumentMask(
+    private static ushort?[]? TryGetByRefArgumentTypes(
         INativeDispatch dispatch,
         int dispId,
         int argumentCount)
@@ -309,18 +315,23 @@ internal static class VBComDispatch
                         continue;
                     }
 
-                    var mask = new bool[argumentCount];
+                    var types = new ushort?[argumentCount];
                     for (var parameterIndex = 0; parameterIndex < argumentCount; parameterIndex++)
                     {
                         var elementPointer = IntPtr.Add(
                             function.lprgelemdescParam,
                             parameterIndex * elementSize);
                         var element = Marshal.PtrToStructure<ELEMDESC>(elementPointer);
-                        mask[parameterIndex] =
-                            (element.desc.paramdesc.wParamFlags & PARAMFLAG.PARAMFLAG_FOUT) != 0;
+                        if ((element.desc.paramdesc.wParamFlags & PARAMFLAG.PARAMFLAG_FOUT) == 0 ||
+                            !TryGetByRefVariantType(element.tdesc, out var variantType))
+                        {
+                            continue;
+                        }
+
+                        types[parameterIndex] = variantType;
                     }
 
-                    return mask.Any(value => value) ? mask : null;
+                    return types.Any(value => value is not null) ? types : null;
                 }
                 finally
                 {
@@ -394,9 +405,10 @@ internal static class VBComDispatch
         int dispId,
         object?[] arguments,
         ushort flags,
-        bool[]? byRefArguments,
+        ushort?[]? byRefArguments,
         out object? result)
     {
+        result = null;
         var variants = arguments.Length == 0
             ? IntPtr.Zero
             : Marshal.AllocCoTaskMem(VariantSize * arguments.Length);
@@ -416,18 +428,27 @@ internal static class VBComDispatch
                     variants,
                     index * VariantSize);
                 var sourceIndex = arguments.Length - index - 1;
-                if (byRefArguments is not null && byRefArguments[sourceIndex])
+                if (byRefArguments?[sourceIndex] is { } byRefType)
                 {
                     var valueVariant = IntPtr.Add(
                         byRefValues,
                         index * VariantSize);
-                    Marshal.GetNativeVariantForObject(
-                        UnwrapComValue(arguments[sourceIndex]),
-                        valueVariant);
+                    if (!TryInitializeByRefVariant(
+                            UnwrapComValue(arguments[sourceIndex]),
+                            valueVariant,
+                            byRefType))
+                    {
+                        _ = VariantClear(valueVariant);
+                        return unchecked((int)0x80070057); // E_INVALIDARG; caller retries ByVal.
+                    }
+
                     Marshal.WriteInt16(
                         variant,
-                        (short)(VariantByRef | VariantVariant));
-                    Marshal.WriteIntPtr(variant, VariantDataOffset, valueVariant);
+                        (short)(VariantByRef | byRefType));
+                    var byRefStorage = byRefType == VariantVariant
+                        ? valueVariant
+                        : IntPtr.Add(valueVariant, VariantDataOffset);
+                    Marshal.WriteIntPtr(variant, VariantDataOffset, byRefStorage);
                 }
                 else
                 {
@@ -467,7 +488,7 @@ internal static class VBComDispatch
                 for (var index = 0; index < arguments.Length; index++)
                 {
                     var sourceIndex = arguments.Length - index - 1;
-                    if (!byRefArguments[sourceIndex])
+                    if (byRefArguments[sourceIndex] is null)
                     {
                         continue;
                     }
@@ -491,7 +512,7 @@ internal static class VBComDispatch
                 }
 
                 var sourceIndex = arguments.Length - index - 1;
-                var values = byRefArguments is not null && byRefArguments[sourceIndex]
+                var values = byRefArguments?[sourceIndex] is not null
                     ? byRefValues
                     : variants;
                 _ = VariantClear(IntPtr.Add(values, index * VariantSize));
@@ -514,8 +535,170 @@ internal static class VBComDispatch
         }
     }
 
+    [SupportedOSPlatform("windows")]
+    private static bool TryGetByRefVariantType(
+        TYPEDESC description,
+        out ushort variantType)
+    {
+        var type = unchecked((ushort)description.vt);
+        var baseType = (ushort)(type & VariantTypeMask);
+        var arrayFlags = (ushort)(type & VariantArray);
+        if (baseType == VariantPointer)
+        {
+            if (description.lpValue == IntPtr.Zero)
+            {
+                variantType = 0;
+                return false;
+            }
+
+            var pointedType = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+            return TryGetByRefVariantType(pointedType, out variantType);
+        }
+
+        if (baseType == VariantSafeArray)
+        {
+            if (description.lpValue == IntPtr.Zero)
+            {
+                variantType = 0;
+                return false;
+            }
+
+            var elementType = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+            if (!TryGetByRefVariantType(elementType, out var elementVariantType) ||
+                (elementVariantType & VariantArray) != 0)
+            {
+                variantType = 0;
+                return false;
+            }
+
+            variantType = (ushort)(VariantArray | elementVariantType);
+            return true;
+        }
+
+        if (baseType == 0 || baseType is 0x000E or 0x001C or 0x001D or 0x0024)
+        {
+            variantType = 0;
+            return false;
+        }
+
+        if (!IsSupportedByRefVariantType(baseType))
+        {
+            variantType = 0;
+            return false;
+        }
+
+        variantType = (ushort)(arrayFlags | baseType);
+        return true;
+    }
+
+    private static bool IsSupportedByRefVariantType(ushort baseType) =>
+        baseType is 0x0001 or // EMPTY
+            0x0002 or // I2
+            0x0003 or // I4
+            0x0004 or // R4
+            0x0005 or // R8
+            0x0006 or // CY
+            0x0007 or // DATE
+            0x0008 or // BSTR
+            0x0009 or // DISPATCH
+            0x000A or // ERROR
+            0x000B or // BOOL
+            0x000C or // VARIANT
+            0x000D or // UNKNOWN
+            0x0010 or // I1
+            0x0011 or // UI1
+            0x0012 or // UI2
+            0x0013 or // UI4
+            0x0014 or // I8
+            0x0015 or // UI8
+            0x0016 or // INT
+            0x0017;   // UINT
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryInitializeByRefVariant(
+        object? value,
+        IntPtr destination,
+        ushort expectedType)
+    {
+        ClearVariantStorage(destination);
+        if (expectedType == VariantVariant)
+        {
+            Marshal.GetNativeVariantForObject(value, destination);
+            return true;
+        }
+
+        if (value is null || value is DBNull || value is System.Reflection.Missing)
+        {
+            Marshal.WriteInt16(destination, (short)expectedType);
+            return true;
+        }
+
+        if (expectedType == VariantDate && value is VBDateValue date)
+        {
+            Marshal.WriteInt16(destination, (short)VariantDate);
+            Marshal.WriteInt64(destination, VariantDataOffset, BitConverter.DoubleToInt64Bits(date.OADate));
+            return true;
+        }
+
+        if (expectedType == VariantCurrency && value is VBCurrency currency)
+        {
+            Marshal.WriteInt16(destination, (short)VariantCurrency);
+            Marshal.WriteInt64(destination, VariantDataOffset, currency.ScaledValue);
+            return true;
+        }
+
+        var source = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            ClearVariantStorage(source);
+            Marshal.GetNativeVariantForObject(value, source);
+            var actualType = unchecked((ushort)Marshal.ReadInt16(source)) &
+                              (ushort)(VariantTypeMask | VariantArray);
+            if (actualType == expectedType)
+            {
+                CopyVariant(source, destination);
+                return true;
+            }
+
+            return VariantChangeType(destination, source, 0, expectedType) >= 0;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        finally
+        {
+            _ = VariantClear(source);
+            Marshal.FreeCoTaskMem(source);
+        }
+    }
+
+    private static void ClearVariantStorage(IntPtr variant)
+    {
+        Span<byte> empty = stackalloc byte[VariantSize];
+        Marshal.Copy(empty.ToArray(), 0, variant, VariantSize);
+    }
+
+    private static void CopyVariant(IntPtr source, IntPtr destination)
+    {
+        var bytes = new byte[VariantSize];
+        Marshal.Copy(source, bytes, 0, VariantSize);
+        Marshal.Copy(bytes, 0, destination, VariantSize);
+    }
+
     [DllImport("oleaut32.dll")]
     private static extern int VariantClear(IntPtr variant);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int VariantChangeType(
+        IntPtr destination,
+        IntPtr source,
+        ushort flags,
+        ushort variantType);
 
     [ComImport]
     [Guid("00020400-0000-0000-C000-000000000046")]

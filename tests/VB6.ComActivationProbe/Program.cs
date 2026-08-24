@@ -52,7 +52,9 @@ internal static class Program
                 {
                     var comObject = Marshal.GetObjectForIUnknown(objectPointer);
                     dynamic dispatch = comObject;
-                    Console.WriteLine((int)dispatch.Add(2, 5));
+                    var sum = (int)dispatch.Add(2, 5);
+                    var incremented = InvokeByRefLong(objectPointer, "Increment", 41);
+                    Console.WriteLine($"{sum}|{incremented}");
                 }
                 finally
                 {
@@ -97,4 +99,110 @@ internal static class Program
         var method = Marshal.ReadIntPtr(vtable, IntPtr.Size * 3);
         return Marshal.GetDelegateForFunctionPointer<CreateInstanceDelegate>(method);
     }
+
+    private static int InvokeByRefLong(IntPtr dispatch, string memberName, int value)
+    {
+        var vtable = Marshal.ReadIntPtr(dispatch);
+        var getIdsOfNames = Marshal.GetDelegateForFunctionPointer<GetIdsOfNamesDelegate>(
+            Marshal.ReadIntPtr(vtable, IntPtr.Size * 5));
+        var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+            Marshal.ReadIntPtr(vtable, IntPtr.Size * 6));
+        var name = Marshal.StringToCoTaskMemUni(memberName);
+        var names = Marshal.AllocCoTaskMem(IntPtr.Size);
+        var argumentValue = Marshal.AllocCoTaskMem(sizeof(int));
+        var argumentVariant = Marshal.AllocCoTaskMem(VariantSize);
+        var resultVariant = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            Marshal.WriteIntPtr(names, name);
+            var iid = Guid.Empty;
+            var getIdHResult = getIdsOfNames(
+                dispatch,
+                ref iid,
+                names,
+                1,
+                1033,
+                out var dispId);
+            if (getIdHResult != 0)
+            {
+                throw new InvalidOperationException($"GetIDsOfNames failed: 0x{getIdHResult:X8}");
+            }
+
+            ClearNativeMemory(argumentVariant);
+            ClearNativeMemory(resultVariant);
+            Marshal.WriteInt32(argumentValue, value);
+            Marshal.WriteInt16(argumentVariant, (short)(VariantByRef | VariantI4));
+            Marshal.WriteIntPtr(argumentVariant, VariantDataOffset, argumentValue);
+            var parameters = new NativeDispParams
+            {
+                Arguments = argumentVariant,
+                ArgumentCount = 1
+            };
+            var invokeHResult = invoke(
+                dispatch,
+                dispId,
+                ref iid,
+                1033,
+                DispatchMethod,
+                ref parameters,
+                resultVariant,
+                IntPtr.Zero,
+                out _);
+            if (invokeHResult != 0)
+            {
+                throw new InvalidOperationException($"IDispatch.Invoke failed: 0x{invokeHResult:X8}");
+            }
+
+            return Marshal.ReadInt32(argumentValue);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(resultVariant);
+            Marshal.FreeCoTaskMem(argumentVariant);
+            Marshal.FreeCoTaskMem(argumentValue);
+            Marshal.FreeCoTaskMem(names);
+            Marshal.FreeCoTaskMem(name);
+        }
+    }
+
+    private static void ClearNativeMemory(IntPtr address)
+    {
+        Marshal.Copy(new byte[VariantSize], 0, address, VariantSize);
+    }
+
+    private const short VariantByRef = 0x4000;
+    private const short VariantI4 = 0x0003;
+    private const int VariantSize = 16;
+    private const int VariantDataOffset = 8;
+    private const ushort DispatchMethod = 0x1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeDispParams
+    {
+        public IntPtr Arguments;
+        public IntPtr NamedArguments;
+        public uint ArgumentCount;
+        public uint NamedArgumentCount;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetIdsOfNamesDelegate(
+        IntPtr @this,
+        ref Guid interfaceId,
+        IntPtr names,
+        uint nameCount,
+        uint lcid,
+        out int dispId);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int InvokeDelegate(
+        IntPtr @this,
+        int dispId,
+        ref Guid interfaceId,
+        uint lcid,
+        ushort flags,
+        ref NativeDispParams parameters,
+        IntPtr result,
+        IntPtr exceptionInfo,
+        out uint argumentError);
 }
