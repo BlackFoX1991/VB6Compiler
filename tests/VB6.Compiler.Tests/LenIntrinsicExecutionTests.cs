@@ -39,6 +39,42 @@ public sealed class LenIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesLenForPackedUserDefinedType()
+    {
+        var output = VB6TestProgram.Run("""
+            Type MixedValue
+                Prefix As Byte
+                Value As Double
+            End Type
+
+            Sub Main()
+                Dim value As MixedValue
+                Debug.Print Len(value)
+            End Sub
+            """);
+
+        Assert.AreEqual("12", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesLenForFixedStringUserDefinedType()
+    {
+        var output = VB6TestProgram.Run("""
+            Type FixedValue
+                Text As String * 5
+                Count As Long
+            End Type
+
+            Sub Main()
+                Dim value As FixedValue
+                Debug.Print Len(value)
+            End Sub
+            """);
+
+        Assert.AreEqual("12", output.Trim());
+    }
+
+    [TestMethod]
     /// <summary>A user-defined Len shadows the intrinsic, exactly as in VB6.</summary>
     public void EmitManagedApplication_PrefersAUserFunctionOverTheIntrinsicLen()
     {

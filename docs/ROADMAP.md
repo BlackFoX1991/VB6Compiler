@@ -136,6 +136,9 @@ zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten
 übertragen außerhalb eines UDT nur ihre elementweise Payload ohne äußeren Descriptor. Dynamische
 UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
 als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
+`Len(udt)` verwendet bei emittierten `VB6.Generated`-Records nun den tatsächlichen nativen
+4-Byte-gepackten Struct-Umfang, einschließlich `String * n`-Feldern; nicht repräsentierbare
+benutzerdefinierte CLR-Structs werden weiterhin nicht implizit als VB6-UDT akzeptiert.
 Date-Werte werden als OLE-Automation-Doubles übertragen und bei `Input #` konvertiert; beim
 Ablegen typisierter Date-Werte in Variant bleibt der Date-Subtype `VarType = 7` erhalten.
 `For ... Next` akzeptiert jetzt alle numerischen Zählerformen des Sprachvertrags: `Byte`,
@@ -1506,6 +1509,14 @@ Blittable `Type`-Records werden im Managed-Emitter jetzt als sequenzielle Struct
 `Byte`-/`Double`-Alignment sowie feste `String * n`-Felder über `BYVALTSTR`/`SizeConst`. Variable
 Stringfelder, Arrays, nicht-blittable UDTs und Callback-Delegates bleiben separate ABI-Schritte.
 Die Gesamtsuite umfasst **919 Tests**.
+
+## Aktueller UDT-Len-Nachtrag
+
+`Len` erkennt emittierte VB6-UDTs über ihren Managed-Namespace und fragt ihren nativen
+Struct-Umfang über `Marshal.SizeOf` ab. Dadurch liefert ein `Byte`-/`Double`-Record mit VB6-
+4-Byte-Packing `12` statt der CLR-defaulteten Ausrichtung; feste `String * n`-Felder werden
+über ihre `BYVALTSTR`-Metadaten ebenfalls korrekt berücksichtigt. Die direkte Managed-Ausführung
+ist mit zwei End-to-End-Tests regressionsgesichert. Die Gesamtsuite umfasst **921 Tests**.
 
 ## Aktueller Declare-Stringpuffer-Nachtrag
 
