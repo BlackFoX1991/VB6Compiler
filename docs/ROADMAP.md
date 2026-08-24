@@ -1562,3 +1562,16 @@ läuft durch den bestehenden Late-Bound-Dispatch und prüft Parent/Child-Aufbau,
 einsbasierte Indizes, Text-Writeback und Entfernen. Vollständiges ActiveX-Hosting, ImageList-
 Ressourcendekodierung und die übrige COM-Connection-Point-ABI bleiben offen. Die Gesamtsuite
 umfasst **926 Tests**.
+
+## Aktueller ImageList-/ImageCombo-Nachtrag
+
+Der WinForms-Host behandelt `MSComctlLib.ImageList` nun als nichtvisuelle Komponente mit
+`ListImages`, einsbasierter beziehungsweise schlüsselbasierter `Item`-Auflösung, `Add`, `Remove`,
+`Clear`, `Count`, `Key`, `Index`, `Picture`, `ImageWidth`, `ImageHeight` und `hImageList`.
+`MSComctlLib.ImageCombo` verwendet eine echte WinForms-ComboBox mit einem Managed-
+`ComboItems`-Adapter für `Add`, `Remove`, `Clear`, `Count`, `Item`, `Key`, `Index`, `Text`,
+`Selected` und `Image`; die `ImageList`-Verknüpfung bleibt als Objektbeziehung erhalten. Die
+Regression prüft den Late-Bound-Collection-Pfad, Dateibild-Metadaten, einsbasierte Indizes,
+Auswahl und die Verknüpfung beider Controls. Native OCX-Rendering, `.frx`-Dekodierung und
+vollständiges ActiveX-/Connection-Point-Hosting bleiben offen. Die Gesamtsuite umfasst
+**927 Tests**.
