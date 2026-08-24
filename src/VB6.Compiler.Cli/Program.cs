@@ -166,9 +166,15 @@ if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringCompari
     return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
 }
 
-if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
-    var emitResult = compilation.EmitManagedApplication(args[2]);
+    if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out var platform))
+    {
+        return 1;
+    }
+
+    var emitOptions = CreateManagedEmitOptions(args[2], platform);
+    var emitResult = compilation.EmitManagedApplication(args[2], emitOptions);
     foreach (var diagnostic in emitResult.Diagnostics)
     {
         Console.Error.WriteLine(diagnostic);
