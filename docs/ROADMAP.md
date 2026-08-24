@@ -1538,3 +1538,14 @@ verdrahtet: Unicode-Strings liefern zwei Bytes je UTF-16-Codeeinheit, Scalar-Var
 ihre VB6-Speicherbreite, und emittierte UDTs verwenden den nativen In-Memory-Umfang einschließlich
 Padding. Die direkte Ausführung ist mit String-, Scalar-, `Null`- und UDT-Fällen regressions-
 gesichert. Die Gesamtsuite umfasst **924 Tests**.
+
+## Aktueller CommonDialog-Nachtrag
+
+Der WinForms-Host behandelt `MSComDlg.CommonDialog` jetzt als nichtvisuelle Komponente statt als
+unbekanntes `Panel`. `FileName`, `Filter`, `DialogTitle`, `FilterIndex`, `CancelError` und
+`DefaultExt` werden über einen Managed-Adapter bereitgestellt; `ShowOpen` und `ShowSave` nutzen
+die nativen WinForms-Dateidialoge und übernehmen den ausgewählten Dateinamen zurück in den
+VB6-Objektvertrag. Die Komponente bleibt aus der visuellen Control-Hierarchie heraus, ist aber
+über die bestehende Form-/Control-Namensauflösung und den Late-Bound-Dispatch erreichbar.
+Vollständiges ActiveX-OCX-Hosting, insbesondere die echte `MSComDlg`-Typbibliothek und deren
+gesamte Ereignis-/ABI-Oberfläche, bleibt separat offen. Die Gesamtsuite umfasst **925 Tests**.

@@ -94,6 +94,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             return existing;
         }
+        if (binding.Components.TryGetValue(name, out var existingComponent))
+        {
+            return existingComponent;
+        }
 
         var separator = name.LastIndexOf('.');
         var parentName = separator < 0 ? null : name[..separator];
@@ -101,7 +105,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         var parent = parentName is not null && binding.Controls.TryGetValue(parentName, out var parentControl)
             ? parentControl
             : null;
-        var control = CreateControlInstance(typeName);
+        var hostObject = CreateControlInstance(typeName);
+        if (hostObject is not Control control)
+        {
+            if (hostObject is CommonDialogProxy dialog)
+            {
+                dialog.Name = logicalName;
+            }
+
+            binding.Components.Add(name, hostObject);
+            if (!binding.Components.ContainsKey(logicalName))
+            {
+                binding.Components.Add(logicalName, hostObject);
+            }
+
+            return hostObject;
+        }
+
         control.Name = logicalName.Replace("(", "_", StringComparison.Ordinal)
             .Replace(")", string.Empty, StringComparison.Ordinal)
             .Replace(",", "_", StringComparison.Ordinal);
@@ -128,6 +148,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             ownerBinding.Controls.TryGetValue(memberName, out var namedControl))
         {
             value = namedControl;
+            return true;
+        }
+
+        if (target is not Control &&
+            _bindings.TryGetValue(target, out ownerBinding) &&
+            ownerBinding.Components.TryGetValue(memberName, out var namedComponent))
+        {
+            value = namedComponent;
             return true;
         }
 
@@ -937,7 +965,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static int FromTwips(object? value, float twipsPerPixel) =>
         Convert.ToInt32(Math.Round(VBConversions.CDbl(value) / twipsPerPixel, MidpointRounding.AwayFromZero));
 
-    private static Control CreateControlInstance(string typeName) =>
+    private static object CreateControlInstance(string typeName) =>
         typeName.ToUpperInvariant() switch
         {
             "COMMANDBUTTON" => new Button(),
@@ -953,6 +981,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "TIMER" => new TimerControl(),
             "TREEVIEW" or "MSCOMCTLLIB.TREEVIEW" => new TreeView(),
             "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => new RichTextBox(),
+            "COMMONDIALOG" or "MSCOMDLG.COMMONDIALOG" => new CommonDialogProxy(),
             _ => new Panel()
         };
 
@@ -1011,6 +1040,9 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public Form Form { get; }
 
         public Dictionary<string, Control> Controls { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, object> Components { get; } =
             new(StringComparer.OrdinalIgnoreCase);
     }
 
