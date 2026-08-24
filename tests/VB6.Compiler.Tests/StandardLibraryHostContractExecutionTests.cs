@@ -106,6 +106,22 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_CreatesAndUsesStdFontHostObject()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim fontValue As New StdFont
+                fontValue.Name = "Compiler Font"
+                fontValue.Bold = True
+                Debug.Print fontValue.Name
+                Debug.Print fontValue.Bold
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Compiler Font", "True" }, lines);
+    }
+
+    [TestMethod]
     public void Analyze_ResolvesClipboardGetTextContract()
     {
         var analysis = VBCompilation.Create("""

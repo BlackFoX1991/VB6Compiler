@@ -2949,6 +2949,45 @@ public sealed class Binder
                 : BindExpression(memberAccess.Receiver, variables, procedures);
             if (memberReceiver.Type is ClassTypeSymbol || memberReceiver.Type == TypeSymbol.Variant)
             {
+                if (memberReceiver.Type is ClassTypeSymbol memberClass &&
+                    memberClass.TryGetProperty(
+                        memberAccess.MemberToken.Text,
+                        PropertyAccessorKind.Get,
+                        out var collectionProperty) &&
+                    collectionProperty.Parameters.IsEmpty &&
+                    collectionProperty.Type is ClassTypeSymbol indexedCollectionType &&
+                    indexedCollectionType.TryGetDefaultProperty(accessor, out var itemProperty))
+                {
+                    var collection = new BoundPropertyAccessExpression(memberReceiver, collectionProperty);
+                    return new BoundPropertyInvocationExpression(
+                        collection,
+                        itemProperty,
+                        BindPropertyArguments(
+                            memberAccess.MemberToken,
+                            syntax.Indices,
+                            itemProperty,
+                            variables,
+                            procedures));
+                }
+
+                if (accessor is PropertyAccessorKind.Let or PropertyAccessorKind.Set &&
+                    syntax.Indices.IsEmpty &&
+                    memberReceiver.Type is ClassTypeSymbol lateBoundMember &&
+                    IsLateBoundObjectType(lateBoundMember))
+                {
+                    return new BoundPropertyInvocationExpression(
+                        memberReceiver,
+                        new PropertySymbol(
+                            memberAccess.MemberToken.Text,
+                            accessor,
+                            TypeSymbol.Variant,
+                            ImmutableArray<ParameterSymbol>.Empty)
+                        {
+                            IsLateBound = true
+                        },
+                        ImmutableArray<BoundArgument>.Empty);
+                }
+
                 return BindClassMemberInvocation(
                     memberAccess,
                     syntax.Indices,
@@ -3164,20 +3203,6 @@ public sealed class Binder
                 target.MemberToken.Span);
         }
 
-        if (IsLateBoundObjectType(classType))
-        {
-            var dynamicProcedure = CreateDynamicObjectProcedure(target.MemberToken.Text, isFunction: true);
-            return new BoundMemberInvocationExpression(
-                receiver,
-                dynamicProcedure,
-                BindArguments(
-                    target.MemberToken,
-                    argumentSyntaxes,
-                    dynamicProcedure,
-                    variables,
-                    procedures));
-        }
-
         ProcedureSymbol? procedure = null;
         if (classType.TryGetProcedure(target.MemberToken.Text, out var method))
         {
@@ -3192,6 +3217,20 @@ public sealed class Binder
                     target.MemberToken,
                     argumentSyntaxes,
                     property,
+                    variables,
+                    procedures));
+        }
+
+        if (IsLateBoundObjectType(classType))
+        {
+            var dynamicProcedure = CreateDynamicObjectProcedure(target.MemberToken.Text, isFunction: true);
+            return new BoundMemberInvocationExpression(
+                receiver,
+                dynamicProcedure,
+                BindArguments(
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    dynamicProcedure,
                     variables,
                     procedures));
         }
@@ -3503,6 +3542,17 @@ public sealed class Binder
                     expression = BindConversion(expression, parameter.Type);
                     requiresByRefTemporary = true;
                 }
+                else if (!parameter.IsAny &&
+                         parameter.Type == TypeSymbol.Variant &&
+                         expression.Type != TypeSymbol.Variant &&
+                         expression.Type != TypeSymbol.Error)
+                {
+                    // A typed VB6 variable can be supplied to a Variant ByRef parameter. The
+                    // callee receives a temporary Variant container; there is no typed storage
+                    // that can safely receive a later Variant write-back.
+                    expression = BindConversion(expression, parameter.Type);
+                    requiresByRefTemporary = true;
+                }
                 else if (!parameter.IsAny && !AreByRefTypesCompatible(expression.Type, parameter.Type) &&
                          expression.Type != TypeSymbol.Error &&
                          parameter.Type != TypeSymbol.Error)
@@ -3786,6 +3836,13 @@ public sealed class Binder
     {
         if (variables.TryGetValue(syntax.IdentifierToken.Text, out var variable))
         {
+            if (variable.IsConstant &&
+                _activeConstantInitializers is not null &&
+                _activeConstantInitializers.TryGetValue(variable.Name, out var initializer))
+            {
+                return initializer;
+            }
+
             return new BoundVariableExpression(variable);
         }
 

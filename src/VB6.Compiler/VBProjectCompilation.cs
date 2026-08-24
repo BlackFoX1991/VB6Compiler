@@ -182,6 +182,17 @@ public sealed class VBProjectCompilation
         var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
         var visibleExternalConstants = externalTypeCatalog.AddMemberSymbols(moduleVariableSymbols);
         var visibleBuiltInConstants = VBBuiltInConstants.AddTo(moduleVariableSymbols);
+        var hostModuleVariables = loadResult.Project.Items
+            .Where(item => IsHostModuleKind(item.Kind))
+            .Select(item => string.IsNullOrWhiteSpace(item.Name)
+                ? Path.GetFileNameWithoutExtension(item.RelativePath)
+                : item.Name!)
+            .Where(moduleVariableSymbols.ContainsKey)
+            .Select(name => new BoundModuleVariable(
+                moduleVariableSymbols[name],
+                Initializer: null,
+                IsConstant: false))
+            .ToImmutableArray();
         var units = ImmutableArray.CreateBuilder<VBProjectCompilationUnit>();
         var procedures = ImmutableArray.CreateBuilder<BoundProcedure>();
         var projectClassTypes = ImmutableArray.CreateBuilder<ClassTypeSymbol>();
@@ -275,10 +286,10 @@ public sealed class VBProjectCompilation
                 string.Equals(type.SourcePath, module.FilePath, StringComparison.OrdinalIgnoreCase)));
             properties.AddRange(semanticModel.Properties);
             events.AddRange(semanticModel.Events);
+            staticVariables.AddRange(semanticModel.StaticVariables);
             if (module.Item.Kind == VBProjectItemKind.Module)
             {
                 moduleVariables.AddRange(semanticModel.ModuleVariables);
-                staticVariables.AddRange(semanticModel.StaticVariables);
             }
 
             var unitDiagnostics = module.ParseResult.Diagnostics
@@ -313,6 +324,7 @@ public sealed class VBProjectCompilation
             Properties = properties.ToImmutable(),
             Events = events.ToImmutable(),
             ModuleVariables = moduleVariables.ToImmutable()
+                .AddRange(hostModuleVariables)
                 .AddRange(visibleEnumConstants)
                 .AddRange(visibleExternalConstants)
                 .AddRange(visibleBuiltInConstants),
@@ -639,7 +651,7 @@ public sealed class VBProjectCompilation
 
                 foreach (var control in ReadDesignerControls(module.FilePath, designerDocuments))
                 {
-                    AddReadWriteProperty(properties, control.Name, control.Type);
+                    AddReadWriteProperty(properties, control.Name, control.Type, isLateBound: true);
                 }
             }
             var events = module.SemanticRoot.Members
@@ -767,7 +779,11 @@ public sealed class VBProjectCompilation
                 pair.First.Type == pair.Second.Type &&
                 pair.First.PassingMode == pair.Second.PassingMode);
 
-        static void AddReadWriteProperty(List<PropertySymbol> properties, string name, TypeSymbol type)
+        static void AddReadWriteProperty(
+            List<PropertySymbol> properties,
+            string name,
+            TypeSymbol type,
+            bool isLateBound = false)
         {
             if (properties.Any(property =>
                     string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) &&
@@ -780,12 +796,18 @@ public sealed class VBProjectCompilation
                 name,
                 PropertyAccessorKind.Get,
                 type,
-                ImmutableArray<ParameterSymbol>.Empty));
+                ImmutableArray<ParameterSymbol>.Empty)
+            {
+                IsLateBound = isLateBound
+            });
             properties.Add(new PropertySymbol(
                 name,
                 PropertyAccessorKind.Let,
                 type,
-                ImmutableArray<ParameterSymbol>.Empty));
+                ImmutableArray<ParameterSymbol>.Empty)
+            {
+                IsLateBound = isLateBound
+            });
         }
 
         static void AddPropertyIfMissing(List<PropertySymbol> properties, PropertySymbol property)

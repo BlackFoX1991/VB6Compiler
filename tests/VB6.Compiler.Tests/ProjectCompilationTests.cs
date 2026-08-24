@@ -64,6 +64,147 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_HandlesProjectConstantsInAllGlobalScopes()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Constants.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Constants"
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Private Const QTHRESH As Long = 42
+
+                Public Sub Main()
+                    Debug.Print QTHRESH
+                End Sub
+                """);
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+
+            Assert.AreEqual("42", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_HandlesStaticLocalsInClassModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "StaticClass.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="StaticClass"
+                Module=Main; Main.bas
+                Class=Worker; Worker.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Public Sub Main()
+                    Dim worker As Worker
+                    Set worker = New Worker
+                    worker.Touch
+                    Debug.Print worker.Value
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Worker.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Worker"
+
+                Private m_Value As Long
+
+                Public Sub Touch()
+                    Const Limit As Long = 1
+                    Static calls(1 To Limit) As Long
+                    calls(1) = calls(1) + 1
+                    m_Value = calls(1)
+                End Sub
+
+                Public Property Get Value() As Long
+                    Value = m_Value
+                End Property
+                """);
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+
+            Assert.AreEqual("1", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ResolvesScopedDeclareSymbolsAcrossProjectModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ScopedDeclare.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ScopedDeclare"
+                Module=Main; Main.bas
+                Class=Worker; Worker.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Public Sub Main()
+                    Dim worker As Worker
+                    Set worker = New Worker
+                    worker.Touch
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Worker.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Worker"
+
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Public Sub Touch()
+                    Dim source As Long
+                    Dim destination As Long
+                    source = 16909060
+                    CopyMemory destination, source, 4
+                    Debug.Print destination
+                End Sub
+                """);
+
+            var standardOutput = VB6TestProgram.RunProject(projectPath);
+
+            Assert.AreEqual("16909060", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ReportsDuplicateProceduresAcrossModules()
     {
         var directory = CreateTemporaryDirectory();
@@ -409,7 +550,10 @@ public sealed class ProjectCompilationTests
                     Set node = tree.Nodes.Add(, , "root", "Root")
                     Debug.Print node.Text
                     Debug.Print tree.Nodes.Count
+                    Debug.Print tree.Nodes(1).Index
                     editor.SelText = "text"
+                    editor.BackColor() = 1
+                    editor.HideSelection() = True
                     dialog.Filter = "Text (*.txt)|*.txt"
                     dialog.ShowSave
                     Dim image As MSComctlLib.ListImage
@@ -418,6 +562,7 @@ public sealed class ProjectCompilationTests
                     Dim item As MSComctlLib.ComboItem
                     Set item = combo.ComboItems.Add(, "key", "text")
                     item.Selected = True
+                    combo.ComboItems(1).Selected = True
                 End Sub
                 """);
 

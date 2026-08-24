@@ -282,6 +282,9 @@ public static class VBInteraction
 
     public static VBPicture LoadPicture(string fileName) => new(fileName);
 
+    /// <summary>Creates the host-neutral object behind VB6 Font/StdFont values.</summary>
+    public static VBFont CreateFont() => new();
+
     /// <summary>Signals a changed UserControl property to a host; headless execution has no sink.</summary>
     public static void PropertyChanged(string propertyName) => _ = propertyName;
 
@@ -319,6 +322,20 @@ public static class VBInteraction
             appName.ToUpperInvariant(),
             section.ToUpperInvariant(),
             key.ToUpperInvariant());
+}
+
+/// <summary>Managed storage for the VB6 Font/StdFont host contract.</summary>
+public sealed class VBFont
+{
+    public string Name { get; set; } = string.Empty;
+    public float Size { get; set; }
+    public bool Bold { get; set; }
+    public bool Italic { get; set; }
+    public bool Underline { get; set; }
+    public bool Strikethrough { get; set; }
+    public int Weight { get; set; }
+    public short Charset { get; set; }
+    public int hFont { get; set; }
 }
 
 /// <summary>

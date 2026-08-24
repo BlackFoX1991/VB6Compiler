@@ -1,3 +1,5 @@
+using VB6.Semantics;
+
 namespace VB6.Compiler.Tests;
 
 /// <summary>
@@ -94,6 +96,28 @@ public sealed class ByRefTemporaryExecutionTests
 
         Assert.IsFalse(analysis.Success, "VB6 reports a ByRef argument type mismatch for a variable of the wrong type.");
         Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0008"));
+    }
+
+    [TestMethod]
+    public void Analyze_AllowsTypedVariablesForByRefVariantParameters()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Append(ByRef value As Variant)
+                value = value & "!"
+            End Sub
+
+            Sub Main()
+                Dim text As String
+                text = "legacy"
+                Append text
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+        var main = analysis.SemanticModel!.Procedures.Single(procedure => procedure.Symbol.Name == "Main");
+        var invocation = (BoundInvocationStatement)main.Body.Statements.Last();
+        Assert.IsTrue(invocation.Arguments.Single().RequiresByRefTemporary);
+        Assert.IsInstanceOfType<BoundConversionExpression>(invocation.Arguments.Single().Expression);
     }
 
     private static void Run(string source, params string[] expectedLines)

@@ -106,6 +106,8 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreateScreen()
     {
         var screen = new ClassTypeSymbol("Screen");
+        screen.MarkAsRuntimeObjectContract();
+        screen.MarkAsLateBoundObject();
         var properties = new List<PropertySymbol>
         {
             ReadOnlyProperty("ActiveForm", Form),
@@ -129,6 +131,8 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreatePicture()
     {
         var picture = new ClassTypeSymbol("Picture");
+        picture.MarkAsRuntimeObjectContract();
+        picture.MarkAsLateBoundObject();
         var properties = new[]
         {
             ReadOnlyProperty("Width", TypeSymbol.Long),
@@ -150,6 +154,8 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreateAmbient()
     {
         var ambient = new ClassTypeSymbol("Ambient");
+        ambient.MarkAsRuntimeObjectContract();
+        ambient.MarkAsLateBoundObject();
         var properties = new[]
         {
             ReadOnlyProperty("Font", Font),
@@ -171,6 +177,8 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreatePropertyBag()
     {
         var bag = new ClassTypeSymbol("PropertyBag");
+        bag.MarkAsRuntimeObjectContract();
+        bag.MarkAsLateBoundObject();
         var procedures = new[]
         {
             new ProcedureSymbol(
@@ -202,6 +210,8 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreateClipboard()
     {
         var clipboard = new ClassTypeSymbol("Clipboard");
+        clipboard.MarkAsRuntimeObjectContract();
+        clipboard.MarkAsLateBoundObject();
         var procedures = new[]
         {
             new ProcedureSymbol("GetText", ImmutableArray<ParameterSymbol>.Empty, TypeSymbol.String)
@@ -454,6 +464,8 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreateFont()
     {
         var font = new ClassTypeSymbol("Font");
+        font.MarkAsRuntimeObjectContract();
+        font.MarkAsLateBoundObject();
         var properties = new List<PropertySymbol>();
         properties.AddRange(ReadWriteProperties("Name", TypeSymbol.String));
         properties.AddRange(ReadWriteProperties("Size", TypeSymbol.Single));
@@ -493,6 +505,9 @@ public static class VBStandardTypes
     private static ClassTypeSymbol CreateControl(string name)
     {
         var type = new ClassTypeSymbol(name);
+        type.MarkAsRuntimeObjectContract();
+        type.MarkAsLateBoundObject();
+        type.MarkAsControlContract();
         var item = new PropertySymbol(
             "Item",
             PropertyAccessorKind.Get,
@@ -535,7 +550,11 @@ public static class VBStandardTypes
         properties.AddRange(ReadWriteProperties("Image", Picture));
         properties.AddRange(ReadWriteProperties("Font", Font));
         properties.AddRange(ReadWriteProperties("hDC", TypeSymbol.Long));
-        if (!type.TryDefineMembers(procedures, properties, Array.Empty<EventSymbol>(), out var duplicate))
+        if (!type.TryDefineMembers(
+                procedures.Select(procedure => procedure with { IsLateBound = true }),
+                properties.Select(property => property with { IsLateBound = true }),
+                Array.Empty<EventSymbol>(),
+                out var duplicate))
         {
             throw new InvalidOperationException($"Built-in {name} member '{duplicate}' is duplicated.");
         }
