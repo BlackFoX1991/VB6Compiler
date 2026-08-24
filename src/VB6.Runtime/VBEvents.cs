@@ -82,6 +82,36 @@ public static class VBEvents
         SubscribeMethod(source, eventName, target, methodName, null, int.MinValue);
     }
 
+    /// <summary>
+    /// Removes a generated-method subscription. A null source removes matching subscriptions
+    /// from every source, which is the explicit form of the VB6 event-variable reset operation.
+    /// </summary>
+    public static void UnsubscribeMethod(
+        object? source,
+        string eventName,
+        object target,
+        string methodName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+
+        lock (Sync)
+        {
+            foreach (var existing in MethodSubscriptions
+                         .Where(subscription =>
+                             (source is null || ReferenceEquals(subscription.Source, source)) &&
+                             ReferenceEquals(subscription.Target, target) &&
+                             string.Equals(subscription.EventName, eventName, StringComparison.OrdinalIgnoreCase) &&
+                             string.Equals(subscription.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
+                         .ToArray())
+            {
+                RemoveSubscriptionLocked(existing);
+                MethodSubscriptions.Remove(existing);
+            }
+        }
+    }
+
     public static void SubscribeMethod(
         object? source,
         string eventName,

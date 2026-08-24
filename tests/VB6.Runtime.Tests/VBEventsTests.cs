@@ -65,6 +65,25 @@ public sealed class VBEventsTests
         Assert.AreEqual(15, value);
     }
 
+    [TestMethod]
+    public void UnsubscribeMethod_RemovesTheRequestedMethodSubscription()
+    {
+        var source = new ClrEventSource();
+        var target = new ClrEventTarget();
+
+        VBEvents.SubscribeMethod(source, "Changed", target, "OnChanged");
+        VBEvents.UnsubscribeMethod(source, "Changed", target, "OnChanged");
+        source.Raise(42, "removed");
+
+        Assert.AreEqual(0, target.CallCount);
+
+        VBEvents.SubscribeMethod(source, "Changed", target, "OnChanged");
+        VBEvents.UnsubscribeMethod(null, "Changed", target, "OnChanged");
+        source.Raise(99, "removed-all");
+
+        Assert.AreEqual(0, target.CallCount);
+    }
+
     private sealed class ClrEventSource
     {
         public event EventHandler<ChangedEventArgs>? Changed;
