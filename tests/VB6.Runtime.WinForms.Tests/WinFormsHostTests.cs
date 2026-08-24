@@ -383,6 +383,118 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void CompiledLegacyFormBindsIntrinsicControlArrayIndex()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6RuntimeWinFormsTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            var projectPath = Path.Combine(directory, "ControlArrayEvents.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Main"
+                Name="ControlArrayEvents"
+                Form=Main.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.Form Main
+                   Begin VB.CommandButton Buttons
+                      Index = 0
+                      Caption = "First"
+                   End
+                   Begin VB.CommandButton Buttons
+                      Index = 1
+                      Caption = "Second"
+                   End
+                End
+                Attribute VB_Name = "Main"
+                Attribute VB_PredeclaredId = True
+                Option Explicit
+
+                Private observedIndex As Integer
+                Private observedKeyIndex As Integer
+                Private observedKey As Integer
+
+                Private Sub Buttons_Click(Index As Integer)
+                    observedIndex = Index
+                End Sub
+
+                Private Sub Buttons_KeyPress(Index As Integer, KeyAscii As Integer)
+                    observedKeyIndex = Index
+                    observedKey = KeyAscii
+                    KeyAscii = Asc("z")
+                End Sub
+
+                Public Property Get LastIndex() As Integer
+                    LastIndex = observedIndex
+                End Property
+
+                Public Property Get LastKeyIndex() As Integer
+                    LastKeyIndex = observedKeyIndex
+                End Property
+
+                Public Property Get LastKey() As Integer
+                    LastKey = observedKey
+                End Property
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "ControlArrayEvents.dll"));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Lowering.Analysis.Diagnostics));
+            Assert.IsNotNull(result.AssemblyPath);
+
+            using var host = new WinFormsHost();
+            VBInteraction.Host = host;
+            var assembly = Assembly.Load(File.ReadAllBytes(result.AssemblyPath!));
+            var formType = assembly.GetType("VB6.Generated.__vb6_class_Main", throwOnError: true)!;
+            var form = Activator.CreateInstance(formType)!;
+            host.Load(form);
+            Assert.IsTrue(host.TryInvokeMember(form, "Show", Array.Empty<object?>(), out _));
+            Assert.IsTrue(host.TryGetMember(form, "Buttons(0)", Array.Empty<object?>(), out var first));
+            Assert.IsTrue(host.TryGetMember(form, "Buttons(1)", Array.Empty<object?>(), out var second));
+            Assert.IsInstanceOfType<Button>(first);
+            Assert.IsInstanceOfType<Button>(second);
+
+            var lastIndexGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("LastIndex", StringComparison.OrdinalIgnoreCase));
+            ((Button)first!).PerformClick();
+            Application.DoEvents();
+            Assert.AreEqual((short)0, lastIndexGetter.Invoke(form, null));
+
+            ((Button)second!).PerformClick();
+            Application.DoEvents();
+            Assert.AreEqual((short)1, lastIndexGetter.Invoke(form, null));
+
+            var lastKeyIndexGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("LastKeyIndex", StringComparison.OrdinalIgnoreCase));
+            var lastKeyGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("LastKey", StringComparison.OrdinalIgnoreCase) &&
+                    !method.Name.Contains("LastKeyIndex", StringComparison.OrdinalIgnoreCase));
+            var secondControl = (Control)second!;
+            secondControl.CreateControl();
+            secondControl.Focus();
+            _ = SendMessage(secondControl.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);
+            Application.DoEvents();
+            Assert.AreEqual((short)1, lastKeyIndexGetter.Invoke(form, null));
+            Assert.AreEqual((short)120, lastKeyGetter.Invoke(form, null));
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [STATestMethod]
     public void HostBridgesNativeRichTextMouseDownWithParameterizedComEventInX86()
     {
         if (Environment.Is64BitProcess ||

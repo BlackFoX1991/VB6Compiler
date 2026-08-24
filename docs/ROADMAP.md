@@ -2164,3 +2164,14 @@ Retry nach der Aktivierung wird dadurch der bereits gebundene Connection-Point v
 zusätzliche x86-Regression prüft `WithEvents source_KeyPress(KeyAscii As Integer)` samt ByRef-
 Write-back neben dem konventionellen Designer-Handler. Die bestehende Testabdeckung bleibt bei
 **981** Tests, davon **35/35** im WinForms-x86-Lauf.
+
+## Aktueller intrinsischer Control-Array-Event-Nachtrag
+
+Designer-Control-Arrays für intrinsische WinForms-Steuerelemente bewahren jetzt ihre aus
+`Index=` ermittelten Unter- und Obergrenzen bis in den generierten Klassenkonstruktor. Dadurch
+werden beispielsweise `Buttons(0)` und `Buttons(1)` als echte Array-Elemente angelegt und die
+konventionellen Handler `Buttons_Click(Index)` sowie `Buttons_KeyPress(Index, KeyAscii)` erhalten
+den jeweiligen VB6-Index. Auch der ByRef-Parameter bleibt bei Array-Handlern an seiner korrekten
+Position und kann `KeyAscii` zurückschreiben. Der kompilierte `.vbp`/`.frm`-Regressionstest prüft
+beide Elemente und beide Ereignispfade; die Gesamtsuite umfasst damit **982** Tests, davon
+**36/36** im WinForms-Lauf.
