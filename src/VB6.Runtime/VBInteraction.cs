@@ -413,6 +413,37 @@ public static class VBInteraction
         }
     }
 
+    /// <summary>Sends a graphics Line operation to a specific Form or control host target.</summary>
+    public static void GraphicsLine(
+        object? target,
+        float startX,
+        float startY,
+        float endX,
+        float endY,
+        object? color,
+        bool isStep,
+        bool drawBox,
+        bool fill)
+    {
+        var line = new VBGraphicsLine(
+            startX,
+            startY,
+            endX,
+            endY,
+            color is null ? null : VBConversions.CLng(color),
+            isStep,
+            drawBox,
+            fill);
+        if (Host is { } host)
+        {
+            host.GraphicsLine(target, line);
+        }
+        else
+        {
+            GraphicsLineSink?.Invoke(line);
+        }
+    }
+
     /// <summary>Host callback for drawing operations; null means a headless no-op backend.</summary>
     public static Action<VBGraphicsLine>? GraphicsLineSink { get; set; }
 

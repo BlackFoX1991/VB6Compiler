@@ -2825,6 +2825,18 @@ public sealed class ManagedEmitter
                 typeof(bool),
                 typeof(bool),
                 typeof(bool));
+            if (m == IrRuntimeMethod.GraphicsLineOnTarget) return Static(
+                typeof(VBInteraction),
+                nameof(VBInteraction.GraphicsLine),
+                typeof(object),
+                typeof(float),
+                typeof(float),
+                typeof(float),
+                typeof(float),
+                typeof(object),
+                typeof(bool),
+                typeof(bool),
+                typeof(bool));
             if (m == IrRuntimeMethod.EndProgram) return Static(
                 typeof(VBControlFlow),
                 nameof(VBControlFlow.EndProgram));

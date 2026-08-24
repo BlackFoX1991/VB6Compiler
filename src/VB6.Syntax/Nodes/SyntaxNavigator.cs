@@ -56,7 +56,9 @@ public static class SyntaxNavigator
             SeekStatementSyntax seek => seek.SeekKeyword,
             LineInputStatementSyntax lineInput => lineInput.LineKeyword,
             FileInputStatementSyntax fileInput => fileInput.InputKeyword,
-            LineStatementSyntax line => line.LineKeyword,
+            LineStatementSyntax line => line.Target is null
+                ? line.LineKeyword
+                : GetFirstToken(line.Target),
             EndStatementSyntax end => end.EndKeyword,
             SkippedStatementSyntax skipped => skipped.Token,
             _ => null

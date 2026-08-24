@@ -237,6 +237,37 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostRendersQualifiedGraphicsLineOnPictureBoxTarget()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+        pictureBox.Size = new Size(240, 120);
+
+        host.GraphicsLine(
+            pictureBox,
+            new VBGraphicsLine(
+                1440,
+                720,
+                2880,
+                1440,
+                ColorTranslator.ToOle(Color.Red),
+                false,
+                false,
+                false));
+
+        Assert.IsNotNull(pictureBox.Image);
+        using var pictureSnapshot = new Bitmap(pictureBox.Image!);
+        var painted = pictureSnapshot.GetPixel(144, 72);
+        Assert.IsTrue(painted.R > 180 && painted.G < 120 && painted.B < 120);
+        Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var formPicture));
+        Assert.IsNull(formPicture);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostDecodesFrxPicturePayloadsForPictureBoxes()
     {
         using var host = new WinFormsHost();

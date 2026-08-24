@@ -1578,6 +1578,14 @@ public sealed class Binder
             return null;
         }
 
+        var target = syntax.Target is null
+            ? null
+            : BindExpression(syntax.Target, variables, procedures);
+        if (target?.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
         return new BoundGraphicsLineStatement(
             startX,
             startY,
@@ -1586,7 +1594,8 @@ public sealed class Binder
             color,
             syntax.StepKeyword is not null,
             drawBox,
-            fill);
+            fill,
+            target);
     }
 
     private BoundExpression BindLineCoordinate(

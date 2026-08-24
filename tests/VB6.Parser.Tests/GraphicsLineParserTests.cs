@@ -44,4 +44,20 @@ public sealed class GraphicsLineParserTests
         Assert.AreEqual("B", ((NameExpressionSyntax)statement.Options[0]).IdentifierToken.Text);
         Assert.AreEqual("F", ((NameExpressionSyntax)statement.Options[1]).IdentifierToken.Text);
     }
+
+    [TestMethod]
+    public void Parse_RecognizesQualifiedLineTarget()
+    {
+        var result = new ParserType(SourceText.From("Sub Main()\nPicture1.Line (x, y)-(x + 1, y + 2), color\nEnd Sub")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length);
+        var statement = (LineStatementSyntax)result.Root.Members
+            .OfType<SubDeclarationSyntax>()
+            .Single()
+            .Statements[0];
+
+        Assert.IsInstanceOfType<NameExpressionSyntax>(statement.Target);
+        Assert.AreEqual("Picture1", ((NameExpressionSyntax)statement.Target!).IdentifierToken.Text);
+        Assert.AreEqual("Line", statement.LineKeyword.Text);
+    }
 }

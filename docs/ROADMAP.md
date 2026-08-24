@@ -1243,7 +1243,7 @@ Größter Einzelblock.
 - [~] Zeichnen auf Form/PictureBox, MDI — persistentes `GraphicsLine`-Rendering auf der aktiven
       Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; ein unterstütztes
       `PaintPicture`-Subset zeichnet `Bitmap`-/FRX-/`VBPicture`-Quellen persistent mit; qualifizierte
-      `PictureBox.PaintPicture`-Aufrufe lösen ihr eigenes Ziel auf. MDI und vollständige
+      `PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe lösen ihr eigenes Ziel auf. MDI und vollständige
       DrawMode-/AutoRedraw-/ScaleMode-Semantik bleiben offen
 - [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
@@ -1719,6 +1719,7 @@ aktiven Form, übernimmt vorhandene Hintergrundbilder, interpretiert `Step`-Koor
 skaliert VB6-Twips, Punkte und Pixel in die aktuelle DPI-Auflösung. Die Regression prüft echte
 gerenderte Pixel und die Füll-/Rahmensemantik. Ein `PaintPicture`-Subset verarbeitet `Bitmap`-,
 FRX- und dateibasierte `VBPicture`-Quellen auf derselben persistenten Oberfläche. Qualifizierte
-`PictureBox.PaintPicture`-Aufrufe werden über den bestehenden late-bound Control-Dispatch auf die
-PictureBox-Bitmap gerendert. MDI, DrawMode sowie vollständige AutoRedraw-/ScaleMode-Regeln bleiben
-weitere Graphics-/Forms-Slices. Die Gesamtsuite umfasst **942 Tests**.
+`PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe werden über den bestehenden late-bound
+Control-Dispatch auf die PictureBox-Bitmap gerendert. MDI, DrawMode sowie vollständige
+AutoRedraw-/ScaleMode-Regeln bleiben weitere Graphics-/Forms-Slices. Die Gesamtsuite umfasst
+**945 Tests**.

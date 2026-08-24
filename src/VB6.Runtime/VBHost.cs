@@ -20,6 +20,12 @@ public interface IVB6Host
     {
     }
 
+    /// <summary>Draws a graphics Line operation on a specific Form or control target.</summary>
+    void GraphicsLine(object? target, VBGraphicsLine line)
+    {
+        GraphicsLine(line);
+    }
+
     /// <summary>Draws a supported VB6 PaintPicture operation on the active host surface.</summary>
     void PaintPicture(VBPaintPicture picture)
     {

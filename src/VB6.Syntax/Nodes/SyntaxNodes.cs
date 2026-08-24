@@ -552,7 +552,8 @@ public sealed record LineStatementSyntax(
     LinePointSyntax EndPoint,
     SyntaxToken? ColorCommaToken,
     ExpressionSyntax? ColorExpression,
-    ImmutableArray<ExpressionSyntax> Options) : StatementSyntax(SyntaxKind.LineStatement);
+    ImmutableArray<ExpressionSyntax> Options,
+    ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.LineStatement);
 public sealed record EndStatementSyntax(SyntaxToken EndKeyword) : StatementSyntax(SyntaxKind.EndStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);

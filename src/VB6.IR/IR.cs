@@ -491,6 +491,7 @@ public enum IrRuntimeMethod
 
     DebugPrint,
     GraphicsLine,
+    GraphicsLineOnTarget,
     EndProgram,
 
     StringLen,
