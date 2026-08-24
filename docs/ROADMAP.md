@@ -2104,3 +2104,13 @@ verdeckt werden; reine Managed-CLR-Events behalten ihren bisherigen Adapter. Die
 Regression umfasst **201** Tests, der verpflichtende x86-WinForms-Lauf mit registrierten
 Standard-OCX weiterhin **34/34**. Vollständige generische Event-Signatur-, UDT- und Pointer-
 Marshalling-Verträge bleiben separate ABI-Schritte.
+
+## Aktueller TypeLib-Event-ByRef-Nachtrag
+
+Der TypeLib-Importer behandelt `VT_PTR`-Parameter klassischer Automation-Events jetzt als
+`ByRef`, wenn der Pointer auf einen unterstützten skalaren Automation-Typ zeigt. Dadurch wird
+beispielsweise `RichTextLib.RichTextBox.KeyPress(KeyAscii)` aus der echten `RICHTX32.OCX`-
+TypeLibrary als `Integer ByRef` gebunden; verschachtelte oder nicht sicher abbildbare Pointer
+bleiben `Object`. Der Importvertrag ist mit der registrierten TypeLibrary regressionsgesichert;
+die vollständige UDT-/SAFEARRAY-/Pointer-ABI bleibt weiterhin offen. Die Compiler-Suite umfasst
+nun **348** Tests.

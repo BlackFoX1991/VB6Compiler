@@ -498,6 +498,60 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ImportsActiveXEventPointerParametersAsByRef()
+    {
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "SysWow64",
+            "RICHTX32.OCX");
+        if (!OperatingSystem.IsWindows() || !File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The registered RichTextBox type library fixture is not available.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "RichTextEvents.vbp");
+            var typeLibraryId = new Guid("3B7C8863-D78F-101B-B9B5-04021C009402").ToString("B");
+            File.WriteAllText(projectPath, $"""
+                Type=Exe
+                Startup="Sub Main"
+                Reference=*\G{typeLibraryId}#1.2#0#{typeLibraryPath}#RichTextLib
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim editor As RichTextLib.RichTextBox
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!
+                .Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
+            var editor = main.Locals.Single(local =>
+                string.Equals(local.Name, "editor", StringComparison.OrdinalIgnoreCase));
+            Assert.IsInstanceOfType<ClassTypeSymbol>(editor.Type);
+            var editorType = (ClassTypeSymbol)editor.Type;
+            Assert.IsTrue(editorType.TryGetEvent("KeyPress", out var keyPress));
+            Assert.AreEqual(TypeSymbol.Integer, keyPress.Parameters.Single().Type);
+            Assert.AreEqual(ParameterPassingMode.ByRef, keyPress.Parameters.Single().PassingMode);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ImportsRecordFieldsFromWindowsTypeLibraryReference()
     {
         var typeLibraryPath = Path.Combine(
