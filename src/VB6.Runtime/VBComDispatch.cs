@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
 
 namespace VB6.Runtime;
@@ -14,8 +15,11 @@ internal static class VBComDispatch
     private const ushort DispatchPropertyGet = 0x2;
     private const ushort DispatchPropertyPut = 0x4;
     private const ushort DispatchPropertyPutRef = 0x8;
+    private const ushort VariantByRef = 0x4000;
+    private const ushort VariantVariant = 0x000C;
     private const int DispIdPropertyPut = -3;
     private const int VariantSize = 16;
+    private const int VariantDataOffset = 8;
 
     public static bool TryInvoke(
         object target,
@@ -48,7 +52,16 @@ internal static class VBComDispatch
                     ? DispatchPropertyPutRef
                     : DispatchPropertyPut
                 : (ushort)(DispatchMethod | DispatchPropertyGet);
-            var hr = Invoke(dispatch, dispId, arguments, flags, out result);
+            var byRefArguments = setProperty
+                ? null
+                : TryGetByRefArgumentMask(dispatch, dispId, arguments.Length);
+            var hr = Invoke(dispatch, dispId, arguments, flags, byRefArguments, out result);
+            if (hr < 0 && byRefArguments is not null)
+            {
+                // A type library can describe an [out] parameter while an individual server
+                // still requires its legacy ByVal call shape. Preserve the safe fallback.
+                hr = Invoke(dispatch, dispId, arguments, flags, null, out result);
+            }
             if (hr < 0 && setProperty)
             {
                 // Automation servers disagree on whether object-valued properties require
@@ -57,7 +70,7 @@ internal static class VBComDispatch
                 var fallbackFlags = flags == DispatchPropertyPutRef
                     ? DispatchPropertyPut
                     : DispatchPropertyPutRef;
-                hr = Invoke(dispatch, dispId, arguments, fallbackFlags, out result);
+                hr = Invoke(dispatch, dispId, arguments, fallbackFlags, null, out result);
             }
 
             return hr >= 0;
@@ -94,6 +107,95 @@ internal static class VBComDispatch
             ? comObject
             : value;
 
+    [SupportedOSPlatform("windows")]
+    private static bool[]? TryGetByRefArgumentMask(
+        INativeDispatch dispatch,
+        int dispId,
+        int argumentCount)
+    {
+        if (argumentCount == 0 ||
+            dispatch.GetTypeInfoCount(out var typeInfoCount) < 0 ||
+            typeInfoCount == 0 ||
+            dispatch.GetTypeInfo(0, 1033, out var typeInfoPointer) < 0 ||
+            typeInfoPointer == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        ITypeInfo? typeInfo = null;
+        IntPtr typeAttributePointer = IntPtr.Zero;
+        try
+        {
+            typeInfo = (ITypeInfo)Marshal.GetObjectForIUnknown(typeInfoPointer);
+            typeInfo.GetTypeAttr(out typeAttributePointer);
+            var typeAttribute = Marshal.PtrToStructure<TYPEATTR>(typeAttributePointer);
+            var elementSize = Marshal.SizeOf<ELEMDESC>();
+            for (var functionIndex = 0; functionIndex < typeAttribute.cFuncs; functionIndex++)
+            {
+                typeInfo.GetFuncDesc(functionIndex, out var functionPointer);
+                try
+                {
+                    var function = Marshal.PtrToStructure<FUNCDESC>(functionPointer);
+                    if (function.memid != dispId ||
+                        function.cParams < argumentCount ||
+                        function.lprgelemdescParam == IntPtr.Zero)
+                    {
+                        continue;
+                    }
+
+                    var mask = new bool[argumentCount];
+                    for (var parameterIndex = 0; parameterIndex < argumentCount; parameterIndex++)
+                    {
+                        var elementPointer = IntPtr.Add(
+                            function.lprgelemdescParam,
+                            parameterIndex * elementSize);
+                        var element = Marshal.PtrToStructure<ELEMDESC>(elementPointer);
+                        mask[parameterIndex] =
+                            (element.desc.paramdesc.wParamFlags & PARAMFLAG.PARAMFLAG_FOUT) != 0;
+                    }
+
+                    return mask.Any(value => value) ? mask : null;
+                }
+                finally
+                {
+                    typeInfo.ReleaseFuncDesc(functionPointer);
+                }
+            }
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+        catch (InvalidCastException)
+        {
+            return null;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (typeAttributePointer != IntPtr.Zero && typeInfo is not null)
+            {
+                typeInfo.ReleaseTypeAttr(typeAttributePointer);
+            }
+
+            if (typeInfo is not null && Marshal.IsComObject(typeInfo))
+            {
+                _ = Marshal.ReleaseComObject(typeInfo);
+            }
+
+            _ = Marshal.Release(typeInfoPointer);
+        }
+
+        return null;
+    }
+
     private static bool TryGetDispId(
         INativeDispatch dispatch,
         string memberName,
@@ -126,15 +228,19 @@ internal static class VBComDispatch
         int dispId,
         object?[] arguments,
         ushort flags,
+        bool[]? byRefArguments,
         out object? result)
     {
         var variants = arguments.Length == 0
             ? IntPtr.Zero
             : Marshal.AllocCoTaskMem(VariantSize * arguments.Length);
+        var byRefValues = byRefArguments is null
+            ? IntPtr.Zero
+            : Marshal.AllocCoTaskMem(VariantSize * arguments.Length);
         var namedArguments = flags is DispatchPropertyPut or DispatchPropertyPutRef
             ? Marshal.AllocCoTaskMem(sizeof(int))
             : IntPtr.Zero;
-        var initialized = 0;
+        var initialized = new bool[arguments.Length];
 
         try
         {
@@ -143,10 +249,28 @@ internal static class VBComDispatch
                 var variant = IntPtr.Add(
                     variants,
                     index * VariantSize);
-                Marshal.GetNativeVariantForObject(
-                    UnwrapComValue(arguments[arguments.Length - index - 1]),
-                    variant);
-                initialized++;
+                var sourceIndex = arguments.Length - index - 1;
+                if (byRefArguments is not null && byRefArguments[sourceIndex])
+                {
+                    var valueVariant = IntPtr.Add(
+                        byRefValues,
+                        index * VariantSize);
+                    Marshal.GetNativeVariantForObject(
+                        UnwrapComValue(arguments[sourceIndex]),
+                        valueVariant);
+                    Marshal.WriteInt16(
+                        variant,
+                        (short)(VariantByRef | VariantVariant));
+                    Marshal.WriteIntPtr(variant, VariantDataOffset, valueVariant);
+                }
+                else
+                {
+                    Marshal.GetNativeVariantForObject(
+                        UnwrapComValue(arguments[sourceIndex]),
+                        variant);
+                }
+
+                initialized[index] = true;
             }
 
             if (namedArguments != IntPtr.Zero)
@@ -163,7 +287,7 @@ internal static class VBComDispatch
             };
             var exception = default(NativeExcepInfo);
             var iid = Guid.Empty;
-            return dispatch.Invoke(
+            var hr = dispatch.Invoke(
                 dispId,
                 ref iid,
                 1033,
@@ -172,12 +296,39 @@ internal static class VBComDispatch
                 out result,
                 out exception,
                 out _);
+            if (hr >= 0 && byRefArguments is not null)
+            {
+                for (var index = 0; index < arguments.Length; index++)
+                {
+                    var sourceIndex = arguments.Length - index - 1;
+                    if (!byRefArguments[sourceIndex])
+                    {
+                        continue;
+                    }
+
+                    var valueVariant = IntPtr.Add(
+                        byRefValues,
+                        index * VariantSize);
+                    arguments[sourceIndex] = Marshal.GetObjectForNativeVariant(valueVariant);
+                }
+            }
+
+            return hr;
         }
         finally
         {
-            for (var index = 0; index < initialized; index++)
+            for (var index = 0; index < initialized.Length; index++)
             {
-                _ = VariantClear(IntPtr.Add(variants, index * VariantSize));
+                if (!initialized[index])
+                {
+                    continue;
+                }
+
+                var sourceIndex = arguments.Length - index - 1;
+                var values = byRefArguments is not null && byRefArguments[sourceIndex]
+                    ? byRefValues
+                    : variants;
+                _ = VariantClear(IntPtr.Add(values, index * VariantSize));
             }
 
             if (namedArguments != IntPtr.Zero)
@@ -188,6 +339,11 @@ internal static class VBComDispatch
             if (variants != IntPtr.Zero)
             {
                 Marshal.FreeCoTaskMem(variants);
+            }
+
+            if (byRefValues != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(byRefValues);
             }
         }
     }
