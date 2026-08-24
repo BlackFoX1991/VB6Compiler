@@ -1,3 +1,5 @@
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -36,6 +38,8 @@ public sealed class WinFormsHostTests
         Assert.IsTrue(host.TrySetMember(control!, "FillStyle", Array.Empty<object?>(), 1));
         Assert.IsTrue(host.TrySetMember(control!, "MousePointer", Array.Empty<object?>(), 2));
         Assert.IsTrue(host.TrySetMember(control!, "ScaleMode", Array.Empty<object?>(), 3));
+        Assert.IsTrue(host.TrySetMember(control!, "Picture", Array.Empty<object?>(), CreateFrxBitmapValue()));
+        Assert.IsNotNull(((Button)control!).BackgroundImage);
 
         Assert.IsTrue(host.TrySetMember(owner, "Caption", Array.Empty<object?>(), "Main window"));
         Assert.IsTrue(host.TrySetMember(owner, "BorderStyle", Array.Empty<object?>(), 1));
@@ -68,6 +72,64 @@ public sealed class WinFormsHostTests
         Assert.AreSame(control, named);
 
         host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostDecodesFrxPicturePayloadsForPictureBoxes()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var picture = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+
+        Assert.IsTrue(host.TrySetMember(picture, "Picture", Array.Empty<object?>(), CreateFrxBitmapValue()));
+        Assert.IsNotNull(picture.Image);
+        Assert.AreEqual(2, picture.Image!.Width);
+        Assert.AreEqual(2, picture.Image.Height);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostDecodesFrxIconPayloadsForForms()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        Assert.IsTrue(host.TrySetMember(owner, "Icon", Array.Empty<object?>(), CreateFrxIconValue()));
+        Assert.IsTrue(host.TryGetMember(owner, "Icon", Array.Empty<object?>(), out var icon));
+        Assert.IsNotNull(icon);
+
+        host.Unload(owner);
+    }
+
+    private static string CreateFrxBitmapValue()
+    {
+        using var bitmap = new Bitmap(2, 2);
+        using var imageStream = new MemoryStream();
+        bitmap.Save(imageStream, ImageFormat.Bmp);
+        var payload = imageStream.ToArray();
+        var resource = new byte[24 + payload.Length];
+        resource[16] = 0x6C;
+        resource[17] = 0x74;
+        BitConverter.GetBytes(payload.Length).CopyTo(resource, 20);
+        payload.CopyTo(resource, 24);
+        return "__VB6_FRX_BASE64__" + Convert.ToBase64String(resource);
+    }
+
+    private static string CreateFrxIconValue()
+    {
+        using var icon = (Icon)SystemIcons.Application.Clone();
+        using var iconStream = new MemoryStream();
+        icon.Save(iconStream);
+        var payload = iconStream.ToArray();
+        var resource = new byte[8 + payload.Length];
+        resource[0] = 0x6C;
+        resource[1] = 0x74;
+        BitConverter.GetBytes(payload.Length).CopyTo(resource, 4);
+        payload.CopyTo(resource, 8);
+        return "__VB6_FRX_BASE64__" + Convert.ToBase64String(resource);
     }
 
     [STATestMethod]

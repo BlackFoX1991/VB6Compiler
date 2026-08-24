@@ -610,9 +610,13 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            object? value = property.Name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) &&
-                            property.ResourceData is not null
+            object? value = property.ResourceData is not null &&
+                            property.Name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase)
                 ? Encoding.ASCII.GetString(property.ResourceData)
+                : property.ResourceData is not null &&
+                  (property.Name.Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
+                   property.Name.Equals("Icon", StringComparison.OrdinalIgnoreCase))
+                    ? "__VB6_FRX_BASE64__" + Convert.ToBase64String(property.ResourceData)
                 : property.ResourcePath is null
                     ? property.Value
                     : null;
@@ -629,6 +633,8 @@ public sealed class VBProjectCompilation
         name.Equals("Caption", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Icon", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Visible", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Left", StringComparison.OrdinalIgnoreCase) ||

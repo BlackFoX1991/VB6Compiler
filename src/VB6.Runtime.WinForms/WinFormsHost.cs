@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using VB6.Runtime;
 
@@ -15,6 +16,8 @@ namespace VB6.Runtime.WinForms;
 /// </summary>
 public sealed class WinFormsHost : IVB6Host, IDisposable
 {
+    private const string FrxResourcePrefix = "__VB6_FRX_BASE64__";
+
     private readonly Dictionary<object, FormBinding> _bindings =
         new(ReferenceEqualityComparer.Instance);
     private readonly List<EventBinding> _events = new();
@@ -1427,6 +1430,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private bool TryReadFormProperty(Form form, string memberName, out object? value)
     {
+        if (string.Equals(memberName, "Icon", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.Icon;
+            return true;
+        }
+
+        if (string.Equals(memberName, "Picture", StringComparison.OrdinalIgnoreCase))
+        {
+            value = form.BackgroundImage;
+            return true;
+        }
+
         if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
         {
             value = ToVbFormBorderStyle(form.FormBorderStyle);
@@ -1480,6 +1495,26 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private bool TryWriteFormProperty(Form form, string memberName, object? value)
     {
+        if (string.Equals(memberName, "Icon", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryCreateIcon(value, out var icon))
+            {
+                form.Icon = icon;
+            }
+
+            return true;
+        }
+
+        if (string.Equals(memberName, "Picture", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryCreateImage(value, out var image))
+            {
+                form.BackgroundImage = image;
+            }
+
+            return true;
+        }
+
         if (string.Equals(memberName, "BorderStyle", StringComparison.OrdinalIgnoreCase))
         {
             form.FormBorderStyle = FromVbFormBorderStyle(VBConversions.CLng(value));
@@ -1567,6 +1602,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (string.Equals(memberName, "Picture", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control is PictureBox pictureBox
+                ? pictureBox.Image
+                : control.BackgroundImage;
+            return true;
+        }
+
         var state = GetDesignerControlState(control);
         if (string.Equals(memberName, "AutoRedraw", StringComparison.OrdinalIgnoreCase)) value = state.AutoRedraw;
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) value = state.FillStyle;
@@ -1635,6 +1678,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (string.Equals(memberName, "Picture", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryCreateImage(value, out var image))
+            {
+                if (control is PictureBox pictureBox)
+                {
+                    pictureBox.Image = image;
+                }
+                else
+                {
+                    control.BackgroundImage = image;
+                }
+            }
+
+            return true;
+        }
+
         var state = GetDesignerControlState(control);
         if (string.Equals(memberName, "AutoRedraw", StringComparison.OrdinalIgnoreCase)) state.AutoRedraw = VBConversions.CBool(value);
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) state.FillStyle = VBConversions.CLng(value);
@@ -1655,6 +1715,101 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         state = new DesignerControlState();
         _designerControlStates.Add(control, state);
         return state;
+    }
+
+    private static bool TryCreateImage(object? value, out Image? image)
+    {
+        image = null;
+        if (!TryDecodeFrxResource(value, out var resource))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = new MemoryStream(resource, writable: false);
+            using var source = Image.FromStream(stream, useEmbeddedColorManagement: false, validateImageData: true);
+            image = new Bitmap(source);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (ExternalException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryCreateIcon(object? value, out Icon? icon)
+    {
+        icon = null;
+        if (!TryDecodeFrxResource(value, out var resource))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = new MemoryStream(resource, writable: false);
+            using var source = new Icon(stream);
+            icon = (Icon)source.Clone();
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeFrxResource(object? value, out byte[] resource)
+    {
+        resource = Array.Empty<byte>();
+        if (value is not string encoded ||
+            !encoded.StartsWith(FrxResourcePrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            resource = UnwrapFrxPicture(Convert.FromBase64String(encoded[FrxResourcePrefix.Length..]));
+            return resource.Length != 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static byte[] UnwrapFrxPicture(byte[] resource)
+    {
+        var header = new byte[] { 0x6C, 0x74, 0x00, 0x00 };
+        var headerOffset = resource.AsSpan().IndexOf(header);
+        if (headerOffset < 0)
+        {
+            return resource;
+        }
+
+        var lengthOffset = headerOffset + header.Length;
+        if (lengthOffset + sizeof(int) > resource.Length)
+        {
+            throw new InvalidDataException("The .frx picture header is truncated.");
+        }
+
+        var length = BitConverter.ToInt32(resource, lengthOffset);
+        var payloadOffset = lengthOffset + sizeof(int);
+        if (length < 0 || length > resource.Length - payloadOffset)
+        {
+            throw new InvalidDataException("The .frx picture payload exceeds its resource.");
+        }
+
+        return resource.AsSpan(payloadOffset, length).ToArray();
     }
 
     private static int ToVbFormBorderStyle(FormBorderStyle style) => style switch
