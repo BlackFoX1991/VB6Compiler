@@ -290,4 +290,36 @@ public sealed class DeclarePInvokeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesVb6FourByteUdtPackingForDeclarePointers()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Type MixedValue
+                prefix As Byte
+                value As Double
+            End Type
+
+            Private Type RawBytes
+                first As Long
+                second As Long
+                third As Long
+            End Type
+
+            Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+            Sub Main()
+                Dim source As MixedValue
+                Dim destination As RawBytes
+                source.prefix = 65
+                source.value = 1.5
+                CopyMemory destination, source, 12
+                Debug.Print destination.first = 65
+                Debug.Print destination.second = 0
+                Debug.Print destination.third = 1073217536
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
 }
