@@ -13,6 +13,7 @@ internal static class VBIntrinsicSymbols
 {
     private static readonly ImmutableArray<ProcedureSymbol> Intrinsics = ImmutableArray.Create(
         Function("Len", VBIntrinsicKind.Len, "VBStrings.Len", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
+        Function("LenB", VBIntrinsicKind.LenB, "VBStrings.LenB", TypeSymbol.Variant, Parameter("Expression", TypeSymbol.Variant)),
         Function(
             "Mid",
             VBIntrinsicKind.Mid,

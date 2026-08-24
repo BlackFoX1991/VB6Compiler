@@ -3547,6 +3547,7 @@ public static class IrLowerer
         private static IrRuntimeMethod IntrinsicMethod(string target) => target switch
         {
             "VBStrings.Len" => IrRuntimeMethod.StringLen,
+            "VBStrings.LenB" => IrRuntimeMethod.StringLenB,
             "VBStrings.Mid" => IrRuntimeMethod.StringMid,
             "VBStrings.Chr" => IrRuntimeMethod.StringChr,
             "VBStrings.ChrW" => IrRuntimeMethod.StringChrW,
