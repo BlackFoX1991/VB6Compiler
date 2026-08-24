@@ -1212,9 +1212,13 @@ Größter Einzelblock.
       Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
       `Label`, `Shape`, `Line`, `Timer` und `Menu`) werden als typisierte Klassenfelder gebunden;
       vollständige Ressourcendekodierung und WinForms-Erzeugung bleiben offen.
-- [ ] Forms-Runtime auf WinForms: Twips, Property-/Event-Mapping, `Load`/`Unload`/`Show`
+- [~] Forms-Runtime auf WinForms: Der portable `IVB6Host`-Vertrag deckt Message-Pump, Form-Lifecycle,
+      dynamischen Member-/Control-Dispatch, Control-Erzeugung und Enumeration ab; `VB6.Runtime.WinForms`
+      mappt Standardcontrols, Twips, OLE-Farben und Fonts und regressionstestet `Load`/`Unload`/`Show`.
+      Automatische Designer-Registrierung, vollständiges Event-Mapping und OCX-Hosting bleiben offen.
 - [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
-      als typisierte VB6-Arrays gebunden; die eigene Laufzeit-/WinForms-Nachbildung bleibt offen.
+      als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
+      initialisiert; die vollständige Laufzeit-/WinForms-Nachbildung bleibt offen.
 - [ ] Zeichnen auf Form/PictureBox, MDI
 - [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
@@ -1308,6 +1312,18 @@ Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter an
 Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
 UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
 `.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
-Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **861 Tests**.
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **865 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
+
+## Aktueller Forms-Host-Nachtrag
+
+Der Managed-Form-Startup erzeugt Designer-Controls jetzt über einen expliziten portablen
+`IVB6Host`-Vertrag und ruft für die gehaltene Startup-Instanz `Load` sowie `Show` auf. Ohne
+Host bleibt der Compiler headless lauffähig und verwendet `VBControlProxy`-Objekte. Der optionale
+`VB6.Runtime.WinForms`-Adapter erzeugt Standard-WinForms-Controls, löst Designer-Namen auf,
+überträgt `Caption`/`Text`, `Visible`, `Enabled`, Position und Größe in VB6-Twips, OLE-Farben,
+Fonts und Handles und führt `Unload`/`DoEvents` aus. Portable Runtime-, Compiler-E2E- und STA-
+WinForms-Regressionen sichern diesen Umfang ab. Vollständige `.frx`-Ressourcendekodierung,
+automatische Bindung aller verschachtelten Designer-Controls, WinForms-Event-Mapping, MDI,
+UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap-Blöcke.

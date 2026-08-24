@@ -67,20 +67,33 @@ public static class DirectManagedCompilation
 
     private static IrProgram AddStartupFormEntryPoint(IrProgram program, ClassTypeSymbol startupForm)
     {
-        // Form startup currently constructs the generated form class. Window creation and the
-        // host message loop remain runtime-host responsibilities, but Class_Initialize is kept.
+        // Keep the generated form instance alive through Load/Show so a UI host can attach its
+        // native window and control tree before the application returns to the message pump.
+        var startupLocal = new IrLocal(0, "startupForm", startupForm, IsCompilerGenerated: true);
         var entryPoint = new IrProcedure(
             null,
             "Main",
             null,
             ImmutableArray<IrParameter>.Empty,
-            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(startupLocal),
             ImmutableArray.Create(
                 new IrBasicBlock(
                     0,
                     "startup_form_entry",
                     ImmutableArray.Create<IrInstruction>(
-                        new IrEvaluateInstruction(new IrNewClassExpression(startupForm))),
+                        new IrStoreInstruction(
+                            new IrLocalPlace(startupLocal),
+                            new IrNewClassExpression(startupForm)),
+                        new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                            IrRuntimeMethod.InteractionLoad,
+                            ImmutableArray.Create(new IrCallArgument(
+                                new IrLoadExpression(new IrLocalPlace(startupLocal)))),
+                            TypeSymbol.Error)),
+                        new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                            IrRuntimeMethod.InteractionShow,
+                            ImmutableArray.Create(new IrCallArgument(
+                                new IrLoadExpression(new IrLocalPlace(startupLocal)))),
+                            TypeSymbol.Error))),
                     new IrReturnTerminator(null))),
             IsStatic: true,
             IsCompilerGenerated: true);

@@ -1,3 +1,4 @@
+using VB6.IR;
 using VB6.Semantics;
 
 namespace VB6.Compiler.Tests;
@@ -665,6 +666,8 @@ public sealed class ProjectCompilationTests
             File.WriteAllText(Path.Combine(directory, "Splash.frm"), """
                 VERSION 5.00
                 Begin VB.Form Splash
+                   Begin VB.CommandButton StartButton
+                   End
                 End
                 Attribute VB_Name = "Splash"
                 Attribute VB_PredeclaredId = True
@@ -680,7 +683,34 @@ public sealed class ProjectCompilationTests
             Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
             Assert.IsNotNull(result.Lowering.Program);
             Assert.AreEqual("Main", result.Lowering.Program!.EntryPoint!.Name);
+            var startupInstructions = result.Lowering.Program.EntryPoint.Blocks
+                .Single()
+                .Instructions;
+            CollectionAssert.AreEquivalent(
+                new[]
+                {
+                    IrRuntimeMethod.InteractionLoad,
+                    IrRuntimeMethod.InteractionShow
+                },
+                startupInstructions
+                    .OfType<IrEvaluateInstruction>()
+                    .Select(instruction => instruction.Expression)
+                    .OfType<IrRuntimeCallExpression>()
+                    .Select(call => call.Method)
+                    .ToArray());
+
+            var formClass = result.Lowering.Program.ClassDefinitions
+                .Single(classDefinition => classDefinition.Name == "Splash");
+            var constructor = formClass.Methods.Single(method => method.Name == ".ctor");
+            Assert.IsTrue(
+                constructor.Blocks
+                    .SelectMany(block => block.Instructions)
+                    .OfType<IrStoreInstruction>()
+                    .Select(store => store.Value)
+                    .OfType<IrRuntimeCallExpression>()
+                    .Any(call => call.Method == IrRuntimeMethod.InteractionCreateControl));
             Assert.IsTrue(File.Exists(result.AssemblyPath));
+            Assert.AreEqual(string.Empty, VB6TestProgram.RunProject(projectPath));
         }
         finally
         {

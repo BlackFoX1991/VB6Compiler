@@ -13,6 +13,12 @@ public static class VBInteraction
     private static readonly VBApplication ApplicationValue = VBApplication.Create();
 
     /// <summary>
+    /// Optional UI host. Generated code can be executed headless when this is null; UI-sensitive
+    /// operations then remain deterministic no-ops or use the portable control proxy.
+    /// </summary>
+    public static IVB6Host? Host { get; set; }
+
+    /// <summary>
     /// Optional host activation hook for <c>CreateObject</c>. Returning <see langword="null"/>
     /// lets the runtime continue with its Windows COM activation or deterministic placeholder.
     /// </summary>
@@ -24,19 +30,47 @@ public static class VBInteraction
     /// </summary>
     public static Func<string, string, object?>? GetObjectSink { get; set; }
 
-    /// <summary>Yielding to a UI message pump is a host concern; the compiler runtime has no pump.</summary>
+    /// <summary>Yields to the configured UI host's message pump.</summary>
     public static void DoEvents()
     {
+        Host?.DoEvents();
     }
 
-    /// <summary>Form loading is supplied by the UI host; headless compilation has no form store.</summary>
+    /// <summary>Loads a form/control through the configured UI host.</summary>
     public static void Load(object? value)
     {
+        if (value is not null)
+        {
+            Host?.Load(value);
+        }
     }
 
-    /// <summary>Form unloading is supplied by the UI host; headless compilation has no form store.</summary>
+    /// <summary>Unloads a form/control through the configured UI host.</summary>
     public static void Unload(object? value)
     {
+        if (value is not null)
+        {
+            Host?.Unload(value);
+        }
+    }
+
+    /// <summary>Shows a form/control through the configured UI host.</summary>
+    public static void Show(object? value)
+    {
+        if (value is not null)
+        {
+            Host?.TryInvokeMember(value, "Show", Array.Empty<object?>(), out _);
+        }
+    }
+
+    /// <summary>Creates a designer control through the host or a portable headless proxy.</summary>
+    public static object CreateControl(object owner, string name, string typeName)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
+        return Host?.CreateControl(owner, name, typeName)
+            ?? new VBControlProxy(name, typeName, owner);
     }
 
     /// <summary>
@@ -250,6 +284,7 @@ public static class VBInteraction
     public static VBArray<object> EnumerateControls(object? target)
     {
         var values = ControlEnumerationSink?.Invoke(target)?.ToArray() ??
+            Host?.EnumerateControls(target)?.ToArray() ??
             (target is VBCollection collection
                 ? VBCollection.EnumerateValues(collection).EnumerateValues().Cast<object?>().ToArray()
                 : target is System.Collections.IEnumerable enumerable
@@ -279,6 +314,47 @@ public static class VBInteraction
 
     /// <summary>Optional host callback for the supported PaintPicture argument set.</summary>
     public static Action<VBPaintPicture>? PaintPictureSink { get; set; }
+
+    internal static bool TryGetHostMember(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        out object? value)
+    {
+        if (target is not null && Host is not null)
+        {
+            return Host.TryGetMember(target, memberName, arguments, out value);
+        }
+
+        value = null;
+        return false;
+    }
+
+    internal static bool TrySetHostMember(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        object? value)
+    {
+        return target is not null &&
+               Host is not null &&
+               Host.TrySetMember(target, memberName, arguments, value);
+    }
+
+    internal static bool TryInvokeHostMember(
+        object? target,
+        string memberName,
+        object?[] arguments,
+        out object? result)
+    {
+        if (target is not null && Host is not null)
+        {
+            return Host.TryInvokeMember(target, memberName, arguments, out result);
+        }
+
+        result = null;
+        return false;
+    }
 
     public static VBPicture LoadPicture(string fileName) => new(fileName);
 

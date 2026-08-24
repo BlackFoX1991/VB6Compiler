@@ -320,7 +320,37 @@ public static class IrLowerer
                 {
                     var field = _classFields[variable.Symbol];
                     var target = new IrFieldPlace(new IrThisPlace(classType), field);
-                    if (variable.Symbol.Type == TypeSymbol.String)
+                    if (variable.IsDesignerControl && variable.Symbol.Type is ArrayTypeSymbol controlArray)
+                    {
+                        var bounds = variable.ArrayDimensions
+                            .Select(dimension => new IrArrayBound(
+                                new IrConstantExpression(ReadConstantLong(dimension.LowerBound), TypeSymbol.Long),
+                                new IrConstantExpression(ReadConstantLong(dimension.UpperBound), TypeSymbol.Long)))
+                            .ToImmutableArray();
+                        instructions.Add(new IrStoreInstruction(
+                            target,
+                            new IrNewVBArrayExpression(controlArray, bounds)));
+
+                        foreach (var indices in EnumerateArrayIndices(bounds))
+                        {
+                            var displayName = variable.Symbol.Name + "(" +
+                                string.Join(",", indices.Select(index => index.ToString(System.Globalization.CultureInfo.InvariantCulture))) +
+                                ")";
+                            instructions.Add(new IrStoreInstruction(
+                                new IrArrayElementPlace(
+                                    new IrLoadExpression(target),
+                                    indices.Select(index => (IrExpression)new IrConstantExpression(index, TypeSymbol.Long)).ToImmutableArray(),
+                                    controlArray.ElementType),
+                                CreateDesignerControl(classType, displayName, controlArray.ElementType)));
+                        }
+                    }
+                    else if (variable.IsDesignerControl && variable.Symbol.Type is ClassTypeSymbol controlType)
+                    {
+                        instructions.Add(new IrStoreInstruction(
+                            target,
+                            CreateDesignerControl(classType, variable.Symbol.Name, controlType)));
+                    }
+                    else if (variable.Symbol.Type == TypeSymbol.String)
                     {
                         instructions.Add(new IrStoreInstruction(
                             target,
@@ -365,6 +395,65 @@ public static class IrLowerer
                 IsStatic: false,
                 IsCompilerGenerated: true,
                 DeclaringClass: classType);
+
+            static IrExpression CreateDesignerControl(
+                ClassTypeSymbol classType,
+                string displayName,
+                TypeSymbol controlType) =>
+                new IrRuntimeCallExpression(
+                    IrRuntimeMethod.InteractionCreateControl,
+                    ImmutableArray.Create(
+                        new IrCallArgument(
+                            new IrLoadExpression(new IrThisPlace(classType)),
+                            IrCallArgumentKind.Value),
+                        new IrCallArgument(
+                            new IrConstantExpression(displayName, TypeSymbol.String),
+                            IrCallArgumentKind.Value),
+                        new IrCallArgument(
+                            new IrConstantExpression(controlType.Name, TypeSymbol.String),
+                            IrCallArgumentKind.Value)),
+                    controlType);
+
+            static IEnumerable<ImmutableArray<long>> EnumerateArrayIndices(
+                ImmutableArray<IrArrayBound> bounds)
+            {
+                var values = new long[bounds.Length];
+
+                IEnumerable<ImmutableArray<long>> Walk(int dimension)
+                {
+                    if (dimension == bounds.Length)
+                    {
+                        yield return values.ToImmutableArray();
+                        yield break;
+                    }
+
+                    var lower = ((IrConstantExpression)bounds[dimension].Lower).Value;
+                    var upper = ((IrConstantExpression)bounds[dimension].Upper).Value;
+                    var first = Convert.ToInt64(lower, System.Globalization.CultureInfo.InvariantCulture);
+                    var last = Convert.ToInt64(upper, System.Globalization.CultureInfo.InvariantCulture);
+                    for (var index = first; index <= last; index++)
+                    {
+                        values[dimension] = index;
+                        foreach (var result in Walk(dimension + 1))
+                        {
+                            yield return result;
+                        }
+
+                        if (index == long.MaxValue)
+                        {
+                            yield break;
+                        }
+                    }
+                }
+
+                if (bounds.Length > 0)
+                {
+                    foreach (var result in Walk(0))
+                    {
+                        yield return result;
+                    }
+                }
+            }
         }
 
         private static IrProcedure LowerInterfaceProcedure(
