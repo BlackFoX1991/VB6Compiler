@@ -1427,8 +1427,9 @@ Raw-`IDispatch`-ABI-Aufrufe, COM-Server-Registrierung und native ABI-Marshalling
 Der Windows-RCW-Pfad deckt nun zusätzlich case-insensitive Automation-Methoden und Properties
 sowie Default-`Item`-Get/Let über `DISPID_VALUE` ab. Der Umfang ist mit `Scripting.Dictionary`
 gegen einen realen COM-Server regressionsgesichert; rohe `IDispatch::Invoke`-Strukturen,
-COM-ByRef-Variant-Marshalling und Server-Registrierung bleiben separate ABI-Schritte. Die
-Gesamtsuite umfasst **903 Tests**.
+COM-ByRef-Variant-Marshalling und Server-Registrierung bleiben separate ABI-Schritte. Der
+kompilierte VB6-`CreateObject`-Pfad ist mit Methoden-, Property- und Default-Indexer-Zugriff auf
+`Scripting.Dictionary` end-to-end abgesichert. Die Gesamtsuite umfasst **904 Tests**.
 
 ## Aktueller MSBuild-SDK-Nachtrag
 

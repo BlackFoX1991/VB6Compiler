@@ -203,6 +203,69 @@ public sealed class VariantObjectDispatchExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedProject_DispatchesRealComAutomationObject()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The COM compiler E2E test requires Windows.");
+            return;
+        }
+
+        if (Type.GetTypeFromProgID("Scripting.Dictionary", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The Scripting.Dictionary COM class is not available.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerComObjectDispatchTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ComObjectDispatch.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ComObjectDispatch"
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim dictionary As Object
+                    Set dictionary = CreateObject("Scripting.Dictionary")
+                    dictionary.Add "answer", 41
+                    Debug.Print dictionary.Count
+                    dictionary("answer") = 42
+                    Debug.Print dictionary("answer")
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "1", "42" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedProject_UsesDefaultPropertyThroughObject()
     {
         var directory = Path.Combine(
