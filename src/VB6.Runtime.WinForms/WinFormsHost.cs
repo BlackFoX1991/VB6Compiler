@@ -3103,12 +3103,44 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
-    private sealed class NativeActiveXControl : AxHost
+    private sealed class NativeActiveXControl : AxHost, IVBComObjectProvider
     {
+        private object? _comObject;
+
         public NativeActiveXControl(Guid clsid)
             : base(clsid.ToString("B"))
         {
             SetStyle(ControlStyles.ResizeRedraw, true);
+        }
+
+        public object? ComObject
+        {
+            get
+            {
+                if (_comObject is not null)
+                {
+                    return _comObject;
+                }
+
+                try
+                {
+                    if (!IsHandleCreated)
+                    {
+                        CreateControl();
+                    }
+
+                    _comObject = GetOcx();
+                    return _comObject;
+                }
+                catch (COMException)
+                {
+                    return null;
+                }
+                catch (InvalidOperationException)
+                {
+                    return null;
+                }
+            }
         }
     }
 

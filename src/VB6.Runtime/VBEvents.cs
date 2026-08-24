@@ -271,13 +271,17 @@ public static class VBEvents
                  subscription.ComDispId is int dispId &&
                  subscription.Delegate is not null)
         {
+            var comSource = GetComObject(subscription.Source);
             if (OperatingSystem.IsWindows())
             {
-                ComEventsHelper.Remove(
-                    subscription.Source,
-                    interfaceId,
-                    dispId,
-                    subscription.Delegate);
+                if (comSource is not null)
+                {
+                    ComEventsHelper.Remove(
+                        comSource,
+                        interfaceId,
+                        dispId,
+                        subscription.Delegate);
+                }
             }
         }
         else if (subscription.Handler is not null)
@@ -339,8 +343,10 @@ public static class VBEvents
         interfaceId = null;
         dispId = null;
         @delegate = null;
+        var comSource = GetComObject(source);
         if (!OperatingSystem.IsWindows() ||
-            !Marshal.IsComObject(source) ||
+            comSource is null ||
+            !Marshal.IsComObject(comSource) ||
             !Guid.TryParse(comInterfaceId, out var parsedInterfaceId) ||
             comDispId is not int parsedDispId)
         {
@@ -356,7 +362,7 @@ public static class VBEvents
             var delegateType = System.Linq.Expressions.Expression.GetDelegateType(
                 parameterTypes.Concat(new[] { typeof(void) }).ToArray());
             @delegate = CreateEventDelegate(delegateType, parameterTypes, callback);
-            ComEventsHelper.Combine(source, parsedInterfaceId, parsedDispId, @delegate);
+            ComEventsHelper.Combine(comSource, parsedInterfaceId, parsedDispId, @delegate);
             interfaceId = parsedInterfaceId;
             dispId = parsedDispId;
             return true;
@@ -480,6 +486,9 @@ public static class VBEvents
 
         public void Invoke(object?[] arguments) => _method.Invoke(_target, arguments);
     }
+
+    private static object? GetComObject(object source) =>
+        source is IVBComObjectProvider provider ? provider.ComObject : source;
 
     private sealed class MethodSubscription
     {

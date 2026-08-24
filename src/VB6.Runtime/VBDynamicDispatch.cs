@@ -81,15 +81,16 @@ public static class VBDynamicDispatch
         bool setProperty,
         out object? result)
     {
-        if (target is null ||
+        var dispatchTarget = GetComObject(target);
+        if (dispatchTarget is null ||
             !OperatingSystem.IsWindows() ||
-            !Marshal.IsComObject(target))
+            !Marshal.IsComObject(dispatchTarget))
         {
             result = null;
             return false;
         }
 
-        return TryInvokeComMember(target, string.Empty, arguments, setProperty, out result);
+        return TryInvokeComMember(dispatchTarget, string.Empty, arguments, setProperty, out result);
     }
 
     public static object? InvokeMember(
@@ -187,6 +188,7 @@ public static class VBDynamicDispatch
         bool setProperty,
         out object? result)
     {
+        target = GetComObject(target) ?? target;
         var flags = BindingFlags.Instance |
             BindingFlags.Public |
             BindingFlags.NonPublic |
@@ -232,6 +234,9 @@ public static class VBDynamicDispatch
 
     private static bool IsMissingComMember(COMException exception) =>
         exception.ErrorCode is unchecked((int)0x80020003) or unchecked((int)0x80020006);
+
+    private static object? GetComObject(object? target) =>
+        target is IVBComObjectProvider provider ? provider.ComObject : target;
 
     private static object? InvokeMethod(object target, MethodInfo method, object?[] arguments)
     {

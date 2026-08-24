@@ -1781,3 +1781,15 @@ Managed-DLL wird nicht mehr als startbare `.exe` kopiert, wodurch die bekannte
 `System.Private.CoreLib`-Ladeexception vermieden wird. VISIA wurde frisch mit `--x86` emittiert
 und über den x86-Runner ohne unbehandelte Ausnahme gestartet. Die Gesamtsuite umfasst
 **950 Tests**.
+
+## Aktueller COM-Wrapper-Interop-Nachtrag
+
+Native `AxHost`-Controls stellen nun über `IVBComObjectProvider` ihr zugrunde liegendes RCW für
+den portablen Runtime-Kern bereit. `VBDynamicDispatch` leitet dadurch Late-Bound Methoden,
+Properties und `DISPID_VALUE`-Defaultzugriffe auf das echte COM-Objekt weiter, ohne die
+WinForms-Geometrie des Wrappers zu verlieren. Der bestehende `ComEventsHelper`-Pfad verwendet
+für `WithEvents`-Subscriptions und deren Abmeldung ebenfalls das entpackte RCW; damit können
+TypeLib-importierte Source-IIDs/DISPIDs auch für native OCX-Wrapper verwendet werden. Der
+Regressionstest deckt diesen Vertrag mit einem realen `Scripting.Dictionary`-RCW ab. Raw-
+`IDispatch`-ABI-Marshalling, vollständige OCX-Event-Signaturabdeckung und COM-Server-Emission
+bleiben separate Interop-Schritte. Die Gesamtsuite umfasst **951 Tests**.
