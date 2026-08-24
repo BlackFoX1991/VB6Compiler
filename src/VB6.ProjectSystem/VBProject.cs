@@ -18,6 +18,9 @@ public sealed record VBProjectItem(
     string? Name,
     string RelativePath)
 {
+    /// <summary>Designer engine name from a legacy <c>Designer=...; ...</c> entry.</summary>
+    public string? DesignerType { get; init; }
+
     public string GetFullPath(string projectDirectory) =>
         Path.GetFullPath(Path.Combine(projectDirectory, RelativePath));
 }

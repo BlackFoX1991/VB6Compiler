@@ -101,6 +101,20 @@ public sealed class VBProjectLoaderTests
     }
 
     [TestMethod]
+    public void Parse_ResolvesLegacyDesignerEntryPathAndType()
+    {
+        var result = new VBProjectLoader().Parse(
+            "Designer=MSDataEnvironment; DataEnvironment1.dsr\n",
+            Path.Combine(Path.GetTempPath(), "LegacyData", "LegacyData.vbp"));
+
+        var designer = result.Project.Items.Single();
+        Assert.AreEqual(VBProjectItemKind.Designer, designer.Kind);
+        Assert.AreEqual("DataEnvironment1", designer.Name);
+        Assert.AreEqual("DataEnvironment1.dsr", designer.RelativePath);
+        Assert.AreEqual("MSDataEnvironment", designer.DesignerType);
+    }
+
+    [TestMethod]
     public void Parse_IgnoresStandardSectionHeadersAndKeepsSectionProperties()
     {
         const string source = """

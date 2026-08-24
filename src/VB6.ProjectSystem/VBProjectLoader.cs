@@ -101,7 +101,7 @@ public sealed class VBProjectLoader
                     break;
 
                 case "DESIGNER":
-                    items.Add(ParsePathItem(VBProjectItemKind.Designer, value));
+                    items.Add(ParseDesignerItem(value));
                     break;
 
                 case "REFERENCE":
@@ -150,6 +150,21 @@ public sealed class VBProjectLoader
         var path = NormalizeRelativePath(Unquote(value));
         var inferredName = Path.GetFileNameWithoutExtension(path);
         return new VBProjectItem(kind, inferredName, path);
+    }
+
+    private static VBProjectItem ParseDesignerItem(string value)
+    {
+        var separatorIndex = value.IndexOf(';');
+        if (separatorIndex < 0)
+        {
+            return ParsePathItem(VBProjectItemKind.Designer, value);
+        }
+
+        var designerType = Unquote(value[..separatorIndex].Trim());
+        var item = ParsePathItem(
+            VBProjectItemKind.Designer,
+            value[(separatorIndex + 1)..].Trim());
+        return item with { DesignerType = designerType };
     }
 
     private static string NormalizeRelativePath(string path) =>

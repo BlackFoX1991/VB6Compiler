@@ -816,6 +816,48 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedLibrary_CompilesLegacyDesignerSources()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "LegacyData.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name="LegacyData"
+                Designer=MSDataEnvironment; DataEnvironment1.dsr
+                """);
+            File.WriteAllText(Path.Combine(directory, "DataEnvironment1.dsr"), """
+                VERSION 5.00
+                Begin MSDataEnvironment DataEnvironment1
+                End
+                Attribute VB_Name = "DataEnvironment1"
+                Option Explicit
+
+                Public Function Value() As Long
+                    Value = 3
+                End Function
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "LegacyData.dll"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            Assert.AreEqual(1, result.Lowering.Analysis.Designers.Length);
+            CollectionAssert.Contains(
+                result.Lowering.Analysis.SemanticModel!.ClassTypes.Select(type => type.Name).ToArray(),
+                "DataEnvironment1");
+            Assert.IsTrue(File.Exists(result.AssemblyPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_BindsClassTypesFromReferencedVbp()
     {
         var directory = CreateTemporaryDirectory();

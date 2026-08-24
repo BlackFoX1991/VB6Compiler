@@ -107,10 +107,17 @@ internal static class VBClassModuleSource
             return false;
         }
 
-        return source.Contains(" CLASS", StringComparison.OrdinalIgnoreCase) ||
-            source.Contains("Begin VB.Form", StringComparison.OrdinalIgnoreCase) ||
-            source.Contains("Begin VB.UserControl", StringComparison.OrdinalIgnoreCase) ||
-            source.Contains("Begin VB.PropertyPage", StringComparison.OrdinalIgnoreCase) ||
-            source.Contains("Begin VB.UserDocument", StringComparison.OrdinalIgnoreCase);
+        using var designerReader = new StringReader(source);
+        while ((line = designerReader.ReadLine()) is not null)
+        {
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith("Begin ", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.StartsWith("BeginProperty ", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return source.Contains(" CLASS", StringComparison.OrdinalIgnoreCase);
     }
 }
