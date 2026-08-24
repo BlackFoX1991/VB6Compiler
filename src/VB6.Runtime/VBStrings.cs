@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace VB6.Runtime;
 
 /// <summary>
@@ -336,14 +338,14 @@ public static class VBStrings
         _ = firstDayOfWeek;
         _ = firstWeekOfYear;
 
-        if (VBVariants.IsNull(expression))
-        {
-            return "Null";
-        }
-
         if (expression is string text)
         {
             return FormatString(text, format);
+        }
+
+        if (VBVariants.IsNull(expression))
+        {
+            return FormatString(string.Empty, format, isNull: true);
         }
 
         if (expression is VBDateValue date)
@@ -539,14 +541,92 @@ public static class VBStrings
         return count;
     }
 
-    private static string FormatString(string value, string format) => format switch
+    private static string FormatString(string value, string format, bool isNull = false)
     {
-        "" => value,
-        "<" => value.ToLowerInvariant(),
-        ">" => value.ToUpperInvariant(),
-        _ => throw new NotSupportedException(
-            $"String Format mask '{format}' is outside the current '<'/'>' subset.")
-    };
+        if (format.Length == 0)
+        {
+            return isNull ? "Null" : value;
+        }
+
+        var sections = format.Split(';', 2, StringSplitOptions.None);
+        var selectedFormat = value.Length == 0 || isNull
+            ? sections.Length == 2 ? sections[1] : sections[0]
+            : sections[0];
+        var forceLower = selectedFormat.Contains('<');
+        var forceUpper = selectedFormat.Contains('>');
+        var leftToRight = selectedFormat.Contains('!');
+        var pattern = selectedFormat
+            .Replace("<", string.Empty, StringComparison.Ordinal)
+            .Replace(">", string.Empty, StringComparison.Ordinal)
+            .Replace("!", string.Empty, StringComparison.Ordinal);
+        var placeholderCount = pattern.Count(character => character is '@' or '&');
+
+        if (placeholderCount == 0)
+        {
+            if (pattern.Length == 0 && (forceLower || forceUpper))
+            {
+                return forceLower ? value.ToLowerInvariant() : value.ToUpperInvariant();
+            }
+
+            if (sections.Length == 2 && (value.Length == 0 || isNull))
+            {
+                return ApplyStringCase(pattern, forceLower, forceUpper);
+            }
+
+            throw new NotSupportedException(
+                $"String Format mask '{format}' is outside the current string placeholder subset.");
+        }
+
+        var characters = value.ToCharArray();
+        var nextCharacter = leftToRight ? 0 : characters.Length - 1;
+        var step = leftToRight ? 1 : -1;
+        var placeholderPositions = pattern
+            .Select((character, index) => (character, index))
+            .Where(entry => entry.character is '@' or '&')
+            .Select(entry => entry.index)
+            .ToArray();
+        var replacements = new Dictionary<int, char?>();
+        foreach (var position in leftToRight
+                     ? placeholderPositions
+                     : placeholderPositions.Reverse())
+        {
+            var hasCharacter = leftToRight
+                ? nextCharacter < characters.Length
+                : nextCharacter >= 0;
+            replacements[position] = hasCharacter
+                ? characters[nextCharacter]
+                : pattern[position] == '@' ? ' ' : null;
+            if (hasCharacter)
+            {
+                nextCharacter += step;
+            }
+        }
+
+        var result = new StringBuilder(pattern.Length);
+        for (var position = 0; position < pattern.Length; position++)
+        {
+            var character = pattern[position];
+            if (character is not ('@' or '&'))
+            {
+                result.Append(character);
+                continue;
+            }
+
+            if (replacements[position] is char replacement)
+            {
+                result.Append(replacement);
+            }
+        }
+
+        return ApplyStringCase(result.ToString(), forceLower, forceUpper);
+    }
+
+    private static string ApplyStringCase(string value, bool forceLower, bool forceUpper) =>
+        forceLower
+            ? value.ToLowerInvariant()
+            : forceUpper
+                ? value.ToUpperInvariant()
+                : value;
 
     private static bool TryGetFormatNumber(object? value, out IFormattable number)
     {
