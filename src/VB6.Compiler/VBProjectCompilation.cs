@@ -82,9 +82,20 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
+            var preprocessed = VBConditionalCompilation.Process(source, modulePath);
+            var preprocessedText = SourceText.From(preprocessed.Source, modulePath);
+            foreach (var diagnostic in preprocessed.Diagnostics)
+            {
+                projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                    diagnostic.Code,
+                    diagnostic.Message,
+                    diagnostic.FilePath,
+                    preprocessedText.GetLinePosition(diagnostic.Span.Start).Line + 1));
+            }
+
             if (IsClassModuleKind(module.Kind))
             {
-                var designerResult = VBDesignerParser.Parse(source, modulePath);
+                var designerResult = VBDesignerParser.Parse(preprocessed.Source, modulePath);
                 if (designerResult.Document is not null)
                 {
                     designerDocuments[modulePath] = designerResult.Document;
@@ -101,8 +112,8 @@ public sealed class VBProjectCompilation
             }
 
             var normalizedSource = IsClassModuleKind(module.Kind)
-                ? VBClassModuleSource.Normalize(source)
-                : source;
+                ? VBClassModuleSource.Normalize(preprocessed.Source)
+                : preprocessed.Source;
             var text = SourceText.From(normalizedSource, modulePath);
             var parseResult = new ParserType(text).ParseCompilationUnit();
             sourceDiagnostics.AddRange(parseResult.Diagnostics);

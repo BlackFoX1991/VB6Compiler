@@ -10,15 +10,25 @@ namespace VB6.Compiler;
 
 public sealed class VBCompilation
 {
-    private VBCompilation(SourceText text)
+    private VBCompilation(
+        SourceText text,
+        ImmutableArray<Diagnostic> conditionalCompilationDiagnostics)
     {
         Text = text;
+        _conditionalCompilationDiagnostics = conditionalCompilationDiagnostics;
     }
+
+    private readonly ImmutableArray<Diagnostic> _conditionalCompilationDiagnostics;
 
     public SourceText Text { get; }
 
-    public static VBCompilation Create(string source, string? filePath = null) =>
-        new(SourceText.From(source, filePath));
+    public static VBCompilation Create(string source, string? filePath = null)
+    {
+        var preprocessed = VBConditionalCompilation.Process(source, filePath);
+        return new(
+            SourceText.From(preprocessed.Source, filePath),
+            preprocessed.Diagnostics);
+    }
 
     public CompilationAnalysis Analyze()
     {
@@ -28,7 +38,7 @@ public sealed class VBCompilation
             return new CompilationAnalysis(
                 parseResult,
                 null,
-                parseResult.Diagnostics);
+                _conditionalCompilationDiagnostics.AddRange(parseResult.Diagnostics));
         }
 
         var implicitVariantRoot = ImplicitVariantSyntaxLowerer.Lower(parseResult.Root);
@@ -78,7 +88,8 @@ public sealed class VBCompilation
             forEachRoot,
             userDefinedTypes.Types);
         var variantOperationDiagnostics = VariantOperationGuard.Validate(Text, semanticModel);
-        var diagnostics = parseResult.Diagnostics
+        var diagnostics = _conditionalCompilationDiagnostics
+            .AddRange(parseResult.Diagnostics)
             .AddRange(userDefinedTypes.Diagnostics)
             .AddRange(semanticModel.Diagnostics)
             .AddRange(userDefinedTypeValueDiagnostics)

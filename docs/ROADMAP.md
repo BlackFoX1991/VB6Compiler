@@ -1469,3 +1469,14 @@ Textselektion abgesichert. Vollständige OCX-Memberbibliotheken, MDI und UserCon
 bleiben separate Forms-/Interop-Schritte. `Timer` wird als eigener unsichtbarer WinForms-Host-
 Control mit `Interval`, `Enabled` und konventionellem `TimerName_Timer`-Handler verdrahtet.
 Die Gesamtsuite umfasst **899 Tests**.
+
+## Aktueller Conditional-Compilation-Nachtrag
+
+Die Managed-Compilation wertet jetzt `#Const`, verschachtelte `#If`-/`#ElseIf`-/`#Else`-/
+`#End If`-Blöcke und die gängigen `VBA6`-/`VBA7`-/`VBA`-/`Win16`-/`Win32`-/`Win64`- sowie
+Mac-Plattformkonstanten vor Parser und Binder aus. Inaktive Zeilen bleiben durch
+positionsstabile Leerzeichen und Zeilenumbrüche im Quelltext erhalten; fehlerhafte oder nicht
+abgeschlossene Blöcke liefern datei- und zeilenbezogene `VB6CC`-Diagnosen. Der gleiche Vertrag
+gilt für direkte `.bas`-Emission und echte `.vbp`-Projektquellen, einschließlich Designer-
+Klassenmodulen. Die vollständige Release-Suite umfasst **912 Tests**; der VISIA-CLI-Report
+analysiert weiterhin 40 von 40 Projektitems ohne Fehler.
