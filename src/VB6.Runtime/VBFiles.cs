@@ -28,6 +28,114 @@ public static class VBFiles
         File.Delete(path);
     }
 
+    /// <summary>Copies one filesystem file without overwriting an existing destination.</summary>
+    public static void FileCopy(string source, string destination)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+        File.Copy(source, destination, overwrite: false);
+    }
+
+    /// <summary>Creates one directory and reports an existing path as a VB6 filesystem error.</summary>
+    public static void MakeDirectory(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (Directory.Exists(path))
+        {
+            throw new IOException($"Directory '{path}' already exists.");
+        }
+
+        Directory.CreateDirectory(path);
+    }
+
+    /// <summary>Removes one empty directory, matching the VB6 RmDir contract.</summary>
+    public static void RemoveDirectory(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        Directory.Delete(path, recursive: false);
+    }
+
+    /// <summary>Changes the process current directory used by relative VB6 paths.</summary>
+    public static void ChangeDirectory(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        Directory.SetCurrentDirectory(path);
+    }
+
+    /// <summary>
+    /// Returns the current directory. A drive argument is accepted for source compatibility; the
+    /// portable managed profile can only provide the active directory for the current drive.
+    /// </summary>
+    public static string CurrentDirectory(string drive)
+    {
+        if (string.IsNullOrWhiteSpace(drive))
+        {
+            return Directory.GetCurrentDirectory();
+        }
+
+        var value = drive.Trim();
+        if (value.Length != 1 || !char.IsLetter(value[0]))
+        {
+            throw new ArgumentException("CurDir expects a drive letter.", nameof(drive));
+        }
+
+        var current = Directory.GetCurrentDirectory();
+        var root = Path.GetPathRoot(current);
+        if (root is not null &&
+            root.Length >= 1 &&
+            char.ToUpperInvariant(root[0]) == char.ToUpperInvariant(value[0]))
+        {
+            return current;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return value.ToUpperInvariant() + ":\\";
+        }
+
+        throw new DriveNotFoundException($"Drive '{value}' is not available on this host.");
+    }
+
+    /// <summary>Returns VB6 file and directory attribute bits for a filesystem path.</summary>
+    public static int GetAttributes(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var attributes = File.GetAttributes(path);
+        var result = 0;
+        if (attributes.HasFlag(FileAttributes.ReadOnly)) result |= 1;
+        if (attributes.HasFlag(FileAttributes.Hidden)) result |= 2;
+        if (attributes.HasFlag(FileAttributes.System)) result |= 4;
+        if (attributes.HasFlag(FileAttributes.Directory)) result |= 16;
+        if (attributes.HasFlag(FileAttributes.Archive)) result |= 32;
+        return result;
+    }
+
+    /// <summary>Applies the VB6 read-only/hidden/system/directory/archive attribute bits.</summary>
+    public static void SetAttributes(string path, int attributes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if ((attributes & ~63) != 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(attributes),
+                "VB6 file attributes must use the values 1, 2, 4, 16, or 32.");
+        }
+
+        var value = FileAttributes.Normal;
+        if ((attributes & 1) != 0) value |= FileAttributes.ReadOnly;
+        if ((attributes & 2) != 0) value |= FileAttributes.Hidden;
+        if ((attributes & 4) != 0) value |= FileAttributes.System;
+        if ((attributes & 32) != 0) value |= FileAttributes.Archive;
+        File.SetAttributes(path, value);
+    }
+
+    /// <summary>Returns a file's last-write timestamp as a VB6/OLE Automation Date.</summary>
+    public static double FileDateTime(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return File.GetLastWriteTime(path).ToOADate();
+    }
+
     /// <summary>
     /// Implements Dir's stateful first-call/continuation form. Attributes are accepted for source
     /// compatibility; the portable profile currently enumerates ordinary files only.

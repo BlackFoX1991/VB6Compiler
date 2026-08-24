@@ -266,6 +266,39 @@ public sealed class FileRuntimeTests
         Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBFiles.GetByte(0, null));
     }
 
+    [TestMethod]
+    public void FilesystemPathOperations_CopyDirectoriesAndAttributes()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerFilePathTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var source = Path.Combine(directory, "source.txt");
+        var copy = Path.Combine(directory, "copy.txt");
+        var nested = Path.Combine(directory, "nested");
+
+        try
+        {
+            File.WriteAllText(source, "hello");
+            VBFiles.FileCopy(source, copy);
+            Assert.AreEqual(5L, VBFiles.Length(copy));
+            Assert.IsTrue(VBFiles.FileDateTime(copy) > 0d);
+
+            VBFiles.MakeDirectory(nested);
+            Assert.AreEqual(16, VBFiles.GetAttributes(nested) & 16);
+            VBFiles.SetAttributes(copy, 1);
+            Assert.AreEqual(1, VBFiles.GetAttributes(copy) & 1);
+            VBFiles.SetAttributes(copy, 0);
+            VBFiles.RemoveDirectory(nested);
+            Assert.ThrowsException<IOException>(() => VBFiles.MakeDirectory(directory));
+        }
+        finally
+        {
+            if (File.Exists(source)) File.Delete(source);
+            if (File.Exists(copy)) File.Delete(copy);
+            if (Directory.Exists(nested)) Directory.Delete(nested);
+            if (Directory.Exists(directory)) Directory.Delete(directory);
+        }
+    }
+
     private static void WithTemporaryFile(Action<string> body)
     {
         var path = Path.Combine(Path.GetTempPath(), $"vb6files_{Guid.NewGuid():N}.bin");
