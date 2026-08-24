@@ -630,4 +630,68 @@ public sealed class VariantObjectDispatchExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_ResolvesDefaultValuesInBooleanContexts()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantBooleanDefaultTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "VariantBooleanDefault.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="VariantBooleanDefault"
+                Class=Box; Box.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Box.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Box"
+                Attribute Value.VB_UserMemId = 0
+
+                Public Property Get Value() As Long
+                    Value = 1
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim value As Variant
+                    Set value = New Box
+
+                    If value Then Debug.Print "if-true"
+                    Debug.Print IIf(value, "iif-true", "iif-false")
+                    Debug.Print Switch(value, "switch-true", False, "switch-false")
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "if-true", "iif-true", "switch-true" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

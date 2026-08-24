@@ -2014,3 +2014,11 @@ dem tatsächlichen Default-Wert eines Objekts. `CVErr` übernimmt denselben Vert
 explizite Error-Variant-Konversion; ein Default-Wert `Null` bleibt dabei `Null`. Direkte Runtime-
 Tests decken numerische, Null- und Error-Default-Properties ab, und ein emittiertes `.vbp` prüft
 den vollständigen Managed-Aufrufpfad. Die Gesamtsuite umfasst nun **970 Tests**.
+
+## Aktueller Variant-Objekt-Boolean-Nachtrag
+
+Der zentrale Variant-zu-Boolean-Pfad löst Default-Properties jetzt auch vor `If`-Bedingungen,
+`IIf`-Ausdrücken und `Switch`-Kriterien auf. Nichtnullige numerische Default-Werte werden wahr,
+`Null` bleibt falsch, und ein `Missing`-Default löst weiterhin den VB6-Fehler 448 aus. Ein direkter
+Runtime-Test sowie ein emittiertes `.vbp` mit allen drei Boolean-Kontexten sichern den Vertrag ab.
+Die Gesamtsuite umfasst nun **972 Tests**.

@@ -67,6 +67,16 @@ public sealed class VariantStateTests
         Assert.IsFalse(VBVariants.IsDate(new InvalidDateDefaultObject()));
     }
 
+    [TestMethod]
+    public void ToBoolean_ResolvesObjectDefaultValuesAndPreservesVariantStates()
+    {
+        Assert.IsTrue(VBVariants.ToBoolean(new TrueDefaultObject()));
+        Assert.IsFalse(VBVariants.ToBoolean(new FalseDefaultObject()));
+        Assert.IsFalse(VBVariants.ToBoolean(new NullDefaultObject()));
+        Assert.ThrowsException<VB6MissingArgumentException>(
+            () => VBVariants.ToBoolean(new MissingDefaultObject()));
+    }
+
     [DefaultMember(nameof(Value))]
     private sealed class DateDefaultObject
     {
@@ -77,6 +87,30 @@ public sealed class VariantStateTests
     private sealed class InvalidDateDefaultObject
     {
         public string Value => "not a date";
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class TrueDefaultObject
+    {
+        public int Value => 1;
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class FalseDefaultObject
+    {
+        public int Value => 0;
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class NullDefaultObject
+    {
+        public object Value => VBVariants.NullValue();
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class MissingDefaultObject
+    {
+        public object Value => VBVariants.MissingValue();
     }
 
     [TestMethod]

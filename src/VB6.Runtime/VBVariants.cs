@@ -102,6 +102,7 @@ public static class VBVariants
 
     public static bool ToBoolean(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         ThrowIfMissing(value);
         ThrowIfArray(value);
         return IsNull(value) ? false : VBConversions.CBool(value);
