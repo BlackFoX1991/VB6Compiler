@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Reflection;
 
 namespace VB6.Runtime.Tests;
 
@@ -15,6 +16,25 @@ public sealed class LikeAndObjectIdentityTests
         Assert.IsTrue(VBStrings.Like("m", "[a-z]", false));
         Assert.IsFalse(VBStrings.Like("A", "a", false));
         Assert.IsTrue(VBStrings.Like("A", "a", true));
+    }
+
+    [TestMethod]
+    public void Like_ResolvesDefaultValuesBeforeNullAndStringChecks()
+    {
+        Assert.IsTrue(VBStrings.Like(new TextDefaultObject(), "a*", textCompare: false));
+        Assert.IsFalse(VBStrings.Like(new NullDefaultObject(), "a*", textCompare: false));
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class TextDefaultObject
+    {
+        public string Value => "abc";
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class NullDefaultObject
+    {
+        public object Value => VBVariants.NullValue();
     }
 
     [TestMethod]

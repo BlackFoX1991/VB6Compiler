@@ -461,4 +461,89 @@ public sealed class VariantObjectDispatchExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_ResolvesDefaultValuesAcrossVariantIntrinsics()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantIntrinsicDefaultTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "VariantIntrinsicDefault.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="VariantIntrinsicDefault"
+                Class=Box; Box.cls
+                Class=DateBox; DateBox.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Box.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Box"
+                Attribute Value.VB_UserMemId = 0
+
+                Public Property Get Value() As Long
+                    Value = 7
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "DateBox.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "DateBox"
+                Attribute Value.VB_UserMemId = 0
+
+                Public Property Get Value() As String
+                    Value = "April 28, 2014"
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim value As Variant
+                    Set value = New Box
+
+                    Debug.Print Len(value)
+                    Debug.Print LenB(value)
+                    Debug.Print Format(value, "0")
+                    Debug.Print "[" & Str(value) & "]"
+                    Debug.Print IsNumeric(value)
+                    Debug.Print value Like "7"
+                    Debug.Print Val(value)
+
+                    Dim dateValue As Variant
+                    Set dateValue = New DateBox
+                    Debug.Print IsDate(dateValue)
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "4", "4", "7", "[ 7]", "True", "True", "7", "True" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
