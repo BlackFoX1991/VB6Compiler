@@ -546,4 +546,88 @@ public sealed class VariantObjectDispatchExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_ResolvesDefaultValuesForVariantMath()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantMathDefaultTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "VariantMathDefault.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="VariantMathDefault"
+                Class=Box; Box.cls
+                Class=ErrorBox; ErrorBox.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Box.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "Box"
+                Attribute Value.VB_UserMemId = 0
+
+                Public Property Get Value() As Double
+                    Value = -1.75
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "ErrorBox.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1
+                END
+                Attribute VB_Name = "ErrorBox"
+                Attribute Value.VB_UserMemId = 0
+
+                Public Property Get Value() As Long
+                    Value = 2001
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Public Sub Main()
+                    Dim value As Variant
+                    Set value = New Box
+
+                    Debug.Print Abs(value)
+                    Debug.Print Sgn(value)
+                    Debug.Print Fix(value)
+                    Debug.Print Round(value, 1)
+                    Debug.Print Int(value)
+
+                    Dim errorValue As Variant
+                    Set errorValue = New ErrorBox
+                    Debug.Print TypeName(CVErr(errorValue))
+                    Debug.Print CVErr(errorValue)
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "1.75", "-1", "-1", "-1.8", "-2", "Error", "Error 2001" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

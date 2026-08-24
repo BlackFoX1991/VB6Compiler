@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -43,6 +45,45 @@ public sealed class MathRuntimeTests
         Assert.ThrowsException<VB6MissingArgumentException>(
             () => VBConversions.Int(VBVariants.MissingValue()));
         Assert.ThrowsException<VB6TypeMismatchException>(() => VBConversions.Int(array));
+    }
+
+    [TestMethod]
+    public void ObjectVariants_ResolveDefaultValuesForVariantMathAndErrorConversion()
+    {
+        var number = new NumericDefaultObject();
+        var errorNumber = new ErrorNumberDefaultObject();
+        var nullValue = new NullDefaultObject();
+
+        Assert.AreEqual(1.75d, VBMath.Abs(number));
+        Assert.AreEqual((short)-1, VBMath.Sgn(number));
+        Assert.AreEqual(-1d, VBMath.Fix(number));
+        Assert.AreEqual(-1.8m, VBMath.Round(number, 1));
+        Assert.AreEqual(-2d, VBConversions.Int(number));
+        Assert.AreEqual(new VBErrorValue(2001), VBConversions.CVErr(errorNumber));
+
+        Assert.IsTrue(VBVariants.IsNull(VBMath.Abs(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBMath.Sgn(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBMath.Fix(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBMath.Round(nullValue, 0)));
+        Assert.IsTrue(VBVariants.IsNull(VBConversions.Int(nullValue)));
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class NumericDefaultObject
+    {
+        public double Value => -1.75d;
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class ErrorNumberDefaultObject
+    {
+        public int Value => 2001;
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class NullDefaultObject
+    {
+        public object Value => VBVariants.NullValue();
     }
 
     [TestMethod]
