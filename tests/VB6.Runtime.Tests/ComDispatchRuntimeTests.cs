@@ -93,6 +93,34 @@ public sealed class ComDispatchRuntimeTests
         }
     }
 
+    [TestMethod]
+    public void AutomationArrayMarshalling_PreservesBoundsAndCopiesBackValues()
+    {
+        var source = new VBArray<object>(
+            new VBArrayBound(1, 2),
+            new VBArrayBound(3, 4));
+        source[1, 3] = 10;
+        source[2, 4] = 40;
+
+        Assert.IsTrue(
+            VBComDispatch.TryCreateAutomationArray(
+                source,
+                (ushort)(0x2000 | 0x000C),
+                out var automationArray));
+        Assert.IsNotNull(automationArray);
+        Assert.AreEqual(2, automationArray!.Rank);
+        Assert.AreEqual(1, automationArray.GetLowerBound(0));
+        Assert.AreEqual(4, automationArray.GetUpperBound(1));
+        Assert.AreEqual(10, automationArray.GetValue(1, 3));
+        Assert.AreEqual(40, automationArray.GetValue(2, 4));
+
+        automationArray.SetValue(99, 1, 4);
+        automationArray.SetValue(123, 2, 3);
+        Assert.IsTrue(VBComDispatch.TryCopyArrayBack(source, automationArray));
+        Assert.AreEqual(99, source[1, 4]);
+        Assert.AreEqual(123, source[2, 3]);
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));

@@ -85,6 +85,10 @@ public sealed class CliProcessTests
                 "End Function\n" +
                 "Public Sub Increment(ByRef value As Long)\n" +
                 "    value = value + 1\n" +
+                "End Sub\n" +
+                "Public Sub MutateVariantArray(ByRef value As Variant)\n" +
+                "    value(1, 4) = 99\n" +
+                "    value(2, 3) = 123\n" +
                 "End Sub\n");
             var outputPath = Path.Combine(directory, "bin", "ComSample.dll");
 
@@ -120,7 +124,7 @@ public sealed class CliProcessTests
             var probeError = probe.StandardError.ReadToEnd();
             probe.WaitForExit();
             Assert.AreEqual(0, probe.ExitCode, probeError);
-            Assert.AreEqual("7|42", probeOutput.Trim());
+            Assert.AreEqual("7|42|99|123", probeOutput.Trim());
         }
         finally
         {

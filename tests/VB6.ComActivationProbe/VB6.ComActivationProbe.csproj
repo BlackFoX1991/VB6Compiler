@@ -7,4 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/VB6.Runtime/VB6.Runtime.csproj" />
+  </ItemGroup>
 </Project>

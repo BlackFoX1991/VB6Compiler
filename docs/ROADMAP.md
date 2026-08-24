@@ -2039,3 +2039,15 @@ gestartet. Der native .NET-AppHost lädt die danebenliegende Managed-DLL, `VB6.R
 die Runtime-Konfiguration korrekt, führt `Sub Main` aus und beendet sich ohne
 `System.Private.CoreLib`-Ladefehler. Damit ist der zuvor nur über PE-Header geprüfte x86-Output-
 Vertrag auch als Prozessstart abgesichert. Die Gesamtsuite umfasst nun **974 Tests**.
+
+## Aktueller SAFEARRAY-ByRef-Nachtrag
+
+Der TypeInfo-gesteuerte Raw-`IDispatch`-Pfad materialisiert interne `VBArray<T>`-Werte für
+unterstützte typed SAFEARRAY-ByRef-Parameter jetzt als CLR-Arrays. Rang, echte Untergrenzen und
+die physische VB6-Elementreihenfolge bleiben erhalten; skalare Automation-Elemente werden vor
+dem Übergang in den nativen VARIANT konvertiert. Nach dem Aufruf werden gleich geformte
+SAFEARRAY-Rückgaben wieder in den bestehenden `VBArray<T>`-Container geschrieben, statt dessen
+Identität durch ein fremdes CLR-Array zu ersetzen. Ein echter emittierter `comhost`-Prozess prüft
+weiterhin den zweidimensionalen, nicht bei null beginnenden `ByRef Variant`-SAFEARRAY-ABI. UDT-,
+Pointer- und nicht kompatible SAFEARRAY-Descriptoren bleiben bewusst separate Interop-Schritte.
+Die Gesamtsuite umfasst nun **974 Tests**.
