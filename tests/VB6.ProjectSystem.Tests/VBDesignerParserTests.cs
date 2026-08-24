@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Text;
+
 namespace VB6.ProjectSystem.Tests;
 
 [TestClass]
@@ -73,5 +76,58 @@ public sealed class VBDesignerParserTests
 
         Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
         Assert.IsNotNull(result.Document);
+    }
+
+    [TestMethod]
+    public void Parse_LoadsLengthPrefixedFrxPayloadAndDollarResourceReferences()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6Designer", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var formPath = Path.Combine(directory, "Main.frm");
+        var resourcePath = Path.Combine(directory, "Main.frx");
+        var payload = Encoding.ASCII.GetBytes("{\\rtf1\\ansi test}");
+        var resourceBytes = new byte[12 + payload.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(resourceBytes.AsSpan(8, sizeof(uint)), (uint)payload.Length);
+        payload.CopyTo(resourceBytes, 12);
+        File.WriteAllBytes(resourcePath, resourceBytes);
+
+        try
+        {
+            var result = VBDesignerParser.Parse("""
+                VERSION 5.00
+                Begin RichTextLib.RichTextBox Editor
+                   TextRTF = $"Main.frx":00000008
+                End
+                """, formPath);
+
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+            var property = result.Document!.Root.Properties.Single();
+            Assert.AreEqual(Path.GetFullPath(resourcePath), property.ResourcePath);
+            Assert.AreEqual(8, property.ResourceOffset);
+            CollectionAssert.AreEqual(payload, property.ResourceData);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FrxResourceReader_RejectsTruncatedPayload()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), "VB6Designer", Guid.NewGuid() + ".frx");
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+        var bytes = new byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 10);
+        File.WriteAllBytes(filePath, bytes);
+
+        try
+        {
+            Assert.ThrowsException<InvalidDataException>(() => VBFrxResourceReader.Read(filePath, 0));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
     }
 }

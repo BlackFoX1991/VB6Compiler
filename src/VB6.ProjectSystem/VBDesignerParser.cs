@@ -182,16 +182,21 @@ public static class VBDesignerParser
                 }
 
                 var resource = ParseResourceReference(rawValue, fullPath);
+                var resourceData = ReadResourceData(resource, fullPath, lineNumber, diagnostics);
                 var propertyName = propertyGroups.Count == 0
                     ? propertyKey
                     : propertyGroups.Peek().Name + "." + propertyKey;
-                nodes.Peek().Properties.Add(new VBDesignerProperty(
-                    propertyName,
-                    rawValue,
-                    ParseValue(rawValue),
-                    lineNumber,
-                    resource.Path,
-                    resource.Offset));
+                nodes.Peek().Properties.Add(
+                    new VBDesignerProperty(
+                        propertyName,
+                        rawValue,
+                        ParseValue(rawValue),
+                        lineNumber,
+                        resource.Path,
+                        resource.Offset)
+                    {
+                        ResourceData = resourceData
+                    });
             }
         }
 
@@ -344,19 +349,47 @@ public static class VBDesignerParser
     private static (string? Path, int? Offset) ParseResourceReference(string rawValue, string sourcePath)
     {
         var separator = rawValue.IndexOf(':');
-        if (separator <= 0 || !rawValue.StartsWith('"'))
+        var quoteStart = rawValue.StartsWith("$\"", StringComparison.Ordinal) ? 1 : 0;
+        if (separator <= quoteStart || rawValue.Length <= quoteStart || rawValue[quoteStart] != '"')
         {
             return (null, null);
         }
 
-        var quote = rawValue.IndexOf('"', 1);
+        var quote = rawValue.IndexOf('"', quoteStart + 1);
         if (quote <= 1 || !int.TryParse(rawValue[(separator + 1)..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var offset))
         {
             return (null, null);
         }
 
-        var relativePath = rawValue[1..quote];
+        var relativePath = rawValue[(quoteStart + 1)..quote];
         return (Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath) ?? string.Empty, relativePath)), offset);
+    }
+
+    private static byte[]? ReadResourceData(
+        (string? Path, int? Offset) resource,
+        string sourcePath,
+        int lineNumber,
+        ImmutableArray<VBDesignerDiagnostic>.Builder diagnostics)
+    {
+        if (resource.Path is null || resource.Offset is not int offset || !File.Exists(resource.Path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return VBFrxResourceReader.Read(resource.Path, offset);
+        }
+        catch (InvalidDataException exception)
+        {
+            diagnostics.Add(new VBDesignerDiagnostic(
+                "VB6FRX0001",
+                exception.Message,
+                sourcePath,
+                lineNumber,
+                VBDesignerDiagnosticSeverity.Warning));
+            return null;
+        }
     }
 
     private sealed class NodeBuilder
@@ -434,7 +467,11 @@ public sealed record VBDesignerProperty(
     object? Value,
     int Line,
     string? ResourcePath,
-    int? ResourceOffset);
+    int? ResourceOffset)
+{
+    /// <summary>Opaque bytes decoded from the referenced .frx resource, when the file is present.</summary>
+    public byte[]? ResourceData { get; init; }
+}
 
 public enum VBDesignerDiagnosticSeverity
 {
