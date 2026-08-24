@@ -11,6 +11,12 @@ namespace VB6.Runtime.WinForms.Tests;
 [STATestClass]
 public sealed class WinFormsHostTests
 {
+    private static bool RequireNativeOcx =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("VB6_REQUIRE_NATIVE_OCX"),
+            "1",
+            StringComparison.Ordinal);
+
     [TestMethod]
     public void GeneratedRunnerRejectsMissingAssembly()
     {
@@ -254,6 +260,11 @@ public sealed class WinFormsHostTests
     {
         if (Environment.Is64BitProcess)
         {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native OCX validation must run in a 32-bit test process.");
+            }
+
             return;
         }
 
@@ -272,6 +283,11 @@ public sealed class WinFormsHostTests
         if (visualOcx.Any(ocx => Type.GetTypeFromProgID(ocx.Item2, throwOnError: false) is null) ||
             Type.GetTypeFromProgID("MSComDlg.CommonDialog.1", throwOnError: false) is null)
         {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("One or more required standard OCX ProgIDs are not registered.");
+            }
+
             return;
         }
 
