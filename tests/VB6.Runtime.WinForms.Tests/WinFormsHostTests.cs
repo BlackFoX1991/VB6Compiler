@@ -87,6 +87,28 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostCreatesTimerControlsAndConnectsTimerHandlers()
+    {
+        using var host = new WinFormsHost();
+        var owner = new TimerEventSink();
+
+        host.Load(owner);
+        var timer = host.CreateControl(owner, "Timer1", "Timer")!;
+        Assert.IsTrue(host.TrySetMember(timer, "Interval", Array.Empty<object?>(), 250));
+        Assert.IsTrue(host.TrySetMember(timer, "Enabled", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TryGetMember(timer, "Interval", Array.Empty<object?>(), out var interval));
+        Assert.AreEqual(250, interval);
+        Assert.IsTrue(host.TryGetMember(timer, "Enabled", Array.Empty<object?>(), out var enabled));
+        Assert.AreEqual(true, enabled);
+
+        timer.GetType().GetMethod("RaiseTick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(timer, null);
+        Assert.AreEqual(1, owner.TickCount);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostPlacesQualifiedDesignerControlsInsideTheirParent()
     {
         using var host = new WinFormsHost();
@@ -228,5 +250,12 @@ public sealed class WinFormsHostTests
         private void OnKeyPress(short keyAscii) => KeyAscii = keyAscii;
 
         private void Form_Resize() => FormResizeCount++;
+    }
+
+    private sealed class TimerEventSink
+    {
+        public int TickCount { get; private set; }
+
+        private void Timer1_Timer() => TickCount++;
     }
 }
