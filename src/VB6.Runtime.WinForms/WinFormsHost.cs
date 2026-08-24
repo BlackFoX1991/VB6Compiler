@@ -298,6 +298,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ThrowIfDisposed();
         if (target is Control targetControl && target is not Form)
         {
+            VBEvents.UnsubscribeObject(targetControl);
             if (!targetControl.IsDisposed)
             {
                 targetControl.Visible = false;
@@ -331,6 +332,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         foreach (var richTextBox in binding.Controls.Values.OfType<RichTextBox>())
         {
             _richTextBoxStates.Remove(richTextBox);
+        }
+
+        VBEvents.UnsubscribeObject(target);
+        foreach (var source in binding.Controls.Values.Cast<object>().Concat(binding.Components.Values))
+        {
+            VBEvents.UnsubscribeObject(source);
         }
 
         DisposeComponents(binding);
@@ -943,6 +950,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         _popups.Clear();
         foreach (var entry in _bindings.ToArray())
         {
+            VBEvents.UnsubscribeObject(entry.Key);
+            foreach (var source in entry.Value.Controls.Values.Cast<object>().Concat(entry.Value.Components.Values))
+            {
+                VBEvents.UnsubscribeObject(source);
+            }
+
             InvokeBindingTermination(entry.Key, entry.Value);
             DisposeComponents(entry.Value);
             entry.Value.Form.Dispose();

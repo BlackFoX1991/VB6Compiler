@@ -112,6 +112,29 @@ public static class VBEvents
         }
     }
 
+    /// <summary>
+    /// Removes every generated-method subscription that references the supplied source or target.
+    /// Hosts use this when a form/control graph is torn down so COM connection points do not keep
+    /// native wrappers and generated event sinks alive after VB6 object termination.
+    /// </summary>
+    public static void UnsubscribeObject(object sourceOrTarget)
+    {
+        ArgumentNullException.ThrowIfNull(sourceOrTarget);
+
+        lock (Sync)
+        {
+            foreach (var existing in MethodSubscriptions
+                         .Where(subscription =>
+                             ReferenceEquals(subscription.Source, sourceOrTarget) ||
+                             ReferenceEquals(subscription.Target, sourceOrTarget))
+                         .ToArray())
+            {
+                RemoveSubscriptionLocked(existing);
+                MethodSubscriptions.Remove(existing);
+            }
+        }
+    }
+
     public static void SubscribeMethod(
         object? source,
         string eventName,
