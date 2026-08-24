@@ -2195,3 +2195,13 @@ Manifest; wenn ein erzeugtes Assembly-, AppHost-, Runtime-, PDB- oder Runtimecon
 fehlt, wird der Compile-Stempel invalidiert und die Gruppe vollständig repariert. Der CLI-Bereich
 umfasst damit **11** Tests, die Gesamtsuite **983** Tests. Die vollständige Visual-Studio-
 Projektmodell- und Design-Time-Integration bleibt der nächste Ausbau dieses Vertrags.
+
+## Aktueller TypeLib-SAFEARRAY-Elementtyp-Nachtrag
+
+Der TypeLib-Importer bewahrt `VT_ARRAY|T` und verschachtelte `VT_SAFEARRAY(T)`-Beschreibungen
+jetzt als `ArrayTypeSymbol` mit dem importierten Elementtyp. Dadurch wird beispielsweise
+`MSHTML.IHTMLDocument2.write` aus der realen Windows-`mshtml.tlb` als `Variant()` gebunden und
+kann den vorhandenen `VBArray<T>`-/Automation-Array-Vertrag verwenden. C-Arrays und Pointer-
+Konstrukte bleiben weiterhin opaque, bis ihr natives ABI explizit modelliert ist. Der echte
+`mshtml`-TypeLib-Bindungstest sowie eine Runtime-Regression für `SAFEARRAY(I4)` sichern Elementtyp,
+Untergrenzen und Rückkopieren ab. Die Gesamtsuite umfasst damit **985 Tests**.

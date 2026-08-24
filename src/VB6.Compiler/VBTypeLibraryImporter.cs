@@ -581,7 +581,35 @@ internal static class VBTypeLibraryImporter
         var vt = description.vt;
         var baseType = (short)(vt & VariantTypeMask);
 
-        if ((vt & VariantArray) != 0 || baseType is VtSafeArray or VtCArray)
+        if ((vt & VariantArray) != 0)
+        {
+            // VT_ARRAY keeps its element VARTYPE in the same TYPEDESC. Preserve that
+            // information so imported Automation members can use the existing VBArray<T>
+            // managed contract instead of degrading every array to Object.
+            var elementDescription = new TYPEDESC
+            {
+                vt = (short)(vt & ~VariantArray),
+                lpValue = description.lpValue
+            };
+            return new ArrayTypeSymbol(
+                ReadType(elementDescription, owner, libraryName, types));
+        }
+
+        if (baseType == VtSafeArray)
+        {
+            // VT_SAFEARRAY stores a nested element TYPEDESC in lpValue. C arrays use a
+            // different ARRAYDESC layout and remain opaque until their native ABI is modeled.
+            if (description.lpValue == IntPtr.Zero)
+            {
+                return VBStandardTypes.Object;
+            }
+
+            var elementDescription = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+            return new ArrayTypeSymbol(
+                ReadType(elementDescription, owner, libraryName, types));
+        }
+
+        if (baseType == VtCArray)
         {
             return VBStandardTypes.Object;
         }

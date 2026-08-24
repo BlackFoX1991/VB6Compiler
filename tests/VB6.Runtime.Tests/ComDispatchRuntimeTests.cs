@@ -121,6 +121,29 @@ public sealed class ComDispatchRuntimeTests
         Assert.AreEqual(123, source[2, 3]);
     }
 
+    [TestMethod]
+    public void AutomationArrayMarshalling_ConvertsTypedLongArrays()
+    {
+        var source = new VBArray<int>(new VBArrayBound(-1, 1));
+        source[-1] = 10;
+        source[1] = 30;
+
+        Assert.IsTrue(
+            VBComDispatch.TryCreateAutomationArray(
+                source,
+                (ushort)(0x2000 | 0x0003),
+                out var automationArray));
+        Assert.IsNotNull(automationArray);
+        Assert.AreEqual(typeof(int), automationArray!.GetType().GetElementType());
+        Assert.AreEqual(-1, automationArray.GetLowerBound(0));
+        Assert.AreEqual(10, automationArray.GetValue(-1));
+        Assert.AreEqual(30, automationArray.GetValue(1));
+
+        automationArray.SetValue(25, 0);
+        Assert.IsTrue(VBComDispatch.TryCopyArrayBack(source, automationArray));
+        Assert.AreEqual(25, source[0]);
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));

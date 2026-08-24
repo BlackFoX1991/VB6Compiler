@@ -498,6 +498,61 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ImportsAutomationSafeArrayElementTypesFromWindowsTypeLibraryReference()
+    {
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "System32",
+            "mshtml.tlb");
+        if (!OperatingSystem.IsWindows() || !File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The Windows mshtml.tlb test fixture is not available.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "TypeLibraryArrays.vbp");
+            File.WriteAllText(projectPath, $"""
+                Type=Exe
+                Startup="Sub Main"
+                Reference=*\G3050F1C5-98B5-11CF-BB82-00AA00BDCE0B#4.0#0#{typeLibraryPath}#MSHTML
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim document As MSHTML.IHTMLDocument2
+                    document.write Array("first", "second")
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!
+                .Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase));
+            var document = main.Locals.Single(local =>
+                string.Equals(local.Name, "document", StringComparison.OrdinalIgnoreCase));
+            Assert.IsInstanceOfType<ClassTypeSymbol>(document.Type);
+            var documentType = (ClassTypeSymbol)document.Type;
+            Assert.IsTrue(documentType.TryGetProcedure("write", out var write));
+            var parameterType = write.Parameters.Single().Type;
+            Assert.IsInstanceOfType<ArrayTypeSymbol>(parameterType);
+            Assert.AreSame(TypeSymbol.Variant, ((ArrayTypeSymbol)parameterType).ElementType);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ImportsActiveXEventPointerParametersAsByRef()
     {
         var typeLibraryPath = Path.Combine(
