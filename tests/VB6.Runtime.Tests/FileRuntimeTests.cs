@@ -273,7 +273,9 @@ public sealed class FileRuntimeTests
         Directory.CreateDirectory(directory);
         var source = Path.Combine(directory, "source.txt");
         var copy = Path.Combine(directory, "copy.txt");
+        var renamed = Path.Combine(directory, "renamed.txt");
         var nested = Path.Combine(directory, "nested");
+        var renamedNested = Path.Combine(directory, "renamed-nested");
 
         try
         {
@@ -281,20 +283,28 @@ public sealed class FileRuntimeTests
             VBFiles.FileCopy(source, copy);
             Assert.AreEqual(5L, VBFiles.Length(copy));
             Assert.IsTrue(VBFiles.FileDateTime(copy) > 0d);
+            VBFiles.Rename(copy, renamed);
+            Assert.IsFalse(File.Exists(copy));
+            Assert.AreEqual(5L, VBFiles.Length(renamed));
 
             VBFiles.MakeDirectory(nested);
             Assert.AreEqual(16, VBFiles.GetAttributes(nested) & 16);
-            VBFiles.SetAttributes(copy, 1);
-            Assert.AreEqual(1, VBFiles.GetAttributes(copy) & 1);
-            VBFiles.SetAttributes(copy, 0);
-            VBFiles.RemoveDirectory(nested);
+            VBFiles.Rename(nested, renamedNested);
+            Assert.IsFalse(Directory.Exists(nested));
+            Assert.AreEqual(16, VBFiles.GetAttributes(renamedNested) & 16);
+            VBFiles.SetAttributes(renamed, 1);
+            Assert.AreEqual(1, VBFiles.GetAttributes(renamed) & 1);
+            VBFiles.SetAttributes(renamed, 0);
+            VBFiles.RemoveDirectory(renamedNested);
             Assert.ThrowsException<IOException>(() => VBFiles.MakeDirectory(directory));
         }
         finally
         {
             if (File.Exists(source)) File.Delete(source);
             if (File.Exists(copy)) File.Delete(copy);
+            if (File.Exists(renamed)) File.Delete(renamed);
             if (Directory.Exists(nested)) Directory.Delete(nested);
+            if (Directory.Exists(renamedNested)) Directory.Delete(renamedNested);
             if (Directory.Exists(directory)) Directory.Delete(directory);
         }
     }

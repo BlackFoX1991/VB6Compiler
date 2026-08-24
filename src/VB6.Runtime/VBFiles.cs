@@ -36,6 +36,20 @@ public static class VBFiles
         File.Copy(source, destination, overwrite: false);
     }
 
+    /// <summary>Renames one file or directory without overwriting an existing destination.</summary>
+    public static void Rename(string source, string destination)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+        if (Directory.Exists(source))
+        {
+            Directory.Move(source, destination);
+            return;
+        }
+
+        File.Move(source, destination, overwrite: false);
+    }
+
     /// <summary>Creates one directory and reports an existing path as a VB6 filesystem error.</summary>
     public static void MakeDirectory(string path)
     {

@@ -955,6 +955,7 @@ public sealed class Parser
             SyntaxKind.IdentifierToken when IsLSetAssignmentStart() => ParseLSetAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsSetAssignmentStart() => ParseSetAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Open") => ParseOpenStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeNameStatement() => ParseNameStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Close") => ParseCloseStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Get") => ParseGetOrPutStatement(isGet: true),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Put") => ParseGetOrPutStatement(isGet: false),
@@ -1494,6 +1495,29 @@ public sealed class Parser
         (!string.Equals(keyword, "Print", StringComparison.OrdinalIgnoreCase) ||
          Peek(1).Kind == SyntaxKind.HashToken);
 
+    private bool LooksLikeNameStatement()
+    {
+        if (!string.Equals(Current.Text, "Name", StringComparison.OrdinalIgnoreCase) ||
+            Peek(1).Kind is SyntaxKind.EqualsToken or SyntaxKind.DotToken)
+        {
+            return false;
+        }
+
+        for (var offset = 1; ; offset++)
+        {
+            var kind = Peek(offset).Kind;
+            if (kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken)
+            {
+                return false;
+            }
+
+            if (kind == SyntaxKind.AsKeyword)
+            {
+                return true;
+            }
+        }
+    }
+
     private bool LooksLikeLineInputStatement() =>
         string.Equals(Current.Text, "Line", StringComparison.OrdinalIgnoreCase) &&
         string.Equals(Peek(1).Text, "Input", StringComparison.OrdinalIgnoreCase);
@@ -1561,6 +1585,14 @@ public sealed class Parser
             lenKeyword,
             lenEquals,
             recordLength);
+    }
+
+    private NameStatementSyntax ParseNameStatement()
+    {
+        var nameKeyword = NextToken();
+        var oldPath = ParseExpression();
+        var asKeyword = MatchToken(SyntaxKind.AsKeyword);
+        return new NameStatementSyntax(nameKeyword, oldPath, asKeyword, ParseExpression());
     }
 
     private FilePrintStatementSyntax ParseFilePrintStatement()

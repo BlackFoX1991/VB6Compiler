@@ -1239,6 +1239,7 @@ public sealed class Binder
                 BindExpression(filePrint.Expression, variables, procedures)),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
             OpenStatementSyntax open => BindOpen(open, variables, procedures),
+            NameStatementSyntax name => BindName(name, variables, procedures),
             CloseStatementSyntax close => BindClose(close, variables, procedures),
             GetStatementSyntax get => BindGetOrPut(
                 get.FileNumber, get.RecordPosition, get.Target, get.GetKeyword, isGet: true, variables, procedures),
@@ -1468,6 +1469,14 @@ public sealed class Binder
             mode.Value,
             recordLength);
     }
+
+    private BoundStatement BindName(
+        NameStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures) =>
+        new BoundNameStatement(
+            BindConversion(BindExpression(syntax.OldPath, variables, procedures), TypeSymbol.String),
+            BindConversion(BindExpression(syntax.NewPath, variables, procedures), TypeSymbol.String));
 
     private BoundStatement BindClose(
         CloseStatementSyntax syntax,

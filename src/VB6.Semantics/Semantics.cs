@@ -435,6 +435,7 @@ public enum BoundNodeKind
     OnErrorStatement,
     ResumeStatement,
     OpenStatement,
+    NameStatement,
     CloseStatement,
     SeekStatement,
     GetStatement,
@@ -640,6 +641,10 @@ public sealed record BoundOpenStatement(
     BoundExpression Path,
     BoundFileOpenMode Mode,
     BoundExpression? RecordLength = null) : BoundStatement(BoundNodeKind.OpenStatement);
+
+public sealed record BoundNameStatement(
+    BoundExpression OldPath,
+    BoundExpression NewPath) : BoundStatement(BoundNodeKind.NameStatement);
 
 public sealed record BoundCloseStatement(
     ImmutableArray<BoundExpression> FileNumbers) : BoundStatement(BoundNodeKind.CloseStatement);

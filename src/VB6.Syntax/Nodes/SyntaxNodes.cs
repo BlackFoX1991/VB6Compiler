@@ -489,6 +489,12 @@ public sealed record OpenStatementSyntax(
     SyntaxToken? LenEqualsToken = null,
     ExpressionSyntax? RecordLength = null) : StatementSyntax(SyntaxKind.OpenStatement);
 
+public sealed record NameStatementSyntax(
+    SyntaxToken NameKeyword,
+    ExpressionSyntax OldPath,
+    SyntaxToken AsKeyword,
+    ExpressionSyntax NewPath) : StatementSyntax(SyntaxKind.NameStatement);
+
 public sealed record CloseStatementSyntax(
     SyntaxToken CloseKeyword,
     ImmutableArray<FileNumberSyntax> FileNumbers) : StatementSyntax(SyntaxKind.CloseStatement);

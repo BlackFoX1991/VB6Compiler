@@ -1145,6 +1145,8 @@ Nach Korpusbedarf priorisiert:
 1f. Dateisystem-Pfad-Intrinsics — `FileCopy`, `MkDir`, `RmDir`, `ChDir`, `CurDir`, `GetAttr`,
     `SetAttr` und `FileDateTime` sind ✅ über Symboltabelle, IR, Managed-Emitter und Runtime
     verdrahtet und durch direkte Runtime- sowie generierte Programmtests abgesichert.
+1g. `Name oldPath As newPath` — Datei- und Verzeichnisumbenennung ist ✅ als eigene Syntax und
+    Managed-Runtime-Operation implementiert und generiert keine untypisierten Restaufrufe.
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Input`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende
