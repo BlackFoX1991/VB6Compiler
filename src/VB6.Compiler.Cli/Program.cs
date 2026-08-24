@@ -1,13 +1,14 @@
 using VB6.Compiler;
+using VB6.Emit.Managed;
 using VB6.Emit.Llvm;
 using VB6.IR;
 using VB6.ProjectSystem;
 
 const string usage =
-    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
+    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
     "       vb6c <project.vbp> --report\n" +
     "       vb6c <project.vbg> --report\n" +
-    "       vb6c <project.vbg> --emit-assembly <output-directory>";
+    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu]";
 
 if (args.Length == 0)
 {
@@ -98,9 +99,15 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
     }
 
-    if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        var emitResult = projectCompilation.EmitManagedApplication(args[2]);
+        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out var platform))
+        {
+            return 1;
+        }
+
+        var emitOptions = CreateManagedEmitOptions(args[2], platform);
+        var emitResult = projectCompilation.EmitManagedApplication(args[2], emitOptions);
         PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
 
@@ -240,9 +247,15 @@ static int HandleProjectGroup(string path, string[] args)
         return analysis.Success ? 0 : 1;
     }
 
-    if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        var result = compilation.EmitManagedApplications(args[2]);
+        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out var platform))
+        {
+            return 1;
+        }
+
+        var emitOptions = CreateManagedEmitOptions(args[2], platform);
+        var result = compilation.EmitManagedApplications(args[2], emitOptions);
         PrintProjectGroupSummary(result.Analysis);
         PrintProjectGroupDiagnostics(result.Analysis);
         foreach (var project in result.Projects)
@@ -328,6 +341,36 @@ static int EmitLlvm(IrProgram program, string outputPath, string? architectureAr
     Console.WriteLine($"LLVM target: {architecture.Value}");
     return 0;
 }
+
+static bool TryParseManagedPlatform(string? argument, out ManagedPlatform platform)
+{
+    platform = ManagedPlatform.AnyCpu;
+    if (argument is null)
+    {
+        return true;
+    }
+
+    platform = argument.ToLowerInvariant() switch
+    {
+        "--x86" => ManagedPlatform.X86,
+        "--x64" => ManagedPlatform.X64,
+        "--anycpu" => ManagedPlatform.AnyCpu,
+        _ => (ManagedPlatform)(-1)
+    };
+
+    if ((int)platform >= 0)
+    {
+        return true;
+    }
+
+    Console.Error.WriteLine($"Unknown managed architecture '{argument}'. Use --x86, --x64 or --anycpu.");
+    return false;
+}
+
+static ManagedEmitOptions CreateManagedEmitOptions(string outputPath, ManagedPlatform platform) =>
+    new(
+        Path.GetFileNameWithoutExtension(Path.GetFullPath(outputPath)),
+        Platform: platform);
 
 static void PrintDebugInformation(string? pdbPath)
 {

@@ -150,13 +150,17 @@ public static class DirectManagedCompilation
             assemblyName = "VB6Program";
         }
 
+        var outputKind = VBProjectCompilation.IsLibraryProjectType(lowering.Analysis.Project.ProjectType)
+            ? ManagedOutputKind.Library
+            : ManagedOutputKind.Application;
+        var projectOptions = options is null
+            ? null
+            : options with { OutputKind = outputKind };
         var actualOptions = PrepareOptions(
-            options,
+            projectOptions,
             assemblyName,
             CreateProjectSourceDocuments(lowering.Analysis),
-            VBProjectCompilation.IsLibraryProjectType(lowering.Analysis.Project.ProjectType)
-                ? ManagedOutputKind.Library
-                : ManagedOutputKind.Application);
+            outputKind);
         var backend = EmitBackend(lowering.Program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {

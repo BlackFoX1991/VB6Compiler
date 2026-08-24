@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection.PortableExecutable;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace VB6.Compiler.Cli.Tests;
@@ -77,6 +78,35 @@ public sealed class CliProcessTests
 
             Assert.AreNotEqual(0, result.ExitCode, result.StandardError);
             StringAssert.Contains(result.StandardError, "VB6VBG0007");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitAssembly_AcceptsX86ForLegacyVbpProjects()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            WriteExecutableProject(directory, "Legacy32");
+            var outputPath = Path.Combine(directory, "bin", "Legacy32.exe");
+
+            var result = RunCli(
+                Path.Combine(directory, "Legacy32.vbp"),
+                "--emit-assembly",
+                outputPath,
+                "--x86");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            using var stream = File.OpenRead(outputPath);
+            using var peReader = new PEReader(stream);
+            Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
+            Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
         }
         finally
         {

@@ -530,8 +530,10 @@ public sealed class VBProjectCompilation
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
 
     /// <summary>Emits an executable assembly, its debug information and its runtime files.</summary>
-    public VBProjectManagedApplicationEmitResult EmitManagedApplication(string outputPath) =>
-        DirectManagedCompilation.EmitManaged(this, outputPath);
+    public VBProjectManagedApplicationEmitResult EmitManagedApplication(
+        string outputPath,
+        VB6.Emit.Managed.ManagedEmitOptions? options = null) =>
+        DirectManagedCompilation.EmitManaged(this, outputPath, options);
     /// <summary>
     /// VB6 <c>Public</c> module variables are visible project-wide, so they are declared across
     /// all modules before any module is bound - the same way procedures already are. The type
