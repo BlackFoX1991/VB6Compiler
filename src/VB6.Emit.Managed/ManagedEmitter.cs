@@ -1501,11 +1501,22 @@ public sealed class ManagedEmitter
             encoder.LoadString(_metadata.GetOrAddUserString(subscribe.Event.Name));
             EmitExpression(encoder, procedure, subscribe.Target);
             encoder.LoadString(_metadata.GetOrAddUserString(subscribe.Handler.Name));
+            encoder.LoadString(_metadata.GetOrAddUserString(
+                subscribe.Event.ComInterfaceId?.ToString("D") ?? string.Empty));
+            encoder.LoadConstantI4(subscribe.Event.ComDispId ?? int.MinValue);
             encoder.Call(GetRuntimeMethodReference(
                 typeof(VBEvents).GetMethod(
                     nameof(VBEvents.SubscribeMethod),
                     BindingFlags.Public | BindingFlags.Static,
-                    new[] { typeof(object), typeof(string), typeof(object), typeof(string) })
+                    new[]
+                    {
+                        typeof(object),
+                        typeof(string),
+                        typeof(object),
+                        typeof(string),
+                        typeof(string),
+                        typeof(int)
+                    })
                 ?? throw new MissingMethodException("VBEvents.SubscribeMethod is required.")));
         }
 
