@@ -352,6 +352,7 @@ public static class VBConversions
 
     public static object CVErr(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsNull(value))
@@ -575,6 +576,7 @@ public static class VBConversions
     /// <summary>Implements VB6 Int, including floor semantics for negative fractional values.</summary>
     public static object Int(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         RejectImplicitError(value, "Double");

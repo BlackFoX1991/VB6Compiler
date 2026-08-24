@@ -2005,3 +2005,12 @@ mit **33/33** Tests. Neben dem parameterlosen nativen `RichTextBox.Change`-Event
 Damit ist der generische `VBEvents`-Delegate-Adapter für diesen nativen ByRef-Signaturtyp belegt;
 weitere Event-Signaturen, Cancel-/ByRef-Sonderfälle, Connection-Point-Lifecycle und vollständige
 native ABI-Konversion bleiben separate Schritte. Die Gesamtsuite umfasst nun **968 Tests**.
+
+## Aktueller Variant-Objekt-Math-Nachtrag
+
+Die verbleibenden Variant-Math-Intrinsics lösen nun ebenfalls die Default-Property auf, bevor sie
+Null-, Array- oder numerische State-Regeln anwenden: `Abs`, `Sgn`, `Fix`, `Round` und `Int` folgen
+dem tatsächlichen Default-Wert eines Objekts. `CVErr` übernimmt denselben Vertrag für die
+explizite Error-Variant-Konversion; ein Default-Wert `Null` bleibt dabei `Null`. Direkte Runtime-
+Tests decken numerische, Null- und Error-Default-Properties ab, und ein emittiertes `.vbp` prüft
+den vollständigen Managed-Aufrufpfad. Die Gesamtsuite umfasst nun **970 Tests**.

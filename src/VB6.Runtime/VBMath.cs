@@ -68,6 +68,7 @@ public static class VBMath
 
     public static object? Abs(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
@@ -90,6 +91,7 @@ public static class VBMath
 
     public static object? Sgn(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
 
@@ -111,6 +113,7 @@ public static class VBMath
 
     public static object? Fix(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
@@ -133,6 +136,7 @@ public static class VBMath
 
     public static object? Round(object? value, short digits)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
