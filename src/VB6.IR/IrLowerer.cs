@@ -2900,6 +2900,26 @@ public static class IrLowerer
                     continue;
                 }
 
+                if (procedure.IsExternal &&
+                    argument.Parameter?.PassingMode == ParameterPassingMode.ByVal &&
+                    argument.Parameter.Type == TypeSymbol.String)
+                {
+                    var writeBackPlace = TryLowerPlace(argument.Expression);
+                    var bufferTemporary = writeBackPlace is null
+                        ? null
+                        : NewLocal("__declare_buffer", TypeSymbol.Variant, compilerGenerated: true);
+                    var writeBackTemporary = writeBackPlace is null
+                        ? null
+                        : NewLocal("__declare_string", TypeSymbol.String, compilerGenerated: true);
+                    lowered.Add(new IrCallArgument(
+                        LowerValueCopy(argument.Expression),
+                        IrCallArgumentKind.StringBuffer,
+                        writeBackPlace,
+                        bufferTemporary,
+                        writeBackTemporary));
+                    continue;
+                }
+
                 if (argument.Parameter?.PassingMode == ParameterPassingMode.ByRef)
                 {
                     IrPlace place;
@@ -2935,11 +2955,32 @@ public static class IrLowerer
                     procedure.ReturnType ?? TypeSymbol.Error);
             }
 
+            var resultTemporary = procedure.IsExternal &&
+                                  procedure.ReturnType is not null &&
+                                  lowered.Any(argument =>
+                                      argument.Kind == IrCallArgumentKind.StringBuffer &&
+                                      argument.WriteBackPlace is not null)
+                ? NewLocal("__declare_return", procedure.ReturnType, compilerGenerated: true)
+                : null;
+
             return new IrProcedureCallExpression(
                 procedure,
                 lowered.ToImmutable(),
                 procedure.ReturnType ?? TypeSymbol.Error,
-                receiver);
+                receiver,
+                resultTemporary);
+        }
+
+        private IrPlace? TryLowerPlace(BoundExpression expression)
+        {
+            try
+            {
+                return LowerPlace(StripConversions(expression));
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
         }
 
         private void LowerLSet(BoundInvocationStatement invocation)

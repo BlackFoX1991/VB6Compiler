@@ -427,7 +427,9 @@ public sealed class ManagedEmitter
                         ParameterAttributes.None,
                         _metadata.GetOrAddString(parameter.Name),
                         parameter.Index + 1);
-                    if (procedure.IsExternal && parameter.Type == TypeSymbol.String)
+                    if (procedure.IsExternal &&
+                        parameter.Type == TypeSymbol.String &&
+                        parameter.PassingMode != ParameterPassingMode.ByVal)
                     {
                         AddAnsiStringMarshalling(parameterHandle);
                     }
@@ -1212,6 +1214,20 @@ public sealed class ManagedEmitter
                     continue;
                 }
 
+                if (call.Procedure.IsExternal &&
+                    parameter?.PassingMode == ParameterPassingMode.ByVal &&
+                    parameter.Type == TypeSymbol.String &&
+                    argument.Kind == IrCallArgumentKind.StringBuffer)
+                {
+                    EmitNewStringBuilder(encoder, procedure, argument.Expression);
+                    if (argument.BufferTemporary is not null)
+                    {
+                        encoder.OpCode(ILOpCode.Dup);
+                        encoder.StoreLocal(argument.BufferTemporary.Id);
+                    }
+                    continue;
+                }
+
                 // A ByRef argument passes an address, which is already the parameter's type - only
                 // a by-value argument can need the boxing that a Variant parameter asks for.
                 if (argument.Kind == IrCallArgumentKind.Address ||
@@ -1254,6 +1270,96 @@ public sealed class ManagedEmitter
             {
                 encoder.Call(target);
             }
+
+            if (call.ResultTemporary is not null)
+            {
+                encoder.StoreLocal(call.ResultTemporary.Id);
+            }
+
+            foreach (var argument in call.Arguments)
+            {
+                if (argument.Kind != IrCallArgumentKind.StringBuffer ||
+                    argument.WriteBackPlace is null)
+                {
+                    continue;
+                }
+
+                if (argument.WriteBackTemporary is null)
+                {
+                    throw new InvalidOperationException(
+                        "A Declare string buffer write-back requires a compiler temporary.");
+                }
+
+                if (argument.BufferTemporary is null)
+                {
+                    throw new InvalidOperationException(
+                        "A Declare string buffer write-back requires the buffer temporary.");
+                }
+
+                encoder.LoadLocal(argument.BufferTemporary.Id);
+                encoder.OpCode(ILOpCode.Castclass);
+                encoder.Token(GetReflectionTypeReference(typeof(System.Text.StringBuilder)));
+                encoder.Call(GetStringBuilderToStringReference());
+                encoder.StoreLocal(argument.WriteBackTemporary.Id);
+                EmitStore(
+                    encoder,
+                    procedure,
+                    argument.WriteBackPlace,
+                    new IrLoadExpression(new IrLocalPlace(argument.WriteBackTemporary)));
+            }
+
+            if (call.ResultTemporary is not null)
+            {
+                encoder.LoadLocal(call.ResultTemporary.Id);
+            }
+        }
+
+        private void EmitNewStringBuilder(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrExpression value)
+        {
+            EmitExpressionWithAssignmentConversion(encoder, procedure, value, TypeSymbol.String);
+            encoder.OpCode(ILOpCode.Newobj);
+            encoder.Token(GetStringBuilderConstructorReference());
+        }
+
+        private MemberReferenceHandle GetStringBuilderConstructorReference()
+        {
+            const string key = "System.Text.StringBuilder::.ctor(string)";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                1,
+                returnType => returnType.Void(),
+                parameters => EncodeReflectionType(parameters.AddParameter().Type(), typeof(string)));
+            var handle = _metadata.AddMemberReference(
+                GetReflectionTypeReference(typeof(System.Text.StringBuilder)),
+                _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private MemberReferenceHandle GetStringBuilderToStringReference()
+        {
+            const string key = "System.Text.StringBuilder::ToString()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(System.Text.StringBuilder).GetMethod(
+                nameof(System.Text.StringBuilder.ToString),
+                Type.EmptyTypes)
+                ?? throw new MissingMethodException("System.Text.StringBuilder.ToString()");
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
         }
 
         private bool TryGetProcedureHandle(
@@ -1838,6 +1944,12 @@ public sealed class ManagedEmitter
                         if (procedure.IsExternal && parameter.Symbol?.IsAny == true)
                         {
                             parameters.AddParameter().Type(isByRef: false).IntPtr();
+                        }
+                        else if (procedure.IsExternal &&
+                                 parameter.Type == TypeSymbol.String &&
+                                 parameter.PassingMode == ParameterPassingMode.ByVal)
+                        {
+                            EncodeReflectionType(parameters.AddParameter().Type(), typeof(System.Text.StringBuilder));
                         }
                         else
                         {

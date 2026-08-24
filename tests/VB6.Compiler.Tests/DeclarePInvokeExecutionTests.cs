@@ -271,4 +271,23 @@ public sealed class DeclarePInvokeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesBackVariableDeclareStringBuffers()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Function GetComputerNameA Lib "kernel32" (ByVal lpBuffer As String, nSize As Long) As Long
+
+            Sub Main()
+                Dim buffer As String
+                Dim size As Long
+                buffer = String(256, 0)
+                size = 256
+                Debug.Print GetComputerNameA(buffer, size) <> 0
+                Debug.Print size > 0 And Left$(buffer, size) <> ""
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
 }
