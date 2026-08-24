@@ -2205,3 +2205,12 @@ kann den vorhandenen `VBArray<T>`-/Automation-Array-Vertrag verwenden. C-Arrays 
 Konstrukte bleiben weiterhin opaque, bis ihr natives ABI explizit modelliert ist. Der echte
 `mshtml`-TypeLib-Bindungstest sowie eine Runtime-Regression für `SAFEARRAY(I4)` sichern Elementtyp,
 Untergrenzen und Rückkopieren ab. Die Gesamtsuite umfasst damit **985 Tests**.
+
+## Aktueller COM-ByVal-SAFEARRAY-Nachtrag
+
+Der Raw-`IDispatch`-Aufruf erkennt typisierte, nicht-ByRef-SAFEARRAY-Parameter aus der TypeInfo
+und materialisiert `VBArray<T>`-Argumente vor `Invoke` als native `VT_ARRAY|T`-VARIANTs. Der
+bestehende skalare und ByRef-Dispatcher bleibt dabei unverändert; nicht unterstützte C-Arrays,
+Pointer und UDT-Elemente fallen weiterhin kontrolliert auf den bisherigen Pfad zurück. Der
+Native-VARIANT-Test prüft die echten Untergrenzen und die `VT_ARRAY|VT_VARIANT`-Signatur; die
+Vollsuite umfasst nun **986 Tests**, VISIA bleibt bei **40/40** fehlerfreien Projektitems.
