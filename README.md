@@ -271,8 +271,9 @@ The current managed project emitter supports standard modules with a single `Sub
 For a machine-level native OCX check, run the WinForms test project as x86 with `VB6_REQUIRE_NATIVE_OCX=1`; missing registrations or a 64-bit test process then fail instead of silently skipping the native activation checks.
 
 Native `AxHost` wrappers resolve tested OCX event identities through `IProvideClassInfo` or the
-registered TypeLib; the x86 regression covers the native `RichTextLib.RichTextBox` `Change`
-connection-point event. Full event signature conversion and the remaining native ABI contracts
+registered TypeLib; the native host also accepts directly registered qualified ProgIDs and only
+wraps classes that expose `IOleObject`. The x86 regression covers the native
+`RichTextLib.RichTextBox` `Change` connection-point event. Full event signature conversion and the remaining native ABI contracts
 are still open.
 
 The MSBuild SDK also accepts `VB6ProjectGroup` for `.vbg` files and delegates group emission to

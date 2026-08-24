@@ -3068,7 +3068,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static bool TryCreateNativeActiveX(string typeName, out Control? control)
     {
         control = null;
-        var progId = typeName.ToUpperInvariant() switch
+        var normalizedTypeName = typeName.Trim().ToUpperInvariant();
+        var progId = normalizedTypeName switch
         {
             "MSCOMCTLLIB.TREEVIEW" or "MSCOMCTLLIB.TREECTRL" => "MSComctlLib.TreeCtrl.2",
             "MSCOMCTLLIB.LISTVIEW" or "MSCOMCTLLIB.LISTVIEWCTRL" => "MSComctlLib.ListViewCtrl.2",
@@ -3080,6 +3081,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "MSCOMCTLLIB.IMAGELIST" => "MSComctlLib.ImageListCtrl.2",
             "MSCOMCTLLIB.IMAGECOMBO" => "MSComctlLib.ImageComboCtl.2",
             "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => "RICHTEXT.RichtextCtrl.1",
+            _ when normalizedTypeName.StartsWith("MSCOMDLG.COMMONDIALOG", StringComparison.Ordinal) => null,
+            _ when typeName.Contains('.', StringComparison.Ordinal) => typeName.Trim(),
             _ => null
         };
         if (progId is null)
@@ -3103,9 +3106,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 return false;
             }
 
+            var isVisualControl = SupportsOleObject(instance);
             if (Marshal.IsComObject(instance))
             {
                 Marshal.FinalReleaseComObject(instance);
+            }
+
+            if (!isVisualControl)
+            {
+                return false;
             }
 
             control = new NativeActiveXControl(comType.GUID);
@@ -3122,6 +3131,32 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         catch (NotSupportedException)
         {
             return false;
+        }
+    }
+
+    private static bool SupportsOleObject(object instance)
+    {
+        if (!Marshal.IsComObject(instance))
+        {
+            return false;
+        }
+
+        var unknown = Marshal.GetIUnknownForObject(instance);
+        try
+        {
+            var oleObjectIid = new Guid("00000112-0000-0000-C000-000000000046");
+            var result = Marshal.QueryInterface(unknown, in oleObjectIid, out var oleObject);
+            if (result < 0)
+            {
+                return false;
+            }
+
+            Marshal.Release(oleObject);
+            return true;
+        }
+        finally
+        {
+            Marshal.Release(unknown);
         }
     }
 
