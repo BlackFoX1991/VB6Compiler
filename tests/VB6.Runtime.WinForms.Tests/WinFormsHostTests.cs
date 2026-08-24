@@ -294,6 +294,7 @@ public sealed class WinFormsHostTests
                 Private WithEvents source As RichTextLib.RichTextBox
                 Private changeCount As Integer
                 Private formInitialized As Boolean
+                Private sourceKeyValue As Integer
                 Private observedKey As Integer
 
                 Private Sub Form_Load()
@@ -303,6 +304,10 @@ public sealed class WinFormsHostTests
 
                 Private Sub source_Change()
                     changeCount = changeCount + 1
+                End Sub
+
+                Private Sub source_KeyPress(KeyAscii As Integer)
+                    sourceKeyValue = KeyAscii
                 End Sub
 
                 Private Sub Editor_KeyPress(KeyAscii As Integer)
@@ -320,6 +325,10 @@ public sealed class WinFormsHostTests
 
                 Public Property Get LastKey() As Integer
                     LastKey = observedKey
+                End Property
+
+                Public Property Get SourceKey() As Integer
+                    SourceKey = sourceKeyValue
                 End Property
                 """);
 
@@ -352,6 +361,10 @@ public sealed class WinFormsHostTests
 
             _ = SendMessage(control.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);
             Application.DoEvents();
+
+            var sourceKeyGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("SourceKey", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual((short)120, sourceKeyGetter.Invoke(form, null));
 
             var lastKeyGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single(method => method.Name.Contains("LastKey", StringComparison.OrdinalIgnoreCase));
