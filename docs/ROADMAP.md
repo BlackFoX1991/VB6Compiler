@@ -1248,7 +1248,9 @@ Größter Einzelblock.
 - [~] `UserControl` (ActiveX) — generierte parameterlose `.ctl`-Klassen werden aus der Projektassembly
       instanziiert und als eingebettete borderlose WinForms-Hostflächen in Designer-Controls
       aufgenommen; `UserControl_Initialize`/`UserControl_Terminate` sowie die konventionellen
-      `UserControl_*`-UI-Handler werden an die eingebettete Hostfläche gebunden; PropertyBag-/Connection-Point-ABI und
+      `UserControl_*`-UI-Handler werden an die eingebettete Hostfläche gebunden; ein pro Instanz
+      gehaltener `VBPropertyBag` wird an `UserControl_ReadProperties`/`UserControl_WriteProperties`
+      gereicht; Connection-Point-ABI und
       echte OCX-Komposition bleiben offen
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
 
@@ -1737,5 +1739,8 @@ CLR-Klasse aus derselben Projektassembly, instanziiert sie und hostet ihre eigen
 als borderlose, eingebettete Formfläche. Dadurch können `.ctl`-Klassen als verschachtelte Managed-
 Designerkomponenten geladen werden, ohne den Compilerkern an WinForms zu koppeln. Vollständige
 UserControl-Ereignis-/PropertyBag-Semantik, ActiveX-Connection-Points und natives OCX-Hosting
-bleiben bewusst separate Kompatibilitätsschritte. Die Regression umfasst den Instanzierungs-,
-Komponenten- und Initialize-/Terminate-/Unload-Lifecycle. Die Gesamtsuite umfasst **946 Tests**.
+bleiben bewusst separate Kompatibilitätsschritte. Der Host hält pro eingebetteter Instanz einen
+`VBPropertyBag` und ruft `UserControl_ReadProperties` beim Einfügen sowie
+`UserControl_WriteProperties` vor `UserControl_Terminate` auf. Die Regression umfasst den
+Instanzierungs-, Komponenten-, PropertyBag- und Initialize-/Terminate-/Unload-Lifecycle. Die
+Gesamtsuite umfasst **946 Tests**.
