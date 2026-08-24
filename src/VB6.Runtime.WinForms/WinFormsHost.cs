@@ -1,4 +1,6 @@
 using System.Drawing;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Windows.Forms;
 using VB6.Runtime;
 
@@ -13,6 +15,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 {
     private readonly Dictionary<object, FormBinding> _bindings =
         new(ReferenceEqualityComparer.Instance);
+    private readonly List<EventBinding> _events = new();
     private bool _disposed;
 
     public void Register(object vbObject, Form form)
@@ -43,6 +46,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             binding.Form.Controls.Add(control);
         }
+
+        AttachGeneratedControlEvents(vbObject, control, name);
     }
 
     public void DoEvents() => Application.DoEvents();
@@ -51,6 +56,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     {
         ThrowIfDisposed();
         _ = GetOrCreateBinding(target);
+        TrySubscribeEvent(target, "Load", target, "Form_Load");
     }
 
     public void Unload(object target)
@@ -59,6 +65,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         if (!_bindings.Remove(target, out var binding))
         {
             return;
+        }
+
+        foreach (var eventBinding in _events
+                     .Where(eventBinding =>
+                         ReferenceEquals(eventBinding.Source, target) ||
+                         ReferenceEquals(eventBinding.Target, target) ||
+                         ReferenceEquals(eventBinding.EventSource, binding.Form) ||
+                         binding.Controls.Values.Any(control =>
+                             ReferenceEquals(control, eventBinding.EventSource)))
+                     .ToArray())
+        {
+            RemoveEventBinding(eventBinding);
         }
 
         binding.Form.Hide();
@@ -80,6 +98,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             .Replace(",", "_", StringComparison.Ordinal);
         binding.Controls.Add(name, control);
         binding.Form.Controls.Add(control);
+        AttachGeneratedControlEvents(owner, control, name);
         return control;
     }
 
@@ -188,6 +207,65 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return false;
     }
 
+    public bool TrySubscribeEvent(
+        object source,
+        string eventName,
+        object target,
+        string methodName)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+
+        var eventSource = ResolveEventSource(source);
+        var eventInfo = eventSource is null
+            ? null
+            : FindEvent(eventSource.GetType(), eventName);
+        var method = FindHandler(target.GetType(), methodName);
+        if (eventSource is null || eventInfo is null || method is null ||
+            eventInfo.EventHandlerType is null)
+        {
+            return false;
+        }
+
+        var handler = CreateEventDelegate(eventInfo.EventHandlerType, target, method);
+        if (handler is null)
+        {
+            return false;
+        }
+
+        eventInfo.AddEventHandler(eventSource, handler);
+        _events.Add(new EventBinding(
+            source,
+            eventName,
+            target,
+            methodName,
+            eventSource,
+            eventInfo,
+            handler));
+        return true;
+    }
+
+    public void UnsubscribeEvent(
+        object source,
+        string eventName,
+        object target,
+        string methodName)
+    {
+        foreach (var binding in _events
+                     .Where(binding =>
+                         ReferenceEquals(binding.Source, source) &&
+                         ReferenceEquals(binding.Target, target) &&
+                         string.Equals(binding.EventName, eventName, StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(binding.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            RemoveEventBinding(binding);
+        }
+    }
+
     public IEnumerable<object?>? EnumerateControls(object? target)
     {
         if (target is Control control)
@@ -211,6 +289,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         _disposed = true;
+        foreach (var binding in _events.ToArray())
+        {
+            RemoveEventBinding(binding);
+        }
+
+        _events.Clear();
         foreach (var binding in _bindings.Values)
         {
             binding.Form.Dispose();
@@ -264,6 +348,147 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         control = null;
         return false;
     }
+
+    private void AttachGeneratedControlEvents(object owner, Control control, string name)
+    {
+        var baseName = name.Split('(')[0];
+        TrySubscribeEvent(control, "Click", owner, baseName + "_Click");
+        TrySubscribeEvent(control, "TextChanged", owner, baseName + "_Change");
+        TrySubscribeEvent(control, "Enter", owner, baseName + "_GotFocus");
+        TrySubscribeEvent(control, "Leave", owner, baseName + "_LostFocus");
+        TrySubscribeEvent(control, "DoubleClick", owner, baseName + "_DblClick");
+    }
+
+    private void RemoveEventBinding(EventBinding binding)
+    {
+        binding.Event.RemoveEventHandler(binding.EventSource, binding.Handler);
+        _events.Remove(binding);
+    }
+
+    private object? ResolveEventSource(object source)
+    {
+        if (source is Control)
+        {
+            return source;
+        }
+
+        return _bindings.TryGetValue(source, out var binding) ? binding.Form : null;
+    }
+
+    private static EventInfo? FindEvent(Type type, string name)
+    {
+        var normalized = name switch
+        {
+            "Change" => "TextChanged",
+            "DblClick" => "DoubleClick",
+            "GotFocus" => "Enter",
+            "LostFocus" => "Leave",
+            _ => name
+        };
+        return type.GetEvents(BindingFlags.Instance | BindingFlags.Public)
+            .FirstOrDefault(@event =>
+                string.Equals(@event.Name, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static MethodInfo? FindHandler(Type type, string methodName) =>
+        type.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ??
+        type.GetMethod(
+            "__vb6_" + Mangle(methodName),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+    private static Delegate? CreateEventDelegate(
+        Type delegateType,
+        object target,
+        MethodInfo method)
+    {
+        var invoke = delegateType.GetMethod("Invoke");
+        if (invoke is null || invoke.ReturnType != typeof(void))
+        {
+            return null;
+        }
+
+        var parameters = invoke.GetParameters();
+        if (parameters.Any(parameter => parameter.ParameterType.IsByRef))
+        {
+            return null;
+        }
+
+        var expressions = parameters
+            .Select(parameter => Expression.Parameter(parameter.ParameterType, parameter.Name))
+            .ToArray();
+        var callback = typeof(WinFormsHost).GetMethod(
+            nameof(InvokeEventHandler),
+            BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(InvokeEventHandler));
+        var arguments = Expression.NewArrayInit(
+            typeof(object),
+            expressions.Select(expression => Expression.Convert(expression, typeof(object))));
+        var body = Expression.Call(
+            callback,
+            Expression.Constant(target),
+            Expression.Constant(method),
+            arguments);
+        return Expression.Lambda(delegateType, body, expressions).Compile();
+    }
+
+    private static void InvokeEventHandler(
+        object target,
+        MethodInfo method,
+        object?[] eventArguments)
+    {
+        var parameters = method.GetParameters();
+        var arguments = new object?[parameters.Length];
+        var offset = eventArguments.Length == parameters.Length
+            ? 0
+            : Math.Max(0, eventArguments.Length - parameters.Length);
+        for (var index = 0; index < parameters.Length; index++)
+        {
+            var sourceIndex = Math.Min(eventArguments.Length - 1, offset + index);
+            var value = sourceIndex < 0 ? null : eventArguments[sourceIndex];
+            arguments[index] = ConvertEventArgument(
+                value,
+                parameters[index].ParameterType.IsByRef
+                    ? parameters[index].ParameterType.GetElementType()!
+                    : parameters[index].ParameterType);
+        }
+
+        try
+        {
+            method.Invoke(target, arguments);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            throw exception.InnerException;
+        }
+    }
+
+    private static object? ConvertEventArgument(object? value, Type targetType)
+    {
+        if (value is null)
+        {
+            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+        }
+
+        if (targetType.IsInstanceOfType(value))
+        {
+            return value;
+        }
+
+        if (targetType == typeof(string)) return VBConversions.CStr(value);
+        if (targetType == typeof(byte)) return VBConversions.CByte(value);
+        if (targetType == typeof(short)) return VBConversions.CInt(value);
+        if (targetType == typeof(int)) return VBConversions.CLng(value);
+        if (targetType == typeof(long)) return VBConversions.CLngLng(value);
+        if (targetType == typeof(float)) return VBConversions.CSng(value);
+        if (targetType == typeof(double)) return VBConversions.CDbl(value);
+        if (targetType == typeof(bool)) return VBConversions.CBool(value);
+        if (targetType == typeof(char)) return Convert.ToChar(value, System.Globalization.CultureInfo.InvariantCulture);
+        return value;
+    }
+
+    private static string Mangle(string name) =>
+        new(name.Select(character =>
+            char.IsLetterOrDigit(character) || character == '_' ? character : '_').ToArray());
 
     private static object? GetIndexedControl(Control owner, object? index)
     {
@@ -395,5 +620,34 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         public Dictionary<string, Control> Controls { get; } =
             new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class EventBinding
+    {
+        public EventBinding(
+            object source,
+            string eventName,
+            object target,
+            string methodName,
+            object eventSource,
+            EventInfo @event,
+            Delegate handler)
+        {
+            Source = source;
+            EventName = eventName;
+            Target = target;
+            MethodName = methodName;
+            EventSource = eventSource;
+            Event = @event;
+            Handler = handler;
+        }
+
+        public object Source { get; }
+        public string EventName { get; }
+        public object Target { get; }
+        public string MethodName { get; }
+        public object EventSource { get; }
+        public EventInfo Event { get; }
+        public Delegate Handler { get; }
     }
 }

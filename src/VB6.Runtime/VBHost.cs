@@ -34,6 +34,22 @@ public interface IVB6Host
         object?[] arguments,
         out object? result);
 
+    /// <summary>Tries to connect a generated VB6 handler to a host event.</summary>
+    bool TrySubscribeEvent(
+        object source,
+        string eventName,
+        object target,
+        string methodName) => false;
+
+    /// <summary>Removes a previously connected generated VB6 handler.</summary>
+    void UnsubscribeEvent(
+        object source,
+        string eventName,
+        object target,
+        string methodName)
+    {
+    }
+
     IEnumerable<object?>? EnumerateControls(object? target);
 }
 

@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using VB6.Runtime;
 using VB6.Runtime.WinForms;
 
 namespace VB6.Runtime.WinForms.Tests;
@@ -31,5 +32,59 @@ public sealed class WinFormsHostTests
         Assert.AreSame(control, named);
 
         host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostConnectsConventionalVb6ControlHandlers()
+    {
+        using var host = new WinFormsHost();
+        var owner = new EventSink();
+
+        host.Load(owner);
+        var textBox = (TextBox)host.CreateControl(owner, "Text1", "TextBox")!;
+        textBox.Text = "changed";
+
+        Assert.AreEqual(1, owner.ChangeCount);
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void VbEventSubscriptionsUseTheWinFormsEventBridge()
+    {
+        using var host = new WinFormsHost();
+        var owner = new ExplicitEventSink();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            var textBox = (TextBox)host.CreateControl(owner, "Input", "TextBox")!;
+            VBEvents.SubscribeMethod(textBox, "TextChanged", owner, "OnChanged");
+            textBox.Text = "changed";
+            VBEvents.SubscribeMethod(null, "TextChanged", owner, "OnChanged");
+            textBox.Text = "detached";
+
+            Assert.AreEqual(1, owner.ChangeCount);
+            host.Unload(owner);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+        }
+    }
+
+    private sealed class EventSink
+    {
+        public int ChangeCount { get; private set; }
+
+        private void Text1_Change() => ChangeCount++;
+    }
+
+    private sealed class ExplicitEventSink
+    {
+        public int ChangeCount { get; private set; }
+
+        private void OnChanged() => ChangeCount++;
     }
 }
