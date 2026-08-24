@@ -1220,6 +1220,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 entry.Value.CreateControl();
             }
 
+            VBEvents.RetryComSubscriptions(entry.Value);
             AttachGeneratedControlEvents(owner, entry.Value, entry.Key);
         }
     }

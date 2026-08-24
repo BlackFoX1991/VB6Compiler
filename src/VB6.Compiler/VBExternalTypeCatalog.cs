@@ -51,22 +51,22 @@ internal static class VBExternalTypeCatalog
                         "Toolbar",
                         "TreeView"
                     });
-                    aliases["MSComctlLib.Node"] = VBStandardTypes.ExternalTreeNode;
-                    aliases["MSComctlLib.TreeView"] = VBStandardTypes.ExternalTreeView;
-                    aliases["MSComctlLib.ImageList"] = VBStandardTypes.ExternalImageList;
-                    aliases["MSComctlLib.ListImages"] = VBStandardTypes.ExternalListImages;
-                    aliases["MSComctlLib.ListImage"] = VBStandardTypes.ExternalListImage;
-                    aliases["MSComctlLib.ImageCombo"] = VBStandardTypes.ExternalImageCombo;
-                    aliases["MSComctlLib.ComboItems"] = VBStandardTypes.ExternalComboItems;
-                    aliases["MSComctlLib.ComboItem"] = VBStandardTypes.ExternalComboItem;
+                    SetExplicitAlias(aliases, "MSComctlLib.Node", VBStandardTypes.ExternalTreeNode);
+                    SetExplicitAlias(aliases, "MSComctlLib.TreeView", VBStandardTypes.ExternalTreeView);
+                    SetExplicitAlias(aliases, "MSComctlLib.ImageList", VBStandardTypes.ExternalImageList);
+                    SetExplicitAlias(aliases, "MSComctlLib.ListImages", VBStandardTypes.ExternalListImages);
+                    SetExplicitAlias(aliases, "MSComctlLib.ListImage", VBStandardTypes.ExternalListImage);
+                    SetExplicitAlias(aliases, "MSComctlLib.ImageCombo", VBStandardTypes.ExternalImageCombo);
+                    SetExplicitAlias(aliases, "MSComctlLib.ComboItems", VBStandardTypes.ExternalComboItems);
+                    SetExplicitAlias(aliases, "MSComctlLib.ComboItem", VBStandardTypes.ExternalComboItem);
                     break;
 
                 case "RICHTX32.OCX":
-                    aliases["RichTextLib.RichTextBox"] = VBStandardTypes.ExternalRichTextBox;
+                    SetExplicitAlias(aliases, "RichTextLib.RichTextBox", VBStandardTypes.ExternalRichTextBox);
                     break;
 
                 case "COMDLG32.OCX":
-                    aliases["MSComDlg.CommonDialog"] = VBStandardTypes.ExternalCommonDialog;
+                    SetExplicitAlias(aliases, "MSComDlg.CommonDialog", VBStandardTypes.ExternalCommonDialog);
                     break;
 
                 case "MSWINSCK.OCX":
@@ -110,6 +110,22 @@ internal static class VBExternalTypeCatalog
         }
     }
 
+    private static void SetExplicitAlias(
+        IDictionary<string, TypeSymbol> aliases,
+        string name,
+        ClassTypeSymbol explicitContract)
+    {
+        if (aliases.TryGetValue(name, out var existing) &&
+            existing is ClassTypeSymbol importedContract &&
+            !ReferenceEquals(importedContract, explicitContract) &&
+            string.Equals(importedContract.Name, explicitContract.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            explicitContract.AddImportedEvents(importedContract.Events);
+        }
+
+        aliases[name] = explicitContract;
+    }
+
     private static void MergeImportedTypeLibrary(
         IDictionary<string, TypeSymbol> aliases,
         IDictionary<string, long> qualifiedEnumMembers,
@@ -119,7 +135,18 @@ internal static class VBExternalTypeCatalog
         foreach (var entry in imported.Aliases)
         {
             // Explicit contracts above are more precise for the common VB6 controls than the
-            // generic automation signatures exposed by an installed OCX.
+            // generic automation signatures exposed by an installed OCX. Their event metadata
+            // is still required for WithEvents, so merge it when both contracts describe the
+            // same named class.
+            if (aliases.TryGetValue(entry.Key, out var existing) &&
+                existing is ClassTypeSymbol existingClass &&
+                entry.Value is ClassTypeSymbol importedClass &&
+                string.Equals(existingClass.Name, importedClass.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                existingClass.AddImportedEvents(importedClass.Events);
+                continue;
+            }
+
             aliases.TryAdd(entry.Key, entry.Value);
         }
 
