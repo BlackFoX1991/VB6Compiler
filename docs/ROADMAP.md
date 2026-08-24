@@ -1815,3 +1815,16 @@ gelesen und geschrieben; der VISIA-Runner bleibt mit diesem Pfad ohne Ausnahme u
 Messagebox stabil. `MSComctlLib.TreeView` bleibt vorerst beim Managed-Adapter, da der native
 `Nodes`-Collection-ABI noch nicht stabil genug für den Runner ist. Die vollständige native
 TreeView-/ImageList-/ImageCombo-/CommonDialog-Oberfläche und ihre Event-ABIs bleiben offen.
+
+## Aktueller Standard-OCX-Hosting-Nachtrag
+
+Die auf dem Testsystem registrierten 32-Bit-Standard-OCX werden jetzt im x86-Runner konkret
+aktiviert: `MSComctlLib.ImageListCtrl.2`, `ImageComboCtl.2`, `ListViewCtrl.2`, `ProgCtrl.2`,
+`Slider.2`, `SBarCtrl.2`, `TabStrip.2`, `Toolbar.2` und `RICHTEXT.RichtextCtrl.1` laufen über
+echte `AxHost`-Wrapper. `MSComDlg.CommonDialog.1` wird als nichtvisuelle COM-Komponente gehalten;
+seine Properties werden direkt über das RCW gelesen und geschrieben. Die native Auswahl bleibt
+opt-in und fällt bei fehlender Registrierung oder falscher Bitness auf die bestehenden Managed-
+Adapter zurück. TreeView bleibt wegen des noch instabilen nativen `Nodes`-ABI bewusst beim
+Managed-Adapter. Der x86- und der x64-WinForms-Testlauf umfassen jeweils **28 Tests**; die
+Gesamtsuite liegt nun bei **953 Tests**. Native Connection-Point-Events, vollständiges
+`IDispatch`-ByRef-Marshalling und die komplette TreeView-Collection bleiben offen.

@@ -115,6 +115,68 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostActivatesRegisteredStandardOcxComponentsInX86()
+    {
+        if (Environment.Is64BitProcess)
+        {
+            return;
+        }
+
+        var visualOcx = new[]
+        {
+            ("ImageList", "MSComctlLib.ImageListCtrl.2"),
+            ("ImageCombo", "MSComctlLib.ImageComboCtl.2"),
+            ("ListView", "MSComctlLib.ListViewCtrl.2"),
+            ("ProgressBar", "MSComctlLib.ProgCtrl.2"),
+            ("Slider", "MSComctlLib.Slider.2"),
+            ("StatusBar", "MSComctlLib.SBarCtrl.2"),
+            ("TabStrip", "MSComctlLib.TabStrip.2"),
+            ("Toolbar", "MSComctlLib.Toolbar.2"),
+            ("RichTextBox", "RICHTEXT.RichtextCtrl.1")
+        };
+        if (visualOcx.Any(ocx => Type.GetTypeFromProgID(ocx.Item2, throwOnError: false) is null) ||
+            Type.GetTypeFromProgID("MSComDlg.CommonDialog.1", throwOnError: false) is null)
+        {
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        foreach (var (typeName, _) in visualOcx)
+        {
+            var vbTypeName = typeName == "RichTextBox"
+                ? "RichTextLib.RichTextBox"
+                : $"MSComctlLib.{typeName}";
+            var control = host.CreateControl(owner, typeName, vbTypeName)!;
+            Assert.IsInstanceOfType<AxHost>(control, typeName);
+            ((Control)control).CreateControl();
+            Assert.IsNotNull(((IVBComObjectProvider)control).ComObject, typeName);
+        }
+
+        var imageList = host.CreateControl(owner, "Images", "MSComctlLib.ImageList")!;
+        Assert.IsTrue(host.TrySetMember(imageList, "ImageWidth", Array.Empty<object?>(), (short)16));
+        Assert.IsTrue(host.TryGetMember(imageList, "ImageWidth", Array.Empty<object?>(), out var imageWidth));
+        Assert.AreEqual((short)16, imageWidth);
+
+        var imageCombo = host.CreateControl(owner, "Combo", "MSComctlLib.ImageCombo")!;
+        Assert.IsTrue(host.TrySetMember(imageCombo, "Locked", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TryGetMember(imageCombo, "Locked", Array.Empty<object?>(), out var locked));
+        Assert.AreEqual(true, locked);
+
+        var dialog = host.CreateControl(owner, "Dialog", "MSComDlg.CommonDialog")!;
+        Assert.IsInstanceOfType<IVBComObjectProvider>(dialog);
+        Assert.IsFalse(dialog is CommonDialogProxy);
+        Assert.IsTrue(host.TrySetMember(dialog, "FileName", Array.Empty<object?>(), "legacy.txt"));
+        Assert.IsTrue(host.TryGetMember(dialog, "FileName", Array.Empty<object?>(), out var fileName));
+        Assert.AreEqual("legacy.txt", fileName);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostEmbedsGeneratedUserControlClassesAsDesignerComponents()
     {
         using var host = new WinFormsHost();
