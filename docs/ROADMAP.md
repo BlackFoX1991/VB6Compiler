@@ -1203,8 +1203,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       werden importiert und COM-Defaultzugriffe verwenden bei echten COM-Objekten `DISPID_VALUE`;
       `FSOURCE`-Event-Signaturen aus TypeLib-Coclasses werden ebenfalls importiert; TypeInfo-gesteuertes
       typisiertes COM-ByRef-Marshalling für unterstützte Automation-Skalare, `DATE`, `CURRENCY` und
-      kompatible SAFEARRAYs steht mit sicherem ByVal-Fallback; vollständiger Connection-Point-
-      Event-ABI, UDT-/Pointer-Marshalling, natives OCX-Hosting und der native
+      kompatible SAFEARRAYs steht mit sicherem ByVal-Fallback; grundlegendes natives OCX-Hosting
+      und TypeInfo-/Connection-Point-Event-Bridging stehen für den geprüften x86-Pfad; vollständiger
+      Connection-Point-Event-ABI, UDT-/Pointer-Marshalling und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; Registry-Registrierung, Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1240,7 +1241,8 @@ Größter Einzelblock.
 - [~] Forms-Runtime auf WinForms: Der portable `IVB6Host`-Vertrag deckt Message-Pump, Form-Lifecycle,
       dynamischen Member-/Control-Dispatch, Control-Erzeugung und Enumeration ab; `VB6.Runtime.WinForms`
       mappt Standardcontrols, Twips, OLE-Farben und Fonts und regressionstestet `Load`/`Unload`/`Show`.
-      Automatische Designer-Registrierung, vollständiges Event-Mapping und OCX-Hosting bleiben offen.
+      Automatische Designer-Registrierung, vollständiges Event-Mapping und die vollständige OCX-
+      Komposition bleiben offen; der geprüfte native OCX-Pfad ist separat regressiongesichert.
 - [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
       als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
       initialisiert; die vollständige Laufzeit-/WinForms-Nachbildung bleibt offen.
@@ -1259,9 +1261,10 @@ Größter Einzelblock.
 - [~] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg` — der opt-in-`WinFormsHost` aktiviert
       registrierte 32-Bit-Visual-OCX über `AxHost`, bindet den nativen `IDispatch`-Pfad für Properties
       und Collections und behandelt `CommonDialog` als native nonvisual COM-Komponente. Die x86-
-      Regression kann mit `VB6_REQUIRE_NATIVE_OCX=1` fehlende Registrierungen hart melden; vollständige
-      Connection-Point-Events, alle Bitness-/Designer-Sonderfälle und der vollständige native ABI-
-      Vertrag bleiben offen
+      Regression kann mit `VB6_REQUIRE_NATIVE_OCX=1` fehlende Registrierungen hart melden. Native
+      Connection-Point-Events werden für den RichTextBox-`Change`-Vertrag über `IProvideClassInfo`
+      beziehungsweise die registrierte TypeLib aufgelöst; vollständige Event-Signaturen, alle
+      Bitness-/Designer-Sonderfälle und der vollständige native ABI-Vertrag bleiben offen
 
 ## Meilenstein 10 — IDE
 
@@ -1903,8 +1906,8 @@ nativen ABI-Sonderfälle bleiben separate Roadmap-Schritte.
 Enumeration normaler Managed-Collections zu verändern. Der x86-Regressionspfad legt einen
 TreeView-Node über die native `Nodes`-Collection an und prüft, dass `VBInteraction.EnumerateControls`
 genau diesen einen Node für den generierten `For Each`-Vertrag zurückgibt. Die x86- und x64-
-WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
-**959 Tests**. Vollständige UDT-/Pointer-/Event-ABI und Connection-Point-Events bleiben offen.
+WinForms-Regression umfasst nun jeweils **32 Tests**; die Gesamtsuite umfasst **960 Tests**.
+Vollständige UDT-/Pointer-/Event-ABI und weitere Connection-Point-Sonderfälle bleiben offen.
 
 ## Aktueller TypeInfo-gesteuerter COM-ByRef-Nachtrag
 
@@ -1942,6 +1945,17 @@ entfernt; CLR- und WinForms-Eventbrücken bleiben unverändert. Vollständige CO
 Konversion, Cancel-/ByRef-Fehlerverträge und der gesamte Connection-Point-Lebenszyklus bleiben
 separate ABI-Schritte.
 
+## Aktueller nativer OCX-Event-Nachtrag
+
+Native `AxHost`-Wrapper bevorzugen für VB6-Ereignisse nun den zugrunde liegenden COM-
+Connection-Point und nicht die geerbten WinForms-Ereignisse des Wrappers. Wenn ein OCX keine
+brauchbare Event-TypeInfo über `IDispatch` liefert, versucht die Runtime zuerst `IProvideClassInfo`
+und danach die registrierte TypeLib des konkreten CLSID; dabei werden `FSOURCE`-Interfaces aus
+Coclasses rekursiv durchsucht. Der x86-Test aktiviert die registrierte `RichTextLib.RichTextBox`
+und verifiziert den nativen `Change`-Event inklusive sauberem Abmelden. Vollständige Event-
+Signaturkonversion, Cancel-/ByRef-Verträge, Bitness-/Designer-Sonderfälle und der gesamte
+Connection-Point-Lifecycle bleiben offen.
+
 ## Aktueller Managed-COM-Server-Nachtrag
 
 Der Managed-Emitter akzeptiert für Bibliotheksausgaben die CLI-Option `--com-host`. Jede
@@ -1958,4 +1972,4 @@ Der Schalter ist bewusst auf `ManagedOutputKind.Library` begrenzt. COM-Registry-
 Reg-Free-Manifest-/Typbibliotheks-Emission, vollständige `[in]`-/`[out]`-Konversion über alle
 Automation- und User-Defined-Typen und ein eigener Raw-`IUnknown`-/`IDispatch`-Serververtrag
 bleiben nachgelagerte Interop-Schritte. Die
-Gesamtsuite umfasst **959 Tests**.
+Gesamtsuite umfasst **960 Tests**.

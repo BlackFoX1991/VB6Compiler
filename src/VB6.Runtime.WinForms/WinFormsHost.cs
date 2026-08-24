@@ -1290,6 +1290,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private object? ResolveEventSource(object source)
     {
+        // Native ActiveX wrappers inherit WinForms events such as TextChanged from AxHost.
+        // Prefer the underlying COM connection point so VB6 event names keep their OCX
+        // identity and signature instead of binding to the wrapper's managed event.
+        if (source is IVBComObjectProvider)
+        {
+            return null;
+        }
+
         if (source is Control or ToolStripItem)
         {
             return source;
@@ -3222,15 +3230,19 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
-    private sealed class NativeActiveXControl : AxHost, IVBComObjectProvider
+    private sealed class NativeActiveXControl : AxHost, IVBComTypeInfoProvider
     {
         private object? _comObject;
+        private readonly Guid _classId;
 
         public NativeActiveXControl(Guid clsid)
             : base(clsid.ToString("B"))
         {
+            _classId = clsid;
             SetStyle(ControlStyles.ResizeRedraw, true);
         }
+
+        public Guid ComClassId => _classId;
 
         public object? ComObject
         {

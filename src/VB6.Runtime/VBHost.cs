@@ -89,6 +89,15 @@ public interface IVBComObjectProvider
 }
 
 /// <summary>
+/// Supplies the registered coclass identity when a native host wrapper has to resolve COM
+/// event metadata from the control's registered type library.
+/// </summary>
+public interface IVBComTypeInfoProvider : IVBComObjectProvider
+{
+    Guid ComClassId { get; }
+}
+
+/// <summary>
 /// Headless control object used when no UI host is installed. It keeps the standard VB6 control
 /// properties available to compiled code and can be replaced by a concrete host control later.
 /// </summary>

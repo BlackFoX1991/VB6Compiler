@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
+using Microsoft.Win32;
 
 namespace VB6.Runtime;
 
@@ -112,8 +113,12 @@ internal static class VBComDispatch
     {
         interfaceId = Guid.Empty;
         dispId = 0;
+        var comTarget = target is IVBComObjectProvider provider
+            ? provider.ComObject
+            : target;
         if (!OperatingSystem.IsWindows() ||
-            !Marshal.IsComObject(target) ||
+            comTarget is null ||
+            !Marshal.IsComObject(comTarget) ||
             string.IsNullOrWhiteSpace(eventName))
         {
             return false;
@@ -121,7 +126,25 @@ internal static class VBComDispatch
 
         try
         {
-            return TryGetComEventIdentity((INativeDispatch)target, eventName, out interfaceId, out dispId);
+            var dispatch = (INativeDispatch)comTarget;
+            if (TryGetComEventIdentity(dispatch, eventName, out interfaceId, out dispId))
+            {
+                return true;
+            }
+
+            // Older ActiveX controls expose their coclass metadata through IProvideClassInfo
+            // while returning no usable ITypeInfo from IDispatch::GetTypeInfo.
+            if (TryGetComEventIdentityFromClassInfo(comTarget, eventName, out interfaceId, out dispId))
+            {
+                return true;
+            }
+
+            return target is IVBComTypeInfoProvider typeInfoProvider &&
+                TryGetComEventIdentityFromRegisteredTypeLibrary(
+                    typeInfoProvider.ComClassId,
+                    eventName,
+                    out interfaceId,
+                    out dispId);
         }
         catch (COMException)
         {
@@ -139,6 +162,117 @@ internal static class VBComDispatch
         {
             return false;
         }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryGetComEventIdentityFromClassInfo(
+        object target,
+        string eventName,
+        out Guid interfaceId,
+        out int dispId)
+    {
+        interfaceId = Guid.Empty;
+        dispId = 0;
+        if (target is not IProvideClassInfo provider ||
+            provider.GetClassInfo(out var typeInfo) < 0 ||
+            typeInfo is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return TryFindEventInTypeInfo(typeInfo, eventName, out interfaceId, out dispId);
+        }
+        finally
+        {
+            if (Marshal.IsComObject(typeInfo))
+            {
+                _ = Marshal.ReleaseComObject(typeInfo);
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryGetComEventIdentityFromRegisteredTypeLibrary(
+        Guid classId,
+        string eventName,
+        out Guid interfaceId,
+        out int dispId)
+    {
+        interfaceId = Guid.Empty;
+        dispId = 0;
+        if (classId == Guid.Empty)
+        {
+            return false;
+        }
+
+        using var classKey = Registry.ClassesRoot.OpenSubKey($"CLSID\\{classId:B}");
+        using var typeLibraryKey = classKey?.OpenSubKey("TypeLib");
+        using var versionKey = classKey?.OpenSubKey("Version");
+        var typeLibraryValue = typeLibraryKey?.GetValue(null) as string;
+        var versionValue = versionKey?.GetValue(null) as string;
+        if (!Guid.TryParse(typeLibraryValue, out var typeLibraryId) ||
+            !Version.TryParse(versionValue, out var version) ||
+            version.Major < 0 ||
+            version.Minor < 0 ||
+            LoadRegTypeLib(
+                ref typeLibraryId,
+                (ushort)version.Major,
+                (ushort)version.Minor,
+                0,
+                out var typeLibrary) < 0 ||
+            typeLibrary is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            for (var index = 0; index < typeLibrary.GetTypeInfoCount(); index++)
+            {
+                typeLibrary.GetTypeInfoType(index, out var typeKind);
+                if (typeKind != TYPEKIND.TKIND_COCLASS)
+                {
+                    continue;
+                }
+
+                typeLibrary.GetTypeInfo(index, out var typeInfo);
+                try
+                {
+                    typeInfo.GetTypeAttr(out var typeAttributePointer);
+                    try
+                    {
+                        var typeAttribute = Marshal.PtrToStructure<TYPEATTR>(typeAttributePointer);
+                        if (typeAttribute.guid == classId &&
+                            TryFindEventInTypeInfo(typeInfo, eventName, out interfaceId, out dispId))
+                        {
+                            return true;
+                        }
+                    }
+                    finally
+                    {
+                        typeInfo.ReleaseTypeAttr(typeAttributePointer);
+                    }
+                }
+                finally
+                {
+                    if (Marshal.IsComObject(typeInfo))
+                    {
+                        _ = Marshal.ReleaseComObject(typeInfo);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            if (Marshal.IsComObject(typeLibrary))
+            {
+                _ = Marshal.ReleaseComObject(typeLibrary);
+            }
+        }
+
+        return false;
     }
 
     [SupportedOSPlatform("windows")]
@@ -234,6 +368,38 @@ internal static class VBComDispatch
             if (typeAttribute.guid == Guid.Empty)
             {
                 return false;
+            }
+
+            for (var implementationIndex = 0;
+                 implementationIndex < typeAttribute.cImplTypes;
+                 implementationIndex++)
+            {
+                typeInfo.GetImplTypeFlags(implementationIndex, out var flags);
+                if ((flags & IMPLTYPEFLAGS.IMPLTYPEFLAG_FSOURCE) == 0)
+                {
+                    continue;
+                }
+
+                typeInfo.GetRefTypeOfImplType(implementationIndex, out var referenceHandle);
+                typeInfo.GetRefTypeInfo(referenceHandle, out var sourceTypeInfo);
+                try
+                {
+                    if (TryFindEventInTypeInfo(
+                        sourceTypeInfo,
+                        eventName,
+                        out interfaceId,
+                        out dispId))
+                    {
+                        return true;
+                    }
+                }
+                finally
+                {
+                    if (Marshal.IsComObject(sourceTypeInfo))
+                    {
+                        _ = Marshal.ReleaseComObject(sourceTypeInfo);
+                    }
+                }
             }
 
             for (var functionIndex = 0; functionIndex < typeAttribute.cFuncs; functionIndex++)
@@ -700,6 +866,14 @@ internal static class VBComDispatch
         ushort flags,
         ushort variantType);
 
+    [DllImport("oleaut32.dll")]
+    private static extern int LoadRegTypeLib(
+        ref Guid typeLibraryId,
+        ushort majorVersion,
+        ushort minorVersion,
+        int lcid,
+        [MarshalAs(UnmanagedType.Interface)] out ITypeLib? typeLibrary);
+
     [ComImport]
     [Guid("00020400-0000-0000-C000-000000000046")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -729,6 +903,15 @@ internal static class VBComDispatch
             [MarshalAs(UnmanagedType.Struct)] out object? result,
             out NativeExcepInfo exception,
             out uint argumentError);
+    }
+
+    [ComImport]
+    [Guid("B196B283-BAB4-101A-B69C-00AA00341D07")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IProvideClassInfo
+    {
+        [PreserveSig]
+        int GetClassInfo([MarshalAs(UnmanagedType.Interface)] out ITypeInfo typeInfo);
     }
 
     [StructLayout(LayoutKind.Sequential)]
