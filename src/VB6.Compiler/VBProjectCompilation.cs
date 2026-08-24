@@ -635,6 +635,8 @@ public sealed class VBProjectCompilation
     private static bool IsSupportedDesignerProperty(string name) =>
         name.Equals("Caption", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Checked", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Shortcut", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Icon", StringComparison.OrdinalIgnoreCase) ||

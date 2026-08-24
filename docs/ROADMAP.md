@@ -1671,4 +1671,15 @@ zeichnet seine Endpunkte über die VB6-Twips-Konvertierung aus `X1`, `Y1`, `X2` 
 Die Designer-Allowlist übernimmt diese Werte in den generierten Formkonstruktor, und die
 Regression prüft sowohl die IR-Emission als auch gerenderte Pixel im STA-Host. Native
 Zeichen-APIs wie `PaintPicture`, vollständige AutoRedraw-/DrawMode-Semantik und MDI bleiben
-separate Forms-Schritte. Die Gesamtsuite umfasst **937 Tests**.
+separate Forms-Schritte. Die Gesamtsuite umfasst **938 Tests**.
+
+## Aktueller Menu-Forms-Nachtrag
+
+Verschachtelte `VB.Menu`-Designerobjekte werden jetzt mit ihrem ursprünglichen Typnamen bis zur
+IR-Emission erhalten und im WinForms-Host als echter `MenuStrip`-/`ToolStripMenuItem`-Baum
+angelegt. `Caption`/`Text`, `Visible`, `Enabled`, `Checked`, `Index`, `Tag` und `Shortcut`
+laufen über den bestehenden Late-Bound-Hostvertrag; Parent-Menüs werden anhand des qualifizierten
+Designerpfads verbunden, und `MenuName_Click`-Handler werden an `ToolStripMenuItem.Click`
+angeschlossen. Die Regression deckt Designer-Emission, Hierarchie und Event-Auslösung ab.
+Separator-Semantik, vollständige VB6-Shortcut-Konvertierung, `PopupMenu` und MDI-Menüs bleiben
+separate Forms-Schritte. Die Gesamtsuite umfasst **938 Tests**.

@@ -443,6 +443,34 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostBuildsMenuHierarchyAndConnectsMenuHandlers()
+    {
+        using var host = new WinFormsHost();
+        var owner = new MenuEventSink();
+
+        host.Load(owner);
+        var file = (ToolStripMenuItem)host.CreateControl(owner, "mnuFile", "Menu")!;
+        var open = (ToolStripMenuItem)host.CreateControl(owner, "mnuFile.cmdOpen", "Menu")!;
+
+        Assert.IsInstanceOfType<MenuStrip>(file.Owner);
+        Assert.AreSame(file, open.OwnerItem);
+        Assert.AreSame(open, file.DropDownItems[0]);
+        Assert.IsTrue(host.TrySetMember(file, "Caption", Array.Empty<object?>(), "File"));
+        Assert.IsTrue(host.TrySetMember(open, "Caption", Array.Empty<object?>(), "Open"));
+        Assert.IsTrue(host.TrySetMember(open, "Checked", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(open, "Enabled", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySubscribeEvent(open, "Click", owner, "Open_Click"));
+        Assert.IsTrue(host.TryInvokeMember(open, "PerformClick", Array.Empty<object?>(), out _));
+
+        Assert.AreEqual("File", file.Text);
+        Assert.AreEqual("Open", open.Text);
+        Assert.IsTrue(open.Checked);
+        Assert.AreEqual(1, owner.OpenCount);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostPlacesQualifiedDesignerControlsInsideTheirParent()
     {
         using var host = new WinFormsHost();
@@ -547,6 +575,13 @@ public sealed class WinFormsHostTests
         public int ChangeCount { get; private set; }
 
         private void Text1_Change() => ChangeCount++;
+    }
+
+    private sealed class MenuEventSink
+    {
+        public int OpenCount { get; private set; }
+
+        private void Open_Click() => OpenCount++;
     }
 
     private sealed class ExplicitEventSink
