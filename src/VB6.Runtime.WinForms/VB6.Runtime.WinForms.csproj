@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../VB6.Runtime/VB6.Runtime.csproj" />
+    <ProjectReference Include="../VB6.Runtime/VB6.Runtime.csproj"
+                      GlobalPropertiesToRemove="PlatformTarget" />
   </ItemGroup>
 </Project>
