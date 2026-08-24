@@ -172,6 +172,45 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         target.Invalidate();
     }
 
+    public void PaintPicture(VBPaintPicture picture)
+    {
+        ThrowIfDisposed();
+        var target = _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(form => !form.IsDisposed);
+        if (target is null || !TryGetPaintPictureImage(picture.Picture, out var source, out var ownsSource))
+        {
+            return;
+        }
+
+        try
+        {
+            var surface = GetDrawingSurface(target);
+            var state = GetDesignerControlState(target);
+            var scale = state.ScaleMode switch
+            {
+                3 => 1f,
+                2 => target.DeviceDpi / 72f,
+                _ => target.DeviceDpi / 1440f
+            };
+            var x = picture.X * scale;
+            var y = picture.Y * scale;
+            var width = picture.Width == 0 ? source!.Width : picture.Width * scale;
+            var height = picture.Height == 0 ? source!.Height : picture.Height * scale;
+
+            using var graphics = Graphics.FromImage(surface);
+            graphics.DrawImage(source!, new RectangleF(x, y, width, height));
+            target.Invalidate();
+        }
+        finally
+        {
+            if (ownsSource)
+            {
+                source!.Dispose();
+            }
+        }
+    }
+
     public int RunMessageLoop()
     {
         ThrowIfDisposed();
@@ -2330,6 +2369,51 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             return false;
         }
+    }
+
+    private static bool TryGetPaintPictureImage(
+        object? value,
+        out Image? image,
+        out bool ownsImage)
+    {
+        ownsImage = false;
+        if (value is Image existing)
+        {
+            image = existing;
+            return true;
+        }
+
+        if (TryCreateImage(value, out image))
+        {
+            ownsImage = true;
+            return true;
+        }
+
+        if (value is VBPicture picture && !string.IsNullOrWhiteSpace(picture.FileName))
+        {
+            try
+            {
+                using var loaded = Image.FromFile(picture.FileName);
+                image = new Bitmap(loaded);
+                ownsImage = true;
+                return true;
+            }
+            catch (ArgumentException)
+            {
+            }
+            catch (ExternalException)
+            {
+            }
+            catch (IOException)
+            {
+            }
+            catch (OutOfMemoryException)
+            {
+            }
+        }
+
+        image = null;
+        return false;
     }
 
     private bool TrySetImageListDesignerProperty(
