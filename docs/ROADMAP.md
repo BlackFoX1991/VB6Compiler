@@ -1393,3 +1393,15 @@ Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen. Die Gesamtsui
 Fehlende oder falsch geschriebene Startprojekte erzeugen `VB6VBG0007`, verhindern die Batch-
 Emission und liefern über den CLI-Report einen Fehler-Exitcode. Der Prozesspfad ist mit einer
 echten `.vbg`-Regression abgesichert. Die Gesamtsuite umfasst **888 Tests**.
+
+## Aktueller LSP-Navigations-Nachtrag
+
+Der LSP liefert neben Compilerdiagnosen nun echte Completion-, Go-to-definition- und
+Dokument-Symbol-Antworten. Die Antworten werden direkt aus dem bestehenden Syntaxbaum erzeugt,
+berücksichtigen modulare Sub-/Function-/Property-/Event-/Declare-/Enum-/Type-/Const- und
+Variablendeklarationen und ergänzen eine kleine Liste häufig genutzter VB6-Intrinsics. Wortpräfixe
+und Cursorpositionen werden als LSP-Zeilen-/Spaltenpositionen aufgelöst; `didClose` entfernt
+Dokumente wieder aus dem Serverzustand. Der vollständige JSON-RPC-Pfad ist mit einer Regression
+für Completion, Definition und Dokument-Symbole abgesichert. Die Gesamtsuite umfasst
+**896 Tests**. Vollständige Typermittlung, projektübergreifende Definitionen und semantisch
+kontextabhängige Completion bleiben nachgelagerte Visual-Studio-Integrationsschritte.
