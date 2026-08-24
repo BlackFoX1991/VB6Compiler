@@ -1445,7 +1445,8 @@ Die `.vbg`-Emission validiert nun auch den tatsächlichen Lauf eines Consumers g
 emittierte referenzierte VB6-Klassenbibliothek. Externe Klassenmember verwenden dabei denselben
 Managed-Namen wie ihre Library-Definitionen (`__vb6_...`), sodass Projektgruppen mit
 `Reference=...; Shared.vbp; ...` nicht nur in Dependency-Reihenfolge gebaut werden, sondern auch
-zur Laufzeit aufgelöst werden. Die Gesamtsuite umfasst **907 Tests**.
+zur Laufzeit aufgelöst werden. Der vollständige CLI-Pfad ist mit einem gestarteten Consumer
+regressionsgesichert. Die Gesamtsuite umfasst **908 Tests**.
 
 ## Aktueller MSBuild-SDK-Nachtrag
 

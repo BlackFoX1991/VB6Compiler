@@ -61,6 +61,68 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_CompilesAndRunsReferencedVbgProjectsThroughTheCli()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(
+                groupPath,
+                "Type=Group\nProject=Consumer.vbp\nProject=Shared.vbp\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Shared.vbp"),
+                "Type=OleDll\nName=Shared\nClass=Customer; Customer.cls\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Customer.cls"),
+                "Public Function Value() As Long\n    Value = 7\nEnd Function\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Consumer.vbp"),
+                "Type=Exe\nStartup=\"Sub Main\"\nName=Consumer\n" +
+                "Reference=*\\G{00025E01-0000-0000-C000-000000000046}#1.0#0#Shared.vbp#Shared\n" +
+                "Module=Main; Main.bas\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Main.bas"),
+                "Sub Main()\n" +
+                "    Dim customer As Shared.Customer\n" +
+                "    Set customer = New Shared.Customer\n" +
+                "    Debug.Print customer.Value\n" +
+                "End Sub\n");
+            var outputDirectory = Path.Combine(directory, "bin");
+
+            var result = RunCli(groupPath, "--emit-assembly", outputDirectory);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Shared.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Consumer.exe")));
+
+            var startInfo = new ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = outputDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(Path.Combine(outputDirectory, "Consumer.exe"));
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the emitted VBG consumer.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.AreEqual("7", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Report_ReturnsNonZeroForUndeclaredVbgStartupProject()
     {
         var directory = CreateTemporaryDirectory();
