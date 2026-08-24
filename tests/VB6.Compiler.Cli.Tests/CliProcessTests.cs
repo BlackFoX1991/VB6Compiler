@@ -249,6 +249,24 @@ public sealed class CliProcessTests
             Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
             Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
             Assert.IsTrue(IsNativeWindowsAppHost(outputPath));
+
+            var startInfo = new ProcessStartInfo(outputPath)
+            {
+                WorkingDirectory = Path.GetDirectoryName(outputPath)!,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the x86 apphost.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.IsFalse(standardError.Contains("System.Private.CoreLib", StringComparison.Ordinal));
+            Assert.AreEqual("1", standardOutput.Trim());
         }
         finally
         {
