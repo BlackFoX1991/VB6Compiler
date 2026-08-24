@@ -48,6 +48,35 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ReadsWindowsAnsiEncodedProjectSources()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "AnsiProject.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Module=Main; Main.bas
+                """);
+            File.WriteAllBytes(
+                Path.Combine(directory, "Main.bas"),
+                System.Text.Encoding.Latin1.GetBytes("Sub Main()\r\n    Debug.Print \"Grüße\"\r\nEnd Sub\r\n"));
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            Assert.AreEqual(0, analysis.Diagnostics.Length);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesControlFlowCrossModuleCallsAndFunction()
     {
         var directory = CreateTemporaryDirectory();

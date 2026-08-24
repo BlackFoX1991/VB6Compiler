@@ -9,7 +9,7 @@ public sealed class VBProjectGroupLoader
         ArgumentException.ThrowIfNullOrWhiteSpace(groupFilePath);
 
         var fullPath = Path.GetFullPath(groupFilePath);
-        var text = File.ReadAllText(fullPath);
+        var text = VB6TextFile.ReadAllText(fullPath);
         return Parse(text, fullPath);
     }
 

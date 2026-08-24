@@ -123,7 +123,7 @@ if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnor
     return HandleProjectGroup(path, args);
 }
 
-var compilation = VBCompilation.Create(File.ReadAllText(path), path);
+var compilation = VBCompilation.Create(VB6TextFile.ReadAllText(path), path);
 
 if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
 {
