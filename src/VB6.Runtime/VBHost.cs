@@ -150,6 +150,8 @@ public sealed class VBControlProxy : IEnumerable<object?>
 
     public int hDC { get; set; }
 
+    public bool MDIChild { get; set; }
+
     public IReadOnlyList<object?> Controls => _controls;
 
     public void AddControl(object? control) => _controls.Add(control);

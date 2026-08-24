@@ -815,6 +815,29 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void HostAttachesMdiChildFormsToMdiContainers()
+    {
+        using var host = new WinFormsHost();
+        var parentOwner = new object();
+        var childOwner = new object();
+        using var parent = new Form();
+        using var child = new Form();
+
+        host.Register(parentOwner, parent);
+        host.Register(childOwner, child);
+
+        Assert.IsTrue(host.TrySetMember(parentOwner, "MDIForm", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(childOwner, "MDIChild", Array.Empty<object?>(), true));
+        Assert.AreSame(parent, child.MdiParent);
+        Assert.IsTrue(parent.IsMdiContainer);
+        Assert.IsTrue(host.TryGetMember(childOwner, "MDIChild", Array.Empty<object?>(), out var value));
+        Assert.AreEqual(true, value);
+
+        host.Unload(childOwner);
+        host.Unload(parentOwner);
+    }
+
     private sealed class EventSink
     {
         public int ChangeCount { get; private set; }

@@ -1392,7 +1392,7 @@ Abonnements werden bei Reassignment wieder entfernt. Portable Runtime-, Compiler
 WinForms-Regressionen sichern diesen Umfang ab. Der häufige Standard-Event-Satz für Controls und
 Forms (`MouseDown`/`MouseUp`/`MouseMove`, `KeyDown`/`KeyPress`/`KeyUp`, `Resize`, `Click`,
 `Change`, Fokus und Doppelklick) wird auf VB6-Button-/Shift-/Key-/Twips-Argumente abgebildet.
-Vollständige `.frx`-Ressourcendekodierung, das restliche WinForms-Event-Mapping, MDI,
+Vollständige `.frx`-Ressourcendekodierung, vollständige MDI-Fenster-/Menüverwaltung,
 UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap-Blöcke.
 Verschachtelte Designer-Controls werden über qualifizierte Namen nun in ihre Parent-Container
 registriert; die Regression deckt sowohl IR-Erzeugung als auch die konkrete WinForms-Hierarchie ab.
@@ -1743,7 +1743,7 @@ bleiben bewusst separate Kompatibilitätsschritte. Der Host hält pro eingebette
 `VBPropertyBag` und ruft `UserControl_ReadProperties` beim Einfügen sowie
 `UserControl_WriteProperties` vor `UserControl_Terminate` auf. Die Regression umfasst den
 Instanzierungs-, Komponenten-, PropertyBag- und Initialize-/Terminate-/Unload-Lifecycle. Die
-Gesamtsuite umfasst **947 Tests**.
+Gesamtsuite umfasst **949 Tests**.
 
 ## Aktueller Form-Lifecycle-Nachtrag
 
@@ -1753,4 +1753,13 @@ Der WinForms-Host bindet nun auch `Form_Activate`, `Form_Deactivate`, `Form_Quer
 geänderter `Cancel`-ByRef-Wert wird in `FormClosingEventArgs.Cancel` zurückgeschrieben. Die
 Regression löst die geschützten WinForms-Ereignisse direkt aus und prüft Aktivierung,
 Deaktivierung, Unload-Modus und Abbruchsemantik. MDI und vollständige OCX-/Connection-Point-
-Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **947 Tests**.
+Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **949 Tests**.
+
+## Aktueller MDI-Forms-Nachtrag
+
+`VB.MDIForm`-Designerwurzeln werden als MDI-Containerinitialisierung in die Managed-IR übernommen.
+`MDIChild=True` wird als Form-Designerwert gebunden; der WinForms-Host ordnet solche Child-Forms
+automatisch dem registrierten MDI-Container zu und hält den Wert über den Host-Dispatch lesbar.
+Die Regression deckt sowohl Designer-Emission als auch die konkrete Parent-/Child-Hierarchie ab.
+Vollständige MDI-Fensterbefehle, MDI-Menüs und persistente Window-Management-Regeln bleiben offen.
+Die Gesamtsuite umfasst **949 Tests**.
