@@ -91,6 +91,24 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PromotesVariantOverflowDuringArithmetic()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+
+                value = CSng("3.4028235E+38")
+                Debug.Print TypeName(value + value)
+
+                value = CInt(-32768)
+                Debug.Print TypeName(-value)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Double", "Long" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PromotesCurrencyAndDoubleToDouble()
     {
         var output = VB6TestProgram.RunLines("""

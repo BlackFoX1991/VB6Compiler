@@ -40,6 +40,36 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void Arithmetic_PromotesSingleAndIntegerOverflowToTheNextVariantWidth()
+    {
+        var singleAdd = VBOperators.AddVariant(float.MaxValue, float.MaxValue);
+        var singleSubtract = VBOperators.SubtractVariant(float.MinValue, float.MaxValue);
+        var singleDivide = VBOperators.DivideVariant(float.MaxValue, 0.5f);
+        var integerNegate = VBOperators.NegateVariant(short.MinValue);
+        var longNegate = VBOperators.NegateVariant(int.MinValue);
+
+        Assert.IsInstanceOfType<double>(singleAdd);
+        Assert.IsInstanceOfType<double>(singleSubtract);
+        Assert.IsInstanceOfType<double>(singleDivide);
+        Assert.AreEqual(2 * (double)float.MaxValue, singleAdd);
+        Assert.AreEqual((double)float.MinValue - float.MaxValue, singleSubtract);
+        Assert.AreEqual((double)float.MaxValue / 0.5d, singleDivide);
+        Assert.AreEqual(32768, integerNegate);
+        Assert.AreEqual(2147483648d, longNegate);
+    }
+
+    [TestMethod]
+    public void Arithmetic_RejectsVariantDoubleOverflow()
+    {
+        Assert.ThrowsException<OverflowException>(() =>
+            VBOperators.AddVariant(double.MaxValue, double.MaxValue));
+        Assert.ThrowsException<OverflowException>(() =>
+            VBOperators.SubtractVariant(double.MinValue, double.MaxValue));
+        Assert.ThrowsException<OverflowException>(() =>
+            VBOperators.DivideVariant(double.MaxValue, double.Epsilon));
+    }
+
+    [TestMethod]
     public void DateVariants_PreserveDateSubtypeForAdditionAndSingleDateSubtraction()
     {
         var date = VBConversions.DateToVariant(43832d);

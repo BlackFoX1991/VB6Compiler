@@ -1330,11 +1330,11 @@ VB6-ANSI-Dateien einen Windows-1252-Fallback. `.vbg`-Batch-Emission bleibt über
 Abhängigkeitsreihenfolge und die getrennte
 Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
 bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
-**882 Tests**.
+**886 Tests**.
 `--report` gibt Projekt- und Quelldiagnosen bei Fehlern auf `stderr` aus und liefert dann einen
 Fehler-Exitcode statt eines erfolgreichen Status. Zwei Prozessregressionen prüfen sowohl ein
 fehlerhaftes `.vbp` als auch die echte `.vbg`-Batch-Emission über den CLI-Prozess. Die Gesamtsuite
-umfasst **884 Tests**.
+umfasst **886 Tests**.
 
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
@@ -1359,5 +1359,9 @@ UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap
 numerische Null behandelt wird. `Int` prüft Missing-/Array-Zustände, bewahrt `Null` und nutzt die
 zentrale Variant-Konversion für Date-/Currency-/Boolean-Werte. Die Verträge laufen durch Symbolik,
 Managed-Emission und Runtime-Regressionen. Variant-`/` liefert für Byte-/Integer-/Single-Paare
-nun `Single`, für Decimal-Beteiligung `Decimal` und sonst `Double`; die vollständige VB6-
-Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen.
+nun `Single`, für Decimal-Beteiligung `Decimal` und sonst `Double`; überlaufende `Single`-
+Ergebnisse aus `+`, `-`, `*` und `/` werden auf `Double` hochgestuft, Integer-/Long-Negationen
+wechseln bei `MinValue`-Überlauf ebenfalls auf die nächste darstellbare Breite, und Variant-
+`Double`-Überläufe werden bei `+`, `-`, `*` und `/` als Fehler abgelehnt. Die vollständige VB6-
+Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen. Die Gesamtsuite umfasst
+**886 Tests**.

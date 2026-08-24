@@ -43,10 +43,10 @@ public static partial class VBOperators
             VariantNumericKind.UShort => AddUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
             VariantNumericKind.UInteger => AddUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
             VariantNumericKind.ULong => AddULong(VBConversions.CULng(left), VBConversions.CULng(right)),
-            VariantNumericKind.Single => AddSingle(VBConversions.CSng(left), VBConversions.CSng(right)),
+            VariantNumericKind.Single => AddVariantSingle(left, right),
             VariantNumericKind.Currency => AddCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) + VariantDecimal(right)),
-            VariantNumericKind.Double => AddDouble(VBConversions.CDbl(left), VBConversions.CDbl(right)),
+            VariantNumericKind.Double => AddVariantDouble(left, right),
             _ => throw new InvalidOperationException("Unexpected Variant numeric kind.")
         };
     }
@@ -94,10 +94,10 @@ public static partial class VBOperators
             VariantNumericKind.UShort => SubtractUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
             VariantNumericKind.UInteger => SubtractUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
             VariantNumericKind.ULong => SubtractULong(VBConversions.CULng(left), VBConversions.CULng(right)),
-            VariantNumericKind.Single => SubtractSingle(VBConversions.CSng(left), VBConversions.CSng(right)),
+            VariantNumericKind.Single => SubtractVariantSingle(left, right),
             VariantNumericKind.Currency => SubtractCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) - VariantDecimal(right)),
-            VariantNumericKind.Double => SubtractDouble(VBConversions.CDbl(left), VBConversions.CDbl(right)),
+            VariantNumericKind.Double => SubtractVariantDouble(left, right),
             _ => throw new InvalidOperationException("Unexpected Variant numeric kind.")
         };
     }
@@ -117,8 +117,8 @@ public static partial class VBOperators
         return kind switch
         {
             VariantNumericKind.Decimal => checked(VariantDecimal(left) / VariantDecimal(right)),
-            VariantNumericKind.Single => DivideSingle(VBConversions.CSng(left), VBConversions.CSng(right)),
-            _ => DivideDouble(VBConversions.CDbl(left), VBConversions.CDbl(right))
+            VariantNumericKind.Single => DivideVariantSingle(left, right),
+            _ => DivideVariantDouble(left, right)
         };
     }
 
@@ -205,9 +205,8 @@ public static partial class VBOperators
 
         return GetVariantNumericKind(value) switch
         {
-            VariantNumericKind.Byte or VariantNumericKind.Integer =>
-                (object)NegateInteger(VBConversions.CInt(value)),
-            VariantNumericKind.Long => (object)NegateLong(VBConversions.CLng(value)),
+            VariantNumericKind.Byte or VariantNumericKind.Integer => NegateVariantInteger(value),
+            VariantNumericKind.Long => NegateVariantLong(value),
             VariantNumericKind.LongLong => (object)NegateLongLong(VBConversions.CLngLng(value)),
             VariantNumericKind.UShort => (object)NegateUShort(VBConversions.CUShort(value)),
             VariantNumericKind.UInteger => (object)NegateUInteger(VBConversions.CUInt(value)),
@@ -361,6 +360,94 @@ public static partial class VBOperators
         {
             return SubtractDouble(VBConversions.CDbl(left), VBConversions.CDbl(right));
         }
+    }
+
+    private static object AddVariantSingle(object? left, object? right)
+    {
+        try
+        {
+            return AddSingle(VBConversions.CSng(left), VBConversions.CSng(right));
+        }
+        catch (OverflowException)
+        {
+            return AddVariantDouble(left, right);
+        }
+    }
+
+    private static object SubtractVariantSingle(object? left, object? right)
+    {
+        try
+        {
+            return SubtractSingle(VBConversions.CSng(left), VBConversions.CSng(right));
+        }
+        catch (OverflowException)
+        {
+            return SubtractVariantDouble(left, right);
+        }
+    }
+
+    private static object DivideVariantSingle(object? left, object? right)
+    {
+        try
+        {
+            return DivideSingle(VBConversions.CSng(left), VBConversions.CSng(right));
+        }
+        catch (OverflowException)
+        {
+            return DivideVariantDouble(left, right);
+        }
+    }
+
+    private static object NegateVariantInteger(object? value)
+    {
+        try
+        {
+            return NegateInteger(VBConversions.CInt(value));
+        }
+        catch (OverflowException)
+        {
+            return NegateLong(VBConversions.CLng(value));
+        }
+    }
+
+    private static object NegateVariantLong(object? value)
+    {
+        try
+        {
+            return NegateLong(VBConversions.CLng(value));
+        }
+        catch (OverflowException)
+        {
+            return NegateDouble(VBConversions.CDbl(value));
+        }
+    }
+
+    private static object AddVariantDouble(object? left, object? right)
+    {
+        var result = AddDouble(VBConversions.CDbl(left), VBConversions.CDbl(right));
+        return CheckVariantDouble(result, "addition");
+    }
+
+    private static object SubtractVariantDouble(object? left, object? right)
+    {
+        var result = SubtractDouble(VBConversions.CDbl(left), VBConversions.CDbl(right));
+        return CheckVariantDouble(result, "subtraction");
+    }
+
+    private static object DivideVariantDouble(object? left, object? right)
+    {
+        var result = DivideDouble(VBConversions.CDbl(left), VBConversions.CDbl(right));
+        return CheckVariantDouble(result, "division");
+    }
+
+    private static double CheckVariantDouble(double value, string operation)
+    {
+        if (double.IsInfinity(value))
+        {
+            throw new OverflowException($"VB6 Variant Double {operation} overflowed.");
+        }
+
+        return value;
     }
 
     private static decimal VariantDecimal(object? value) => VBConversions.CDec(value) is decimal decimalValue
