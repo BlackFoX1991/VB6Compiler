@@ -1363,11 +1363,16 @@ Host bleibt der Compiler headless lauffähig und verwendet `VBControlProxy`-Obje
 Fonts und Handles und führt `Unload`/`DoEvents` aus. Konventionelle Handlernamen wie
 `Text1_Change` werden an WinForms-Events angebunden; explizite `VBEvents.SubscribeMethod`-
 Abonnements werden bei Reassignment wieder entfernt. Portable Runtime-, Compiler-E2E- und STA-
-WinForms-Regressionen sichern diesen Umfang ab. Vollständige `.frx`-Ressourcendekodierung,
-WinForms-Event-Mapping, MDI,
+WinForms-Regressionen sichern diesen Umfang ab. Der häufige Standard-Event-Satz für Controls und
+Forms (`MouseDown`/`MouseUp`/`MouseMove`, `KeyDown`/`KeyPress`/`KeyUp`, `Resize`, `Click`,
+`Change`, Fokus und Doppelklick) wird auf VB6-Button-/Shift-/Key-/Twips-Argumente abgebildet.
+Vollständige `.frx`-Ressourcendekodierung, das restliche WinForms-Event-Mapping, MDI,
 UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap-Blöcke.
 Verschachtelte Designer-Controls werden über qualifizierte Namen nun in ihre Parent-Container
 registriert; die Regression deckt sowohl IR-Erzeugung als auch die konkrete WinForms-Hierarchie ab.
+
+Der erweiterte Event-Adapter ist mit echten WinForms-Events für Maus-, Tastatur- und Form-Resize-
+Argumente regressionsgesichert. Die Gesamtsuite umfasst **892 Tests**.
 
 ## Aktueller Variant-Nachtrag
 
