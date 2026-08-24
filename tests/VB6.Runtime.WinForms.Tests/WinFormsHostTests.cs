@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using VB6.Runtime;
@@ -11,6 +12,15 @@ namespace VB6.Runtime.WinForms.Tests;
 [STATestClass]
 public sealed class WinFormsHostTests
 {
+    private const uint WindowMessageChar = 0x0102;
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessage(
+        IntPtr windowHandle,
+        uint message,
+        IntPtr wParam,
+        IntPtr lParam);
+
     private static bool RequireNativeOcx =>
         string.Equals(
             Environment.GetEnvironmentVariable("VB6_REQUIRE_NATIVE_OCX"),
@@ -183,6 +193,51 @@ public sealed class WinFormsHostTests
         finally
         {
             VBEvents.UnsubscribeMethod(richText, "Change", sink, "OnChange");
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
+    public void HostBridgesNativeRichTextKeyPressByRefEventThroughComConnectionPointInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native RichTextBox OCX validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var richText = host.CreateControl(owner, "Editor", "RichTextLib.RichTextBox")!;
+        Assert.IsInstanceOfType<AxHost>(richText);
+        var control = (Control)richText;
+        control.CreateControl();
+        control.Focus();
+        Assert.IsTrue(host.TrySetMember(richText, "Text", Array.Empty<object?>(), string.Empty));
+
+        var sink = new NativeRichTextKeyPressEventSink();
+        VBEvents.SubscribeMethod(richText, "KeyPress", sink, "OnKeyPress");
+        try
+        {
+            _ = SendMessage(control.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);
+            Application.DoEvents();
+
+            Assert.AreEqual(1, sink.KeyPressCount);
+            Assert.AreEqual((short)'x', sink.OriginalKeyAscii);
+            Assert.IsTrue(host.TryGetMember(richText, "Text", Array.Empty<object?>(), out var text));
+            Assert.AreEqual("y", text);
+        }
+        finally
+        {
+            VBEvents.UnsubscribeMethod(richText, "KeyPress", sink, "OnKeyPress");
             host.Unload(owner);
         }
     }
@@ -1166,6 +1221,19 @@ public sealed class WinFormsHostTests
         public int ChangeCount { get; private set; }
 
         private void OnChange() => ChangeCount++;
+    }
+
+    private sealed class NativeRichTextKeyPressEventSink
+    {
+        public int KeyPressCount { get; private set; }
+        public short OriginalKeyAscii { get; private set; }
+
+        private void OnKeyPress(ref short keyAscii)
+        {
+            KeyPressCount++;
+            OriginalKeyAscii = keyAscii;
+            keyAscii = (short)'y';
+        }
     }
 
     private sealed class MenuEventSink

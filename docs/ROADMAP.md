@@ -1995,3 +1995,13 @@ Stringbehandlung auf; `Val` profitiert im Compilerpfad von der bestehenden Varia
 Konversion. `IsArray`, `IsObject` und `TypeName` bleiben bewusst container-/identitätsbezogen.
 Runtime-Tests für CLR-Default-Properties und ein emittiertes `.vbp` mit numerischem und textuellem
 Default-Wert decken die Intrinsics gemeinsam ab. Die Gesamtsuite umfasst nun **967 Tests**.
+
+## Aktueller nativer OCX-Event-ByRef-Nachtrag
+
+Der verpflichtende x86-WinForms-Lauf aktiviert die registrierten Standard-OCX-Komponenten jetzt
+mit **33/33** Tests. Neben dem parameterlosen nativen `RichTextBox.Change`-Event deckt eine echte
+`RichTextBox.KeyPress`-Connection-Point-Regression einen `ByRef`-Parameter ab: Der Handler erhält
+`KeyAscii`, ändert ihn von `x` auf `y`, und der geänderte Wert wird vom OCX in den Text übernommen.
+Damit ist der generische `VBEvents`-Delegate-Adapter für diesen nativen ByRef-Signaturtyp belegt;
+weitere Event-Signaturen, Cancel-/ByRef-Sonderfälle, Connection-Point-Lifecycle und vollständige
+native ABI-Konversion bleiben separate Schritte. Die Gesamtsuite umfasst nun **968 Tests**.
