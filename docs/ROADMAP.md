@@ -1600,3 +1600,14 @@ zurück. Die Regression nutzt den echten Late-Bound-Hostpfad und prüft Auswahlf
 RTF-Roundtrip, Zeilenauflösung sowie Textdatei-Laden/Speichern. Vollständige RichTextLib-OCX-
 ABI- und native Connection-Point-Kompatibilität bleiben offen. Die Gesamtsuite umfasst
 **929 Tests**.
+
+## Aktueller FRX-Ressourcen-Nachtrag
+
+`VBDesignerParser` erkennt nun auch die VB6-Designerform `TextRTF = $"file.frx":offset`.
+`VBFrxResourceReader` validiert den little-endian 32-Bit-Längenpräfix am Offset, prüft die
+Dateigrenze und stellt die folgenden Nutzdaten als `VBDesignerProperty.ResourceData` bereit.
+Die Bytes bleiben bewusst opaque: RTF-, Bild-, Icon- und OCX-spezifische Interpretation gehört
+in den jeweiligen Hostadapter und wird nicht durch eine unsichere Universaldecodierung ersetzt.
+Fehlerhafte vorhandene Ressourcen erzeugen `VB6FRX0001` als Warnung, während fehlende optionale
+Designerdateien für reine Analysepfade weiterhin diagnostikfrei bleiben. Die Gesamtsuite umfasst
+**931 Tests**.
