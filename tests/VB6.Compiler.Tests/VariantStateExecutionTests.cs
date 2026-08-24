@@ -75,6 +75,22 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PromotesCurrencyAndDoubleToDouble()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CCur(1)
+
+                Debug.Print TypeName(value + 0.5)
+                Debug.Print value + 0.5
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Double", "1.5" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesErrorVariantStateIntrinsics()
     {
         var output = VB6TestProgram.RunLines("""

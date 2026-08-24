@@ -53,8 +53,8 @@ public sealed class VariantArithmeticTests
         Assert.AreEqual(8d, VBOperators.PowerVariant(VBConversions.CDec("2"), 3));
         Assert.AreEqual(2.25m, VBOperators.AddVariant(VBConversions.CDec("1.25"), 1d));
         var currencyResult = VBOperators.AddVariant(VBConversions.CCur(1m), 0.5d);
-        Assert.IsInstanceOfType<VBCurrency>(currencyResult);
-        Assert.AreEqual(1.5m, ((VBCurrency)currencyResult!).ToDecimal());
+        Assert.IsInstanceOfType<double>(currencyResult);
+        Assert.AreEqual(1.5d, currencyResult);
         Assert.AreEqual(-1.25m, VBOperators.NegateVariant(VBConversions.CDec("1.25")));
         Assert.AreEqual(2, VBOperators.IntegerDivideVariant(VBConversions.CDec("5.1"), 2));
         Assert.AreEqual(-2, VBOperators.NotVariant(VBConversions.CDec("1.1")));
