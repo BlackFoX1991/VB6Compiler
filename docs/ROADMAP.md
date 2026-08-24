@@ -2094,3 +2094,13 @@ ActiveX-Control ist; nonvisual Komponenten wie `MSComDlg.CommonDialog` fallen we
 dedizierten COM-Adapter. Der verpflichtende x86-Lauf mit den registrierten Standard-OCX umfasst
 weiterhin **34/34** Tests, die Gesamtsuite **977**. Vollständiges generisches OCX-Event-/UDT- und
 Pointer-Marshalling bleibt ein separater ABI-Vertrag.
+
+## Aktueller nativer OCX-Event-Routing-Nachtrag
+
+COM-Provider werden im generischen `VBEvents`-Pfad nicht mehr an gleichnamige geerbte CLR-/WinForms-
+Events eines `AxHost`-Wrappers gebunden. Native ActiveX-Quellen bleiben dadurch am COM-
+Connection-Point, sodass ByRef- und Automation-Signaturen nicht durch die Wrapper-Signatur
+verdeckt werden; reine Managed-CLR-Events behalten ihren bisherigen Adapter. Die Runtime-
+Regression umfasst **201** Tests, der verpflichtende x86-WinForms-Lauf mit registrierten
+Standard-OCX weiterhin **34/34**. Vollständige generische Event-Signatur-, UDT- und Pointer-
+Marshalling-Verträge bleiben separate ABI-Schritte.

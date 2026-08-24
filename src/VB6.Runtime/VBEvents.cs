@@ -357,6 +357,15 @@ public static class VBEvents
             .FirstOrDefault(candidate =>
                 string.Equals(candidate.Name, eventName, StringComparison.OrdinalIgnoreCase));
         @delegate = null;
+        if (source is IVBComObjectProvider)
+        {
+            // AxHost exposes inherited WinForms events as well as the wrapped OCX's COM
+            // connection points. A VB6 event name must use the COM identity for such a source;
+            // otherwise a matching wrapper event can hide ByRef and Automation parameters.
+            eventInfo = null;
+            return false;
+        }
+
         if (eventInfo?.EventHandlerType is null || eventInfo.GetAddMethod(true) is null)
         {
             eventInfo = null;
