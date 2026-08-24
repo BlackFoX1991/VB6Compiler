@@ -50,6 +50,43 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostSupportsCommonListAndTextSelectionMembers()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+
+        host.Load(owner);
+        var list = (ListBox)host.CreateControl(owner, "List1", "ListBox")!;
+        Assert.IsTrue(host.TryInvokeMember(list, "AddItem", new object?[] { "first" }, out _));
+        Assert.IsTrue(host.TryInvokeMember(list, "AddItem", new object?[] { "second" }, out _));
+        Assert.IsTrue(host.TryInvokeMember(list, "AddItem", new object?[] { "inserted", 1 }, out _));
+
+        Assert.IsTrue(host.TryGetMember(list, "ListCount", Array.Empty<object?>(), out var count));
+        Assert.AreEqual(3, count);
+        Assert.IsTrue(host.TryGetMember(list, "List", new object?[] { 1 }, out var item));
+        Assert.AreEqual("inserted", item);
+        Assert.IsTrue(host.TrySetMember(list, "ListIndex", Array.Empty<object?>(), 1));
+        Assert.AreEqual(1, list.SelectedIndex);
+        Assert.IsTrue(host.TrySetMember(list, "List", new object?[] { 1 }, "changed"));
+        Assert.AreEqual("changed", list.Items[1]);
+        Assert.IsTrue(host.TryInvokeMember(list, "RemoveItem", new object?[] { 0 }, out _));
+        Assert.AreEqual(2, list.Items.Count);
+        Assert.IsTrue(host.TryInvokeMember(list, "Clear", Array.Empty<object?>(), out _));
+        Assert.AreEqual(0, list.Items.Count);
+
+        var textBox = (TextBox)host.CreateControl(owner, "Text1", "TextBox")!;
+        textBox.Text = "abcdef";
+        Assert.IsTrue(host.TrySetMember(textBox, "SelStart", Array.Empty<object?>(), 2));
+        Assert.IsTrue(host.TrySetMember(textBox, "SelLength", Array.Empty<object?>(), 2));
+        Assert.IsTrue(host.TryGetMember(textBox, "SelText", Array.Empty<object?>(), out var selected));
+        Assert.AreEqual("cd", selected);
+        Assert.IsTrue(host.TrySetMember(textBox, "SelText", Array.Empty<object?>(), "XY"));
+        Assert.AreEqual("abXYef", textBox.Text);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostPlacesQualifiedDesignerControlsInsideTheirParent()
     {
         using var host = new WinFormsHost();

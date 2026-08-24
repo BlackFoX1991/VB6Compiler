@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Drawing;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -144,6 +145,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 return true;
             }
 
+            if (TryReadListProperty(resolved!, memberName, arguments, out value))
+            {
+                return true;
+            }
+
             if (TryReadControlProperty(resolved!, memberName, out value))
             {
                 return true;
@@ -167,7 +173,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return false;
         }
 
-        return TryWriteControlProperty(resolved, memberName, value);
+        return TryWriteControlProperty(resolved, memberName, value) ||
+               TryWriteListProperty(resolved, memberName, arguments, value);
     }
 
     public bool TryInvokeMember(
@@ -182,6 +189,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             resolved is null)
         {
             return false;
+        }
+
+        if (TryInvokeListMember(resolved, memberName, arguments))
+        {
+            return true;
         }
 
         if (string.Equals(memberName, "Show", StringComparison.OrdinalIgnoreCase))
@@ -615,6 +627,214 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             ? owner.Controls[numericIndex]
             : null;
     }
+
+    private static bool TryInvokeListMember(
+        Control control,
+        string memberName,
+        object?[] arguments)
+    {
+        var items = GetListItems(control);
+        if (items is null)
+        {
+            return false;
+        }
+
+        if (string.Equals(memberName, "AddItem", StringComparison.OrdinalIgnoreCase))
+        {
+            if (arguments.Length is < 1 or > 2)
+            {
+                throw new TargetParameterCountException("AddItem expects an item and an optional index.");
+            }
+
+            var text = VBConversions.CStr(arguments[0]);
+            var index = arguments.Length == 2 ? VBConversions.CLng(arguments[1]) : items.Count;
+            if (index < 0 || index > items.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(arguments), "The VB6 list index is outside the collection.");
+            }
+
+            items.Insert(index, text);
+            return true;
+        }
+
+        if (string.Equals(memberName, "RemoveItem", StringComparison.OrdinalIgnoreCase))
+        {
+            if (arguments.Length != 1)
+            {
+                throw new TargetParameterCountException("RemoveItem expects an index.");
+            }
+
+            items.RemoveAt(VBConversions.CLng(arguments[0]));
+            return true;
+        }
+
+        if (string.Equals(memberName, "Clear", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 0)
+        {
+            items.Clear();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadListProperty(
+        Control control,
+        string memberName,
+        object?[] arguments,
+        out object? value)
+    {
+        var items = GetListItems(control);
+        if (items is not null)
+        {
+            if (string.Equals(memberName, "ListCount", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                value = items.Count;
+                return true;
+            }
+
+            if (string.Equals(memberName, "ListIndex", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                value = control switch
+                {
+                    ListBox list => list.SelectedIndex,
+                    ComboBox combo => combo.SelectedIndex,
+                    _ => -1
+                };
+                return true;
+            }
+
+            if (string.Equals(memberName, "List", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 1)
+            {
+                value = items[VBConversions.CLng(arguments[0])]?.ToString() ?? string.Empty;
+                return true;
+            }
+        }
+
+        if (control is TextBoxBase textBox)
+        {
+            if (string.Equals(memberName, "SelStart", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
+            {
+                value = textBox.SelectionStart;
+                return true;
+            }
+
+            if (string.Equals(memberName, "SelLength", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
+            {
+                value = textBox.SelectionLength;
+                return true;
+            }
+
+            if (string.Equals(memberName, "SelText", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
+            {
+                value = textBox.SelectedText;
+                return true;
+            }
+        }
+
+        if (control is CheckBox checkBox &&
+            string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 0)
+        {
+            value = checkBox.Checked;
+            return true;
+        }
+
+        if (control is RadioButton radioButton &&
+            string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 0)
+        {
+            value = radioButton.Checked;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryWriteListProperty(
+        Control control,
+        string memberName,
+        object?[] arguments,
+        object? value)
+    {
+        var items = GetListItems(control);
+        if (items is not null)
+        {
+            if (string.Equals(memberName, "ListIndex", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                var index = VBConversions.CLng(value);
+                switch (control)
+                {
+                    case ListBox list:
+                        list.SelectedIndex = index;
+                        break;
+                    case ComboBox combo:
+                        combo.SelectedIndex = index;
+                        break;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(memberName, "List", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 1)
+            {
+                items[VBConversions.CLng(arguments[0])] = VBConversions.CStr(value);
+                return true;
+            }
+        }
+
+        if (control is TextBoxBase textBox)
+        {
+            if (string.Equals(memberName, "SelStart", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
+            {
+                textBox.SelectionStart = VBConversions.CLng(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "SelLength", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
+            {
+                textBox.SelectionLength = VBConversions.CLng(value);
+                return true;
+            }
+
+            if (string.Equals(memberName, "SelText", StringComparison.OrdinalIgnoreCase) && arguments.Length == 0)
+            {
+                textBox.SelectedText = VBConversions.CStr(value);
+                return true;
+            }
+        }
+
+        if (control is CheckBox checkBox &&
+            string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 0)
+        {
+            checkBox.Checked = VBConversions.CBool(value);
+            return true;
+        }
+
+        if (control is RadioButton radioButton &&
+            string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 0)
+        {
+            radioButton.Checked = VBConversions.CBool(value);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IList? GetListItems(Control control) => control switch
+    {
+        ListBox list => list.Items,
+        ComboBox combo => combo.Items,
+        _ => null
+    };
 
     private static bool TryReadControlProperty(
         Control control,
