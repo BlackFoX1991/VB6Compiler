@@ -217,4 +217,32 @@ public sealed class DeclarePInvokeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "16909060", "16909060" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_InvokesByRefBlittableDeclareUdt()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Type SYSTEMTIME
+                wYear As Integer
+                wMonth As Integer
+                wDayOfWeek As Integer
+                wDay As Integer
+                wHour As Integer
+                wMinute As Integer
+                wSecond As Integer
+                wMilliseconds As Integer
+            End Type
+
+            Private Declare Sub GetSystemTime Lib "kernel32" (ByRef value As SYSTEMTIME)
+
+            Sub Main()
+                Dim value As SYSTEMTIME
+                GetSystemTime value
+                Debug.Print value.wYear >= 2020
+                Debug.Print value.wMonth >= 1 And value.wMonth <= 12
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
 }
