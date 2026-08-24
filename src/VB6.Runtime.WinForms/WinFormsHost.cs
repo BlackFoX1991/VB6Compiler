@@ -819,6 +819,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             if (resolved is Form form)
             {
                 form.Show();
+                AttachGeneratedNativeControlEvents(target);
             }
             else
             {
@@ -1198,6 +1199,31 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize");
     }
 
+    private void AttachGeneratedNativeControlEvents(object owner)
+    {
+        if (!_bindings.TryGetValue(owner, out var binding))
+        {
+            return;
+        }
+
+        foreach (var entry in binding.Controls)
+        {
+            if (entry.Key.Contains('.', StringComparison.Ordinal) ||
+                entry.Value is not IVBComObjectProvider ||
+                entry.Value.IsDisposed)
+            {
+                continue;
+            }
+
+            if (!entry.Value.IsHandleCreated)
+            {
+                entry.Value.CreateControl();
+            }
+
+            AttachGeneratedControlEvents(owner, entry.Value, entry.Key);
+        }
+    }
+
     private void AttachGeneratedMenuEvents(object owner, MenuProxy menu, string name)
     {
         var baseName = name.Split('(')[0];
@@ -1342,11 +1368,19 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 string.Equals(@event.Name, normalized, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static MethodInfo? FindHandler(Type type, string methodName) =>
-        type.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ??
-        type.GetMethod(
-            "__vb6_" + Mangle(methodName),
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+    private static MethodInfo? FindHandler(Type type, string methodName)
+    {
+        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        return type.GetMethods(flags)
+                   .FirstOrDefault(candidate =>
+                       string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase)) ??
+               type.GetMethods(flags)
+                   .FirstOrDefault(candidate =>
+                       string.Equals(
+                           candidate.Name,
+                           "__vb6_" + Mangle(methodName),
+                           StringComparison.OrdinalIgnoreCase));
+    }
 
     private static Delegate? CreateEventDelegate(
         Type delegateType,

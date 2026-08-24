@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using VB6.Compiler;
 using VB6.Runtime;
 using VB6.Runtime.WinForms;
 
@@ -241,6 +242,103 @@ public sealed class WinFormsHostTests
         {
             VBEvents.UnsubscribeMethod(richText, "KeyPress", sink, "OnKeyPress");
             host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
+    public void CompiledLegacyFormBindsNativeOcxHandlerThroughDesignerConventionInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native RichTextBox OCX validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6RuntimeWinFormsTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            var typeLibraryPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                "SysWow64",
+                "RICHTX32.OCX");
+            var projectPath = Path.Combine(directory, "NativeDesignerEvents.vbp");
+            File.WriteAllText(projectPath, $$"""
+                Type=Exe
+                Startup="Main"
+                Name="NativeDesignerEvents"
+                Object={3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0; RICHTX32.OCX
+                Reference=*\G{3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0#{{typeLibraryPath}}#RichTextLib
+                Form=Main.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.Form Main
+                   Begin RichTextLib.RichTextBox editor
+                   End
+                End
+                Attribute VB_Name = "Main"
+                Attribute VB_PredeclaredId = True
+                Option Explicit
+
+                Private observedKey As Integer
+
+                Private Sub Editor_KeyPress(KeyAscii As Integer)
+                    observedKey = KeyAscii
+                    KeyAscii = Asc("y")
+                End Sub
+
+                Public Property Get LastKey() As Integer
+                    LastKey = observedKey
+                End Property
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(Path.Combine(directory, "NativeDesignerEvents.dll"));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Lowering.Analysis.Diagnostics));
+            Assert.IsNotNull(result.AssemblyPath);
+
+            using var host = new WinFormsHost(preferNativeActiveX: true);
+            VBInteraction.Host = host;
+            var assembly = Assembly.Load(File.ReadAllBytes(result.AssemblyPath!));
+            var formType = assembly.GetType("VB6.Generated.__vb6_class_Main", throwOnError: true)!;
+            var form = Activator.CreateInstance(formType)!;
+            host.Load(form);
+            Assert.IsTrue(host.TryInvokeMember(form, "Show", Array.Empty<object?>(), out _));
+            Assert.IsTrue(host.TryGetMember(form, "Editor", Array.Empty<object?>(), out var editor));
+            Assert.IsInstanceOfType<AxHost>(editor);
+
+            var control = (Control)editor!;
+            control.CreateControl();
+            control.Focus();
+            Assert.IsTrue(host.TrySetMember(editor, "Text", Array.Empty<object?>(), string.Empty));
+
+            _ = SendMessage(control.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);
+            Application.DoEvents();
+
+            var lastKeyGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("LastKey", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual((short)120, lastKeyGetter.Invoke(form, null));
+            Assert.IsTrue(host.TryGetMember(editor, "Text", Array.Empty<object?>(), out var text));
+            Assert.AreEqual("y", text);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
         }
     }
 
