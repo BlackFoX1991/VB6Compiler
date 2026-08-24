@@ -15,6 +15,7 @@ public static class VBStrings
     /// </summary>
     public static object Len(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         if (VBVariants.IsNull(value))
@@ -59,6 +60,7 @@ public static class VBStrings
     /// </summary>
     public static object LenB(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         if (VBVariants.IsNull(value))
@@ -326,6 +328,7 @@ public static class VBStrings
     /// <summary>Formats a VB6 numeric value as an uppercase octal Variant string.</summary>
     public static object? Oct(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
@@ -340,6 +343,7 @@ public static class VBStrings
     /// <summary>Formats a numeric value using VB6's leading sign space and invariant decimal point.</summary>
     public static string Str(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         if (value is not null and not byte and not short and not int and not long and
             not float and not double and not decimal and not VBCurrency and not IntPtr)
         {
@@ -363,6 +367,7 @@ public static class VBStrings
             throw new ArgumentOutOfRangeException(nameof(number), "VB6 String requires a non-negative count.");
         }
 
+        character = VBVariantObject.ResolveDefaultValue(character);
         var code = character switch
         {
             string text when text.Length > 0 => text[0],
@@ -393,6 +398,7 @@ public static class VBStrings
         ArgumentNullException.ThrowIfNull(format);
         _ = firstDayOfWeek;
         _ = firstWeekOfYear;
+        expression = VBVariantObject.ResolveDefaultValue(expression);
 
         if (expression is string text)
         {
@@ -782,18 +788,22 @@ public static class VBStrings
     /// VB6 IsNumeric. It answers whether the value could be read as a number, which is true for
     /// numeric strings and for every numeric subtype, and false for Empty and for text.
     /// </summary>
-    public static bool IsNumeric(object? value) => value switch
+    public static bool IsNumeric(object? value)
     {
-        null => false,
-        bool => true,
-        byte or short or int or long or float or double or decimal or VBCurrency => true,
-        string text => double.TryParse(
-            text.Trim(),
-            System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
-            System.Globalization.CultureInfo.InvariantCulture,
-            out _),
-        _ => false
-    };
+        value = VBVariantObject.ResolveDefaultValue(value);
+        return value switch
+        {
+            null => false,
+            bool => true,
+            byte or short or int or long or float or double or decimal or VBCurrency => true,
+            string text => double.TryParse(
+                text.Trim(),
+                System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out _),
+            _ => false
+        };
+    }
 
     /// <summary>
     /// Implements VB6 Like for the language wildcard subset: <c>?</c> matches one character,
@@ -803,6 +813,8 @@ public static class VBStrings
     /// </summary>
     public static bool Like(object? value, object? pattern, bool textCompare)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
+        pattern = VBVariantObject.ResolveDefaultValue(pattern);
         if (VBVariants.IsNull(value) || VBVariants.IsNull(pattern))
         {
             return false;

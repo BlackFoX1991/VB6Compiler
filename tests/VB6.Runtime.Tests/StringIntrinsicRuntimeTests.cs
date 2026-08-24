@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -103,6 +105,35 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.AreEqual(" 459.001", VBStrings.Str(459.001));
         Assert.AreEqual(" 0", VBStrings.Str(null));
         Assert.ThrowsException<InvalidCastException>(() => VBStrings.Str("459"));
+    }
+
+    [TestMethod]
+    public void ObjectVariants_ResolveDefaultValuesAcrossStringIntrinsics()
+    {
+        var number = new NumericDefaultObject();
+        var character = new CharacterDefaultObject();
+
+        Assert.AreEqual(4, VBStrings.Len(number));
+        Assert.AreEqual(4, VBStrings.LenB(number));
+        Assert.AreEqual("7", VBStrings.Hex(number));
+        Assert.AreEqual("7", VBStrings.Oct(number));
+        Assert.AreEqual(" 7", VBStrings.Str(number));
+        Assert.AreEqual("7", VBStrings.FormatValue(number, "0", 0, 0));
+        Assert.IsTrue(VBStrings.IsNumeric(number));
+        Assert.IsTrue(VBStrings.Like(number, "7", textCompare: false));
+        Assert.AreEqual("AA", VBStrings.String(2, character));
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class NumericDefaultObject
+    {
+        public int Value => 7;
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class CharacterDefaultObject
+    {
+        public int Value => 65;
     }
 
     [TestMethod]

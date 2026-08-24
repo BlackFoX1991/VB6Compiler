@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -56,6 +58,25 @@ public sealed class VariantStateTests
         Assert.IsFalse(VBVariants.IsObject(VBVariants.EmptyValue()));
         Assert.IsFalse(VBVariants.IsObject(VBVariants.NullValue()));
         Assert.IsFalse(VBVariants.IsObject(new VBArray<object>(new VBArrayBound(0, 0))));
+    }
+
+    [TestMethod]
+    public void IsDate_ResolvesAnObjectDefaultValue()
+    {
+        Assert.IsTrue(VBVariants.IsDate(new DateDefaultObject()));
+        Assert.IsFalse(VBVariants.IsDate(new InvalidDateDefaultObject()));
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class DateDefaultObject
+    {
+        public string Value => "April 28, 2014";
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class InvalidDateDefaultObject
+    {
+        public string Value => "not a date";
     }
 
     [TestMethod]

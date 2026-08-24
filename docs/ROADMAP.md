@@ -1984,3 +1984,14 @@ und Objekte ohne passende Default-Property behalten den bisherigen Objektvertrag
 liefert dadurch den Subtyp des Default-Wertes, während echte Fehler aus einem Default-Getter
 unverändert weitergereicht werden. Runtime- und End-to-End-Regressionen decken Managed-Klassen
 mit `VB_UserMemId = 0` sowie CLR-Default-Properties ab. Die Gesamtsuite umfasst nun **963 Tests**.
+
+## Aktueller Variant-Objekt-Intrinsic-Nachtrag
+
+Die Default-Property-Auflösung greift nun auch an den bisher offenen Intrinsic-Grenzen: `Len` und
+`LenB` bestimmen die Speicher-/Zeichenlänge des Default-Wertes, `Format`, `Str`, `Oct` und der
+Zeichenparameter von `String` verwenden den aufgelösten Wert, und `IsNumeric`/`IsDate` prüfen
+dessen tatsächlichen Variant-Inhalt. Der `Like`-Pfad löst beide Operanden vor der Null- und
+Stringbehandlung auf; `Val` profitiert im Compilerpfad von der bestehenden Variant-zu-String-
+Konversion. `IsArray`, `IsObject` und `TypeName` bleiben bewusst container-/identitätsbezogen.
+Runtime-Tests für CLR-Default-Properties und ein emittiertes `.vbp` mit numerischem und textuellem
+Default-Wert decken die Intrinsics gemeinsam ab. Die Gesamtsuite umfasst nun **967 Tests**.

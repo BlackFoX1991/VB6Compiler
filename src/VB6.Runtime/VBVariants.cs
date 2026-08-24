@@ -77,6 +77,7 @@ public static class VBVariants
 
     public static bool IsDate(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         if (value is VBDateValue or DateTime)
         {
             return true;
