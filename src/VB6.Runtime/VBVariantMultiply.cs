@@ -210,14 +210,14 @@ public static partial class VBOperators
             return VariantNumericKind.Decimal;
         }
 
-        if (left == VariantNumericKind.Currency || right == VariantNumericKind.Currency)
-        {
-            return VariantNumericKind.Currency;
-        }
-
         if (left == VariantNumericKind.Double || right == VariantNumericKind.Double)
         {
             return VariantNumericKind.Double;
+        }
+
+        if (left == VariantNumericKind.Currency || right == VariantNumericKind.Currency)
+        {
+            return VariantNumericKind.Currency;
         }
 
         if (left == VariantNumericKind.Single || right == VariantNumericKind.Single)
