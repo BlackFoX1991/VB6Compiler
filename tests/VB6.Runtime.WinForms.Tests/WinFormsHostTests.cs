@@ -200,7 +200,7 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
-    public void HostBridgesNativeRichTextKeyPressByRefEventThroughComConnectionPointInX86()
+    public void HostBridgesNativeRichTextKeyPressByRefEventThroughConventionalHostHookInX86()
     {
         if (Environment.Is64BitProcess ||
             Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
@@ -226,7 +226,7 @@ public sealed class WinFormsHostTests
         Assert.IsTrue(host.TrySetMember(richText, "Text", Array.Empty<object?>(), string.Empty));
 
         var sink = new NativeRichTextKeyPressEventSink();
-        VBEvents.SubscribeMethod(richText, "KeyPress", sink, "OnKeyPress");
+        Assert.IsTrue(host.TrySubscribeEvent(richText, "KeyPress", sink, "OnKeyPress"));
         try
         {
             _ = SendMessage(control.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);

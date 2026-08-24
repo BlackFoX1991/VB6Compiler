@@ -2114,3 +2114,11 @@ TypeLibrary als `Integer ByRef` gebunden; verschachtelte oder nicht sicher abbil
 bleiben `Object`. Der Importvertrag ist mit der registrierten TypeLibrary regressionsgesichert;
 die vollständige UDT-/SAFEARRAY-/Pointer-ABI bleibt weiterhin offen. Die Compiler-Suite umfasst
 nun **348** Tests.
+
+## Aktueller nativer Designer-Event-Nachtrag
+
+Der direkte `WinFormsHost.TrySubscribeEvent`-Pfad erkennt native `AxHost`-Controls jetzt als COM-
+Provider und verbindet konventionelle Designer-Handler wie `Editor_KeyPress` über den nativen
+Connection Point. Der Wrapper-CLR-Eventpfad wird dabei nicht doppelt aktiviert; Abmeldung und
+Lifecycle-Aufräumen laufen weiterhin über `VBEvents`. Der echte x86-RichTextBox-ByRef-Test deckt
+diesen Host-Hook ab; Runtime und WinForms bleiben bei **201** beziehungsweise **34/34** Tests.

@@ -861,6 +861,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
 
+        if (source is IVBComObjectProvider)
+        {
+            return VBEvents.TrySubscribeComMethod(source, eventName, target, methodName);
+        }
+
         var eventSource = ResolveEventSource(source);
         var eventInfo = eventSource is null
             ? null
