@@ -1048,14 +1048,16 @@ public sealed class VBProjectCompilation
             VBProjectItemKind.Form or
             VBProjectItemKind.UserControl or
             VBProjectItemKind.PropertyPage or
-            VBProjectItemKind.UserDocument;
+            VBProjectItemKind.UserDocument or
+            VBProjectItemKind.Designer;
 
     private static bool IsClassModuleKind(VBProjectItemKind kind) =>
         kind is VBProjectItemKind.Class or
             VBProjectItemKind.Form or
             VBProjectItemKind.UserControl or
             VBProjectItemKind.PropertyPage or
-            VBProjectItemKind.UserDocument;
+            VBProjectItemKind.UserDocument or
+            VBProjectItemKind.Designer;
 
     private static bool IsHostModuleKind(VBProjectItemKind kind) =>
         kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl;

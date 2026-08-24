@@ -115,6 +115,44 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_CompilesLegacyDesignerVbpProjectsThroughTheCli()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "LegacyData.vbp"),
+                "Type=OleDll\nName=LegacyData\nDesigner=MSDataEnvironment; DataEnvironment1.dsr\n");
+            File.WriteAllText(
+                Path.Combine(directory, "DataEnvironment1.dsr"),
+                """
+                VERSION 5.00
+                Begin MSDataEnvironment DataEnvironment1
+                End
+                Attribute VB_Name = "DataEnvironment1"
+                Public Function Value() As Long
+                    Value = 3
+                End Function
+                """);
+            var outputPath = Path.Combine(directory, "bin", "LegacyData.dll");
+
+            var result = RunCli(
+                Path.Combine(directory, "LegacyData.vbp"),
+                "--emit-assembly",
+                outputPath);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            Assert.IsTrue(File.Exists(outputPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_AcceptsX64ForSourceFiles()
     {
         var directory = CreateTemporaryDirectory();

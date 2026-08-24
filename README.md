@@ -107,8 +107,8 @@ Implemented so far:
 - debug information that maps back to VB6 source: documents, user-visible locals, and a sequence point per statement, carried referentially from the binder through the IR into the PDB
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
-- the regression suite currently contains **888 tests**, including typed string-key Variant, Object, named default-property and COM `DISPID_VALUE` dispatch
-- `.vbp` loading for common project metadata, modules, classes, forms, controls, property pages, user documents, references, and components, plus `.vbg` group loading and command-line batch emission of declared projects
+- the regression suite currently contains **902 tests**, including typed string-key Variant, Object, named default-property, COM `DISPID_VALUE` dispatch, and legacy `.dsr` project emission
+- `.vbp` loading for common project metadata, modules, classes, forms, controls, property pages, user documents, legacy `Designer=...; file.dsr` sources, references, and components, plus `.vbg` group loading and command-line batch emission of declared projects
 - an optional host boundary for compiled Forms/UserControls: `VB6.Runtime` exposes lifecycle, dynamic member, control-creation, enumeration and event hooks, while `VB6.Runtime.WinForms` maps standard VB6 controls, Twips, OLE colors, fonts and `Load`/`Unload`/`Show` to WinForms
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
 - the standard `Collection` object on the managed backend: `New Collection`, one-based and keyed `Item`, `Count`, `Add` with `Key`/`Before`, `Remove`, and `For Each` in insertion order
