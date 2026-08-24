@@ -3450,6 +3450,14 @@ public sealed class Binder
                 new BoundArgument(procedure.Parameters[3], CreateDefaultArgument(procedure.Parameters[3])));
         }
 
+        // LSet is declared through the generic Variant intrinsic table, but its operands are
+        // layout-bearing values. Preserve their declared types so managed lowering can handle
+        // fixed-length Strings and same-type UDT values without losing the target place.
+        if (procedure.IntrinsicKind == VBIntrinsicKind.LSet)
+        {
+            return BindLSetArguments(invocationIdentifier, argumentSyntaxes, procedure, variables, procedures);
+        }
+
         // Optional parameters may be left out at the call site, so the accepted count is a range.
         var minimumArguments = procedure.IntrinsicMinimumArguments
             ?? procedure.Parameters.Count(parameter => !parameter.IsOptional && !parameter.IsParamArray);
@@ -3620,6 +3628,33 @@ public sealed class Binder
         }
 
         return arguments.ToImmutable();
+    }
+
+    private ImmutableArray<BoundArgument> BindLSetArguments(
+        SyntaxToken invocationIdentifier,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        ProcedureSymbol procedure,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (argumentSyntaxes.Length != 2)
+        {
+            Report(
+                "VB6S0006",
+                $"Procedure '{procedure.Name}' expects 2 argument(s), but {argumentSyntaxes.Length} were supplied.",
+                invocationIdentifier.Span);
+        }
+
+        var target = argumentSyntaxes.Length > 0
+            ? BindExpression(argumentSyntaxes[0], variables, procedures)
+            : new BoundErrorExpression();
+        var source = argumentSyntaxes.Length > 1
+            ? BindExpression(argumentSyntaxes[1], variables, procedures)
+            : new BoundErrorExpression();
+
+        return ImmutableArray.Create(
+            new BoundArgument(procedure.Parameters[0], target),
+            new BoundArgument(procedure.Parameters[1], source));
     }
 
     private ImmutableArray<ExpressionSyntax> NormalizeNamedArguments(

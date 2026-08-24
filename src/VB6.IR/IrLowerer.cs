@@ -1133,6 +1133,9 @@ public static class IrLowerer
                         LowerExpression(print.FileNumber),
                         LowerExpression(print.Expression))));
                     break;
+                case BoundInvocationStatement invocation when invocation.Procedure.IntrinsicKind == VBIntrinsicKind.LSet:
+                    LowerLSet(invocation);
+                    break;
                 case BoundInvocationStatement invocation:
                     Emit(new IrEvaluateInstruction(LowerCall(invocation.Procedure, invocation.Arguments)));
                     break;
@@ -2916,6 +2919,52 @@ public static class IrLowerer
                 lowered.ToImmutable(),
                 procedure.ReturnType ?? TypeSymbol.Error,
                 receiver);
+        }
+
+        private void LowerLSet(BoundInvocationStatement invocation)
+        {
+            if (invocation.Arguments.Length != 2)
+            {
+                Emit(new IrEvaluateInstruction(Runtime(IrRuntimeMethod.MemoryLSet, TypeSymbol.Error)));
+                return;
+            }
+
+            var target = invocation.Arguments[0].Expression;
+            var source = invocation.Arguments[1].Expression;
+
+            if (target.Type is FixedLengthStringTypeSymbol || target.Type == TypeSymbol.String)
+            {
+                var targetPlace = LowerPlace(target);
+                Emit(new IrStoreInstruction(
+                    targetPlace,
+                    LowerFixedStringWrite(target.Type, LowerLSetStringValue(source))));
+                return;
+            }
+
+            if (target.Type is UserDefinedTypeSymbol targetType && source.Type == targetType)
+            {
+                Emit(new IrStoreInstruction(
+                    LowerPlace(target),
+                    LowerValueCopy(source)));
+                return;
+            }
+
+            // Cross-UDT copies need native field offsets and padding. Keep that unsupported case
+            // explicit, but pass values rather than addresses so the managed fallback remains a
+            // valid call and reports the intended runtime capability gap.
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.MemoryLSet,
+                TypeSymbol.Error,
+                LowerValueCopy(target),
+                LowerValueCopy(source))));
+        }
+
+        private IrExpression LowerLSetStringValue(BoundExpression source)
+        {
+            var value = LowerExpression(source);
+            return source.Type == TypeSymbol.String || source.Type is FixedLengthStringTypeSymbol
+                ? value
+                : Runtime(IrRuntimeMethod.ConvertCStr, TypeSymbol.String, value);
         }
 
         private IrExpression LowerAnyPointerValue(BoundExpression expression)
