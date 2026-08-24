@@ -1426,3 +1426,13 @@ unveränderte Projekte werden von MSBuild übersprungen, während eine geändert
 Designerdatei eine neue CLI-Emission auslöst. Der SDK bleibt ein dünner Buildadapter und ersetzt
 nicht das `.vbp`-Projektmodell oder den späteren Visual-Studio-Designer. Direkte CLI-Aufrufe über
 `vb6c <projekt.vbp> --emit-assembly <ausgabe>` bleiben der primäre, unabhängig nutzbare Vertrag.
+
+## Aktueller Standard-Control-Nachtrag
+
+Der WinForms-Host deckt nun auch häufige Legacy-Controlmember ab: `ListBox` und `ComboBox`
+unterstützen `AddItem`, `RemoveItem`, `Clear`, die indizierte `List`-Property sowie `ListCount`
+und `ListIndex`; `TextBox` unterstützt `SelStart`, `SelLength` und `SelText`; `CheckBox` und
+`OptionButton` stellen `Value` bereit. Die Verträge laufen durch den bestehenden Twips-/Late-
+Bound-Hostpfad und sind mit einer STA-Regression für Einfügen, Ersetzen, Entfernen, Auswahl und
+Textselektion abgesichert. Vollständige OCX-Memberbibliotheken, MDI und UserControl-Hosting
+bleiben separate Forms-/Interop-Schritte. Die Gesamtsuite umfasst **898 Tests**.
