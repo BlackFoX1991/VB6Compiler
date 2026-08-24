@@ -107,6 +107,16 @@ public sealed class StringFunctionTests
     }
 
     [TestMethod]
+    public void FormatValue_SupportsStringPlaceholdersAndEmptySections()
+    {
+        Assert.AreEqual(" AB", VBStrings.FormatValue("AB", "@@@", 0, 0));
+        Assert.AreEqual("AB ", VBStrings.FormatValue("AB", "!@@@", 0, 0));
+        Assert.AreEqual("AB", VBStrings.FormatValue("AB", "&&&", 0, 0));
+        Assert.AreEqual("empty", VBStrings.FormatValue(string.Empty, "@@;empty", 0, 0));
+        Assert.AreEqual("null", VBStrings.FormatValue(VBVariants.NullValue(), "@@;null", 0, 0));
+    }
+
+    [TestMethod]
     public void Split_PreservesEmptyFieldsAndHonorsLimit()
     {
         var values = VBStrings.Split("a,,B", ",", -1, 1);

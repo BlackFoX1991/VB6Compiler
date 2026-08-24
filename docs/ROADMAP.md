@@ -1488,3 +1488,9 @@ Projektweite `CondComp=`-Einträge aus `.vbp`-Dateien werden zusätzlich verlust
 als globale Conditional-Compilation-Konstanten vor den moduleigenen `#Const`-Definitionen in
 den jeweiligen Projektquellen ausgewertet. Ungültige Projektwerte erzeugen `VB6CC0007`; die
 Abhängigkeit wird auch bei referenzierten `.vbp`-Projekten separat pro Projekt angewendet.
+
+Der `Format$`-Stringmaskenpfad unterstützt nun neben `<`/`>` auch `@`- und `&`-Platzhalter,
+`!`-gesteuertes Füllen von links nach rechts, das klassische VB6-Füllen von rechts nach links
+und die zweite Maskensektion für leere beziehungsweise `Null`-Strings. Die direkte Runtime-
+und kompilierte Ausführung ist regressionsgesichert; locale-abhängige Named-Formate und weitere
+Datum-/Finanzmasken bleiben separat offen. Die Gesamtsuite umfasst **915 Tests**.
