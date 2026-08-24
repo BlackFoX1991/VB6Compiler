@@ -1743,7 +1743,7 @@ bleiben bewusst separate Kompatibilitätsschritte. Der Host hält pro eingebette
 `VBPropertyBag` und ruft `UserControl_ReadProperties` beim Einfügen sowie
 `UserControl_WriteProperties` vor `UserControl_Terminate` auf. Die Regression umfasst den
 Instanzierungs-, Komponenten-, PropertyBag- und Initialize-/Terminate-/Unload-Lifecycle. Die
-Gesamtsuite umfasst **949 Tests**.
+Gesamtsuite umfasst **950 Tests**.
 
 ## Aktueller Form-Lifecycle-Nachtrag
 
@@ -1756,7 +1756,7 @@ auch beim Host-Dispose ausgeführt. Für
 geänderter `Cancel`-ByRef-Wert wird in `FormClosingEventArgs.Cancel` zurückgeschrieben. Die
 Regression löst die geschützten WinForms-Ereignisse direkt aus und prüft Aktivierung,
 Deaktivierung, Unload-Modus und Abbruchsemantik. MDI und vollständige OCX-/Connection-Point-
-Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **949 Tests**.
+Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **950 Tests**.
 
 ## Aktueller MDI-Forms-Nachtrag
 
@@ -1765,4 +1765,19 @@ Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **9
 automatisch dem registrierten MDI-Container zu und hält den Wert über den Host-Dispatch lesbar.
 Die Regression deckt sowohl Designer-Emission als auch die konkrete Parent-/Child-Hierarchie ab.
 Vollständige MDI-Fensterbefehle, MDI-Menüs und persistente Window-Management-Regeln bleiben offen.
-Die Gesamtsuite umfasst **949 Tests**.
+Die Gesamtsuite umfasst **950 Tests**.
+
+## Aktueller Native-OCX-/AppHost-Nachtrag
+
+Der optionale `VB6.Runtime.WinForms.Runner` läuft standardmäßig als x86-Prozess, damit die auf
+Legacy-Systemen üblichen 32-Bit-OCX-Dateien aus `SysWOW64` überhaupt geladen werden können. Für
+registrierte `MSComctlLib`-Visual-Controls ohne bestehenden Managed-Adapter versucht der Host nun
+eine echte `AxHost`-Aktivierung; fehlt die OCX oder ist sie für die andere Prozessarchitektur
+registriert, bleibt der Managed-Fallback aktiv. TreeView, ImageList, ImageCombo, RichTextBox und
+CommonDialog behalten ihre vorhandenen Managed-Adapter, weil diese bereits die benötigten VB6-
+Objekt- und Collection-Verträge abbilden. Die Ausgabeerzeugung verweigert außerdem einen
+scheinbaren `.exe`-Output, wenn kein passender nativer .NET-AppHost erstellt werden kann; eine
+Managed-DLL wird nicht mehr als startbare `.exe` kopiert, wodurch die bekannte
+`System.Private.CoreLib`-Ladeexception vermieden wird. VISIA wurde frisch mit `--x86` emittiert
+und über den x86-Runner ohne unbehandelte Ausnahme gestartet. Die Gesamtsuite umfasst
+**950 Tests**.

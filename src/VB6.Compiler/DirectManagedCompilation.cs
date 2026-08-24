@@ -167,17 +167,35 @@ public static class DirectManagedCompilation
             return new VBProjectManagedApplicationEmitResult(lowering, backend, null, null, null, null);
         }
 
-        var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath, actualOptions);
-        return new VBProjectManagedApplicationEmitResult(
-            lowering,
-            backend,
-            artifacts.AssemblyPath,
-            artifacts.PdbPath,
-            artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath)
+        try
         {
-            ManagedAssemblyPath = artifacts.ManagedAssemblyPath
-        };
+            var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath, actualOptions);
+            return new VBProjectManagedApplicationEmitResult(
+                lowering,
+                backend,
+                artifacts.AssemblyPath,
+                artifacts.PdbPath,
+                artifacts.RuntimeAssemblyPath,
+                artifacts.RuntimeConfigPath)
+            {
+                ManagedAssemblyPath = artifacts.ManagedAssemblyPath
+            };
+        }
+        catch (ManagedArtifactException exception)
+        {
+            return new VBProjectManagedApplicationEmitResult(
+                lowering,
+                backend with
+                {
+                    Success = false,
+                    Diagnostics = backend.Diagnostics.Add(
+                        new ManagedEmitDiagnostic("VB6E0003", exception.Message))
+                },
+                null,
+                null,
+                null,
+                null);
+        }
     }
 
     private static ManagedApplicationEmitResult WriteArtifacts(
@@ -201,17 +219,35 @@ public static class DirectManagedCompilation
             return new ManagedApplicationEmitResult(lowering, backend, null, null, null, null);
         }
 
-        var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath, actualOptions);
-        return new ManagedApplicationEmitResult(
-            lowering,
-            backend,
-            artifacts.AssemblyPath,
-            artifacts.PdbPath,
-            artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath)
+        try
         {
-            ManagedAssemblyPath = artifacts.ManagedAssemblyPath
-        };
+            var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath, actualOptions);
+            return new ManagedApplicationEmitResult(
+                lowering,
+                backend,
+                artifacts.AssemblyPath,
+                artifacts.PdbPath,
+                artifacts.RuntimeAssemblyPath,
+                artifacts.RuntimeConfigPath)
+            {
+                ManagedAssemblyPath = artifacts.ManagedAssemblyPath
+            };
+        }
+        catch (ManagedArtifactException exception)
+        {
+            return new ManagedApplicationEmitResult(
+                lowering,
+                backend with
+                {
+                    Success = false,
+                    Diagnostics = backend.Diagnostics.Add(
+                        new ManagedEmitDiagnostic("VB6E0003", exception.Message))
+                },
+                null,
+                null,
+                null,
+                null);
+        }
     }
 
     private static ManagedEmitOptions PrepareOptions(
@@ -391,9 +427,17 @@ internal static class ManagedArtifactWriter
         if (!string.Equals(managedAssemblyPath, fullOutputPath, StringComparison.OrdinalIgnoreCase) &&
             !ManagedAppHostWriter.TryCreate(managedAssemblyPath, fullOutputPath, options.Platform))
         {
-            // SDK-less runtime installations do not necessarily contain an apphost pack. Keep
-            // the managed output usable through `dotnet` in that environment.
-            File.Copy(managedAssemblyPath, fullOutputPath, overwrite: true);
+            // A managed DLL renamed to .exe is not a Windows .NET executable and can produce the
+            // misleading System.Private.CoreLib load error. Fail the emission instead of leaving
+            // behind an artifact that looks executable but cannot be launched directly.
+            if (File.Exists(fullOutputPath))
+            {
+                File.Delete(fullOutputPath);
+            }
+
+            throw new ManagedArtifactException(
+                $"Could not create a native .NET apphost for '{fullOutputPath}'. " +
+                "Install the matching Microsoft.NETCore.App.Host.win-x86/win-x64 pack or emit a .dll output.");
         }
 
         return new ManagedArtifactPaths(
@@ -428,3 +472,11 @@ internal sealed record ManagedArtifactPaths(
     string? PdbPath,
     string RuntimeAssemblyPath,
     string RuntimeConfigPath);
+
+internal sealed class ManagedArtifactException : Exception
+{
+    public ManagedArtifactException(string message)
+        : base(message)
+    {
+    }
+}
