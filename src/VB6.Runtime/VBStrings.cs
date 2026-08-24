@@ -406,7 +406,7 @@ public static class VBStrings
 
         if (expression is VBDateValue date)
         {
-            return FormatDate(date, format);
+            return FormatDate(date, format, firstDayOfWeek, firstWeekOfYear);
         }
 
         if (!TryGetFormatNumber(expression, out var number))
@@ -443,7 +443,11 @@ public static class VBStrings
         }
     }
 
-    private static string FormatDate(VBDateValue value, string format)
+    private static string FormatDate(
+        VBDateValue value,
+        string format,
+        int firstDayOfWeek,
+        int firstWeekOfYear)
     {
         DateTime date;
         try
@@ -472,11 +476,17 @@ public static class VBStrings
             "LONG TIME" => "hh:nn:ss",
             _ => null
         };
-        return FormatDateTokens(date, namedFormat ?? format);
+        return FormatDateTokens(date, namedFormat ?? format, firstDayOfWeek, firstWeekOfYear);
     }
 
-    private static string FormatDateTokens(DateTime value, string format)
+    private static string FormatDateTokens(
+        DateTime value,
+        string format,
+        int firstDayOfWeek,
+        int firstWeekOfYear)
     {
+        var weekStart = ToFirstDayOfWeek(firstDayOfWeek);
+        var weekRule = ToCalendarWeekRule(firstWeekOfYear);
         var result = new System.Text.StringBuilder();
         var hasAmPm = format.Contains("AM/PM", StringComparison.OrdinalIgnoreCase) ||
                       format.Contains("A/P", StringComparison.OrdinalIgnoreCase);
@@ -516,7 +526,7 @@ public static class VBStrings
             }
 
             var token = char.ToLowerInvariant(character);
-            if (token is not ('y' or 'm' or 'd' or 'h' or 'n' or 's'))
+            if (token is not ('y' or 'm' or 'd' or 'h' or 'n' or 's' or 'w' or 'q'))
             {
                 if (char.IsLetter(character))
                 {
@@ -539,6 +549,24 @@ public static class VBStrings
                             ? value.Year.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)
                             : value.DayOfYear.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     break;
+                case 'w' when count == 1:
+                    result.Append(Weekday(value, weekStart).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'w' when count == 2:
+                    result.Append(
+                        System.Globalization.CultureInfo.InvariantCulture.Calendar
+                            .GetWeekOfYear(value, weekRule, weekStart)
+                            .ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'w':
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported weekday token length.");
+                case 'q' when count == 1:
+                    result.Append(((value.Month - 1) / 3 + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case 'q':
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported quarter token length.");
                 case 'm' when inTime && count <= 2:
                     result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
                     break;
@@ -586,10 +614,42 @@ public static class VBStrings
         return result.ToString();
     }
 
+    private static int Weekday(DateTime value, DayOfWeek firstDayOfWeek) =>
+        ((int)value.DayOfWeek - (int)firstDayOfWeek + 7) % 7 + 1;
+
+    private static DayOfWeek ToFirstDayOfWeek(int value) => value switch
+    {
+        0 => System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek,
+        1 => DayOfWeek.Sunday,
+        2 => DayOfWeek.Monday,
+        3 => DayOfWeek.Tuesday,
+        4 => DayOfWeek.Wednesday,
+        5 => DayOfWeek.Thursday,
+        6 => DayOfWeek.Friday,
+        7 => DayOfWeek.Saturday,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(value),
+            value,
+            "VB6 FirstDayOfWeek must be vbUseSystem or a weekday value from 1 through 7.")
+    };
+
+    private static System.Globalization.CalendarWeekRule ToCalendarWeekRule(int value) => value switch
+    {
+        0 => System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.CalendarWeekRule,
+        1 => System.Globalization.CalendarWeekRule.FirstDay,
+        2 => System.Globalization.CalendarWeekRule.FirstFourDayWeek,
+        3 => System.Globalization.CalendarWeekRule.FirstFullWeek,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(value),
+            value,
+            "VB6 FirstWeekOfYear must be vbUseSystem or a value from 1 through 3.")
+    };
+
     private static int CountToken(string format, int start, char token)
     {
         var count = 1;
-        while (start + count < format.Length && format[start + count] == token)
+        while (start + count < format.Length &&
+               char.ToLowerInvariant(format[start + count]) == char.ToLowerInvariant(token))
         {
             count++;
         }

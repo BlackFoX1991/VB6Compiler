@@ -65,11 +65,12 @@ public sealed class ScalarStringIntrinsicExecutionTests
                 Debug.Print Format$("", "@@;empty")
                 Debug.Print Format$(CDate(43832), "yyyy-mm-dd")
                 Debug.Print Format$(CDate(0.5), "hh:nn:ss")
+                Debug.Print Format$(CDate(43835), "w ww q y", vbMonday, vbFirstFourDays)
             End Sub
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "5,459.40", "500.00%", "hello", "HELLO", "AB", "AB", "AB", "empty", "2020-01-02", "12:00:00" },
+            new[] { "5,459.40", "500.00%", "hello", "HELLO", "AB", "AB", "AB", "empty", "2020-01-02", "12:00:00", "7 1 1 5" },
             VB6TestProgram.SplitLines(output),
             output);
     }
