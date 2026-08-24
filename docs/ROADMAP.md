@@ -1255,7 +1255,12 @@ Größter Einzelblock.
       gehaltener `VBPropertyBag` wird an `UserControl_ReadProperties`/`UserControl_WriteProperties`
       gereicht; Connection-Point-ABI und
       echte OCX-Komposition bleiben offen
-- [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
+- [~] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg` — der opt-in-`WinFormsHost` aktiviert
+      registrierte 32-Bit-Visual-OCX über `AxHost`, bindet den nativen `IDispatch`-Pfad für Properties
+      und Collections und behandelt `CommonDialog` als native nonvisual COM-Komponente. Die x86-
+      Regression kann mit `VB6_REQUIRE_NATIVE_OCX=1` fehlende Registrierungen hart melden; vollständige
+      Connection-Point-Events, alle Bitness-/Designer-Sonderfälle und der vollständige native ABI-
+      Vertrag bleiben offen
 
 ## Meilenstein 10 — IDE
 
@@ -1868,7 +1873,7 @@ Der normale Host behält den portablen Managed-TreeView-Adapter; der native Pfad
 weiterer Event-, ByRef- und vollständiger ImageList-/ImageCombo-Verträge opt-in. Alle auf dem
 Testsystem registrierten Standard-OCX bleiben architekturabhängig und benötigen den x86-Runner,
 wenn nur die 32-Bit-Registrierung vorhanden ist. Die x86- und x64-WinForms-Regression umfasst
-jeweils **31 Tests**; die Gesamtsuite umfasst nun **957 Tests**. Der direkte native AppHost-
+jeweils **31 Tests**; die Gesamtsuite umfasst nun **959 Tests**. Der direkte native AppHost-
 Start der neu emittierten VISIA-Ausgabe endet ohne `System.Private.CoreLib`-Ladefehler; der
 automatisierte Runner-Lauf bleibt in der nicht-interaktiven Testumgebung ohne sichtbaren
 Fenster-Handle und muss für eine visuelle GUI-Abnahme in einer interaktiven Windows-Sitzung
@@ -1885,7 +1890,8 @@ echtes `IPictureDisp`, fügt damit ein Bild in die native `ImageList.ListImages`
 und weist anschließend die native ImageList der `ImageCombo.ImageList`-Property zu. Damit ist
 die Objektübergabe zwischen zwei real aktivierten Standard-OCX abgesichert. Die x86- und
 x64-WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
-**957 Tests**. Vollständiges COM-ByRef-Marshalling, Connection-Point-Events und die restlichen
+**959 Tests**. TypeInfo-gesteuertes typisiertes COM-ByRef-Marshalling für unterstützte
+Automation-Typen steht; Connection-Point-Events und die restlichen
 nativen ABI-Sonderfälle bleiben separate Roadmap-Schritte.
 
 ## Aktueller nativer OCX-Collections-Nachtrag
@@ -1897,7 +1903,7 @@ Enumeration normaler Managed-Collections zu verändern. Der x86-Regressionspfad 
 TreeView-Node über die native `Nodes`-Collection an und prüft, dass `VBInteraction.EnumerateControls`
 genau diesen einen Node für den generierten `For Each`-Vertrag zurückgibt. Die x86- und x64-
 WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
-**957 Tests**. Vollständiges COM-ByRef-Marshalling und Connection-Point-Events bleiben offen.
+**959 Tests**. Vollständige UDT-/Pointer-/Event-ABI und Connection-Point-Events bleiben offen.
 
 ## Aktueller TypeInfo-gesteuerter COM-ByRef-Nachtrag
 
