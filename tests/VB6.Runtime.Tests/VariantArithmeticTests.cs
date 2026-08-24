@@ -107,8 +107,17 @@ public sealed class VariantArithmeticTests
         Assert.AreEqual(1.5d, currencyResult);
         Assert.AreEqual(-1.25m, VBOperators.NegateVariant(VBConversions.CDec("1.25")));
         Assert.AreEqual(2, VBOperators.IntegerDivideVariant(VBConversions.CDec("5.1"), 2));
+        Assert.AreEqual(1, VBOperators.ModVariant(VBConversions.CDec("5.1"), 2));
         Assert.AreEqual(-2, VBOperators.NotVariant(VBConversions.CDec("1.1")));
         Assert.AreEqual(0, VBOperators.AndVariant(VBConversions.CDec("5.1"), 2));
+    }
+
+    [TestMethod]
+    public void ModVariant_UsesVb6IntegerRoundingForFloatingOperands()
+    {
+        Assert.AreEqual(0, VBOperators.ModVariant(12, 4.3d));
+        Assert.AreEqual(3, VBOperators.ModVariant(12.6d, 5));
+        Assert.AreEqual(3, VBOperators.ModVariant(12.6f, 5));
     }
 
     [TestMethod]
