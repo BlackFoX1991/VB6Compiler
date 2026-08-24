@@ -1089,6 +1089,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private void AttachGeneratedFormEvents(object target)
     {
         TrySubscribeEvent(target, "Click", target, "Form_Click");
+        TrySubscribeEvent(target, "Activate", target, "Form_Activate");
+        TrySubscribeEvent(target, "Deactivate", target, "Form_Deactivate");
+        TrySubscribeEvent(target, "QueryUnload", target, "Form_QueryUnload");
+        TrySubscribeEvent(target, "Unload", target, "Form_Unload");
         TrySubscribeEvent(target, "Resize", target, "Form_Resize");
         TrySubscribeEvent(target, "MouseDown", target, "Form_MouseDown");
         TrySubscribeEvent(target, "MouseUp", target, "Form_MouseUp");
@@ -1182,6 +1186,9 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "DblClick" => "DoubleClick",
             "GotFocus" => "Enter",
             "LostFocus" => "Leave",
+            "Activate" => "Activated",
+            "QueryUnload" => "FormClosing",
+            "Unload" => "FormClosed",
             _ => name
         };
         return type.GetEvents(BindingFlags.Instance | BindingFlags.Public)
@@ -1241,7 +1248,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object eventSource,
         object?[] eventArguments)
     {
-        eventArguments = AdaptEventArguments(eventName, eventSource, eventArguments);
+        var sourceArguments = eventArguments;
+        eventArguments = AdaptEventArguments(eventName, eventSource, sourceArguments);
         var parameters = method.GetParameters();
         var arguments = new object?[parameters.Length];
         var offset = eventArguments.Length == parameters.Length
@@ -1261,6 +1269,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         try
         {
             method.Invoke(target, arguments);
+            ApplyEventArgumentChanges(eventName, sourceArguments, arguments);
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
@@ -1306,8 +1315,51 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return new object?[] { (short)keyPress.KeyChar };
         }
 
+        if (eventArguments.Length == 2 &&
+            eventArguments[1] is FormClosingEventArgs closing &&
+            normalized == "QUERYUNLOAD")
+        {
+            return new object?[]
+            {
+                closing.Cancel ? 1 : 0,
+                ToVbUnloadMode(closing.CloseReason)
+            };
+        }
+
+        if (eventArguments.Length == 2 &&
+            eventArguments[1] is FormClosedEventArgs &&
+            normalized == "UNLOAD")
+        {
+            return new object?[] { 0 };
+        }
+
         return eventArguments;
     }
+
+    private static void ApplyEventArgumentChanges(
+        string eventName,
+        object?[] sourceArguments,
+        object?[] handlerArguments)
+    {
+        if (!string.Equals(eventName, "QueryUnload", StringComparison.OrdinalIgnoreCase) ||
+            sourceArguments.Length != 2 ||
+            sourceArguments[1] is not FormClosingEventArgs closing ||
+            handlerArguments.Length == 0)
+        {
+            return;
+        }
+
+        closing.Cancel = VBConversions.CBool(handlerArguments[0]);
+    }
+
+    private static int ToVbUnloadMode(CloseReason reason) => reason switch
+    {
+        CloseReason.ApplicationExitCall => 2,
+        CloseReason.TaskManagerClosing => 3,
+        CloseReason.MdiFormClosing => 4,
+        CloseReason.FormOwnerClosing => 5,
+        _ => 0
+    };
 
     private static int ToVbMouseButton(MouseButtons button)
     {

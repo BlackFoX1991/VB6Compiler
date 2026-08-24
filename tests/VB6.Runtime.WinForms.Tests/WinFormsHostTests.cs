@@ -783,6 +783,38 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void HostMapsConventionalFormLifecycleEvents()
+    {
+        using var host = new WinFormsHost();
+        var owner = new FormLifecycleEventSink();
+        using var form = new Form();
+
+        host.Register(owner, form);
+        host.Load(owner);
+
+        typeof(Form).GetMethod("OnActivated", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, new object[] { EventArgs.Empty });
+        typeof(Form).GetMethod("OnDeactivate", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, new object[] { EventArgs.Empty });
+
+        var closing = new FormClosingEventArgs(CloseReason.UserClosing, cancel: false);
+        typeof(Form).GetMethod("OnFormClosing", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, new object[] { closing });
+        var closed = new FormClosedEventArgs(CloseReason.UserClosing);
+        typeof(Form).GetMethod("OnFormClosed", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, new object[] { closed });
+
+        Assert.AreEqual(1, owner.ActivateCount);
+        Assert.AreEqual(1, owner.DeactivateCount);
+        Assert.AreEqual(1, owner.QueryUnloadCount);
+        Assert.AreEqual(1, owner.UnloadCount);
+        Assert.IsTrue(closing.Cancel);
+        Assert.AreEqual(0, owner.UnloadMode);
+
+        host.Unload(owner);
+    }
+
     private sealed class EventSink
     {
         public int ChangeCount { get; private set; }
@@ -832,6 +864,32 @@ public sealed class WinFormsHostTests
         private void OnKeyPress(short keyAscii) => KeyAscii = keyAscii;
 
         private void Form_Resize() => FormResizeCount++;
+    }
+
+    private sealed class FormLifecycleEventSink
+    {
+        public int ActivateCount { get; private set; }
+        public int DeactivateCount { get; private set; }
+        public int QueryUnloadCount { get; private set; }
+        public int UnloadCount { get; private set; }
+        public short UnloadMode { get; private set; }
+
+        private void Form_Activate() => ActivateCount++;
+
+        private void Form_Deactivate() => DeactivateCount++;
+
+        private void Form_QueryUnload(ref short cancel, ref short unloadMode)
+        {
+            QueryUnloadCount++;
+            cancel = 1;
+            UnloadMode = unloadMode;
+        }
+
+        private void Form_Unload(ref short cancel)
+        {
+            _ = cancel;
+            UnloadCount++;
+        }
     }
 
     private sealed class TimerEventSink

@@ -1743,4 +1743,14 @@ bleiben bewusst separate Kompatibilitätsschritte. Der Host hält pro eingebette
 `VBPropertyBag` und ruft `UserControl_ReadProperties` beim Einfügen sowie
 `UserControl_WriteProperties` vor `UserControl_Terminate` auf. Die Regression umfasst den
 Instanzierungs-, Komponenten-, PropertyBag- und Initialize-/Terminate-/Unload-Lifecycle. Die
-Gesamtsuite umfasst **946 Tests**.
+Gesamtsuite umfasst **947 Tests**.
+
+## Aktueller Form-Lifecycle-Nachtrag
+
+Der WinForms-Host bindet nun auch `Form_Activate`, `Form_Deactivate`, `Form_QueryUnload` und
+`Form_Unload` an `Activated`, `Deactivate`, `FormClosing` und `FormClosed`. Für
+`Form_QueryUnload` werden `Cancel` und `UnloadMode` in den VB6-Argumentvertrag übersetzt; ein
+geänderter `Cancel`-ByRef-Wert wird in `FormClosingEventArgs.Cancel` zurückgeschrieben. Die
+Regression löst die geschützten WinForms-Ereignisse direkt aus und prüft Aktivierung,
+Deaktivierung, Unload-Modus und Abbruchsemantik. MDI und vollständige OCX-/Connection-Point-
+Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **947 Tests**.
