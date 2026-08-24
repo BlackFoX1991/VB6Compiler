@@ -119,6 +119,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             {
                 dialog.Name = logicalName;
             }
+            else if (hostObject is ImageListProxy imageList)
+            {
+                imageList.Name = logicalName;
+            }
 
             binding.Components.Add(name, hostObject);
             if (!binding.Components.ContainsKey(logicalName))
@@ -185,6 +189,26 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
 
+        if (target is ImageComboControl imageCombo)
+        {
+            if (string.Equals(memberName, "ComboItems", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                value = new ComboItemsProxy(imageCombo);
+                return true;
+            }
+
+            if (string.Equals(memberName, "SelectedItem", StringComparison.OrdinalIgnoreCase) &&
+                arguments.Length == 0)
+            {
+                value = imageCombo.SelectedIndex >= 0 &&
+                        imageCombo.SelectedIndex < imageCombo.Entries.Count
+                    ? new ComboItemProxy(imageCombo, imageCombo.Entries[imageCombo.SelectedIndex])
+                    : null;
+                return true;
+            }
+        }
+
         if (TryResolveControl(target, memberName, arguments, out var resolved))
         {
             if (string.Equals(memberName, "Controls", StringComparison.OrdinalIgnoreCase))
@@ -222,6 +246,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object? value)
     {
         ThrowIfDisposed();
+        if (target is ImageComboControl imageCombo &&
+            string.Equals(memberName, "ImageList", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 0)
+        {
+            imageCombo.ImageList = value;
+            return true;
+        }
+
         if (target is TreeView treeView && arguments.Length == 0)
         {
             if (string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase))
@@ -936,6 +968,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "hWnd", StringComparison.OrdinalIgnoreCase)) value = control.Handle.ToInt64();
         else if (string.Equals(memberName, "hDC", StringComparison.OrdinalIgnoreCase)) value = 0L;
         else if (string.Equals(memberName, "hInstance", StringComparison.OrdinalIgnoreCase)) value = 0L;
+        else if (control is ImageComboControl imageCombo && string.Equals(memberName, "ImageList", StringComparison.OrdinalIgnoreCase)) value = imageCombo.ImageList;
         else if (control is TreeView treeStyle && string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase)) value = GetTreeViewState(treeStyle).Style;
         else if (control is TreeView treeLineStyle && string.Equals(memberName, "LineStyle", StringComparison.OrdinalIgnoreCase)) value = GetTreeViewState(treeLineStyle).LineStyle;
         else if (string.Equals(memberName, "Font", StringComparison.OrdinalIgnoreCase)) value = ToVBFont(control.Font);
@@ -973,6 +1006,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) control.Text = VBConversions.CStr(value);
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) control.BackColor = ColorTranslator.FromOle(VBConversions.CLng(value));
         else if (string.Equals(memberName, "ForeColor", StringComparison.OrdinalIgnoreCase)) control.ForeColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+        else if (control is ImageComboControl imageCombo && string.Equals(memberName, "ImageList", StringComparison.OrdinalIgnoreCase)) imageCombo.ImageList = value;
         else if (control is TreeView treeStyle && string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase)) GetTreeViewState(treeStyle).Style = VBConversions.CLng(value);
         else if (control is TreeView treeLineStyle && string.Equals(memberName, "LineStyle", StringComparison.OrdinalIgnoreCase)) GetTreeViewState(treeLineStyle).LineStyle = VBConversions.CLng(value);
         else if (string.Equals(memberName, "Font", StringComparison.OrdinalIgnoreCase) && value is VBFont font) control.Font = FromVBFont(font, control.Font);
@@ -1039,6 +1073,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "TREEVIEW" or "MSCOMCTLLIB.TREEVIEW" => new TreeView(),
             "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => new RichTextBox(),
             "COMMONDIALOG" or "MSCOMDLG.COMMONDIALOG" => new CommonDialogProxy(),
+            "IMAGELIST" or "MSCOMCTLLIB.IMAGELIST" => new ImageListProxy(),
+            "IMAGECOMBO" or "MSCOMCTLLIB.IMAGECOMBO" => new ImageComboControl(),
             _ => new Panel()
         };
 

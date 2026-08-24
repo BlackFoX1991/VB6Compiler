@@ -149,6 +149,44 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostAdaptsImageListAndImageComboCollections()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            var imageList = host.CreateControl(owner, "Images", "MSComctlLib.ImageList")!;
+            var listImages = VBDynamicDispatch.GetMember(imageList, "ListImages")!;
+            VBDynamicDispatch.InvokeMember(listImages, "Add", Arguments(null, "Folder", "folder.bmp"));
+            Assert.AreEqual(1, VBDynamicDispatch.GetMember(listImages, "Count"));
+            var image = (ListImageProxy)VBDynamicDispatch.GetIndexedMember(listImages, "Item", Arguments(1))!;
+            Assert.AreEqual("Folder", image.Key);
+            Assert.AreEqual("folder.bmp", ((VBPicture)image.Picture!).FileName);
+
+            var combo = (ImageComboControl)host.CreateControl(owner, "Combo", "MSComctlLib.ImageCombo")!;
+            VBDynamicDispatch.SetMember(combo, "ImageList", imageList);
+            var comboItems = VBDynamicDispatch.GetMember(combo, "ComboItems")!;
+            VBDynamicDispatch.InvokeMember(comboItems, "Add", Arguments(null, "Root", "Root", 1));
+            var item = (ComboItemProxy)VBDynamicDispatch.GetIndexedMember(comboItems, "Item", Arguments(1))!;
+            item.Selected = true;
+
+            Assert.AreSame(imageList, VBDynamicDispatch.GetMember(combo, "ImageList"));
+            Assert.AreEqual("Root", item.Text);
+            Assert.IsTrue(item.Selected);
+            Assert.AreEqual(1, combo.Items.Count);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostCreatesTimerControlsAndConnectsTimerHandlers()
     {
         using var host = new WinFormsHost();
