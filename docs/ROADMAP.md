@@ -1207,7 +1207,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       und TypeInfo-/Connection-Point-Event-Bridging stehen für den geprüften x86-Pfad; vollständiger
       Connection-Point-Event-ABI, UDT-/Pointer-Marshalling und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
-- [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; Registry-Registrierung, Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
+- [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. Reg-Free-Manifest-/Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
       vollständige Runtime-/Projektverträge bleiben offen
 - [~] LLVM-natives Windows-Backend für x86 und x64 (**optional/deferred**) — primitive skalare IR-Emission
@@ -2073,3 +2073,14 @@ Reassignment-Regel bleiben unverändert; die Runtime-Regression umfasst nun **20
 Managed-WinForms-Lauf und der verpflichtende x86-Lauf mit registrierten Standard-OCX-Komponenten
 jeweils **34/34**. Vollständige Event-Signaturkonversion sowie UDT-/Pointer-ABI bleiben separate
 Interop-Schritte. Die Gesamtsuite umfasst nun **975 Tests**.
+
+## Aktueller COM-Host-Registrierungs-Nachtrag
+
+Die CLI kann einen erzeugten SDK-`.comhost.dll` jetzt explizit über
+`--register-com` beziehungsweise `--unregister-com` installieren oder entfernen. Dabei wird
+unter Windows das passende `regsvr32` aus `System32` oder `SysWOW64` anhand von `--x64` oder
+`--x86` gewählt und mit `/s` gestartet, damit Registry-/Load-Fehler als Exitcode und
+Standardfehler an den Build zurückgehen statt eine native Messagebox zu öffnen. Der Pfad ist
+bewusst auf Dateien mit `.comhost.dll`-Suffix begrenzt; Typbibliotheks-Emission und UDT-/Pointer-
+Marshalling bleiben separate COM-Verträge. Die Compiler-Regression umfasst nun **347** Tests,
+die Gesamtsuite **977**.

@@ -8,7 +8,8 @@ const string usage =
     "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] [--com-host] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
     "       vb6c <project.vbp> --report\n" +
     "       vb6c <project.vbg> --report\n" +
-    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu] [--com-host]";
+    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu] [--com-host]\n" +
+    "       vb6c <comhost.dll> --register-com|--unregister-com [--x86|--x64|--anycpu]";
 
 if (args.Length == 0)
 {
@@ -22,6 +23,13 @@ if (!File.Exists(path))
 {
     Console.Error.WriteLine($"Input file not found: {path}");
     return 1;
+}
+
+if (args.Length >= 2 &&
+    (string.Equals(args[1], "--register-com", StringComparison.OrdinalIgnoreCase) ||
+     string.Equals(args[1], "--unregister-com", StringComparison.OrdinalIgnoreCase)))
+{
+    return HandleComRegistration(path, args);
 }
 
 if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnoreCase))
@@ -312,6 +320,45 @@ static int HandleProjectGroup(string path, string[] args)
 
     Console.Error.WriteLine(usage);
     return 1;
+}
+
+static int HandleComRegistration(string path, string[] args)
+{
+    var platform = ManagedPlatform.AnyCpu;
+    ManagedPlatform? selectedPlatform = null;
+    foreach (var argument in args.Skip(2))
+    {
+        if (!TryParseManagedPlatform(argument, out var parsedPlatform))
+        {
+            return 1;
+        }
+
+        if (selectedPlatform is not null)
+        {
+            Console.Error.WriteLine("Managed architecture was specified more than once.");
+            return 1;
+        }
+
+        selectedPlatform = parsedPlatform;
+        platform = parsedPlatform;
+    }
+
+    var unregister = string.Equals(args[1], "--unregister-com", StringComparison.OrdinalIgnoreCase);
+    var result = ManagedComRegistration.Execute(path, platform, unregister);
+    if (!result.Success)
+    {
+        var details = string.IsNullOrWhiteSpace(result.StandardError)
+            ? result.StandardOutput
+            : result.StandardError;
+        Console.Error.WriteLine(
+            $"COM {(unregister ? "unregistration" : "registration")} failed " +
+            $"(exit code {result.ExitCode}): {details.Trim()}");
+        return 1;
+    }
+
+    Console.WriteLine(
+        $"COM host {(unregister ? "unregistered" : "registered")}: {Path.GetFullPath(path)}");
+    return 0;
 }
 
 static void PrintProjectGroupSummary(VBProjectGroupAnalysis analysis)
