@@ -1397,7 +1397,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         try
         {
             method.Invoke(target, arguments);
-            ApplyEventArgumentChanges(eventName, sourceArguments, arguments);
+            ApplyEventArgumentChanges(eventName, sourceArguments, arguments, parameters);
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
@@ -1467,17 +1467,47 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static void ApplyEventArgumentChanges(
         string eventName,
         object?[] sourceArguments,
-        object?[] handlerArguments)
+        object?[] handlerArguments,
+        ParameterInfo[] handlerParameters)
     {
-        if (!string.Equals(eventName, "QueryUnload", StringComparison.OrdinalIgnoreCase) ||
-            sourceArguments.Length != 2 ||
-            sourceArguments[1] is not FormClosingEventArgs closing ||
-            handlerArguments.Length == 0)
+        if (handlerArguments.Length == 0 ||
+            handlerParameters.Length == 0 ||
+            !handlerParameters[0].ParameterType.IsByRef ||
+            sourceArguments.Length != 2)
         {
             return;
         }
 
-        closing.Cancel = VBConversions.CBool(handlerArguments[0]);
+        if (sourceArguments[1] is FormClosingEventArgs closing &&
+            string.Equals(eventName, "QueryUnload", StringComparison.OrdinalIgnoreCase))
+        {
+            closing.Cancel = VBConversions.CBool(handlerArguments[0]);
+            return;
+        }
+
+        if (sourceArguments[1] is KeyPressEventArgs keyPress &&
+            string.Equals(eventName, "KeyPress", StringComparison.OrdinalIgnoreCase))
+        {
+            keyPress.KeyChar = Convert.ToChar(
+                VBConversions.CInt(handlerArguments[0]),
+                System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+
+        if (sourceArguments[1] is KeyEventArgs keyEvent &&
+            (string.Equals(eventName, "KeyDown", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(eventName, "KeyUp", StringComparison.OrdinalIgnoreCase)))
+        {
+            var keyCode = VBConversions.CLng(handlerArguments[0]);
+            if (keyCode != keyEvent.KeyValue)
+            {
+                // WinForms exposes KeyCode as read-only. A VB6 handler that changes the ByRef
+                // code therefore suppresses the current key operation instead of leaking the
+                // original event through with a different managed code.
+                keyEvent.Handled = true;
+                keyEvent.SuppressKeyPress = true;
+            }
+        }
     }
 
     private static int ToVbUnloadMode(CloseReason reason) => reason switch
