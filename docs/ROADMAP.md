@@ -1885,3 +1885,14 @@ die Objektübergabe zwischen zwei real aktivierten Standard-OCX abgesichert. Die
 x64-WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
 **957 Tests**. Vollständiges COM-ByRef-Marshalling, Connection-Point-Events und die restlichen
 nativen ABI-Sonderfälle bleiben separate Roadmap-Schritte.
+
+## Aktueller nativer OCX-Collections-Nachtrag
+
+`For Each` über native Host-/OCX-Collections nutzt jetzt auch die reale RCW-Enumeration. Einige
+ältere `IEnumVARIANT`-Implementierungen liefern hinter den gezählten Elementen noch einen
+`VT_EMPTY`-Platzhalter; der Host verwirft diesen `null`-Eintrag für COM-Collections, ohne die
+Enumeration normaler Managed-Collections zu verändern. Der x86-Regressionspfad legt einen
+TreeView-Node über die native `Nodes`-Collection an und prüft, dass `VBInteraction.EnumerateControls`
+genau diesen einen Node für den generierten `For Each`-Vertrag zurückgibt. Die x86- und x64-
+WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
+**957 Tests**. Vollständiges COM-ByRef-Marshalling und Connection-Point-Events bleiben offen.

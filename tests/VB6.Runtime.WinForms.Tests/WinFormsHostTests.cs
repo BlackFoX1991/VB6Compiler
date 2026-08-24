@@ -228,6 +228,9 @@ public sealed class WinFormsHostTests
             Array.Empty<object?>(),
             out text));
         Assert.AreEqual("Changed", text);
+        var enumeratedNodes = VBInteraction.EnumerateControls(nodes);
+        Assert.AreEqual(1, enumeratedNodes.Length);
+        Assert.IsNotNull(enumeratedNodes[0]);
         Assert.IsTrue(host.TryGetMember(
             nodes!,
             "Item",

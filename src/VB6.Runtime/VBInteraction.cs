@@ -289,12 +289,13 @@ public static class VBInteraction
     /// </summary>
     public static VBArray<object> EnumerateControls(object? target)
     {
+        var isComCollection = target is not null && Marshal.IsComObject(target);
         var values = ControlEnumerationSink?.Invoke(target)?.ToArray() ??
             Host?.EnumerateControls(target)?.ToArray() ??
             (target is VBCollection collection
                 ? VBCollection.EnumerateValues(collection).EnumerateValues().Cast<object?>().ToArray()
                 : target is System.Collections.IEnumerable enumerable
-                ? enumerable.Cast<object?>().ToArray()
+                ? EnumerateHostValues(enumerable, isComCollection)
                 : Array.Empty<object?>());
         var result = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
         for (var index = 0; index < values.Length; index++)
@@ -303,6 +304,17 @@ public static class VBInteraction
         }
 
         return result;
+    }
+
+    private static object?[] EnumerateHostValues(
+        System.Collections.IEnumerable enumerable,
+        bool isComCollection)
+    {
+        var values = enumerable.Cast<object?>();
+        // Some legacy IEnumVARIANT implementations expose a trailing VT_EMPTY entry through
+        // the RCW enumerator even though the collection Count excludes it. It is not a control
+        // element and must not become an extra Variant item in a VB6 For Each loop.
+        return (isComCollection ? values.Where(value => value is not null) : values).ToArray();
     }
 
     /// <summary>Forwards an unqualified control Print call to an optional host sink.</summary>
