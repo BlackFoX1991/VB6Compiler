@@ -12,6 +12,8 @@ namespace VB6.Runtime.WinForms.Tests;
 [STATestClass]
 public sealed class WinFormsHostTests
 {
+    private const uint WindowMessageLeftButtonDown = 0x0201;
+    private const uint WindowMessageLeftButtonUp = 0x0202;
     private const uint WindowMessageChar = 0x0102;
 
     [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
@@ -238,6 +240,52 @@ public sealed class WinFormsHostTests
         finally
         {
             VBEvents.UnsubscribeMethod(richText, "KeyPress", sink, "OnKeyPress");
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
+    public void HostBridgesNativeRichTextMouseDownWithParameterizedComEventInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native RichTextBox OCX validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var richText = host.CreateControl(owner, "Editor", "RichTextLib.RichTextBox")!;
+        Assert.IsInstanceOfType<AxHost>(richText);
+        var control = (Control)richText;
+        control.CreateControl();
+
+        var sink = new NativeRichTextMouseDownEventSink();
+        VBEvents.SubscribeMethod(richText, "MouseDown", sink, "OnMouseDown");
+        try
+        {
+            var point = (IntPtr)((20 << 16) | 10);
+            _ = SendMessage(control.Handle, WindowMessageLeftButtonDown, (IntPtr)1, point);
+            _ = SendMessage(control.Handle, WindowMessageLeftButtonUp, IntPtr.Zero, point);
+            Application.DoEvents();
+
+            Assert.AreEqual(1, sink.MouseDownCount);
+            Assert.AreEqual((short)1, sink.Button);
+            Assert.AreEqual((short)0, sink.Shift);
+            Assert.AreEqual(10f, sink.X, 0.1f);
+            Assert.AreEqual(20f, sink.Y, 0.1f);
+        }
+        finally
+        {
+            VBEvents.UnsubscribeMethod(richText, "MouseDown", sink, "OnMouseDown");
             host.Unload(owner);
         }
     }
@@ -1233,6 +1281,24 @@ public sealed class WinFormsHostTests
             KeyPressCount++;
             OriginalKeyAscii = keyAscii;
             keyAscii = (short)'y';
+        }
+    }
+
+    private sealed class NativeRichTextMouseDownEventSink
+    {
+        public int MouseDownCount { get; private set; }
+        public short Button { get; private set; }
+        public short Shift { get; private set; }
+        public float X { get; private set; }
+        public float Y { get; private set; }
+
+        private void OnMouseDown(short button, short shift, float x, float y)
+        {
+            MouseDownCount++;
+            Button = button;
+            Shift = shift;
+            X = x;
+            Y = y;
         }
     }
 

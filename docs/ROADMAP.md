@@ -2022,3 +2022,12 @@ Der zentrale Variant-zu-Boolean-Pfad löst Default-Properties jetzt auch vor `If
 `Null` bleibt falsch, und ein `Missing`-Default löst weiterhin den VB6-Fehler 448 aus. Ein direkter
 Runtime-Test sowie ein emittiertes `.vbp` mit allen drei Boolean-Kontexten sichern den Vertrag ab.
 Die Gesamtsuite umfasst nun **972 Tests**.
+
+## Aktueller nativer OCX-Parameterized-Event-Nachtrag
+
+Der native x86-OCX-Pfad deckt neben `RichTextBox.Change` und dem einzelnen `ByRef`-
+`RichTextBox.KeyPress`-Parameter jetzt auch ein parametrisiertes `RichTextBox.MouseDown`-Event
+ab. Die Connection-Point-Regression übergibt `Button`, `Shift`, `X` und `Y` aus einer echten
+Windows-Nachricht an den VB6-Handler und prüft die Automation-Typkonversion (`I2`/`R4`). Der
+erzwungene x86-WinForms-Lauf umfasst damit **34/34** Tests; vollständige Event-Signatur- und
+Connection-Point-Lifecycle-Regeln bleiben offen. Die Gesamtsuite umfasst nun **973 Tests**.
