@@ -2155,3 +2155,12 @@ spät erzeugte `AxHost`-COM-Objekte korrekt verbunden werden. Der kompilierte x8
 Regressionstest prüft `Form_Load`, `source_Change` und den bestehenden ByRef-KeyPress-Pfad;
 Compiler und WinForms umfassen damit **348** beziehungsweise **35/35** Tests, die Gesamtsuite
 weiterhin **981** Tests.
+
+## Aktueller importierter COM-Event-Identitäts-Nachtrag
+
+Verzögert angelegte native Event-Subscriptions bewahren nun auch die aus der TypeLibrary
+importierte Source-IID und DISPID, solange der `AxHost` noch kein COM-Objekt besitzt. Beim späteren
+Retry nach der Aktivierung wird dadurch der bereits gebundene Connection-Point verwendet; die
+zusätzliche x86-Regression prüft `WithEvents source_KeyPress(KeyAscii As Integer)` samt ByRef-
+Write-back neben dem konventionellen Designer-Handler. Die bestehende Testabdeckung bleibt bei
+**981** Tests, davon **35/35** im WinForms-x86-Lauf.

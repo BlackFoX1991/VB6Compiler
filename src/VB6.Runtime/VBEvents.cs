@@ -204,6 +204,9 @@ public static class VBEvents
         var method = FindHandler(target, methodName)
                      ?? throw new MissingMethodException(target.GetType().FullName, methodName);
         var handler = new Action<object?[]>(arguments => method.Invoke(target, arguments));
+        var hasImportedIdentity = Guid.TryParse(comInterfaceId, out var importedInterfaceGuid) &&
+            comDispId != int.MinValue;
+        var importedDispId = hasImportedIdentity ? comDispId : (int?)null;
 
         lock (Sync)
         {
@@ -286,7 +289,9 @@ public static class VBEvents
                 handler,
                 host: null,
                 eventInfo: null,
-                @delegate: null));
+                @delegate: null,
+                comInterfaceId: hasImportedIdentity ? importedInterfaceGuid : null,
+                comDispId: importedDispId));
         }
     }
 
