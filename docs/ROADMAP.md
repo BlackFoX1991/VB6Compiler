@@ -1228,7 +1228,9 @@ Größter Einzelblock.
       `BeginProperty`-Blöcken und hexadezimalen `.frx`-Ressourcenoffsets erfasst. Intrinsische
       Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
       `Label`, `Shape`, `Line`, `Timer` und `Menu`) werden als typisierte Klassenfelder gebunden;
-      skalare Designerwerte werden nach der Control-Erzeugung über den Host gesetzt; `TextRTF`
+      skalare Designerwerte für Controls und das Root-Form (einschließlich Fensterrahmen,
+      ControlBox, Min-/Max-Button, Taskbar, Startposition und WindowState) werden nach der
+      Erzeugung über den Host gesetzt; `TextRTF`
       kann seine Nutzdaten aus `.frx` beziehen. Vollständige Ressourcendekodierung und WinForms-
       Erzeugung bleiben offen.
 - [~] Forms-Runtime auf WinForms: Der portable `IVB6Host`-Vertrag deckt Message-Pump, Form-Lifecycle,
@@ -1623,3 +1625,17 @@ Vertrag reicht diese Werte an den konfigurierten Host weiter; der WinForms-Host 
 Twips-, OLE-Farb- und RichTextBox-Konvertierungen. Nicht skalare oder noch opaque Ressourcenwerte
 bleiben bewusst beim jeweiligen Hostadapter. Die IR-Regression prüft den Designer-Property-
 Namen und den emittierten Wert; die Gesamtsuite bleibt bei **931 Tests**.
+
+## Aktueller Forms-Designerwert-Nachtrag
+
+Der generierte Form-Konstruktor setzt nun zusätzlich häufige skalare Designerwerte für das
+Root-Form und Standardcontrols. Dazu gehören Form-Rahmen, `ControlBox`, Min-/Max-Button,
+`ShowInTaskbar`, `StartUpPosition`, `WindowState`, `BorderStyle`, `Appearance`, `Tag`,
+`ToolTipText` sowie die hostseitig gespeicherten VB6-Zustände `AutoRedraw`, `FillStyle`,
+`MousePointer` und `ScaleMode`. `ImageList.ImageWidth`/`ImageHeight` und die skalaren
+`CommonDialog`-Eigenschaften werden ebenfalls über den Managed-Host abgebildet. Der Parser
+ignoriert dabei Inline-Kommentare außerhalb von Zeichenketten, wie sie in älteren `.frm`-Dateien
+häufig vorkommen. Die VISIA-Emission und der native WinForms-Runner laufen damit ohne Analyse-
+oder Startfehler; direkte Ausführung der erzeugten Managed-PE bleibt bis zur separaten AppHost-
+Erzeugung auf `dotnet` beziehungsweise den Runner angewiesen. Die Gesamtsuite umfasst
+**932 Tests**.

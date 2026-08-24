@@ -62,6 +62,25 @@ public sealed class VBDesignerParserTests
     }
 
     [TestMethod]
+    public void Parse_StripsInlineCommentsFromDesignerValuesWithoutTouchingQuotedText()
+    {
+        var result = VBDesignerParser.Parse("""
+            VERSION 5.00
+            Begin VB.Form Main
+               Caption = "Legacy ' form" ' visible comment
+               BorderStyle = 0  'Kein
+               AutoRedraw = -1  'True
+            End
+            """, Path.Combine(Path.GetTempPath(), "VB6Designer", "Main.frm"));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        var properties = result.Document!.Root.Properties;
+        Assert.AreEqual("Legacy ' form", properties.Single(property => property.Name == "Caption").Value);
+        Assert.AreEqual(0L, properties.Single(property => property.Name == "BorderStyle").Value);
+        Assert.AreEqual(-1L, properties.Single(property => property.Name == "AutoRedraw").Value);
+    }
+
+    [TestMethod]
     public void Parse_IgnoresEndStatementsAfterDesignerRoot()
     {
         var result = VBDesignerParser.Parse("""

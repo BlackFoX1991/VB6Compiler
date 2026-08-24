@@ -16,6 +16,11 @@ public interface IVB6Host
 
     object? CreateControl(object owner, string name, string typeName);
 
+    /// <summary>Ensures that a generated Form/UserControl has a host binding before initialization.</summary>
+    void EnsureForm(object target)
+    {
+    }
+
     bool TryGetMember(
         object target,
         string memberName,

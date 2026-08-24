@@ -819,5 +819,10 @@ public sealed record SemanticModel(
     /// <summary>Class fields declared by the current class/form module.</summary>
     public ImmutableArray<BoundModuleVariable> InstanceVariables { get; init; } =
         ImmutableArray<BoundModuleVariable>.Empty;
+
+    /// <summary>Scalar values read from the containing Form/UserControl designer envelope.</summary>
+    public ImmutableArray<DesignerPropertyInitializer> DesignerInitializers { get; init; } =
+        ImmutableArray<DesignerPropertyInitializer>.Empty;
+
     public ClassTypeSymbol? ContainingClass { get; init; }
 }
