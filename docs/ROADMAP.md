@@ -1177,10 +1177,11 @@ Nach Korpusbedarf priorisiert:
 Durch `Declare` (234) deutlich früher als ursprünglich geplant; ab Meilenstein 5 parallel
 beginnbar, da weitgehend unabhängig vom Sprachkern.
 
-- [~] `Declare` -> P/Invoke für skalare Signaturen mit `Lib`/`Alias` und echter Managed-
-      Invocation; ANSI-String-Marshalling sowie Scalar-Pointer-Transfers für `As Any` stehen,
-      `AddressOf` erzeugt Managed-Funktionsadressen für direkte Prozedurziele, komplexes
-      String-/UDT-Marshalling sowie vollständige Callback-ABI-/Delegate-Verträge bleiben offen
+- [~] `Declare` -> P/Invoke für skalare Signaturen und blittable UDT-Records mit `Lib`/`Alias` und
+      echter Managed-Invocation; ANSI-String-Marshalling, native `ByRef`-UDT-Rückschreibung sowie
+      Scalar-Pointer-Transfers für `As Any` stehen, `AddressOf` erzeugt Managed-Funktionsadressen
+      für direkte Prozedurziele, komplexes String-/Array-Marshalling sowie vollständige
+      Callback-ABI-/Delegate-Verträge bleiben offen
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
@@ -1494,3 +1495,11 @@ Der `Format$`-Stringmaskenpfad unterstützt nun neben `<`/`>` auch `@`- und `&`-
 und die zweite Maskensektion für leere beziehungsweise `Null`-Strings. Die direkte Runtime-
 und kompilierte Ausführung ist regressionsgesichert; locale-abhängige Named-Formate und weitere
 Datum-/Finanzmasken bleiben separat offen. Die Gesamtsuite umfasst **915 Tests**.
+
+## Aktueller Declare-UDT-Nachtrag
+
+Blittable `Type`-Records werden im Managed-Emitter jetzt als sequenzielle Structs in nativen
+`Declare`-Signaturen verwendet. Ein echter Windows-Aufruf von `GetSystemTime` regressionssichert
+den vollständigen `ByRef`-Pfad einschließlich Feld-Write-back. Variable/feste Stringfelder,
+Arrays, nicht-blittable UDTs und Callback-Delegates bleiben separate ABI-Schritte. Die Gesamtsuite
+umfasst **916 Tests**.
