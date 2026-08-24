@@ -287,7 +287,8 @@ public sealed class VBProjectCompilation
                         IsDesignerControl = true,
                         DesignerParentName = control.ParentName,
                         DesignerTypeName = control.TypeName,
-                        DesignerInitializers = control.Initializers
+                        DesignerInitializers = control.Initializers,
+                        ArrayDimensions = control.ArrayDimensions
                     });
                 }
 
@@ -555,7 +556,8 @@ public sealed class VBProjectCompilation
 
         var controls = new Dictionary<
             string,
-            (TypeSymbol Type, string TypeName, bool IsArray, string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers)>(
+            (TypeSymbol Type, string TypeName, bool IsArray, int? ArrayLower, int? ArrayUpper,
+                string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers)>(
             StringComparer.OrdinalIgnoreCase);
         foreach (var child in document.Root.Children)
         {
@@ -571,7 +573,8 @@ public sealed class VBProjectCompilation
                     : control.Value.Type,
                 control.Value.TypeName,
                 control.Value.ParentName,
-                control.Value.Initializers);
+                control.Value.Initializers,
+                CreateArrayDimensions(control.Value));
         }
 
         void Visit(VBDesignerNode node, string? parentName)
@@ -580,15 +583,23 @@ public sealed class VBProjectCompilation
                 ? node.TypeName[3..]
                 : node.TypeName;
             var type = TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control;
+            var arrayIndex = node.ArrayIndex;
             if (controls.TryGetValue(node.Name, out var existing))
             {
-                controls[node.Name] = (existing.Type, existing.TypeName, true, existing.ParentName, existing.Initializers);
+                controls[node.Name] = (
+                    existing.Type,
+                    existing.TypeName,
+                    true,
+                    MinArrayBound(existing.ArrayLower, arrayIndex),
+                    MaxArrayBound(existing.ArrayUpper, arrayIndex),
+                    existing.ParentName,
+                    existing.Initializers);
             }
             else
             {
                 controls.Add(
                     node.Name,
-                    (type, typeName, node.IsControlArray, parentName, ReadDesignerInitializers(node)));
+                    (type, typeName, node.IsControlArray, arrayIndex, arrayIndex, parentName, ReadDesignerInitializers(node)));
             }
 
             var currentName = parentName is null
@@ -599,6 +610,35 @@ public sealed class VBProjectCompilation
                 Visit(child, currentName);
             }
         }
+
+        static ImmutableArray<BoundArrayDimension> CreateArrayDimensions(
+            (TypeSymbol Type, string TypeName, bool IsArray, int? ArrayLower, int? ArrayUpper,
+                string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers) control)
+        {
+            if (!control.IsArray)
+            {
+                return ImmutableArray<BoundArrayDimension>.Empty;
+            }
+
+            var lower = control.ArrayLower ?? 0;
+            var upper = control.ArrayUpper ?? lower;
+            return ImmutableArray.Create(
+                new BoundArrayDimension(
+                    new BoundLiteralExpression((long)lower, TypeSymbol.Long),
+                    new BoundLiteralExpression((long)upper, TypeSymbol.Long)));
+        }
+
+        static int? MinArrayBound(int? current, int? candidate) => current is null
+            ? candidate
+            : candidate is null
+                ? current
+                : Math.Min(current.Value, candidate.Value);
+
+        static int? MaxArrayBound(int? current, int? candidate) => current is null
+            ? candidate
+            : candidate is null
+                ? current
+                : Math.Max(current.Value, candidate.Value);
 
     }
 
@@ -1252,7 +1292,8 @@ public sealed class VBProjectCompilation
         TypeSymbol Type,
         string TypeName,
         string? ParentName,
-        ImmutableArray<DesignerPropertyInitializer> Initializers);
+        ImmutableArray<DesignerPropertyInitializer> Initializers,
+        ImmutableArray<BoundArrayDimension> ArrayDimensions);
 
     private sealed class ActiveProjectScope : IDisposable
     {

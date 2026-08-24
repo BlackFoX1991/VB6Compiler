@@ -855,6 +855,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         string eventName,
         object target,
         string methodName)
+        => TrySubscribeEvent(source, eventName, target, methodName, controlArrayIndex: null);
+
+    private bool TrySubscribeEvent(
+        object source,
+        string eventName,
+        object target,
+        string methodName,
+        int? controlArrayIndex)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(source);
@@ -883,7 +891,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             target,
             method,
             eventName,
-            eventSource);
+            eventSource,
+            controlArrayIndex);
         if (handler is null)
         {
             return false;
@@ -1178,25 +1187,47 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private void AttachGeneratedControlEvents(object owner, Control control, string name)
     {
-        var baseName = name.Split('(')[0];
+        var baseName = GetControlEventBaseName(name, out var controlArrayIndex);
         if (control is TimerControl)
         {
-            TrySubscribeEvent(control, "Tick", owner, baseName + "_Timer");
+            TrySubscribeEvent(control, "Tick", owner, baseName + "_Timer", controlArrayIndex);
             return;
         }
 
-        TrySubscribeEvent(control, "Click", owner, baseName + "_Click");
-        TrySubscribeEvent(control, "TextChanged", owner, baseName + "_Change");
-        TrySubscribeEvent(control, "Enter", owner, baseName + "_GotFocus");
-        TrySubscribeEvent(control, "Leave", owner, baseName + "_LostFocus");
-        TrySubscribeEvent(control, "DoubleClick", owner, baseName + "_DblClick");
-        TrySubscribeEvent(control, "MouseDown", owner, baseName + "_MouseDown");
-        TrySubscribeEvent(control, "MouseUp", owner, baseName + "_MouseUp");
-        TrySubscribeEvent(control, "MouseMove", owner, baseName + "_MouseMove");
-        TrySubscribeEvent(control, "KeyDown", owner, baseName + "_KeyDown");
-        TrySubscribeEvent(control, "KeyPress", owner, baseName + "_KeyPress");
-        TrySubscribeEvent(control, "KeyUp", owner, baseName + "_KeyUp");
-        TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize");
+        TrySubscribeEvent(control, "Click", owner, baseName + "_Click", controlArrayIndex);
+        TrySubscribeEvent(control, "TextChanged", owner, baseName + "_Change", controlArrayIndex);
+        TrySubscribeEvent(control, "Enter", owner, baseName + "_GotFocus", controlArrayIndex);
+        TrySubscribeEvent(control, "Leave", owner, baseName + "_LostFocus", controlArrayIndex);
+        TrySubscribeEvent(control, "DoubleClick", owner, baseName + "_DblClick", controlArrayIndex);
+        TrySubscribeEvent(control, "MouseDown", owner, baseName + "_MouseDown", controlArrayIndex);
+        TrySubscribeEvent(control, "MouseUp", owner, baseName + "_MouseUp", controlArrayIndex);
+        TrySubscribeEvent(control, "MouseMove", owner, baseName + "_MouseMove", controlArrayIndex);
+        TrySubscribeEvent(control, "KeyDown", owner, baseName + "_KeyDown", controlArrayIndex);
+        TrySubscribeEvent(control, "KeyPress", owner, baseName + "_KeyPress", controlArrayIndex);
+        TrySubscribeEvent(control, "KeyUp", owner, baseName + "_KeyUp", controlArrayIndex);
+        TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize", controlArrayIndex);
+    }
+
+    private static string GetControlEventBaseName(string name, out int? controlArrayIndex)
+    {
+        var separator = name.LastIndexOf('.');
+        var logicalName = separator >= 0 ? name[(separator + 1)..] : name;
+        var open = logicalName.LastIndexOf('(');
+        if (open >= 0 &&
+            open + 1 < logicalName.Length - 1 &&
+            logicalName.EndsWith(')') &&
+            int.TryParse(
+                logicalName.AsSpan(open + 1, logicalName.Length - open - 2),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsedIndex))
+        {
+            controlArrayIndex = parsedIndex;
+            return logicalName[..open];
+        }
+
+        controlArrayIndex = null;
+        return logicalName;
     }
 
     private void AttachGeneratedNativeControlEvents(object owner)
@@ -1388,7 +1419,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object target,
         MethodInfo method,
         string eventName,
-        object eventSource)
+        object eventSource,
+        int? controlArrayIndex)
     {
         var invoke = delegateType.GetMethod("Invoke");
         if (invoke is null || invoke.ReturnType != typeof(void))
@@ -1418,7 +1450,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             Expression.Constant(method),
             Expression.Constant(eventName),
             Expression.Constant(eventSource),
-            arguments);
+            arguments,
+            Expression.Constant(controlArrayIndex, typeof(int?)));
         return Expression.Lambda(delegateType, body, expressions).Compile();
     }
 
@@ -1427,10 +1460,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         MethodInfo method,
         string eventName,
         object eventSource,
-        object?[] eventArguments)
+        object?[] eventArguments,
+        int? controlArrayIndex)
     {
         var sourceArguments = eventArguments;
-        eventArguments = AdaptEventArguments(eventName, eventSource, sourceArguments);
+        eventArguments = AdaptEventArguments(eventName, eventSource, sourceArguments, controlArrayIndex);
         var parameters = method.GetParameters();
         var arguments = new object?[parameters.Length];
         var offset = eventArguments.Length == parameters.Length
@@ -1461,20 +1495,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static object?[] AdaptEventArguments(
         string eventName,
         object eventSource,
-        object?[] eventArguments)
+        object?[] eventArguments,
+        int? controlArrayIndex)
     {
         var normalized = eventName.ToUpperInvariant();
         if (eventArguments.Length == 2 && eventArguments[1] is MouseEventArgs mouse)
         {
             if (normalized is "MOUSEDOWN" or "MOUSEUP" or "MOUSEMOVE")
             {
-                return new object?[]
+                return AddControlArrayIndex(new object?[]
                 {
                     ToVbMouseButton(mouse.Button),
                     ToVbShift(Control.ModifierKeys),
                     ToTwips(eventSource, mouse.X),
                     ToTwips(eventSource, mouse.Y)
-                };
+                }, controlArrayIndex);
             }
         }
 
@@ -1482,39 +1517,54 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             if (normalized is "KEYDOWN" or "KEYUP")
             {
-                return new object?[]
+                return AddControlArrayIndex(new object?[]
                 {
                     key.KeyValue,
                     ToVbShift(key.Modifiers)
-                };
+                }, controlArrayIndex);
             }
         }
 
         if (eventArguments.Length == 2 && eventArguments[1] is KeyPressEventArgs keyPress &&
             normalized == "KEYPRESS")
         {
-            return new object?[] { (short)keyPress.KeyChar };
+            return AddControlArrayIndex(new object?[] { (short)keyPress.KeyChar }, controlArrayIndex);
         }
 
         if (eventArguments.Length == 2 &&
             eventArguments[1] is FormClosingEventArgs closing &&
             normalized == "QUERYUNLOAD")
         {
-            return new object?[]
+            return AddControlArrayIndex(new object?[]
             {
                 closing.Cancel ? 1 : 0,
                 ToVbUnloadMode(closing.CloseReason)
-            };
+            }, controlArrayIndex);
         }
 
         if (eventArguments.Length == 2 &&
             eventArguments[1] is FormClosedEventArgs &&
             normalized == "UNLOAD")
         {
-            return new object?[] { 0 };
+            return AddControlArrayIndex(new object?[] { 0 }, controlArrayIndex);
+        }
+
+        if (controlArrayIndex is int index)
+        {
+            return new object?[] { index };
         }
 
         return eventArguments;
+    }
+
+    private static object?[] AddControlArrayIndex(object?[] eventArguments, int? controlArrayIndex)
+    {
+        if (controlArrayIndex is not int index)
+        {
+            return eventArguments;
+        }
+
+        return new[] { (object?)index }.Concat(eventArguments).ToArray();
     }
 
     private static void ApplyEventArgumentChanges(
@@ -1525,8 +1575,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     {
         if (handlerArguments.Length == 0 ||
             handlerParameters.Length == 0 ||
-            !handlerParameters[0].ParameterType.IsByRef ||
             sourceArguments.Length != 2)
+        {
+            return;
+        }
+
+        var byRefIndex = Array.FindIndex(
+            handlerParameters,
+            parameter => parameter.ParameterType.IsByRef);
+        if (byRefIndex < 0)
         {
             return;
         }
@@ -1534,7 +1591,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         if (sourceArguments[1] is FormClosingEventArgs closing &&
             string.Equals(eventName, "QueryUnload", StringComparison.OrdinalIgnoreCase))
         {
-            closing.Cancel = VBConversions.CBool(handlerArguments[0]);
+            closing.Cancel = VBConversions.CBool(handlerArguments[byRefIndex]);
             return;
         }
 
@@ -1542,7 +1599,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             string.Equals(eventName, "KeyPress", StringComparison.OrdinalIgnoreCase))
         {
             keyPress.KeyChar = Convert.ToChar(
-                VBConversions.CInt(handlerArguments[0]),
+                VBConversions.CInt(handlerArguments[byRefIndex]),
                 System.Globalization.CultureInfo.InvariantCulture);
             return;
         }
@@ -1551,7 +1608,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             (string.Equals(eventName, "KeyDown", StringComparison.OrdinalIgnoreCase) ||
              string.Equals(eventName, "KeyUp", StringComparison.OrdinalIgnoreCase)))
         {
-            var keyCode = VBConversions.CLng(handlerArguments[0]);
+            var keyCode = VBConversions.CLng(handlerArguments[byRefIndex]);
             if (keyCode != keyEvent.KeyValue)
             {
                 // WinForms exposes KeyCode as read-only. A VB6 handler that changes the ByRef
