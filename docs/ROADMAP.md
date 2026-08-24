@@ -1238,7 +1238,8 @@ folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Dan
    signifikante Stellen); die E2E-Helfer trimmen weiterhin bewusst Plattform-/Spaltenformat
 2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
    Binder hat beide Seiten bereits angeglichen
-3. `Currency + Double` folgt nun der VB6-Promotionsreihenfolge und liefert `Double`;
+3. `Currency + Double` folgt nun der VB6-Promotionsreihenfolge und liefert `Double`, während
+   `Currency * Double` die separate Multiplikationsreihenfolge beibehält und `Currency` liefert;
    Vergleichspromotionen behalten weiterhin die separate Currency-Präzisionsregel
 4. `Debug.Print` formatiert Zahlen invariant und mit VB6-nahem Vorzeichen-/Signifikanzformat
    unverändert unter Punkt 1
@@ -1313,7 +1314,7 @@ Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter an
 Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
 UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
 `.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
-Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **872 Tests**.
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **874 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 

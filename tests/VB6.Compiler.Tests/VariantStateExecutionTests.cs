@@ -91,6 +91,22 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PromotesCurrencyBeforeDoubleForMultiplication()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CCur(1)
+
+                Debug.Print TypeName(value * 0.5)
+                Debug.Print value * 0.5
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Currency", "0.5" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesErrorVariantStateIntrinsics()
     {
         var output = VB6TestProgram.RunLines("""
