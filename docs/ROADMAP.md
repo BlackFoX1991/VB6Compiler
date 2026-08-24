@@ -1212,7 +1212,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       native `On Error`-Boundaries mit gespeicherter Resume-Boundary-ID sind ergänzt; stringwertige
       Err-Felder und native ABI-/Runtime-Emission für komplexe VB6-Werte bleiben offen. Dieser Pfad
       blockiert den Managed/.NET-Abschluss nicht.
-- [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; Packaging/Incremental-Build offen
+- [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; NuGet-Packaging und inkrementelle Input-/Output-Verfolgung sind mit `VB6.Compiler.Sdk.1.0.0.nupkg` verifiziert
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
 - [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
@@ -1462,6 +1462,9 @@ unveränderte Projekte werden von MSBuild übersprungen, während eine geändert
 Designerdatei eine neue CLI-Emission auslöst. Der SDK bleibt ein dünner Buildadapter und ersetzt
 nicht das `.vbp`-Projektmodell oder den späteren Visual-Studio-Designer. Direkte CLI-Aufrufe über
 `vb6c <projekt.vbp> --emit-assembly <ausgabe>` bleiben der primäre, unabhängig nutzbare Vertrag.
+Das Release-Paket wurde mit `dotnet pack src/VB6.Compiler.Sdk/VB6.Compiler.Sdk.csproj -c Release
+--no-restore` erzeugt und enthält `Sdk/Sdk.props`, `Sdk/Sdk.targets`, README, Nuspec und die
+`net10.0`-SDK-Assembly.
 
 ## Aktueller Standard-Control-Nachtrag
 
