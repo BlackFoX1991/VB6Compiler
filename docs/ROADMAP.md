@@ -1639,3 +1639,13 @@ häufig vorkommen. Die VISIA-Emission und der native WinForms-Runner laufen dami
 oder Startfehler; direkte Ausführung der erzeugten Managed-PE bleibt bis zur separaten AppHost-
 Erzeugung auf `dotnet` beziehungsweise den Runner angewiesen. Die Gesamtsuite umfasst
 **932 Tests**.
+
+## Aktueller FRX-Bild-Nachtrag
+
+`.frx`-Ressourcen für Form-/Control-`Picture` und Form-`Icon` werden nun als transportierbare
+Werte in den generierten Form-Konstruktor übernommen. Der WinForms-Host entpackt die historische
+VB6-StdPicture-Hülle und dekodiert BMP-/ICO-Payloads für `PictureBox`, `Image` und Form-Hintergrund
+bzw. Form-Icon. Der Pfad bleibt absichtlich auf die intrinsischen Bildmember begrenzt; die
+ressourcenbasierten `ImageList`-Einträge, OCX-eigenes Rendering und vollständige OLE-Picture-
+Konvertierung folgen in separaten Host-/ActiveX-Slices. Die VISIA-Emission wurde erneut erzeugt
+und im STA-Runner ohne Ausnahme oder Messagebox gestartet. Die Gesamtsuite umfasst **934 Tests**.
