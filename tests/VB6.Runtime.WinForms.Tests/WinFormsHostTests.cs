@@ -75,6 +75,33 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostLoadsAndUnloadsExistingControlWithoutCreatingSyntheticFormBinding()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+        var control = (Button)host.CreateControl(owner, "Button1", "CommandButton")!;
+        control.Visible = false;
+
+        host.Load(control);
+        Assert.IsTrue(control.Visible);
+        Assert.IsFalse(control.IsDisposed);
+
+        host.Unload(control);
+        Assert.IsFalse(control.Visible);
+        Assert.IsFalse(control.IsDisposed);
+
+        host.Load(control);
+        Assert.IsTrue(control.Visible);
+        Assert.IsFalse(control.IsDisposed);
+
+        host.Unload(owner);
+        Assert.IsTrue(control.IsDisposed);
+    }
+
+    [STATestMethod]
     public void HostDispatchesMembersThroughNativeActiveXComObjectWhenX86OcxIsAvailable()
     {
         if (Environment.Is64BitProcess ||
