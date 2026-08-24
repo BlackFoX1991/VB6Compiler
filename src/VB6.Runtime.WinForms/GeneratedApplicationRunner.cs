@@ -20,9 +20,11 @@ public static class GeneratedApplicationRunner
             throw new FileNotFoundException("The generated VB6 assembly was not found.", fullPath);
         }
 
+        var managedAssemblyPath = ResolveManagedAssemblyPath(fullPath);
+
         if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
         {
-            return RunOnSta(fullPath, arguments ?? Array.Empty<string>());
+            return RunOnSta(managedAssemblyPath, arguments ?? Array.Empty<string>());
         }
 
         var result = 0;
@@ -31,7 +33,7 @@ public static class GeneratedApplicationRunner
         {
             try
             {
-                result = RunOnSta(fullPath, arguments ?? Array.Empty<string>());
+                result = RunOnSta(managedAssemblyPath, arguments ?? Array.Empty<string>());
             }
             catch (Exception exception)
             {
@@ -47,6 +49,43 @@ public static class GeneratedApplicationRunner
         }
 
         return result;
+    }
+
+    private static string ResolveManagedAssemblyPath(string path)
+    {
+        if (IsManagedAssembly(path))
+        {
+            return path;
+        }
+
+        var companion = Path.ChangeExtension(path, ".dll");
+        if (File.Exists(companion) && IsManagedAssembly(companion))
+        {
+            return companion;
+        }
+
+        return path;
+    }
+
+    private static bool IsManagedAssembly(string path)
+    {
+        try
+        {
+            _ = AssemblyName.GetAssemblyName(path);
+            return true;
+        }
+        catch (BadImageFormatException)
+        {
+            return false;
+        }
+        catch (FileLoadException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 
     private static int RunOnSta(string assemblyPath, string[] arguments)

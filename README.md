@@ -238,22 +238,21 @@ vb6c LegacyApp.vbp --emit-assembly build\LegacyApp.exe --x86
 vb6c LegacyGroup.vbg --emit-assembly build --x86
 ```
 
-The managed application output consists of the emitted `.exe` or `.dll`, its `.runtimeconfig.json`, and `VB6.Runtime.dll`. For a `.vbg` group, the output argument is a directory; referenced `.vbp` library projects are emitted before their consumers, while independent projects retain their declaration order. `StartupProject=` is validated against the declared group projects before emission. Library projects receive `.dll` names based on the project name; executable projects prefer the legacy `ExeName32` filename and fall back to `Name=`.
+The managed application output consists of the emitted managed `.dll`, its `.runtimeconfig.json`, and `VB6.Runtime.dll`. On Windows, an executable request additionally creates a native .NET apphost at the requested `.exe` path, so the `.exe` can be started directly without the `System.Private.CoreLib` load error. For a `.vbg` group, the output argument is a directory; referenced `.vbp` library projects are emitted before their consumers, while independent projects retain their declaration order. `StartupProject=` is validated against the declared group projects before emission. Library projects receive `.dll` names based on the project name; executable projects prefer the legacy `ExeName32` filename and fall back to `Name=`.
 Start a generated Form assembly with the optional WinForms host:
 
 ```text
 dotnet run --project src/VB6.Runtime.WinForms.Runner -- artifacts\visia-test.exe
 ```
 
-The runner loads the managed assembly, installs `WinFormsHost` on an STA thread, and starts the
-message loop after the generated Form startup has called `Load` and `Show`.
-The file emitted by `--emit-assembly` is a managed assembly with an `.exe`-compatible PE name,
-not a Windows apphost. Start it through `dotnet` or the WinForms runner; double-clicking the
-generated file can produce a `System.Private.CoreLib, Version=10.0.0.0` load error.
+The runner accepts either the generated `.exe` apphost or its companion `.dll`, resolves the
+managed assembly, installs `WinFormsHost` on an STA thread, and starts the message loop after the
+generated Form startup has called `Load` and `Show`. Direct apphost execution uses the portable
+headless runtime; use the WinForms runner to display generated Forms.
 
 Managed emission defaults to AnyCPU; `--x86`, `--x64`, and `--anycpu` select the PE target architecture. `--x86` is intended for legacy projects whose OCX-/ActiveX-dependencies are 32-bit.
 
-The legacy project path is verified against `conformance/VISIA/4.8.7.1/prjVisia.vbp`: the CLI report analyzes all 40 project items without errors, and `--emit-assembly` produces a managed executable with its debug and runtime artifacts. The `.vbg` path is covered by dependency-order, library/executable-output, project-group emission tests, and process-level CLI tests. Project, designer, source, and single-file inputs accept UTF-8/UTF-16 BOMs and fall back to the common Windows-1252 ANSI encoding used by older VB6 installations. `CondComp=` project symbols, `#Const`, nested `#If`/`#ElseIf`/`#Else`/`#End If` blocks and common VBA/Windows platform constants are evaluated before project binding, so inactive legacy branches do not cause false compiler errors; explicit `--x86`/`--x64` targets also select the matching `Win64` branch. `--report` writes project/source diagnostics to standard error and returns a non-zero exit code when analysis fails, so legacy builds can be used reliably in CI.
+The legacy project path is verified against `conformance/VISIA/4.8.7.1/prjVisia.vbp`: the CLI report analyzes all 40 project items without errors, and `--emit-assembly` produces the managed application assembly, debug/runtime artifacts, and the Windows apphost when an executable path is requested. The `.vbg` path is covered by dependency-order, library/executable-output, project-group emission tests, and process-level CLI tests. Project, designer, source, and single-file inputs accept UTF-8/UTF-16 BOMs and fall back to the common Windows-1252 ANSI encoding used by older VB6 installations. `CondComp=` project symbols, `#Const`, nested `#If`/`#ElseIf`/`#Else`/`#End If` blocks and common VBA/Windows platform constants are evaluated before project binding, so inactive legacy branches do not cause false compiler errors; explicit `--x86`/`--x64` targets also select the matching `Win64` branch. `--report` writes project/source diagnostics to standard error and returns a non-zero exit code when analysis fails, so legacy builds can be used reliably in CI.
 
 Project emission currently supports standard `.bas` modules with a single `Sub Main` entry point or an EXE startup `Form`, cross-module Sub and Function calls, the current ByRef/ByVal subset, `Optional` and `ParamArray` calls, persistent `Static` locals, typed Function calls, typed comma-separated scalar variable declarators, structured loops, extended If branching, Boolean expressions, `Select Case`, `Mod`, `^`, Byte, Integer, Long, LongLong/Int64, LongPtr, UShort/UInt16, UInteger/UInt32, ULong/UInt64, Single, Double, and Currency, plus arrays, user-defined types, `With` blocks, and the current Variant subset.
 

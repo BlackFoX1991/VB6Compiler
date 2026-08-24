@@ -1683,3 +1683,15 @@ Designerpfads verbunden, und `MenuName_Click`-Handler werden an `ToolStripMenuIt
 angeschlossen. Die Regression deckt Designer-Emission, Hierarchie und Event-Auslösung ab.
 Separator-Semantik, vollständige VB6-Shortcut-Konvertierung, `PopupMenu` und MDI-Menüs bleiben
 separate Forms-Schritte. Die Gesamtsuite umfasst **938 Tests**.
+
+## Aktueller Managed-AppHost-Nachtrag
+
+Windows-Anwendungen, die mit `--emit-assembly <name>.exe` ausgegeben werden, erhalten nun neben
+der Managed-Companion-Assembly `<name>.dll` einen echten nativen .NET-AppHost. Die Ausgabe kann
+dadurch direkt gestartet werden; die frühere `System.Private.CoreLib, Version=10.0.0.0`-
+Ladeexception durch eine Managed-Assembly mit `.exe`-Endung entfällt. Der WinForms-Runner erkennt
+beide Ausgabeteile und lädt automatisch die Managed-Assembly, sodass bestehende Runner-Aufrufe
+weiter funktionieren. Der direkte AppHost bleibt headless; sichtbare Formulare laufen weiterhin
+über den optionalen `VB6.Runtime.WinForms.Runner`. Die CLI-Regression startet `.vbp`-/`.vbg`-
+Ausgaben direkt und prüft die Architektur der Companion-Assembly. Die Gesamtsuite umfasst
+**938 Tests**.
