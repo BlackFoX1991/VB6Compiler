@@ -309,6 +309,34 @@ public sealed class FileRuntimeTests
         }
     }
 
+    [TestMethod]
+    public void Dir_ContinuesAndIncludesDirectoriesWhenRequested()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerDirTests", Guid.NewGuid().ToString("N"));
+        var source = Path.Combine(directory, "source.txt");
+        var nested = Path.Combine(directory, "nested");
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            File.WriteAllText(source, "hello");
+            Directory.CreateDirectory(nested);
+
+            Assert.AreEqual("source.txt", VBFiles.Dir(Path.Combine(directory, "*"), 0));
+            Assert.AreEqual(string.Empty, VBFiles.Dir(string.Empty, 0));
+
+            var first = VBFiles.Dir(Path.Combine(directory, "*"), 16);
+            var second = VBFiles.Dir(string.Empty, 16);
+            Assert.IsTrue(new[] { first, second }.Contains("source.txt"));
+            Assert.IsTrue(new[] { first, second }.Contains("nested"));
+            Assert.AreEqual(string.Empty, VBFiles.Dir(string.Empty, 16));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static void WithTemporaryFile(Action<string> body)
     {
         var path = Path.Combine(Path.GetTempPath(), $"vb6files_{Guid.NewGuid():N}.bin");

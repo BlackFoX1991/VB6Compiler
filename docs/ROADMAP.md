@@ -1147,6 +1147,9 @@ Nach Korpusbedarf priorisiert:
     verdrahtet und durch direkte Runtime- sowie generierte Programmtests abgesichert.
 1g. `Name oldPath As newPath` — Datei- und Verzeichnisumbenennung ist ✅ als eigene Syntax und
     Managed-Runtime-Operation implementiert und generiert keine untypisierten Restaufrufe.
+1h. `Dir`-Attribute — die Fortsetzungsabfrage berücksichtigt ✅ `vbDirectory`, `vbHidden`,
+    `vbSystem` und `vbVolume` (ohne portable Volume-Labels) und liefert Dateien sowie
+    Verzeichnisse passend zum angeforderten Filter.
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Input`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende
@@ -1327,7 +1330,7 @@ VB6-ANSI-Dateien einen Windows-1252-Fallback. `.vbg`-Batch-Emission bleibt über
 Abhängigkeitsreihenfolge und die getrennte
 Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
 bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
-**881 Tests**.
+**882 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 

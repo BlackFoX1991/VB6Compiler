@@ -659,6 +659,8 @@ public sealed class FileIoExecutionTests
                 ChDir "nested"
                 Debug.Print Len(CurDir()) > Len(original)
                 ChDir ".."
+                Debug.Print Len(Dir("*", 16)) > 0
+                Debug.Print Len(Dir("", 16)) > 0
 
                 SetAttr "renamed.txt", 1
                 Debug.Print (GetAttr("renamed.txt") And 1) = 1
@@ -671,6 +673,8 @@ public sealed class FileIoExecutionTests
             "7",
             "True",
             "7",
+            "True",
+            "True",
             "True",
             "True",
             "True");

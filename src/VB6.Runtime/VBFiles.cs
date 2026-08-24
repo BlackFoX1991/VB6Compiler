@@ -150,10 +150,7 @@ public static class VBFiles
         return File.GetLastWriteTime(path).ToOADate();
     }
 
-    /// <summary>
-    /// Implements Dir's stateful first-call/continuation form. Attributes are accepted for source
-    /// compatibility; the portable profile currently enumerates ordinary files only.
-    /// </summary>
+    /// <summary>Implements Dir's stateful first-call/continuation form and attribute filtering.</summary>
     public static string Dir(string path, int attributes)
     {
         if (!string.IsNullOrEmpty(path))
@@ -161,8 +158,11 @@ public static class VBFiles
             var directory = Path.GetDirectoryName(path);
             var pattern = Path.GetFileName(path);
             directory = string.IsNullOrEmpty(directory) ? Directory.GetCurrentDirectory() : directory;
+            _directoryEnumerator?.Dispose();
             _directoryEnumerator = Directory.Exists(directory)
-                ? Directory.EnumerateFiles(directory, string.IsNullOrEmpty(pattern) ? "*" : pattern).GetEnumerator()
+                ? Directory.EnumerateFileSystemEntries(directory, string.IsNullOrEmpty(pattern) ? "*" : pattern)
+                    .Where(entry => MatchesDirAttributes(entry, attributes))
+                    .GetEnumerator()
                 : null;
         }
 
@@ -174,6 +174,35 @@ public static class VBFiles
         }
 
         return Path.GetFileName(_directoryEnumerator.Current);
+    }
+
+    private static bool MatchesDirAttributes(string path, int requested)
+    {
+        // Volume labels have no portable filesystem entry. Returning no match keeps vbVolume
+        // explicit instead of silently returning an unrelated file.
+        if ((requested & 8) != 0)
+        {
+            return false;
+        }
+
+        var actual = File.GetAttributes(path);
+        var isDirectory = actual.HasFlag(FileAttributes.Directory);
+        if (isDirectory && (requested & 16) == 0)
+        {
+            return false;
+        }
+
+        if (actual.HasFlag(FileAttributes.Hidden) && (requested & 2) == 0)
+        {
+            return false;
+        }
+
+        if (actual.HasFlag(FileAttributes.System) && (requested & 4) == 0)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     public static long Length(string path)
