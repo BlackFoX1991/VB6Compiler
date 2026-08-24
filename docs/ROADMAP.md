@@ -1422,7 +1422,13 @@ bis in die generierte `WithEvents`-Subscription; auf Windows nutzt die Runtime d
 Reassignment. Ein dynamischer Delegate-Adapter packt die Eventargumente in den bestehenden
 VB6-Handlervertrag und schreibt geänderte `ByRef`-Argumente zurück. Der Umfang ist mit normalen
 CLR-Events, einem echten `ByRef`-Event und dem Windows-`stdole2.tlb`-Import regressionsgesichert.
-Direkte `IDispatch`-Aufrufe, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
+Raw-`IDispatch`-ABI-Aufrufe, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
+
+Der Windows-RCW-Pfad deckt nun zusätzlich case-insensitive Automation-Methoden und Properties
+sowie Default-`Item`-Get/Let über `DISPID_VALUE` ab. Der Umfang ist mit `Scripting.Dictionary`
+gegen einen realen COM-Server regressionsgesichert; rohe `IDispatch::Invoke`-Strukturen,
+COM-ByRef-Variant-Marshalling und Server-Registrierung bleiben separate ABI-Schritte. Die
+Gesamtsuite umfasst **903 Tests**.
 
 ## Aktueller MSBuild-SDK-Nachtrag
 
