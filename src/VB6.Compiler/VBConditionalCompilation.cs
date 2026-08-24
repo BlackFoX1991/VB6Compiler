@@ -17,6 +17,7 @@ internal static class VBConditionalCompilation
 
         var constants = CreateDefaultConstants(options);
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        ApplyDefinedConstants(options, constants, diagnostics, filePath);
         var blocks = new Stack<ConditionalBlock>();
         var output = new StringBuilder(source.Length);
         var position = 0;
@@ -278,6 +279,35 @@ internal static class VBConditionalCompilation
             ["APPLE"] = false
         };
         return constants;
+    }
+
+    private static void ApplyDefinedConstants(
+        VBCompilationOptions? options,
+        Dictionary<string, object?> constants,
+        ImmutableArray<Diagnostic>.Builder diagnostics,
+        string? filePath)
+    {
+        if (options?.DefinedConstants is null)
+        {
+            return;
+        }
+
+        foreach (var entry in options.DefinedConstants)
+        {
+            if (!IsIdentifier(entry.Key) ||
+                !TryEvaluate(entry.Value, constants, out var value))
+            {
+                diagnostics.Add(CreateDiagnostic(
+                    "VB6CC0007",
+                    $"Project conditional constant '{entry.Key}' has an unsupported value.",
+                    0,
+                    entry.Key.Length,
+                    filePath));
+                continue;
+            }
+
+            constants[entry.Key] = value;
+        }
     }
 
     private static bool TryEvaluate(

@@ -30,6 +30,7 @@ public sealed class VBProjectLoader
         string? projectName = null;
         string? startupObject = null;
         string? executableName = null;
+        string? conditionalCompilation = null;
 
         using var reader = new StringReader(text);
         var lineNumber = 0;
@@ -74,6 +75,10 @@ public sealed class VBProjectLoader
 
                 case "EXENAME32":
                     executableName = Unquote(value);
+                    break;
+
+                case "CONDCOMP":
+                    conditionalCompilation = Unquote(value);
                     break;
 
                 case "MODULE":
@@ -124,7 +129,8 @@ public sealed class VBProjectLoader
             items.ToImmutable(),
             references.ToImmutable(),
             objects.ToImmutable(),
-            properties.ToImmutable());
+            properties.ToImmutable(),
+            conditionalCompilation);
 
         return new VBProjectLoadResult(project, diagnostics.ToImmutable());
     }

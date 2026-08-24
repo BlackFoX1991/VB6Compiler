@@ -86,7 +86,10 @@ public sealed class VBProjectCompilation
                 continue;
             }
 
-            var preprocessed = VBConditionalCompilation.Process(source, modulePath);
+            var preprocessed = VBConditionalCompilation.Process(
+                source,
+                modulePath,
+                CreateProjectCompilationOptions(loadResult.Project));
             var preprocessedText = SourceText.From(preprocessed.Source, modulePath);
             foreach (var diagnostic in preprocessed.Diagnostics)
             {
@@ -427,6 +430,48 @@ public sealed class VBProjectCompilation
                     referencePath));
             }
         }
+    }
+
+    private VBCompilationOptions CreateProjectCompilationOptions(VBProject project)
+    {
+        var projectConstants = ParseProjectConditionalConstants(project.ConditionalCompilation);
+        if (_options is null)
+        {
+            return new VBCompilationOptions(DefinedConstants: projectConstants);
+        }
+
+        return _options with
+        {
+            DefinedConstants = projectConstants
+        };
+    }
+
+    private static IReadOnlyDictionary<string, string> ParseProjectConditionalConstants(
+        string? value)
+    {
+        var constants = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return constants;
+        }
+
+        foreach (var declaration in value.Split(':', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var equals = declaration.IndexOf('=');
+            if (equals <= 0)
+            {
+                continue;
+            }
+
+            var name = declaration[..equals].Trim();
+            var expression = declaration[(equals + 1)..].Trim();
+            if (name.Length > 0 && expression.Length > 0)
+            {
+                constants[name] = expression;
+            }
+        }
+
+        return constants;
     }
 
     private Dictionary<string, ClassTypeSymbol> LoadReferencedClassTypes(
