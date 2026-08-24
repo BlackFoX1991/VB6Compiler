@@ -232,7 +232,8 @@ public sealed record IrProcedureCallExpression(
     ProcedureSymbol Procedure,
     ImmutableArray<IrCallArgument> Arguments,
     TypeSymbol ResultType,
-    IrExpression? Receiver = null)
+    IrExpression? Receiver = null,
+    IrLocal? ResultTemporary = null)
     : IrExpression(ResultType);
 
 public sealed record IrSyntheticCallExpression(
@@ -291,12 +292,16 @@ public sealed record IrArrayBound(IrExpression Lower, IrExpression Upper);
 public enum IrCallArgumentKind
 {
     Value,
-    Address
+    Address,
+    StringBuffer
 }
 
 public sealed record IrCallArgument(
     IrExpression Expression,
-    IrCallArgumentKind Kind = IrCallArgumentKind.Value);
+    IrCallArgumentKind Kind = IrCallArgumentKind.Value,
+    IrPlace? WriteBackPlace = null,
+    IrLocal? BufferTemporary = null,
+    IrLocal? WriteBackTemporary = null);
 
 public enum IrRuntimeMethod
 {

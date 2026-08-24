@@ -1178,9 +1178,10 @@ Durch `Declare` (234) deutlich früher als ursprünglich geplant; ab Meilenstein
 beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 - [~] `Declare` -> P/Invoke für skalare Signaturen und blittable UDT-Records mit `Lib`/`Alias` und
-      echter Managed-Invocation; ANSI-String-Marshalling, native `ByRef`-UDT-Rückschreibung sowie
+      echter Managed-Invocation; ANSI-String-Marshalling, variable `ByVal String`-Puffer mit
+      `StringBuilder` und aufrufseitigem Write-back, native `ByRef`-UDT-Rückschreibung sowie
       Scalar-Pointer-Transfers für `As Any` stehen, `AddressOf` erzeugt Managed-Funktionsadressen
-      für direkte Prozedurziele, komplexes String-/Array-Marshalling sowie vollständige
+      für direkte Prozedurziele, komplexes Array-Marshalling sowie vollständige
       Callback-ABI-/Delegate-Verträge bleiben offen
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
@@ -1503,3 +1504,12 @@ Blittable `Type`-Records werden im Managed-Emitter jetzt als sequenzielle Struct
 regressionssichern den vollständigen `ByRef`-Pfad einschließlich Feld-Write-back sowie feste
 `String * n`-Felder über `BYVALTSTR`/`SizeConst`. Variable Stringfelder, Arrays, nicht-blittable
 UDTs und Callback-Delegates bleiben separate ABI-Schritte. Die Gesamtsuite umfasst **917 Tests**.
+
+## Aktueller Declare-Stringpuffer-Nachtrag
+
+Variable `ByVal String`-Parameter werden im Managed-P/Invoke als ANSI-`StringBuilder` emittiert.
+Aufrufseitig addressierbare VB6-Strings werden nach dem nativen Aufruf per `ToString()` in ihr
+ursprüngliches Ziel zurückgeschrieben; Rückgabewerte von Funktionen mit gleichzeitigem Puffer-
+Write-back bleiben über Compiler-Temporaries erhalten. `GetComputerNameA` ist als echter Windows-
+End-to-End-Aufruf regressionsgesichert. Array-Marshalling, nicht-blittable UDTs und Callback-
+Delegates bleiben separate ABI-Schritte. Die Gesamtsuite umfasst **918 Tests**.
