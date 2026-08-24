@@ -1350,8 +1350,10 @@ Fonts und Handles und führt `Unload`/`DoEvents` aus. Konventionelle Handlername
 `Text1_Change` werden an WinForms-Events angebunden; explizite `VBEvents.SubscribeMethod`-
 Abonnements werden bei Reassignment wieder entfernt. Portable Runtime-, Compiler-E2E- und STA-
 WinForms-Regressionen sichern diesen Umfang ab. Vollständige `.frx`-Ressourcendekodierung,
-automatische Bindung aller verschachtelten Designer-Controls, WinForms-Event-Mapping, MDI,
+WinForms-Event-Mapping, MDI,
 UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap-Blöcke.
+Verschachtelte Designer-Controls werden über qualifizierte Namen nun in ihre Parent-Container
+registriert; die Regression deckt sowohl IR-Erzeugung als auch die konkrete WinForms-Hierarchie ab.
 
 ## Aktueller Variant-Nachtrag
 
@@ -1364,4 +1366,4 @@ Ergebnisse aus `+`, `-`, `*` und `/` werden auf `Double` hochgestuft, Integer-/L
 wechseln bei `MinValue`-Überlauf ebenfalls auf die nächste darstellbare Breite, und Variant-
 `Double`-Überläufe werden bei `+`, `-`, `*` und `/` als Fehler abgelehnt. Die vollständige VB6-
 Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen. Die Gesamtsuite umfasst
-**886 Tests**.
+**887 Tests**.

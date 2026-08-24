@@ -770,6 +770,9 @@ public sealed record BoundModuleVariable(
     /// <summary>True when the variable came from a Form/UserControl designer envelope.</summary>
     public bool IsDesignerControl { get; init; }
 
+    /// <summary>Qualified designer parent path for nested Form/UserControl controls.</summary>
+    public string? DesignerParentName { get; init; }
+
     public BoundModuleVariable(
         ModuleVariableSymbol Symbol,
         BoundExpression? Initializer,
