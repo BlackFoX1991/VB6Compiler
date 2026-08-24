@@ -157,6 +157,31 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         var hostObject = CreateControlInstance(typeName);
         if (hostObject is not Control control)
         {
+            if (hostObject is MenuProxy menu)
+            {
+                menu.Name = logicalName;
+                binding.Components.Add(name, menu);
+                if (!binding.Components.ContainsKey(logicalName))
+                {
+                    binding.Components.Add(logicalName, menu);
+                }
+
+                var menuStrip = GetOrCreateMenuStrip(binding);
+                if (parentName is not null &&
+                    binding.Components.TryGetValue(parentName, out var parentComponent) &&
+                    parentComponent is MenuProxy parentMenu)
+                {
+                    parentMenu.DropDownItems.Add(menu);
+                }
+                else
+                {
+                    menuStrip.Items.Add(menu);
+                }
+
+                AttachGeneratedMenuEvents(owner, menu, logicalName);
+                return menu;
+            }
+
             if (hostObject is CommonDialogProxy dialog)
             {
                 dialog.Name = logicalName;
@@ -242,6 +267,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 value = imageList.ImageHeight;
                 return true;
             }
+        }
+
+        if (target is MenuProxy menu && arguments.Length == 0 &&
+            TryReadMenuProperty(menu, memberName, out value))
+        {
+            return true;
         }
 
         if (target is CommonDialogProxy commonDialog && arguments.Length == 0)
@@ -365,6 +396,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (target is MenuProxy menu && arguments.Length == 0 &&
+            TryWriteMenuProperty(menu, memberName, value))
+        {
+            return true;
+        }
+
         if (target is ImageComboControl imageCombo &&
             string.Equals(memberName, "ImageList", StringComparison.OrdinalIgnoreCase) &&
             arguments.Length == 0)
@@ -460,6 +497,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     {
         ThrowIfDisposed();
         result = null;
+        if (target is MenuProxy menu && TryInvokeMenuMember(menu, memberName, arguments))
+        {
+            return true;
+        }
+
         if (!TryResolveControl(target, memberName, arguments, out var resolved) ||
             resolved is null)
         {
@@ -635,6 +677,24 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return binding;
     }
 
+    private static MenuStrip GetOrCreateMenuStrip(FormBinding binding)
+    {
+        if (binding.MenuStrip is not null)
+        {
+            return binding.MenuStrip;
+        }
+
+        var menuStrip = new MenuStrip
+        {
+            Name = "__VB6MenuStrip",
+            TabStop = false
+        };
+        binding.MenuStrip = menuStrip;
+        binding.Form.MainMenuStrip = menuStrip;
+        binding.Form.Controls.Add(menuStrip);
+        return menuStrip;
+    }
+
     private bool TryResolveControl(
         object target,
         string memberName,
@@ -686,6 +746,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize");
     }
 
+    private void AttachGeneratedMenuEvents(object owner, MenuProxy menu, string name)
+    {
+        var baseName = name.Split('(')[0];
+        TrySubscribeEvent(menu, "Click", owner, baseName + "_Click");
+    }
+
     private void AttachGeneratedFormEvents(object target)
     {
         TrySubscribeEvent(target, "Click", target, "Form_Click");
@@ -706,7 +772,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private object? ResolveEventSource(object source)
     {
-        if (source is Control)
+        if (source is Control or ToolStripItem)
         {
             return source;
         }
@@ -1453,6 +1519,126 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return true;
     }
 
+    private static bool TryReadMenuProperty(
+        MenuProxy menu,
+        string memberName,
+        out object? value)
+    {
+        if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Text;
+        }
+        else if (string.Equals(memberName, "Visible", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Visible;
+        }
+        else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Enabled;
+        }
+        else if (string.Equals(memberName, "Checked", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Checked;
+        }
+        else if (string.Equals(memberName, "Index", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.VbIndex;
+        }
+        else if (string.Equals(memberName, "Name", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Name;
+        }
+        else if (string.Equals(memberName, "Tag", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Tag;
+        }
+        else if (string.Equals(memberName, "Shortcut", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.Shortcut;
+        }
+        else
+        {
+            value = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryWriteMenuProperty(
+        MenuProxy menu,
+        string memberName,
+        object? value)
+    {
+        if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Text = VBConversions.CStr(value);
+        }
+        else if (string.Equals(memberName, "Visible", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Visible = VBConversions.CBool(value);
+        }
+        else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Enabled = VBConversions.CBool(value);
+        }
+        else if (string.Equals(memberName, "Checked", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Checked = VBConversions.CBool(value);
+        }
+        else if (string.Equals(memberName, "Index", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.VbIndex = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "Tag", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Tag = value;
+        }
+        else if (string.Equals(memberName, "Shortcut", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Shortcut = VBConversions.CLng(value);
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryInvokeMenuMember(
+        MenuProxy menu,
+        string memberName,
+        object?[] arguments)
+    {
+        if (arguments.Length != 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(memberName, "Show", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Visible = true;
+            return true;
+        }
+
+        if (string.Equals(memberName, "Hide", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Visible = false;
+            return true;
+        }
+
+        if (string.Equals(memberName, "PerformClick", StringComparison.OrdinalIgnoreCase))
+        {
+            menu.PerformClick();
+            return true;
+        }
+
+        return false;
+    }
+
     private bool TryReadFormProperty(Form form, string memberName, out object? value)
     {
         if (string.Equals(memberName, "Icon", StringComparison.OrdinalIgnoreCase))
@@ -2153,6 +2339,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "PICTUREBOX" => new PictureBox(),
             "IMAGE" => new PictureBox(),
             "LINE" => new LineControl(),
+            "MENU" => new MenuProxy(),
             "LABEL" => new Label(),
             "CHECKBOX" => new CheckBox(),
             "OPTIONBUTTON" => new RadioButton(),
@@ -2211,6 +2398,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
             base.Dispose(disposing);
         }
+    }
+
+    private sealed class MenuProxy : ToolStripMenuItem
+    {
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int VbIndex { get; set; } = -1;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int Shortcut { get; set; }
     }
 
     private sealed class LineControl : Control
@@ -2393,6 +2589,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         public Dictionary<string, object> Components { get; } =
             new(StringComparer.OrdinalIgnoreCase);
+
+        public MenuStrip? MenuStrip { get; set; }
     }
 
     private sealed class TreeViewState

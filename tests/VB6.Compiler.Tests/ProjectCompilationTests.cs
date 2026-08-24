@@ -853,6 +853,12 @@ public sealed class ProjectCompilationTests
                       Y1 = 0
                       Y2 = 1440
                    End
+                   Begin VB.Menu FileMenu
+                      Caption = "File"
+                      Begin VB.Menu OpenMenu
+                         Caption = "Open"
+                      End
+                   End
                 End
                 Attribute VB_Name = "Splash"
                 Attribute VB_PredeclaredId = True
@@ -893,6 +899,8 @@ public sealed class ProjectCompilationTests
 
             Assert.AreEqual("Shape", controlTypes["Oval"]);
             Assert.AreEqual("Line", controlTypes["Diagonal"]);
+            Assert.AreEqual("Menu", controlTypes["FileMenu"]);
+            Assert.AreEqual("Menu", controlTypes["FileMenu.OpenMenu"]);
             CollectionAssert.Contains(initializers, "BorderColor");
             CollectionAssert.Contains(initializers, "BorderWidth");
             CollectionAssert.Contains(initializers, "Shape");
