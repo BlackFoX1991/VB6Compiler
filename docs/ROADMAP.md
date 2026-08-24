@@ -1439,6 +1439,14 @@ Ergebnis bleibt ein Long-artiger Variant-Wert. Die Regression deckt die historis
 `12 Mod 4.3 = 0`, `12.6 Mod 5 = 3` sowie den kompilierten Variant-Ausführungspfad ab. Die
 Gesamtsuite umfasst **906 Tests**.
 
+## Aktueller VBG-Referenznachtrag
+
+Die `.vbg`-Emission validiert nun auch den tatsächlichen Lauf eines Consumers gegen eine zuvor
+emittierte referenzierte VB6-Klassenbibliothek. Externe Klassenmember verwenden dabei denselben
+Managed-Namen wie ihre Library-Definitionen (`__vb6_...`), sodass Projektgruppen mit
+`Reference=...; Shared.vbp; ...` nicht nur in Dependency-Reihenfolge gebaut werden, sondern auch
+zur Laufzeit aufgelöst werden. Die Gesamtsuite umfasst **907 Tests**.
+
 ## Aktueller MSBuild-SDK-Nachtrag
 
 Der SDK-Targetvertrag arbeitet nun inkrementell: Neben der `.vbp` werden die Legacy-Quellen

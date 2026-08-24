@@ -1871,7 +1871,7 @@ public sealed class ManagedEmitter
             var key = "external::" +
                       classType.ExternalAssemblyName + "::" +
                       classType.Name + "::" +
-                      procedure.Name + "::" +
+                      GetManagedProcedureName(procedure) + "::" +
                       procedure.PropertyAccessor;
             if (_memberReferences.TryGetValue(key, out var cached))
             {
@@ -1880,7 +1880,7 @@ public sealed class ManagedEmitter
 
             var reference = _metadata.AddMemberReference(
                 GetExternalClassTypeReference(classType),
-                _metadata.GetOrAddString(procedure.Name),
+                _metadata.GetOrAddString(GetManagedProcedureName(procedure)),
                 EncodeExternalMethodSignature(procedure));
             _memberReferences.Add(key, reference);
             return reference;
@@ -3131,6 +3131,12 @@ public sealed class ManagedEmitter
                 char.IsLetterOrDigit(character) || character == '_' ? character : '_').ToArray());
             return result.Length == 0 ? "unnamed" : result;
         }
+
+        private static string GetManagedProcedureName(ProcedureSymbol procedure) =>
+            string.Equals(procedure.Name, "Main", StringComparison.OrdinalIgnoreCase) &&
+            !procedure.IsFunction
+                ? "Main"
+                : "__vb6_" + Sanitize(procedure.Name);
 
         private sealed class TypePlan
         {

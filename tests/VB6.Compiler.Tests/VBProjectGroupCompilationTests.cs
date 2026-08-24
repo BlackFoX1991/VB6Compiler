@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Reflection.Metadata;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -181,6 +184,47 @@ public sealed class VBProjectGroupCompilationTests
             Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Shared.dll")));
             Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Consumer.exe")));
             Assert.IsFalse(File.Exists(Path.Combine(directory, "bin", "Consumer.dll")));
+
+            using (var sharedStream = File.OpenRead(Path.Combine(directory, "bin", "Shared.dll")))
+            using (var sharedPe = new System.Reflection.PortableExecutable.PEReader(sharedStream))
+            {
+                var metadata = sharedPe.GetMetadataReader();
+                var customer = metadata.TypeDefinitions.SingleOrDefault(handle =>
+                    metadata.GetString(metadata.GetTypeDefinition(handle).Name) == "__vb6_class_Customer");
+                Assert.IsTrue(
+                    !customer.IsNil,
+                    string.Join(", ", metadata.TypeDefinitions.Select(handle =>
+                        metadata.GetString(metadata.GetTypeDefinition(handle).Name))));
+                var value = metadata.GetTypeDefinition(customer).GetMethods().SingleOrDefault(handle =>
+                    metadata.GetString(metadata.GetMethodDefinition(handle).Name) == "__vb6_Value");
+                Assert.IsTrue(
+                    !value.IsNil,
+                    string.Join(", ", metadata.GetTypeDefinition(customer).GetMethods().Select(handle =>
+                        metadata.GetString(metadata.GetMethodDefinition(handle).Name))));
+                var method = metadata.GetMethodDefinition(value);
+                Assert.AreEqual(
+                    System.Reflection.MethodAttributes.Public,
+                    method.Attributes & System.Reflection.MethodAttributes.MemberAccessMask);
+                Assert.IsFalse(method.Attributes.HasFlag(System.Reflection.MethodAttributes.Static));
+            }
+
+            var startInfo = new ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = Path.Combine(directory, "bin"),
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(Path.Combine(directory, "bin", "Consumer.exe"));
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the emitted consumer project.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.AreEqual("7", standardOutput.Trim());
         }
         finally
         {
