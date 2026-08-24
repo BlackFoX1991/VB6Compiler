@@ -54,6 +54,12 @@ public static class VBDesignerParser
                 }
 
                 var propertyName = trimmed["BeginProperty ".Length..].Trim();
+                var metadataSeparator = propertyName.IndexOf(' ');
+                if (metadataSeparator > 0)
+                {
+                    propertyName = propertyName[..metadataSeparator];
+                }
+
                 if (propertyName.Length == 0)
                 {
                     diagnostics.Add(new VBDesignerDiagnostic(

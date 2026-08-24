@@ -184,6 +184,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     {
         ArgumentNullException.ThrowIfNull(target);
         ThrowIfDisposed();
+        if (target is CommonDialogProxy or
+            ImageListProxy or
+            TreeNodesProxy or
+            TreeNodeProxy or
+            ComboItemsProxy or
+            ComboItemProxy)
+        {
+            return;
+        }
+
         _ = GetOrCreateBinding(target);
     }
 
@@ -340,6 +350,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object? value)
     {
         ThrowIfDisposed();
+        if (target is ImageListProxy designerImageList && arguments.Length == 0 &&
+            TrySetImageListDesignerProperty(designerImageList, memberName, value))
+        {
+            return true;
+        }
+
         if (target is ImageComboControl imageCombo &&
             string.Equals(memberName, "ImageList", StringComparison.OrdinalIgnoreCase) &&
             arguments.Length == 0)
@@ -1740,6 +1756,51 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             return false;
         }
+    }
+
+    private bool TrySetImageListDesignerProperty(
+        ImageListProxy imageList,
+        string memberName,
+        object? value)
+    {
+        const string prefix = "ListImage";
+        var separator = memberName.IndexOf('.');
+        if (separator <= prefix.Length ||
+            !memberName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+            !int.TryParse(memberName.AsSpan(prefix.Length, separator - prefix.Length), out var index) ||
+            index <= 0)
+        {
+            return false;
+        }
+
+        var propertyName = memberName[(separator + 1)..];
+        if (!propertyName.Equals("Picture", StringComparison.OrdinalIgnoreCase) &&
+            !propertyName.Equals("Key", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        while (imageList.ListImages.Count < index)
+        {
+            imageList.ListImages.Add();
+        }
+
+        var entry = imageList.ListImages.Item(index)
+            ?? throw new InvalidOperationException($"ImageList entry {index} could not be created.");
+        if (propertyName.Equals("Key", StringComparison.OrdinalIgnoreCase))
+        {
+            entry.Key = VBConversions.CStr(value);
+        }
+        else if (TryCreateImage(value, out var image))
+        {
+            entry.Picture = image;
+        }
+        else
+        {
+            entry.Picture = value;
+        }
+
+        return true;
     }
 
     private static bool TryCreateIcon(object? value, out Icon? icon)

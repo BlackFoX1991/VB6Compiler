@@ -128,7 +128,11 @@ public sealed class ListImageProxy
 
     internal ListImagesProxy.ListImageEntry Entry { get; }
 
-    public string Key => Entry.Key;
+    public string Key
+    {
+        get => Entry.Key;
+        set => Entry.Key = value ?? string.Empty;
+    }
 
     public int Index => _owner.IndexOf(Entry);
 

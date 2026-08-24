@@ -1646,6 +1646,18 @@ Erzeugung auf `dotnet` beziehungsweise den Runner angewiesen. Die Gesamtsuite um
 Werte in den generierten Form-Konstruktor übernommen. Der WinForms-Host entpackt die historische
 VB6-StdPicture-Hülle und dekodiert BMP-/ICO-Payloads für `PictureBox`, `Image` und Form-Hintergrund
 bzw. Form-Icon. Der Pfad bleibt absichtlich auf die intrinsischen Bildmember begrenzt; die
-ressourcenbasierten `ImageList`-Einträge, OCX-eigenes Rendering und vollständige OLE-Picture-
-Konvertierung folgen in separaten Host-/ActiveX-Slices. Die VISIA-Emission wurde erneut erzeugt
+ressourcenbasierte `ImageList`-Einträge werden nun ebenfalls in den Managed-Adapter übernommen;
+OCX-eigenes Rendering und vollständige OLE-Picture-Konvertierung folgen in separaten Host-/
+ActiveX-Slices. Die VISIA-Emission wurde erneut erzeugt
 und im STA-Runner ohne Ausnahme oder Messagebox gestartet. Die Gesamtsuite umfasst **934 Tests**.
+
+## Aktueller ImageList-FRX-Nachtrag
+
+Verschachtelte `BeginProperty Images`-/`ListImageN`-Blöcke werden nun als Designer-Initialisierer
+für `MSComctlLib.ImageList` erkannt. `ListImageN.Picture` dekodiert die eingebettete BMP-/ICO-
+StdPicture-Payload, `ListImageN.Key` erhält den Legacy-Schlüssel, und fehlende Zwischenindizes
+werden einsbasiert im Managed-Collection-Adapter angelegt. Die Bildobjekte bleiben bewusst im
+Managed-Vertrag; eine echte native `ImageList`-Zuordnung zu OCX-Controls und deren Rendering
+bleibt ein separater ActiveX-Host-Schritt. Die Regression deckt sowohl den verschachtelten
+Designerpfad als auch den bestehenden `ListImages`-Late-Bound-Vertrag ab. Die Gesamtsuite
+umfasst **934 Tests**.
