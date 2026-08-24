@@ -234,9 +234,12 @@ Generate a managed application assembly:
 vb6c Module1.bas --emit-assembly Module1.dll
 vb6c LegacyApp.vbp --emit-assembly LegacyApp.dll
 vb6c LegacyGroup.vbg --emit-assembly build
+vb6c LegacyApp.vbp --emit-assembly build\LegacyApp.exe --x86
+vb6c LegacyGroup.vbg --emit-assembly build --x86
 ```
 
 The managed application output consists of the emitted `.exe` or `.dll`, its `.runtimeconfig.json`, and `VB6.Runtime.dll`. For a `.vbg` group, the output argument is a directory; referenced `.vbp` library projects are emitted before their consumers, while independent projects retain their declaration order. `StartupProject=` is validated against the declared group projects before emission. Library projects receive `.dll` names based on the project name; executable projects prefer the legacy `ExeName32` filename and fall back to `Name=`.
+Managed emission defaults to AnyCPU; `--x86`, `--x64`, and `--anycpu` select the PE target architecture. `--x86` is intended for legacy projects whose OCX-/ActiveX-dependencies are 32-bit.
 
 The legacy project path is verified against `conformance/VISIA/4.8.7.1/prjVisia.vbp`: the CLI report analyzes all 40 project items without errors, and `--emit-assembly` produces a managed executable with its debug and runtime artifacts. The `.vbg` path is covered by dependency-order, library/executable-output, project-group emission tests, and process-level CLI tests. Project, designer, source, and single-file inputs accept UTF-8/UTF-16 BOMs and fall back to the common Windows-1252 ANSI encoding used by older VB6 installations. `--report` writes project/source diagnostics to standard error and returns a non-zero exit code when analysis fails, so legacy builds can be used reliably in CI.
 

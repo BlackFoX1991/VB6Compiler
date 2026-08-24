@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using VB6.Emit.Managed;
 using VB6.ProjectSystem;
 
 namespace VB6.Compiler;
@@ -90,7 +91,9 @@ public sealed class VBProjectGroupCompilation
             projects.ToImmutable());
     }
 
-    public VBProjectGroupEmitResult EmitManagedApplications(string outputDirectory)
+    public VBProjectGroupEmitResult EmitManagedApplications(
+        string outputDirectory,
+        ManagedEmitOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
 
@@ -121,7 +124,7 @@ public sealed class VBProjectGroupCompilation
                 : ".exe";
             var outputPath = Path.Combine(fullOutputDirectory, uniqueStem + outputExtension);
             var emit = VBProjectCompilation.Create(project.FullPath)
-                .EmitManagedApplication(outputPath);
+                .EmitManagedApplication(outputPath, options);
             emittedProjects.Add(new VBProjectGroupProjectEmitResult(project, outputPath, emit));
         }
 

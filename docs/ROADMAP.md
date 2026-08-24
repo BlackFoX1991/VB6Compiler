@@ -1336,6 +1336,12 @@ Fehler-Exitcode statt eines erfolgreichen Status. Zwei Prozessregressionen prüf
 fehlerhaftes `.vbp` als auch die echte `.vbg`-Batch-Emission über den CLI-Prozess. Die Gesamtsuite
 umfasst **886 Tests**.
 
+Die Managed-CLI akzeptiert für Einzelprojekte und `.vbg`-Batch-Emission zusätzlich `--x86`,
+`--x64` und `--anycpu`. Die Auswahl wird bis in den PE-Header durchgereicht; `--x86` setzt für
+Legacy-OCX-/ActiveX-Projekte `Machine.I386` und `Requires32Bit`, ohne die projektabhängige
+Ausgabeentscheidung zwischen `.exe` und `.dll` zu überschreiben. Der CLI-Prozesspfad ist dafür
+regression-getestet. Die Gesamtsuite umfasst **889 Tests**.
+
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
