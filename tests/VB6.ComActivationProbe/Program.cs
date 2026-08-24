@@ -54,7 +54,19 @@ internal static class Program
                     dynamic dispatch = comObject;
                     var sum = (int)dispatch.Add(2, 5);
                     var incremented = InvokeByRefLong(objectPointer, "Increment", 41);
-                    Console.WriteLine($"{sum}|{incremented}");
+                    var values = Array.CreateInstance(
+                        typeof(object),
+                        new[] { 2, 2 },
+                        new[] { 1, 3 });
+                    values.SetValue(10, 1, 3);
+                    values.SetValue(20, 1, 4);
+                    values.SetValue(30, 2, 3);
+                    values.SetValue(40, 2, 4);
+                    var arrayResult = InvokeByRefVariantArray(
+                        objectPointer,
+                        "MutateVariantArray",
+                        values);
+                    Console.WriteLine($"{sum}|{incremented}|{arrayResult}");
                 }
                 finally
                 {
@@ -165,6 +177,78 @@ internal static class Program
         }
     }
 
+    private static string InvokeByRefVariantArray(
+        IntPtr dispatch,
+        string memberName,
+        Array value)
+    {
+        var vtable = Marshal.ReadIntPtr(dispatch);
+        var getIdsOfNames = Marshal.GetDelegateForFunctionPointer<GetIdsOfNamesDelegate>(
+            Marshal.ReadIntPtr(vtable, IntPtr.Size * 5));
+        var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+            Marshal.ReadIntPtr(vtable, IntPtr.Size * 6));
+        var name = Marshal.StringToCoTaskMemUni(memberName);
+        var names = Marshal.AllocCoTaskMem(IntPtr.Size);
+        var argumentVariant = Marshal.AllocCoTaskMem(VariantSize);
+        var innerVariant = Marshal.AllocCoTaskMem(VariantSize);
+        var resultVariant = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            Marshal.WriteIntPtr(names, name);
+            var iid = Guid.Empty;
+            var getIdHResult = getIdsOfNames(
+                dispatch,
+                ref iid,
+                names,
+                1,
+                1033,
+                out var dispId);
+            if (getIdHResult != 0)
+            {
+                throw new InvalidOperationException($"GetIDsOfNames failed: 0x{getIdHResult:X8}");
+            }
+
+            ClearNativeMemory(argumentVariant);
+            ClearNativeMemory(innerVariant);
+            ClearNativeMemory(resultVariant);
+            Marshal.GetNativeVariantForObject(value, innerVariant);
+            Marshal.WriteInt16(argumentVariant, (short)(VariantByRef | VariantVariant));
+            Marshal.WriteIntPtr(argumentVariant, VariantDataOffset, innerVariant);
+            var parameters = new NativeDispParams
+            {
+                Arguments = argumentVariant,
+                ArgumentCount = 1
+            };
+            var invokeHResult = invoke(
+                dispatch,
+                dispId,
+                ref iid,
+                1033,
+                DispatchMethod,
+                ref parameters,
+                resultVariant,
+                IntPtr.Zero,
+                out _);
+            if (invokeHResult != 0)
+            {
+                throw new InvalidOperationException($"IDispatch.Invoke failed: 0x{invokeHResult:X8}");
+            }
+
+            var updated = (Array?)Marshal.GetObjectForNativeVariant(innerVariant)
+                ?? throw new InvalidOperationException("The COM server returned no SAFEARRAY.");
+            return $"{updated.GetValue(1, 4)}|{updated.GetValue(2, 3)}";
+        }
+        finally
+        {
+            _ = VariantClear(innerVariant);
+            Marshal.FreeCoTaskMem(resultVariant);
+            Marshal.FreeCoTaskMem(innerVariant);
+            Marshal.FreeCoTaskMem(argumentVariant);
+            Marshal.FreeCoTaskMem(names);
+            Marshal.FreeCoTaskMem(name);
+        }
+    }
+
     private static void ClearNativeMemory(IntPtr address)
     {
         Marshal.Copy(new byte[VariantSize], 0, address, VariantSize);
@@ -172,8 +256,12 @@ internal static class Program
 
     private const short VariantByRef = 0x4000;
     private const short VariantI4 = 0x0003;
+    private const short VariantVariant = 0x000C;
     private const int VariantSize = 16;
     private const int VariantDataOffset = 8;
+
+    [DllImport("oleaut32.dll")]
+    private static extern int VariantClear(IntPtr variant);
     private const ushort DispatchMethod = 0x1;
 
     [StructLayout(LayoutKind.Sequential)]

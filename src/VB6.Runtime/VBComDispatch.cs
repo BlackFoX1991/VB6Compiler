@@ -662,7 +662,13 @@ internal static class VBComDispatch
                     var valueVariant = IntPtr.Add(
                         byRefValues,
                         index * VariantSize);
-                    arguments[sourceIndex] = Marshal.GetObjectForNativeVariant(valueVariant);
+                    var updatedValue = Marshal.GetObjectForNativeVariant(valueVariant);
+                    if (!TryCopyArrayBack(
+                            arguments[sourceIndex],
+                            updatedValue))
+                    {
+                        arguments[sourceIndex] = updatedValue;
+                    }
                 }
             }
 
@@ -787,6 +793,39 @@ internal static class VBComDispatch
         ushort expectedType)
     {
         ClearVariantStorage(destination);
+        if ((expectedType & VariantArray) != 0)
+        {
+            if (value is IVBArray vbArray)
+            {
+                if (!TryCreateAutomationArray(vbArray, expectedType, out var automationArray))
+                {
+                    return false;
+                }
+
+                value = automationArray;
+            }
+            else if (value is not Array)
+            {
+                return false;
+            }
+
+            try
+            {
+                Marshal.GetNativeVariantForObject(value, destination);
+                var actualType = unchecked((ushort)Marshal.ReadInt16(destination)) &
+                                  (ushort)(VariantTypeMask | VariantArray);
+                return actualType == expectedType;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+            catch (InvalidCastException)
+            {
+                return false;
+            }
+        }
+
         if (expectedType == VariantVariant)
         {
             Marshal.GetNativeVariantForObject(value, destination);
@@ -841,6 +880,208 @@ internal static class VBComDispatch
             _ = VariantClear(source);
             Marshal.FreeCoTaskMem(source);
         }
+    }
+
+    internal static bool TryCreateAutomationArray(
+        IVBArray source,
+        ushort expectedType,
+        out Array? result)
+    {
+        result = null;
+        var elementType = GetAutomationElementType(expectedType);
+        if (elementType is null || source.Rank < 1)
+        {
+            return false;
+        }
+
+        var lengths = new int[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        var upperBounds = new int[source.Rank];
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lowerBounds[dimension] = source.LBound(dimension + 1);
+            upperBounds[dimension] = source.UBound(dimension + 1);
+            var length = (long)upperBounds[dimension] - lowerBounds[dimension] + 1L;
+            if (length < 0 || length > int.MaxValue)
+            {
+                return false;
+            }
+
+            lengths[dimension] = (int)length;
+        }
+
+        try
+        {
+            result = Array.CreateInstance(elementType, lengths, lowerBounds);
+            if (result.Length == 0)
+            {
+                return true;
+            }
+
+            var indices = lowerBounds.ToArray();
+            for (var offset = 0; offset < result.Length; offset++)
+            {
+                var sourceValue = source.GetObjectValue(indices);
+                if (!TryConvertAutomationElement(sourceValue, elementType, out var convertedValue))
+                {
+                    result = null;
+                    return false;
+                }
+
+                result.SetValue(convertedValue, indices);
+                IncrementIndices(indices, lowerBounds, upperBounds);
+            }
+
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            result = null;
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            result = null;
+            return false;
+        }
+        catch (OverflowException)
+        {
+            result = null;
+            return false;
+        }
+    }
+
+    private static Type? GetAutomationElementType(ushort expectedType)
+    {
+        return (ushort)(expectedType & VariantTypeMask) switch
+        {
+            0x0001 or 0x000C or 0x000D => typeof(object),
+            0x0002 => typeof(short),
+            0x0003 => typeof(int),
+            0x0004 => typeof(float),
+            0x0005 => typeof(double),
+            0x0006 => typeof(decimal),
+            0x0007 => typeof(DateTime),
+            0x0008 => typeof(string),
+            0x0009 => typeof(object),
+            0x000A => typeof(int),
+            0x000B => typeof(bool),
+            0x0010 => typeof(sbyte),
+            0x0011 => typeof(byte),
+            0x0012 => typeof(ushort),
+            0x0013 => typeof(uint),
+            0x0014 => typeof(long),
+            0x0015 => typeof(ulong),
+            0x0016 => typeof(int),
+            0x0017 => typeof(uint),
+            _ => null
+        };
+    }
+
+    private static bool TryConvertAutomationElement(
+        object? value,
+        Type targetType,
+        out object? converted)
+    {
+        converted = null;
+        if (value is null || value is DBNull || value is System.Reflection.Missing)
+        {
+            if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) is null)
+            {
+                converted = Activator.CreateInstance(targetType);
+            }
+
+            return true;
+        }
+
+        if (targetType == typeof(object))
+        {
+            converted = value switch
+            {
+                VBDateValue date => DateTime.FromOADate(date.OADate),
+                VBCurrency currency => currency.ToDecimal(),
+                _ => value
+            };
+            return true;
+        }
+
+        if (targetType == typeof(DateTime) && value is VBDateValue dateValue)
+        {
+            converted = DateTime.FromOADate(dateValue.OADate);
+            return true;
+        }
+
+        if (targetType == typeof(decimal) && value is VBCurrency currencyValue)
+        {
+            converted = currencyValue.ToDecimal();
+            return true;
+        }
+
+        if (targetType.IsInstanceOfType(value))
+        {
+            converted = value;
+            return true;
+        }
+
+        try
+        {
+            converted = Convert.ChangeType(value, targetType, System.Globalization.CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidCastException or FormatException or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    private static void IncrementIndices(int[] indices, int[] lowerBounds, int[] upperBounds)
+    {
+        for (var dimension = indices.Length - 1; dimension >= 0; dimension--)
+        {
+            if (indices[dimension] < upperBounds[dimension])
+            {
+                indices[dimension]++;
+                return;
+            }
+
+            indices[dimension] = lowerBounds[dimension];
+        }
+    }
+
+    internal static bool TryCopyArrayBack(object? original, object? updated)
+    {
+        if (original is not IVBArray target || updated is not Array source ||
+            target.Rank != source.Rank)
+        {
+            return false;
+        }
+
+        var lowerBounds = new int[target.Rank];
+        var upperBounds = new int[target.Rank];
+        for (var dimension = 0; dimension < target.Rank; dimension++)
+        {
+            lowerBounds[dimension] = target.LBound(dimension + 1);
+            upperBounds[dimension] = target.UBound(dimension + 1);
+            if (lowerBounds[dimension] != source.GetLowerBound(dimension) ||
+                upperBounds[dimension] != source.GetUpperBound(dimension))
+            {
+                return false;
+            }
+        }
+
+        if (source.Length == 0)
+        {
+            return true;
+        }
+
+        var indices = lowerBounds.ToArray();
+        for (var offset = 0; offset < source.Length; offset++)
+        {
+            target.SetObjectValue(indices, source.GetValue(indices));
+            IncrementIndices(indices, lowerBounds, upperBounds);
+        }
+
+        return true;
     }
 
     private static void ClearVariantStorage(IntPtr variant)
