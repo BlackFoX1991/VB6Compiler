@@ -471,6 +471,47 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostShowsPopupMenuWithoutDetachingOriginalMenu()
+    {
+        using var host = new WinFormsHost();
+        var owner = new MenuEventSink();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            var file = (ToolStripMenuItem)host.CreateControl(owner, "mnuFile", "Menu")!;
+            var open = (ToolStripMenuItem)host.CreateControl(owner, "mnuFile.Open", "Menu")!;
+            Assert.IsTrue(host.TrySetMember(open, "Caption", Array.Empty<object?>(), "Open"));
+            Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+            VBInteraction.PopupMenu(file, 0, 1440, 1440);
+
+            Assert.AreSame(file, open.OwnerItem);
+            Assert.IsInstanceOfType<MenuStrip>(file.Owner);
+
+            var popupItem = (ToolStripMenuItem)typeof(WinFormsHost)
+                .GetMethod("ClonePopupItem", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, new object[] { open })!;
+            Assert.AreNotSame(open, popupItem);
+            Assert.AreEqual("Open", popupItem.Text);
+            Assert.IsTrue(host.TryInvokeMember(open, "PerformClick", Array.Empty<object?>(), out _));
+            Assert.AreEqual(1, owner.OpenCount);
+            using var popup = new ContextMenuStrip();
+            popup.Items.Add(popupItem);
+            typeof(ToolStripMenuItem).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(popupItem, new object[] { EventArgs.Empty });
+            Assert.AreEqual(2, owner.OpenCount);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostPlacesQualifiedDesignerControlsInsideTheirParent()
     {
         using var host = new WinFormsHost();
