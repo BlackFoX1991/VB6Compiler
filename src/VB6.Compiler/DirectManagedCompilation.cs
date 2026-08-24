@@ -167,14 +167,17 @@ public static class DirectManagedCompilation
             return new VBProjectManagedApplicationEmitResult(lowering, backend, null, null, null, null);
         }
 
-        var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath);
+        var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath, actualOptions);
         return new VBProjectManagedApplicationEmitResult(
             lowering,
             backend,
             artifacts.AssemblyPath,
             artifacts.PdbPath,
             artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath);
+            artifacts.RuntimeConfigPath)
+        {
+            ManagedAssemblyPath = artifacts.ManagedAssemblyPath
+        };
     }
 
     private static ManagedApplicationEmitResult WriteArtifacts(
@@ -198,14 +201,17 @@ public static class DirectManagedCompilation
             return new ManagedApplicationEmitResult(lowering, backend, null, null, null, null);
         }
 
-        var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath);
+        var artifacts = ManagedArtifactWriter.Write(backend, fullOutputPath, actualOptions);
         return new ManagedApplicationEmitResult(
             lowering,
             backend,
             artifacts.AssemblyPath,
             artifacts.PdbPath,
             artifacts.RuntimeAssemblyPath,
-            artifacts.RuntimeConfigPath);
+            artifacts.RuntimeConfigPath)
+        {
+            ManagedAssemblyPath = artifacts.ManagedAssemblyPath
+        };
     }
 
     private static ManagedEmitOptions PrepareOptions(
@@ -313,6 +319,12 @@ public sealed record ManagedApplicationEmitResult(
     string? RuntimeAssemblyPath,
     string? RuntimeConfigPath)
 {
+    /// <summary>
+    /// The actual managed assembly when <see cref="AssemblyPath"/> is a native Windows apphost.
+    /// For DLL output, both paths are identical.
+    /// </summary>
+    public string? ManagedAssemblyPath { get; init; }
+
     public bool Success => Lowering.Success && BackendResult?.Success == true && AssemblyPath is not null;
     public ImmutableArray<Diagnostic> Diagnostics => Lowering.Diagnostics;
 }
@@ -325,15 +337,22 @@ public sealed record VBProjectManagedApplicationEmitResult(
     string? RuntimeAssemblyPath,
     string? RuntimeConfigPath)
 {
+    /// <summary>The managed companion assembly when the requested output is an apphost.</summary>
+    public string? ManagedAssemblyPath { get; init; }
+
     public bool Success => Lowering.Success && BackendResult?.Success == true && AssemblyPath is not null;
 }
 
 internal static class ManagedArtifactWriter
 {
-    public static ManagedArtifactPaths Write(ManagedEmitResult result, string outputPath)
+    public static ManagedArtifactPaths Write(
+        ManagedEmitResult result,
+        string outputPath,
+        ManagedEmitOptions options)
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(options);
         if (!result.Success || result.PeImage is null)
         {
             throw new InvalidOperationException("Cannot write unsuccessful managed emit result.");
@@ -342,12 +361,15 @@ internal static class ManagedArtifactWriter
         var fullOutputPath = Path.GetFullPath(outputPath);
         var outputDirectory = Path.GetDirectoryName(fullOutputPath)!;
         Directory.CreateDirectory(outputDirectory);
-        File.WriteAllBytes(fullOutputPath, result.PeImage);
+        var managedAssemblyPath = ManagedAppHostWriter.ShouldCreateAppHost(fullOutputPath, options)
+            ? Path.ChangeExtension(fullOutputPath, ".dll")
+            : fullOutputPath;
+        File.WriteAllBytes(managedAssemblyPath, result.PeImage);
 
         string? pdbPath = null;
         if (result.PdbImage is not null)
         {
-            pdbPath = Path.ChangeExtension(fullOutputPath, ".pdb");
+            pdbPath = Path.ChangeExtension(managedAssemblyPath, ".pdb");
             File.WriteAllBytes(pdbPath, result.PdbImage);
         }
 
@@ -363,10 +385,23 @@ internal static class ManagedArtifactWriter
 
         var runtimeConfigPath = Path.Combine(
             outputDirectory,
-            Path.GetFileNameWithoutExtension(fullOutputPath) + ".runtimeconfig.json");
+            Path.GetFileNameWithoutExtension(managedAssemblyPath) + ".runtimeconfig.json");
         File.WriteAllText(runtimeConfigPath, CreateRuntimeConfig());
 
-        return new ManagedArtifactPaths(fullOutputPath, pdbPath, runtimeOutputPath, runtimeConfigPath);
+        if (!string.Equals(managedAssemblyPath, fullOutputPath, StringComparison.OrdinalIgnoreCase) &&
+            !ManagedAppHostWriter.TryCreate(managedAssemblyPath, fullOutputPath, options.Platform))
+        {
+            // SDK-less runtime installations do not necessarily contain an apphost pack. Keep
+            // the managed output usable through `dotnet` in that environment.
+            File.Copy(managedAssemblyPath, fullOutputPath, overwrite: true);
+        }
+
+        return new ManagedArtifactPaths(
+            fullOutputPath,
+            managedAssemblyPath,
+            pdbPath,
+            runtimeOutputPath,
+            runtimeConfigPath);
     }
 
     private static string CreateRuntimeConfig()
@@ -389,6 +424,7 @@ internal static class ManagedArtifactWriter
 
 internal sealed record ManagedArtifactPaths(
     string AssemblyPath,
+    string ManagedAssemblyPath,
     string? PdbPath,
     string RuntimeAssemblyPath,
     string RuntimeConfigPath);

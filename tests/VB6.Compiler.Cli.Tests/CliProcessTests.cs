@@ -98,7 +98,7 @@ public sealed class CliProcessTests
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Shared.dll")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Consumer.exe")));
 
-            var startInfo = new ProcessStartInfo("dotnet")
+            var startInfo = new ProcessStartInfo(Path.Combine(outputDirectory, "Consumer.exe"))
             {
                 WorkingDirectory = outputDirectory,
                 RedirectStandardOutput = true,
@@ -106,7 +106,6 @@ public sealed class CliProcessTests
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            startInfo.ArgumentList.Add(Path.Combine(outputDirectory, "Consumer.exe"));
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Could not start the emitted VBG consumer.");
             var standardOutput = process.StandardOutput.ReadToEnd();
@@ -165,7 +164,7 @@ public sealed class CliProcessTests
                 "--x86");
 
             Assert.AreEqual(0, result.ExitCode, result.StandardError);
-            using var stream = File.OpenRead(outputPath);
+            using var stream = File.OpenRead(Path.ChangeExtension(outputPath, ".dll"));
             using var peReader = new PEReader(stream);
             Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
             Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
@@ -201,7 +200,7 @@ public sealed class CliProcessTests
             var result = RunCli(sourcePath, "--emit-assembly", outputPath, "--x64");
 
             Assert.AreEqual(0, result.ExitCode, result.StandardError);
-            var startInfo = new ProcessStartInfo("dotnet")
+            var startInfo = new ProcessStartInfo(outputPath)
             {
                 WorkingDirectory = Path.GetDirectoryName(outputPath)!,
                 RedirectStandardOutput = true,
@@ -209,7 +208,6 @@ public sealed class CliProcessTests
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            startInfo.ArgumentList.Add(outputPath);
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Could not start the x64 conditional-compilation output.");
             var standardOutput = process.StandardOutput.ReadToEnd();
@@ -278,7 +276,7 @@ public sealed class CliProcessTests
             var result = RunCli(sourcePath, "--emit-assembly", outputPath, "--x64");
 
             Assert.AreEqual(0, result.ExitCode, result.StandardError);
-            using var stream = File.OpenRead(outputPath);
+            using var stream = File.OpenRead(Path.ChangeExtension(outputPath, ".dll"));
             using var peReader = new PEReader(stream);
             Assert.AreEqual(Machine.Amd64, peReader.PEHeaders.CoffHeader.Machine);
             Assert.IsFalse(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));

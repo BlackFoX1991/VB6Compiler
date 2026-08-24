@@ -39,8 +39,8 @@ public sealed class VBProjectGroupCompilationTests
             Assert.AreEqual(2, emit.Projects.Length);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.exe")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
-            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "First.dll")));
-            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Second.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.dll")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
         }
         finally
@@ -183,7 +183,7 @@ public sealed class VBProjectGroupCompilationTests
                 result.Projects.Select(project => project.Project.Project.RelativePath).ToArray());
             Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Shared.dll")));
             Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Consumer.exe")));
-            Assert.IsFalse(File.Exists(Path.Combine(directory, "bin", "Consumer.dll")));
+            Assert.IsTrue(File.Exists(Path.Combine(directory, "bin", "Consumer.dll")));
 
             using (var sharedStream = File.OpenRead(Path.Combine(directory, "bin", "Shared.dll")))
             using (var sharedPe = new System.Reflection.PortableExecutable.PEReader(sharedStream))
@@ -208,7 +208,7 @@ public sealed class VBProjectGroupCompilationTests
                 Assert.IsFalse(method.Attributes.HasFlag(System.Reflection.MethodAttributes.Static));
             }
 
-            var startInfo = new ProcessStartInfo("dotnet")
+            var startInfo = new ProcessStartInfo(Path.Combine(directory, "bin", "Consumer.exe"))
             {
                 WorkingDirectory = Path.Combine(directory, "bin"),
                 RedirectStandardOutput = true,
@@ -216,7 +216,6 @@ public sealed class VBProjectGroupCompilationTests
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            startInfo.ArgumentList.Add(Path.Combine(directory, "bin", "Consumer.exe"));
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Could not start the emitted consumer project.");
             var standardOutput = process.StandardOutput.ReadToEnd();
