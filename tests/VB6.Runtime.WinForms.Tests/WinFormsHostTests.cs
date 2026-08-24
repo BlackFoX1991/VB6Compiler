@@ -142,6 +142,111 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void NativeTreeViewNodesCanBeReadThroughComDispatchInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.TreeCtrl.2", throwOnError: false) is not { } comType)
+        {
+            return;
+        }
+
+        var nativeType = typeof(WinFormsHost).GetNestedType(
+            "NativeActiveXControl",
+            BindingFlags.NonPublic)!;
+        using var control = (Control)Activator.CreateInstance(nativeType, comType.GUID)!;
+        using var form = new Form
+        {
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(-32000, -32000)
+        };
+        form.Controls.Add(control);
+        form.Show();
+        control.CreateControl();
+
+        var comObject = ((IVBComObjectProvider)control).ComObject;
+        Assert.IsNotNull(comObject);
+        Assert.IsTrue(VBDynamicDispatch.TryGetComMember(
+            comObject,
+            "Nodes",
+            Array.Empty<object?>(),
+            out var nodes));
+        Assert.IsNotNull(nodes);
+        Assert.IsTrue(VBDynamicDispatch.TryGetComMember(
+            nodes,
+            "Count",
+            Array.Empty<object?>(),
+            out var count));
+        Assert.AreEqual((short)0, count);
+    }
+
+    [STATestMethod]
+    public void HostHostsNativeTreeViewNodesThroughRawComDispatchInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.TreeCtrl.2", throwOnError: false) is null)
+        {
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        var tree = host.CreateControl(owner, "Tree1", "MSComctlLib.TreeView")!;
+
+        Assert.IsInstanceOfType<AxHost>(tree);
+        Assert.IsInstanceOfType<IVBComObjectProvider>(tree);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+        ((Control)tree).CreateControl();
+        Assert.IsNotNull(((IVBComObjectProvider)tree).ComObject);
+
+        Assert.IsTrue(host.TryGetMember(tree, "Nodes", Array.Empty<object?>(), out var nodes));
+        Assert.IsNotNull(nodes);
+        Assert.IsTrue(host.TryGetMember(nodes!, "Count", Array.Empty<object?>(), out var count));
+        Assert.AreEqual((short)0, count);
+
+        Assert.IsTrue(VBDynamicDispatch.TryInvokeComMember(
+            nodes,
+            "Add",
+            new object?[] { Type.Missing, Type.Missing, "root", "Root" },
+            out var node));
+        Assert.IsNotNull(node);
+        Assert.IsTrue(VBDynamicDispatch.TryGetComMember(
+            node,
+            "Text",
+            Array.Empty<object?>(),
+            out var text));
+        Assert.AreEqual("Root", text);
+        Assert.IsTrue(VBDynamicDispatch.TrySetComMember(
+            node,
+            "Text",
+            Array.Empty<object?>(),
+            "Changed"));
+        Assert.IsTrue(VBDynamicDispatch.TryGetComMember(
+            node,
+            "Text",
+            Array.Empty<object?>(),
+            out text));
+        Assert.AreEqual("Changed", text);
+        Assert.IsTrue(host.TryGetMember(
+            nodes!,
+            "Item",
+            new object?[] { (short)1 },
+            out var indexedNode));
+        Assert.IsNotNull(indexedNode);
+        Assert.IsTrue(VBDynamicDispatch.TryGetComMember(
+            indexedNode,
+            "Text",
+            Array.Empty<object?>(),
+            out text));
+        Assert.AreEqual("Changed", text);
+        Assert.IsTrue(host.TryGetMember(nodes!, "Count", Array.Empty<object?>(), out count));
+        Assert.AreEqual((short)1, count);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostActivatesRegisteredStandardOcxComponentsInX86()
     {
         if (Environment.Is64BitProcess)

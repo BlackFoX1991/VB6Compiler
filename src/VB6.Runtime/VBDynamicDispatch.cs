@@ -251,6 +251,11 @@ public static class VBDynamicDispatch
         out object? result)
     {
         target = GetComObject(target) ?? target;
+        if (VBComDispatch.TryInvoke(target, memberName, arguments, setProperty, out result))
+        {
+            return true;
+        }
+
         var flags = BindingFlags.Instance |
             BindingFlags.Public |
             BindingFlags.NonPublic |

@@ -3019,6 +3019,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         control = null;
         var progId = typeName.ToUpperInvariant() switch
         {
+            "MSCOMCTLLIB.TREEVIEW" or "MSCOMCTLLIB.TREECTRL" => "MSComctlLib.TreeCtrl.2",
             "MSCOMCTLLIB.LISTVIEW" or "MSCOMCTLLIB.LISTVIEWCTRL" => "MSComctlLib.ListViewCtrl.2",
             "MSCOMCTLLIB.PROGRESSBAR" or "MSCOMCTLLIB.PROGCTRL" => "MSComctlLib.ProgCtrl.2",
             "MSCOMCTLLIB.SLIDER" => "MSComctlLib.Slider.2",

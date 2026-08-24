@@ -107,7 +107,7 @@ Implemented so far:
 - debug information that maps back to VB6 source: documents, user-visible locals, and a sequence point per statement, carried referentially from the binder through the IR into the PDB
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
-- the regression suite currently contains **955 tests**, including typed string-key Variant, Object, compiled COM automation dispatch, conditional compilation, UDT `Len`/`LenB` layout, managed CommonDialog/TreeView/ImageList/RichTextBox/Shape/Line/Menu/PopupMenu/GraphicsLine/PaintPicture/UserControl adapters, native x86 standard-OCX activation, `Format$` weekday/week/quarter tokens, Form lifecycle events, MDI container/child hosting, `.frx` resource extraction, a WinForms generated-assembly runner, and legacy `.dsr` project emission
+- the regression suite currently contains **957 tests**, including typed string-key Variant, Object, compiled COM automation dispatch, conditional compilation, UDT `Len`/`LenB` layout, managed CommonDialog/TreeView/ImageList/RichTextBox/Shape/Line/Menu/PopupMenu/GraphicsLine/PaintPicture/UserControl adapters, native x86 standard-OCX activation, native TreeView `Nodes` dispatch, `Format$` weekday/week/quarter tokens, Form lifecycle events, MDI container/child hosting, `.frx` resource extraction, a WinForms generated-assembly runner, and legacy `.dsr` project emission
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, property pages, user documents, legacy `Designer=...; file.dsr` sources, references, and components, plus `.vbg` group loading and command-line batch emission of declared projects
 - an optional host boundary for compiled Forms/UserControls: `VB6.Runtime` exposes lifecycle, dynamic member, control-creation, enumeration and event hooks, while `VB6.Runtime.WinForms` maps standard VB6 controls, Twips, OLE colors, fonts and `Load`/`Unload`/`Show` to WinForms
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
@@ -250,9 +250,10 @@ managed assembly, installs `WinFormsHost` on an STA thread, and starts the messa
 generated Form startup has called `Load` and `Show`. It targets x86 by default so registered
 32-bit VB6 OCX files under `SysWOW64` can be activated; pass `-p:PlatformTarget=x64` when the
 installed controls are 64-bit. Native activation covers the standard `MSComctlLib` visual
-controls that do not have a managed adapter yet and falls back to the managed host when the OCX
-is missing or registered for the other process architecture. Direct apphost execution uses the
-portable headless runtime; use the WinForms runner to display generated Forms.
+controls, including `TreeCtrl.2`; its `Nodes` collection uses a Windows `IDispatch` bridge for
+one-based `Count`/`Item`, `Add`, and node property access. Missing or wrong-bitness OCX files
+fall back to the managed host. Direct apphost execution uses the portable headless runtime; use
+the WinForms runner to display generated Forms.
 
 Managed emission defaults to AnyCPU; `--x86`, `--x64`, and `--anycpu` select the PE target architecture. `--x86` is intended for legacy projects whose OCX-/ActiveX-dependencies are 32-bit.
 

@@ -1854,3 +1854,20 @@ Testsystem nun ebenfalls registriert und als COM-Klasse aktivierbar, wird aber w
 instabilen nativen Collections-ABI weiterhin über den Managed-TreeView-Adapter gehostet. Die
 x86- und x64-WinForms-Regression umfasst jeweils **29 Tests**; die Gesamtsuite umfasst nun
 **955 Tests**.
+
+## Aktueller nativer TreeView-/IDispatch-Nachtrag
+
+Die registrierte `MSComctlLib.TreeCtrl.2` wird im opt-in-Native-Host jetzt als echter `AxHost`
+aktiviert. Für das zugrunde liegende `Nodes`-RCW verwendet die Runtime eine direkte Windows-
+`IDispatch`-Brücke vor dem CLR-Reflection-Fallback. Dadurch funktionieren im x86-Pfad
+`Nodes.Count`, `Nodes.Add`, einbasierter `Nodes.Item`-Zugriff sowie Lesen und Schreiben der
+Node-Properties, ohne den instabilen Reflection-Aufruf auf alten OCX-Collections auszulösen.
+Der normale Host behält den portablen Managed-TreeView-Adapter; der native Pfad bleibt wegen
+weiterer Event-, ByRef- und vollständiger ImageList-/ImageCombo-Verträge opt-in. Alle auf dem
+Testsystem registrierten Standard-OCX bleiben architekturabhängig und benötigen den x86-Runner,
+wenn nur die 32-Bit-Registrierung vorhanden ist. Die x86- und x64-WinForms-Regression umfasst
+jeweils **31 Tests**; die Gesamtsuite umfasst nun **957 Tests**. Der direkte native AppHost-
+Start der neu emittierten VISIA-Ausgabe endet ohne `System.Private.CoreLib`-Ladefehler; der
+automatisierte Runner-Lauf bleibt in der nicht-interaktiven Testumgebung ohne sichtbaren
+Fenster-Handle und muss für eine visuelle GUI-Abnahme in einer interaktiven Windows-Sitzung
+geprüft werden.
