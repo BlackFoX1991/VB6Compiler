@@ -374,6 +374,10 @@ public sealed class ManagedEmitter
                             _metadata.GetOrAddString(field.Name),
                             EncodeFieldSignature(field.Type));
                         EnsureHandle(actual, _fieldHandles[field], "field");
+                        if (field.Type is FixedLengthStringTypeSymbol fixedString)
+                        {
+                            AddByValAnsiStringMarshalling(actual, fixedString.Length);
+                        }
                     }
                 }
                 else if (plan.Class is not null)
@@ -437,6 +441,14 @@ public sealed class ManagedEmitter
             var blob = new BlobBuilder();
             blob.WriteByte(0x14); // NATIVE_TYPE_LPSTR
             _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
+        }
+
+        private void AddByValAnsiStringMarshalling(FieldDefinitionHandle field, int length)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte(0x17); // NATIVE_TYPE_BYVALTSTR
+            blob.WriteCompressedInteger(length);
+            _metadata.AddMarshallingDescriptor(field, _metadata.GetOrAddBlob(blob));
         }
 
         private Dictionary<IrProcedure, int> EmitMethodBodies()

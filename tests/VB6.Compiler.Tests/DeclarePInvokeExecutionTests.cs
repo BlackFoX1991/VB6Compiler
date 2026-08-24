@@ -245,4 +245,30 @@ public sealed class DeclarePInvokeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_MarshalsFixedStringFieldsInsideDeclareUdt()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Type OSVERSIONINFO
+                dwOSVersionInfoSize As Long
+                dwMajorVersion As Long
+                dwMinorVersion As Long
+                dwBuildNumber As Long
+                dwPlatformId As Long
+                szCSDVersion As String * 128
+            End Type
+
+            Private Declare Function GetVersionExA Lib "kernel32" (ByRef value As OSVERSIONINFO) As Long
+
+            Sub Main()
+                Dim value As OSVERSIONINFO
+                value.dwOSVersionInfoSize = 148
+                Debug.Print GetVersionExA(value) >= 0
+                Debug.Print Len(value.szCSDVersion) <= 128
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
 }

@@ -1499,7 +1499,7 @@ Datum-/Finanzmasken bleiben separat offen. Die Gesamtsuite umfasst **915 Tests**
 ## Aktueller Declare-UDT-Nachtrag
 
 Blittable `Type`-Records werden im Managed-Emitter jetzt als sequenzielle Structs in nativen
-`Declare`-Signaturen verwendet. Ein echter Windows-Aufruf von `GetSystemTime` regressionssichert
-den vollständigen `ByRef`-Pfad einschließlich Feld-Write-back. Variable/feste Stringfelder,
-Arrays, nicht-blittable UDTs und Callback-Delegates bleiben separate ABI-Schritte. Die Gesamtsuite
-umfasst **916 Tests**.
+`Declare`-Signaturen verwendet. Echte Windows-Aufrufe von `GetSystemTime` und `GetVersionExA`
+regressionssichern den vollständigen `ByRef`-Pfad einschließlich Feld-Write-back sowie feste
+`String * n`-Felder über `BYVALTSTR`/`SizeConst`. Variable Stringfelder, Arrays, nicht-blittable
+UDTs und Callback-Delegates bleiben separate ABI-Schritte. Die Gesamtsuite umfasst **917 Tests**.
