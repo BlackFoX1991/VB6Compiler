@@ -5,10 +5,10 @@ using VB6.IR;
 using VB6.ProjectSystem;
 
 const string usage =
-    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
+    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] [--com-host] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
     "       vb6c <project.vbp> --report\n" +
     "       vb6c <project.vbg> --report\n" +
-    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu]";
+    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu] [--com-host]";
 
 if (args.Length == 0)
 {
@@ -63,11 +63,12 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     }
 
     var projectPlatform = ManagedPlatform.AnyCpu;
+    var projectComHost = false;
     VBCompilationOptions? projectCompilationOptions = null;
-    if (args.Length is 3 or 4 &&
+    if (args.Length is >= 3 and <= 5 &&
         string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out projectPlatform))
+        if (!TryParseManagedArguments(args, out projectPlatform, out projectComHost))
         {
             return 1;
         }
@@ -112,9 +113,9 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
     }
 
-    if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is >= 3 and <= 5 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        var emitOptions = CreateManagedEmitOptions(args[2], projectPlatform);
+        var emitOptions = CreateManagedEmitOptions(args[2], projectPlatform, projectComHost);
         var emitResult = projectCompilation.EmitManagedApplication(args[2], emitOptions);
         PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
@@ -141,11 +142,12 @@ if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnor
 }
 
 var sourcePlatform = ManagedPlatform.AnyCpu;
+var sourceComHost = false;
 VBCompilationOptions? sourceCompilationOptions = null;
-if (args.Length is 3 or 4 &&
+if (args.Length is >= 3 and <= 5 &&
     string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
-    if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out sourcePlatform))
+    if (!TryParseManagedArguments(args, out sourcePlatform, out sourceComHost))
     {
         return 1;
     }
@@ -190,9 +192,9 @@ if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringCompari
     return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
 }
 
-if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+if (args.Length is >= 3 and <= 5 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
-    var emitOptions = CreateManagedEmitOptions(args[2], sourcePlatform);
+    var emitOptions = CreateManagedEmitOptions(args[2], sourcePlatform, sourceComHost);
     var emitResult = compilation.EmitManagedApplication(args[2], emitOptions);
     foreach (var diagnostic in emitResult.Diagnostics)
     {
@@ -250,11 +252,12 @@ static int WriteIr(string dump, string? outputPath)
 static int HandleProjectGroup(string path, string[] args)
 {
     var groupPlatform = ManagedPlatform.AnyCpu;
+    var groupComHost = false;
     VBCompilationOptions? groupCompilationOptions = null;
-    if (args.Length is 3 or 4 &&
+    if (args.Length is >= 3 and <= 5 &&
         string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out groupPlatform))
+        if (!TryParseManagedArguments(args, out groupPlatform, out groupComHost))
         {
             return 1;
         }
@@ -285,9 +288,9 @@ static int HandleProjectGroup(string path, string[] args)
         return analysis.Success ? 0 : 1;
     }
 
-    if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is >= 3 and <= 5 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        var emitOptions = CreateManagedEmitOptions(args[2], groupPlatform);
+        var emitOptions = CreateManagedEmitOptions(args[2], groupPlatform, groupComHost);
         var result = compilation.EmitManagedApplications(args[2], emitOptions);
         PrintProjectGroupSummary(result.Analysis);
         PrintProjectGroupDiagnostics(result.Analysis);
@@ -375,6 +378,48 @@ static int EmitLlvm(IrProgram program, string outputPath, string? architectureAr
     return 0;
 }
 
+static bool TryParseManagedArguments(
+    string[] arguments,
+    out ManagedPlatform platform,
+    out bool enableComHosting)
+{
+    platform = ManagedPlatform.AnyCpu;
+    enableComHosting = false;
+    ManagedPlatform? selectedPlatform = null;
+    foreach (var argument in arguments.Skip(3))
+    {
+        if (string.Equals(argument, "--com-host", StringComparison.OrdinalIgnoreCase))
+        {
+            enableComHosting = true;
+            continue;
+        }
+
+        if (argument is "--x86" or "--x64" or "--anycpu")
+        {
+            if (!TryParseManagedPlatform(argument, out var parsedPlatform))
+            {
+                return false;
+            }
+
+            if (selectedPlatform is not null)
+            {
+                Console.Error.WriteLine("Managed architecture was specified more than once.");
+                return false;
+            }
+
+            selectedPlatform = parsedPlatform;
+            platform = parsedPlatform;
+            continue;
+        }
+
+        Console.Error.WriteLine(
+            $"Unknown managed option '{argument}'. Use --x86, --x64, --anycpu or --com-host.");
+        return false;
+    }
+
+    return true;
+}
+
 static bool TryParseManagedPlatform(string? argument, out ManagedPlatform platform)
 {
     platform = ManagedPlatform.AnyCpu;
@@ -400,10 +445,16 @@ static bool TryParseManagedPlatform(string? argument, out ManagedPlatform platfo
     return false;
 }
 
-static ManagedEmitOptions CreateManagedEmitOptions(string outputPath, ManagedPlatform platform) =>
+static ManagedEmitOptions CreateManagedEmitOptions(
+    string outputPath,
+    ManagedPlatform platform,
+    bool enableComHosting = false) =>
     new(
         Path.GetFileNameWithoutExtension(Path.GetFullPath(outputPath)),
-        Platform: platform);
+        Platform: platform)
+    {
+        EnableComHosting = enableComHosting
+    };
 
 static VBCompilationOptions? CreateCompilationOptions(ManagedPlatform platform) => platform switch
 {

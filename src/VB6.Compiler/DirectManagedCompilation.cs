@@ -393,6 +393,11 @@ internal static class ManagedArtifactWriter
         {
             throw new InvalidOperationException("Cannot write unsuccessful managed emit result.");
         }
+        if (options.EnableComHosting && options.OutputKind != ManagedOutputKind.Library)
+        {
+            throw new ManagedArtifactException(
+                "COM hosting requires ManagedOutputKind.Library output.");
+        }
 
         var fullOutputPath = Path.GetFullPath(outputPath);
         var outputDirectory = Path.GetDirectoryName(fullOutputPath)!;
@@ -438,6 +443,11 @@ internal static class ManagedArtifactWriter
             throw new ManagedArtifactException(
                 $"Could not create a native .NET apphost for '{fullOutputPath}'. " +
                 "Install the matching Microsoft.NETCore.App.Host.win-x86/win-x64 pack or emit a .dll output.");
+        }
+
+        if (options.EnableComHosting)
+        {
+            ManagedComHostWriter.Create(managedAssemblyPath, options.Platform);
         }
 
         return new ManagedArtifactPaths(

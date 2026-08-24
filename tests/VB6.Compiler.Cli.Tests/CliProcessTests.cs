@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Reflection.PortableExecutable;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace VB6.Compiler.Cli.Tests;
@@ -58,6 +60,80 @@ public sealed class CliProcessTests
         {
             DeleteDirectory(directory);
         }
+    }
+
+    [TestMethod]
+    public void EmitAssembly_ProducesAnActivatableComHostForAnOleDllProject()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("COM host activation requires Windows.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ComSample.vbp");
+            File.WriteAllText(projectPath, "Type=OleDll\nName=ComSample\nClass=Widget; Widget.cls\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Widget.cls"),
+                "Attribute VB_Name = \"Widget\"\n" +
+                "Public Function Add(ByVal left As Long, ByVal right As Long) As Long\n" +
+                "    Add = left + right\n" +
+                "End Function\n");
+            var outputPath = Path.Combine(directory, "bin", "ComSample.dll");
+
+            var result = RunCli(
+                projectPath,
+                "--emit-assembly",
+                outputPath,
+                "--com-host",
+                "--x64");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var comHostPath = Path.Combine(directory, "bin", "ComSample.comhost.dll");
+            Assert.IsTrue(File.Exists(comHostPath));
+
+            var clsid = CreateComClassId("ComSample", "Widget");
+
+            var probePath = Path.Combine(AppContext.BaseDirectory, "VB6.ComActivationProbe.dll");
+            Assert.IsTrue(File.Exists(probePath));
+            var probeStartInfo = new ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            probeStartInfo.ArgumentList.Add(probePath);
+            probeStartInfo.ArgumentList.Add(comHostPath);
+            probeStartInfo.ArgumentList.Add(clsid.ToString("D"));
+            using var probe = Process.Start(probeStartInfo)
+                ?? throw new InvalidOperationException("Could not start the COM activation probe.");
+            var probeOutput = probe.StandardOutput.ReadToEnd();
+            var probeError = probe.StandardError.ReadToEnd();
+            probe.WaitForExit();
+            Assert.AreEqual(0, probe.ExitCode, probeError);
+            Assert.AreEqual("7", probeOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    private static Guid CreateComClassId(string assemblyName, string className)
+    {
+        var bytes = SHA256.HashData(
+            Encoding.UTF8.GetBytes(assemblyName + "\0class\0" + className))
+            .AsSpan(0, 16)
+            .ToArray();
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+        return new Guid(bytes);
     }
 
     [TestMethod]
