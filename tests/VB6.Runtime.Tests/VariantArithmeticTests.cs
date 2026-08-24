@@ -70,6 +70,13 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void Arithmetic_RejectsVariantPowerOverflow()
+    {
+        Assert.ThrowsException<OverflowException>(() =>
+            VBOperators.PowerVariant(double.MaxValue, 2));
+    }
+
+    [TestMethod]
     public void DateVariants_PreserveDateSubtypeForAdditionAndSingleDateSubtraction()
     {
         var date = VBConversions.DateToVariant(43832d);

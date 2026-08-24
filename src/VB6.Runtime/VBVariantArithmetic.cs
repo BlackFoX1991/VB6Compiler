@@ -189,7 +189,8 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
-        return Power(VBConversions.CDbl(left), VBConversions.CDbl(right));
+        var result = Power(VBConversions.CDbl(left), VBConversions.CDbl(right));
+        return CheckVariantDouble(result, "exponentiation");
     }
 
     public static object? NegateVariant(object? value)

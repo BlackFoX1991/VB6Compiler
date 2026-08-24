@@ -1346,6 +1346,10 @@ Der gleiche Architekturvertrag gilt jetzt auch für direkte `.bas`-Emission; `--
 einen PE-Header mit `Machine.Amd64`, während die Projekt- und Gruppenpfade weiterhin ihre
 projektabhängige `.exe`-/`.dll`-Ausgabe beibehalten. Die Gesamtsuite umfasst **890 Tests**.
 
+Variant-Exponentiation verwirft nun ebenfalls nichtdarstellbare `Double`-Ergebnisse als
+Overflow, statt `Infinity` in ein laufendes VB6-Programm durchsickern zu lassen. Die Regression
+ist direkt im Runtime-Vertrag abgesichert; die Gesamtsuite umfasst **891 Tests**.
+
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
