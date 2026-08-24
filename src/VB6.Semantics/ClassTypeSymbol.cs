@@ -119,6 +119,37 @@ public sealed record ClassTypeSymbol : TypeSymbol
         return true;
     }
 
+    /// <summary>
+    /// Adds events imported from a type library to an already-defined runtime object contract.
+    /// Explicit VB6 control contracts keep their stable member surface, while the installed
+    /// type library can still contribute the connection-point metadata needed by WithEvents.
+    /// </summary>
+    public void AddImportedEvents(IEnumerable<EventSymbol> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        if (!_definition.IsDefined)
+        {
+            throw new InvalidOperationException($"Members for class '{Name}' have not been defined.");
+        }
+
+        var additions = events
+            .Where(@event => !_definition.EventMap.ContainsKey(@event.Name))
+            .ToImmutableArray();
+        if (additions.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var eventMap = _definition.EventMap.ToBuilder();
+        foreach (var @event in additions)
+        {
+            eventMap.Add(@event.Name, @event);
+        }
+
+        _definition.Events = _definition.Events.AddRange(additions);
+        _definition.EventMap = eventMap.ToImmutable();
+    }
+
     public void SetImplementedInterfaces(IEnumerable<ClassTypeSymbol> interfaces)
     {
         ArgumentNullException.ThrowIfNull(interfaces);

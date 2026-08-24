@@ -2143,3 +2143,15 @@ AppHost und die Runtime-Abhängigkeit; der PE-Header trägt `Machine.I386` und `
 Damit ist der command-line Compile-Vertrag für Legacy-Projektgruppen mit nativen OCX-Designer-
 inputs explizit regressiongesichert. Die CLI-Suite umfasst nun **10** Tests, die Gesamtsuite
 **981 Tests**.
+
+## Aktueller nativer WithEvents-Nachtrag
+
+`WithEvents`-Zuweisungen auf native OCX-Controls funktionieren jetzt auch aus `Form_Load` heraus.
+Der Compiler bewahrt die aus der TypeLibrary importierten Connection-Point-Events, wenn ein
+Projekt denselben Control-Vertrag zugleich über `Reference=` und `Object=` einbindet; der stabile
+explizite Control-Vertrag behält dabei seine vorhandenen Late-Bound-Mitglieder. Der WinForms-Host
+wiederholt eine vor der nativen COM-Aktivierung angelegte Subscription nach `Show`, sodass auch
+spät erzeugte `AxHost`-COM-Objekte korrekt verbunden werden. Der kompilierte x86-`.vbp`/`.frm`-
+Regressionstest prüft `Form_Load`, `source_Change` und den bestehenden ByRef-KeyPress-Pfad;
+Compiler und WinForms umfassen damit **348** beziehungsweise **35/35** Tests, die Gesamtsuite
+weiterhin **981** Tests.

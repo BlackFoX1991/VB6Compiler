@@ -291,12 +291,32 @@ public sealed class WinFormsHostTests
                 Attribute VB_PredeclaredId = True
                 Option Explicit
 
+                Private WithEvents source As RichTextLib.RichTextBox
+                Private changeCount As Integer
+                Private formInitialized As Boolean
                 Private observedKey As Integer
+
+                Private Sub Form_Load()
+                    Set source = editor
+                    formInitialized = True
+                End Sub
+
+                Private Sub source_Change()
+                    changeCount = changeCount + 1
+                End Sub
 
                 Private Sub Editor_KeyPress(KeyAscii As Integer)
                     observedKey = KeyAscii
                     KeyAscii = Asc("y")
                 End Sub
+
+                Public Property Get ObservedChange() As Integer
+                    ObservedChange = changeCount
+                End Property
+
+                Public Property Get FormLoaded() As Boolean
+                    FormLoaded = formInitialized
+                End Property
 
                 Public Property Get LastKey() As Integer
                     LastKey = observedKey
@@ -317,10 +337,17 @@ public sealed class WinFormsHostTests
             Assert.IsTrue(host.TryInvokeMember(form, "Show", Array.Empty<object?>(), out _));
             Assert.IsTrue(host.TryGetMember(form, "Editor", Array.Empty<object?>(), out var editor));
             Assert.IsInstanceOfType<AxHost>(editor);
+            var formLoadedGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("FormLoaded", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual(true, formLoadedGetter.Invoke(form, null));
 
             var control = (Control)editor!;
             control.CreateControl();
             control.Focus();
+            Assert.IsTrue(host.TrySetMember(editor, "Text", Array.Empty<object?>(), "probe"));
+            var observedChangeGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("ObservedChange", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual((short)1, observedChangeGetter.Invoke(form, null));
             Assert.IsTrue(host.TrySetMember(editor, "Text", Array.Empty<object?>(), string.Empty));
 
             _ = SendMessage(control.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);

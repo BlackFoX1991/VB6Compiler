@@ -135,6 +135,61 @@ public static class VBEvents
         }
     }
 
+    /// <summary>
+    /// Retries COM subscriptions that were created before an ActiveX wrapper had a live COM
+    /// object. This is needed for <c>WithEvents</c> assignments made from <c>Form_Load</c>.
+    /// </summary>
+    public static void RetryComSubscriptions(object source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        lock (Sync)
+        {
+            foreach (var existing in MethodSubscriptions
+                         .Where(subscription =>
+                             ReferenceEquals(subscription.Source, source) &&
+                             subscription.Handler is not null &&
+                             subscription.Source is IVBComObjectProvider)
+                         .ToArray())
+            {
+                if (existing.Handler is not { } fallbackHandler)
+                {
+                    continue;
+                }
+
+                var method = FindHandler(existing.Target, existing.MethodName);
+                if (method is null ||
+                    !TrySubscribeComEvent(
+                        existing.Source,
+                        existing.EventName,
+                        existing.ComInterfaceId?.ToString("D"),
+                        existing.ComDispId,
+                        existing.Target,
+                        method,
+                        out var interfaceId,
+                        out var dispId,
+                        out var @delegate))
+                {
+                    continue;
+                }
+
+                RemoveHandlerLocked(existing.Source, existing.EventName, fallbackHandler);
+                MethodSubscriptions.Remove(existing);
+                MethodSubscriptions.Add(new MethodSubscription(
+                    existing.Source,
+                    existing.EventName,
+                    existing.Target,
+                    existing.MethodName,
+                    handler: null,
+                    host: null,
+                    eventInfo: null,
+                    @delegate,
+                    interfaceId,
+                    dispId));
+            }
+        }
+    }
+
     public static void SubscribeMethod(
         object? source,
         string eventName,
