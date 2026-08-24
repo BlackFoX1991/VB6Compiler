@@ -9,6 +9,13 @@ namespace VB6.Runtime.WinForms.Tests;
 [STATestClass]
 public sealed class WinFormsHostTests
 {
+    [TestMethod]
+    public void GeneratedRunnerRejectsMissingAssembly()
+    {
+        Assert.ThrowsException<FileNotFoundException>(() =>
+            GeneratedApplicationRunner.Run(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".exe")));
+    }
+
     [STATestMethod]
     public void HostCreatesDesignerControlsAndMapsVb6Properties()
     {

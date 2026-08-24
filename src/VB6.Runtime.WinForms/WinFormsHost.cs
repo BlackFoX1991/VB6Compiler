@@ -56,6 +56,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     public void DoEvents() => Application.DoEvents();
 
+    public int RunMessageLoop()
+    {
+        ThrowIfDisposed();
+        var form = _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(candidate => !candidate.IsDisposed);
+        if (form is null)
+        {
+            return 0;
+        }
+
+        Application.Run(form);
+        return 0;
+    }
+
     public void Load(object target)
     {
         ThrowIfDisposed();
