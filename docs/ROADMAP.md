@@ -1747,8 +1747,11 @@ Gesamtsuite umfasst **949 Tests**.
 
 ## Aktueller Form-Lifecycle-Nachtrag
 
-Der WinForms-Host bindet nun auch `Form_Activate`, `Form_Deactivate`, `Form_QueryUnload` und
-`Form_Unload` an `Activated`, `Deactivate`, `FormClosing` und `FormClosed`. Für
+Der WinForms-Host bindet nun `Form_Initialize`/`Form_Terminate` sowie
+`Form_Activate`, `Form_Deactivate`, `Form_QueryUnload` und `Form_Unload` an den Managed-
+Form-Lifecycle und die WinForms-Ereignisse `Activated`, `Deactivate`, `FormClosing` und
+`FormClosed`. Die Initialisierung erfolgt pro Bindung genau einmal; der Terminate-Aufruf wird
+auch beim Host-Dispose ausgeführt. Für
 `Form_QueryUnload` werden `Cancel` und `UnloadMode` in den VB6-Argumentvertrag übersetzt; ein
 geänderter `Cancel`-ByRef-Wert wird in `FormClosingEventArgs.Cancel` zurückgeschrieben. Die
 Regression löst die geschützten WinForms-Ereignisse direkt aus und prüft Aktivierung,

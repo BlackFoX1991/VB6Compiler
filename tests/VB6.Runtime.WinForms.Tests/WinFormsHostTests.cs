@@ -792,6 +792,7 @@ public sealed class WinFormsHostTests
 
         host.Register(owner, form);
         host.Load(owner);
+        Assert.AreEqual(1, owner.InitializeCount);
 
         typeof(Form).GetMethod("OnActivated", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(form, new object[] { EventArgs.Empty });
@@ -813,6 +814,14 @@ public sealed class WinFormsHostTests
         Assert.AreEqual(0, owner.UnloadMode);
 
         host.Unload(owner);
+        Assert.AreEqual(1, owner.TerminateCount);
+
+        var disposedOwner = new FormLifecycleEventSink();
+        using var disposedForm = new Form();
+        host.Register(disposedOwner, disposedForm);
+        host.Load(disposedOwner);
+        host.Dispose();
+        Assert.AreEqual(1, disposedOwner.TerminateCount);
     }
 
     [STATestMethod]
@@ -891,11 +900,17 @@ public sealed class WinFormsHostTests
 
     private sealed class FormLifecycleEventSink
     {
+        public int InitializeCount { get; private set; }
+        public int TerminateCount { get; private set; }
         public int ActivateCount { get; private set; }
         public int DeactivateCount { get; private set; }
         public int QueryUnloadCount { get; private set; }
         public int UnloadCount { get; private set; }
         public short UnloadMode { get; private set; }
+
+        private void Form_Initialize() => InitializeCount++;
+
+        private void Form_Terminate() => TerminateCount++;
 
         private void Form_Activate() => ActivateCount++;
 
