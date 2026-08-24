@@ -26,4 +26,29 @@ public sealed class FloatingExecutionTests
         var standardOutput = VB6TestProgram.Run(compilation);
         Assert.AreEqual("1", standardOutput.Trim());
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesVb6RoundingForVariantModOperands()
+    {
+        var compilation = VBCompilation.Create("""
+            Sub Main()
+                Dim left As Variant
+                Dim right As Variant
+
+                left = 12
+                right = 4.3
+                Debug.Print left Mod right
+
+                left = 12.6
+                right = 5
+                Debug.Print left Mod right
+            End Sub
+        """, "Module1.bas");
+        var standardOutput = VB6TestProgram.Run(compilation);
+        var lines = standardOutput.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.AreEqual(2, lines.Length);
+        Assert.AreEqual("0", lines[0].Trim());
+        Assert.AreEqual("3", lines[1].Trim());
+    }
 }

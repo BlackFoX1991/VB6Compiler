@@ -70,7 +70,7 @@ public sealed class VariantStateExecutionTests
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "14", "2.25", "2.5", "0.625", "1.5625", "0.25", "1", "-2", "1", "False", "2.25" },
+            new[] { "14", "2.25", "2.5", "0.625", "1.5625", "0", "1", "-2", "1", "False", "2.25" },
             output);
     }
 

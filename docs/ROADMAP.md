@@ -1431,6 +1431,14 @@ COM-ByRef-Variant-Marshalling und Server-Registrierung bleiben separate ABI-Schr
 kompilierte VB6-`CreateObject`-Pfad ist mit Methoden-, Property- und Default-Indexer-Zugriff auf
 `Scripting.Dictionary` end-to-end abgesichert. Die Gesamtsuite umfasst **904 Tests**.
 
+## Aktueller VB6-Variant-Mod-Nachtrag
+
+Der `Mod`-Operator folgt für `Single`, `Double` und `Decimal` nun der klassischen
+VB6/VBA-Regel: Fließkommawerte werden vor der Restbildung zu Ganzzahlen gerundet, und das
+Ergebnis bleibt ein Long-artiger Variant-Wert. Die Regression deckt die historischen Beispiele
+`12 Mod 4.3 = 0`, `12.6 Mod 5 = 3` sowie den kompilierten Variant-Ausführungspfad ab. Die
+Gesamtsuite umfasst **906 Tests**.
+
 ## Aktueller MSBuild-SDK-Nachtrag
 
 Der SDK-Targetvertrag arbeitet nun inkrementell: Neben der `.vbp` werden die Legacy-Quellen

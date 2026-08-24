@@ -173,7 +173,9 @@ public static partial class VBOperators
             VariantNumericKind.UShort => (object)ModUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
             VariantNumericKind.UInteger => (object)ModUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
             VariantNumericKind.ULong => (object)ModULong(VBConversions.CULng(left), VBConversions.CULng(right)),
-            VariantNumericKind.Decimal => VariantDecimal(left) % VariantDecimal(right),
+            // VB6/VBA round floating and Decimal operands to integral values before Mod.
+            // Keep the result as the Long-sized Variant value produced by the legacy runtime.
+            VariantNumericKind.Decimal => (object)ModLong(VBConversions.CLng(left), VBConversions.CLng(right)),
             _ => (object)ModLong(VBConversions.CLng(left), VBConversions.CLng(right))
         };
     }
