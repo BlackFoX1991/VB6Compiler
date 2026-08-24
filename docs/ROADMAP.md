@@ -1245,7 +1245,10 @@ Größter Einzelblock.
       `PaintPicture`-Subset zeichnet `Bitmap`-/FRX-/`VBPicture`-Quellen persistent mit; qualifizierte
       `PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe lösen ihr eigenes Ziel auf. MDI und vollständige
       DrawMode-/AutoRedraw-/ScaleMode-Semantik bleiben offen
-- [ ] `UserControl` (ActiveX) — VISIA bringt vier eigene mit
+- [~] `UserControl` (ActiveX) — generierte parameterlose `.ctl`-Klassen werden aus der Projektassembly
+      instanziiert und als eingebettete borderlose WinForms-Hostflächen in Designer-Controls
+      aufgenommen; vollständige UserControl-Lebenszyklen, PropertyBag-/Connection-Point-ABI und
+      echte OCX-Komposition bleiben offen
 - [ ] OCX-Hosting für `MSComctlLib`, `RichTextLib`, `MSComDlg`
 
 ## Meilenstein 10 — IDE
@@ -1723,3 +1726,13 @@ FRX- und dateibasierte `VBPicture`-Quellen auf derselben persistenten Oberfläch
 Control-Dispatch auf die PictureBox-Bitmap gerendert. MDI, DrawMode sowie vollständige
 AutoRedraw-/ScaleMode-Regeln bleiben weitere Graphics-/Forms-Slices. Die Gesamtsuite umfasst
 **945 Tests**.
+
+## Aktueller UserControl-Host-Nachtrag
+
+Der WinForms-Host erkennt bei einem unbekannten Designer-Controltyp eine parameterlose generierte
+CLR-Klasse aus derselben Projektassembly, instanziiert sie und hostet ihre eigene Runtime-Bindung
+als borderlose, eingebettete Formfläche. Dadurch können `.ctl`-Klassen als verschachtelte Managed-
+Designerkomponenten geladen werden, ohne den Compilerkern an WinForms zu koppeln. Vollständige
+UserControl-Ereignis-/PropertyBag-Semantik, ActiveX-Connection-Points und natives OCX-Hosting
+bleiben bewusst separate Kompatibilitätsschritte. Die Regression umfasst den Instanzierungs-,
+Komponenten- und Unload-Lifecycle. Die Gesamtsuite umfasst **946 Tests**.
