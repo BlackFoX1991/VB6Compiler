@@ -262,8 +262,9 @@ Dateien.
 Die Parserbehandlung von `LSet target = source` nutzt nun die tatsächliche VB6-Zuweisungsschreibweise
 und führt sie mit zwei Argumenten in den bestehenden `LSet`-Vertrag. Dadurch verschwinden die vier
 Arity-Kaskaden in `comMath.bas`; der VISIA-Stand sinkt auf **272 semantische Fehler**, und **23 von
-40** Dateien analysieren fehlerfrei. Die Native-UDT-Layoutsemantik von `LSet` bleibt bis zum nativen
-Backend bewusst separat offen.
+40** Dateien analysieren fehlerfrei. Der Managed-Pfad bewahrt nun die konkreten Operandentypen und führt
+feste String-Ziele sowie gleichartige UDT-Kopien aus; unterschiedliche UDT-Layouts bleiben wegen ihrer nativen
+Feld-/Paddingsemantik bis zum nativen Backend bewusst separat offen.
 
 Der Variant-Operations-Guard akzeptiert nun auch `Not` und boolesche logische Operatoren über
 Vergleichsergebnisse mit Variant-/Objektursprung. Diese Ausdrücke werden bereits typkorrekt als
@@ -1138,6 +1139,9 @@ Nach Korpusbedarf priorisiert:
     `PopupMenu`, `LoadPicture`, `PropertyChanged`, `TextWidth`/`TextHeight`, `Print` und
     `PaintPicture` — ✅ als headless-fähige Runtime-Verträge;
     echte UI-/Registry-Hostadapter folgen in M8/M9.
+1e. `LSet` — die kontextuelle `LSet target = source`-Syntax sowie Managed-Ausführung für feste
+    String-Ziele und gleichartige UDT-Werte sind ✅; unterschiedliche UDT-Layouts benötigen
+    weiterhin den nativen ABI-/Padding-Vertrag.
 2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Input`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende
@@ -1318,7 +1322,7 @@ VB6-ANSI-Dateien einen Windows-1252-Fallback. `.vbg`-Batch-Emission bleibt über
 Abhängigkeitsreihenfolge und die getrennte
 Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
 bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
-**879 Tests**.
+**881 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
