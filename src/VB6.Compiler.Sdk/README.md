@@ -13,5 +13,8 @@ modern SDK-style project:
 </Project>
 ```
 
-The target delegates project parsing and emission to the compiler CLI. It does not add a designer
-or replace the `.vbp` project model.
+The target delegates project parsing and emission to the compiler CLI. The target is incremental:
+the `.vbp`, source files (`.bas`, `.cls`, `.frm`, `.ctl`, `.pag`, `.dob`) and designer resources
+(`.frx`, `.res`) are inputs; the emitted assembly, PDB, runtimeconfig and `VB6.Runtime.dll` are
+outputs. An unchanged project is skipped by MSBuild, while a changed legacy source or designer
+resource triggers a new compile. It does not add a designer or replace the `.vbp` project model.
