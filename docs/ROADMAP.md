@@ -1408,14 +1408,14 @@ kontextabhängige Completion bleiben nachgelagerte Visual-Studio-Integrationssch
 
 ## Aktueller COM-Event-Nachtrag
 
-`VBEvents.SubscribeMethod` verbindet neben dem portablen Host-Hook nun auch CLR- und COM-RCW-
-Events, wenn die Eventquelle ihre Ereignisse als `EventInfo` exponiert. Ein dynamischer Delegate-
-Adapter packt die Eventargumente in den bestehenden VB6-Handlervertrag, schreibt geänderte
-`ByRef`-Argumente wieder in die ursprünglichen Eventparameter und entfernt die Verbindung bei
-`WithEvents`-Reassignment. Das hält generierte VB6-Klassen und Standard-/ActiveX-Hostobjekte auf
-demselben Runtimepfad. Der Umfang ist mit normalen CLR-Events und einem echten `ByRef`-Event
-regressionsgesichert. Direkte `IConnectionPoint`-/`IDispatch`-Implementierungen ohne reflektierbare
-`EventInfo`, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
+`VBEvents.SubscribeMethod` verbindet neben dem portablen Host-Hook nun auch CLR-Events und COM-
+RCWs. Importierte `FSOURCE`-Events tragen ihre Source-Interface-IID und DISPID aus der TypeLib
+bis in die generierte `WithEvents`-Subscription; auf Windows nutzt die Runtime dafür
+`ComEventsHelper`, bildet die Handlerparameter dynamisch ab und entfernt die Verbindung bei
+Reassignment. Ein dynamischer Delegate-Adapter packt die Eventargumente in den bestehenden
+VB6-Handlervertrag und schreibt geänderte `ByRef`-Argumente zurück. Der Umfang ist mit normalen
+CLR-Events, einem echten `ByRef`-Event und dem Windows-`stdole2.tlb`-Import regressionsgesichert.
+Direkte `IDispatch`-Aufrufe, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
 
 ## Aktueller MSBuild-SDK-Nachtrag
 

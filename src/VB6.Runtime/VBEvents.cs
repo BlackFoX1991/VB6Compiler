@@ -79,6 +79,17 @@ public static class VBEvents
         object target,
         string methodName)
     {
+        SubscribeMethod(source, eventName, target, methodName, null, int.MinValue);
+    }
+
+    public static void SubscribeMethod(
+        object? source,
+        string eventName,
+        object target,
+        string methodName,
+        string? comInterfaceId,
+        int comDispId)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
@@ -134,6 +145,30 @@ public static class VBEvents
                     host: null,
                     eventInfo,
                     @delegate));
+                return;
+            }
+
+            if (TrySubscribeComEvent(
+                    source,
+                    comInterfaceId,
+                    comDispId == int.MinValue ? null : comDispId,
+                    target,
+                    method,
+                    out var comInterfaceGuid,
+                    out var comEventDispId,
+                    out @delegate))
+            {
+                MethodSubscriptions.Add(new MethodSubscription(
+                    source,
+                    eventName,
+                    target,
+                    methodName,
+                    handler: null,
+                    host: null,
+                    eventInfo: null,
+                    @delegate,
+                    comInterfaceGuid,
+                    comEventDispId));
                 return;
             }
 
@@ -232,6 +267,19 @@ public static class VBEvents
         {
             subscription.EventInfo.RemoveEventHandler(subscription.Source, subscription.Delegate);
         }
+        else if (subscription.ComInterfaceId is Guid interfaceId &&
+                 subscription.ComDispId is int dispId &&
+                 subscription.Delegate is not null)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                ComEventsHelper.Remove(
+                    subscription.Source,
+                    interfaceId,
+                    dispId,
+                    subscription.Delegate);
+            }
+        }
         else if (subscription.Handler is not null)
         {
             RemoveHandlerLocked(subscription.Source, subscription.EventName, subscription.Handler);
@@ -278,6 +326,54 @@ public static class VBEvents
         }
     }
 
+    private static bool TrySubscribeComEvent(
+        object source,
+        string? comInterfaceId,
+        int? comDispId,
+        object target,
+        MethodInfo method,
+        out Guid? interfaceId,
+        out int? dispId,
+        out Delegate? @delegate)
+    {
+        interfaceId = null;
+        dispId = null;
+        @delegate = null;
+        if (!OperatingSystem.IsWindows() ||
+            !Marshal.IsComObject(source) ||
+            !Guid.TryParse(comInterfaceId, out var parsedInterfaceId) ||
+            comDispId is not int parsedDispId)
+        {
+            return false;
+        }
+
+        try
+        {
+            var callback = new EventCallback(target, method);
+            var parameterTypes = method.GetParameters()
+                .Select(parameter => parameter.ParameterType)
+                .ToArray();
+            var delegateType = System.Linq.Expressions.Expression.GetDelegateType(
+                parameterTypes.Concat(new[] { typeof(void) }).ToArray());
+            @delegate = CreateEventDelegate(delegateType, parameterTypes, callback);
+            ComEventsHelper.Combine(source, parsedInterfaceId, parsedDispId, @delegate);
+            interfaceId = parsedInterfaceId;
+            dispId = parsedDispId;
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            InvalidOperationException or
+            NotSupportedException or
+            TargetException or
+            TargetInvocationException or
+            COMException)
+        {
+            @delegate = null;
+            return false;
+        }
+    }
+
     private static Delegate CreateEventDelegate(Type eventHandlerType, EventCallback callback)
     {
         var invoke = eventHandlerType.GetMethod("Invoke")
@@ -288,8 +384,19 @@ public static class VBEvents
         }
 
         var eventParameters = invoke.GetParameters();
+        return CreateEventDelegate(
+            eventHandlerType,
+            eventParameters.Select(parameter => parameter.ParameterType).ToArray(),
+            callback);
+    }
+
+    private static Delegate CreateEventDelegate(
+        Type delegateType,
+        IReadOnlyList<Type> eventParameterTypes,
+        EventCallback callback)
+    {
         var dynamicParameters = new[] { typeof(EventCallback) }
-            .Concat(eventParameters.Select(parameter => parameter.ParameterType))
+            .Concat(eventParameterTypes)
             .ToArray();
         var dynamicMethod = new DynamicMethod(
             "VB6EventAdapter",
@@ -299,15 +406,15 @@ public static class VBEvents
             skipVisibility: true);
         var generator = dynamicMethod.GetILGenerator();
         var arguments = generator.DeclareLocal(typeof(object[]));
-        generator.Emit(OpCodes.Ldc_I4, eventParameters.Length);
+        generator.Emit(OpCodes.Ldc_I4, eventParameterTypes.Count);
         generator.Emit(OpCodes.Newarr, typeof(object));
         generator.Emit(OpCodes.Stloc, arguments);
 
-        for (var index = 0; index < eventParameters.Length; index++)
+        for (var index = 0; index < eventParameterTypes.Count; index++)
         {
             generator.Emit(OpCodes.Ldloc, arguments);
             generator.Emit(OpCodes.Ldc_I4, index);
-            EmitBoxedArgument(generator, eventParameters[index].ParameterType, index + 1);
+            EmitBoxedArgument(generator, eventParameterTypes[index], index + 1);
             generator.Emit(OpCodes.Stelem_Ref);
         }
 
@@ -315,9 +422,9 @@ public static class VBEvents
         generator.Emit(OpCodes.Ldloc, arguments);
         generator.Emit(OpCodes.Callvirt, typeof(EventCallback).GetMethod(nameof(EventCallback.Invoke))!);
 
-        for (var index = 0; index < eventParameters.Length; index++)
+        for (var index = 0; index < eventParameterTypes.Count; index++)
         {
-            var parameterType = eventParameters[index].ParameterType;
+            var parameterType = eventParameterTypes[index];
             if (!parameterType.IsByRef)
             {
                 continue;
@@ -341,7 +448,7 @@ public static class VBEvents
         }
 
         generator.Emit(OpCodes.Ret);
-        return dynamicMethod.CreateDelegate(eventHandlerType, callback);
+        return dynamicMethod.CreateDelegate(delegateType, callback);
     }
 
     private static void EmitBoxedArgument(ILGenerator generator, Type parameterType, int argumentIndex)
@@ -384,7 +491,9 @@ public static class VBEvents
             Action<object?[]>? handler,
             IVB6Host? host,
             EventInfo? eventInfo = null,
-            Delegate? @delegate = null)
+            Delegate? @delegate = null,
+            Guid? comInterfaceId = null,
+            int? comDispId = null)
         {
             Source = source;
             EventName = eventName;
@@ -394,6 +503,8 @@ public static class VBEvents
             Host = host;
             EventInfo = eventInfo;
             Delegate = @delegate;
+            ComInterfaceId = comInterfaceId;
+            ComDispId = comDispId;
         }
 
         public object Source { get; }
@@ -404,5 +515,7 @@ public static class VBEvents
         public IVB6Host? Host { get; }
         public EventInfo? EventInfo { get; }
         public Delegate? Delegate { get; }
+        public Guid? ComInterfaceId { get; }
+        public int? ComDispId { get; }
     }
 }

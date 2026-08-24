@@ -393,7 +393,8 @@ internal static class VBTypeLibraryImporter
                             name,
                             new ProcedureSymbol(name, parameters, returnType == TypeSymbol.Error ? null : returnType)
                             {
-                                IsLateBound = true
+                                IsLateBound = true,
+                                ComDispId = function.memid
                             });
                         break;
 
@@ -476,7 +477,11 @@ internal static class VBTypeLibraryImporter
             if ((implementationFlags & IMPLTYPEFLAGS.IMPLTYPEFLAG_FSOURCE) != 0)
             {
                 var sourceEvents = members.Procedures.Select(procedure =>
-                    new EventSymbol(procedure.Name, procedure.Parameters));
+                    new EventSymbol(procedure.Name, procedure.Parameters)
+                    {
+                        ComInterfaceId = implementedRecord.Attribute.guid,
+                        ComDispId = procedure.ComDispId
+                    });
                 events.AddRange(sourceEvents.Where(@event =>
                     events.All(existing =>
                         !string.Equals(existing.Name, @event.Name, StringComparison.OrdinalIgnoreCase))));

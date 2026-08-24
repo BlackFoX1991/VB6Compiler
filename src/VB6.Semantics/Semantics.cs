@@ -358,6 +358,9 @@ public sealed record ProcedureSymbol(
     /// <summary>True when the call is resolved by the runtime object dispatch contract.</summary>
     public bool IsLateBound { get; init; }
 
+    /// <summary>DISPID imported from a COM automation/type-library member.</summary>
+    public int? ComDispId { get; init; }
+
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {
@@ -390,7 +393,14 @@ public sealed record PropertySymbol(
 
 public sealed record EventSymbol(
     string Name,
-    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name);
+    ImmutableArray<ParameterSymbol> Parameters) : Symbol(Name)
+{
+    /// <summary>Source-interface IID used by a COM connection point, when imported.</summary>
+    public Guid? ComInterfaceId { get; init; }
+
+    /// <summary>DISPID used by a COM connection point, when imported.</summary>
+    public int? ComDispId { get; init; }
+}
 
 public enum BoundLoopKind
 {

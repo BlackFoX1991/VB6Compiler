@@ -445,6 +445,8 @@ public sealed class ProjectCompilationTests
             var standardFontType = (ClassTypeSymbol)standardFont.Type;
             Assert.IsTrue(standardFontType.TryGetEvent("FontChanged", out var fontChanged));
             Assert.AreEqual(1, fontChanged.Parameters.Length);
+            Assert.IsTrue(fontChanged.ComInterfaceId.HasValue);
+            Assert.IsTrue(fontChanged.ComDispId.HasValue);
 
             var stateConstant = analysis.SemanticModel!.ModuleVariables
                 .Single(variable => string.Equals(variable.Symbol.Name, "Checked", StringComparison.OrdinalIgnoreCase));
