@@ -87,6 +87,29 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostCreatesCommonDialogAsNonVisualComponent()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+
+        host.Load(owner);
+        var dialog = host.CreateControl(owner, "Dialog1", "MSComDlg.CommonDialog");
+
+        Assert.IsInstanceOfType<CommonDialogProxy>(dialog);
+        var commonDialog = (CommonDialogProxy)dialog!;
+        commonDialog.Filter = "Text files (*.txt)|*.txt";
+        commonDialog.FileName = "sample.txt";
+        commonDialog.FilterIndex = 1;
+        commonDialog.CancelError = true;
+
+        Assert.IsTrue(host.TryGetMember(owner, "Dialog1", Array.Empty<object?>(), out var named));
+        Assert.AreSame(commonDialog, named);
+        Assert.AreEqual(0, host.EnumerateControls(owner)!.Count());
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostCreatesTimerControlsAndConnectsTimerHandlers()
     {
         using var host = new WinFormsHost();
