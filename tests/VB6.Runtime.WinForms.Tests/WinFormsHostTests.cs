@@ -148,6 +148,46 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostBridgesNativeRichTextChangeEventThroughComConnectionPointInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native RichTextBox OCX validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var richText = host.CreateControl(owner, "Editor", "RichTextLib.RichTextBox")!;
+        Assert.IsInstanceOfType<AxHost>(richText);
+        ((Control)richText).CreateControl();
+        var comObject = ((IVBComObjectProvider)richText).ComObject;
+        Assert.IsNotNull(comObject);
+
+        var sink = new NativeRichTextEventSink();
+        VBEvents.SubscribeMethod(richText, "Change", sink, "OnChange");
+        try
+        {
+            Assert.IsTrue(host.TrySetMember(richText, "Text", Array.Empty<object?>(), "native event"));
+            Application.DoEvents();
+            Assert.AreEqual(1, sink.ChangeCount);
+        }
+        finally
+        {
+            VBEvents.UnsubscribeMethod(richText, "Change", sink, "OnChange");
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void NativeTreeViewNodesCanBeReadThroughComDispatchInX86()
     {
         if (Environment.Is64BitProcess ||
@@ -1119,6 +1159,13 @@ public sealed class WinFormsHostTests
         public int ChangeCount { get; private set; }
 
         private void Text1_Change() => ChangeCount++;
+    }
+
+    private sealed class NativeRichTextEventSink
+    {
+        public int ChangeCount { get; private set; }
+
+        private void OnChange() => ChangeCount++;
     }
 
     private sealed class MenuEventSink

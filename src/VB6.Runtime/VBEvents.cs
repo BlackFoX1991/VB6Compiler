@@ -393,7 +393,7 @@ public static class VBEvents
         }
         if (!hasImportedIdentity &&
             !VBComDispatch.TryGetComEventIdentity(
-                comSource,
+                source,
                 eventName,
                 out parsedInterfaceId,
                 out parsedDispId))
