@@ -1896,3 +1896,14 @@ TreeView-Node über die native `Nodes`-Collection an und prüft, dass `VBInterac
 genau diesen einen Node für den generierten `For Each`-Vertrag zurückgibt. Die x86- und x64-
 WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
 **957 Tests**. Vollständiges COM-ByRef-Marshalling und Connection-Point-Events bleiben offen.
+
+## Aktueller TypeInfo-gesteuerter COM-ByRef-Nachtrag
+
+Die Raw-`IDispatch`-Brücke liest vor einem Aufruf die `FUNCDESC`-/`PARAMDESC`-Metadaten der
+TypeLibrary und setzt `VT_BYREF | VT_VARIANT` nur für Parameter mit `PARAMFLAG_FOUT`. Die nach
+`Invoke` geänderten Werte werden in das ursprüngliche Late-Bound-Argumentarray zurückgeschrieben;
+Parameter ohne `[out]`-Kennzeichnung bleiben als normale `VARIANTARG`-Werte geschützt. Falls ein
+Server trotz TypeInfo den ByRef-Aufruf ablehnt, wird derselbe Aufruf nochmals vollständig ByVal
+ausgeführt. Die bestehenden Scripting-Dictionary- und nativen x86-OCX-Regressionspfade bleiben
+stabil. Vollständige `[in]`-/`[out]`-Typkonversion, SAFEARRAY-/UDT-ByRef-Marshalling und
+Connection-Point-Events bleiben separate COM-ABI-Schritte.
