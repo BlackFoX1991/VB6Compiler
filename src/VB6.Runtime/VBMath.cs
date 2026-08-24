@@ -88,14 +88,24 @@ public static class VBMath
         };
     }
 
-    public static short Sgn(object? value)
+    public static object? Sgn(object? value)
     {
-        if (value is null)
+        VBVariants.ThrowIfMissing(value);
+        VBVariants.ThrowIfArray(value);
+
+        if (VBVariants.IsNull(value))
         {
-            return 0;
+            return VBVariants.NullValue();
         }
 
-        var number = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+        if (value is null)
+        {
+            return (short)0;
+        }
+
+        var number = VBConversions.CDec(value) is decimal decimalValue
+            ? decimalValue
+            : throw new InvalidCastException("VB6 Sgn received a non-numeric Variant value.");
         return number < 0 ? (short)-1 : number > 0 ? (short)1 : (short)0;
     }
 
