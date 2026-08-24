@@ -1177,19 +1177,41 @@ public static class IrLowerer
                         LowerExpression(print.Expression))));
                     break;
                 case BoundGraphicsLineStatement line:
+                    var graphicsLineMethod = line.Target is null
+                        ? IrRuntimeMethod.GraphicsLine
+                        : IrRuntimeMethod.GraphicsLineOnTarget;
+                    var graphicsLineArguments = line.Target is null
+                        ? new[]
+                        {
+                            LowerExpression(line.StartX),
+                            LowerExpression(line.StartY),
+                            LowerExpression(line.EndX),
+                            LowerExpression(line.EndY),
+                            line.Color is null
+                                ? new IrNullExpression(TypeSymbol.Variant)
+                                : LowerExpression(line.Color),
+                            new IrConstantExpression(line.IsStep, TypeSymbol.Boolean),
+                            new IrConstantExpression(line.DrawBox, TypeSymbol.Boolean),
+                            new IrConstantExpression(line.Fill, TypeSymbol.Boolean)
+                        }
+                        : new[]
+                        {
+                            LowerExpression(line.Target),
+                            LowerExpression(line.StartX),
+                            LowerExpression(line.StartY),
+                            LowerExpression(line.EndX),
+                            LowerExpression(line.EndY),
+                            line.Color is null
+                                ? new IrNullExpression(TypeSymbol.Variant)
+                                : LowerExpression(line.Color),
+                            new IrConstantExpression(line.IsStep, TypeSymbol.Boolean),
+                            new IrConstantExpression(line.DrawBox, TypeSymbol.Boolean),
+                            new IrConstantExpression(line.Fill, TypeSymbol.Boolean)
+                        };
                     Emit(new IrEvaluateInstruction(Runtime(
-                        IrRuntimeMethod.GraphicsLine,
+                        graphicsLineMethod,
                         TypeSymbol.Error,
-                        LowerExpression(line.StartX),
-                        LowerExpression(line.StartY),
-                        LowerExpression(line.EndX),
-                        LowerExpression(line.EndY),
-                        line.Color is null
-                            ? new IrNullExpression(TypeSymbol.Variant)
-                            : LowerExpression(line.Color),
-                        new IrConstantExpression(line.IsStep, TypeSymbol.Boolean),
-                        new IrConstantExpression(line.DrawBox, TypeSymbol.Boolean),
-                        new IrConstantExpression(line.Fill, TypeSymbol.Boolean))));
+                        graphicsLineArguments)));
                     break;
                 case BoundFilePrintStatement print:
                     Emit(new IrEvaluateInstruction(Runtime(

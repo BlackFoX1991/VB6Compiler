@@ -604,7 +604,8 @@ public sealed record BoundGraphicsLineStatement(
     BoundExpression? Color,
     bool IsStep,
     bool DrawBox,
-    bool Fill)
+    bool Fill,
+    BoundExpression? Target = null)
     : BoundStatement(BoundNodeKind.GraphicsLineStatement);
 
 public sealed record BoundFilePrintStatement(

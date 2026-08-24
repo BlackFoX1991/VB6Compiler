@@ -947,6 +947,8 @@ public sealed class Parser
             SyntaxKind.ReturnKeyword => ParseGoSubReturnStatement(),
             SyntaxKind.EndKeyword => ParseEndStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLineStatement() => ParseLineStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeQualifiedLineStatement() =>
+                ParseQualifiedLineStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLineInputStatement() => ParseLineInputStatement(),
             SyntaxKind.IdentifierToken when LooksLikeFileInputStatement() => ParseFileInputStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLabel() => ParseLabelStatement(),
@@ -1540,6 +1542,14 @@ public sealed class Parser
              Peek(2).Kind == SyntaxKind.OpenParenthesisToken);
     }
 
+    private bool LooksLikeQualifiedLineStatement() =>
+        Current.Kind == SyntaxKind.IdentifierToken &&
+        Peek(1).Kind == SyntaxKind.DotToken &&
+        string.Equals(Peek(2).Text, "Line", StringComparison.OrdinalIgnoreCase) &&
+        (Peek(3).Kind == SyntaxKind.OpenParenthesisToken ||
+         string.Equals(Peek(3).Text, "Step", StringComparison.OrdinalIgnoreCase) &&
+         Peek(4).Kind == SyntaxKind.OpenParenthesisToken);
+
     private bool LooksLikeFileInputStatement() =>
         string.Equals(Current.Text, "Input", StringComparison.OrdinalIgnoreCase) &&
         Peek(1).Kind == SyntaxKind.HashToken;
@@ -1666,6 +1676,19 @@ public sealed class Parser
     private LineStatementSyntax ParseLineStatement()
     {
         var lineKeyword = NextToken();
+        return ParseLineStatement(lineKeyword, target: null);
+    }
+
+    private LineStatementSyntax ParseQualifiedLineStatement()
+    {
+        var target = new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
+        _ = MatchToken(SyntaxKind.DotToken);
+        var lineKeyword = MatchTypeMemberName();
+        return ParseLineStatement(lineKeyword, target);
+    }
+
+    private LineStatementSyntax ParseLineStatement(SyntaxToken lineKeyword, ExpressionSyntax? target)
+    {
         SyntaxToken? stepKeyword = null;
         if (string.Equals(Current.Text, "Step", StringComparison.OrdinalIgnoreCase))
         {
@@ -1699,7 +1722,8 @@ public sealed class Parser
             endPoint,
             colorCommaToken,
             colorExpression,
-            options.ToImmutable());
+            options.ToImmutable(),
+            target);
     }
 
     private LinePointSyntax ParseLinePoint()

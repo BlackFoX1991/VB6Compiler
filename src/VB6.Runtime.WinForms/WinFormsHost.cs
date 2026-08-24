@@ -115,11 +115,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         var target = _bindings.Values
             .Select(binding => binding.Form)
             .FirstOrDefault(form => !form.IsDisposed);
-        if (target is null)
+        if (target is not null)
         {
-            return;
+            RenderGraphicsLine(target, line);
         }
+    }
 
+    public void GraphicsLine(object? target, VBGraphicsLine line)
+    {
+        ThrowIfDisposed();
+        if (ResolveDrawingTarget(target) is { } control)
+        {
+            RenderGraphicsLine(control, line);
+        }
+    }
+
+    private void RenderGraphicsLine(Control target, VBGraphicsLine line)
+    {
         var surface = GetDrawingSurface(target);
         var state = GetDesignerControlState(target);
         var scale = state.ScaleMode switch
@@ -917,6 +929,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return clone;
+    }
+
+    private Control? ResolveDrawingTarget(object? target)
+    {
+        if (target is Control control && !control.IsDisposed)
+        {
+            return control;
+        }
+
+        if (target is not null &&
+            _bindings.TryGetValue(target, out var binding) &&
+            !binding.Form.IsDisposed)
+        {
+            return binding.Form;
+        }
+
+        return null;
     }
 
     private Bitmap GetDrawingSurface(Control target)
