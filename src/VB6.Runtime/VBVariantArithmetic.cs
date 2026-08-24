@@ -4,6 +4,8 @@ public static partial class VBOperators
 {
     public static object? AddVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -53,6 +55,8 @@ public static partial class VBOperators
 
     public static object? AddStringVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -67,6 +71,8 @@ public static partial class VBOperators
 
     public static object? SubtractVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -104,6 +110,8 @@ public static partial class VBOperators
 
     public static object? DivideVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -124,6 +132,8 @@ public static partial class VBOperators
 
     public static object? IntegerDivideVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -152,6 +162,8 @@ public static partial class VBOperators
 
     public static object? ModVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -182,6 +194,8 @@ public static partial class VBOperators
 
     public static object? PowerVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -197,6 +211,7 @@ public static partial class VBOperators
 
     public static object? NegateVariant(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         ThrowIfErrorOperand(value);
@@ -224,6 +239,7 @@ public static partial class VBOperators
 
     public static object? NotVariant(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         ThrowIfErrorOperand(value);
@@ -495,6 +511,8 @@ public static partial class VBOperators
 
     private static object CompareVariant(object? left, object? right, Func<int, bool> predicate)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
 
@@ -515,6 +533,8 @@ public static partial class VBOperators
 
     private static object CompareStringVariant(object? left, object? right, Func<int, bool> predicate)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -723,6 +743,8 @@ public static partial class VBOperators
         Func<uint, uint, uint>? uintOperation,
         Func<ulong, ulong, ulong>? ulongOperation)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);

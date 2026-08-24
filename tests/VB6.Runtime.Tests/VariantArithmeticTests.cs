@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -144,6 +146,40 @@ public sealed class VariantArithmeticTests
         Assert.AreEqual(2d, VBOperators.AddVariant("1", 1));
         Assert.AreEqual("a1", VBOperators.AddStringVariant("a", 1));
         Assert.IsTrue(VBVariants.IsNull(VBOperators.AddStringVariant("a", VBVariants.NullValue())));
+    }
+
+    [TestMethod]
+    public void ObjectVariants_ResolveDefaultValuesForTypeOperatorsAndConversions()
+    {
+        var value = new NumericDefaultObject();
+
+        Assert.AreEqual((short)3, VBVariants.VarType(value));
+        Assert.AreEqual(8, VBOperators.AddVariant(value, 1));
+        Assert.AreEqual(14, VBOperators.MultiplyInteger(value, 2));
+        Assert.AreEqual("7x", VBOperators.ConcatVariant(value, "x"));
+        Assert.AreEqual((short)7, VBConversions.CInt(value));
+        Assert.AreEqual("7", VBConversions.CStr(value));
+    }
+
+    [TestMethod]
+    public void ObjectVariants_PropagateDefaultGetterFailures()
+    {
+        var exception = Assert.ThrowsException<TargetInvocationException>(
+            () => VBVariants.VarType(new ThrowingDefaultObject()));
+
+        Assert.IsInstanceOfType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class NumericDefaultObject
+    {
+        public int Value => 7;
+    }
+
+    [DefaultMember(nameof(Value))]
+    private sealed class ThrowingDefaultObject
+    {
+        public int Value => throw new InvalidOperationException("default getter failed");
     }
 
     [TestMethod]

@@ -14,6 +14,7 @@ public static class VBConversions
 {
     public static byte CByte(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -44,6 +45,7 @@ public static class VBConversions
 
     public static short CInt(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -73,6 +75,7 @@ public static class VBConversions
 
     public static int CLng(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -102,6 +105,7 @@ public static class VBConversions
 
     public static long CLngLng(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -131,6 +135,7 @@ public static class VBConversions
 
     public static IntPtr CLngPtr(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -156,6 +161,7 @@ public static class VBConversions
 
     public static ushort CUShort(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -193,6 +199,7 @@ public static class VBConversions
 
     public static uint CUInt(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -230,6 +237,7 @@ public static class VBConversions
 
     public static ulong CULng(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -267,6 +275,7 @@ public static class VBConversions
 
     public static VBCurrency CCur(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -300,6 +309,7 @@ public static class VBConversions
 
     public static object CDec(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsNull(value))
@@ -357,6 +367,7 @@ public static class VBConversions
 
     public static float CSng(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
         if (VBVariants.IsMissing(value))
@@ -379,7 +390,7 @@ public static class VBConversions
         return CheckSingle(result);
     }
 
-    public static double CDbl(object? value) => value switch
+    public static double CDbl(object? value) => VBVariantObject.ResolveDefaultValue(value) switch
     {
         _ when VBVariants.IsArray(value) => throw new VB6TypeMismatchException("Array Variant values cannot be converted to Double."),
         VBErrorValue error => error.Code,
@@ -397,6 +408,7 @@ public static class VBConversions
 
     public static double CDate(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
         VBVariants.ThrowIfMissing(value);
 
@@ -429,6 +441,7 @@ public static class VBConversions
 
     public static bool CBool(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
         VBVariants.ThrowIfMissing(value);
         return value switch
@@ -442,6 +455,7 @@ public static class VBConversions
 
     public static string CStr(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
         VBVariants.ThrowIfMissing(value);
 
@@ -869,6 +883,8 @@ public static partial class VBOperators
 
     public static string ConcatVariant(object? left, object? right)
     {
+        left = VBVariantObject.ResolveDefaultValue(left);
+        right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
@@ -938,6 +954,7 @@ public static class VBDebug
     /// </summary>
     public static string Format(object? value)
     {
+        value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
 
