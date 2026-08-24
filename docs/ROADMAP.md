@@ -1649,7 +1649,7 @@ bzw. Form-Icon. Der Pfad bleibt absichtlich auf die intrinsischen Bildmember beg
 ressourcenbasierte `ImageList`-Einträge werden nun ebenfalls in den Managed-Adapter übernommen;
 OCX-eigenes Rendering und vollständige OLE-Picture-Konvertierung folgen in separaten Host-/
 ActiveX-Slices. Die VISIA-Emission wurde erneut erzeugt
-und im STA-Runner ohne Ausnahme oder Messagebox gestartet. Die Gesamtsuite umfasst **934 Tests**.
+und im STA-Runner ohne Ausnahme oder Messagebox gestartet. Die Gesamtsuite umfasst **935 Tests**.
 
 ## Aktueller ImageList-FRX-Nachtrag
 
@@ -1660,4 +1660,4 @@ werden einsbasiert im Managed-Collection-Adapter angelegt. Die Bildobjekte bleib
 Managed-Vertrag; eine echte native `ImageList`-Zuordnung zu OCX-Controls und deren Rendering
 bleibt ein separater ActiveX-Host-Schritt. Die Regression deckt sowohl den verschachtelten
 Designerpfad als auch den bestehenden `ListImages`-Late-Bound-Vertrag ab. Die Gesamtsuite
-umfasst **934 Tests**.
+umfasst **935 Tests**.
