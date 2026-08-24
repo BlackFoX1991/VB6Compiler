@@ -178,9 +178,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         var target = _bindings.Values
             .Select(binding => binding.Form)
             .FirstOrDefault(form => !form.IsDisposed);
-        if (target is null || !TryGetPaintPictureImage(picture.Picture, out var source, out var ownsSource))
+        if (target is not null)
         {
-            return;
+            _ = TryRenderPaintPicture(target, picture);
+        }
+    }
+
+    private bool TryRenderPaintPicture(Control target, VBPaintPicture picture)
+    {
+        if (!TryGetPaintPictureImage(picture.Picture, out var source, out var ownsSource))
+        {
+            return false;
         }
 
         try
@@ -209,6 +217,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                 source!.Dispose();
             }
         }
+
+        return true;
     }
 
     public int RunMessageLoop()
@@ -669,6 +679,20 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         if (resolved is RichTextBox richTextBox &&
             TryInvokeRichTextBoxMember(richTextBox, memberName, arguments, out result))
+        {
+            return true;
+        }
+
+        if (string.Equals(memberName, "PaintPicture", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 5 &&
+            TryRenderPaintPicture(
+                resolved,
+                new VBPaintPicture(
+                    arguments[0],
+                    VBConversions.CSng(arguments[1]),
+                    VBConversions.CSng(arguments[2]),
+                    VBConversions.CSng(arguments[3]),
+                    VBConversions.CSng(arguments[4]))))
         {
             return true;
         }
