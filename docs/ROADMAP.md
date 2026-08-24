@@ -1312,7 +1312,7 @@ Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter an
 Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
 UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
 `.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
-Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **869 Tests**.
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **871 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
@@ -1333,5 +1333,7 @@ UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap
 ## Aktueller Variant-Nachtrag
 
 `Sgn` ist als Variant-Intrinsic typisiert und bewahrt nun `Null`, während `Empty` weiterhin als
-numerische Null behandelt wird. Der Vertrag läuft durch Symbolik, Managed-Emission und Runtime-
-Regressionen; die vollständige VB6-Promotionstabelle sowie Objekt-/Array-Varianten bleiben offen.
+numerische Null behandelt wird. `Int` prüft Missing-/Array-Zustände, bewahrt `Null` und nutzt die
+zentrale Variant-Konversion für Date-/Currency-/Boolean-Werte. Die Verträge laufen durch Symbolik,
+Managed-Emission und Runtime-Regressionen; die vollständige VB6-Promotionstabelle sowie Objekt- und
+Array-Varianten bleiben offen.
