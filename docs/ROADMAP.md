@@ -1312,7 +1312,7 @@ Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter an
 Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
 UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
 `.vbg`-Batch-Emission bleibt über die bestehende Abhängigkeitsreihenfolge und die getrennte
-Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **865 Tests**.
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet. Die Gesamtsuite umfasst **867 Tests**.
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 
@@ -1323,7 +1323,9 @@ Der Managed-Form-Startup erzeugt Designer-Controls jetzt über einen expliziten 
 Host bleibt der Compiler headless lauffähig und verwendet `VBControlProxy`-Objekte. Der optionale
 `VB6.Runtime.WinForms`-Adapter erzeugt Standard-WinForms-Controls, löst Designer-Namen auf,
 überträgt `Caption`/`Text`, `Visible`, `Enabled`, Position und Größe in VB6-Twips, OLE-Farben,
-Fonts und Handles und führt `Unload`/`DoEvents` aus. Portable Runtime-, Compiler-E2E- und STA-
+Fonts und Handles und führt `Unload`/`DoEvents` aus. Konventionelle Handlernamen wie
+`Text1_Change` werden an WinForms-Events angebunden; explizite `VBEvents.SubscribeMethod`-
+Abonnements werden bei Reassignment wieder entfernt. Portable Runtime-, Compiler-E2E- und STA-
 WinForms-Regressionen sichern diesen Umfang ab. Vollständige `.frx`-Ressourcendekodierung,
 automatische Bindung aller verschachtelten Designer-Controls, WinForms-Event-Mapping, MDI,
 UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap-Blöcke.

@@ -98,7 +98,7 @@ public static class VBEvents
                              string.Equals(subscription.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
                          .ToArray())
             {
-                RemoveHandlerLocked(existing.Source, existing.EventName, existing.Handler);
+                RemoveSubscriptionLocked(existing);
                 MethodSubscriptions.Remove(existing);
             }
 
@@ -107,8 +107,28 @@ public static class VBEvents
                 return;
             }
 
+            var host = VBInteraction.Host;
+            if (host is not null &&
+                host.TrySubscribeEvent(source, eventName, target, methodName))
+            {
+                MethodSubscriptions.Add(new MethodSubscription(
+                    source,
+                    eventName,
+                    target,
+                    methodName,
+                    handler: null,
+                    host: host));
+                return;
+            }
+
             AddHandlerLocked(source, eventName, handler);
-            MethodSubscriptions.Add(new MethodSubscription(source, eventName, target, methodName, handler));
+            MethodSubscriptions.Add(new MethodSubscription(
+                source,
+                eventName,
+                target,
+                methodName,
+                handler,
+                host: null));
         }
     }
 
@@ -180,6 +200,22 @@ public static class VBEvents
         }
     }
 
+    private static void RemoveSubscriptionLocked(MethodSubscription subscription)
+    {
+        if (subscription.Host is not null)
+        {
+            subscription.Host.UnsubscribeEvent(
+                subscription.Source,
+                subscription.EventName,
+                subscription.Target,
+                subscription.MethodName);
+        }
+        else if (subscription.Handler is not null)
+        {
+            RemoveHandlerLocked(subscription.Source, subscription.EventName, subscription.Handler);
+        }
+    }
+
     private sealed class MethodSubscription
     {
         public MethodSubscription(
@@ -187,19 +223,22 @@ public static class VBEvents
             string eventName,
             object target,
             string methodName,
-            Action<object?[]> handler)
+            Action<object?[]>? handler,
+            IVB6Host? host)
         {
             Source = source;
             EventName = eventName;
             Target = target;
             MethodName = methodName;
             Handler = handler;
+            Host = host;
         }
 
         public object Source { get; }
         public string EventName { get; }
         public object Target { get; }
         public string MethodName { get; }
-        public Action<object?[]> Handler { get; }
+        public Action<object?[]>? Handler { get; }
+        public IVB6Host? Host { get; }
     }
 }
