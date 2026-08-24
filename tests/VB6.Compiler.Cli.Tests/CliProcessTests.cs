@@ -63,6 +63,70 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_CompilesVbgProjectWithNativeOcxDesignerThroughTheCli()
+    {
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "SysWow64",
+            "RICHTX32.OCX");
+        if (!OperatingSystem.IsWindows() || !File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The registered RichTextBox type library fixture is not available.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "NativeOcxGroup.vbg"),
+                "Type=Group\nProject=NativeOcx.vbp\n");
+            File.WriteAllText(
+                Path.Combine(directory, "NativeOcx.vbp"),
+                $"Type=Exe\nStartup=\"Main\"\nName=NativeOcx\n" +
+                "Object={3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0; RICHTX32.OCX\n" +
+                $"Reference=*\\G{{3B7C8863-D78F-101B-B9B5-04021C009402}}#1.2#0#{typeLibraryPath}#RichTextLib\n" +
+                "Form=Main.frm\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Main.frm"),
+                "VERSION 5.00\n" +
+                "Begin VB.Form Main\n" +
+                "   Begin RichTextLib.RichTextBox editor\n" +
+                "   End\n" +
+                "End\n" +
+                "Attribute VB_Name = \"Main\"\n" +
+                "Attribute VB_PredeclaredId = True\n" +
+                "Private Sub Editor_KeyPress(KeyAscii As Integer)\n" +
+                "    KeyAscii = Asc(\"y\")\n" +
+                "End Sub\n");
+            var outputDirectory = Path.Combine(directory, "bin");
+
+            var result = RunCli(
+                Path.Combine(directory, "NativeOcxGroup.vbg"),
+                "--emit-assembly",
+                outputDirectory,
+                "--x86");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var assemblyPath = Path.Combine(outputDirectory, "NativeOcx.dll");
+            var appHostPath = Path.Combine(outputDirectory, "NativeOcx.exe");
+            Assert.IsTrue(File.Exists(assemblyPath));
+            Assert.IsTrue(File.Exists(appHostPath));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
+            using var stream = File.OpenRead(assemblyPath);
+            using var peReader = new PEReader(stream);
+            Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
+            Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
+            Assert.IsTrue(IsNativeWindowsAppHost(appHostPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_ProducesAnActivatableComHostForAnOleDllProject()
     {
         if (!OperatingSystem.IsWindows())

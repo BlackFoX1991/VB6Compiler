@@ -2133,3 +2133,13 @@ Weg vom TypeLib-importierten `Integer ByRef` über den generierten Formkonstrukt
 geänderten Zeichenwert im OCX. Native Designerbindungen werden nach `Show` erneut aufgebaut,
 weil ein `AxHost` im Konstruktor noch kein COM-Objekt besitzen muss. Runtime und WinForms umfassen
 damit **201** beziehungsweise **35/35** Tests; die Gesamtsuite umfasst **980 Tests**.
+
+## Aktueller CLI-VBG-OCX-Nachtrag
+
+Der CLI-Gruppenpfad kompiliert jetzt auch eine reale `.vbg` mit einem `.vbp`, das eine registrierte
+`RichTextLib.RichTextBox`-Designerquelle und TypeLib-Referenz enthält. `vb6c --emit-assembly
+<ausgabeverzeichnis> --x86` erzeugt daraus die x86-Managed-Companion-Assembly, den nativen
+AppHost und die Runtime-Abhängigkeit; der PE-Header trägt `Machine.I386` und `Requires32Bit`.
+Damit ist der command-line Compile-Vertrag für Legacy-Projektgruppen mit nativen OCX-Designer-
+inputs explizit regressiongesichert. Die CLI-Suite umfasst nun **10** Tests, die Gesamtsuite
+**981 Tests**.
