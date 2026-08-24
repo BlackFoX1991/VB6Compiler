@@ -2175,3 +2175,14 @@ den jeweiligen VB6-Index. Auch der ByRef-Parameter bleibt bei Array-Handlern an 
 Position und kann `KeyAscii` zurückschreiben. Der kompilierte `.vbp`/`.frm`-Regressionstest prüft
 beide Elemente und beide Ereignispfade; die Gesamtsuite umfasst damit **982** Tests, davon
 **36/36** im WinForms-Lauf.
+
+## Aktueller MSBuild-VBG-SDK-Nachtrag
+
+Der MSBuild-SDK-Gruppenpfad ist jetzt über den tatsächlich gepackten
+`VB6.Compiler.Sdk/1.0.0`-Vertrag regressiongesichert. Ein SDK-Projekt mit `VB6ProjectGroup` baut
+eine reale `.vbg` über `dotnet msbuild`, verfolgt Gruppen-, Projekt-, Quell- und Designerinputs
+inkrementell und überspringt unveränderte Builds. Das Target schreibt zusätzlich ein Output-
+Manifest; wenn ein erzeugtes Assembly-, AppHost-, Runtime-, PDB- oder Runtimeconfig-Artefakt
+fehlt, wird der Compile-Stempel invalidiert und die Gruppe vollständig repariert. Der CLI-Bereich
+umfasst damit **11** Tests, die Gesamtsuite **983** Tests. Die vollständige Visual-Studio-
+Projektmodell- und Design-Time-Integration bleibt der nächste Ausbau dieses Vertrags.
