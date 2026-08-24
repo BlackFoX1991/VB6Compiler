@@ -2284,6 +2284,7 @@ public sealed class ManagedEmitter
                         _systemValueType,
                         plan.FirstField,
                         plan.FirstMethod);
+                    _metadata.AddTypeLayout(actual, 4, 0);
                 }
                 else if (plan.Class is not null)
                 {
