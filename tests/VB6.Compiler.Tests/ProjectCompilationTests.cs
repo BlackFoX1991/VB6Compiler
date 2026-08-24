@@ -88,17 +88,17 @@ public sealed class ProjectCompilationTests
             File.WriteAllText(projectPath, """
                 Type=Exe
                 Startup="Sub Main"
+                CondComp=UseNew = 1
                 Module=Main; Main.bas
                 """);
             File.WriteAllText(Path.Combine(directory, "Main.bas"), """
-                #Const UseLegacy = 0
-                #If UseLegacy Then
+                #If UseNew Then
                     Public Sub Main()
-                        Debug.Print 1
+                        Debug.Print 2
                     End Sub
                 #Else
                     Public Sub Main()
-                        Debug.Print 2
+                        Debug.Print 1
                     End Sub
                 #End If
                 """);

@@ -63,7 +63,8 @@ public sealed record VBProject(
     ImmutableArray<VBProjectItem> Items,
     ImmutableArray<VBProjectReference> References,
     ImmutableArray<VBProjectObject> Objects,
-    ImmutableArray<VBProjectProperty> Properties)
+    ImmutableArray<VBProjectProperty> Properties,
+    string? ConditionalCompilation = null)
 {
     public IEnumerable<VBProjectItem> Modules =>
         Items.Where(item => item.Kind == VBProjectItemKind.Module);

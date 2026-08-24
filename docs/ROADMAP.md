@@ -1483,3 +1483,8 @@ Conditional-Compilation-Konstanten durchgereicht, sodass `Win64` nicht mehr vers
 der Breite des Compilerprozesses gewählt wird; `Win32` bleibt dabei auch auf Win64 wahr. Die
 vollständige Release-Suite umfasst **914 Tests**; der VISIA-CLI-Report analysiert weiterhin 40 von
 40 Projektitems ohne Fehler.
+
+Projektweite `CondComp=`-Einträge aus `.vbp`-Dateien werden zusätzlich verlustfrei geladen und
+als globale Conditional-Compilation-Konstanten vor den moduleigenen `#Const`-Definitionen in
+den jeweiligen Projektquellen ausgewertet. Ungültige Projektwerte erzeugen `VB6CC0007`; die
+Abhängigkeit wird auch bei referenzierten `.vbp`-Projekten separat pro Projekt angewendet.

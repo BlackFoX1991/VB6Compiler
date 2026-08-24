@@ -119,7 +119,9 @@ public sealed class VBCompilation
 /// follows the current compiler process width; explicit x86/x64 CLI targets set it so a build does
 /// not choose a branch from the host process by accident.
 /// </summary>
-public sealed record VBCompilationOptions(bool? TargetIs64Bit = null);
+public sealed record VBCompilationOptions(
+    bool? TargetIs64Bit = null,
+    IReadOnlyDictionary<string, string>? DefinedConstants = null);
 
 public sealed record CompilationAnalysis(
     ParseResult ParseResult,

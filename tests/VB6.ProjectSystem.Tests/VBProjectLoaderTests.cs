@@ -17,6 +17,7 @@ public sealed class VBProjectLoaderTests
             Startup="Sub Main"
             Name="LegacyApp"
             ExeName32="LegacyApp.exe"
+            CondComp=UseNew = 1:UseLegacy = 0
             MajorVer=1
             """;
 
@@ -28,6 +29,7 @@ public sealed class VBProjectLoaderTests
         Assert.AreEqual("LegacyApp", result.Project.Name);
         Assert.AreEqual("Sub Main", result.Project.StartupObject);
         Assert.AreEqual("LegacyApp.exe", result.Project.ExecutableName);
+        Assert.AreEqual("UseNew = 1:UseLegacy = 0", result.Project.ConditionalCompilation);
         Assert.AreEqual(4, result.Project.Items.Length);
         Assert.AreEqual(1, result.Project.References.Length);
         Assert.AreEqual(1, result.Project.Objects.Length);
