@@ -787,6 +787,9 @@ public sealed record BoundModuleVariable(
     /// <summary>Qualified designer parent path for nested Form/UserControl controls.</summary>
     public string? DesignerParentName { get; init; }
 
+    /// <summary>Original designer control type name preserved for host-side control creation.</summary>
+    public string? DesignerTypeName { get; init; }
+
     /// <summary>Scalar designer values applied by the configured host after control creation.</summary>
     public ImmutableArray<DesignerPropertyInitializer> DesignerInitializers { get; init; } =
         ImmutableArray<DesignerPropertyInitializer>.Empty;
