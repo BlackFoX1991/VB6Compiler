@@ -286,6 +286,7 @@ public sealed class VBProjectCompilation
                     {
                         IsDesignerControl = true,
                         DesignerParentName = control.ParentName,
+                        DesignerTypeName = control.TypeName,
                         DesignerInitializers = control.Initializers
                     });
                 }
@@ -554,7 +555,7 @@ public sealed class VBProjectCompilation
 
         var controls = new Dictionary<
             string,
-            (TypeSymbol Type, bool IsArray, string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers)>(
+            (TypeSymbol Type, string TypeName, bool IsArray, string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers)>(
             StringComparer.OrdinalIgnoreCase);
         foreach (var child in document.Root.Children)
         {
@@ -568,6 +569,7 @@ public sealed class VBProjectCompilation
                 control.Value.IsArray
                     ? new ArrayTypeSymbol(control.Value.Type)
                     : control.Value.Type,
+                control.Value.TypeName,
                 control.Value.ParentName,
                 control.Value.Initializers);
         }
@@ -580,13 +582,13 @@ public sealed class VBProjectCompilation
             var type = TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control;
             if (controls.TryGetValue(node.Name, out var existing))
             {
-                controls[node.Name] = (existing.Type, true, existing.ParentName, existing.Initializers);
+                controls[node.Name] = (existing.Type, existing.TypeName, true, existing.ParentName, existing.Initializers);
             }
             else
             {
                 controls.Add(
                     node.Name,
-                    (type, node.IsControlArray, parentName, ReadDesignerInitializers(node)));
+                    (type, typeName, node.IsControlArray, parentName, ReadDesignerInitializers(node)));
             }
 
             var currentName = parentName is null
@@ -1239,6 +1241,7 @@ public sealed class VBProjectCompilation
     private sealed record DesignerControl(
         string Name,
         TypeSymbol Type,
+        string TypeName,
         string? ParentName,
         ImmutableArray<DesignerPropertyInitializer> Initializers);
 

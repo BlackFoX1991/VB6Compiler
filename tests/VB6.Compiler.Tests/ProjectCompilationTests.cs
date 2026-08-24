@@ -876,6 +876,23 @@ public sealed class ProjectCompilationTests
                 .Cast<string>()
                 .ToArray();
 
+            var controlTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var call in constructor.Blocks
+                .SelectMany(block => block.Instructions)
+                .OfType<IrStoreInstruction>()
+                .Select(store => store.Value)
+                .OfType<IrRuntimeCallExpression>()
+                .Where(call => call.Method == IrRuntimeMethod.InteractionCreateControl))
+            {
+                var controlName = ((IrConstantExpression)call.Arguments[1].Expression).Value as string
+                    ?? throw new InvalidOperationException("Designer control name was not emitted as a string.");
+                var controlType = ((IrConstantExpression)call.Arguments[2].Expression).Value as string
+                    ?? throw new InvalidOperationException("Designer control type was not emitted as a string.");
+                controlTypes.Add(controlName, controlType);
+            }
+
+            Assert.AreEqual("Shape", controlTypes["Oval"]);
+            Assert.AreEqual("Line", controlTypes["Diagonal"]);
             CollectionAssert.Contains(initializers, "BorderColor");
             CollectionAssert.Contains(initializers, "BorderWidth");
             CollectionAssert.Contains(initializers, "Shape");

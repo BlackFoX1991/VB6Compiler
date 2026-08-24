@@ -348,7 +348,8 @@ public static class IrLowerer
                                     classType,
                                     displayName,
                                     controlArray.ElementType,
-                                    variable.DesignerParentName)));
+                                    variable.DesignerParentName,
+                                    variable.DesignerTypeName)));
                             AddDesignerInitializers(instructions, elementTarget, variable.DesignerInitializers);
                         }
                     }
@@ -360,7 +361,8 @@ public static class IrLowerer
                                 classType,
                                 variable.Symbol.Name,
                                 controlType,
-                                variable.DesignerParentName)));
+                                variable.DesignerParentName,
+                                variable.DesignerTypeName)));
                         AddDesignerInitializers(instructions, target, variable.DesignerInitializers);
                     }
                     else if (variable.Symbol.Type == TypeSymbol.String)
@@ -421,7 +423,8 @@ public static class IrLowerer
                 ClassTypeSymbol classType,
                 string displayName,
                 TypeSymbol controlType,
-                string? parentName)
+                string? parentName,
+                string? designerTypeName)
             {
                 var qualifiedName = parentName is null
                     ? displayName
@@ -436,7 +439,7 @@ public static class IrLowerer
                             new IrConstantExpression(qualifiedName, TypeSymbol.String),
                             IrCallArgumentKind.Value),
                         new IrCallArgument(
-                            new IrConstantExpression(controlType.Name, TypeSymbol.String),
+                            new IrConstantExpression(designerTypeName ?? controlType.Name, TypeSymbol.String),
                             IrCallArgumentKind.Value)),
                     controlType);
             }
