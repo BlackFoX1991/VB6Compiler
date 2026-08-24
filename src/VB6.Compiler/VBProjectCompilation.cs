@@ -71,7 +71,7 @@ public sealed class VBProjectCompilation
             string source;
             try
             {
-                source = File.ReadAllText(modulePath);
+                source = VB6TextFile.ReadAllText(modulePath);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {

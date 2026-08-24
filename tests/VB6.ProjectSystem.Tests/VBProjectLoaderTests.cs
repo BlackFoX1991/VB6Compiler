@@ -54,6 +54,33 @@ public sealed class VBProjectLoaderTests
     }
 
     [TestMethod]
+    public void Load_UsesWindowsAnsiFallbackForLegacyProjectText()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6ProjectEncodingTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var projectPath = Path.Combine(directory, "Legacy.vbp");
+            File.WriteAllBytes(
+                projectPath,
+                System.Text.Encoding.Latin1.GetBytes("Type=Exe\r\nName=\"Müller\"\r\n"));
+
+            var result = new VBProjectLoader().Load(projectPath);
+
+            Assert.IsTrue(result.Success);
+            Assert.AreEqual("Müller", result.Project.Name);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Parse_PreservesNamedModuleAndClassEntries()
     {
         const string source = """

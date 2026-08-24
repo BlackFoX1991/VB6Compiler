@@ -237,7 +237,7 @@ public static class VBDesignerParser
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         var fullPath = Path.GetFullPath(filePath);
-        return Parse(File.ReadAllText(fullPath), fullPath);
+        return Parse(VB6TextFile.ReadAllText(fullPath), fullPath);
     }
 
     private static bool TryParseBegin(string text, out string typeName, out string name)
