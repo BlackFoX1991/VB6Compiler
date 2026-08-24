@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using VB6.IR;
@@ -2004,7 +2005,7 @@ public sealed class ManagedEmitter
 
             var reference = _metadata.AddMemberReference(
                 GetExternalClassTypeReference(classType),
-                _metadata.GetOrAddString(GetManagedProcedureName(procedure)),
+                _metadata.GetOrAddString(GetExternalProcedureName(procedure)),
                 EncodeExternalMethodSignature(procedure));
             _memberReferences.Add(key, reference);
             return reference;
@@ -2223,7 +2224,7 @@ public sealed class ManagedEmitter
                 var actual = _metadata.AddMethodDefinition(
                     attributes,
                     implementation,
-                    _metadata.GetOrAddString(procedure.Name),
+                    _metadata.GetOrAddString(GetEmittedMethodName(procedure)),
                     EncodeMethodSignature(procedure),
                     // MetadataBuilder maps offset 0 to the first body in the stream; -1 is the
                     // no-RVA marker required by abstract interface methods.
@@ -2327,6 +2328,11 @@ public sealed class ManagedEmitter
                         GetDefaultMemberAttributeConstructor(),
                         EncodeDefaultMemberAttribute(defaultMemberName));
                 }
+
+                if (_options.EnableComHosting && plan.Class is { } comClass)
+                {
+                    AddComTypeMetadata(actual, comClass);
+                }
             }
 
             foreach (var plan in _typePlans)
@@ -2409,6 +2415,23 @@ public sealed class ManagedEmitter
 
         private static bool IsInterfaceProcedure(IrProcedure procedure) =>
             procedure.DeclaringClass?.IsInterfaceContract == true;
+
+        private string GetEmittedMethodName(IrProcedure procedure)
+        {
+            if (!_options.EnableComHosting ||
+                procedure.DeclaringClass is null ||
+                IsInterfaceProcedure(procedure) ||
+                string.Equals(procedure.Name, ".ctor", StringComparison.Ordinal) ||
+                string.Equals(procedure.Name, "Finalize", StringComparison.Ordinal))
+            {
+                return procedure.Name;
+            }
+
+            return procedure.Symbol?.Name ?? procedure.Name;
+        }
+
+        private string GetExternalProcedureName(ProcedureSymbol procedure) =>
+            _options.EnableComHosting ? procedure.Name : GetManagedProcedureName(procedure);
 
         private static bool IsInterfaceImplementationProcedure(IrProcedure procedure)
         {
@@ -2797,6 +2820,110 @@ public sealed class ManagedEmitter
                 _metadata.GetOrAddBlob(blob));
             _memberReferences.Add(key, handle);
             return handle;
+        }
+
+        private void AddComTypeMetadata(TypeDefinitionHandle typeHandle, IrClassDefinition classDefinition)
+        {
+            var classType = classDefinition.Symbol;
+            _metadata.AddCustomAttribute(
+                typeHandle,
+                GetAttributeConstructor(typeof(ComVisibleAttribute), typeof(bool)),
+                EncodeBooleanAttribute(true));
+
+            var identity = GetComIdentity("class", classType);
+            _metadata.AddCustomAttribute(
+                typeHandle,
+                GetAttributeConstructor(typeof(GuidAttribute), typeof(string)),
+                EncodeStringAttribute(identity.ToString("D")));
+
+            if (classDefinition.IsInterface)
+            {
+                _metadata.AddCustomAttribute(
+                    typeHandle,
+                    GetAttributeConstructor(typeof(InterfaceTypeAttribute), typeof(ComInterfaceType)),
+                    EncodeEnumAttribute((int)ComInterfaceType.InterfaceIsDual));
+            }
+            else
+            {
+                _metadata.AddCustomAttribute(
+                    typeHandle,
+                    GetAttributeConstructor(typeof(ClassInterfaceAttribute), typeof(ClassInterfaceType)),
+                    EncodeEnumAttribute((int)ClassInterfaceType.AutoDual));
+                _metadata.AddCustomAttribute(
+                    typeHandle,
+                    GetAttributeConstructor(typeof(ProgIdAttribute), typeof(string)),
+                    EncodeStringAttribute(GetComProgId(classType)));
+            }
+        }
+
+        private MemberReferenceHandle GetAttributeConstructor(Type attributeType, params Type[] parameterTypes)
+        {
+            var key = "attribute::" + attributeType.FullName + "(" +
+                      string.Join(",", parameterTypes.Select(type => type.FullName)) + ")";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                parameterTypes.Length,
+                returnType => returnType.Void(),
+                parameters =>
+                {
+                    foreach (var parameterType in parameterTypes)
+                    {
+                        EncodeReflectionType(parameters.AddParameter().Type(), parameterType);
+                    }
+                });
+            var handle = _metadata.AddMemberReference(
+                GetReflectionTypeReference(attributeType),
+                _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private BlobHandle EncodeBooleanAttribute(bool value)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteUInt16(1);
+            blob.WriteByte(value ? (byte)1 : (byte)0);
+            blob.WriteUInt16(0);
+            return _metadata.GetOrAddBlob(blob);
+        }
+
+        private BlobHandle EncodeEnumAttribute(int value)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteUInt16(1);
+            blob.WriteInt32(value);
+            blob.WriteUInt16(0);
+            return _metadata.GetOrAddBlob(blob);
+        }
+
+        private BlobHandle EncodeStringAttribute(string value)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteUInt16(1);
+            blob.WriteSerializedString(value);
+            blob.WriteUInt16(0);
+            return _metadata.GetOrAddBlob(blob);
+        }
+
+        private Guid GetComIdentity(string kind, ClassTypeSymbol classType)
+        {
+            var identity = _options.AssemblyName + "\0" + kind + "\0" + classType.Name;
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(identity)).AsSpan(0, 16).ToArray();
+            bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+            bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+            return new Guid(bytes);
+        }
+
+        private string GetComProgId(ClassTypeSymbol classType)
+        {
+            var value = Sanitize(_options.AssemblyName) + "." + Sanitize(classType.Name);
+            return value.Length <= 39 ? value : value[..39];
         }
 
         private BlobHandle EncodeDefaultMemberAttribute(string memberName)

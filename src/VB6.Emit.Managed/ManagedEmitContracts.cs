@@ -34,6 +34,12 @@ public sealed record ManagedEmitOptions(
 {
     public ImmutableArray<ManagedSourceDocument> SourceDocuments { get; init; } =
         ImmutableArray<ManagedSourceDocument>.Empty;
+
+    /// <summary>
+    /// Emits COM-visible class identities and asks the artifact writer to produce the matching
+    /// .NET COM host for library output. Application output cannot be exposed through comhost.
+    /// </summary>
+    public bool EnableComHosting { get; init; }
 }
 
 public sealed record ManagedEmitDiagnostic(string Code, string Message);

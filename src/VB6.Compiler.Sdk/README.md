@@ -18,3 +18,6 @@ the `.vbp`, source files (`.bas`, `.cls`, `.frm`, `.ctl`, `.pag`, `.dob`) and de
 (`.frx`, `.res`) are inputs; the emitted assembly, PDB, runtimeconfig and `VB6.Runtime.dll` are
 outputs. An unchanged project is skipped by MSBuild, while a changed legacy source or designer
 resource triggers a new compile. It does not add a designer or replace the `.vbp` project model.
+
+Set `VB6EnableComHosting=true` for a library project to pass `--com-host` and produce the adjacent
+native .NET `*.comhost.dll` artifact. COM hosting is limited to Managed library output.

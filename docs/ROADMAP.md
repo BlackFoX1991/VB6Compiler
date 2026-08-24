@@ -1204,7 +1204,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `FSOURCE`-Event-Signaturen aus TypeLib-Coclasses werden ebenfalls importiert; vollständiger
       COM-ByRef-/Connection-Point-Event-ABI, natives OCX-Hosting und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
-- [ ] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen
+- [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; Registry-Registrierung, Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
       vollständige Runtime-/Projektverträge bleiben offen
 - [~] LLVM-natives Windows-Backend für x86 und x64 (**optional/deferred**) — primitive skalare IR-Emission
@@ -1929,3 +1929,20 @@ Identität wird an `ComEventsHelper` weitergereicht und beim Abmelden mit dersel
 entfernt; CLR- und WinForms-Eventbrücken bleiben unverändert. Vollständige COM-Event-Signatur-
 Konversion, Cancel-/ByRef-Fehlerverträge und der gesamte Connection-Point-Lebenszyklus bleiben
 separate ABI-Schritte.
+
+## Aktueller Managed-COM-Server-Nachtrag
+
+Der Managed-Emitter akzeptiert für Bibliotheksausgaben die CLI-Option `--com-host`. Jede
+emittierte VB6-Klasse erhält dabei eine deterministische CLSID aus Assembly- und Klassennamen,
+eine passende `ProgID`, `ComVisible` sowie `ClassInterface(AutoDual)`; vorhandene Interface-
+Verträge erhalten ebenfalls COM-kompatible Identitäten. Der Artefaktpfad ruft das installierte
+.NET-SDK in einem isolierten temporären Projekt auf, ersetzt dessen Zwischenassembly durch die
+VB6-Assembly und übernimmt den SDK-generierten `*.comhost.dll`-Server samt CLSID-Map. Eine
+Windows-Prozessregression ruft den exportierten `DllGetClassObject`-Entry-Point direkt auf,
+erzeugt über `IClassFactory` eine Instanz und erreicht die `IDispatch`-Methode eines emittierten
+VB6-Klassenmoduls.
+
+Der Schalter ist bewusst auf `ManagedOutputKind.Library` begrenzt. COM-Registry-Installation,
+Reg-Free-Manifest-/Typbibliotheks-Emission, vollständige `[in]`-/`[out]`-Konversion und ein
+eigener Raw-`IUnknown`-/`IDispatch`-Serververtrag bleiben nachgelagerte Interop-Schritte. Die
+Gesamtsuite umfasst **959 Tests**.
