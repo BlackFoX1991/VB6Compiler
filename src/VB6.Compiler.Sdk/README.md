@@ -21,3 +21,20 @@ resource triggers a new compile. It does not add a designer or replace the `.vbp
 
 Set `VB6EnableComHosting=true` for a library project to pass `--com-host` and produce the adjacent
 native .NET `*.comhost.dll` artifact. COM hosting is limited to Managed library output.
+
+For a Visual Basic 6 project group, set `VB6ProjectGroup` instead of `VB6Project`:
+
+```xml
+<Project Sdk="VB6.Compiler.Sdk/1.0.0">
+  <PropertyGroup>
+    <VB6ProjectGroup>$(MSBuildProjectDirectory)\LegacySuite.vbg</VB6ProjectGroup>
+    <VB6CompilerGroupOutputDirectory>$(TargetDir)legacy</VB6CompilerGroupOutputDirectory>
+    <VB6CompilerPath>$(RepoRoot)\tools\vb6c.exe</VB6CompilerPath>
+  </PropertyGroup>
+</Project>
+```
+
+The group target invokes `vb6c <group>.vbg --emit-assembly <output-directory>` and emits each
+declared `.vbp` into that directory in dependency order. The group file, project files, source
+files and designer resources are tracked as MSBuild inputs; a group compile stamp makes unchanged
+groups incremental. `VB6EnableComHosting=true` remains available for library projects in the group.
