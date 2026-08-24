@@ -1,11 +1,25 @@
 <Project>
   <PropertyGroup>
     <VB6Project Condition="'$(VB6Project)' == ''">$(MSBuildProjectDirectory)\$(MSBuildProjectName).vbp</VB6Project>
+    <VB6ProjectFullPath>$([System.IO.Path]::GetFullPath('$(VB6Project)'))</VB6ProjectFullPath>
+    <VB6ProjectDirectory>$([System.IO.Path]::GetDirectoryName('$(VB6ProjectFullPath)'))</VB6ProjectDirectory>
     <VB6CompilerPath Condition="'$(VB6CompilerPath)' == ''">vb6c</VB6CompilerPath>
     <VB6CompilerOutput Condition="'$(VB6CompilerOutput)' == ''">$(TargetDir)$(AssemblyName).dll</VB6CompilerOutput>
+    <VB6CompilerOutputFullPath>$([System.IO.Path]::GetFullPath('$(VB6CompilerOutput)'))</VB6CompilerOutputFullPath>
+    <VB6CompilerOutputDirectory>$([System.IO.Path]::GetDirectoryName('$(VB6CompilerOutputFullPath)'))</VB6CompilerOutputDirectory>
+    <VB6CompilerRuntimeOutput>$(VB6CompilerOutputDirectory)\VB6.Runtime.dll</VB6CompilerRuntimeOutput>
   </PropertyGroup>
 
-  <ItemGroup Condition="Exists('$(VB6Project)')">
-    <None Include="$(VB6Project)" Visible="false" />
+  <ItemGroup Condition="Exists('$(VB6ProjectFullPath)')">
+    <None Include="$(VB6ProjectFullPath)" Visible="false" />
+    <VB6CompilerInput Include="$(VB6ProjectFullPath)" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.bas" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.cls" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ctl" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dob" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frm" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frx" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.pag" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.res" />
   </ItemGroup>
 </Project>

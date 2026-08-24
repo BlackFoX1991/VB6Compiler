@@ -1,6 +1,12 @@
 <Project>
-  <Target Name="CompileVB6Project" BeforeTargets="Build" Condition="Exists('$(VB6Project)')">
+  <Target
+    Name="CompileVB6Project"
+    BeforeTargets="Build"
+    Condition="Exists('$(VB6ProjectFullPath)')"
+    Inputs="@(VB6CompilerInput)"
+    Outputs="$(VB6CompilerOutputFullPath);$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'));$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'));$(VB6CompilerRuntimeOutput)">
     <MakeDir Directories="$(TargetDir)" />
-    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6Project)&quot; --emit-assembly &quot;$(VB6CompilerOutput)&quot;" />
+    <MakeDir Directories="$(VB6CompilerOutputDirectory)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;" />
   </Target>
 </Project>

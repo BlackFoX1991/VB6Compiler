@@ -1416,3 +1416,13 @@ Adapter packt die Eventargumente in den bestehenden VB6-Handlervertrag, schreibt
 demselben Runtimepfad. Der Umfang ist mit normalen CLR-Events und einem echten `ByRef`-Event
 regressionsgesichert. Direkte `IConnectionPoint`-/`IDispatch`-Implementierungen ohne reflektierbare
 `EventInfo`, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
+
+## Aktueller MSBuild-SDK-Nachtrag
+
+Der SDK-Targetvertrag arbeitet nun inkrementell: Neben der `.vbp` werden die Legacy-Quellen
+`.bas`, `.cls`, `.frm`, `.ctl`, `.pag`, `.dob` sowie `.frx`-/`.res`-Designerressourcen als
+Inputs registriert. Assembly, PDB, Runtimeconfig und `VB6.Runtime.dll` werden als Outputs verfolgt;
+unveränderte Projekte werden von MSBuild übersprungen, während eine geänderte Quell- oder
+Designerdatei eine neue CLI-Emission auslöst. Der SDK bleibt ein dünner Buildadapter und ersetzt
+nicht das `.vbp`-Projektmodell oder den späteren Visual-Studio-Designer. Direkte CLI-Aufrufe über
+`vb6c <projekt.vbp> --emit-assembly <ausgabe>` bleiben der primäre, unabhängig nutzbare Vertrag.
