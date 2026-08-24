@@ -428,17 +428,40 @@ public static class VBStandardTypes
         {
             LateBoundProcedure(
                 "LoadFile",
-                ImmutableArray.Create(new ParameterSymbol("FileName", TypeSymbol.String, ParameterPassingMode.ByVal))),
+                ImmutableArray.Create(
+                    new ParameterSymbol("FileName", TypeSymbol.String, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("FileType", TypeSymbol.Long, ParameterPassingMode.ByVal)
+                    {
+                        IsOptional = true,
+                        DefaultValue = 0L
+                    })),
             LateBoundProcedure(
                 "SaveFile",
-                ImmutableArray.Create(new ParameterSymbol("FileName", TypeSymbol.String, ParameterPassingMode.ByVal)))
+                ImmutableArray.Create(
+                    new ParameterSymbol("FileName", TypeSymbol.String, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("FileType", TypeSymbol.Long, ParameterPassingMode.ByVal)
+                    {
+                        IsOptional = true,
+                        DefaultValue = 0L
+                    })),
+            LateBoundProcedure(
+                "GetLineFromChar",
+                ImmutableArray.Create(new ParameterSymbol("CharIndex", TypeSymbol.Long, ParameterPassingMode.ByVal)),
+                TypeSymbol.Long)
         };
         var properties = new List<PropertySymbol>();
         properties.AddRange(LateBoundReadWriteProperties("SelText", TypeSymbol.String));
         properties.AddRange(LateBoundReadWriteProperties("SelStart", TypeSymbol.Long));
         properties.AddRange(LateBoundReadWriteProperties("SelLength", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("SelColor", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("SelBold", TypeSymbol.Boolean));
+        properties.AddRange(LateBoundReadWriteProperties("SelItalic", TypeSymbol.Boolean));
+        properties.AddRange(LateBoundReadWriteProperties("SelUnderline", TypeSymbol.Boolean));
+        properties.AddRange(LateBoundReadWriteProperties("TextRTF", TypeSymbol.String));
         properties.AddRange(LateBoundReadWriteProperties("FileName", TypeSymbol.String));
         properties.AddRange(LateBoundReadWriteProperties("Modified", TypeSymbol.Boolean));
+        properties.AddRange(LateBoundReadWriteProperties("RightMargin", TypeSymbol.Long));
+        properties.AddRange(LateBoundReadWriteProperties("HideSelection", TypeSymbol.Boolean));
         return CreateExternalControl("RichTextLib.RichTextBox", procedures, properties);
     }
 

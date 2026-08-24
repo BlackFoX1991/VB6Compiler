@@ -94,6 +94,77 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostAdaptsRichTextBoxSelectionRtfAndFileMembers()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var filePath = Path.Combine(Path.GetTempPath(), "vb6-richtext-" + Guid.NewGuid().ToString("N") + ".txt");
+
+        try
+        {
+            host.Load(owner);
+            var richTextBox = (RichTextBox)host.CreateControl(
+                owner,
+                "Editor",
+                "RichTextLib.RichTextBox")!;
+            richTextBox.Text = "first\r\nsecond";
+
+            Assert.IsTrue(host.TrySetMember(richTextBox, "SelStart", Array.Empty<object?>(), 6));
+            Assert.IsTrue(host.TrySetMember(richTextBox, "SelLength", Array.Empty<object?>(), 6));
+            Assert.IsTrue(host.TrySetMember(
+                richTextBox,
+                "SelColor",
+                Array.Empty<object?>(),
+                ColorTranslator.ToOle(Color.Red)));
+            Assert.IsTrue(host.TrySetMember(richTextBox, "SelBold", Array.Empty<object?>(), true));
+            Assert.IsTrue(host.TrySetMember(richTextBox, "SelItalic", Array.Empty<object?>(), true));
+
+            Assert.IsTrue(host.TryGetMember(richTextBox, "SelText", Array.Empty<object?>(), out var selected));
+            Assert.AreEqual("second", selected);
+            Assert.IsTrue(host.TryGetMember(richTextBox, "SelBold", Array.Empty<object?>(), out var bold));
+            Assert.AreEqual(true, bold);
+            Assert.IsTrue(host.TryGetMember(richTextBox, "SelItalic", Array.Empty<object?>(), out var italic));
+            Assert.AreEqual(true, italic);
+            Assert.IsTrue(host.TryGetMember(richTextBox, "TextRTF", Array.Empty<object?>(), out var rtf));
+            StringAssert.StartsWith((string)rtf!, "{\\rtf");
+            Assert.IsTrue(host.TrySetMember(richTextBox, "TextRTF", Array.Empty<object?>(), string.Empty));
+            Assert.AreEqual(string.Empty, richTextBox.Text);
+            Assert.IsTrue(host.TrySetMember(richTextBox, "Text", Array.Empty<object?>(), "first\r\nsecond"));
+
+            Assert.IsTrue(host.TryInvokeMember(
+                richTextBox,
+                "GetLineFromChar",
+                new object?[] { 7 },
+                out var line));
+            Assert.AreEqual(1, line);
+
+            Assert.IsTrue(host.TryInvokeMember(
+                richTextBox,
+                "SaveFile",
+                new object?[] { filePath, 1 },
+                out _));
+            Assert.IsTrue(host.TryGetMember(richTextBox, "FileName", Array.Empty<object?>(), out var fileName));
+            Assert.AreEqual(filePath, fileName);
+            Assert.IsTrue(host.TryGetMember(richTextBox, "Modified", Array.Empty<object?>(), out var modified));
+            Assert.AreEqual(false, modified);
+
+            richTextBox.Text = string.Empty;
+            Assert.IsTrue(host.TryInvokeMember(
+                richTextBox,
+                "LoadFile",
+                new object?[] { filePath, 1 },
+                out _));
+            Assert.IsTrue(host.TryGetMember(richTextBox, "Text", Array.Empty<object?>(), out var text));
+            Assert.AreEqual("first\r\nsecond", text);
+        }
+        finally
+        {
+            host.Unload(owner);
+            File.Delete(filePath);
+        }
+    }
+
+    [STATestMethod]
     public void HostCreatesCommonDialogAsNonVisualComponent()
     {
         using var host = new WinFormsHost();

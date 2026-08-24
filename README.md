@@ -107,7 +107,7 @@ Implemented so far:
 - debug information that maps back to VB6 source: documents, user-visible locals, and a sequence point per statement, carried referentially from the binder through the IR into the PDB
 - runtime deployment files for emitted managed applications
 - end-to-end execution tests for generated single-file and multi-module managed applications
-- the regression suite currently contains **928 tests**, including typed string-key Variant, Object, compiled COM automation dispatch, conditional compilation, UDT `Len`/`LenB` layout, managed CommonDialog/TreeView/ImageList adapters, a WinForms generated-assembly runner, and legacy `.dsr` project emission
+- the regression suite currently contains **929 tests**, including typed string-key Variant, Object, compiled COM automation dispatch, conditional compilation, UDT `Len`/`LenB` layout, managed CommonDialog/TreeView/ImageList/RichTextBox adapters, a WinForms generated-assembly runner, and legacy `.dsr` project emission
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, property pages, user documents, legacy `Designer=...; file.dsr` sources, references, and components, plus `.vbg` group loading and command-line batch emission of declared projects
 - an optional host boundary for compiled Forms/UserControls: `VB6.Runtime` exposes lifecycle, dynamic member, control-creation, enumeration and event hooks, while `VB6.Runtime.WinForms` maps standard VB6 controls, Twips, OLE colors, fonts and `Load`/`Unload`/`Show` to WinForms
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
@@ -247,6 +247,9 @@ dotnet run --project src/VB6.Runtime.WinForms.Runner -- artifacts\visia-test.exe
 
 The runner loads the managed assembly, installs `WinFormsHost` on an STA thread, and starts the
 message loop after the generated Form startup has called `Load` and `Show`.
+The file emitted by `--emit-assembly` is a managed assembly with an `.exe`-compatible PE name,
+not a Windows apphost. Start it through `dotnet` or the WinForms runner; double-clicking the
+generated file can produce a `System.Private.CoreLib, Version=10.0.0.0` load error.
 
 Managed emission defaults to AnyCPU; `--x86`, `--x64`, and `--anycpu` select the PE target architecture. `--x86` is intended for legacy projects whose OCX-/ActiveX-dependencies are 32-bit.
 
