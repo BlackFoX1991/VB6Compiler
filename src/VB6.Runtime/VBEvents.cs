@@ -146,12 +146,7 @@ public static class VBEvents
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
-        var method = target.GetType().GetMethod(
-                         methodName,
-                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                     ?? target.GetType().GetMethod(
-                         "__vb6_" + Mangle(methodName),
-                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        var method = FindHandler(target, methodName)
                      ?? throw new MissingMethodException(target.GetType().FullName, methodName);
         var handler = new Action<object?[]>(arguments => method.Invoke(target, arguments));
 
@@ -174,7 +169,8 @@ public static class VBEvents
             }
 
             var host = VBInteraction.Host;
-            if (host is not null &&
+            if (source is not IVBComObjectProvider &&
+                host is not null &&
                 host.TrySubscribeEvent(source, eventName, target, methodName))
             {
                 MethodSubscriptions.Add(new MethodSubscription(
@@ -236,6 +232,68 @@ public static class VBEvents
                 host: null,
                 eventInfo: null,
                 @delegate: null));
+        }
+    }
+
+    /// <summary>
+    /// Connects a native COM event without routing through the host's managed CLR-event adapter.
+    /// This is used for conventional designer handlers whose source is an ActiveX control shell.
+    /// </summary>
+    public static bool TrySubscribeComMethod(
+        object? source,
+        string eventName,
+        object target,
+        string methodName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+        var method = FindHandler(target, methodName);
+        if (method is null)
+        {
+            return false;
+        }
+
+        lock (Sync)
+        {
+            foreach (var existing in MethodSubscriptions
+                         .Where(subscription =>
+                             ReferenceEquals(subscription.Target, target) &&
+                             string.Equals(subscription.EventName, eventName, StringComparison.OrdinalIgnoreCase) &&
+                             string.Equals(subscription.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
+                         .ToArray())
+            {
+                RemoveSubscriptionLocked(existing);
+                MethodSubscriptions.Remove(existing);
+            }
+
+            if (source is null ||
+                !TrySubscribeComEvent(
+                    source,
+                    eventName,
+                    comInterfaceId: null,
+                    comDispId: null,
+                    target,
+                    method,
+                    out var comInterfaceId,
+                    out var comDispId,
+                    out var @delegate))
+            {
+                return false;
+            }
+
+            MethodSubscriptions.Add(new MethodSubscription(
+                source,
+                eventName,
+                target,
+                methodName,
+                handler: null,
+                host: null,
+                eventInfo: null,
+                @delegate,
+                comInterfaceId,
+                comDispId));
+            return true;
         }
     }
 
@@ -392,6 +450,14 @@ public static class VBEvents
             return false;
         }
     }
+
+    private static MethodInfo? FindHandler(object target, string methodName) =>
+        target.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ??
+        target.GetType().GetMethod(
+            "__vb6_" + Mangle(methodName),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
     private static bool TrySubscribeComEvent(
         object source,
