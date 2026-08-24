@@ -41,6 +41,15 @@ public sealed class VariantMultiplyTests
     }
 
     [TestMethod]
+    public void MultiplyInteger_VariantOverloadPropagatesNull()
+    {
+        var nullValue = VBVariants.NullValue();
+
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.MultiplyInteger(nullValue, 2)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.MultiplyInteger(2, nullValue)));
+    }
+
+    [TestMethod]
     public void MultiplyInteger_VariantOverloadRejectsInvalidValuesAndDoubleOverflow()
     {
         Assert.ThrowsException<InvalidCastException>(() =>

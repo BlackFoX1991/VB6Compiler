@@ -15,6 +15,11 @@ public static partial class VBOperators
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
 
+        if (VBVariants.IsNull(left) || VBVariants.IsNull(right))
+        {
+            return VBVariants.NullValue();
+        }
+
         var kind = PromoteVariantMultiplyKind(GetVariantNumericKind(left), GetVariantNumericKind(right));
         return kind switch
         {
