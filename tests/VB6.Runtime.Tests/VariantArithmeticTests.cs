@@ -117,6 +117,15 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void Multiplication_PromotesCurrencyBeforeDouble()
+    {
+        var result = VBOperators.MultiplyInteger(VBConversions.CCur(1m), 0.5d);
+
+        Assert.IsInstanceOfType<VBCurrency>(result);
+        Assert.AreEqual(0.5m, ((VBCurrency)result!).ToDecimal());
+    }
+
+    [TestMethod]
     public void VariantComparisons_UseVb6CurrencyAndSinglePrecisionRules()
     {
         var currency = VBConversions.CCur(1m);
