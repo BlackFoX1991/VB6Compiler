@@ -84,6 +84,23 @@ public sealed class VBEventsTests
         Assert.AreEqual(0, target.CallCount);
     }
 
+    [TestMethod]
+    public void UnsubscribeObject_RemovesSubscriptionsBySourceOrTarget()
+    {
+        var source = new ClrEventSource();
+        var target = new ClrEventTarget();
+
+        VBEvents.SubscribeMethod(source, "Changed", target, "OnChanged");
+        VBEvents.UnsubscribeObject(source);
+        source.Raise(1, "source");
+        Assert.AreEqual(0, target.CallCount);
+
+        VBEvents.SubscribeMethod(source, "Changed", target, "OnChanged");
+        VBEvents.UnsubscribeObject(target);
+        source.Raise(2, "target");
+        Assert.AreEqual(0, target.CallCount);
+    }
+
     private sealed class ClrEventSource
     {
         public event EventHandler<ChangedEventArgs>? Changed;

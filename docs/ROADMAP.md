@@ -2062,3 +2062,14 @@ unverändert; der Rückweg wird nur für tatsächlich deklarierte ByRef-Paramete
 Managed-Lauf und der verpflichtende x86-Lauf mit registrierten Standard-OCX-Komponenten umfassen
 weiterhin jeweils **34/34** Tests. Vollständige Event-Signaturkonversion und der native
 Connection-Point-Lifecycle bleiben separate ABI-Schritte.
+
+## Aktueller COM-Connection-Point-Lifecycle-Nachtrag
+
+`VBEvents` kann generierte Methodensubscriptions jetzt objektbezogen nach Source oder Target
+entfernen. `WinFormsHost.Unload` und `Dispose` nutzen diesen Vertrag für Formulare, Controls und
+Komponenten, sodass auch über `ComEventsHelper` installierte native Connection-Point-Delegates vor
+dem Freigeben der OCX-Objekte entfernt werden. Die bestehende explizite Abmeldung und die
+Reassignment-Regel bleiben unverändert; die Runtime-Regression umfasst nun **200** Tests, der
+Managed-WinForms-Lauf und der verpflichtende x86-Lauf mit registrierten Standard-OCX-Komponenten
+jeweils **34/34**. Vollständige Event-Signaturkonversion sowie UDT-/Pointer-ABI bleiben separate
+Interop-Schritte. Die Gesamtsuite umfasst nun **975 Tests**.
