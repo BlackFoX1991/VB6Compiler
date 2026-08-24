@@ -71,6 +71,43 @@ public sealed class VBProjectGroupCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplications_UsesExeName32ForExecutableProjects()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=InternalName.vbp\n");
+            File.WriteAllText(Path.Combine(directory, "InternalName.vbp"), """
+                Type=Exe
+                Startup="Sub Main"
+                Name="InternalName"
+                ExeName32="bin\\LegacyOutput.exe"
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Debug.Print 1
+                End Sub
+                """);
+
+            var outputDirectory = Path.Combine(directory, "out");
+            var result = VBProjectGroupCompilation.Create(groupPath)
+                .EmitManagedApplications(outputDirectory);
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Analysis));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "LegacyOutput.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "InternalName.exe")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplications_EmitsReferencedLibrariesBeforeConsumers()
     {
         var directory = CreateTemporaryDirectory();

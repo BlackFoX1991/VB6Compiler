@@ -168,9 +168,16 @@ public sealed class VBProjectGroupCompilation
 
     private static string GetOutputStem(VBProject project)
     {
-        var requestedName = string.IsNullOrWhiteSpace(project.Name)
+        var requestedName = VBProjectCompilation.IsLibraryProjectType(project.ProjectType) ||
+                            string.IsNullOrWhiteSpace(project.ExecutableName)
+            ? project.Name
+            : Path.GetFileNameWithoutExtension(
+                project.ExecutableName!
+                    .Replace('\\', Path.DirectorySeparatorChar)
+                    .Replace('/', Path.DirectorySeparatorChar));
+        requestedName = string.IsNullOrWhiteSpace(requestedName)
             ? Path.GetFileNameWithoutExtension(project.FilePath)
-            : project.Name!;
+            : requestedName;
         var invalidCharacters = Path.GetInvalidFileNameChars();
         var sanitized = new string(requestedName
             .Select(character => invalidCharacters.Contains(character) ? '_' : character)
