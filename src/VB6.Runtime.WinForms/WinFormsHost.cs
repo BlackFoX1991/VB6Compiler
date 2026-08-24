@@ -92,13 +92,24 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return existing;
         }
 
+        var separator = name.LastIndexOf('.');
+        var parentName = separator < 0 ? null : name[..separator];
+        var logicalName = separator < 0 ? name : name[(separator + 1)..];
+        var parent = parentName is not null && binding.Controls.TryGetValue(parentName, out var parentControl)
+            ? parentControl
+            : null;
         var control = CreateControlInstance(typeName);
-        control.Name = name.Replace("(", "_", StringComparison.Ordinal)
+        control.Name = logicalName.Replace("(", "_", StringComparison.Ordinal)
             .Replace(")", string.Empty, StringComparison.Ordinal)
             .Replace(",", "_", StringComparison.Ordinal);
         binding.Controls.Add(name, control);
-        binding.Form.Controls.Add(control);
-        AttachGeneratedControlEvents(owner, control, name);
+        if (!binding.Controls.ContainsKey(logicalName))
+        {
+            binding.Controls.Add(logicalName, control);
+        }
+
+        (parent?.Controls ?? binding.Form.Controls).Add(control);
+        AttachGeneratedControlEvents(owner, control, logicalName);
         return control;
     }
 

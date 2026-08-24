@@ -49,6 +49,25 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostPlacesQualifiedDesignerControlsInsideTheirParent()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+
+        host.Load(owner);
+        var frame = (GroupBox)host.CreateControl(owner, "Frame1", "Frame")!;
+        var textBox = (TextBox)host.CreateControl(owner, "Frame1.Text1", "TextBox")!;
+
+        Assert.AreSame(frame, textBox.Parent);
+        Assert.AreSame(textBox, frame.Controls[0]);
+        Assert.IsTrue(host.TryGetMember(owner, "Text1", Array.Empty<object?>(), out var named));
+        Assert.AreSame(textBox, named);
+        Assert.AreEqual(1, frame.Controls.Count);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void VbEventSubscriptionsUseTheWinFormsEventBridge()
     {
         using var host = new WinFormsHost();

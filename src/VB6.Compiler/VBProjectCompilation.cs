@@ -265,7 +265,8 @@ public sealed class VBProjectCompilation
 
                     instanceVariables.Add(new BoundModuleVariable(symbol, Initializer: null, IsConstant: false)
                     {
-                        IsDesignerControl = true
+                        IsDesignerControl = true,
+                        DesignerParentName = control.ParentName
                     });
                 }
 
@@ -484,21 +485,10 @@ public sealed class VBProjectCompilation
             yield break;
         }
 
-        var controls = new Dictionary<string, (TypeSymbol Type, bool IsArray)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var node in document.Root.DescendantsAndSelf().Skip(1))
+        var controls = new Dictionary<string, (TypeSymbol Type, bool IsArray, string? ParentName)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var child in document.Root.Children)
         {
-            var typeName = node.TypeName.StartsWith("VB.", StringComparison.OrdinalIgnoreCase)
-                ? node.TypeName[3..]
-                : node.TypeName;
-            var type = TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control;
-            if (controls.TryGetValue(node.Name, out var existing))
-            {
-                controls[node.Name] = (existing.Type, true);
-            }
-            else
-            {
-                controls.Add(node.Name, (type, node.IsControlArray));
-            }
+            Visit(child, null);
         }
 
         foreach (var control in controls)
@@ -507,7 +497,32 @@ public sealed class VBProjectCompilation
                 control.Key,
                 control.Value.IsArray
                     ? new ArrayTypeSymbol(control.Value.Type)
-                    : control.Value.Type);
+                    : control.Value.Type,
+                control.Value.ParentName);
+        }
+
+        void Visit(VBDesignerNode node, string? parentName)
+        {
+            var typeName = node.TypeName.StartsWith("VB.", StringComparison.OrdinalIgnoreCase)
+                ? node.TypeName[3..]
+                : node.TypeName;
+            var type = TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control;
+            if (controls.TryGetValue(node.Name, out var existing))
+            {
+                controls[node.Name] = (existing.Type, true, existing.ParentName);
+            }
+            else
+            {
+                controls.Add(node.Name, (type, node.IsControlArray, parentName));
+            }
+
+            var currentName = parentName is null
+                ? node.Name
+                : parentName + "." + node.Name;
+            foreach (var child in node.Children)
+            {
+                Visit(child, currentName);
+            }
         }
     }
 
@@ -1050,7 +1065,7 @@ public sealed class VBProjectCompilation
         ParseResult ParseResult,
         CompilationUnitSyntax SemanticRoot);
 
-    private sealed record DesignerControl(string Name, TypeSymbol Type);
+    private sealed record DesignerControl(string Name, TypeSymbol Type, string? ParentName);
 
     private sealed class ActiveProjectScope : IDisposable
     {

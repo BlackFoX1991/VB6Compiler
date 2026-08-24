@@ -341,14 +341,22 @@ public static class IrLowerer
                                     new IrLoadExpression(target),
                                     indices.Select(index => (IrExpression)new IrConstantExpression(index, TypeSymbol.Long)).ToImmutableArray(),
                                     controlArray.ElementType),
-                                CreateDesignerControl(classType, displayName, controlArray.ElementType)));
+                                CreateDesignerControl(
+                                    classType,
+                                    displayName,
+                                    controlArray.ElementType,
+                                    variable.DesignerParentName)));
                         }
                     }
                     else if (variable.IsDesignerControl && variable.Symbol.Type is ClassTypeSymbol controlType)
                     {
                         instructions.Add(new IrStoreInstruction(
                             target,
-                            CreateDesignerControl(classType, variable.Symbol.Name, controlType)));
+                            CreateDesignerControl(
+                                classType,
+                                variable.Symbol.Name,
+                                controlType,
+                                variable.DesignerParentName)));
                     }
                     else if (variable.Symbol.Type == TypeSymbol.String)
                     {
@@ -399,20 +407,26 @@ public static class IrLowerer
             static IrExpression CreateDesignerControl(
                 ClassTypeSymbol classType,
                 string displayName,
-                TypeSymbol controlType) =>
-                new IrRuntimeCallExpression(
+                TypeSymbol controlType,
+                string? parentName)
+            {
+                var qualifiedName = parentName is null
+                    ? displayName
+                    : parentName + "." + displayName;
+                return new IrRuntimeCallExpression(
                     IrRuntimeMethod.InteractionCreateControl,
                     ImmutableArray.Create(
                         new IrCallArgument(
                             new IrLoadExpression(new IrThisPlace(classType)),
                             IrCallArgumentKind.Value),
                         new IrCallArgument(
-                            new IrConstantExpression(displayName, TypeSymbol.String),
+                            new IrConstantExpression(qualifiedName, TypeSymbol.String),
                             IrCallArgumentKind.Value),
                         new IrCallArgument(
                             new IrConstantExpression(controlType.Name, TypeSymbol.String),
                             IrCallArgumentKind.Value)),
                     controlType);
+            }
 
             static IEnumerable<ImmutableArray<long>> EnumerateArrayIndices(
                 ImmutableArray<IrArrayBound> bounds)

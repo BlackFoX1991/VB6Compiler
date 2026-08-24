@@ -695,7 +695,9 @@ public sealed class ProjectCompilationTests
             File.WriteAllText(Path.Combine(directory, "Splash.frm"), """
                 VERSION 5.00
                 Begin VB.Form Splash
-                   Begin VB.CommandButton StartButton
+                   Begin VB.Frame Frame1
+                      Begin VB.CommandButton StartButton
+                      End
                    End
                 End
                 Attribute VB_Name = "Splash"
@@ -738,6 +740,17 @@ public sealed class ProjectCompilationTests
                     .Select(store => store.Value)
                     .OfType<IrRuntimeCallExpression>()
                     .Any(call => call.Method == IrRuntimeMethod.InteractionCreateControl));
+            var controlNames = constructor.Blocks
+                .SelectMany(block => block.Instructions)
+                .OfType<IrStoreInstruction>()
+                .Select(store => store.Value)
+                .OfType<IrRuntimeCallExpression>()
+                .Where(call => call.Method == IrRuntimeMethod.InteractionCreateControl)
+                .Select(call => ((IrConstantExpression)call.Arguments[1].Expression).Value)
+                .Cast<string>()
+                .ToArray();
+            CollectionAssert.Contains(controlNames, "Frame1");
+            CollectionAssert.Contains(controlNames, "Frame1.StartButton");
             Assert.IsTrue(File.Exists(result.AssemblyPath));
             Assert.AreEqual(string.Empty, VB6TestProgram.RunProject(projectPath));
         }
