@@ -110,6 +110,12 @@ public static class VBDynamicDispatch
 
     private static object? InvokeMember(object? target, string memberName, object?[] arguments)
     {
+        if (VBInteraction.TryGetHostMember(target, memberName, arguments, out var hostResult) ||
+            VBInteraction.TryInvokeHostMember(target, memberName, arguments, out hostResult))
+        {
+            return hostResult;
+        }
+
         var method = FindMethod(target, memberName, arguments.Length);
         if (method is not null)
         {
@@ -137,6 +143,11 @@ public static class VBDynamicDispatch
         object?[] arguments,
         object? value)
     {
+        if (VBInteraction.TrySetHostMember(target, memberName, arguments, value))
+        {
+            return;
+        }
+
         var setterArguments = new object?[arguments.Length + 1];
         Array.Copy(arguments, setterArguments, arguments.Length);
         setterArguments[^1] = value;

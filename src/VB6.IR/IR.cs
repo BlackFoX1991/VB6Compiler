@@ -597,6 +597,8 @@ public enum IrRuntimeMethod
     InteractionInputBox,
     InteractionLoad,
     InteractionUnload,
+    InteractionShow,
+    InteractionCreateControl,
     InteractionCreateObject,
     InteractionGetObject,
     InteractionShell,

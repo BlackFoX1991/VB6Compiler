@@ -754,6 +754,9 @@ public sealed record BoundModuleVariable(
 {
     public bool IsWithEvents { get; init; }
 
+    /// <summary>True when the variable came from a Form/UserControl designer envelope.</summary>
+    public bool IsDesignerControl { get; init; }
+
     public BoundModuleVariable(
         ModuleVariableSymbol Symbol,
         BoundExpression? Initializer,

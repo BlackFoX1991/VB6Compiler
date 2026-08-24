@@ -263,7 +263,10 @@ public sealed class VBProjectCompilation
                         continue;
                     }
 
-                    instanceVariables.Add(new BoundModuleVariable(symbol, Initializer: null, IsConstant: false));
+                    instanceVariables.Add(new BoundModuleVariable(symbol, Initializer: null, IsConstant: false)
+                    {
+                        IsDesignerControl = true
+                    });
                 }
 
                 semanticModel = semanticModel with
