@@ -1435,4 +1435,6 @@ und `ListIndex`; `TextBox` unterstützt `SelStart`, `SelLength` und `SelText`; `
 `OptionButton` stellen `Value` bereit. Die Verträge laufen durch den bestehenden Twips-/Late-
 Bound-Hostpfad und sind mit einer STA-Regression für Einfügen, Ersetzen, Entfernen, Auswahl und
 Textselektion abgesichert. Vollständige OCX-Memberbibliotheken, MDI und UserControl-Hosting
-bleiben separate Forms-/Interop-Schritte. Die Gesamtsuite umfasst **898 Tests**.
+bleiben separate Forms-/Interop-Schritte. `Timer` wird als eigener unsichtbarer WinForms-Host-
+Control mit `Interval`, `Enabled` und konventionellem `TimerName_Timer`-Handler verdrahtet.
+Die Gesamtsuite umfasst **899 Tests**.

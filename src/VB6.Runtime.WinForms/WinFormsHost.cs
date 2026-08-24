@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 using System.Drawing;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -381,6 +382,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private void AttachGeneratedControlEvents(object owner, Control control, string name)
     {
         var baseName = name.Split('(')[0];
+        if (control is TimerControl)
+        {
+            TrySubscribeEvent(control, "Tick", owner, baseName + "_Timer");
+            return;
+        }
+
         TrySubscribeEvent(control, "Click", owner, baseName + "_Click");
         TrySubscribeEvent(control, "TextChanged", owner, baseName + "_Change");
         TrySubscribeEvent(control, "Enter", owner, baseName + "_GotFocus");
@@ -848,7 +855,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "Width", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.Width, twipsPerPixelX);
         else if (string.Equals(memberName, "Height", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.Height, twipsPerPixelY);
         else if (string.Equals(memberName, "Visible", StringComparison.OrdinalIgnoreCase)) value = control.Visible;
-        else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase)) value = control.Enabled;
+        else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase)) value = control is TimerControl timer ? timer.TimerEnabled : control.Enabled;
+        else if (control is TimerControl timer && string.Equals(memberName, "Interval", StringComparison.OrdinalIgnoreCase)) value = timer.Interval;
         else if (string.Equals(memberName, "Name", StringComparison.OrdinalIgnoreCase)) value = control.Name;
         else if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) value = control.Text;
@@ -878,7 +886,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "Width", StringComparison.OrdinalIgnoreCase)) control.Width = FromTwips(value, twipsPerPixelX);
         else if (string.Equals(memberName, "Height", StringComparison.OrdinalIgnoreCase)) control.Height = FromTwips(value, twipsPerPixelY);
         else if (string.Equals(memberName, "Visible", StringComparison.OrdinalIgnoreCase)) control.Visible = VBConversions.CBool(value);
-        else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase)) control.Enabled = VBConversions.CBool(value);
+        else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase))
+        {
+            if (control is TimerControl timer)
+            {
+                timer.TimerEnabled = VBConversions.CBool(value);
+            }
+            else
+            {
+                control.Enabled = VBConversions.CBool(value);
+            }
+        }
+        else if (control is TimerControl timer && string.Equals(memberName, "Interval", StringComparison.OrdinalIgnoreCase)) timer.Interval = VBConversions.CLng(value);
         else if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) control.Text = VBConversions.CStr(value);
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) control.BackColor = ColorTranslator.FromOle(VBConversions.CLng(value));
@@ -931,6 +950,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "OPTIONBUTTON" => new RadioButton(),
             "COMBOBOX" => new ComboBox(),
             "LISTBOX" => new ListBox(),
+            "TIMER" => new TimerControl(),
             "TREEVIEW" or "MSCOMCTLLIB.TREEVIEW" => new TreeView(),
             "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => new RichTextBox(),
             _ => new Panel()
@@ -939,6 +959,46 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private sealed class TimerControl : Panel
+    {
+        private readonly System.Windows.Forms.Timer _timer = new();
+
+        public TimerControl()
+        {
+            Visible = false;
+            _timer.Interval = 100;
+            _timer.Tick += (_, arguments) => Tick?.Invoke(this, arguments);
+        }
+
+        public event EventHandler? Tick;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal int Interval
+        {
+            get => _timer.Interval;
+            set => _timer.Interval = value;
+        }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal bool TimerEnabled
+        {
+            get => _timer.Enabled;
+            set => _timer.Enabled = value;
+        }
+
+        private void RaiseTick() => Tick?.Invoke(this, EventArgs.Empty);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _timer.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class FormBinding
