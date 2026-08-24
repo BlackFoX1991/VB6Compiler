@@ -1806,3 +1806,12 @@ Der x86-Test aktiviert die auf diesem Rechner registrierte `MSCOMCTL.OCX` als ec
 64-Bit-Fallback-Regel bleibt aktiv, weil die 32-Bit-OCX dort trotz sichtbarer ProgID nicht
 aktivierbar ist. Vollständiges `IDispatch`-ABI-Marshalling, native OCX-Events und die weiteren
 MSComctl-/RichText-/CommonDialog-Oberflächen bleiben offen.
+
+## Aktueller nativer RichText-Nachtrag
+
+Der opt-in-Native-Pfad hostet `RichTextLib.RichTextBox` jetzt über `RICHTEXT.RichtextCtrl.1`,
+wenn die 32-Bit-OCX im x86-Prozess aktivierbar ist. `TextRTF` wird dabei direkt über das COM-RCW
+gelesen und geschrieben; der VISIA-Runner bleibt mit diesem Pfad ohne Ausnahme und ohne
+Messagebox stabil. `MSComctlLib.TreeView` bleibt vorerst beim Managed-Adapter, da der native
+`Nodes`-Collection-ABI noch nicht stabil genug für den Runner ist. Die vollständige native
+TreeView-/ImageList-/ImageCombo-/CommonDialog-Oberfläche und ihre Event-ABIs bleiben offen.
