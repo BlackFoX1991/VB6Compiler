@@ -1331,6 +1331,11 @@ Abhängigkeitsreihenfolge und die getrennte
 Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
 bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
 **882 Tests**.
+`--report` gibt Projekt- und Quelldiagnosen bei Fehlern auf `stderr` aus und liefert dann einen
+Fehler-Exitcode statt eines erfolgreichen Status. Zwei Prozessregressionen prüfen sowohl ein
+fehlerhaftes `.vbp` als auch die echte `.vbg`-Batch-Emission über den CLI-Prozess. Die Gesamtsuite
+umfasst **884 Tests**.
+
 Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
 Abdeckung von Legacy-Projektsonderfällen.
 

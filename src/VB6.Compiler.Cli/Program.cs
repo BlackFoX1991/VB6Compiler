@@ -65,9 +65,11 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
 
     if (args.Length == 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
     {
-        var report = VBProjectParityReport.Create(projectCompilation.Analyze());
+        var projectAnalysis = projectCompilation.Analyze();
+        var report = VBProjectParityReport.Create(projectAnalysis);
         Console.Write(report.Render());
-        return 0;
+        PrintProjectDiagnostics(projectAnalysis);
+        return projectAnalysis.Success ? 0 : 1;
     }
 
     if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
@@ -235,7 +237,7 @@ static int HandleProjectGroup(string path, string[] args)
             Console.Write(VBProjectParityReport.Create(project.Compilation!).Render());
         }
 
-        return 0;
+        return analysis.Success ? 0 : 1;
     }
 
     if (args.Length == 3 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
