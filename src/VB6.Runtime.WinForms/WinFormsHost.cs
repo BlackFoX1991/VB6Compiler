@@ -266,6 +266,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     public void Load(object target)
     {
         ThrowIfDisposed();
+        if (target is Control control && target is not Form)
+        {
+            if (!control.IsDisposed)
+            {
+                if (control.Parent is not null && !control.IsHandleCreated)
+                {
+                    control.CreateControl();
+                }
+
+                control.Visible = true;
+            }
+
+            return;
+        }
+
         var binding = GetOrCreateBinding(target);
         if (binding.FormInitialized)
         {
@@ -281,6 +296,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     public void Unload(object target)
     {
         ThrowIfDisposed();
+        if (target is Control targetControl && target is not Form)
+        {
+            if (!targetControl.IsDisposed)
+            {
+                targetControl.Visible = false;
+            }
+
+            return;
+        }
+
         if (!_bindings.TryGetValue(target, out var binding))
         {
             return;

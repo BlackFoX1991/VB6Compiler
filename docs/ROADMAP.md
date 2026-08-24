@@ -1840,3 +1840,17 @@ Adapter zurück. TreeView bleibt wegen des noch instabilen nativen `Nodes`-ABI b
 Managed-Adapter. Der x86- und der x64-WinForms-Testlauf umfassen jeweils **28 Tests**; die
 Gesamtsuite liegt nun bei **954 Tests**. Native Connection-Point-Events, vollständiges
 `IDispatch`-ByRef-Marshalling und die komplette TreeView-Collection bleiben offen.
+
+## Aktueller Control-Array-Lifecycle-Nachtrag
+
+`Load` und `Unload` auf einem bereits erzeugten WinForms-Control-Element erzeugen jetzt keine
+künstliche Formbindung mehr. Der Host initialisiert bei `Load` den Control-Handle, macht das
+Element sichtbar und blendet es bei `Unload` aus, ohne das Control oder seine Owner-Form zu
+disponieren; Forms behalten ihren bisherigen Initialisierungs- und Terminierungsweg. Damit ist
+der Lifecycle vorhandener Designer-Index-Elemente belastbar. Dynamische Neuerzeugung außerhalb
+der statisch gebundenen Control-Array-Indizes, vollständige VB6-Recreate-/Dispose-Semantik und
+die native `TreeCtrl.2`-`Nodes`-Collection bleiben separate Aufgaben. `TreeCtrl.2` ist auf dem
+Testsystem nun ebenfalls registriert und als COM-Klasse aktivierbar, wird aber wegen dieses
+instabilen nativen Collections-ABI weiterhin über den Managed-TreeView-Adapter gehostet. Die
+x86- und x64-WinForms-Regression umfasst jeweils **29 Tests**; die Gesamtsuite umfasst nun
+**955 Tests**.
