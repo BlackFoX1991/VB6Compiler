@@ -75,6 +75,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return 0;
         }
 
+        // VB6 startup code may omit an explicit Show call when the form is the project startup
+        // object. Application.Run does not make every host-created form visible consistently, so
+        // the WinForms boundary enforces the startup-form contract here.
+        if (!form.Visible)
+        {
+            form.Show();
+        }
+
         Application.Run(form);
         return 0;
     }

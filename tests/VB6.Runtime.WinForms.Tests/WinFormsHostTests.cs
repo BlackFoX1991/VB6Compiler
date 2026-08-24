@@ -75,6 +75,21 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostShowsStartupFormThroughInteractionDispatch()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+
+        host.Load(owner);
+
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+        Assert.IsTrue(host.TryGetMember(owner, "Visible", Array.Empty<object?>(), out var visible));
+        Assert.AreEqual(true, visible);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostDecodesFrxPicturePayloadsForPictureBoxes()
     {
         using var host = new WinFormsHost();
