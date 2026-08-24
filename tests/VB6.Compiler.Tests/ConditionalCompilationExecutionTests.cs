@@ -52,6 +52,30 @@ public sealed class ConditionalCompilationExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesExplicitTargetWidthForWin64Constant()
+    {
+        const string source = """
+            #If Win64 Then
+                Sub Main()
+                    Debug.Print 64
+                End Sub
+            #Else
+                Sub Main()
+                    Debug.Print 32
+                End Sub
+            #End If
+            """;
+
+        var x86Output = VB6TestProgram.Run(
+            VBCompilation.Create(source, "Width.bas", new VBCompilationOptions(TargetIs64Bit: false)));
+        var x64Output = VB6TestProgram.Run(
+            VBCompilation.Create(source, "Width.bas", new VBCompilationOptions(TargetIs64Bit: true)));
+
+        CollectionAssert.AreEqual(new[] { "32" }, VB6TestProgram.SplitLines(x86Output));
+        CollectionAssert.AreEqual(new[] { "64" }, VB6TestProgram.SplitLines(x64Output));
+    }
+
+    [TestMethod]
     public void Analyze_ReportsMissingConditionalCompilationEnd()
     {
         var analysis = VBCompilation.Create("""

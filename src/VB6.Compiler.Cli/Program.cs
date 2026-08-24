@@ -62,7 +62,20 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return loadResult.Success ? 0 : 1;
     }
 
-    var projectCompilation = VBProjectCompilation.Create(path);
+    var projectPlatform = ManagedPlatform.AnyCpu;
+    VBCompilationOptions? projectCompilationOptions = null;
+    if (args.Length is 3 or 4 &&
+        string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    {
+        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out projectPlatform))
+        {
+            return 1;
+        }
+
+        projectCompilationOptions = CreateCompilationOptions(projectPlatform);
+    }
+
+    var projectCompilation = VBProjectCompilation.Create(path, projectCompilationOptions);
 
     if (args.Length == 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
     {
@@ -101,12 +114,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
 
     if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out var platform))
-        {
-            return 1;
-        }
-
-        var emitOptions = CreateManagedEmitOptions(args[2], platform);
+        var emitOptions = CreateManagedEmitOptions(args[2], projectPlatform);
         var emitResult = projectCompilation.EmitManagedApplication(args[2], emitOptions);
         PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
@@ -132,7 +140,23 @@ if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnor
     return HandleProjectGroup(path, args);
 }
 
-var compilation = VBCompilation.Create(VB6TextFile.ReadAllText(path), path);
+var sourcePlatform = ManagedPlatform.AnyCpu;
+VBCompilationOptions? sourceCompilationOptions = null;
+if (args.Length is 3 or 4 &&
+    string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+{
+    if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out sourcePlatform))
+    {
+        return 1;
+    }
+
+    sourceCompilationOptions = CreateCompilationOptions(sourcePlatform);
+}
+
+var compilation = VBCompilation.Create(
+    VB6TextFile.ReadAllText(path),
+    path,
+    sourceCompilationOptions);
 
 if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
 {
@@ -168,12 +192,7 @@ if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringCompari
 
 if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
-    if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out var platform))
-    {
-        return 1;
-    }
-
-    var emitOptions = CreateManagedEmitOptions(args[2], platform);
+    var emitOptions = CreateManagedEmitOptions(args[2], sourcePlatform);
     var emitResult = compilation.EmitManagedApplication(args[2], emitOptions);
     foreach (var diagnostic in emitResult.Diagnostics)
     {
@@ -230,7 +249,20 @@ static int WriteIr(string dump, string? outputPath)
 
 static int HandleProjectGroup(string path, string[] args)
 {
-    var compilation = VBProjectGroupCompilation.Create(path);
+    var groupPlatform = ManagedPlatform.AnyCpu;
+    VBCompilationOptions? groupCompilationOptions = null;
+    if (args.Length is 3 or 4 &&
+        string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    {
+        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out groupPlatform))
+        {
+            return 1;
+        }
+
+        groupCompilationOptions = CreateCompilationOptions(groupPlatform);
+    }
+
+    var compilation = VBProjectGroupCompilation.Create(path, groupCompilationOptions);
     if (args.Length == 1)
     {
         var analysis = compilation.Analyze();
@@ -255,12 +287,7 @@ static int HandleProjectGroup(string path, string[] args)
 
     if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedPlatform(args.Length == 4 ? args[3] : null, out var platform))
-        {
-            return 1;
-        }
-
-        var emitOptions = CreateManagedEmitOptions(args[2], platform);
+        var emitOptions = CreateManagedEmitOptions(args[2], groupPlatform);
         var result = compilation.EmitManagedApplications(args[2], emitOptions);
         PrintProjectGroupSummary(result.Analysis);
         PrintProjectGroupDiagnostics(result.Analysis);
@@ -377,6 +404,13 @@ static ManagedEmitOptions CreateManagedEmitOptions(string outputPath, ManagedPla
     new(
         Path.GetFileNameWithoutExtension(Path.GetFullPath(outputPath)),
         Platform: platform);
+
+static VBCompilationOptions? CreateCompilationOptions(ManagedPlatform platform) => platform switch
+{
+    ManagedPlatform.X86 => new VBCompilationOptions(TargetIs64Bit: false),
+    ManagedPlatform.X64 => new VBCompilationOptions(TargetIs64Bit: true),
+    _ => null
+};
 
 static void PrintDebugInformation(string? pdbPath)
 {

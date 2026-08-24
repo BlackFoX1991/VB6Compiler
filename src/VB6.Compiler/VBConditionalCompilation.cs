@@ -8,11 +8,14 @@ namespace VB6.Compiler;
 
 internal static class VBConditionalCompilation
 {
-    public static VBConditionalCompilationResult Process(string source, string? filePath)
+    public static VBConditionalCompilationResult Process(
+        string source,
+        string? filePath,
+        VBCompilationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        var constants = CreateDefaultConstants();
+        var constants = CreateDefaultConstants(options);
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var blocks = new Stack<ConditionalBlock>();
         var output = new StringBuilder(source.Length);
@@ -259,16 +262,18 @@ internal static class VBConditionalCompilation
     private static bool IsActive(Stack<ConditionalBlock> blocks) =>
         blocks.Count == 0 || blocks.Peek().CurrentActive;
 
-    private static Dictionary<string, object?> CreateDefaultConstants()
+    private static Dictionary<string, object?> CreateDefaultConstants(VBCompilationOptions? options)
     {
+        var is64Bit = options?.TargetIs64Bit ?? (IntPtr.Size == 8);
         var constants = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["VBA7"] = true,
             ["VBA6"] = false,
             ["VBA"] = true,
             ["WIN16"] = false,
+            // Win32 means the Win32 API family, which remains available on Win64.
             ["WIN32"] = true,
-            ["WIN64"] = IntPtr.Size == 8,
+            ["WIN64"] = is64Bit,
             ["MAC"] = false,
             ["APPLE"] = false
         };

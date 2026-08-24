@@ -177,6 +177,55 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_AppliesX64TargetToConditionalCompilation()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Width.bas");
+            File.WriteAllText(sourcePath, """
+                #If Win64 Then
+                    Sub Main()
+                        Debug.Print 64
+                    End Sub
+                #Else
+                    Sub Main()
+                        Debug.Print 32
+                    End Sub
+                #End If
+                """);
+            var outputPath = Path.Combine(directory, "bin", "Width.exe");
+
+            var result = RunCli(sourcePath, "--emit-assembly", outputPath, "--x64");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var startInfo = new ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = Path.GetDirectoryName(outputPath)!,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(outputPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the x64 conditional-compilation output.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.AreEqual("64", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesLegacyDesignerVbpProjectsThroughTheCli()
     {
         var directory = CreateTemporaryDirectory();
