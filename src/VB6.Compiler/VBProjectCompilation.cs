@@ -615,7 +615,8 @@ public sealed class VBProjectCompilation
                 ? Encoding.ASCII.GetString(property.ResourceData)
                 : property.ResourceData is not null &&
                   (property.Name.Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
-                   property.Name.Equals("Icon", StringComparison.OrdinalIgnoreCase))
+                   property.Name.Equals("Icon", StringComparison.OrdinalIgnoreCase) ||
+                   IsImageListDesignerProperty(property.Name))
                     ? "__VB6_FRX_BASE64__" + Convert.ToBase64String(property.ResourceData)
                 : property.ResourcePath is null
                     ? property.Value
@@ -668,7 +669,20 @@ public sealed class VBProjectCompilation
         name.Equals("StartUpPosition", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("WindowState", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("ImageWidth", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("ImageHeight", StringComparison.OrdinalIgnoreCase);
+        name.Equals("ImageHeight", StringComparison.OrdinalIgnoreCase) ||
+        IsImageListDesignerProperty(name);
+
+    private static bool IsImageListDesignerProperty(string name)
+    {
+        const string prefix = "ListImage";
+        var separator = name.IndexOf('.');
+        return separator > prefix.Length &&
+               name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               int.TryParse(name.AsSpan(prefix.Length, separator - prefix.Length), out var index) &&
+               index > 0 &&
+               (name[(separator + 1)..].Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
+                name[(separator + 1)..].Equals("Key", StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);

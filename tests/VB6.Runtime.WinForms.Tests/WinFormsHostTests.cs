@@ -330,11 +330,18 @@ public sealed class WinFormsHostTests
             var imageList = host.CreateControl(owner, "Images", "MSComctlLib.ImageList")!;
             Assert.IsTrue(host.TrySetMember(imageList, "ImageWidth", Array.Empty<object?>(), 16));
             Assert.IsTrue(host.TrySetMember(imageList, "ImageHeight", Array.Empty<object?>(), 24));
+            Assert.IsTrue(host.TrySetMember(imageList, "ListImage1.Picture", Array.Empty<object?>(), CreateFrxBitmapValue()));
+            Assert.IsTrue(host.TrySetMember(imageList, "ListImage1.Key", Array.Empty<object?>(), "Folder"));
             Assert.IsTrue(host.TryGetMember(imageList, "ImageWidth", Array.Empty<object?>(), out var imageWidth));
             Assert.AreEqual(16, imageWidth);
             Assert.IsTrue(host.TryGetMember(imageList, "ImageHeight", Array.Empty<object?>(), out var imageHeight));
             Assert.AreEqual(24, imageHeight);
             var listImages = VBDynamicDispatch.GetMember(imageList, "ListImages")!;
+            Assert.AreEqual(1, VBDynamicDispatch.GetMember(listImages, "Count"));
+            var designerImage = (ListImageProxy)VBDynamicDispatch.GetIndexedMember(listImages, "Item", Arguments(1))!;
+            Assert.AreEqual("Folder", designerImage.Key);
+            Assert.IsInstanceOfType<Image>(designerImage.Picture);
+            VBDynamicDispatch.InvokeMember(listImages, "Clear", Arguments());
             VBDynamicDispatch.InvokeMember(listImages, "Add", Arguments(null, "Folder", "folder.bmp"));
             Assert.AreEqual(1, VBDynamicDispatch.GetMember(listImages, "Count"));
             var image = (ListImageProxy)VBDynamicDispatch.GetIndexedMember(listImages, "Item", Arguments(1))!;
