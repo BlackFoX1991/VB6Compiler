@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using VB6.Runtime;
@@ -93,6 +94,61 @@ public sealed class WinFormsHostTests
         }
     }
 
+    [STATestMethod]
+    public void HostMapsMouseAndKeyboardEventsToVb6Arguments()
+    {
+        using var host = new WinFormsHost();
+        var owner = new InputEventSink();
+
+        host.Load(owner);
+        var textBox = (TextBox)host.CreateControl(owner, "Input", "TextBox")!;
+        Assert.IsTrue(host.TrySubscribeEvent(textBox, "MouseDown", owner, "OnMouseDown"));
+        Assert.IsTrue(host.TrySubscribeEvent(textBox, "KeyDown", owner, "OnKeyDown"));
+        Assert.IsTrue(host.TrySubscribeEvent(textBox, "KeyPress", owner, "OnKeyPress"));
+
+        typeof(Control).GetMethod("OnMouseDown", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(textBox, new object[]
+            {
+                new MouseEventArgs(
+                    MouseButtons.Left | MouseButtons.Right,
+                    1,
+                    10,
+                    20,
+                    0)
+            });
+        typeof(Control).GetMethod("OnKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(textBox, new object[] { new KeyEventArgs(Keys.A | Keys.Shift | Keys.Control) });
+        typeof(Control).GetMethod("OnKeyPress", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(textBox, new object[] { new KeyPressEventArgs('x') });
+
+        Assert.AreEqual(3, owner.MouseButton);
+        Assert.AreEqual((short)0, owner.MouseShift);
+        Assert.AreEqual(10f * 1440f / textBox.DeviceDpi, owner.MouseX);
+        Assert.AreEqual(20f * 1440f / textBox.DeviceDpi, owner.MouseY);
+        Assert.AreEqual(65, owner.KeyCode);
+        Assert.AreEqual((short)3, owner.KeyShift);
+        Assert.AreEqual((short)'x', owner.KeyAscii);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostConnectsConventionalFormResizeHandler()
+    {
+        using var host = new WinFormsHost();
+        var owner = new InputEventSink();
+        using var form = new Form();
+
+        host.Register(owner, form);
+        host.Load(owner);
+
+        typeof(Control).GetMethod("OnResize", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, new object[] { EventArgs.Empty });
+
+        Assert.AreEqual(1, owner.FormResizeCount);
+        host.Unload(owner);
+    }
+
     private sealed class EventSink
     {
         public int ChangeCount { get; private set; }
@@ -105,5 +161,35 @@ public sealed class WinFormsHostTests
         public int ChangeCount { get; private set; }
 
         private void OnChanged() => ChangeCount++;
+    }
+
+    private sealed class InputEventSink
+    {
+        public int MouseButton { get; private set; }
+        public short MouseShift { get; private set; }
+        public float MouseX { get; private set; }
+        public float MouseY { get; private set; }
+        public int KeyCode { get; private set; }
+        public short KeyShift { get; private set; }
+        public short KeyAscii { get; private set; }
+        public int FormResizeCount { get; private set; }
+
+        private void OnMouseDown(short button, short shift, float x, float y)
+        {
+            MouseButton = button;
+            MouseShift = shift;
+            MouseX = x;
+            MouseY = y;
+        }
+
+        private void OnKeyDown(short keyCode, short shift)
+        {
+            KeyCode = keyCode;
+            KeyShift = shift;
+        }
+
+        private void OnKeyPress(short keyAscii) => KeyAscii = keyAscii;
+
+        private void Form_Resize() => FormResizeCount++;
     }
 }

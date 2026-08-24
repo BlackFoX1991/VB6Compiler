@@ -57,6 +57,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ThrowIfDisposed();
         _ = GetOrCreateBinding(target);
         TrySubscribeEvent(target, "Load", target, "Form_Load");
+        AttachGeneratedFormEvents(target);
     }
 
     public void Unload(object target)
@@ -241,7 +242,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return false;
         }
 
-        var handler = CreateEventDelegate(eventInfo.EventHandlerType, target, method);
+        var handler = CreateEventDelegate(
+            eventInfo.EventHandlerType,
+            target,
+            method,
+            eventName,
+            eventSource);
         if (handler is null)
         {
             return false;
@@ -368,6 +374,25 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(control, "Enter", owner, baseName + "_GotFocus");
         TrySubscribeEvent(control, "Leave", owner, baseName + "_LostFocus");
         TrySubscribeEvent(control, "DoubleClick", owner, baseName + "_DblClick");
+        TrySubscribeEvent(control, "MouseDown", owner, baseName + "_MouseDown");
+        TrySubscribeEvent(control, "MouseUp", owner, baseName + "_MouseUp");
+        TrySubscribeEvent(control, "MouseMove", owner, baseName + "_MouseMove");
+        TrySubscribeEvent(control, "KeyDown", owner, baseName + "_KeyDown");
+        TrySubscribeEvent(control, "KeyPress", owner, baseName + "_KeyPress");
+        TrySubscribeEvent(control, "KeyUp", owner, baseName + "_KeyUp");
+        TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize");
+    }
+
+    private void AttachGeneratedFormEvents(object target)
+    {
+        TrySubscribeEvent(target, "Click", target, "Form_Click");
+        TrySubscribeEvent(target, "Resize", target, "Form_Resize");
+        TrySubscribeEvent(target, "MouseDown", target, "Form_MouseDown");
+        TrySubscribeEvent(target, "MouseUp", target, "Form_MouseUp");
+        TrySubscribeEvent(target, "MouseMove", target, "Form_MouseMove");
+        TrySubscribeEvent(target, "KeyDown", target, "Form_KeyDown");
+        TrySubscribeEvent(target, "KeyPress", target, "Form_KeyPress");
+        TrySubscribeEvent(target, "KeyUp", target, "Form_KeyUp");
     }
 
     private void RemoveEventBinding(EventBinding binding)
@@ -410,7 +435,9 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static Delegate? CreateEventDelegate(
         Type delegateType,
         object target,
-        MethodInfo method)
+        MethodInfo method,
+        string eventName,
+        object eventSource)
     {
         var invoke = delegateType.GetMethod("Invoke");
         if (invoke is null || invoke.ReturnType != typeof(void))
@@ -438,6 +465,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             callback,
             Expression.Constant(target),
             Expression.Constant(method),
+            Expression.Constant(eventName),
+            Expression.Constant(eventSource),
             arguments);
         return Expression.Lambda(delegateType, body, expressions).Compile();
     }
@@ -445,8 +474,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static void InvokeEventHandler(
         object target,
         MethodInfo method,
+        string eventName,
+        object eventSource,
         object?[] eventArguments)
     {
+        eventArguments = AdaptEventArguments(eventName, eventSource, eventArguments);
         var parameters = method.GetParameters();
         var arguments = new object?[parameters.Length];
         var offset = eventArguments.Length == parameters.Length
@@ -471,6 +503,75 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             throw exception.InnerException;
         }
+    }
+
+    private static object?[] AdaptEventArguments(
+        string eventName,
+        object eventSource,
+        object?[] eventArguments)
+    {
+        var normalized = eventName.ToUpperInvariant();
+        if (eventArguments.Length == 2 && eventArguments[1] is MouseEventArgs mouse)
+        {
+            if (normalized is "MOUSEDOWN" or "MOUSEUP" or "MOUSEMOVE")
+            {
+                return new object?[]
+                {
+                    ToVbMouseButton(mouse.Button),
+                    ToVbShift(Control.ModifierKeys),
+                    ToTwips(eventSource, mouse.X),
+                    ToTwips(eventSource, mouse.Y)
+                };
+            }
+        }
+
+        if (eventArguments.Length == 2 && eventArguments[1] is KeyEventArgs key)
+        {
+            if (normalized is "KEYDOWN" or "KEYUP")
+            {
+                return new object?[]
+                {
+                    key.KeyValue,
+                    ToVbShift(key.Modifiers)
+                };
+            }
+        }
+
+        if (eventArguments.Length == 2 && eventArguments[1] is KeyPressEventArgs keyPress &&
+            normalized == "KEYPRESS")
+        {
+            return new object?[] { (short)keyPress.KeyChar };
+        }
+
+        return eventArguments;
+    }
+
+    private static int ToVbMouseButton(MouseButtons button)
+    {
+        var result = 0;
+        if ((button & MouseButtons.Left) != 0) result |= 1;
+        if ((button & MouseButtons.Right) != 0) result |= 2;
+        if ((button & MouseButtons.Middle) != 0) result |= 4;
+        if ((button & MouseButtons.XButton1) != 0) result |= 8;
+        if ((button & MouseButtons.XButton2) != 0) result |= 16;
+        return result;
+    }
+
+    private static short ToVbShift(Keys modifiers)
+    {
+        var result = 0;
+        if ((modifiers & Keys.Shift) != 0) result |= 1;
+        if ((modifiers & Keys.Control) != 0) result |= 2;
+        if ((modifiers & Keys.Alt) != 0) result |= 4;
+        return (short)result;
+    }
+
+    private static float ToTwips(object source, int pixels)
+    {
+        var dpi = source is Control control && control.DeviceDpi > 0
+            ? control.DeviceDpi
+            : 96;
+        return pixels * 1440f / dpi;
     }
 
     private static object? ConvertEventArgument(object? value, Type targetType)
