@@ -736,6 +736,7 @@ public sealed class ProjectCompilationTests
                 Begin VB.Form Splash
                    Begin VB.Frame Frame1
                       Begin VB.CommandButton StartButton
+                         Caption = "Start"
                       End
                    End
                 End
@@ -790,6 +791,14 @@ public sealed class ProjectCompilationTests
                 .ToArray();
             CollectionAssert.Contains(controlNames, "Frame1");
             CollectionAssert.Contains(controlNames, "Frame1.StartButton");
+            var captionInitializer = constructor.Blocks
+                .SelectMany(block => block.Instructions)
+                .OfType<IrEvaluateInstruction>()
+                .Select(instruction => instruction.Expression)
+                .OfType<IrRuntimeCallExpression>()
+                .Single(call => call.Method == IrRuntimeMethod.InteractionSetMember);
+            Assert.AreEqual("Caption", ((IrConstantExpression)captionInitializer.Arguments[1].Expression).Value);
+            Assert.AreEqual("Start", ((IrConstantExpression)captionInitializer.Arguments[2].Expression).Value);
             Assert.IsTrue(File.Exists(result.AssemblyPath));
             Assert.AreEqual(string.Empty, VB6TestProgram.RunProject(projectPath));
         }

@@ -166,6 +166,9 @@ public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
 public sealed record ModuleVariableSymbol(string Name, TypeSymbol Type)
     : VariableSymbol(Name, Type);
 
+/// <summary>Compile-time value used to initialize a Form/UserControl designer member.</summary>
+public sealed record DesignerPropertyInitializer(string Name, object Value);
+
 public sealed record ParameterSymbol(
     string Name,
     TypeSymbol Type,
@@ -783,6 +786,10 @@ public sealed record BoundModuleVariable(
 
     /// <summary>Qualified designer parent path for nested Form/UserControl controls.</summary>
     public string? DesignerParentName { get; init; }
+
+    /// <summary>Scalar designer values applied by the configured host after control creation.</summary>
+    public ImmutableArray<DesignerPropertyInitializer> DesignerInitializers { get; init; } =
+        ImmutableArray<DesignerPropertyInitializer>.Empty;
 
     public BoundModuleVariable(
         ModuleVariableSymbol Symbol,

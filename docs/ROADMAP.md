@@ -1228,7 +1228,9 @@ Größter Einzelblock.
       `BeginProperty`-Blöcken und hexadezimalen `.frx`-Ressourcenoffsets erfasst. Intrinsische
       Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
       `Label`, `Shape`, `Line`, `Timer` und `Menu`) werden als typisierte Klassenfelder gebunden;
-      vollständige Ressourcendekodierung und WinForms-Erzeugung bleiben offen.
+      skalare Designerwerte werden nach der Control-Erzeugung über den Host gesetzt; `TextRTF`
+      kann seine Nutzdaten aus `.frx` beziehen. Vollständige Ressourcendekodierung und WinForms-
+      Erzeugung bleiben offen.
 - [~] Forms-Runtime auf WinForms: Der portable `IVB6Host`-Vertrag deckt Message-Pump, Form-Lifecycle,
       dynamischen Member-/Control-Dispatch, Control-Erzeugung und Enumeration ab; `VB6.Runtime.WinForms`
       mappt Standardcontrols, Twips, OLE-Farben und Fonts und regressionstestet `Load`/`Unload`/`Show`.
@@ -1611,3 +1613,13 @@ in den jeweiligen Hostadapter und wird nicht durch eine unsichere Universaldecod
 Fehlerhafte vorhandene Ressourcen erzeugen `VB6FRX0001` als Warnung, während fehlende optionale
 Designerdateien für reine Analysepfade weiterhin diagnostikfrei bleiben. Die Gesamtsuite umfasst
 **931 Tests**.
+
+## Aktueller Designer-Initialisierungs-Nachtrag
+
+Designerwerte für `Caption`, `Text`, Sichtbarkeit, Aktivierung, Position, Größe, Farben,
+`RichTextBox`-Auswahl und `Timer.Interval` werden nun beim generierten Form-Konstruktor nach der
+Control-Erzeugung als explizite `InteractionSetMember`-Aufrufe emittiert. Der portable Runtime-
+Vertrag reicht diese Werte an den konfigurierten Host weiter; der WinForms-Host setzt sie über
+Twips-, OLE-Farb- und RichTextBox-Konvertierungen. Nicht skalare oder noch opaque Ressourcenwerte
+bleiben bewusst beim jeweiligen Hostadapter. Die IR-Regression prüft den Designer-Property-
+Namen und den emittierten Wert; die Gesamtsuite bleibt bei **931 Tests**.

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using VB6.Parser;
 using VB6.ProjectSystem;
 using VB6.Semantics;
@@ -284,7 +285,8 @@ public sealed class VBProjectCompilation
                     instanceVariables.Add(new BoundModuleVariable(symbol, Initializer: null, IsConstant: false)
                     {
                         IsDesignerControl = true,
-                        DesignerParentName = control.ParentName
+                        DesignerParentName = control.ParentName,
+                        DesignerInitializers = control.Initializers
                     });
                 }
 
@@ -545,7 +547,10 @@ public sealed class VBProjectCompilation
             yield break;
         }
 
-        var controls = new Dictionary<string, (TypeSymbol Type, bool IsArray, string? ParentName)>(StringComparer.OrdinalIgnoreCase);
+        var controls = new Dictionary<
+            string,
+            (TypeSymbol Type, bool IsArray, string? ParentName, ImmutableArray<DesignerPropertyInitializer> Initializers)>(
+            StringComparer.OrdinalIgnoreCase);
         foreach (var child in document.Root.Children)
         {
             Visit(child, null);
@@ -558,7 +563,8 @@ public sealed class VBProjectCompilation
                 control.Value.IsArray
                     ? new ArrayTypeSymbol(control.Value.Type)
                     : control.Value.Type,
-                control.Value.ParentName);
+                control.Value.ParentName,
+                control.Value.Initializers);
         }
 
         void Visit(VBDesignerNode node, string? parentName)
@@ -569,11 +575,13 @@ public sealed class VBProjectCompilation
             var type = TypeSymbol.Lookup(typeName) ?? VBStandardTypes.Control;
             if (controls.TryGetValue(node.Name, out var existing))
             {
-                controls[node.Name] = (existing.Type, true, existing.ParentName);
+                controls[node.Name] = (existing.Type, true, existing.ParentName, existing.Initializers);
             }
             else
             {
-                controls.Add(node.Name, (type, node.IsControlArray, parentName));
+                controls.Add(
+                    node.Name,
+                    (type, node.IsControlArray, parentName, ReadDesignerInitializers(node)));
             }
 
             var currentName = parentName is null
@@ -584,6 +592,54 @@ public sealed class VBProjectCompilation
                 Visit(child, currentName);
             }
         }
+
+        static ImmutableArray<DesignerPropertyInitializer> ReadDesignerInitializers(VBDesignerNode node)
+        {
+            var initializers = ImmutableArray.CreateBuilder<DesignerPropertyInitializer>();
+            foreach (var property in node.Properties)
+            {
+                if (!IsSupportedDesignerProperty(property.Name))
+                {
+                    continue;
+                }
+
+                object? value = property.Name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) &&
+                                property.ResourceData is not null
+                    ? Encoding.ASCII.GetString(property.ResourceData)
+                    : property.ResourcePath is null
+                        ? property.Value
+                        : null;
+                if (value is string or bool or long or int)
+                {
+                    initializers.Add(new DesignerPropertyInitializer(property.Name, value));
+                }
+            }
+
+            return initializers.ToImmutable();
+        }
+
+        static bool IsSupportedDesignerProperty(string name) =>
+            name.Equals("Caption", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("TextRTF", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Visible", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Left", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Top", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Width", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Height", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("BackColor", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("ForeColor", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelStart", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelLength", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelText", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelColor", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelBold", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelItalic", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SelUnderline", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("RightMargin", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("HideSelection", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Interval", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
@@ -1129,7 +1185,11 @@ public sealed class VBProjectCompilation
         ParseResult ParseResult,
         CompilationUnitSyntax SemanticRoot);
 
-    private sealed record DesignerControl(string Name, TypeSymbol Type, string? ParentName);
+    private sealed record DesignerControl(
+        string Name,
+        TypeSymbol Type,
+        string? ParentName,
+        ImmutableArray<DesignerPropertyInitializer> Initializers);
 
     private sealed class ActiveProjectScope : IDisposable
     {

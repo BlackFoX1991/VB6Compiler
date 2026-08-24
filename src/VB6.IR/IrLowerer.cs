@@ -336,16 +336,18 @@ public static class IrLowerer
                             var displayName = variable.Symbol.Name + "(" +
                                 string.Join(",", indices.Select(index => index.ToString(System.Globalization.CultureInfo.InvariantCulture))) +
                                 ")";
+                            var elementTarget = new IrArrayElementPlace(
+                                new IrLoadExpression(target),
+                                indices.Select(index => (IrExpression)new IrConstantExpression(index, TypeSymbol.Long)).ToImmutableArray(),
+                                controlArray.ElementType);
                             instructions.Add(new IrStoreInstruction(
-                                new IrArrayElementPlace(
-                                    new IrLoadExpression(target),
-                                    indices.Select(index => (IrExpression)new IrConstantExpression(index, TypeSymbol.Long)).ToImmutableArray(),
-                                    controlArray.ElementType),
+                                elementTarget,
                                 CreateDesignerControl(
                                     classType,
                                     displayName,
                                     controlArray.ElementType,
                                     variable.DesignerParentName)));
+                            AddDesignerInitializers(instructions, elementTarget, variable.DesignerInitializers);
                         }
                     }
                     else if (variable.IsDesignerControl && variable.Symbol.Type is ClassTypeSymbol controlType)
@@ -357,6 +359,7 @@ public static class IrLowerer
                                 variable.Symbol.Name,
                                 controlType,
                                 variable.DesignerParentName)));
+                        AddDesignerInitializers(instructions, target, variable.DesignerInitializers);
                     }
                     else if (variable.Symbol.Type == TypeSymbol.String)
                     {
@@ -427,6 +430,40 @@ public static class IrLowerer
                             IrCallArgumentKind.Value)),
                     controlType);
             }
+
+            static void AddDesignerInitializers(
+                ImmutableArray<IrInstruction>.Builder instructions,
+                IrPlace target,
+                ImmutableArray<DesignerPropertyInitializer> initializers)
+            {
+                foreach (var initializer in initializers)
+                {
+                    var value = CreateDesignerConstant(initializer.Value);
+                    if (value is null)
+                    {
+                        continue;
+                    }
+
+                    instructions.Add(new IrEvaluateInstruction(
+                        new IrRuntimeCallExpression(
+                            IrRuntimeMethod.InteractionSetMember,
+                            ImmutableArray.Create(
+                                new IrCallArgument(new IrLoadExpression(target)),
+                                new IrCallArgument(new IrConstantExpression(initializer.Name, TypeSymbol.String)),
+                                new IrCallArgument(value)),
+                            TypeSymbol.Error)));
+                }
+            }
+
+            static IrConstantExpression? CreateDesignerConstant(object value) => value switch
+            {
+                string text => new IrConstantExpression(text, TypeSymbol.String),
+                bool boolean => new IrConstantExpression(boolean, TypeSymbol.Boolean),
+                int integer => new IrConstantExpression(integer, TypeSymbol.Long),
+                long longValue when longValue is >= int.MinValue and <= int.MaxValue =>
+                    new IrConstantExpression((int)longValue, TypeSymbol.Long),
+                _ => null
+            };
 
             static IEnumerable<ImmutableArray<long>> EnumerateArrayIndices(
                 ImmutableArray<IrArrayBound> bounds)
