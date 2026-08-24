@@ -180,6 +180,7 @@ public static class VBEvents
 
             if (TrySubscribeComEvent(
                     source,
+                    eventName,
                     comInterfaceId,
                     comDispId == int.MinValue ? null : comDispId,
                     target,
@@ -362,6 +363,7 @@ public static class VBEvents
 
     private static bool TrySubscribeComEvent(
         object source,
+        string eventName,
         string? comInterfaceId,
         int? comDispId,
         object target,
@@ -376,9 +378,25 @@ public static class VBEvents
         var comSource = GetComObject(source);
         if (!OperatingSystem.IsWindows() ||
             comSource is null ||
-            !Marshal.IsComObject(comSource) ||
-            !Guid.TryParse(comInterfaceId, out var parsedInterfaceId) ||
-            comDispId is not int parsedDispId)
+            !Marshal.IsComObject(comSource))
+        {
+            return false;
+        }
+
+        var parsedInterfaceId = Guid.Empty;
+        var parsedDispId = 0;
+        var hasImportedIdentity = Guid.TryParse(comInterfaceId, out parsedInterfaceId) &&
+            comDispId.HasValue;
+        if (hasImportedIdentity)
+        {
+            parsedDispId = comDispId!.Value;
+        }
+        if (!hasImportedIdentity &&
+            !VBComDispatch.TryGetComEventIdentity(
+                comSource,
+                eventName,
+                out parsedInterfaceId,
+                out parsedDispId))
         {
             return false;
         }

@@ -97,6 +97,172 @@ internal static class VBComDispatch
         }
     }
 
+    [SupportedOSPlatform("windows")]
+    internal static bool TryGetComEventIdentity(
+        object target,
+        string eventName,
+        out Guid interfaceId,
+        out int dispId)
+    {
+        interfaceId = Guid.Empty;
+        dispId = 0;
+        if (!OperatingSystem.IsWindows() ||
+            !Marshal.IsComObject(target) ||
+            string.IsNullOrWhiteSpace(eventName))
+        {
+            return false;
+        }
+
+        try
+        {
+            return TryGetComEventIdentity((INativeDispatch)target, eventName, out interfaceId, out dispId);
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryGetComEventIdentity(
+        INativeDispatch dispatch,
+        string eventName,
+        out Guid interfaceId,
+        out int dispId)
+    {
+        interfaceId = Guid.Empty;
+        dispId = 0;
+        if (dispatch.GetTypeInfoCount(out var typeInfoCount) < 0 ||
+            typeInfoCount == 0 ||
+            dispatch.GetTypeInfo(0, 1033, out var typeInfoPointer) < 0 ||
+            typeInfoPointer == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        ITypeInfo? typeInfo = null;
+        IntPtr typeAttributePointer = IntPtr.Zero;
+        try
+        {
+            typeInfo = (ITypeInfo)Marshal.GetObjectForIUnknown(typeInfoPointer);
+            typeInfo.GetTypeAttr(out typeAttributePointer);
+            var typeAttribute = Marshal.PtrToStructure<TYPEATTR>(typeAttributePointer);
+            for (var implementationIndex = 0;
+                 implementationIndex < typeAttribute.cImplTypes;
+                 implementationIndex++)
+            {
+                typeInfo.GetImplTypeFlags(implementationIndex, out var flags);
+                if ((flags & IMPLTYPEFLAGS.IMPLTYPEFLAG_FSOURCE) == 0)
+                {
+                    continue;
+                }
+
+                typeInfo.GetRefTypeOfImplType(implementationIndex, out var referenceHandle);
+                typeInfo.GetRefTypeInfo(referenceHandle, out var sourceTypeInfo);
+                try
+                {
+                    if (TryFindEventInTypeInfo(
+                        sourceTypeInfo,
+                        eventName,
+                        out interfaceId,
+                        out dispId))
+                    {
+                        return true;
+                    }
+                }
+                finally
+                {
+                    if (Marshal.IsComObject(sourceTypeInfo))
+                    {
+                        _ = Marshal.ReleaseComObject(sourceTypeInfo);
+                    }
+                }
+            }
+
+            // Some automation servers return the source dispatch interface directly rather
+            // than a coclass TYPEATTR. Accept that shape as a final metadata fallback.
+            return TryFindEventInTypeInfo(typeInfo, eventName, out interfaceId, out dispId);
+        }
+        finally
+        {
+            if (typeAttributePointer != IntPtr.Zero && typeInfo is not null)
+            {
+                typeInfo.ReleaseTypeAttr(typeAttributePointer);
+            }
+
+            if (typeInfo is not null && Marshal.IsComObject(typeInfo))
+            {
+                _ = Marshal.ReleaseComObject(typeInfo);
+            }
+
+            _ = Marshal.Release(typeInfoPointer);
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryFindEventInTypeInfo(
+        ITypeInfo typeInfo,
+        string eventName,
+        out Guid interfaceId,
+        out int dispId)
+    {
+        interfaceId = Guid.Empty;
+        dispId = 0;
+        IntPtr typeAttributePointer = IntPtr.Zero;
+        try
+        {
+            typeInfo.GetTypeAttr(out typeAttributePointer);
+            var typeAttribute = Marshal.PtrToStructure<TYPEATTR>(typeAttributePointer);
+            if (typeAttribute.guid == Guid.Empty)
+            {
+                return false;
+            }
+
+            for (var functionIndex = 0; functionIndex < typeAttribute.cFuncs; functionIndex++)
+            {
+                typeInfo.GetFuncDesc(functionIndex, out var functionPointer);
+                try
+                {
+                    var function = Marshal.PtrToStructure<FUNCDESC>(functionPointer);
+                    var names = new string[1];
+                    typeInfo.GetNames(function.memid, names, names.Length, out var nameCount);
+                    if (nameCount > 0 &&
+                        string.Equals(names[0], eventName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        interfaceId = typeAttribute.guid;
+                        dispId = function.memid;
+                        return true;
+                    }
+                }
+                finally
+                {
+                    typeInfo.ReleaseFuncDesc(functionPointer);
+                }
+            }
+        }
+        finally
+        {
+            if (typeAttributePointer != IntPtr.Zero)
+            {
+                typeInfo.ReleaseTypeAttr(typeAttributePointer);
+            }
+        }
+
+        return false;
+    }
+
     private static bool ShouldUsePropertyPutRef(object?[] arguments) =>
         arguments.Length > 0 &&
         UnwrapComValue(arguments[^1]) is { } value &&

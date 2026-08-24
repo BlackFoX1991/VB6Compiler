@@ -1918,3 +1918,14 @@ beginnende CLR-Arrays. Die bisherigen `VBArray<T>`-Pfade und Default-Property-In
 Managed-Objekte bleiben unverändert. ByRef-Elementadressen von CLR-/SAFEARRAY-Werten, vollständige
 SAFEARRAY-Descriptor-Konvertierung und SAFEARRAYs mit UDT-/Pointer-Elementen bleiben separate
 Interop-Schritte. Die Gesamtsuite umfasst **958 Tests**.
+
+## Aktueller COM-Connection-Point-Metadaten-Nachtrag
+
+Der COM-Eventpfad verwendet weiterhin importierte Source-IIDs und DISPIDs, wenn der Compiler diese
+aus einer TypeLibrary kennt. Für rein late-bound COM-Objekte ohne importierte Eventmetadaten liest
+die Runtime nun den `IDispatch`-`ITypeInfo`-Vertrag, durchsucht die als `FSOURCE` markierten
+Connection-Point-Schnittstellen und ermittelt den Event-DISPID per Namen. Die daraus gewonnene
+Identität wird an `ComEventsHelper` weitergereicht und beim Abmelden mit derselben Delegate-Instanz
+entfernt; CLR- und WinForms-Eventbrücken bleiben unverändert. Vollständige COM-Event-Signatur-
+Konversion, Cancel-/ByRef-Fehlerverträge und der gesamte Connection-Point-Lebenszyklus bleiben
+separate ABI-Schritte.
