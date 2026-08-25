@@ -41,8 +41,8 @@ public sealed class VariantMultiplyTests
             (object?)2d);
         Assert.IsInstanceOfType<VBCurrency>(currencyAndInteger);
         Assert.AreEqual(VBConversions.CCur(3m), currencyAndInteger);
-        Assert.IsInstanceOfType<double>(currencyAndDouble);
-        Assert.AreEqual(3d, currencyAndDouble);
+        Assert.IsInstanceOfType<VBCurrency>(currencyAndDouble);
+        Assert.AreEqual(VBConversions.CCur(3m), currencyAndDouble);
     }
 
     [TestMethod]

@@ -292,12 +292,12 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
-    public void Multiplication_UsesCurrencyAndDoublePrecisionOrder()
+    public void Multiplication_PreservesCurrencyBeforeDoublePromotion()
     {
         var result = VBOperators.MultiplyInteger(VBConversions.CCur(1m), 0.5d);
 
-        Assert.IsInstanceOfType<double>(result);
-        Assert.AreEqual(0.5d, result);
+        Assert.IsInstanceOfType<VBCurrency>(result);
+        Assert.AreEqual(0.5m, ((VBCurrency)result!).ToDecimal());
     }
 
     [TestMethod]
