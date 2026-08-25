@@ -70,6 +70,35 @@ public sealed class PortablePdbEmitterTests
         CollectionAssert.AreEqual(first, second);
     }
 
+    [TestMethod]
+    public void Emit_ContainsProcedureWideScopeWithoutUserLocals()
+    {
+        const string source = """
+            Sub Main()
+                Debug.Print 1
+            End Sub
+            """;
+        var program = Lower(source);
+        var options = new ManagedEmitOptions("PortablePdbProcedureScope", EmitPortablePdb: true)
+        {
+            SourceDocuments = ImmutableArray.Create(new ManagedSourceDocument(
+                "Module1.bas",
+                ImmutableArray.CreateRange(SHA256.HashData(Encoding.UTF8.GetBytes(source)))))
+        };
+        var peResult = new ManagedEmitter().Emit(program, options);
+        Assert.IsTrue(peResult.Success, string.Join(Environment.NewLine, peResult.Diagnostics));
+
+        var pdb = PortablePdbEmitter.Emit(program, peResult.PeImage!, options);
+        using var stream = new MemoryStream(pdb, writable: false);
+        using var provider = MetadataReaderProvider.FromPortablePdbStream(stream);
+        var reader = provider.GetMetadataReader();
+
+        var scope = reader.GetLocalScope(reader.LocalScopes.Single());
+        Assert.AreEqual(0, scope.StartOffset);
+        Assert.IsTrue(scope.Length > 0);
+        Assert.AreEqual(0, scope.GetLocalVariables().Count);
+    }
+
     private static IrProgram Lower(string source)
     {
         var analysis = VBCompilation.Create(source, "Module1.bas").Analyze();

@@ -217,35 +217,40 @@ public static class PortablePdbEmitter
         for (var index = 0; index < procedures.Length; index++)
         {
             var procedure = procedures[index];
-            var userLocals = procedure.Locals
-                .Where(local => !local.IsCompilerGenerated)
-                .OrderBy(local => local.Id)
-                .ToImmutableArray();
-            if (userLocals.IsDefaultOrEmpty)
+            var methodHandle = MetadataTokens.MethodDefinitionHandle(index + 1);
+            var method = peMetadata.GetMethodDefinition(methodHandle);
+            if (method.RelativeVirtualAddress == 0)
             {
                 continue;
             }
 
-            var firstVariable = MetadataTokens.LocalVariableHandle(nextLocalVariableRow);
-            foreach (var local in userLocals)
+            var ilLength = peReader.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()?.Length ?? 0;
+            var userLocals = procedure.Locals
+                .Where(local => !local.IsCompilerGenerated)
+                .OrderBy(local => local.Id)
+                .ToImmutableArray();
+
+            var firstVariable = default(LocalVariableHandle);
+            if (!userLocals.IsDefaultOrEmpty)
             {
-                metadata.AddLocalVariable(
-                    LocalVariableAttributes.None,
-                    local.Id,
-                    metadata.GetOrAddString(local.Name));
-                nextLocalVariableRow++;
+                firstVariable = MetadataTokens.LocalVariableHandle(nextLocalVariableRow);
+                foreach (var local in userLocals)
+                {
+                    metadata.AddLocalVariable(
+                        LocalVariableAttributes.None,
+                        local.Id,
+                        metadata.GetOrAddString(local.Name));
+                    nextLocalVariableRow++;
+                }
             }
 
-            var methodHandle = MetadataTokens.MethodDefinitionHandle(index + 1);
-            var method = peMetadata.GetMethodDefinition(methodHandle);
-            var ilLength = method.RelativeVirtualAddress == 0
-                ? 0
-                : peReader.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()?.Length ?? 0;
+            // Keep a scope even when the procedure has no user locals: debuggers need the method
+            // start and length to recognize the complete VB6 procedure boundary.
             metadata.AddLocalScope(
                 methodHandle,
                 default,
                 firstVariable,
-                MetadataTokens.LocalConstantHandle(1),
+                default,
                 0,
                 ilLength);
         }
