@@ -413,13 +413,22 @@ public sealed class ManagedEmitter
             {
                 var first = MetadataTokens.ParameterHandle(_metadata.GetRowCount(TableIndex.Param) + 1);
                 result.Add(procedure, first);
-                if (procedure.IsExternal && procedure.ReturnType == TypeSymbol.String)
+                if (procedure.IsExternal &&
+                    procedure.ReturnType is TypeSymbol returnType &&
+                    (returnType == TypeSymbol.String || returnType == TypeSymbol.Boolean))
                 {
                     var returnParameter = _metadata.AddParameter(
                         ParameterAttributes.None,
                         default,
                         sequenceNumber: 0);
-                    AddAnsiStringMarshalling(returnParameter);
+                    if (returnType == TypeSymbol.String)
+                    {
+                        AddAnsiStringMarshalling(returnParameter);
+                    }
+                    else
+                    {
+                        AddVariantBooleanMarshalling(returnParameter);
+                    }
                 }
 
                 foreach (var parameter in procedure.Parameters.OrderBy(parameter => parameter.Index))
@@ -434,6 +443,10 @@ public sealed class ManagedEmitter
                     {
                         AddAnsiStringMarshalling(parameterHandle);
                     }
+                    else if (procedure.IsExternal && parameter.Type == TypeSymbol.Boolean)
+                    {
+                        AddVariantBooleanMarshalling(parameterHandle);
+                    }
                 }
             }
             return result;
@@ -443,6 +456,13 @@ public sealed class ManagedEmitter
         {
             var blob = new BlobBuilder();
             blob.WriteByte(0x14); // NATIVE_TYPE_LPSTR
+            _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
+        }
+
+        private void AddVariantBooleanMarshalling(ParameterHandle parameter)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte((byte)UnmanagedType.VariantBool);
             _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
         }
 
