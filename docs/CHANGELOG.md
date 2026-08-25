@@ -2586,3 +2586,44 @@ Quelldatei.
 Nebenbefund: `Open ... For Random` wird laengst gebunden, der urspruengliche Testfall fuer
 `VB6S0057` traf deshalb nichts. Die gemessene Vollsuite umfasst **1121 Testfaelle**, davon **1121
 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.
+
+## Nativer-OCX-Event-Nachtrag
+
+Die Umstellung der Designer-Subscriptions auf VB6-Eventnamen war hergeleitet, nicht gemessen. Der
+native Lauf im 32-Bit-Testhost gegen die registrierten OCX hat sie geprueft — und die Erklaerung
+zur Haelfte widerlegt.
+
+Zuerst fiel auf, dass die vorhandenen nativen Tests die Aenderung gar nicht beruehren: Sie pruefen
+`Change` ueber `WithEvents`, und der einzige Designer-Konventions-Handler war `Editor_KeyPress` —
+ein Name, der in VB6 und WinForms zufaellig gleich lautet und deshalb auch vorher funktionierte.
+Das Fixture traegt jetzt `Editor_Change`, `Editor_GotFocus`, `Editor_LostFocus` und
+`Editor_DblClick`.
+
+Damit zeigte sich, dass ein VB6-Event auf einem ActiveX-Control aus zwei Quellen kommen kann.
+`Change` und `DblClick` stammen aus dem Control und brauchen den VB6-Namen am Connection-Point;
+mit `TextChanged` beziehungsweise `DoubleClick` feuert nichts. Fokus-Events dagegen sind
+**Extender-Events**: In VB6 liefert sie der Container, im Event-Interface des OCX fehlen sie. Der
+Host schickte sie trotzdem nur an den Connection-Point, sodass `GotFocus` und `LostFocus` auf einem
+nativen OCX **mit keinem Namen** feuern konnten. Schlaegt die COM-Subscription fehl, versucht der
+Host den Namen jetzt am hostenden Wrapper; `AxHost` lehnt geerbte Events ab, die das Control nicht
+implementiert, und diese Absage wird als Antwort behandelt.
+
+Die Nachpruefung an `MSComctlLib.TreeView` legte eine zweite Luecke offen:
+`AttachOcxControlEvents` schaltete auf die CLR-Typen der managed Adapter, und ein nativer OCX ist
+keiner davon. `NodeClick`, `SelChange` und `Dropdown` wurden auf dem nativen Pfad also nie
+abonniert. Sie werden einem nativen Control jetzt unabhaengig vom CLR-Typ angeboten; der
+Connection-Point nimmt an, was er kennt.
+
+Nativ gemessen, jeweils mit Gegenprobe: `Change` und `DblClick` an RichTextBox, `NodeClick` an
+TreeView, `GotFocus` und `LostFocus` an beiden. Die Extender-Regel gilt damit fuer beide geprueften
+Controls. Nur managed geprueft bleiben `SelChange` und `Dropdown`.
+
+Der TreeView-Test prueft zuerst `Click`: Kommt der an, aber `NodeClick` nicht, liegt es an der
+Subscription und nicht an der Mauszustellung — ohne diese Trennung waere der Fehlschlag nicht zu
+deuten. Die Klickpunkte werden abgetastet, damit der Treffer nicht an den Einrueckungsmassen des
+OCX haengt; die Fokuspruefungen zaehlen "mindestens einmal", weil die Wiederholung ein
+AxHost-Artefakt der Fokuswanderung zwischen Wrapper und innerem Fenster ist.
+
+x86 mit `VB6_REQUIRE_NATIVE_OCX=1`: **47 von 47** gruen. Die gemessene x64-Vollsuite umfasst
+**1122 Testfaelle**, davon **1122 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt
+bei 0 Fehlern und 40 von 40.

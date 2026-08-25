@@ -40,7 +40,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1121 Tests, alle grün**
+**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1122 Tests, alle grün**
 (Stand 2026-08-25).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
@@ -491,14 +491,30 @@ danach, unbelegte Konstrukte gar nicht.
       `MSComctlLib.TreeView` (2), `MSComctlLib.ImageCombo` (2) — alle fünf haben bereits einen
       managed Late-Binding-Vertrag. Die im Korpus belegten Event-Signaturen stehen: `NodeClick`
       (TreeView, mit typisiertem `Node`), `SelChange` (RichTextBox) und `Dropdown` (ImageCombo),
-      dazu der intrinsische Satz. Alle Subscriptions verwenden die **VB6-Eventnamen**; die
-      Übersetzung auf die WinForms-Entsprechung liegt allein in `FindEvent`. Das ist die
-      Bedingung dafür, dass **nativer `AxHost`-Pfad und managed Adapter dieselbe Signatur
-      liefern** — der native Pfad reicht den Namen unübersetzt an den COM-Connection-Point weiter,
-      dem ein WinForms-Name nichts sagt. Der native Pfad ist an registrierte 32-Bit-OCX gebunden
-      und wird über `VB6_REQUIRE_NATIVE_OCX=1` erzwungen; ohne Registrierung — etwa auf einem
-      CI-Runner — muss der managed Pfad grün bleiben. Offen bleiben die nicht belegten
-      Event-Signaturen der übrigen OCX-Oberfläche.
+      dazu der intrinsische Satz.
+
+      **Ein VB6-Event auf einem ActiveX-Control kann aus zwei Quellen kommen**, und der Host muss
+      beide bedienen, sonst liefern nativer und managed Pfad nicht dieselbe Signatur:
+
+      1. *Aus dem Control.* Der COM-Connection-Point trägt die Events des OCX — `Change`,
+         `DblClick`, `NodeClick`, `SelChange`, `Dropdown`. Dafür muss der **VB6-Name** übergeben
+         werden; die Übersetzung auf die WinForms-Entsprechung liegt allein in `FindEvent` und
+         gilt nur dem managed Adapter. Ein WinForms-Name sagt einem OCX nichts.
+      2. *Aus dem Container.* Fokus-Events sind in VB6 **Extender-Events** und fehlen im
+         Event-Interface des OCX. Schlägt die COM-Subscription fehl, greift der Host deshalb auf
+         das hostende `AxHost`-Wrapper-Event zurück. `AxHost` lehnt dabei geerbte Events ab, die
+         das Control nicht implementiert — diese Absage ist eine Antwort, kein Fehler.
+
+      Weil ein nativer OCX keiner der managed Adapterklassen entspricht, werden ihm die
+      OCX-eigenen Eventnamen unabhängig vom CLR-Typ angeboten; das Control entscheidet selbst,
+      welche es annimmt.
+
+      Nativ nachgemessen (x86, registrierte OCX, jeweils mit Gegenprobe): `Change` und `DblClick`
+      an RichTextBox, `NodeClick` an TreeView, `GotFocus`/`LostFocus` an beiden. Nur managed
+      geprüft sind `SelChange` und `Dropdown`. Der native Pfad ist an registrierte 32-Bit-OCX
+      gebunden und wird über `VB6_REQUIRE_NATIVE_OCX=1` erzwungen — im 32-Bit-Testhost, sonst
+      überspringen die Fälle. Ohne Registrierung, etwa auf einem CI-Runner, muss der managed Pfad
+      grün bleiben. Offen bleiben die nicht belegten Event-Signaturen der übrigen OCX-Oberfläche.
 
 ## Meilenstein 10 — IDE
 
