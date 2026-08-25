@@ -203,6 +203,15 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void VariantComparisons_OrderNumericValuesBeforeNonNumericStrings()
+    {
+        Assert.IsTrue((bool)VBOperators.VariantLess(1, "abc"));
+        Assert.IsFalse((bool)VBOperators.VariantEqual(1, "abc"));
+        Assert.IsTrue((bool)VBOperators.VariantGreater("abc", 1));
+        Assert.IsTrue((bool)VBOperators.VariantLess(new VBDateValue(1), "abc"));
+    }
+
+    [TestMethod]
     public void DecimalComparisons_PreservePrecisionAgainstFloatingVariants()
     {
         var value = VBConversions.CDec("0.100000000000000005");

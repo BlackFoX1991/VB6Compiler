@@ -2434,3 +2434,12 @@ bewahrt die VB6-Untergrenzen, konvertiert zwischen `VBArray<string>` und `System
 ersetzte Bounds sowie Inhalte über die native Delegate-Grenze zurück. Verschachtelte String-Pointer-
 ABIs, Stringfelder in UDTs und weitere rohe Pointerverträge bleiben separate Interop-Schritte;
 die Regression läuft auf x86 und x64, die Vollsuite umfasst nun **1022 Tests**.
+
+## Aktueller Variant-Vergleichs-Nachtrag
+
+Variant-Vergleiche ordnen einen numerischen Wert jetzt vor einem nicht numerisch konvertierbaren
+String ein, statt in einen CLR-Typvergleich zu fallen. Das gilt auch für erhaltene Date-Variantwerte;
+numerische Strings und reine String-zu-String-Vergleiche behalten ihre bisherigen Promotions- bzw.
+lexikalischen Regeln. Direkte Runtime- und kompilierte Managed-Regressionen decken `<`, `=`, `>` und
+den Date-Fall ab. Die abschließende Variant-Promotionstabelle sowie Objekt-/Array-Varianten bleiben
+weiterhin offen; die Vollsuite umfasst nun **1024 Tests**.

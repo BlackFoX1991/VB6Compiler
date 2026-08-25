@@ -588,8 +588,26 @@ public static partial class VBOperators
             return leftNumber.CompareTo(rightNumber);
         }
 
+        // Variant comparisons keep a non-convertible String on the string side of the
+        // comparison. VB6 orders a numeric Variant before that String instead of asking the
+        // CLR's IComparable implementations to compare unrelated runtime types.
+        if (left is string && IsNumericComparisonValue(right))
+        {
+            return 1;
+        }
+
+        if (right is string && IsNumericComparisonValue(left))
+        {
+            return -1;
+        }
+
         return Compare(left, right);
     }
+
+    private static bool IsNumericComparisonValue(object? value) =>
+        value is VBDateValue or DateTime or VBCurrency or decimal or
+        byte or short or int or ushort or uint or long or ulong or IntPtr or
+        float or double or bool;
 
     private static bool TryComparePromotedNumericValues(
         object? left,
@@ -679,6 +697,12 @@ public static partial class VBOperators
             case string:
                 number = 0d;
                 return false;
+            case VBDateValue date:
+                number = date.OADate;
+                return true;
+            case DateTime date:
+                number = date.ToOADate();
+                return true;
             case byte or short or int or ushort or uint or long or ulong or IntPtr or float or double or decimal or VBCurrency or bool:
                 number = VBConversions.CDbl(value);
                 return true;
