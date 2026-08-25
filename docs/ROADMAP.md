@@ -144,9 +144,10 @@ Ablegen typisierter Date-Werte in Variant bleibt der Date-Subtype `VarType = 7` 
 `For ... Next` akzeptiert jetzt alle numerischen Zählerformen des Sprachvertrags: `Byte`,
 `Integer`, `Long`, `LongLong`, `Single`, `Double`, `Currency` und `Date`. Default-`Step`-Werte,
 Richtungstests und die Date-OLE-Darstellung laufen dabei typisiert durch Binder, IR und Managed-
-Emitter. Scalar-
-Pointer-Transfers für `Declare ... As Any` inklusive `ByVal VarPtr(...)` sind über `IntPtr`
-abgedeckt. Die semantisch vorhandene Standard-`Collection` besitzt jetzt ebenfalls eine echte
+Emitter. Scalar-Pointer-Transfers für `Declare ... As Any` inklusive `ByVal VarPtr(...)` und
+temporärer UTF-16-Puffer für `ByVal StrPtr(...)` sind über `IntPtr` abgedeckt; beschreibbare
+Stringziele werden nach dem Native-Aufruf mit ihrer ursprünglichen VB6-Länge zurückgeschrieben.
+Die semantisch vorhandene Standard-`Collection` besitzt jetzt ebenfalls eine echte
 Managed-Runtime: `New Collection`, one-based und schlüsselbasierter `Item`-Zugriff, `Count`,
 `Add` mit `Key`/`Before`, `Remove` sowie `For Each` in Einfügereihenfolge laufen über eigene
 IR-Runtime-IDs und werden im Managed-Emitter typkorrekt auf `VBCollection` abgebildet. `For Each`
@@ -2304,3 +2305,12 @@ jetzt explizite `BOOL`- beziehungsweise ANSI-String-Marshalling-Attribute. Ein e
 vier-Byte-Win32-`Boolean`-Rückgabevertrag auf AnyCPU und x86; Variant-, UDT- und verschachtelte
 Pointer-Callbacks bleiben als separate komplexe ABI-Schritte offen. Die Vollsuite umfasst nun
 **996 Tests**.
+
+## Aktueller Declare-StrPtr-Nachtrag
+
+`ByVal StrPtr(text)` in einem `Declare ... As Any`-Aufruf verwendet jetzt einen temporären
+UTF-16-Puffer mit deterministischer Freigabe. Ist das Ziel eine beschreibbare Stringvariable,
+wird der native Inhalt nach dem Aufruf mit der ursprünglichen Zeichenlänge zurückübertragen.
+Ein echter `kernel32!RtlMoveMemory`-Roundtrip ist auf AnyCPU und x86 regressionsgesichert;
+direkte freie `StrPtr`-Aufrufe und weitere rohe String-/UDT-Pointer bleiben bewusst separate
+native Speicherverträge.
