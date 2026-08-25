@@ -966,9 +966,12 @@ public static class VBEvents
                 return null;
             }
 
-            var method = typeof(VBArrayOperations).GetMethod(
-                nameof(VBArrayOperations.FromObject),
-                BindingFlags.Public | BindingFlags.Static)
+            var method = typeof(VBArrayOperations)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .SingleOrDefault(candidate =>
+                    candidate.Name == nameof(VBArrayOperations.FromObject) &&
+                    candidate.IsGenericMethodDefinition &&
+                    candidate.GetParameters().Length == 1)
                 ?? throw new MissingMethodException(nameof(VBArrayOperations.FromObject));
             return method.MakeGenericMethod(elementType).Invoke(null, new[] { value });
         }

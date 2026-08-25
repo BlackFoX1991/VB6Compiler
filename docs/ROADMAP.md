@@ -2688,5 +2688,14 @@ Prozessbitness aufgelöst werden. Explizit vorhandene Projekt-/Dateipfade behalt
 Managed-TypeLib-Importer kann dadurch registrierte `stdole`-/OCX-Verträge auch aus alten VBP-
 Dateinamen laden. Eine echte registrierte `stdole2.tlb`-Regression deckt die Bindung ab.
 
-Die aktuelle Vollsuite umfasst nun **1076 Testfälle**, davon **1076 bestanden** und
+## Aktueller Object-/Variant-Array-Descriptor-Nachtrag
+
+`Object()`-Arrays werden im Managed-Backend weiterhin als `VBArray<object>` gespeichert, tragen
+aber jetzt zusätzlich ihren VB6-Elementnamen und den Automation-Subtype. Dadurch liefern lokale
+`ReDim`-Arrays, Variant-Zuweisungen, `Clone`, `ReDim Preserve` und SAFEARRAY-Ersatzwerte
+unterscheidbar `Object()`/`8201`, während gewöhnliche `Variant()`-Arrays bei `Variant()`/`8204`
+bleiben. Der Descriptor wird außerdem durch die Runtime-Konvertierung und die Reflection-basierten
+Callback-/COM-Event-Adapter nicht mehr durch mehrdeutige `FromObject`-Überladungen verloren.
+
+Die aktuelle Vollsuite umfasst nun **1080 Testfälle**, davon **1080 bestanden** und
 **0 fehlgeschlagen**.

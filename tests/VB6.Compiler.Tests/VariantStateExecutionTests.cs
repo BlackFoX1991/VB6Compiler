@@ -281,6 +281,48 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PreservesObjectArrayTypeDescriptor()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim values() As Object
+                ReDim values(0 To 1)
+
+                Debug.Print IsArray(values)
+                Debug.Print TypeName(values)
+                Debug.Print VarType(values)
+
+                ReDim Preserve values(0 To 2)
+                Debug.Print TypeName(values)
+                Debug.Print VarType(values)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "Object()", "8201", "Object()", "8201" },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_AppliesObjectArrayDescriptorOnVariantAssignment()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim values() As Object
+                Dim source As Variant
+                source = Array("first", "second")
+                values = source
+
+                Debug.Print TypeName(values)
+                Debug.Print VarType(values)
+                Debug.Print values(1)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "Object()", "8201", "second" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesTypeMismatchForBoundsOnNonArrayVariants()
     {
         var output = VB6TestProgram.RunLines("""

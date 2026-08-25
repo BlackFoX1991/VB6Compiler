@@ -1174,7 +1174,13 @@ public sealed class ManagedEmitter
                 (value.Type == TypeSymbol.Variant ||
                  value.Type is ClassTypeSymbol valueClass && IsRuntimeObjectContract(valueClass)))
             {
-                encoder.Call(GetDynamicArrayConversionReference(targetArray.ElementType));
+                var hasElementDescriptor = targetArray.ElementType is ClassTypeSymbol;
+                if (hasElementDescriptor)
+                {
+                    EmitArrayElementDescriptor(encoder, targetArray.ElementType);
+                }
+
+                encoder.Call(GetDynamicArrayConversionReference(targetArray.ElementType, hasElementDescriptor));
                 return;
             }
 
@@ -1305,7 +1311,13 @@ public sealed class ManagedEmitter
             encoder.Call(GetRuntimeMethodReference(info));
             if (dynamicArrayResult && call.ResultType is ArrayTypeSymbol arrayResult)
             {
-                encoder.Call(GetDynamicArrayConversionReference(arrayResult.ElementType));
+                var hasElementDescriptor = arrayResult.ElementType is ClassTypeSymbol;
+                if (hasElementDescriptor)
+                {
+                    EmitArrayElementDescriptor(encoder, arrayResult.ElementType);
+                }
+
+                encoder.Call(GetDynamicArrayConversionReference(arrayResult.ElementType, hasElementDescriptor));
             }
         }
 
@@ -2109,9 +2121,19 @@ public sealed class ManagedEmitter
             // The storage is passed by reference, so a created array is stored back into the
             // member rather than into a copy of the enclosing value.
             EmitAddress(encoder, procedure, expression.Storage);
+            var hasElementDescriptor = expression.ArrayType.ElementType is ClassTypeSymbol;
+            if (hasElementDescriptor)
+            {
+                EmitArrayElementDescriptor(encoder, expression.ArrayType.ElementType);
+            }
+
             EmitVBArrayBounds(encoder, procedure, expression.Bounds);
             encoder.OpCode(ILOpCode.Call);
-            encoder.Token(GetTypeStorageArrayReference("EnsureArray", expression.ArrayType.ElementType, storageByRef: true));
+            encoder.Token(GetTypeStorageArrayReference(
+                "EnsureArray",
+                expression.ArrayType.ElementType,
+                storageByRef: true,
+                hasElementDescriptor: hasElementDescriptor));
         }
 
         private void EmitCopyArray(
@@ -2120,17 +2142,39 @@ public sealed class ManagedEmitter
             IrCopyArrayExpression expression)
         {
             EmitExpression(encoder, procedure, expression.Source);
+            var hasElementDescriptor = expression.ArrayType.ElementType is ClassTypeSymbol;
+            if (hasElementDescriptor)
+            {
+                EmitArrayElementDescriptor(encoder, expression.ArrayType.ElementType);
+            }
+
             EmitVBArrayBounds(encoder, procedure, expression.Bounds);
             encoder.OpCode(ILOpCode.Call);
-            encoder.Token(GetTypeStorageArrayReference("CopyArray", expression.ArrayType.ElementType, storageByRef: false));
+            encoder.Token(GetTypeStorageArrayReference(
+                "CopyArray",
+                expression.ArrayType.ElementType,
+                storageByRef: false,
+                hasElementDescriptor: hasElementDescriptor));
         }
 
         private void EmitNewArray(InstructionEncoder encoder, IrProcedure procedure, IrNewVBArrayExpression expression)
         {
+            var hasElementDescriptor = expression.ArrayType.ElementType is ClassTypeSymbol;
+            if (hasElementDescriptor)
+            {
+                EmitArrayElementDescriptor(encoder, expression.ArrayType.ElementType);
+            }
+
             EmitVBArrayBounds(encoder, procedure, expression.Bounds);
-            var ctor = GetArrayConstructorReference(expression.ArrayType.ElementType);
+            var ctor = GetArrayConstructorReference(expression.ArrayType.ElementType, hasElementDescriptor);
             encoder.OpCode(ILOpCode.Newobj);
             encoder.Token(ctor);
+        }
+
+        private void EmitArrayElementDescriptor(InstructionEncoder encoder, TypeSymbol elementType)
+        {
+            encoder.LoadString(_metadata.GetOrAddUserString(elementType.Name));
+            encoder.LoadConstantI4(9);
         }
 
         private void EmitReDimPreserve(InstructionEncoder encoder, IrProcedure procedure, IrReDimPreserveExpression expression)
@@ -3037,15 +3081,24 @@ public sealed class ManagedEmitter
             encoder.Type(GetReflectionTypeReference(type), type.IsValueType);
         }
 
-        private MemberReferenceHandle GetArrayConstructorReference(TypeSymbol elementType)
+        private MemberReferenceHandle GetArrayConstructorReference(TypeSymbol elementType, bool hasElementDescriptor)
         {
-            var key = "VBArray<" + elementType.Name + ">::.ctor";
+            var key = "VBArray<" + elementType.Name + ">::.ctor:" + hasElementDescriptor;
             if (_memberReferences.TryGetValue(key, out var cached)) return cached;
             var blob = new BlobBuilder();
             new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
-                1,
+                hasElementDescriptor ? 3 : 1,
                 returnType => returnType.Void(),
-                parameters => EncodeReflectionType(parameters.AddParameter().Type(), typeof(VBArrayBound[])));
+                parameters =>
+                {
+                    if (hasElementDescriptor)
+                    {
+                        EncodeReflectionType(parameters.AddParameter().Type(), typeof(string));
+                        EncodeReflectionType(parameters.AddParameter().Type(), typeof(short));
+                    }
+
+                    EncodeReflectionType(parameters.AddParameter().Type(), typeof(VBArrayBound[]));
+                });
             var handle = _metadata.AddMemberReference(
                 GetArrayTypeSpecification(new ArrayTypeSymbol(elementType)),
                 _metadata.GetOrAddString(".ctor"),
@@ -3100,26 +3153,36 @@ public sealed class ManagedEmitter
         /// carries the open signature - where the type parameter is <c>!!0</c> - and a method
         /// specification supplies the concrete instantiation.
         /// </summary>
-        private EntityHandle GetTypeStorageArrayReference(string name, TypeSymbol elementType, bool storageByRef)
+        private EntityHandle GetTypeStorageArrayReference(
+            string name,
+            TypeSymbol elementType,
+            bool storageByRef,
+            bool hasElementDescriptor)
         {
-            var specKey = "VBTypeStorage::" + name + "<" + elementType.Name + ">";
+            var specKey = "VBTypeStorage::" + name + "<" + elementType.Name + ">:" + hasElementDescriptor;
             if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
             {
                 return cachedSpec;
             }
 
-            var definitionKey = "VBTypeStorage::" + name;
+            var definitionKey = "VBTypeStorage::" + name + ":" + hasElementDescriptor;
             if (!_memberReferences.TryGetValue(definitionKey, out var definition))
             {
                 var blob = new BlobBuilder();
                 new BlobEncoder(blob)
                     .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
                     .Parameters(
-                        2,
+                        hasElementDescriptor ? 4 : 2,
                         returnType => EncodeOpenVBArray(returnType.Type()),
                         parameters =>
                         {
                             EncodeOpenVBArray(parameters.AddParameter().Type(isByRef: storageByRef));
+                            if (hasElementDescriptor)
+                            {
+                                EncodeReflectionType(parameters.AddParameter().Type(), typeof(string));
+                                EncodeReflectionType(parameters.AddParameter().Type(), typeof(short));
+                            }
+
                             parameters.AddParameter().Type().SZArray().Type(_vbArrayBound, isValueType: true);
                         });
                 definition = _metadata.AddMemberReference(
@@ -3191,24 +3254,32 @@ public sealed class ManagedEmitter
             return spec;
         }
 
-        private EntityHandle GetDynamicArrayConversionReference(TypeSymbol elementType)
+        private EntityHandle GetDynamicArrayConversionReference(TypeSymbol elementType, bool hasElementDescriptor)
         {
-            var specKey = "VBArrayOperations::FromObject<" + elementType.Name + ">";
+            var specKey = "VBArrayOperations::FromObject<" + elementType.Name + ">:" + hasElementDescriptor;
             if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
             {
                 return cachedSpec;
             }
 
-            const string definitionKey = "VBArrayOperations::FromObject";
+            var definitionKey = "VBArrayOperations::FromObject:" + hasElementDescriptor;
             if (!_memberReferences.TryGetValue(definitionKey, out var definition))
             {
                 var blob = new BlobBuilder();
                 new BlobEncoder(blob)
                     .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
                     .Parameters(
-                        1,
+                        hasElementDescriptor ? 3 : 1,
                         returnType => EncodeOpenVBArray(returnType.Type()),
-                        parameters => parameters.AddParameter().Type().Object());
+                        parameters =>
+                        {
+                            parameters.AddParameter().Type().Object();
+                            if (hasElementDescriptor)
+                            {
+                                parameters.AddParameter().Type().String();
+                                parameters.AddParameter().Type().Int16();
+                            }
+                        });
                 definition = _metadata.AddMemberReference(
                     GetReflectionTypeReference(typeof(VBArrayOperations)),
                     _metadata.GetOrAddString(nameof(VBArrayOperations.FromObject)),
