@@ -204,7 +204,7 @@ public sealed class DeclarePInvokeExecutionTests
                 """).EmitManagedApplication(assemblyPath);
 
             Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            using var process = Process.Start(new ProcessStartInfo("dotnet")
+            using var process = Process.Start(new ProcessStartInfo(VB6TestProgram.DotnetHostPath)
             {
                 WorkingDirectory = directory,
                 RedirectStandardOutput = true,

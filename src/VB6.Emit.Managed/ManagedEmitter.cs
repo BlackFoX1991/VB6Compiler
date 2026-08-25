@@ -1181,34 +1181,11 @@ public sealed class ManagedEmitter
 
             if (expression.ResultType == TypeSymbol.LongPtr)
             {
-                encoder.OpCode(ILOpCode.Newobj);
-                encoder.Token(GetIntPtrConstructorReference());
                 return;
             }
 
             throw new NotSupportedException(
                 $"AddressOf result type '{expression.ResultType.Name}' is not supported.");
-        }
-
-        private MemberReferenceHandle GetIntPtrConstructorReference()
-        {
-            const string key = "System.IntPtr::.ctor(long)";
-            if (_memberReferences.TryGetValue(key, out var cached))
-            {
-                return cached;
-            }
-
-            var blob = new BlobBuilder();
-            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
-                1,
-                returnType => returnType.Void(),
-                parameters => parameters.AddParameter().Type().Int64());
-            var handle = _metadata.AddMemberReference(
-                GetReflectionTypeReference(typeof(IntPtr)),
-                _metadata.GetOrAddString(".ctor"),
-                _metadata.GetOrAddBlob(blob));
-            _memberReferences.Add(key, handle);
-            return handle;
         }
 
         private void EmitRuntimeCall(InstructionEncoder encoder, IrProcedure procedure, IrRuntimeCallExpression call)

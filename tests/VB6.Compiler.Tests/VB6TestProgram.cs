@@ -17,6 +17,46 @@ namespace VB6.Compiler.Tests;
 /// </summary>
 internal static class VB6TestProgram
 {
+    /// <summary>
+    /// Selects the .NET host matching the test process. An x86 test build can reference an x86
+    /// runtime support assembly, which a 64-bit host cannot load even though the resulting error
+    /// is reported as a missing managed dependency.
+    /// </summary>
+    internal static string DotnetHostPath
+    {
+        get
+        {
+            var rootVariable = Environment.Is64BitProcess
+                ? "DOTNET_ROOT_X64"
+                : "DOTNET_ROOT_X86";
+            var roots = new[]
+            {
+                Environment.GetEnvironmentVariable(rootVariable),
+                Environment.Is64BitProcess
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
+                    : Environment.GetEnvironmentVariable("ProgramFiles(x86)"),
+                Environment.GetEnvironmentVariable("DOTNET_ROOT")
+            };
+
+            foreach (var root in roots.Where(path => !string.IsNullOrWhiteSpace(path)))
+            {
+                var candidate = Path.Combine(root!, "dotnet.exe");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+
+                candidate = Path.Combine(root!, "dotnet", "dotnet.exe");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return "dotnet";
+        }
+    }
+
     /// <summary>Runs one source file and returns its standard output verbatim.</summary>
     public static string Run(string source, string fileName = "Module1.bas") =>
         Run(VBCompilation.Create(source, fileName));
@@ -84,7 +124,7 @@ internal static class VB6TestProgram
         try
         {
             var assemblyPath = emit(directory);
-            var startInfo = new ProcessStartInfo("dotnet")
+            var startInfo = new ProcessStartInfo(DotnetHostPath)
             {
                 WorkingDirectory = directory,
                 RedirectStandardOutput = true,
