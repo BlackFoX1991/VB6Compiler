@@ -2593,3 +2593,13 @@ Die Vollsuite umfasst nun **1057 Testfälle**, davon **1057 bestanden** und **0 
 `Shell` startet auf Windows nun echte Prozesse, trennt die üblichen VB6-Befehlszeilenformen in
 Programm und Argumente und bildet `vbHide`, Minimieren und Maximieren auf den Windows-Prozessstil
 ab. Nicht-Windows-/headless-Läufe behalten den deterministischen Rückgabewert `0`.
+
+## Aktueller COM-Connection-Point-Lifecycle-Nachtrag
+
+COM-Event-Subscriptions halten jetzt neben dem VB6-/Host-Wrapper auch den tatsächlich verbundenen
+RCW fest. Dadurch kann `Unsubscribe` den ursprünglichen Connection Point noch entfernen, wenn ein
+ActiveX-Wrapper seine aktuelle `ComObject`-Referenz inzwischen verloren oder freigegeben hat.
+Die Aufräumlogik behandelt bereits ungültige RCWs als best-effort Cleanup, entfernt aber weiterhin
+die Managed-Subscription. Eine echte x86-RichTextBox-Regression setzt den Provider nach der
+Verbindung zurück, trennt den Handler und prüft, dass ein anschließendes `Change`-Event nicht mehr
+ankommt. Die Vollsuite umfasst nun **1059 Testfälle**, davon **1059 bestanden** und **0 fehlgeschlagen**.

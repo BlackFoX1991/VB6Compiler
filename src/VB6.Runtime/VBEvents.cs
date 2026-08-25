@@ -177,7 +177,8 @@ public static class VBEvents
                         method,
                         out var interfaceId,
                         out var dispId,
-                        out var @delegate))
+                        out var @delegate,
+                        out var comSource))
                 {
                     continue;
                 }
@@ -194,7 +195,8 @@ public static class VBEvents
                     eventInfo: null,
                     @delegate,
                     interfaceId,
-                    dispId));
+                    dispId,
+                    comSource: comSource));
             }
         }
     }
@@ -273,7 +275,8 @@ public static class VBEvents
                     method,
                     out var comInterfaceGuid,
                     out var comEventDispId,
-                    out @delegate))
+                    out @delegate,
+                    out var comSource))
             {
                 MethodSubscriptions.Add(new MethodSubscription(
                     source,
@@ -285,7 +288,8 @@ public static class VBEvents
                     eventInfo: null,
                     @delegate,
                     comInterfaceGuid,
-                    comEventDispId));
+                    comEventDispId,
+                    comSource));
                 return;
             }
 
@@ -346,7 +350,8 @@ public static class VBEvents
                     method,
                     out var comInterfaceId,
                     out var comDispId,
-                    out var @delegate))
+                    out var @delegate,
+                    out var comSource))
             {
                 return false;
             }
@@ -361,7 +366,8 @@ public static class VBEvents
                 eventInfo: null,
                 @delegate,
                 comInterfaceId,
-                comDispId));
+                comDispId,
+                comSource));
             return true;
         }
     }
@@ -452,16 +458,28 @@ public static class VBEvents
                  subscription.ComDispId is int dispId &&
                  subscription.Delegate is not null)
         {
-            var comSource = GetComObject(subscription.Source);
+            var comSource = subscription.ComSource ?? GetComObject(subscription.Source);
             if (OperatingSystem.IsWindows())
             {
                 if (comSource is not null)
                 {
-                    ComEventsHelper.Remove(
-                        comSource,
-                        interfaceId,
-                        dispId,
-                        subscription.Delegate);
+                    try
+                    {
+                        ComEventsHelper.Remove(
+                            comSource,
+                            interfaceId,
+                            dispId,
+                            subscription.Delegate);
+                    }
+                    catch (Exception exception) when (
+                        exception is ArgumentException or
+                        InvalidOperationException or
+                        InvalidComObjectException or
+                        COMException)
+                    {
+                        // The native wrapper may already have released its RCW. Cleanup must
+                        // still remove the managed subscription and allow the host to terminate.
+                    }
                 }
             }
         }
@@ -544,16 +562,18 @@ public static class VBEvents
         MethodInfo method,
         out Guid? interfaceId,
         out int? dispId,
-        out Delegate? @delegate)
+        out Delegate? @delegate,
+        out object? comSource)
     {
         interfaceId = null;
         dispId = null;
         @delegate = null;
-        var comSource = GetComObject(source);
+        comSource = GetComObject(source);
         if (!OperatingSystem.IsWindows() ||
             comSource is null ||
             !Marshal.IsComObject(comSource))
         {
+            comSource = null;
             return false;
         }
 
@@ -592,6 +612,7 @@ public static class VBEvents
             COMException)
         {
             @delegate = null;
+            comSource = null;
             return false;
         }
     }
@@ -995,7 +1016,8 @@ public static class VBEvents
             EventInfo? eventInfo = null,
             Delegate? @delegate = null,
             Guid? comInterfaceId = null,
-            int? comDispId = null)
+            int? comDispId = null,
+            object? comSource = null)
         {
             Source = source;
             EventName = eventName;
@@ -1007,6 +1029,7 @@ public static class VBEvents
             Delegate = @delegate;
             ComInterfaceId = comInterfaceId;
             ComDispId = comDispId;
+            ComSource = comSource;
         }
 
         public object Source { get; }
@@ -1019,5 +1042,6 @@ public static class VBEvents
         public Delegate? Delegate { get; }
         public Guid? ComInterfaceId { get; }
         public int? ComDispId { get; }
+        public object? ComSource { get; }
     }
 }
