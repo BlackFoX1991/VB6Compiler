@@ -2377,3 +2377,13 @@ Arrays einschließlich ihrer neuen Bounds zurück. Ein echter Function-Pointer-A
 `ByRef Variant()` mit `ReDim` als auch einen `Variant()`-Rückgabewert auf AnyCPU und x86. UDT-,
 Pointer-, String- und nicht unterstützte Arrayelement-ABIs bleiben separate Schritte. Die
 Vollsuite umfasst nun **1011 Tests**.
+
+## Aktueller CLI-Entry-Point-Diagnostik-Nachtrag
+
+Die öffentliche `AnalyzeForEmission()`-Analyse wendet jetzt denselben Entry-Point-Vertrag wie
+die Managed-Emission an. Dadurch melden `vb6c <projekt.vbp> --report` und
+`vb6c <projekt.vbg> --report` fehlende oder ungültige EXE-Startpunkte bereits mit
+`VB6PRJ0004`/`VB6PRJ0005`; gültige Form-Starts und Library-Projekte ohne `Sub Main` bleiben
+zulässig. Die VBG-Vorprüfung verwendet denselben Vertrag, bevor einzelne Projekte emittiert
+werden. Zwei echte CLI-Prozessregressionen decken Einzelprojekt und Gruppe ab; die Vollsuite
+umfasst nun **1013 Tests**.

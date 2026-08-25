@@ -36,6 +36,12 @@ public sealed class VBProjectCompilation
         return Analyze(activeProjects);
     }
 
+    /// <summary>
+    /// Analyzes the project and applies the additional contracts required by managed emission.
+    /// </summary>
+    public VBProjectCompilationAnalysis AnalyzeForEmission() =>
+        ValidateEntryPoint(Analyze());
+
     private VBProjectCompilationAnalysis Analyze(HashSet<string> activeProjects)
     {
         if (!activeProjects.Add(_projectFilePath))
