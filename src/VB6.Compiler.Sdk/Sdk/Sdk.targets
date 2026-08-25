@@ -55,6 +55,20 @@
   </ItemGroup>
 
   <Target
+    Name="ValidateVB6CompilerInput"
+    BeforeTargets="Build">
+    <Error
+      Condition="'$(VB6Project)' != '' and '$(VB6ProjectGroup)' != ''"
+      Text="VB6.Compiler.Sdk requires exactly one of VB6Project or VB6ProjectGroup; both were specified." />
+    <Error
+      Condition="'$(VB6ProjectGroup)' == '' and !Exists('$(VB6ProjectFullPath)')"
+      Text="VB6 project file was not found: $(VB6ProjectFullPath). Set VB6Project to an existing .vbp file." />
+    <Error
+      Condition="'$(VB6ProjectGroup)' != '' and !Exists('$(VB6ProjectGroupFullPath)')"
+      Text="VB6 project group was not found: $(VB6ProjectGroupFullPath). Set VB6ProjectGroup to an existing .vbg file." />
+  </Target>
+
+  <Target
     Name="ValidateVB6CompilerGroupOutputs"
     BeforeTargets="CompileVB6ProjectGroup"
     Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6CompilerGroupStamp)') and Exists('$(VB6CompilerGroupManifest)')">
