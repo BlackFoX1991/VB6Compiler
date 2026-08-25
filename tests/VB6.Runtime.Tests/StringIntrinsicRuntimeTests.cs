@@ -33,6 +33,18 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void LenAndLenB_TreatDateTimeAsEightByteOleDateVariant()
+    {
+        var dateTime = new DateTime(2020, 1, 2, 3, 4, 5);
+        var dateValue = new VBDateValue(dateTime.ToOADate());
+
+        Assert.AreEqual(VBStrings.Len(dateValue), VBStrings.Len(dateTime));
+        Assert.AreEqual(VBStrings.LenB(dateValue), VBStrings.LenB(dateTime));
+        Assert.AreEqual(8, VBStrings.Len(dateTime));
+        Assert.AreEqual(8, VBStrings.LenB(dateTime));
+    }
+
+    [TestMethod]
     public void Len_RejectsUnsupportedClrPayloads()
     {
         Assert.ThrowsException<InvalidCastException>(() => VBStrings.Len(new object()));
