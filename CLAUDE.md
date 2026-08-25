@@ -136,8 +136,16 @@ Document <X> support           README
 Bei Host-Features (Controls, OCX, Forms) kommt eine Schicht dazu: `VB6.Runtime` definiert den
 host-neutralen Vertrag mit deterministischem Headless-Verhalten, `VB6.Runtime.WinForms`
 implementiert ihn gegen echte Controls. Headless muss ohne UI-Host durchlaufen — die Suite hat
-keinen. Der native OCX-Pfad ist x86-gebunden und lässt sich über `VB6_REQUIRE_NATIVE_OCX=1` von
-„überspringen, wenn nicht registriert" auf „hart melden" schalten.
+keinen. Der native OCX-Pfad ist x86-gebunden. Die Fälle überspringen sich selbst, solange der Testhost
+64 Bit ist oder die OCX fehlen — sie sind also **im normalen Lauf wertlos**. Der echte Lauf:
+
+```
+$env:VB6_REQUIRE_NATIVE_OCX = '1'
+dotnet test tests/VB6.Runtime.WinForms.Tests -c Release -- RunConfiguration.TargetPlatform=x86
+```
+
+Der Schalter macht aus „überspringen" ein „hart melden"; ohne ihn sagt ein grüner Lauf nichts.
+Gegenprobe zum Absichern: dasselbe mit `TargetPlatform=x64` muss fehlschlagen.
 
 Commit-Betreffs: imperativ, kurz, kein Präfix, kein Punkt (`Bind Currency arithmetic`). Die bestehende Historie nutzt keine Co-Authored-By-Trailer.
 
@@ -195,7 +203,7 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung (2026-08-25): **1121 Tests in 13 Testprojekten, alle grün.**
+Stand der letzten Prüfung (2026-08-25): **1122 Tests in 13 Testprojekten, alle grün.**
 
 Zweite Messung neben der Suite ist die Korpusparität — sie fängt Regressionen, die kein
 Unittest sieht:
@@ -228,4 +236,5 @@ projektweise, nicht solutionweit.
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
 - **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Ohne Test bleiben nur noch fünf Codes: `VB6L0002/3/4` (eingefrorener LLVM-Emitter), `VB6E0002` (interner PDB-Fehlerkanal, bräuchte Fehlerinjektion) und `VB6S0068` (verlangt einen Interface-Vertrag aus einem Klassenprojekt). Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
+- **Ein VB6-Event auf einem ActiveX-Control hat zwei mögliche Quellen.** Die Events des OCX kommen über den COM-Connection-Point und verlangen den **VB6-Namen** — ein WinForms-Name wie `TextChanged` sagt einem OCX nichts, und die Übersetzung in `FindEvent` gilt nur dem managed Adapter. Fokus-Events dagegen sind in VB6 **Extender-Events**: Sie stammen vom Container, fehlen im Event-Interface des Controls und kommen nur über das `AxHost`-Wrapper-Event. Wer nur einen der beiden Wege bedient, bekommt einen Pfad, der stillschweigend nie feuert. Beim Ergänzen von Events immer beide durchdenken und nativ nachmessen, nicht herleiten — für `GotFocus` war die Namensregel schlicht die falsche Erklärung.
 - **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 6`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.
