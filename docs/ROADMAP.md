@@ -2546,3 +2546,10 @@ führt ein falsch konfiguriertes SDK-Projekt nicht mehr stillschweigend nur eine
 Output-Manifest: unveränderte Builds werden übersprungen, fehlende Artefakte automatisch
 repariert. Beide Verträge sind über echte `dotnet msbuild`-Regressionen abgesichert; die
 Vollsuite umfasst nun **1049 Testfälle**, davon **1049 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller COM-EXCEPINFO-Nachtrag
+
+Der native `IDispatch::Invoke`-Pfad gibt die von COM gelieferten `EXCEPINFO`-BSTR-Felder
+`Source`, `Description` und `HelpFile` jetzt auch bei Fehler-HRESULTs und Folgefehlern sicher
+mit `SysFreeString` frei. Der Windows-only Runtime-Test prüft die vollständige Bereinigung;
+die Vollsuite umfasst nun **1050 Testfälle**, davon **1050 bestanden** und **0 fehlgeschlagen**.
