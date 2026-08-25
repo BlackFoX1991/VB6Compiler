@@ -2650,3 +2650,13 @@ P/Invoke-Imports mit dem expliziten `SetLastError`-Metadatenflag versehen. `Err.
 gespeicherten Hilfeangaben wieder auf die VB6-Defaultwerte zurück. Runtime-, Managed-End-to-End-
 und echter `kernel32!SetLastError`-Regressionstest sichern den Vertrag. Die Vollsuite umfasst nun
 **1068 Testfälle**, davon **1068 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Collection-Fehlercode-Nachtrag
+
+Der Managed-`Collection`-Pfad verwendet jetzt die relevanten VB6-Fehlernummern: ein bereits
+vergebener Schlüssel liefert **457**, ungültige Schlüssel oder ein ungültiger einbasierter Index
+liefern **5**, und `Add` mit gleichzeitig gesetzten `Before`- und `After`-Argumenten wird ebenfalls
+als Fehler **5** behandelt. Die Fehler werden über den threadlokalen `Err`-Dispatcher geführt und
+bleiben damit unter `On Error Resume Next` aus VB6-Code auswertbar. Direkte Runtime- und generierte
+Managed-Programmtests sichern Duplicate-Key, Missing-Key und ungültige Positionsangaben. Die
+Vollsuite umfasst nun **1070 Testfälle**, davon **1070 bestanden** und **0 fehlgeschlagen**.

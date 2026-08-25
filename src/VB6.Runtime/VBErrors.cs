@@ -45,6 +45,7 @@ public static class VBErrors
             {
                 VB6MissingArgumentException => 448,
                 VB6TypeMismatchException => 13,
+                VB6RuntimeErrorException runtimeError => runtimeError.Number,
                 _ => 5
             },
             Source: exception.GetType().Name,
@@ -81,6 +82,18 @@ public sealed class VB6MissingArgumentException : Exception
         : base("The optional Variant argument was not supplied.")
     {
     }
+}
+
+/// <summary>Represents a runtime error with a specific VB6 error number.</summary>
+public sealed class VB6RuntimeErrorException : Exception
+{
+    public VB6RuntimeErrorException(int number, string description)
+        : base(description)
+    {
+        Number = number;
+    }
+
+    public int Number { get; }
 }
 
 public sealed class VB6RaisedError : Exception

@@ -31,6 +31,11 @@ public sealed class VBCollection
 
     public void Add(object? item, object? key, object? before, object? after)
     {
+        if (!VBVariants.IsMissing(before) && !VBVariants.IsMissing(after))
+        {
+            throw InvalidCollectionArgument("Only one of Before and After may be specified.");
+        }
+
         var insertAt = _items.Count;
         if (!VBVariants.IsMissing(before))
         {
@@ -47,7 +52,9 @@ public sealed class VBCollection
             normalizedKey = NormalizeKey(nonNullKey);
             if (_keys.ContainsKey(normalizedKey))
             {
-                throw new InvalidOperationException($"Collection key '{normalizedKey}' is already in use.");
+                throw new VB6RuntimeErrorException(
+                    457,
+                    $"This key is already associated with an element of this collection: '{normalizedKey}'.");
             }
         }
 
@@ -81,7 +88,7 @@ public sealed class VBCollection
         {
             if (!_keys.TryGetValue(key, out var keyedIndex))
             {
-                throw new KeyNotFoundException($"Collection key '{key}' was not found.");
+                throw InvalidCollectionArgument($"Collection key '{key}' was not found.");
             }
 
             return keyedIndex;
@@ -90,13 +97,16 @@ public sealed class VBCollection
         var oneBased = VBConversions.CLng(index);
         if (oneBased < 1 || oneBased > _items.Count)
         {
-            throw new IndexOutOfRangeException($"Collection index {oneBased} is out of range.");
+            throw InvalidCollectionArgument($"Collection index {oneBased} is out of range.");
         }
 
         return oneBased - 1;
     }
 
     private static string NormalizeKey(object key) => VBConversions.CStr(key);
+
+    private static VB6RuntimeErrorException InvalidCollectionArgument(string description) =>
+        new(5, description);
 
     private void RebuildKeys()
     {
