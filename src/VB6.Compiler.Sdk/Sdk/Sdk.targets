@@ -32,6 +32,7 @@
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.cls" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ctl" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dob" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dsr" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frm" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frx" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.pag" />
@@ -46,6 +47,7 @@
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.cls" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.ctl" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dob" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dsr" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frm" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frx" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.pag" />

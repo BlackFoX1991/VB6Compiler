@@ -2500,3 +2500,11 @@ bleibt jedoch erhalten: `Currency * Double` liefert `Currency`, während `Curren
 `Double` liefert. Der serielle Solution-Lauf vom 25.08.2026 umfasst **1043 Testfälle**, davon
 **1043 bestanden** und **0 fehlgeschlagen**. Nach dem Lauf blieb kein sichtbares Win32-
 Messagebox- oder Dialogfenster offen.
+
+## Aktueller MSBuild-Designer-Input-Nachtrag
+
+Das MSBuild-SDK verfolgt bei Einzelprojekten und `.vbg`-Gruppen jetzt auch Legacy-
+`.dsr`-Designerquellen als Inputs. Änderungen an einer `Designer=...; Datei.dsr`-Quelle
+invalidieren damit den inkrementellen Compile-Stempel und lösen die CLI-Emission erneut aus.
+Die Regression ist über einen echten `dotnet msbuild`-Gruppenbuild abgesichert. Der serielle
+Solution-Lauf umfasst damit weiterhin **1043 Testfälle**, davon **1043 bestanden** und **0 fehlgeschlagen**.
