@@ -2578,3 +2578,12 @@ fehlerfrei. Damit ist neben Analyse und Artefakt-Erzeugung auch der direkte Lega
 ein installiertes Standard-OCX geprüft; vollständige OCX-Event-/ABI-Abdeckung und weitere
 Bitness-/Designer-Sonderfälle bleiben separate M9-Schritte. Die Vollsuite umfasst nun
 **1056 Testfälle**, davon **1056 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller COM-ROT-Nachtrag
+
+`GetObject(, "ProgID")` bindet auf Windows nun ein bereits laufendes, registriertes COM-Objekt
+über die Running Object Table. Monikerpfade, Host-Sinks und der deterministische headless
+Platzhalter bleiben erhalten; ein registrierter ProgID ohne laufende Instanz liefert den nativen
+COM-Fehler statt stillschweigend ein falsches Objekt. Die vollständige ROT-/Server-Lebensdauer
+und die übrige COM-ABI bleiben separate Interop-Schritte.
+Die Vollsuite umfasst nun **1057 Testfälle**, davon **1057 bestanden** und **0 fehlgeschlagen**.

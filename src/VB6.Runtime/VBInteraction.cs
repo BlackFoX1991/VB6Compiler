@@ -160,8 +160,31 @@ public static class VBInteraction
                 ?? throw new COMException($"COM moniker '{pathName}' could not be resolved.");
         }
 
+        if (OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(className))
+        {
+            var comType = Type.GetTypeFromProgID(className, throwOnError: false);
+            if (comType is not null && comType.GUID != Guid.Empty)
+            {
+                var classId = comType.GUID;
+                var hresult = GetActiveObject(ref classId, IntPtr.Zero, out var activeObject);
+                if (hresult >= 0 && activeObject is not null)
+                {
+                    return activeObject;
+                }
+
+                Marshal.ThrowExceptionForHR(hresult);
+            }
+        }
+
         return new VBComObject(className, pathName);
     }
+
+    [DllImport("oleaut32.dll", PreserveSig = true)]
+    [return: MarshalAs(UnmanagedType.I4)]
+    private static extern int GetActiveObject(
+        ref Guid classId,
+        IntPtr reserved,
+        [MarshalAs(UnmanagedType.Interface)] out object? activeObject);
 
     /// <summary>Process launching is delegated to the host; headless builds return a stable id.</summary>
     public static int Shell(string pathName, short windowStyle) => 0;
