@@ -170,9 +170,17 @@ public static class VBDateTime
 
     private static string NormalizeInterval(string interval) => interval.Trim().ToLowerInvariant();
 
+    /// <summary>
+    /// Resolves a VB6 FirstDayOfWeek constant. <c>vbUseSystem</c> (0) deliberately follows the
+    /// ambient culture: the caller is asking for the system setting, so pinning it to Sunday would
+    /// be the deviation. This is the one sanctioned exception to the invariant-culture rule of
+    /// VB6.Runtime — see the decision in docs/ROADMAP.md. Every explicit constant stays
+    /// culture-independent, and VBStrings.ToFirstDayOfWeek resolves it the same way.
+    /// </summary>
     private static DayOfWeek ResolveFirstDayOfWeek(int value) => value switch
     {
-        0 or 1 => DayOfWeek.Sunday,
+        0 => CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek,
+        1 => DayOfWeek.Sunday,
         2 => DayOfWeek.Monday,
         3 => DayOfWeek.Tuesday,
         4 => DayOfWeek.Wednesday,
