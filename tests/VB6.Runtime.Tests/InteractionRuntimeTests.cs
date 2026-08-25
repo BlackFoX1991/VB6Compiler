@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 
 namespace VB6.Runtime.Tests;
 
@@ -65,6 +66,31 @@ public sealed class InteractionRuntimeTests
     public void Command_ReturnsEmptyValueInHeadlessRuntime()
     {
         Assert.AreEqual(string.Empty, VBInteraction.Command());
+    }
+
+    [TestMethod]
+    public void Shell_UsesHeadlessContractOrStartsAWindowsProcess()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.AreEqual(0, VBInteraction.Shell("ignored-command", 1));
+            return;
+        }
+
+        var processId = VBInteraction.Shell("cmd.exe /c exit 0", 0);
+        Assert.IsTrue(processId > 0);
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            if (!process.WaitForExit(5000))
+            {
+                process.Kill();
+            }
+        }
+        catch (ArgumentException)
+        {
+            // The short-lived command may have exited before its process handle was observed.
+        }
     }
 
     [TestMethod]
