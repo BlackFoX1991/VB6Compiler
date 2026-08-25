@@ -73,6 +73,30 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InvokesScalarCurrencyDeclare()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The scalar Currency Declare test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Declare Function VarCyFromR8 Lib "oleaut32" (ByVal inputValue As Double, ByRef outputValue As Currency) As Long
+
+            Sub Main()
+                Dim value As Currency
+                Dim status As Long
+                status = VarCyFromR8(12.3456, value)
+                Debug.Print status = 0
+                Debug.Print value = CCur(12.3456)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesPInvokeMethodImportMetadata()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeTests", Guid.NewGuid().ToString("N"));
