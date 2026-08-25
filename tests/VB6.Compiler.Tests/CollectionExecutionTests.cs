@@ -60,4 +60,28 @@ public sealed class CollectionExecutionTests
 
         CollectionAssert.AreEqual(new[] { "first", "second" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReportsVb6CollectionErrorNumbers()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim items As Collection
+                Set items = New Collection
+                items.Add "first", "one"
+
+                On Error Resume Next
+                items.Add "duplicate", "one"
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print items.Item("missing")
+                Debug.Print Err.Number
+                Err.Clear
+                items.Add "invalid", , 1, 1
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "457", "5", "5" }, output);
+    }
 }
