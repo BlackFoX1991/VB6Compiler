@@ -15,6 +15,15 @@ public static class VBEvents
     private static readonly Dictionary<object, Dictionary<string, List<Action<object?[]>>>> Sinks =
         new(ReferenceEqualityComparer.Instance);
     private static readonly List<MethodSubscription> MethodSubscriptions = new();
+    private static readonly Dictionary<string, Type> ComEventDelegateTypes = new(StringComparer.Ordinal);
+    private static readonly object ComEventDelegateTypeSync = new();
+    private static readonly AssemblyBuilder ComEventDelegateAssembly =
+        AssemblyBuilder.DefineDynamicAssembly(
+            new AssemblyName("VB6.Runtime.ComEventDelegates"),
+            AssemblyBuilderAccess.Run);
+    private static readonly ModuleBuilder ComEventDelegateModule =
+        ComEventDelegateAssembly.DefineDynamicModule("VB6.Runtime.ComEventDelegates");
+    private static int _nextComEventDelegateTypeId;
 
     public static void Subscribe(
         object source,
@@ -572,8 +581,7 @@ public static class VBEvents
             var parameterTypes = method.GetParameters()
                 .Select(parameter => parameter.ParameterType)
                 .ToArray();
-            var delegateType = System.Linq.Expressions.Expression.GetDelegateType(
-                parameterTypes.Concat(new[] { typeof(void) }).ToArray());
+            var delegateType = GetComEventDelegateType(method);
             @delegate = CreateEventDelegate(delegateType, parameterTypes, callback);
             ComEventsHelper.Combine(comSource, parsedInterfaceId, parsedDispId, @delegate);
             interfaceId = parsedInterfaceId;
@@ -591,6 +599,113 @@ public static class VBEvents
             @delegate = null;
             return false;
         }
+    }
+
+    internal static Type GetComEventDelegateType(MethodInfo method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        if (method.ReturnType != typeof(void))
+        {
+            throw new NotSupportedException("VB6 event handlers must use void-returning delegates.");
+        }
+
+        var parameters = method.GetParameters();
+        var key = string.Join(
+            ";",
+            parameters.Select(parameter =>
+                (parameter.ParameterType.AssemblyQualifiedName ??
+                 parameter.ParameterType.FullName ??
+                 parameter.ParameterType.Name) +
+                ":" + GetComEventMarshalKind(parameter)));
+        lock (ComEventDelegateTypeSync)
+        {
+            if (ComEventDelegateTypes.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var type = ComEventDelegateModule.DefineType(
+                "VB6ComEventDelegate_" + ++_nextComEventDelegateTypeId,
+                TypeAttributes.Class |
+                TypeAttributes.Public |
+                TypeAttributes.Sealed |
+                TypeAttributes.AnsiClass |
+                TypeAttributes.AutoClass,
+                typeof(MulticastDelegate));
+            var constructor = type.DefineConstructor(
+                MethodAttributes.Public |
+                MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName |
+                MethodAttributes.RTSpecialName,
+                CallingConventions.Standard,
+                new[] { typeof(object), typeof(IntPtr) });
+            constructor.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
+
+            var invoke = type.DefineMethod(
+                "Invoke",
+                MethodAttributes.Public |
+                MethodAttributes.HideBySig |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                typeof(void),
+                parameters.Select(parameter => parameter.ParameterType).ToArray());
+            invoke.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
+
+            for (var index = 0; index < parameters.Length; index++)
+            {
+                var parameter = invoke.DefineParameter(
+                    index + 1,
+                    ParameterAttributes.None,
+                    parameters[index].Name ?? "arg" + index);
+                ApplyComEventMarshal(parameter, parameters[index]);
+            }
+
+            var created = type.CreateType()
+                ?? throw new InvalidOperationException("COM event delegate type creation failed.");
+            ComEventDelegateTypes.Add(key, created);
+            return created;
+        }
+    }
+
+    private static string GetComEventMarshalKind(ParameterInfo parameter)
+    {
+        if (parameter.GetCustomAttribute<MarshalAsAttribute>()?.Value == UnmanagedType.Struct)
+        {
+            return "variant";
+        }
+
+        var elementType = parameter.ParameterType.IsByRef
+            ? parameter.ParameterType.GetElementType()!
+            : parameter.ParameterType;
+        return elementType == typeof(bool)
+            ? "variant-bool"
+            : elementType == typeof(string)
+                ? "bstr"
+                : "default";
+    }
+
+    private static void ApplyComEventMarshal(ParameterBuilder parameter, ParameterInfo source)
+    {
+        var elementType = source.ParameterType.IsByRef
+            ? source.ParameterType.GetElementType()!
+            : source.ParameterType;
+        var unmanagedType = source.GetCustomAttribute<MarshalAsAttribute>()?.Value == UnmanagedType.Struct
+            ? UnmanagedType.Struct
+            : elementType == typeof(bool)
+                ? UnmanagedType.VariantBool
+                : elementType == typeof(string)
+                    ? UnmanagedType.BStr
+                    : (UnmanagedType?)null;
+        if (unmanagedType is null)
+        {
+            return;
+        }
+
+        var constructor = typeof(MarshalAsAttribute).GetConstructor(new[] { typeof(UnmanagedType) })
+            ?? throw new MissingMethodException(typeof(MarshalAsAttribute).FullName);
+        parameter.SetCustomAttribute(new CustomAttributeBuilder(
+            constructor,
+            new object[] { unmanagedType.Value }));
     }
 
     private static Delegate CreateEventDelegate(Type eventHandlerType, EventCallback callback)

@@ -1206,8 +1206,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `FSOURCE`-Event-Signaturen aus TypeLib-Coclasses werden ebenfalls importiert; TypeInfo-gesteuertes
       typisiertes COM-ByRef-Marshalling für unterstützte Automation-Skalare, `DATE`, `CURRENCY` und
       kompatible SAFEARRAYs steht mit sicherem ByVal-Fallback; grundlegendes natives OCX-Hosting
-      und TypeInfo-/Connection-Point-Event-Bridging stehen für den geprüften x86-Pfad; vollständiger
-      Connection-Point-Event-ABI, UDT-/Pointer-Marshalling und der native
+      und TypeInfo-/Connection-Point-Event-Bridging stehen für den geprüften x86-Pfad; einfache
+      `VARIANT`-/`VARIANT_BOOL`-/`BSTR`-Eventparameter werden über dedizierte Automation-Delegaten
+      geführt; vollständiger Connection-Point-Event-ABI, UDT-/Pointer-Marshalling und der native
       LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. Reg-Free-Manifest-/Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -2325,3 +2326,12 @@ Callback-Registry trennt diese nativen `VARIANT`-Slots vom unveränderten `Objec
 Delegattyp-Cache; eine Reflection- und Funktionszeiger-Regression prüft beide Formen. Variant-
 Arrays, UDTs und verschachtelte Pointer im Callback bleiben separate komplexe ABI-Schritte; die
 Vollsuite umfasst nun **998 Tests**.
+
+## Aktueller COM-Connection-Point-Variant-Nachtrag
+
+Native COM-Connection-Point-Events verwenden jetzt einen eigenen dynamischen Delegattyp, der die
+vom Managed-Emitter gesetzten `Variant`-Descriptors übernimmt und zusätzlich `VARIANT_BOOL` sowie
+`BSTR` für Automation-Eventparameter abbildet. Der Win32-Callback-ABI bleibt davon getrennt; der
+geprüfte x86-OCX-Pfad bleibt mit RichText- und Standard-Control-Events kompatibel. UDT-,
+SAFEARRAY- und verschachtelte Pointer-Eventverträge bleiben weitere Interop-Schritte; die Vollsuite
+umfasst nun **999 Tests**.
