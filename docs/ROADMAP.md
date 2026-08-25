@@ -1224,7 +1224,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       sind mit `CUShort`, `CUInt` und `CULng` sowie checked Managed-/P/Invoke-/Variant-Verträgen ergänzt
 - [~] `AddressOf` — direkte Prozedurziele werden als `LongPtr`-Funktionsadresse emittiert und für
       Legacy-`Long`-Callbackparameter konvertiert; blittable native Callback-Parameter und
-      Delegate-Lebensdauer stehen, komplexe Callback-ABIs bleiben offen
+      Delegate-Lebensdauer stehen; dynamische Callback-Delegaten markieren Win32-`BOOL` und
+      ANSI-Strings jetzt explizit, komplexe Variant-/UDT-/verschachtelte Pointer-ABIs bleiben offen
 
 ## Meilenstein 9 — Forms
 
@@ -2294,3 +2295,12 @@ erhalten, einschließlich generierter VB6-UDT-Records. Ein echter
 `user32!EnumDisplayMonitors`-Aufruf prüft die Rückgabe eines nativen `RECT*` in einen VB6-Callback
 auf AnyCPU und x86; komplexe verschachtelte Pointer-, Variant-, String- und nicht-blittable
 Callback-Signaturen benötigen weiterhin eigene ABI-Adapter. Die Vollsuite umfasst nun **995 Tests**.
+
+## Aktueller Callback-String-/BOOL-Nachtrag
+
+Die dynamisch erzeugten `AddressOf`-Delegaten tragen für native Callback-Parameter und Rückgaben
+jetzt explizite `BOOL`- beziehungsweise ANSI-String-Marshalling-Attribute. Ein echter
+`kernel32!EnumSystemLocalesA`-Aufruf prüft einen `String`-Callbackparameter und den
+vier-Byte-Win32-`Boolean`-Rückgabevertrag auf AnyCPU und x86; Variant-, UDT- und verschachtelte
+Pointer-Callbacks bleiben als separate komplexe ABI-Schritte offen. Die Vollsuite umfasst nun
+**996 Tests**.

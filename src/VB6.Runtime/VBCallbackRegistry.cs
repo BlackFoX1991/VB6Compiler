@@ -73,6 +73,7 @@ public static class VBCallbackRegistry
                 new[] { typeof(object), typeof(IntPtr) });
             constructor.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
+            var parameterTypes = signature.Take(signature.Count - 1).ToArray();
             var invoke = type.DefineMethod(
                 "Invoke",
                 MethodAttributes.Public |
@@ -80,20 +81,60 @@ public static class VBCallbackRegistry
                 MethodAttributes.NewSlot |
                 MethodAttributes.Virtual,
                 signature[^1],
-                signature.Take(signature.Count - 1).ToArray());
+                parameterTypes);
             invoke.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
+
+            for (var index = 0; index < parameterTypes.Length; index++)
+            {
+                var parameter = invoke.DefineParameter(
+                    index + 1,
+                    ParameterAttributes.None,
+                    "arg" + index);
+                ApplyNativeMarshal(parameter, parameterTypes[index]);
+            }
+
+            ApplyNativeMarshal(
+                invoke.DefineParameter(0, ParameterAttributes.None, "return"),
+                signature[^1]);
 
             var callingConventionAttribute = typeof(UnmanagedFunctionPointerAttribute)
                 .GetConstructor(new[] { typeof(CallingConvention) })
                 ?? throw new MissingMethodException(typeof(UnmanagedFunctionPointerAttribute).FullName);
+            var callingConventionField = typeof(UnmanagedFunctionPointerAttribute)
+                .GetField(nameof(UnmanagedFunctionPointerAttribute.CharSet))
+                ?? throw new MissingMemberException(
+                    typeof(UnmanagedFunctionPointerAttribute).FullName,
+                    nameof(UnmanagedFunctionPointerAttribute.CharSet));
             type.SetCustomAttribute(new CustomAttributeBuilder(
                 callingConventionAttribute,
-                new object[] { CallingConvention.Winapi }));
+                new object[] { CallingConvention.Winapi },
+                new[] { callingConventionField },
+                new object[] { CharSet.Ansi }));
 
             var created = type.CreateType()
                 ?? throw new InvalidOperationException("Native callback delegate type creation failed.");
             DelegateTypes.Add(key, created);
             return created;
         }
+    }
+
+    private static void ApplyNativeMarshal(ParameterBuilder parameter, Type type)
+    {
+        var elementType = type.IsByRef ? type.GetElementType()! : type;
+        var unmanagedType = elementType == typeof(bool)
+            ? UnmanagedType.Bool
+            : elementType == typeof(string)
+                ? UnmanagedType.LPStr
+                : (UnmanagedType?)null;
+        if (unmanagedType is null)
+        {
+            return;
+        }
+
+        var constructor = typeof(MarshalAsAttribute).GetConstructor(new[] { typeof(UnmanagedType) })
+            ?? throw new MissingMethodException(typeof(MarshalAsAttribute).FullName);
+        parameter.SetCustomAttribute(new CustomAttributeBuilder(
+            constructor,
+            new object[] { unmanagedType.Value }));
     }
 }

@@ -88,6 +88,41 @@ public sealed class AddressOfExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_MarshalsAnsiStringAndBooleanNativeCallback()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native ANSI callback test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Declare Function EnumSystemLocalesA Lib "kernel32" Alias "EnumSystemLocalesA" (ByVal callback As LongPtr, ByVal flags As Long) As Long
+            Private callbackCount As Long
+            Private callbackNameValid As Boolean
+
+            Private Function Callback(ByVal localeName As String) As Boolean
+                callbackCount = callbackCount + 1
+                callbackNameValid = Len(localeName) > 0
+                Callback = True
+            End Function
+
+            Sub Main()
+                Dim status As Long
+                status = EnumSystemLocalesA(AddressOf Callback, 0)
+                Debug.Print status <> 0
+                Debug.Print callbackCount > 0
+                Debug.Print callbackNameValid
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "True", "True" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesNativeDeclareByRefUdtCallback()
     {
         if (!OperatingSystem.IsWindows())
