@@ -393,6 +393,19 @@ public static class VBInteraction
         Host?.SendKeys(keys, wait);
     }
 
+    /// <summary>Reads clipboard text through a configured sink or the active UI host.</summary>
+    public static string ClipboardGetText()
+    {
+        if (ClipboardTextSink is { } sink)
+        {
+            return sink() ?? string.Empty;
+        }
+
+        return Host?.TryGetClipboardText(out var text) == true
+            ? text ?? string.Empty
+            : string.Empty;
+    }
+
     /// <summary>Context-menu display belongs to the UI host; headless execution intentionally does nothing.</summary>
     public static void PopupMenu(object? menu, int flags, float x, float y)
     {
@@ -470,6 +483,9 @@ public static class VBInteraction
 
     /// <summary>Optional host callback for the supported PaintPicture argument set.</summary>
     public static Action<VBPaintPicture>? PaintPictureSink { get; set; }
+
+    /// <summary>Optional host-independent clipboard text source for headless execution.</summary>
+    public static Func<string?>? ClipboardTextSink { get; set; }
 
     internal static bool TryGetHostMember(
         object? target,

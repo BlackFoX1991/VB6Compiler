@@ -88,6 +88,29 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
+    public bool TryGetClipboardText(out string? text)
+    {
+        ThrowIfDisposed();
+
+        try
+        {
+            if (System.Windows.Forms.Clipboard.ContainsText())
+            {
+                text = System.Windows.Forms.Clipboard.GetText();
+                return true;
+            }
+        }
+        catch (ExternalException)
+        {
+        }
+        catch (ThreadStateException)
+        {
+        }
+
+        text = null;
+        return false;
+    }
+
     public void PopupMenu(object? menu, int flags, float x, float y)
     {
         ThrowIfDisposed();

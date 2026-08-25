@@ -2473,6 +2473,11 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyRead(BoundPropertyAccessExpression expression)
         {
+            if (IsClipboardGetText(expression.Receiver, expression.Property.Name))
+            {
+                return Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String);
+            }
+
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
@@ -2538,6 +2543,12 @@ public static class IrLowerer
 
         private IrExpression LowerPropertyInvocation(BoundPropertyInvocationExpression expression)
         {
+            if (expression.Arguments.IsDefaultOrEmpty &&
+                IsClipboardGetText(expression.Receiver, expression.Property.Name))
+            {
+                return Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String);
+            }
+
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
@@ -2602,6 +2613,11 @@ public static class IrLowerer
             ProcedureSymbol requested,
             ImmutableArray<BoundArgument> arguments)
         {
+            if (arguments.IsDefaultOrEmpty && IsClipboardGetText(receiver, requested.Name))
+            {
+                return Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String);
+            }
+
             if (requested.IsLateBound || IsRuntimeObject(receiver))
             {
                 return LowerDynamicInvoke(
@@ -2923,6 +2939,11 @@ public static class IrLowerer
         private static bool IsApplicationObject(BoundExpression expression) =>
             expression.Type is ClassTypeSymbol classType &&
             ReferenceEquals(classType, VBStandardTypes.App);
+
+        private static bool IsClipboardGetText(BoundExpression receiver, string propertyName) =>
+            receiver.Type is ClassTypeSymbol classType &&
+            ReferenceEquals(classType, VBStandardTypes.Clipboard) &&
+            string.Equals(propertyName, "GetText", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsRuntimeObject(BoundExpression expression) =>
             expression.Type is ClassTypeSymbol classType &&

@@ -2620,3 +2620,13 @@ Handle in eine eigene `Bitmap`-Instanz kopiert; der bestehende `.frx`- und `Pain
 bleibt unverändert. Eine echte PNG-Regression setzt `PictureBox.Picture` über `LoadPicture` und
 prüft die resultierende Bildgröße. Die Vollsuite umfasst nun **1061 Testfälle**, davon **1061
 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Clipboard.GetText-Nachtrag
+
+`Clipboard.GetText` wird jetzt aus dem gebundenen Member-Aufruf direkt auf den typisierten
+`InteractionClipboardGetText`-IR-Vertrag abgesenkt und im Managed-Emitter an
+`VBInteraction.ClipboardGetText` gebunden. Headless-/Testhosts können über `ClipboardTextSink`
+deterministischen Text liefern; der WinForms-Host liest Text über die Windows-Zwischenablage und
+behandelt fehlende UI-/Clipboard-Handles als leeren Wert. Compiler- und Runtime-Regressionen
+prüfen getrennt den emittierten IR-Aufruf und den Sink-Vertrag. Die Vollsuite umfasst nun **1063
+Testfälle**, davon **1063 bestanden** und **0 fehlgeschlagen**.
