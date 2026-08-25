@@ -1621,6 +1621,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             case ComboBox:
                 TrySubscribeEvent(control, "Dropdown", owner, baseName + "_Dropdown", controlArrayIndex);
                 break;
+            case IVBComObjectProvider:
+                // A native OCX is none of the managed adapter types, so the control itself has to
+                // say which of these it implements: the connection point simply refuses the rest.
+                TrySubscribeEvent(control, "NodeClick", owner, baseName + "_NodeClick", controlArrayIndex);
+                TrySubscribeEvent(control, "SelChange", owner, baseName + "_SelChange", controlArrayIndex);
+                TrySubscribeEvent(control, "Dropdown", owner, baseName + "_Dropdown", controlArrayIndex);
+                break;
         }
     }
 

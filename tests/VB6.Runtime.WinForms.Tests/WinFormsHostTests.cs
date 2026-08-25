@@ -764,6 +764,98 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void NativeTreeViewRaisesDesignerEventsAcrossBothSubscriptionPathsInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.TreeCtrl.2", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native TreeView validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new TreeViewEventSink();
+        host.Load(owner);
+
+        var tree = host.CreateControl(owner, "tvProject", "MSComctlLib.TreeView")!;
+        var sink = (Control)host.CreateControl(owner, "sink", "TextBox")!;
+        Assert.IsInstanceOfType<AxHost>(tree);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var treeControl = (Control)tree;
+        treeControl.Size = new Size(300, 200);
+        treeControl.CreateControl();
+        sink.CreateControl();
+
+        Assert.IsTrue(host.TryGetMember(tree, "Nodes", Array.Empty<object?>(), out var nodes));
+        Assert.IsTrue(VBDynamicDispatch.TryInvokeComMember(
+            nodes,
+            "Add",
+            new object?[] { Type.Missing, Type.Missing, "root", "Root" },
+            out _));
+
+        // NodeClick belongs to the control's own event interface, so it must arrive through the
+        // COM connection point. The node sits at the top left of the tree.
+        treeControl.Focus();
+        Application.DoEvents();
+
+        // The root label sits in the first row, to the right of the indent. Sweep a few offsets so
+        // the hit does not depend on the OCX's exact indent metrics.
+        foreach (var x in new[] { 25, 35, 45, 60 })
+        {
+            var point = (IntPtr)((8 << 16) | x);
+            _ = SendMessage(treeControl.Handle, WindowMessageLeftButtonDown, (IntPtr)1, point);
+            _ = SendMessage(treeControl.Handle, WindowMessageLeftButtonUp, IntPtr.Zero, point);
+            Application.DoEvents();
+            if (owner.NodeClickCount >= 1)
+            {
+                break;
+            }
+        }
+
+        // Focus events are extender events: absent from the OCX, supplied by the wrapper.
+        sink.Focus();
+        Application.DoEvents();
+
+        Assert.IsTrue(owner.GotFocusCount >= 1, "tvProject_GotFocus did not fire on the native TreeView.");
+        Assert.IsTrue(owner.LostFocusCount >= 1, "tvProject_LostFocus did not fire on the native TreeView.");
+        // Click comes from the same connection point and proves the messages arrived, so a missing
+        // NodeClick means the subscription is gone rather than the click.
+        Assert.IsTrue(owner.ClickCount >= 1, "The synthetic click never reached the native TreeView.");
+        Assert.IsTrue(
+            owner.NodeClickCount >= 1,
+            "tvProject_NodeClick did not fire on the native TreeView, although the click arrived.");
+        Assert.IsNotNull(owner.ClickedNode, "NodeClick must hand over the clicked node.");
+
+        host.Unload(owner);
+    }
+
+    private sealed class TreeViewEventSink
+    {
+        public int GotFocusCount { get; private set; }
+        public int LostFocusCount { get; private set; }
+        public int NodeClickCount { get; private set; }
+        public int ClickCount { get; private set; }
+        public object? ClickedNode { get; private set; }
+
+        private void tvProject_Click() => ClickCount++;
+
+        private void tvProject_GotFocus() => GotFocusCount++;
+
+        private void tvProject_LostFocus() => LostFocusCount++;
+
+        private void tvProject_NodeClick(object node)
+        {
+            NodeClickCount++;
+            ClickedNode = node;
+        }
+    }
+
+    [STATestMethod]
     public void HostHostsNativeTreeViewNodesThroughRawComDispatchInX86()
     {
         if (Environment.Is64BitProcess ||
