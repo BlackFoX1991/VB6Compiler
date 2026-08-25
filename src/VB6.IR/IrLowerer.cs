@@ -3002,6 +3002,30 @@ public static class IrLowerer
                     continue;
                 }
 
+                if (procedure.IsExternal &&
+                    argument.Parameter?.PassingMode == ParameterPassingMode.ByRef &&
+                    argument.Parameter.Type is ArrayTypeSymbol)
+                {
+                    var writeBackPlace = TryLowerPlace(argument.Expression);
+                    var bufferTemporary = NewLocal(
+                        "__declare_array",
+                        VBStandardTypes.Object,
+                        compilerGenerated: true);
+                    var writeBackTemporary = writeBackPlace is null
+                        ? null
+                        : NewLocal(
+                            "__declare_array_result",
+                            argument.Parameter.Type,
+                            compilerGenerated: true);
+                    lowered.Add(new IrCallArgument(
+                        LowerValueCopy(argument.Expression),
+                        IrCallArgumentKind.ArrayBuffer,
+                        writeBackPlace,
+                        bufferTemporary,
+                        writeBackTemporary));
+                    continue;
+                }
+
                 if (argument.Parameter?.PassingMode == ParameterPassingMode.ByRef)
                 {
                     IrPlace place;

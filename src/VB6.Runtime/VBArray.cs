@@ -1,5 +1,8 @@
 namespace VB6.Runtime;
 
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+
 /// <summary>
 /// One VB6 array dimension. Bounds are inclusive and may start at any signed 32-bit value. The
 /// special 0..-1 bound is the zero-length shape used by Array() and ParamArray with no values.
@@ -300,6 +303,47 @@ public static class VBArrayOperations
         throw new InvalidCastException("The dynamic result does not contain a VB6 array.");
     }
 
+    /// <summary>
+    /// Copies a native SAFEARRAY result into an existing VB6 array when its shape is unchanged;
+    /// otherwise returns the converted array as the new ByRef value.
+    /// </summary>
+    public static VBArray<T>? CopyBack<T>(VBArray<T>? target, object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var source = FromObject<T>(value);
+        if (target is null || target.Rank != source.Rank)
+        {
+            return source;
+        }
+
+        for (var dimension = 1; dimension <= target.Rank; dimension++)
+        {
+            if (target.LBound(dimension) != source.LBound(dimension) ||
+                target.UBound(dimension) != source.UBound(dimension))
+            {
+                return source;
+            }
+        }
+
+        if (target.Length != 0)
+        {
+            var lowerBounds = Enumerable.Range(1, target.Rank).Select(target.LBound).ToArray();
+            var upperBounds = Enumerable.Range(1, target.Rank).Select(target.UBound).ToArray();
+            var indices = lowerBounds.ToArray();
+            for (var offset = 0; offset < target.Length; offset++)
+            {
+                ((IVBArray)target).SetObjectValue(indices, ((IVBArray)source).GetObjectValue(indices));
+                IncrementIndices(indices, lowerBounds, upperBounds);
+            }
+        }
+
+        return target;
+    }
+
     private static VBArray<T> CopyArray<T>(IVBArray source, Func<int[], object?> getValue)
     {
         var bounds = new VBArrayBound[source.Rank];
@@ -459,6 +503,7 @@ public static class VBArrayOperations
         if (elementType == typeof(ulong)) return VBConversions.CULng(value);
         if (elementType == typeof(IntPtr)) return VBConversions.CLngPtr(value);
         if (elementType == typeof(float)) return VBConversions.CSng(value);
+        if (elementType == typeof(double) && value is DateTime dateTime) return dateTime.ToOADate();
         if (elementType == typeof(double)) return VBConversions.CDbl(value);
         if (elementType == typeof(decimal)) return VBConversions.CDec(value);
         if (elementType == typeof(bool)) return VBConversions.CBool(value);
@@ -473,6 +518,130 @@ public static class VBArrayOperations
         }
 
         return Convert.ChangeType(value, elementType, System.Globalization.CultureInfo.InvariantCulture);
+    }
+}
+
+/// <summary>
+/// Owns the native SAFEARRAY pointer used by a VB6 <c>Declare</c> array argument. VB6 passes an
+/// array parameter as a pointer to the SAFEARRAY pointer, so the generated P/Invoke method takes
+/// the address of the native pointer storage rather than the managed <see cref="VBArray{T}"/>.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class VBDeclareArrayBuffer : IDisposable
+{
+    private const int VariantSize = 16;
+    private const int VariantDataOffset = 8;
+    private readonly object? _target;
+    private readonly ushort _expectedType;
+    private readonly IntPtr _variant;
+    private readonly IntPtr _pointerStorage;
+    private bool _disposed;
+
+    private VBDeclareArrayBuffer(object? value, ushort expectedType)
+    {
+        _target = value;
+        _expectedType = expectedType;
+        _variant = Marshal.AllocCoTaskMem(VariantSize);
+        _pointerStorage = Marshal.AllocCoTaskMem(IntPtr.Size);
+        ClearVariant();
+
+        if (value is not null && !VBComDispatch.TryInitializeVariant(value, _variant, expectedType))
+        {
+            Dispose();
+            throw new InvalidOperationException(
+                $"The Declare array value could not be converted to SAFEARRAY type 0x{expectedType:X4}.");
+        }
+
+        if (value is null)
+        {
+            Marshal.WriteInt16(_variant, unchecked((short)expectedType));
+            Marshal.WriteIntPtr(_variant, VariantDataOffset, IntPtr.Zero);
+        }
+
+        Marshal.WriteIntPtr(_pointerStorage, Marshal.ReadIntPtr(_variant, VariantDataOffset));
+    }
+
+    public static VBDeclareArrayBuffer Create<T>(VBArray<T>? value, ushort expectedType) =>
+        new(value, expectedType);
+
+    /// <summary>Returns the native SAFEARRAY** argument expected by a VB6 array Declare.</summary>
+    public IntPtr GetNativeAddress()
+    {
+        ThrowIfDisposed();
+        return _pointerStorage;
+    }
+
+    /// <summary>
+    /// Converts the possibly replaced native SAFEARRAY back to a VB6 array and releases its
+    /// native ownership. Existing arrays retain their identity when the shape is unchanged.
+    /// </summary>
+    public VBArray<T>? GetManagedArray<T>()
+    {
+        ThrowIfDisposed();
+        try
+        {
+            var safeArray = Marshal.ReadIntPtr(_pointerStorage);
+            if (safeArray == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            Marshal.WriteInt16(_variant, unchecked((short)_expectedType));
+            Marshal.WriteIntPtr(_variant, VariantDataOffset, safeArray);
+            var value = Marshal.GetObjectForNativeVariant(_variant);
+            return VBArrayOperations.CopyBack<T>(_target as VBArray<T>, value);
+        }
+        finally
+        {
+            Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        try
+        {
+            if (_variant != IntPtr.Zero)
+            {
+                var safeArray = _pointerStorage == IntPtr.Zero
+                    ? IntPtr.Zero
+                    : Marshal.ReadIntPtr(_pointerStorage);
+                Marshal.WriteInt16(_variant, unchecked((short)_expectedType));
+                Marshal.WriteIntPtr(_variant, VariantDataOffset, safeArray);
+                VBComDispatch.ClearNativeVariant(_variant);
+            }
+        }
+        finally
+        {
+            if (_pointerStorage != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(_pointerStorage);
+            }
+
+            if (_variant != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(_variant);
+            }
+        }
+    }
+
+    ~VBDeclareArrayBuffer() => Dispose();
+
+    private void ClearVariant()
+    {
+        Span<byte> empty = stackalloc byte[VariantSize];
+        Marshal.Copy(empty.ToArray(), 0, _variant, VariantSize);
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }
 
