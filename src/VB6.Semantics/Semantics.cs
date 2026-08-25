@@ -440,6 +440,7 @@ public enum BoundNodeKind
     EndStatement,
     SelectCaseStatement,
     DebugPrintStatement,
+    DebugAssertStatement,
     GraphicsLineStatement,
     FilePrintStatement,
     InvocationStatement,
@@ -598,6 +599,9 @@ public sealed record BoundSelectCaseStatement(
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
+
+public sealed record BoundDebugAssertStatement(BoundExpression Expression)
+    : BoundStatement(BoundNodeKind.DebugAssertStatement);
 
 public sealed record BoundGraphicsLineStatement(
     BoundExpression StartX,

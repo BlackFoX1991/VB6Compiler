@@ -147,6 +147,10 @@ public static class VariantOperationGuard
                 VisitExpression(text, debugPrint.Expression, diagnostics);
                 break;
 
+            case BoundDebugAssertStatement debugAssert:
+                VisitExpression(text, debugAssert.Expression, diagnostics);
+                break;
+
             case BoundInvocationStatement invocation:
                 foreach (var argument in invocation.Arguments)
                 {

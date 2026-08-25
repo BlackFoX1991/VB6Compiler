@@ -933,6 +933,7 @@ public sealed class Parser
             SyntaxKind.WithKeyword => ParseWithStatement(),
             SyntaxKind.ExitKeyword => ParseExitStatement(),
             SyntaxKind.SelectKeyword => ParseSelectCaseStatement(),
+            SyntaxKind.DebugKeyword when IsIdentifier(Peek(2), "Assert") => ParseDebugAssertStatement(),
             SyntaxKind.DebugKeyword => ParseDebugPrintStatement(),
             SyntaxKind.PrintKeyword when IsFileStatementKeyword("Print") => ParseFilePrintStatement(),
             SyntaxKind.PrintKeyword => ParseInvocationStatement(),
@@ -2264,6 +2265,15 @@ public sealed class Parser
         var printKeyword = MatchToken(SyntaxKind.PrintKeyword);
         var expression = ParseExpression();
         return new DebugPrintStatementSyntax(debugKeyword, dotToken, printKeyword, expression);
+    }
+
+    private DebugAssertStatementSyntax ParseDebugAssertStatement()
+    {
+        var debugKeyword = MatchToken(SyntaxKind.DebugKeyword);
+        var dotToken = MatchToken(SyntaxKind.DotToken);
+        var assertIdentifier = MatchIdentifier("Assert");
+        var expression = ParseExpression();
+        return new DebugAssertStatementSyntax(debugKeyword, dotToken, assertIdentifier, expression);
     }
 
     private SkippedStatementSyntax ParseSkippedStatement()
