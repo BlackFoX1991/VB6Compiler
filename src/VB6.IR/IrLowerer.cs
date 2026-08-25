@@ -3197,6 +3197,7 @@ public static class IrLowerer
             size = type == TypeSymbol.Boolean || type == TypeSymbol.Integer || type == TypeSymbol.UShort ? 2
                 : type == TypeSymbol.Byte ? 1
                 : type == TypeSymbol.Long || type == TypeSymbol.UInteger || type == TypeSymbol.Single ? 4
+                : type == TypeSymbol.LongPtr ? IntPtr.Size
                 : type == TypeSymbol.LongLong || type == TypeSymbol.ULong ||
                   type == TypeSymbol.Date || type == TypeSymbol.Double || type == TypeSymbol.Currency ? 8
                 : 0;

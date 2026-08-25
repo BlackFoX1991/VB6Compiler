@@ -127,6 +127,7 @@ public static class VBMemory
                 fieldType == typeof(short) ||
                 fieldType == typeof(int) ||
                 fieldType == typeof(long) ||
+                fieldType == typeof(IntPtr) ||
                 fieldType == typeof(ushort) ||
                 fieldType == typeof(uint) ||
                 fieldType == typeof(ulong) ||

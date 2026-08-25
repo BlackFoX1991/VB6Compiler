@@ -152,4 +152,34 @@ public sealed class FixedLengthStringUdtExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "42" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesLSetAcrossLongPtrUdtLayouts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type SourceRecord
+                Address As LongPtr
+                Value As Long
+            End Type
+
+            Type TargetRecord
+                Address As LongPtr
+                Result As Long
+            End Type
+
+            Sub Main()
+                Dim source As SourceRecord
+                Dim target As TargetRecord
+
+                source.Address = CLngPtr(42)
+                source.Value = 99
+                LSet target = source
+
+                Debug.Print target.Address
+                Debug.Print target.Result
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "42", "99" }, output);
+    }
 }
