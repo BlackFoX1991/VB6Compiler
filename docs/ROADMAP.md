@@ -1190,7 +1190,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       für direkte Prozedurziele und blittable `ByRef`-Callback-Parameter; einfache native
       `VARIANT`-Slots sowie `Variant()`-SAFEARRAY-Callback-Parameter und -Rückgaben mit Bounds-
       und ByRef-Ersatz-Write-back sind ergänzt, ebenso `Object()`-/Control-Arrays als
-      `SAFEARRAY(VT_DISPATCH)` in Managed-Callbacks und COM-Event-Delegaten; verschachtelte
+      `SAFEARRAY(VT_DISPATCH)` in Managed-Callbacks, COM-Event-Delegaten und externen
+      `Declare`-Aufrufen; verschachtelte
       Pointer-/String-Callback-ABI-Verträge sowie UDT-/Record-Arrays und rohe Pointer-/C-Array-
       Verträge bleiben offen; native-width `LongPtr()`-Arrays sind für explizite x86/x64-Ziele als
       `SAFEARRAY(VT_I4)` beziehungsweise `SAFEARRAY(VT_I8)` ergänzt. `AnyCPU` wird für diesen
@@ -2411,3 +2412,15 @@ ersetzte Arrays inklusive neuer Bounds zurück. COM-Event-Delegaten verwenden de
 Arraypfad. Ein `AnyCPU`-Emit wird für diesen architekturabhängigen Vertrag kontrolliert mit einer
 Backenddiagnose abgelehnt. Runtime-, Reflection- und End-to-End-Regressionen laufen auf x86 und
 x64; die Vollsuite umfasst nun **1019 Tests**.
+
+## Aktueller Declare-Dispatch-SAFEARRAY-Nachtrag
+
+`Declare`-Parameter der Form `ByRef values() As Object` beziehungsweise `As Control` werden im
+Managed-Backend jetzt als native `SAFEARRAY(VT_DISPATCH)**`-Argumente materialisiert. Die Runtime
+schreibt echte COM-/ActiveX-`IDispatch`-Einträge direkt in den nativen Deskriptor, entpackt
+Host-Provider vor dem Aufruf und lässt `Nothing`-Elemente als nulles Dispatch-Element bestehen.
+Beim Write-back werden COM-Objekte übernommen und native null-Dispatch-Einträge wieder als VB6-
+`Nothing` dargestellt. Bounds, Dimensionen und die bestehende Array-Identität bleiben erhalten;
+UDT-, Pointer- und verschachtelte String-Arrays bleiben separate ABI-Schritte. Die Regression
+prüft Emitter-Metadaten für Object/Control und einen echten `Scripting.Dictionary`-Roundtrip;
+die Vollsuite umfasst nun **1021 Tests**.

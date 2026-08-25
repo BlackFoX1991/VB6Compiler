@@ -325,6 +325,50 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EmitsDispatchDeclareArrayMetadataForObjectAndControl()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerDispatchDeclareArrayTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var assemblyPath = Path.Combine(directory, "DispatchDeclareArray.dll");
+
+        try
+        {
+            var result = VBCompilation.Create("""
+                Private Declare Sub NativeObjectArray Lib "kernel32" (ByRef values() As Object)
+                Private Declare Sub NativeControlArray Lib "kernel32" (ByRef values() As Control)
+
+                Sub Main()
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(assemblyPath);
+
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+            var assembly = Assembly.Load(File.ReadAllBytes(assemblyPath));
+            foreach (var methodName in new[] { "NativeObjectArray", "NativeControlArray" })
+            {
+                var method = assembly
+                    .GetTypes()
+                    .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+                    .Single(candidate => candidate.Name == methodName);
+                var parameter = method.GetParameters().Single();
+                Assert.AreEqual(typeof(IntPtr), parameter.ParameterType, methodName);
+                var marshal = parameter.GetCustomAttribute<MarshalAsAttribute>();
+                Assert.AreEqual(UnmanagedType.SafeArray, marshal?.Value, methodName);
+                Assert.AreEqual(VarEnum.VT_DISPATCH, marshal?.SafeArraySubType, methodName);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesUIntegerDeclareFunction()
     {
         var output = VB6TestProgram.Run("""

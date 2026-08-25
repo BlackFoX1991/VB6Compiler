@@ -317,6 +317,52 @@ public sealed class ComDispatchRuntimeTests
         Assert.AreEqual(replacement, source[-1]);
     }
 
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void DeclareArrayBuffer_MarshalsDispatchSafeArrayObjectsAndNothing()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The dispatch SAFEARRAY test requires Windows.");
+            return;
+        }
+
+        var comType = Type.GetTypeFromProgID("Scripting.Dictionary", throwOnError: false);
+        if (comType is null)
+        {
+            Assert.Inconclusive("The Scripting.Dictionary COM class is not available.");
+            return;
+        }
+
+        var dictionary = VBInteraction.CreateObject("Scripting.Dictionary", string.Empty);
+        try
+        {
+            var source = new VBArray<object>(new VBArrayBound(-1, 0));
+            source[-1] = dictionary;
+            source[0] = VBVariants.NothingValue();
+            using var buffer = VBDeclareArrayBuffer.Create(
+                source,
+                (ushort)((ushort)VarEnum.VT_ARRAY | (ushort)VarEnum.VT_DISPATCH));
+
+            var safeArray = Marshal.ReadIntPtr(buffer.GetNativeAddress());
+            Assert.AreNotEqual(IntPtr.Zero, safeArray);
+            Assert.AreEqual(0, SafeArrayGetVartype(safeArray, out var actualType));
+            Assert.AreEqual((ushort)VarEnum.VT_DISPATCH, actualType);
+
+            var result = buffer.GetManagedArray<object>();
+            Assert.IsNotNull(result);
+            Assert.IsTrue(Marshal.IsComObject(result![-1]));
+            Assert.AreSame(VBVariants.NothingValue(), result[0]);
+        }
+        finally
+        {
+            if (Marshal.IsComObject(dictionary))
+            {
+                Marshal.FinalReleaseComObject(dictionary);
+            }
+        }
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));

@@ -660,6 +660,11 @@ public sealed class VBDeclareArrayBuffer : IDisposable
             Marshal.WriteInt16(_variant, unchecked((short)_expectedType));
             Marshal.WriteIntPtr(_variant, VariantDataOffset, safeArray);
             var value = Marshal.GetObjectForNativeVariant(_variant);
+            if ((_expectedType & 0x0FFF) == 0x0009)
+            {
+                value = VBComDispatch.NormalizeDispatchArray(value);
+            }
+
             return VBArrayOperations.CopyBack<T>(_target as VBArray<T>, value);
         }
         finally

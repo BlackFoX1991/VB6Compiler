@@ -2825,13 +2825,12 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Boolean ||
             type == TypeSymbol.Currency ||
             type == TypeSymbol.String ||
-            type == TypeSymbol.Variant;
+            type == TypeSymbol.Variant ||
+            IsDispatchArrayElement(type);
 
         private bool IsCallbackArrayElement(TypeSymbol type) =>
             type == TypeSymbol.LongPtr ||
-            type is ClassTypeSymbol classType &&
-            (ReferenceEquals(classType, VBStandardTypes.Object) ||
-             classType.IsRuntimeObjectContract);
+            IsDispatchArrayElement(type);
 
         private int GetAutomationArrayVariantType(TypeSymbol type) =>
             type == TypeSymbol.Byte ? 0x2011 :
@@ -2849,7 +2848,11 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Currency ? 0x2006 :
             type == TypeSymbol.String ? 0x2008 :
             type == TypeSymbol.Variant ? 0x200C :
+            IsDispatchArrayElement(type) ? 0x2009 :
             throw new NotSupportedException($"Declare SAFEARRAY element type '{type.Name}' is not supported.");
+
+        private static bool IsDispatchArrayElement(TypeSymbol type) =>
+            type is ClassTypeSymbol classType && IsRuntimeObjectContract(classType);
 
         private ushort GetSafeArrayElementVariantType(TypeSymbol type) =>
             type == TypeSymbol.Byte ? (ushort)VarEnum.VT_UI1 :
