@@ -2414,3 +2414,39 @@ fuer die bereits ein nativer SAFEARRAY-Vertrag existiert. Der E2E-Test ruft
 `oleaut32!SafeArrayCreateVector` ueber ein echtes VB6-`Declare` auf und prueft die nicht-nullbasierte
 Rueckgabe. Die gemessene Vollsuite umfasst damit **1090 Testfaelle**, davon **1090 bestanden** und
 **0 fehlgeschlagen**.
+
+## x86-Default-Nachtrag
+
+`.vbp`- und `.vbg`-Projekte emittieren ohne Plattformschalter jetzt als x86, weil jedes
+Legacy-VB6-Projekt 32-Bit ist und seine ActiveX-Controls nicht in einen 64-Bit-Prozess laden.
+`--x64` und `--anycpu` bleiben opt-in, einzelne Quelldateien bleiben AnyCpu, und
+`ManagedEmitOptions` behaelt AnyCpu als API-Default: Die Entscheidung gehoert an die
+Projektgrenze, nicht in den Emitter.
+
+Damit faellt ein latenter Fehler weg. Ohne Schalter lieferte `CreateCompilationOptions` bisher
+`null`, und `VBConditionalCompilation` fiel auf `IntPtr.Size == 8` zurueck — ein Legacy-Projekt
+sah `#If Win64` also je nach Bitness des Compilerprozesses als wahr an, auf jeder 64-Bit-Maschine.
+Jetzt ist `Win64` fuer Legacy-Projekte falsch, wie in VB6.
+
+Zwei Regressionen decken das ab: ein `.vbp` ohne Schalter emittiert `I386` mit `Requires32Bit`,
+und `#If Win64` waehlt den 32-Bit-Zweig. Am Korpus geprueft: `prjVisia.vbp` erzeugt Assembly und
+AppHost als `I386`, die Paritaet bleibt bei 0 Fehlern und 40 von 40. Die gemessene Vollsuite
+umfasst **1092 Testfaelle**, davon **1092 bestanden** und **0 fehlgeschlagen**.
+
+## vbUseSystem-Nachtrag
+
+`vbUseSystem` bleibt bewusst locale-abhaengig: Wer den Wert 0 uebergibt, fragt ausdruecklich die
+Systemeinstellung ab, und ihn auf Sonntag festzunageln waere die Abweichung von VB6. Das ist die
+eine gebilligte Ausnahme von der Invariant-Culture-Regel der Runtime und steht als solche in den
+entschiedenen Weichenstellungen.
+
+Die Runtime war dabei mit sich selbst uneins. `VBStrings.ToFirstDayOfWeek` loeste 0 ueber
+`CurrentCulture` auf, waehrend `VBDateTime.ResolveFirstDayOfWeek` die Werte 0 und 1 gleich
+behandelte und Sonntag lieferte. Derselbe VB6-Begriff verhielt sich also verschieden, je nachdem
+ob er ueber `Format` oder ueber `Weekday`, `WeekdayName` und `DatePart` lief. `VBDateTime` folgt
+jetzt derselben Regel; explizite Konstanten bleiben in beiden Pfaden kulturunabhaengig, und beide
+Aufloeser verweisen im Kommentar aufeinander.
+
+Zwei Regressionen halten beide Seiten fest: `vbUseSystem` liefert unter `en-US` und `de-DE`
+verschiedene Wochentage und Wochennummern, explizite Konstanten dagegen dieselben. Die gemessene
+Vollsuite umfasst **1094 Testfaelle**, davon **1094 bestanden** und **0 fehlgeschlagen**.
