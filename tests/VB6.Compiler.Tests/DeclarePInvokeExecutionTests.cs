@@ -30,6 +30,49 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void Lower_UsesSafeArrayBufferForByRefDeclareArray()
+    {
+        const string source = """
+            Private Declare Sub NativeArray Lib "legacy.dll" (ByRef values() As Long)
+
+            Sub Main()
+                Dim values(0 To 1) As Long
+                NativeArray values
+            End Sub
+            """;
+        var program = VB6TestIr.Lower(source);
+
+        var call = VB6TestIr.Procedures(program)
+            .SelectMany(procedure => procedure.Blocks)
+            .SelectMany(block => block.Instructions)
+            .OfType<VB6.IR.IrEvaluateInstruction>()
+            .Select(evaluate => evaluate.Expression)
+            .OfType<VB6.IR.IrProcedureCallExpression>()
+            .Single();
+
+        Assert.AreEqual(VB6.IR.IrCallArgumentKind.ArrayBuffer, call.Arguments.Single().Kind);
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerSafeArrayDeclareTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var result = VBCompilation.Create(source).EmitManagedApplication(
+                Path.Combine(directory, "Program.dll"));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesPInvokeMethodImportMetadata()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeTests", Guid.NewGuid().ToString("N"));

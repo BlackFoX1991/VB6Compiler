@@ -1021,6 +1021,8 @@ internal static class VBComDispatch
         }
     }
 
+    internal static void ClearNativeVariant(IntPtr variant) => _ = VariantClear(variant);
+
     internal static bool TryCreateAutomationArray(
         IVBArray source,
         ushort expectedType,
@@ -1147,6 +1149,12 @@ internal static class VBComDispatch
         if (targetType == typeof(DateTime) && value is VBDateValue dateValue)
         {
             converted = DateTime.FromOADate(dateValue.OADate);
+            return true;
+        }
+
+        if (targetType == typeof(DateTime) && value is double oleDate)
+        {
+            converted = DateTime.FromOADate(oleDate);
             return true;
         }
 

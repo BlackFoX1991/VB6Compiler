@@ -1246,6 +1246,25 @@ public sealed class ManagedEmitter
                     continue;
                 }
 
+                if (call.Procedure.IsExternal &&
+                    parameter?.Type is ArrayTypeSymbol arrayParameter &&
+                    argument.Kind == IrCallArgumentKind.ArrayBuffer)
+                {
+                    EmitNewDeclareArrayBuffer(
+                        encoder,
+                        procedure,
+                        argument.Expression,
+                        arrayParameter.ElementType);
+                    if (argument.BufferTemporary is not null)
+                    {
+                        encoder.OpCode(ILOpCode.Dup);
+                        encoder.StoreLocal(argument.BufferTemporary.Id);
+                    }
+
+                    encoder.Call(GetDeclareArrayBufferAddressReference());
+                    continue;
+                }
+
                 // A ByRef argument passes an address, which is already the parameter's type - only
                 // a by-value argument can need the boxing that a Variant parameter asks for.
                 if (argument.Kind == IrCallArgumentKind.Address ||
@@ -1296,6 +1315,37 @@ public sealed class ManagedEmitter
 
             foreach (var argument in call.Arguments)
             {
+                if (argument.Kind == IrCallArgumentKind.ArrayBuffer)
+                {
+                    if (argument.BufferTemporary is null)
+                    {
+                        throw new InvalidOperationException(
+                            "A Declare array buffer requires a compiler temporary.");
+                    }
+
+                    encoder.LoadLocal(argument.BufferTemporary.Id);
+                    encoder.OpCode(ILOpCode.Castclass);
+                    encoder.Token(GetReflectionTypeReference(typeof(VBDeclareArrayBuffer)));
+                    if (argument.WriteBackTemporary is not null &&
+                        argument.WriteBackPlace is not null &&
+                        argument.WriteBackPlace.Type is ArrayTypeSymbol arrayType)
+                    {
+                        encoder.Call(GetDeclareArrayBufferManagedArrayReference(arrayType.ElementType));
+                        encoder.StoreLocal(argument.WriteBackTemporary.Id);
+                        EmitStore(
+                            encoder,
+                            procedure,
+                            argument.WriteBackPlace,
+                            new IrLoadExpression(new IrLocalPlace(argument.WriteBackTemporary)));
+                    }
+                    else
+                    {
+                        encoder.Call(GetDeclareArrayBufferDisposeReference());
+                    }
+
+                    continue;
+                }
+
                 if (argument.Kind != IrCallArgumentKind.StringBuffer ||
                     argument.WriteBackPlace is null)
                 {
@@ -1340,6 +1390,17 @@ public sealed class ManagedEmitter
             EmitExpressionWithAssignmentConversion(encoder, procedure, value, TypeSymbol.String);
             encoder.OpCode(ILOpCode.Newobj);
             encoder.Token(GetStringBuilderConstructorReference());
+        }
+
+        private void EmitNewDeclareArrayBuffer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrExpression value,
+            TypeSymbol elementType)
+        {
+            EmitExpression(encoder, procedure, value);
+            encoder.LoadConstantI4(GetAutomationArrayVariantType(elementType));
+            encoder.Call(GetDeclareArrayBufferCreateReference(elementType));
         }
 
         private MemberReferenceHandle GetStringBuilderConstructorReference()
@@ -1969,6 +2030,10 @@ public sealed class ManagedEmitter
                         {
                             EncodeReflectionType(parameters.AddParameter().Type(), typeof(System.Text.StringBuilder));
                         }
+                        else if (procedure.IsExternal && parameter.Type is ArrayTypeSymbol)
+                        {
+                            parameters.AddParameter().Type().IntPtr();
+                        }
                         else
                         {
                             EncodeType(parameters.AddParameter().Type(parameter.PassingMode == ParameterPassingMode.ByRef), parameter.Type);
@@ -2502,6 +2567,19 @@ public sealed class ManagedEmitter
 
             foreach (var parameter in procedure.Parameters)
             {
+                if (parameter.Type is ArrayTypeSymbol arrayType)
+                {
+                    if (parameter.PassingMode != ParameterPassingMode.ByRef ||
+                        !IsPInvokeArrayElement(arrayType.ElementType))
+                    {
+                        throw new NotSupportedException(
+                            $"Declare procedure '{procedure.Name}' parameter '{parameter.Name}' array " +
+                            $"type '{parameter.Type.Name}' needs a supported ByRef SAFEARRAY contract.");
+                    }
+
+                    continue;
+                }
+
                 if (parameter.Symbol?.IsAny != true && !IsPInvokeScalar(parameter.Type))
                 {
                     throw new NotSupportedException(
@@ -2528,6 +2606,37 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Double ||
             type == TypeSymbol.Boolean ||
             type == TypeSymbol.String;
+
+        private static bool IsPInvokeArrayElement(TypeSymbol type) =>
+            type == TypeSymbol.Byte ||
+            type == TypeSymbol.Integer ||
+            type == TypeSymbol.Long ||
+            type == TypeSymbol.LongLong ||
+            type == TypeSymbol.UShort ||
+            type == TypeSymbol.UInteger ||
+            type == TypeSymbol.ULong ||
+            type == TypeSymbol.Single ||
+            type == TypeSymbol.Date ||
+            type == TypeSymbol.Double ||
+            type == TypeSymbol.Boolean ||
+            type == TypeSymbol.String ||
+            type == TypeSymbol.Variant;
+
+        private static int GetAutomationArrayVariantType(TypeSymbol type) =>
+            type == TypeSymbol.Byte ? 0x2011 :
+            type == TypeSymbol.Integer ? 0x2002 :
+            type == TypeSymbol.Long ? 0x2003 :
+            type == TypeSymbol.LongLong ? 0x2014 :
+            type == TypeSymbol.UShort ? 0x2012 :
+            type == TypeSymbol.UInteger ? 0x2013 :
+            type == TypeSymbol.ULong ? 0x2015 :
+            type == TypeSymbol.Single ? 0x2004 :
+            type == TypeSymbol.Date ? 0x2007 :
+            type == TypeSymbol.Double ? 0x2005 :
+            type == TypeSymbol.Boolean ? 0x200B :
+            type == TypeSymbol.String ? 0x2008 :
+            type == TypeSymbol.Variant ? 0x200C :
+            throw new NotSupportedException($"Declare SAFEARRAY element type '{type.Name}' is not supported.");
 
         private MethodDefinitionHandle ResolveEntryPoint()
         {
@@ -2823,6 +2932,114 @@ public sealed class ManagedEmitter
                 _metadata.GetOrAddBlob(specBlob));
             _methodSpecifications.Add(specKey, spec);
             return spec;
+        }
+
+        private EntityHandle GetDeclareArrayBufferCreateReference(TypeSymbol elementType)
+        {
+            var specKey = "VBDeclareArrayBuffer::Create<" + elementType.Name + ">";
+            if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
+            {
+                return cachedSpec;
+            }
+
+            const string definitionKey = "VBDeclareArrayBuffer::Create";
+            if (!_memberReferences.TryGetValue(definitionKey, out var definition))
+            {
+                var blob = new BlobBuilder();
+                new BlobEncoder(blob)
+                    .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
+                    .Parameters(
+                        2,
+                        returnType => EncodeReflectionType(returnType.Type(), typeof(VBDeclareArrayBuffer)),
+                        parameters =>
+                        {
+                            EncodeOpenVBArray(parameters.AddParameter().Type());
+                            parameters.AddParameter().Type().UInt16();
+                        });
+                definition = _metadata.AddMemberReference(
+                    GetReflectionTypeReference(typeof(VBDeclareArrayBuffer)),
+                    _metadata.GetOrAddString(nameof(VBDeclareArrayBuffer.Create)),
+                    _metadata.GetOrAddBlob(blob));
+                _memberReferences.Add(definitionKey, definition);
+            }
+
+            var specBlob = new BlobBuilder();
+            var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
+            EncodeType(arguments.AddArgument(), elementType);
+            var spec = (EntityHandle)_metadata.AddMethodSpecification(
+                definition,
+                _metadata.GetOrAddBlob(specBlob));
+            _methodSpecifications.Add(specKey, spec);
+            return spec;
+        }
+
+        private EntityHandle GetDeclareArrayBufferManagedArrayReference(TypeSymbol elementType)
+        {
+            var specKey = "VBDeclareArrayBuffer::GetManagedArray<" + elementType.Name + ">";
+            if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
+            {
+                return cachedSpec;
+            }
+
+            const string definitionKey = "VBDeclareArrayBuffer::GetManagedArray";
+            if (!_memberReferences.TryGetValue(definitionKey, out var definition))
+            {
+                var blob = new BlobBuilder();
+                new BlobEncoder(blob)
+                    .MethodSignature(genericParameterCount: 1, isInstanceMethod: true)
+                    .Parameters(
+                        0,
+                        returnType => EncodeOpenVBArray(returnType.Type()),
+                        _ => { });
+                definition = _metadata.AddMemberReference(
+                    GetReflectionTypeReference(typeof(VBDeclareArrayBuffer)),
+                    _metadata.GetOrAddString(nameof(VBDeclareArrayBuffer.GetManagedArray)),
+                    _metadata.GetOrAddBlob(blob));
+                _memberReferences.Add(definitionKey, definition);
+            }
+
+            var specBlob = new BlobBuilder();
+            var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
+            EncodeType(arguments.AddArgument(), elementType);
+            var spec = (EntityHandle)_metadata.AddMethodSpecification(
+                definition,
+                _metadata.GetOrAddBlob(specBlob));
+            _methodSpecifications.Add(specKey, spec);
+            return spec;
+        }
+
+        private MemberReferenceHandle GetDeclareArrayBufferAddressReference()
+        {
+            const string key = "VBDeclareArrayBuffer::GetNativeAddress()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(VBDeclareArrayBuffer).GetMethod(
+                nameof(VBDeclareArrayBuffer.GetNativeAddress),
+                Type.EmptyTypes)
+                ?? throw new MissingMethodException(typeof(VBDeclareArrayBuffer).FullName, key);
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private MemberReferenceHandle GetDeclareArrayBufferDisposeReference()
+        {
+            const string key = "VBDeclareArrayBuffer::Dispose()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(VBDeclareArrayBuffer).GetMethod(
+                nameof(VBDeclareArrayBuffer.Dispose),
+                Type.EmptyTypes)
+                ?? throw new MissingMethodException(typeof(VBDeclareArrayBuffer).FullName, key);
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
         }
 
         /// <summary>Encodes <c>VBArray&lt;!!0&gt;</c>, the generic method's own type parameter.</summary>

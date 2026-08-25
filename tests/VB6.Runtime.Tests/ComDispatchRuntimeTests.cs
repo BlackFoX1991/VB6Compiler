@@ -197,6 +197,39 @@ public sealed class ComDispatchRuntimeTests
         Assert.AreEqual(40, result[0, 4]);
     }
 
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void DeclareArrayBuffer_UsesSafeArrayDoublePointerAndCopiesBack()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Declare SAFEARRAY test requires Windows.");
+            return;
+        }
+
+        var source = new VBArray<int>(new VBArrayBound(-1, 1));
+        source[-1] = 10;
+        source[0] = 20;
+        source[1] = 30;
+        using var buffer = VBDeclareArrayBuffer.Create(source, (ushort)(0x2000 | 0x0003));
+
+        var safeArray = Marshal.ReadIntPtr(buffer.GetNativeAddress());
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        Assert.AreEqual(1u, SafeArrayGetDim(safeArray));
+        Assert.AreEqual(0, SafeArrayGetLBound(safeArray, 1, out var lowerBound));
+        Assert.AreEqual(0, SafeArrayGetUBound(safeArray, 1, out var upperBound));
+        Assert.AreEqual(-1, lowerBound);
+        Assert.AreEqual(1, upperBound);
+
+        var replacement = 42;
+        var indices = new[] { 0 };
+        Assert.AreEqual(0, SafeArrayPutElement(safeArray, indices, ref replacement));
+
+        var result = buffer.GetManagedArray<int>();
+        Assert.AreSame(source, result);
+        Assert.AreEqual(42, source[0]);
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
@@ -220,4 +253,25 @@ public sealed class ComDispatchRuntimeTests
 
     [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
     private static extern int VariantClear(IntPtr variant);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
+    private static extern uint SafeArrayGetDim(IntPtr safeArray);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetLBound(
+        IntPtr safeArray,
+        uint dimension,
+        out int lowerBound);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetUBound(
+        IntPtr safeArray,
+        uint dimension,
+        out int upperBound);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
+    private static extern int SafeArrayPutElement(
+        IntPtr safeArray,
+        int[] indices,
+        ref int value);
 }

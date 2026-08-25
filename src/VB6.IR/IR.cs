@@ -293,7 +293,8 @@ public enum IrCallArgumentKind
 {
     Value,
     Address,
-    StringBuffer
+    StringBuffer,
+    ArrayBuffer
 }
 
 public sealed record IrCallArgument(

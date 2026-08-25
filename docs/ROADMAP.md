@@ -2232,3 +2232,14 @@ funktionieren beispielsweise spät gebundene COM-Properties, die ein SAFEARRAY l
 `Dim values() As Variant` inklusive `LBound`, `UBound` und Elementzugriff. Der echte
 `Scripting.Dictionary.Keys`-End-to-End-Test sichert diesen Legacy-Pfad; die Vollsuite bleibt
 bei **987 Tests**.
+
+## Aktueller Declare-SAFEARRAY-Nachtrag
+
+`Declare`-Parameter der Form `ByRef values() As ...` werden im Managed-Backend jetzt als native
+`SAFEARRAY**`-Argumente emittiert. Der Compiler materialisiert unterstützte Automation-Arrays mit
+ihren echten VB6-Untergrenzen, hält die native Pointer-Storage bis zum Aufruf und schreibt
+Elementänderungen sowie ersetzte Arrayformen anschließend zurück. Der Vertrag deckt die
+unterstützten skalaren Automation-Typen und `Variant()` ab; UDT-, Pointer- und `Currency`-
+SAFEARRAYs bleiben wegen ihres eigenen nativen Deskriptors separate Interop-Schritte. Die
+Regression prüft IR, Managed-Emission und einen echten `oleaut32`-SAFEARRAY-Write-back; die
+Vollsuite umfasst nun **989 Tests**.
