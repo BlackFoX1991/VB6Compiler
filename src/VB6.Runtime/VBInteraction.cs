@@ -93,6 +93,88 @@ public static class VBInteraction
         }
     }
 
+    /// <summary>
+    /// <c>Load ctlButton(index)</c> on a control array. VB6 grows the array to reach the index,
+    /// clones the designer-created element and puts the copy in the slot. The grown array is
+    /// returned so the caller writes it back into the same place, the way ReDim Preserve does —
+    /// every other holder of the array sees the new element through that field.
+    /// </summary>
+    public static VBArray<object?>? LoadControlArrayElement(
+        VBArray<object?>? array,
+        int index,
+        string name,
+        object owner)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(owner);
+        if (array is null)
+        {
+            return null;
+        }
+
+        if (index < array.LBound())
+        {
+            VBErrors.Raise(9, name, "Subscript out of range", string.Empty, 0);
+        }
+
+        if (index > array.UBound())
+        {
+            array = array.ReDimPreserve(new VBArrayBound(array.LBound(), index));
+        }
+        else if (array[index] is not null)
+        {
+            // VB6 refuses to load an element that already exists.
+            VBErrors.Raise(360, name, "Object already loaded", string.Empty, 0);
+        }
+
+        array[index] = Host?.LoadControlArrayElement(owner, name, index, FindTemplate(array));
+        return array;
+    }
+
+    /// <summary>
+    /// <c>Unload ctlButton(index)</c> on a control array. The slot is cleared but the array keeps
+    /// its bounds, as in VB6: the index stays addressable and can be loaded again.
+    /// </summary>
+    public static VBArray<object?>? UnloadControlArrayElement(
+        VBArray<object?>? array,
+        int index,
+        string name,
+        object owner)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(owner);
+        if (array is null)
+        {
+            return null;
+        }
+
+        if (index < array.LBound() || index > array.UBound())
+        {
+            VBErrors.Raise(9, name, "Subscript out of range", string.Empty, 0);
+        }
+
+        Host?.UnloadControlArrayElement(owner, name, index, array[index]);
+        array[index] = null;
+        return array;
+    }
+
+    /// <summary>
+    /// The element a loaded copy is cloned from. VB6 uses the lowest existing index, which is the
+    /// one the designer created.
+    /// </summary>
+    private static object? FindTemplate(VBArray<object?> array)
+    {
+        for (var index = array.LBound(); index <= array.UBound(); index++)
+        {
+            if (array[index] is { } element)
+            {
+                return element;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Shows a form/control through the configured UI host.</summary>
     public static void Show(object? value)
     {

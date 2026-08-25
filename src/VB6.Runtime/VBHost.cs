@@ -49,6 +49,21 @@ public interface IVB6Host
 
     object? CreateControl(object owner, string name, string typeName);
 
+    /// <summary>
+    /// Creates a control array element at runtime, as <c>Load ctlButton(3)</c> does. VB6 clones
+    /// the element the designer created — position, size and every other property — and starts the
+    /// copy hidden, so the program decides when it appears. Returns the new control, or null when
+    /// the host cannot clone the template.
+    /// </summary>
+    object? LoadControlArrayElement(object owner, string name, int index, object? template) => null;
+
+    /// <summary>
+    /// Destroys a control array element created by <see cref="LoadControlArrayElement"/>.
+    /// </summary>
+    void UnloadControlArrayElement(object owner, string name, int index, object? element)
+    {
+    }
+
     /// <summary>Ensures that a generated Form/UserControl has a host binding before initialization.</summary>
     void EnsureForm(object target)
     {

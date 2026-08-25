@@ -1075,6 +1075,9 @@ public static class IrLowerer
                 case BoundReDimStatement reDim:
                     LowerReDim(reDim);
                     break;
+                case BoundControlArrayElementStatement controlArrayElement:
+                    LowerControlArrayElement(controlArrayElement);
+                    break;
                 case BoundEraseStatement erase:
                     LowerErase(erase);
                     break;
@@ -1932,6 +1935,27 @@ public static class IrLowerer
                 ? new IrReDimPreserveExpression(new IrLoadExpression(target), arrayType, bounds)
                 : new IrNewVBArrayExpression(arrayType, bounds);
             Emit(new IrStoreInstruction(target, value));
+        }
+
+        /// <summary>
+        /// <c>Load</c>/<c>Unload</c> on a control array follows the ReDim Preserve shape: load the
+        /// array place, hand it to the runtime, store the result back. Growing the array replaces
+        /// the reference, so writing it back is what makes the new element visible everywhere.
+        /// </summary>
+        private void LowerControlArrayElement(BoundControlArrayElementStatement statement)
+        {
+            var target = LowerPlace(statement.Target);
+            Emit(new IrStoreInstruction(
+                target,
+                Runtime(
+                    statement.Unload
+                        ? IrRuntimeMethod.InteractionUnloadControlArrayElement
+                        : IrRuntimeMethod.InteractionLoadControlArrayElement,
+                    statement.Target.Type,
+                    new IrLoadExpression(target),
+                    LowerExpression(statement.Index),
+                    new IrConstantExpression(statement.Name, TypeSymbol.String),
+                    LowerExpression(statement.Owner))));
         }
 
         private void LowerErase(BoundEraseStatement statement)

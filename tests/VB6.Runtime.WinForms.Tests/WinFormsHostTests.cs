@@ -1716,6 +1716,39 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostClonesTheDesignerElementWhenLoadingAControlArrayElement()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        var template = (Control)host.CreateControl(owner, "ctlButton(0)", "CommandButton")!;
+        template.SetBounds(10, 20, 120, 40);
+        template.Text = "Design";
+        template.Visible = true;
+
+        var loaded = host.LoadControlArrayElement(owner, "ctlButton", 1, template) as Control;
+
+        Assert.IsNotNull(loaded, "Load must create the element.");
+        Assert.AreNotSame(template, loaded);
+        Assert.AreEqual(template.GetType(), loaded!.GetType(), "The clone keeps the template's type.");
+        Assert.AreEqual(template.Bounds, loaded.Bounds, "VB6 clones position and size.");
+        Assert.AreEqual("Design", loaded.Text);
+        Assert.AreSame(template.Parent, loaded.Parent, "The clone joins the template's container.");
+
+        // A freshly loaded element is hidden in VB6 — it sits exactly on top of its template.
+        Assert.IsFalse(loaded.Visible);
+
+        // Loading the same index again returns the element rather than creating a second one.
+        Assert.AreSame(loaded, host.LoadControlArrayElement(owner, "ctlButton", 1, template));
+
+        host.UnloadControlArrayElement(owner, "ctlButton", 1, loaded);
+        Assert.IsNull(loaded.Parent, "Unload removes the element from its container.");
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostRejectsAnInvalidScaleModeLikeVb6()
     {
         using var host = new WinFormsHost();

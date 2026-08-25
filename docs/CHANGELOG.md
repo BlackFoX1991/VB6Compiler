@@ -2505,3 +2505,32 @@ urspruenglichen Zaehlung waren ein gleichnamiges Enum, ein Kommentar und ein
 `SetROP2`-P/Invoke-Parameter, keine VB6-Eigenschaft. Die Roadmap fuehrt `DrawMode` deshalb wie MDI
 als zurueckgestellt. Die gemessene Vollsuite umfasst **1099 Testfaelle**, davon **1099 bestanden**
 und **0 fehlgeschlagen**; die Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.
+
+## Control-Array-Laufzeit-Nachtrag
+
+Der Korpus laedt Control-Array-Elemente zur Laufzeit nach: `frmDesign.frm` ruft
+`Load ctlButton(ctlButton.UBound + 1)` und `Unload Control(Control.Index)`, dazu kommen 16
+Eventhandler mit `Index As Integer`. Gebunden wurde das bisher als gewoehnlicher `Load`-Intrinsic
+mit ausgewertetem Argument — was nicht funktionieren kann: VB6 adressiert einen Slot, den `Load`
+erst anlegen soll, sodass die Auswertung des Elements scheitert, bevor `Load` ueberhaupt laeuft.
+
+Der Binder erkennt die Form jetzt als eigenes Statement und behaelt das Array als zuweisbaren
+Platz. Voraussetzung ist ein Elementtyp mit Control-Vertrag; Formulare und Einzelcontrols behalten
+den gewoehnlichen Intrinsic-Pfad. Gelowert wird nach dem Muster von `ReDim Preserve` — Platz laden,
+Runtime rufen, Ergebnis zurueckschreiben —, denn das Wachsen ersetzt die Arrayreferenz, und erst
+das Zurueckschreiben macht das neue Element ueberall sichtbar.
+
+Die Runtime waechst das Array bis zum Index und waehlt das unterste vorhandene Element als
+Vorlage, in VB6 also das vom Designer erzeugte. Ein bereits geladenes Element meldet Fehler 360,
+ein Index unterhalb der Untergrenze Fehler 9. `Unload` leert den Slot, behaelt aber die Grenzen,
+damit der Index adressierbar bleibt und erneut geladen werden kann.
+
+Der WinForms-Host klont Typ, Position, Groesse, Schrift und Farben der Vorlage, haengt den Klon in
+denselben Container und laesst ihn unsichtbar — wie in VB6, wo ein sofort sichtbares Element exakt
+auf seiner Vorlage laege. Die Events laufen ueber den vorhandenen Designer-Pfad mit dem neuen
+Arrayindex.
+
+Vier Regressionen: Wachstum mit Vorlagenwahl, die beiden Fehlerfaelle, `Unload` mit erhaltenen
+Grenzen sowie das Klonen im Host einschliesslich Wiederholaufruf und Entfernen. Die gemessene
+Vollsuite umfasst **1103 Testfaelle**, davon **1103 bestanden** und **0 fehlgeschlagen**; die
+Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.

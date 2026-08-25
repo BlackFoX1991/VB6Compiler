@@ -2600,9 +2600,60 @@ public sealed class Binder
             return new BoundInvocationStatement(new ProcedureSymbol(syntax.Identifier.Text), unknownArguments);
         }
 
+        if (BindControlArrayElement(syntax, procedure, variables, procedures) is { } controlArrayElement)
+        {
+            return controlArrayElement;
+        }
+
         return new BoundInvocationStatement(
             procedure,
             BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
+    }
+
+    /// <summary>
+    /// Recognizes <c>Load ctlButton(3)</c> / <c>Unload ctlButton(3)</c> on a control array. Every
+    /// other argument is evaluated before the call, which cannot work here: VB6 addresses a slot
+    /// that Load is supposed to create. The array therefore stays an assignable place. Forms and
+    /// single controls keep the ordinary intrinsic path.
+    /// </summary>
+    private BoundStatement? BindControlArrayElement(
+        InvocationStatementSyntax syntax,
+        ProcedureSymbol procedure,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (procedure.IntrinsicKind is not (VBIntrinsicKind.Load or VBIntrinsicKind.Unload) ||
+            syntax.Arguments.Length != 1)
+        {
+            return null;
+        }
+
+        (string? Name, ExpressionSyntax? Index) target = syntax.Arguments[0] switch
+        {
+            InvocationExpressionSyntax { Arguments.Length: 1 } invocation =>
+                (invocation.Identifier.Text, invocation.Arguments[0]),
+            ElementAccessExpressionSyntax { Indices.Length: 1 } access
+                when access.Receiver is NameExpressionSyntax identifier =>
+                (identifier.IdentifierToken.Text, access.Indices[0]),
+            _ => (null, null)
+        };
+
+        var (name, indexSyntax) = target;
+
+        if (name is null || indexSyntax is null ||
+            !variables.TryGetValue(name, out var variable) ||
+            variable.Type is not ArrayTypeSymbol { ElementType: ClassTypeSymbol { IsControlContract: true } } ||
+            !variables.TryGetValue("Me", out var owner))
+        {
+            return null;
+        }
+
+        return new BoundControlArrayElementStatement(
+            new BoundVariableExpression(variable),
+            BindConversion(BindExpression(indexSyntax, variables, procedures), TypeSymbol.Long),
+            name,
+            new BoundVariableExpression(owner),
+            procedure.IntrinsicKind == VBIntrinsicKind.Unload);
     }
 
     private BoundStatement? BindRaiseEvent(
