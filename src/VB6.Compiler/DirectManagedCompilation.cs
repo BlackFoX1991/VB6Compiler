@@ -178,7 +178,8 @@ public static class DirectManagedCompilation
                 artifacts.RuntimeAssemblyPath,
                 artifacts.RuntimeConfigPath)
             {
-                ManagedAssemblyPath = artifacts.ManagedAssemblyPath
+                ManagedAssemblyPath = artifacts.ManagedAssemblyPath,
+                ComManifestPath = artifacts.ComManifestPath
             };
         }
         catch (ManagedArtifactException exception)
@@ -230,7 +231,8 @@ public static class DirectManagedCompilation
                 artifacts.RuntimeAssemblyPath,
                 artifacts.RuntimeConfigPath)
             {
-                ManagedAssemblyPath = artifacts.ManagedAssemblyPath
+                ManagedAssemblyPath = artifacts.ManagedAssemblyPath,
+                ComManifestPath = artifacts.ComManifestPath
             };
         }
         catch (ManagedArtifactException exception)
@@ -361,6 +363,9 @@ public sealed record ManagedApplicationEmitResult(
     /// </summary>
     public string? ManagedAssemblyPath { get; init; }
 
+    /// <summary>The side-by-side activation manifest when COM hosting was requested.</summary>
+    public string? ComManifestPath { get; init; }
+
     public bool Success => Lowering.Success && BackendResult?.Success == true && AssemblyPath is not null;
     public ImmutableArray<Diagnostic> Diagnostics => Lowering.Diagnostics;
 }
@@ -375,6 +380,9 @@ public sealed record VBProjectManagedApplicationEmitResult(
 {
     /// <summary>The managed companion assembly when the requested output is an apphost.</summary>
     public string? ManagedAssemblyPath { get; init; }
+
+    /// <summary>The side-by-side activation manifest when COM hosting was requested.</summary>
+    public string? ComManifestPath { get; init; }
 
     public bool Success => Lowering.Success && BackendResult?.Success == true && AssemblyPath is not null;
 }
@@ -397,6 +405,11 @@ internal static class ManagedArtifactWriter
         {
             throw new ManagedArtifactException(
                 "COM hosting requires ManagedOutputKind.Library output.");
+        }
+        if (options.EnableComManifest && !options.EnableComHosting)
+        {
+            throw new ManagedArtifactException(
+                "COM manifests require COM hosting to be enabled.");
         }
 
         var fullOutputPath = Path.GetFullPath(outputPath);
@@ -445,9 +458,17 @@ internal static class ManagedArtifactWriter
                 "Install the matching Microsoft.NETCore.App.Host.win-x86/win-x64 pack or emit a .dll output.");
         }
 
+        string? comManifestPath = null;
         if (options.EnableComHosting)
         {
-            ManagedComHostWriter.Create(managedAssemblyPath, options.Platform);
+            var comHostPath = ManagedComHostWriter.Create(managedAssemblyPath, options.Platform);
+            if (options.EnableComManifest)
+            {
+                comManifestPath = ManagedComManifestWriter.Create(
+                    managedAssemblyPath,
+                    comHostPath,
+                    options.Platform);
+            }
         }
 
         return new ManagedArtifactPaths(
@@ -455,7 +476,8 @@ internal static class ManagedArtifactWriter
             managedAssemblyPath,
             pdbPath,
             runtimeOutputPath,
-            runtimeConfigPath);
+            runtimeConfigPath,
+            comManifestPath);
     }
 
     private static string CreateRuntimeConfig()
@@ -481,7 +503,8 @@ internal sealed record ManagedArtifactPaths(
     string ManagedAssemblyPath,
     string? PdbPath,
     string RuntimeAssemblyPath,
-    string RuntimeConfigPath);
+    string RuntimeConfigPath,
+    string? ComManifestPath);
 
 internal sealed class ManagedArtifactException : Exception
 {

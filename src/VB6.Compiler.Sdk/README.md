@@ -20,9 +20,11 @@ outputs. An unchanged project is skipped by MSBuild, while a changed legacy sour
 resource triggers a new compile. It does not add a designer or replace the `.vbp` project model.
 
 Set `VB6EnableComHosting=true` for a library project to pass `--com-host` and produce the adjacent
-native .NET `*.comhost.dll` artifact. After emission, register or remove that artifact for classic
+native .NET `*.comhost.dll` artifact. Set `VB6EnableComManifest=true` as well (or by itself) to
+also emit a side-by-side `*.manifest` that maps the generated CLSIDs without registry changes.
+After emission, register or remove that artifact for classic
 COM consumers with `vb6c path\Library.comhost.dll --register-com --x86` or
-`--unregister-com`. COM hosting is limited to Managed library output.
+`--unregister-com`. COM hosting and manifests are limited to Managed library output.
 
 For a Visual Basic 6 project group, set `VB6ProjectGroup` instead of `VB6Project`:
 

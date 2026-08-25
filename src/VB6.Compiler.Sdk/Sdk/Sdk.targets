@@ -11,8 +11,10 @@
     <VB6CompilerOutputFullPath Condition="'$(VB6CompilerOutput)' != ''">$([System.IO.Path]::GetFullPath('$(VB6CompilerOutput)'))</VB6CompilerOutputFullPath>
     <VB6CompilerOutputDirectory Condition="'$(VB6CompilerOutputFullPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(VB6CompilerOutputFullPath)'))</VB6CompilerOutputDirectory>
     <VB6CompilerRuntimeOutput Condition="'$(VB6CompilerOutputDirectory)' != ''">$(VB6CompilerOutputDirectory)\VB6.Runtime.dll</VB6CompilerRuntimeOutput>
-    <VB6CompilerComHostOutput Condition="'$(VB6EnableComHosting)' == 'true' and '$(VB6CompilerOutputFullPath)' != ''">$(VB6CompilerOutputDirectory)\$([System.IO.Path]::GetFileNameWithoutExtension('$(VB6CompilerOutputFullPath)')).comhost.dll</VB6CompilerComHostOutput>
+    <VB6CompilerComHostOutput Condition="('$(VB6EnableComHosting)' == 'true' or '$(VB6EnableComManifest)' == 'true') and '$(VB6CompilerOutputFullPath)' != ''">$(VB6CompilerOutputDirectory)\$([System.IO.Path]::GetFileNameWithoutExtension('$(VB6CompilerOutputFullPath)')).comhost.dll</VB6CompilerComHostOutput>
     <VB6CompilerComHostArgument Condition="'$(VB6EnableComHosting)' == 'true'"> --com-host</VB6CompilerComHostArgument>
+    <VB6CompilerComManifestOutput Condition="'$(VB6EnableComManifest)' == 'true' and '$(VB6CompilerOutputFullPath)' != ''">$(VB6CompilerOutputDirectory)\$([System.IO.Path]::GetFileNameWithoutExtension('$(VB6CompilerOutputFullPath)')).manifest</VB6CompilerComManifestOutput>
+    <VB6CompilerComManifestArgument Condition="'$(VB6EnableComManifest)' == 'true'"> --com-manifest</VB6CompilerComManifestArgument>
     <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == '' and '$(TargetDir)' != ''">$(TargetDir)</VB6CompilerGroupOutputDirectory>
     <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == '' and '$(OutputPath)' != ''">$(MSBuildProjectDirectory)\$(OutputPath)</VB6CompilerGroupOutputDirectory>
     <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == ''">$(MSBuildProjectDirectory)\bin\$(Configuration)</VB6CompilerGroupOutputDirectory>
@@ -70,10 +72,10 @@
     BeforeTargets="Build"
     Condition="'$(VB6ProjectGroup)' == '' and Exists('$(VB6ProjectFullPath)')"
     Inputs="@(VB6CompilerInput)"
-    Outputs="$(VB6CompilerOutputFullPath);$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'));$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'));$(VB6CompilerRuntimeOutput);$(VB6CompilerComHostOutput)">
+    Outputs="$(VB6CompilerOutputFullPath);$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'));$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'));$(VB6CompilerRuntimeOutput);$(VB6CompilerComHostOutput);$(VB6CompilerComManifestOutput)">
     <MakeDir Directories="$(TargetDir)" />
     <MakeDir Directories="$(VB6CompilerOutputDirectory)" />
-    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;$(VB6CompilerComHostArgument)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
   </Target>
 
   <Target
@@ -85,12 +87,13 @@
     <MakeDir Directories="$(TargetDir)" Condition="'$(TargetDir)' != ''" />
     <MakeDir Directories="$(VB6CompilerGroupOutputDirectoryFullPath)" />
     <MakeDir Directories="$(IntermediateOutputPath)" />
-    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --emit-assembly &quot;$(VB6CompilerGroupOutputDirectoryArgument)&quot;$(VB6CompilerComHostArgument)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --emit-assembly &quot;$(VB6CompilerGroupOutputDirectoryArgument)&quot;$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
     <ItemGroup>
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.dll" />
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.exe" />
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.json" />
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.pdb" />
+      <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.manifest" />
     </ItemGroup>
     <WriteLinesToFile
       File="$(VB6CompilerGroupManifest)"

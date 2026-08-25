@@ -128,11 +128,16 @@ public sealed class VBProjectGroupCompilation
                 : ".exe";
             var outputPath = Path.Combine(fullOutputDirectory, uniqueStem + outputExtension);
             var projectOptions = options;
-            if (options?.EnableComHosting == true && outputExtension == ".exe")
+            if (outputExtension == ".exe" &&
+                (options?.EnableComHosting == true || options?.EnableComManifest == true))
             {
                 // A group can contain both an OleDll and an executable. Keep the opt-in COM host
                 // on library projects while preserving the normal apphost path for executables.
-                projectOptions = options with { EnableComHosting = false };
+                projectOptions = options with
+                {
+                    EnableComHosting = false,
+                    EnableComManifest = false
+                };
             }
             var emit = VBProjectCompilation.Create(project.FullPath, _options)
                 .EmitManagedApplication(outputPath, projectOptions);

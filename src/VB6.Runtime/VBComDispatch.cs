@@ -23,6 +23,7 @@ internal static class VBComDispatch
     private const ushort VariantDate = 0x0007;
     private const ushort VariantCurrency = 0x0006;
     private const ushort VariantDispatch = 0x0009;
+    private const ushort VariantUnknown = 0x000D;
     private const ushort VariantPointer = 0x001A;
     private const ushort VariantSafeArray = 0x001B;
     private const int DispIdPropertyPut = -3;
@@ -942,6 +943,11 @@ internal static class VBComDispatch
                     return TryInitializeDispatchArray(vbArray, destination, expectedType);
                 }
 
+                if ((expectedType & VariantTypeMask) == VariantUnknown)
+                {
+                    return TryInitializeUnknownArray(vbArray, destination, expectedType);
+                }
+
                 if ((expectedType & VariantTypeMask) == VariantCurrency)
                 {
                     return TryInitializeCurrencyArray(vbArray, destination, expectedType);
@@ -1221,6 +1227,131 @@ internal static class VBComDispatch
                         if (dispatchPointer != IntPtr.Zero)
                         {
                             Marshal.Release(dispatchPointer);
+                        }
+                    }
+
+                    IncrementIndices(indices, lowerBounds, upperBounds);
+                }
+            }
+
+            Marshal.WriteInt16(destination, unchecked((short)expectedType));
+            Marshal.WriteIntPtr(destination, VariantDataOffset, safeArray);
+            safeArray = IntPtr.Zero;
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
+        finally
+        {
+            if (safeArray != IntPtr.Zero)
+            {
+                _ = SafeArrayDestroy(safeArray);
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryInitializeUnknownArray(
+        IVBArray source,
+        IntPtr destination,
+        ushort expectedType)
+    {
+        if (source.Rank < 1)
+        {
+            return false;
+        }
+
+        var bounds = new NativeSafeArrayBound[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        var upperBounds = new int[source.Rank];
+        var sourceLength = 1L;
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lowerBounds[dimension] = source.LBound(dimension + 1);
+            upperBounds[dimension] = source.UBound(dimension + 1);
+            var length = (long)upperBounds[dimension] - lowerBounds[dimension] + 1L;
+            if (length < 0 || length > uint.MaxValue)
+            {
+                return false;
+            }
+
+            bounds[dimension] = new NativeSafeArrayBound((uint)length, lowerBounds[dimension]);
+            if (length == 0)
+            {
+                sourceLength = 0;
+            }
+            else if (sourceLength != 0)
+            {
+                sourceLength = checked(sourceLength * length);
+                if (sourceLength > int.MaxValue)
+                {
+                    return false;
+                }
+            }
+        }
+
+        var safeArray = SafeArrayCreate(
+            VariantUnknown,
+            (uint)source.Rank,
+            bounds);
+        if (safeArray == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (sourceLength != 0)
+            {
+                var indices = lowerBounds.ToArray();
+                for (var offset = 0L; offset < sourceLength; offset++)
+                {
+                    var value = source.GetObjectValue(indices);
+                    var unknownPointer = IntPtr.Zero;
+                    try
+                    {
+                        var comValue = UnwrapComValue(value);
+                        if (comValue is not null &&
+                            comValue is not DBNull &&
+                            comValue is not System.Reflection.Missing &&
+                            !VBVariants.IsNull(comValue) &&
+                            !VBVariants.IsNothing(comValue))
+                        {
+                            unknownPointer = Marshal.GetIUnknownForObject(comValue);
+                            if (unknownPointer == IntPtr.Zero ||
+                                SafeArrayPutElement(safeArray, indices, unknownPointer) < 0)
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (unknownPointer != IntPtr.Zero)
+                        {
+                            Marshal.Release(unknownPointer);
                         }
                     }
 

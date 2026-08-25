@@ -660,7 +660,7 @@ public sealed class VBDeclareArrayBuffer : IDisposable
             Marshal.WriteInt16(_variant, unchecked((short)_expectedType));
             Marshal.WriteIntPtr(_variant, VariantDataOffset, safeArray);
             var value = Marshal.GetObjectForNativeVariant(_variant);
-            if ((_expectedType & 0x0FFF) == 0x0009)
+            if ((_expectedType & 0x0FFF) is 0x0009 or 0x000D)
             {
                 value = VBComDispatch.NormalizeDispatchArray(value);
             }

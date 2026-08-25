@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace VB6.Compiler.Cli.Tests;
@@ -342,11 +343,25 @@ public sealed class CliProcessTests
                 "--emit-assembly",
                 outputPath,
                 "--com-host",
+                "--com-manifest",
                 "--x64");
 
             Assert.AreEqual(0, result.ExitCode, result.StandardError);
             var comHostPath = Path.Combine(directory, "bin", "ComSample.comhost.dll");
             Assert.IsTrue(File.Exists(comHostPath));
+            var manifestPath = Path.Combine(directory, "bin", "ComSample.manifest");
+            Assert.IsTrue(File.Exists(manifestPath));
+            var manifest = XDocument.Load(manifestPath);
+            XNamespace manifestNamespace = "urn:schemas-microsoft-com:asm.v1";
+            var assemblyIdentity = manifest.Root?.Element(manifestNamespace + "assemblyIdentity");
+            Assert.IsNotNull(assemblyIdentity);
+            Assert.AreEqual("ComSample", assemblyIdentity!.Attribute("name")?.Value);
+            var comClass = manifest.Root?
+                .Element(manifestNamespace + "file")?
+                .Element(manifestNamespace + "comClass");
+            Assert.IsNotNull(comClass);
+            Assert.AreEqual(CreateComClassId("ComSample", "Widget").ToString("B").ToUpperInvariant(),
+                comClass!.Attribute("clsid")?.Value);
 
             var clsid = CreateComClassId("ComSample", "Widget");
 

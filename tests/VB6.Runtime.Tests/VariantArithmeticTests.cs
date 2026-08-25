@@ -24,8 +24,19 @@ public sealed class VariantArithmeticTests
         var nullValue = VBVariants.NullValue();
 
         Assert.IsTrue(VBVariants.IsNull(VBOperators.AddVariant(nullValue, 1)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.SubtractVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.MultiplyInteger(nullValue, 2)));
         Assert.IsTrue(VBVariants.IsNull(VBOperators.DivideVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.IntegerDivideVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.ModVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.PowerVariant(1, nullValue)));
         Assert.IsTrue(VBVariants.IsNull(VBOperators.NegateVariant(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.NotVariant(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.AndVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.OrVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.XorVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.EqvVariant(1, nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.ImpVariant(1, nullValue)));
     }
 
     [TestMethod]
@@ -109,6 +120,49 @@ public sealed class VariantArithmeticTests
         var previous = VBOperators.SubtractVariant(date, 1);
         Assert.IsInstanceOfType<VBDateValue>(previous);
         Assert.AreEqual(43830d, ((VBDateValue)previous!).OADate);
+    }
+
+    [TestMethod]
+    public void EmptyAddition_PreservesTheRemainingDateOperandAndDateOverflowPromotesToDouble()
+    {
+        var date = new DateTime(2020, 1, 1);
+
+        var rightEmpty = VBOperators.AddVariant(date, VBVariants.EmptyValue());
+        var leftEmpty = VBOperators.AddVariant(VBVariants.EmptyValue(), date);
+
+        Assert.IsInstanceOfType<DateTime>(rightEmpty);
+        Assert.IsInstanceOfType<DateTime>(leftEmpty);
+        Assert.AreEqual(date, rightEmpty);
+        Assert.AreEqual(date, leftEmpty);
+
+        var overflowingDate = new VBDateValue(2_958_465d);
+        var result = VBOperators.AddVariant(overflowingDate, 1d);
+
+        Assert.IsInstanceOfType<double>(result);
+        Assert.AreEqual(2_958_466d, result);
+    }
+
+    [TestMethod]
+    public void VariantArithmetic_UsesVb6PrecisionOrderForSingleCurrencyAndDecimal()
+    {
+        var currency = VBConversions.CCur(1.25m);
+
+        var singleAndInteger = VBOperators.AddVariant(1f, (short)2);
+        var singleAndLong = VBOperators.AddVariant(1f, 2);
+        var currencyAndSingle = VBOperators.AddVariant(currency, 0.5f);
+        var currencyAndDouble = VBOperators.AddVariant(currency, 0.5d);
+        var decimalAndDouble = VBOperators.AddVariant(VBConversions.CDec("1.25"), 0.5d);
+
+        Assert.IsInstanceOfType<float>(singleAndInteger);
+        Assert.IsInstanceOfType<double>(singleAndLong);
+        Assert.IsInstanceOfType<VBCurrency>(currencyAndSingle);
+        Assert.IsInstanceOfType<double>(currencyAndDouble);
+        Assert.IsInstanceOfType<decimal>(decimalAndDouble);
+        Assert.AreEqual(3f, singleAndInteger);
+        Assert.AreEqual(3d, singleAndLong);
+        Assert.AreEqual(1.75m, ((VBCurrency)currencyAndSingle!).ToDecimal());
+        Assert.AreEqual(1.75d, currencyAndDouble);
+        Assert.AreEqual(1.75m, decimalAndDouble);
     }
 
     [TestMethod]
@@ -238,7 +292,7 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
-    public void Multiplication_PromotesCurrencyBeforeDouble()
+    public void Multiplication_PreservesCurrencyBeforeDoublePromotion()
     {
         var result = VBOperators.MultiplyInteger(VBConversions.CCur(1m), 0.5d);
 
@@ -282,12 +336,58 @@ public sealed class VariantArithmeticTests
         var missing = VBVariants.MissingValue();
 
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.AddVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.SubtractVariant(missing, 1));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.MultiplyInteger(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.DivideVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.IntegerDivideVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.ModVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.PowerVariant(missing, 1));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.NegateVariant(missing));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.ConcatVariant(missing, "value"));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.VariantEqual(missing, 1));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.NotVariant(missing));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBOperators.AndVariant(missing, 1));
         Assert.ThrowsException<VB6MissingArgumentException>(() => VBDebug.Format(missing));
+    }
+
+    [TestMethod]
+    public void UnsignedVariantArithmetic_PromotesAcrossUnsignedAndSignedBoundaries()
+    {
+        var mixedUShort = VBOperators.AddVariant(ushort.MaxValue, (short)1);
+        var unsignedShortOverflow = VBOperators.AddVariant(ushort.MaxValue, (ushort)1);
+        var unsignedIntegerOverflow = VBOperators.AddVariant(uint.MaxValue, 1u);
+        var unsignedLongOverflow = VBOperators.AddVariant(ulong.MaxValue, 1UL);
+        var mixedUShortSubtraction = VBOperators.SubtractVariant((ushort)1, (short)2);
+        var unsignedIntegerSubtraction = VBOperators.SubtractVariant(1u, 2u);
+        var unsignedLongSubtraction = VBOperators.SubtractVariant(1UL, 2UL);
+
+        Assert.IsInstanceOfType<int>(mixedUShort);
+        Assert.AreEqual(65536, mixedUShort);
+        Assert.IsInstanceOfType<uint>(unsignedShortOverflow);
+        Assert.AreEqual(65536u, unsignedShortOverflow);
+        Assert.IsInstanceOfType<ulong>(unsignedIntegerOverflow);
+        Assert.AreEqual(4_294_967_296UL, unsignedIntegerOverflow);
+        Assert.IsInstanceOfType<decimal>(unsignedLongOverflow);
+        Assert.AreEqual(18_446_744_073_709_551_616m, unsignedLongOverflow);
+        Assert.AreEqual(-1, mixedUShortSubtraction);
+        Assert.AreEqual(-1L, unsignedIntegerSubtraction);
+        Assert.AreEqual(-1m, unsignedLongSubtraction);
+
+        Assert.AreEqual(-1, VBOperators.NegateVariant((ushort)1));
+        Assert.AreEqual(-4_294_967_295L, VBOperators.NegateVariant(uint.MaxValue));
+        Assert.AreEqual(-18_446_744_073_709_551_615m, VBOperators.NegateVariant(ulong.MaxValue));
+    }
+
+    [TestMethod]
+    public void ByteVariantIntegerDivisionAndModPreserveByteSubtype()
+    {
+        var quotient = VBOperators.IntegerDivideVariant((byte)5, (byte)2);
+        var remainder = VBOperators.ModVariant((byte)5, (byte)2);
+
+        Assert.IsInstanceOfType<byte>(quotient);
+        Assert.IsInstanceOfType<byte>(remainder);
+        Assert.AreEqual((byte)2, quotient);
+        Assert.AreEqual((byte)1, remainder);
     }
 
     [TestMethod]
