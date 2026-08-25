@@ -936,6 +936,11 @@ internal static class VBComDispatch
         {
             if (value is IVBArray vbArray)
             {
+                if ((expectedType & VariantTypeMask) == VariantCurrency)
+                {
+                    return TryInitializeCurrencyArray(vbArray, destination, expectedType);
+                }
+
                 if (!TryCreateAutomationArray(vbArray, expectedType, out var automationArray))
                 {
                     return false;
@@ -1022,6 +1027,105 @@ internal static class VBComDispatch
     }
 
     internal static void ClearNativeVariant(IntPtr variant) => _ = VariantClear(variant);
+
+    private static bool TryInitializeCurrencyArray(
+        IVBArray source,
+        IntPtr destination,
+        ushort expectedType)
+    {
+        if (source.Rank < 1)
+        {
+            return false;
+        }
+
+        var bounds = new NativeSafeArrayBound[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        var upperBounds = new int[source.Rank];
+        var sourceLength = 1L;
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lowerBounds[dimension] = source.LBound(dimension + 1);
+            upperBounds[dimension] = source.UBound(dimension + 1);
+            var length = (long)upperBounds[dimension] - lowerBounds[dimension] + 1L;
+            if (length < 0 || length > uint.MaxValue)
+            {
+                return false;
+            }
+
+            bounds[dimension] = new NativeSafeArrayBound((uint)length, lowerBounds[dimension]);
+            if (length == 0)
+            {
+                sourceLength = 0;
+            }
+            else if (sourceLength != 0)
+            {
+                sourceLength = checked(sourceLength * length);
+                if (sourceLength > int.MaxValue)
+                {
+                    return false;
+                }
+            }
+        }
+
+        var safeArray = SafeArrayCreate(
+            VariantCurrency,
+            (uint)source.Rank,
+            bounds);
+        if (safeArray == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var valueStorage = Marshal.AllocCoTaskMem(sizeof(long));
+        try
+        {
+            if (sourceLength != 0)
+            {
+                var indices = lowerBounds.ToArray();
+                for (var offset = 0L; offset < sourceLength; offset++)
+                {
+                    var value = source.GetObjectValue(indices);
+                    var currency = value is VBCurrency typed
+                        ? typed
+                        : VBConversions.CDec(value) is decimal decimalValue
+                            ? VBCurrency.FromDecimal(decimalValue)
+                            : throw new InvalidCastException("Currency SAFEARRAY element is not numeric.");
+                    Marshal.WriteInt64(valueStorage, currency.ScaledValue);
+                    if (SafeArrayPutElement(safeArray, indices, valueStorage) < 0)
+                    {
+                        return false;
+                    }
+
+                    IncrementIndices(indices, lowerBounds, upperBounds);
+                }
+            }
+
+            Marshal.WriteInt16(destination, unchecked((short)expectedType));
+            Marshal.WriteIntPtr(destination, VariantDataOffset, safeArray);
+            safeArray = IntPtr.Zero;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(valueStorage);
+            if (safeArray != IntPtr.Zero)
+            {
+                _ = SafeArrayDestroy(safeArray);
+            }
+        }
+    }
 
     internal static bool TryCreateAutomationArray(
         IVBArray source,
@@ -1244,6 +1348,19 @@ internal static class VBComDispatch
         Marshal.Copy(bytes, 0, destination, VariantSize);
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativeSafeArrayBound
+    {
+        public NativeSafeArrayBound(uint elementCount, int lowerBound)
+        {
+            ElementCount = elementCount;
+            LowerBound = lowerBound;
+        }
+
+        public readonly uint ElementCount;
+        public readonly int LowerBound;
+    }
+
     [DllImport("oleaut32.dll")]
     private static extern int VariantClear(IntPtr variant);
 
@@ -1253,6 +1370,21 @@ internal static class VBComDispatch
         IntPtr source,
         ushort flags,
         ushort variantType);
+
+    [DllImport("oleaut32.dll")]
+    private static extern IntPtr SafeArrayCreate(
+        ushort variantType,
+        uint dimensionCount,
+        [In] NativeSafeArrayBound[] bounds);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayPutElement(
+        IntPtr safeArray,
+        int[] indices,
+        IntPtr value);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayDestroy(IntPtr safeArray);
 
     [DllImport("oleaut32.dll")]
     private static extern int LoadRegTypeLib(
