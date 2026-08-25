@@ -2555,3 +2555,16 @@ mit `SysFreeString` frei. Der Windows-only Runtime-Test prüft die vollständige
 die Dispatch-Aufrufe verwenden außerdem die aktuelle Prozess-LCID mit einem stabilen
 Invariant-Fallback. Die Vollsuite umfasst nun **1051 Testfälle**, davon **1051 bestanden** und
 **0 fehlgeschlagen**.
+
+## Aktueller Managed-Form-AppHost-Nachtrag
+
+Form-Startup-Projekte können über den CLI-`--emit-assembly`-Pfad jetzt direkt als sichtbare
+Managed-Windows-Anwendungen gestartet werden. Der Emit aktiviert dafür den optionalen
+`VB6.Runtime.WinForms`-Host, kopiert dessen Runtime-Assembly neben die erzeugte Anwendung,
+fordert `Microsoft.WindowsDesktop.App` an und markiert den generierten Entry-Point als STA.
+Der Host startet nach `Load`/`Show` die Nachrichtenschleife, räumt sich nach `Unload` oder dem
+Schließen des Startformulars auf und übernimmt einen bereits gesetzten externen Runner-Host ohne
+doppelte Registrierung. Die öffentliche Compiler-API bleibt standardmäßig headless; mit
+`ManagedEmitOptions.EnableWinFormsHost` ist derselbe direkte AppHost-Vertrag opt-in verfügbar.
+Vollständige `.frx`-/MDI-/OCX-/Connection-Point-Abdeckung bleibt in M9 offen. Die Vollsuite
+umfasst nun **1055 Testfälle**, davon **1055 bestanden** und **0 fehlgeschlagen**.

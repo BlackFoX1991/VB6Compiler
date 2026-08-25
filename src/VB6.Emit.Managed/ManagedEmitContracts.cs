@@ -46,6 +46,12 @@ public sealed record ManagedEmitOptions(
     /// <see cref="EnableComHosting"/> and is available for Managed library output only.
     /// </summary>
     public bool EnableComManifest { get; init; }
+
+    /// <summary>
+    /// Includes the optional WinForms host contract in an executable Form build. The compiler
+    /// core remains headless; this flag only applies to projects whose startup object is a Form.
+    /// </summary>
+    public bool EnableWinFormsHost { get; init; }
 }
 
 public sealed record ManagedEmitDiagnostic(string Code, string Message);

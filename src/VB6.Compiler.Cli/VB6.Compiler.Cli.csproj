@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>vb6c</AssemblyName>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <ItemGroup>
@@ -10,4 +11,26 @@
     <ProjectReference Include="../VB6.IR/VB6.IR.csproj" />
     <ProjectReference Include="../VB6.ProjectSystem/VB6.ProjectSystem.csproj" />
   </ItemGroup>
+
+  <Target Name="BuildAndCopyWinFormsRuntimeCompanion" BeforeTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\VB6.Runtime.WinForms\VB6.Runtime.WinForms.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);PlatformTarget=$(PlatformTarget)" />
+    <PropertyGroup>
+      <_VB6WinFormsRuntimePath>$(MSBuildThisFileDirectory)..\VB6.Runtime.WinForms\bin\$(Configuration)\net10.0-windows\VB6.Runtime.WinForms.dll</_VB6WinFormsRuntimePath>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_VB6WinFormsRuntimePath)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_VB6WinFormsRuntimePath)')" />
+  </Target>
+
+  <Target Name="CopyWinFormsRuntimeCompanionToPublish" AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(PublishDir)' != ''">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\VB6.Runtime.WinForms\bin\$(Configuration)\net10.0-windows\VB6.Runtime.WinForms.dll"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\VB6.Runtime.WinForms\bin\$(Configuration)\net10.0-windows\VB6.Runtime.WinForms.dll')" />
+  </Target>
 </Project>

@@ -613,6 +613,8 @@ public enum IrRuntimeMethod
     InteractionDoEvents,
     InteractionMsgBox,
     InteractionInputBox,
+    InteractionStartWinForms,
+    InteractionRunWinFormsMessageLoop,
     InteractionLoad,
     InteractionUnload,
     InteractionShow,

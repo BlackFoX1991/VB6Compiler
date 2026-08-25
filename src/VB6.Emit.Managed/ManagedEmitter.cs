@@ -2548,6 +2548,14 @@ public sealed class ManagedEmitter
                     parameterStarts[procedure]);
                 EnsureHandle(actual, _methodHandles[procedure], "method");
 
+                if (procedure == _program.EntryPoint && _options.EnableWinFormsHost)
+                {
+                    _metadata.AddCustomAttribute(
+                        actual,
+                        GetAttributeConstructor(typeof(STAThreadAttribute)),
+                        EncodeEmptyAttribute());
+                }
+
                 if (procedure.IsExternal)
                 {
                     if (string.IsNullOrWhiteSpace(procedure.ExternalLibrary))
@@ -3484,6 +3492,14 @@ public sealed class ManagedEmitter
             return _metadata.GetOrAddBlob(blob);
         }
 
+        private BlobHandle EncodeEmptyAttribute()
+        {
+            var blob = new BlobBuilder();
+            blob.WriteUInt16(1);
+            blob.WriteUInt16(0);
+            return _metadata.GetOrAddBlob(blob);
+        }
+
         private BlobHandle EncodeEnumAttribute(int value)
         {
             var blob = new BlobBuilder();
@@ -3602,6 +3618,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionDoEvents) return Static(typeof(VBInteraction), "DoEvents");
             if (m == IrRuntimeMethod.InteractionMsgBox) return Static(typeof(VBInteraction), "MsgBox", typeof(string), typeof(int), typeof(string));
             if (m == IrRuntimeMethod.InteractionInputBox) return Static(typeof(VBInteraction), "InputBox", typeof(string), typeof(string), typeof(string), typeof(float), typeof(float), typeof(string), typeof(int));
+            if (m == IrRuntimeMethod.InteractionStartWinForms) return Static(typeof(VBInteraction), nameof(VBInteraction.StartWinFormsHost));
+            if (m == IrRuntimeMethod.InteractionRunWinFormsMessageLoop) return Static(typeof(VBInteraction), nameof(VBInteraction.RunWinFormsMessageLoop));
             if (m == IrRuntimeMethod.InteractionLoad) return Static(typeof(VBInteraction), "Load", typeof(object));
             if (m == IrRuntimeMethod.InteractionUnload) return Static(typeof(VBInteraction), "Unload", typeof(object));
             if (m == IrRuntimeMethod.InteractionShow) return Static(typeof(VBInteraction), "Show", typeof(object));

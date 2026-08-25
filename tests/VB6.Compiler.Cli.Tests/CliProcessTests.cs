@@ -91,6 +91,64 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_StartsAFormProjectThroughTheGeneratedAppHost()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ClosingForm.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="MainForm"
+                Name="ClosingForm"
+                Form=MainForm.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainForm.frm"), """
+                VERSION 5.00
+                Begin VB.Form MainForm
+                   Caption = "Closes during load"
+                End
+                Attribute VB_Name = "MainForm"
+                Attribute VB_PredeclaredId = True
+
+                Private Sub Form_Load()
+                    Unload Me
+                End Sub
+                """);
+            var outputDirectory = Path.Combine(directory, "bin");
+
+            var result = RunCli(projectPath, "--emit-assembly", outputDirectory, "--x86");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var appHostPath = Path.Combine(outputDirectory, "ClosingForm.exe");
+            Assert.IsTrue(File.Exists(appHostPath));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.WinForms.dll")));
+
+            using var process = Process.Start(new ProcessStartInfo(appHostPath)
+            {
+                WorkingDirectory = outputDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }) ?? throw new InvalidOperationException("Could not start the generated Form apphost.");
+            if (!process.WaitForExit(15000))
+            {
+                process.Kill(entireProcessTree: true);
+                Assert.Fail("The generated Form apphost did not exit after Unload Me.");
+            }
+            var standardError = process.StandardError.ReadToEnd();
+            Assert.AreEqual(0, process.ExitCode, standardError);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesSingleVbpIntoAnOutputDirectoryAndRunsIt()
     {
         var directory = CreateTemporaryDirectory();
