@@ -991,7 +991,20 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         if (source is IVBComObjectProvider)
         {
-            return VBEvents.TrySubscribeComMethod(source, eventName, target, methodName);
+            if (VBEvents.TrySubscribeComMethod(source, eventName, target, methodName))
+            {
+                return true;
+            }
+
+            // Not every VB6 event on an ActiveX control comes from the control. Focus events are
+            // supplied by the container's extender, so they are absent from the OCX event
+            // interface and have to come from the hosting wrapper instead.
+            if (source is not Control comControl)
+            {
+                return false;
+            }
+
+            return TrySubscribeWrapperEvent(comControl, eventName, target, methodName, controlArrayIndex);
         }
 
         var eventSource = ResolveEventSource(source);
@@ -1024,6 +1037,63 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             target,
             methodName,
             eventSource,
+            eventInfo,
+            handler));
+        return true;
+    }
+
+    /// <summary>
+    /// Subscribes a VB6 event on the managed wrapper of a native ActiveX control. Used only when
+    /// the control's own event interface does not carry the event — the extender events.
+    /// </summary>
+    private bool TrySubscribeWrapperEvent(
+        Control control,
+        string eventName,
+        object target,
+        string methodName,
+        int? controlArrayIndex)
+    {
+        var eventInfo = FindEvent(control.GetType(), eventName);
+        var method = FindHandler(target.GetType(), methodName);
+        if (eventInfo?.EventHandlerType is null || method is null)
+        {
+            return false;
+        }
+
+        var handler = CreateEventDelegate(
+            eventInfo.EventHandlerType,
+            target,
+            method,
+            eventName,
+            control,
+            controlArrayIndex);
+        if (handler is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            eventInfo.AddEventHandler(control, handler);
+        }
+        catch (TargetInvocationException exception)
+            when (exception.InnerException is NotSupportedException)
+        {
+            // AxHost rejects the inherited events an ActiveX control does not implement. That is
+            // an answer, not a failure: the event simply does not exist on this control.
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+
+        _events.Add(new EventBinding(
+            control,
+            eventName,
+            target,
+            methodName,
+            control,
             eventInfo,
             handler));
         return true;

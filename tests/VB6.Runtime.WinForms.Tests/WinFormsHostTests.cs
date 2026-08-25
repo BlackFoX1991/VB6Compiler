@@ -16,6 +16,7 @@ public sealed class WinFormsHostTests
     private const uint WindowMessageLeftButtonDown = 0x0201;
     private const uint WindowMessageLeftButtonUp = 0x0202;
     private const uint WindowMessageChar = 0x0102;
+    private const uint WindowMessageLeftButtonDoubleClick = 0x0203;
 
     [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(
@@ -399,6 +400,8 @@ public sealed class WinFormsHostTests
                 Begin VB.Form Main
                    Begin RichTextLib.RichTextBox editor
                    End
+                   Begin VB.TextBox sink
+                   End
                 End
                 Attribute VB_Name = "Main"
                 Attribute VB_PredeclaredId = True
@@ -407,6 +410,9 @@ public sealed class WinFormsHostTests
                 Private WithEvents source As RichTextLib.RichTextBox
                 Private changeCount As Integer
                 Private designerChangeCount As Integer
+                Private gotFocusCount As Integer
+                Private lostFocusCount As Integer
+                Private dblClickCount As Integer
                 Private formInitialized As Boolean
                 Private sourceKeyValue As Integer
                 Private observedKey As Integer
@@ -433,8 +439,32 @@ public sealed class WinFormsHostTests
                     designerChangeCount = designerChangeCount + 1
                 End Sub
 
+                Private Sub Editor_GotFocus()
+                    gotFocusCount = gotFocusCount + 1
+                End Sub
+
+                Private Sub Editor_LostFocus()
+                    lostFocusCount = lostFocusCount + 1
+                End Sub
+
+                Private Sub Editor_DblClick()
+                    dblClickCount = dblClickCount + 1
+                End Sub
+
                 Public Property Get DesignerChange() As Integer
                     DesignerChange = designerChangeCount
+                End Property
+
+                Public Property Get DesignerGotFocus() As Integer
+                    DesignerGotFocus = gotFocusCount
+                End Property
+
+                Public Property Get DesignerLostFocus() As Integer
+                    DesignerLostFocus = lostFocusCount
+                End Property
+
+                Public Property Get DesignerDblClick() As Integer
+                    DesignerDblClick = dblClickCount
                 End Property
 
                 Public Property Get ObservedChange() As Integer
@@ -489,6 +519,26 @@ public sealed class WinFormsHostTests
                 (short)1,
                 designerChangeGetter.Invoke(form, null),
                 "Editor_Change did not fire through the native connection point.");
+
+            // GotFocus, LostFocus and DblClick go through the same name translation as Change.
+            // Focus already moved onto the control above; moving it away produces LostFocus.
+            AssertDesignerHandlerRan(formType, form, "DesignerGotFocus", "Editor_GotFocus");
+
+            Assert.IsTrue(host.TryGetMember(form, "Sink", Array.Empty<object?>(), out var sink));
+            var sinkControl = (Control)sink!;
+            sinkControl.CreateControl();
+            sinkControl.Focus();
+            Application.DoEvents();
+            AssertDesignerHandlerRan(formType, form, "DesignerLostFocus", "Editor_LostFocus");
+
+            control.Focus();
+            Application.DoEvents();
+            _ = SendMessage(control.Handle, WindowMessageLeftButtonDown, IntPtr.Zero, IntPtr.Zero);
+            _ = SendMessage(control.Handle, WindowMessageLeftButtonUp, IntPtr.Zero, IntPtr.Zero);
+            _ = SendMessage(control.Handle, WindowMessageLeftButtonDoubleClick, IntPtr.Zero, IntPtr.Zero);
+            _ = SendMessage(control.Handle, WindowMessageLeftButtonUp, IntPtr.Zero, IntPtr.Zero);
+            Application.DoEvents();
+            AssertDesignerHandlerRan(formType, form, "DesignerDblClick", "Editor_DblClick");
 
             Assert.IsTrue(host.TrySetMember(editor, "Text", Array.Empty<object?>(), string.Empty));
 
@@ -1891,6 +1941,29 @@ public sealed class WinFormsHostTests
             $"{name}: the box reached past {extent} pixels at ({(int)extent + 4}).");
 
         host.Unload(owner);
+    }
+
+    /// <summary>
+    /// Asserts that a designer-convention handler was reached on the native control.
+    ///
+    /// The assertion is "at least once" on purpose. What is under test is that the VB6 event name
+    /// resolves at all — through the OCX connection point, or through the hosting wrapper for the
+    /// extender events the control does not implement. How often a focus event repeats is an
+    /// AxHost artifact of moving focus between wrapper and inner window, not a VB6 contract.
+    /// </summary>
+    private static void AssertDesignerHandlerRan(
+        Type formType,
+        object form,
+        string propertyName,
+        string handlerName)
+    {
+        var getter = formType
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single(method => method.Name.Contains(propertyName, StringComparison.OrdinalIgnoreCase));
+        var count = Convert.ToInt32(getter.Invoke(form, null), System.Globalization.CultureInfo.InvariantCulture);
+        Assert.IsTrue(
+            count >= 1,
+            $"{handlerName} did not fire through the native connection point.");
     }
 
     private static void RaisePaint(Control control, Graphics graphics) =>
