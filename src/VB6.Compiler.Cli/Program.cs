@@ -123,8 +123,9 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
 
     if (args.Length is >= 3 and <= 5 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        var emitOptions = CreateManagedEmitOptions(args[2], projectPlatform, projectComHost);
-        var emitResult = projectCompilation.EmitManagedApplication(args[2], emitOptions);
+        var outputPath = ResolveSingleProjectOutputPath(path, args[2]);
+        var emitOptions = CreateManagedEmitOptions(outputPath, projectPlatform, projectComHost);
+        var emitResult = projectCompilation.EmitManagedApplication(outputPath, emitOptions);
         PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
 
@@ -502,6 +503,38 @@ static ManagedEmitOptions CreateManagedEmitOptions(
     {
         EnableComHosting = enableComHosting
     };
+
+static string ResolveSingleProjectOutputPath(string projectPath, string requestedPath)
+{
+    var fullPath = Path.GetFullPath(requestedPath);
+    var directoryIntent = Directory.Exists(fullPath) || string.IsNullOrEmpty(Path.GetExtension(fullPath));
+    if (!directoryIntent)
+    {
+        return fullPath;
+    }
+
+    Directory.CreateDirectory(fullPath);
+    var project = new VBProjectLoader().Load(projectPath).Project;
+    var projectName = project.ExecutableName ?? project.Name ?? Path.GetFileNameWithoutExtension(project.FilePath);
+    var fileName = Path.GetFileNameWithoutExtension(projectName);
+    if (string.IsNullOrWhiteSpace(fileName))
+    {
+        fileName = Path.GetFileNameWithoutExtension(project.FilePath);
+    }
+
+    var extension = IsLibraryProjectType(project.ProjectType) ? ".dll" : ".exe";
+    return Path.Combine(fullPath, fileName + extension);
+}
+
+static bool IsLibraryProjectType(string? projectType) =>
+    projectType?.Trim().ToUpperInvariant() is
+        "OLEDLL" or
+        "OLEEXE" or
+        "CONTROL" or
+        "DLL" or
+        "ACTIVEX DLL" or
+        "ACTIVEX EXE" or
+        "ACTIVEX CONTROL";
 
 static VBCompilationOptions? CreateCompilationOptions(ManagedPlatform platform) => platform switch
 {
