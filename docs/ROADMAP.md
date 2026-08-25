@@ -2536,3 +2536,11 @@ Managed-Ausführungspfad ist mit einem kompilierten Pointer-/Long-Transfer abges
 Cross-Architecture-Targeting sowie dynamische Strings, Arrays, `Variant`-Felder, verschachtelte
 Pointer und weitere rohe C-Array-Layouts bleiben offen. Die Vollsuite umfasst nun **1047
 Testfälle**, davon **1047 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller MSBuild-SDK-Validierungsnachtrag
+
+Das VB6-MSBuild-SDK bricht jetzt mit einer eindeutigen Diagnose ab, wenn das konfigurierte
+`.vbp` oder `.vbg` nicht existiert oder beide Eingabearten gleichzeitig gesetzt sind. Damit
+führt ein falsch konfiguriertes SDK-Projekt nicht mehr stillschweigend nur einen normalen
+.NET-Build aus. Der Negativpfad ist über den CLI-Prozess-Regressionstest abgesichert; die
+Vollsuite umfasst nun **1048 Testfälle**, davon **1048 bestanden** und **0 fehlgeschlagen**.

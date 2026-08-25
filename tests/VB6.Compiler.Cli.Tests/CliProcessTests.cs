@@ -272,6 +272,60 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void MsBuildSdk_FailsWhenConfiguredVbpIsMissing()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "MissingLegacy.csproj");
+            var packageDirectory = Path.Combine(directory, "packages");
+            var repositoryRoot = FindRepositoryRoot();
+            var packResult = RunDotNet(
+                "pack",
+                Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
+                "-c",
+                "Release",
+                "--no-build",
+                "--no-restore",
+                "--nologo",
+                "-p:PackageVersion=1.0.0-missing-vbp-test",
+                "-p:PackageOutputPath=" + packageDirectory);
+            Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
+            File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{packageDirectory}" />
+                  </packageSources>
+                </configuration>
+                """);
+            File.WriteAllText(projectPath, $"""
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-missing-vbp-test" DefaultTargets="Build">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Configuration>Release</Configuration>
+                    <VB6Project>{Path.Combine(directory, "MissingLegacy.vbp")}</VB6Project>
+                    <VB6CompilerPath>{Path.Combine(AppContext.BaseDirectory, "vb6c.exe")}</VB6CompilerPath>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var result = RunMsBuild(projectPath, restore: true);
+
+            Assert.AreNotEqual(0, result.ExitCode, result.StandardOutput);
+            StringAssert.Contains(result.StandardError + result.StandardOutput, "VB6 project file was not found");
+            Assert.IsFalse(File.Exists(Path.Combine(directory, "bin", "Release", "MissingLegacy.dll")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesVbgProjectWithNativeOcxDesignerThroughTheCli()
     {
         var typeLibraryPath = Path.Combine(
