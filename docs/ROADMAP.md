@@ -2260,3 +2260,12 @@ Skalare `Currency`-Parameter und Rückgabewerte sind jetzt im Managed-`Declare`-
 mit vier Nachkommastellen; ein echter `oleaut32!VarCyFromR8`-Aufruf prüft den `ByRef Currency`-
 Rückweg. UDT-, Pointer- und Callback-ABI-Sonderfälle bleiben separate Roadmap-Schritte; die
 Vollsuite umfasst nun **991 Tests**.
+
+## Aktueller Declare-Callback-Nachtrag
+
+`AddressOf`-Prozeduren können im Managed-`Declare`-Pfad jetzt als native Funktionszeiger verwendet
+werden. Die Runtime erzeugt dafür nicht-generische Delegate-Thunks mit `Winapi`-Calling-Convention
+und hält die Delegate-Instanzen über die gesamte Prozesslaufzeit; statische Callback-Prozeduren und
+Instanzmethoden im selben generierten Klassenobjekt werden unterstützt. ByRef-Callback-Parameter
+bleiben bis zu einem expliziten Signaturadapter zurückgestellt. Ein echter
+`EnumSystemLocalesA`-Aufruf prüft die Callback-Ausführung; die Vollsuite umfasst nun **992 Tests**.

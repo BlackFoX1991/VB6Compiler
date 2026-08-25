@@ -57,4 +57,33 @@ public sealed class AddressOfExecutionTests
         Assert.AreEqual(TypeSymbol.Long, call.Arguments[2].Expression.Type);
         Assert.IsInstanceOfType<IrAddressOfExpression>(call.Arguments[2].Expression);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_InvokesNativeDeclareCallback()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native callback test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Declare Function EnumSystemLocalesA Lib "kernel32" Alias "EnumSystemLocalesA" (ByVal callback As LongPtr, ByVal flags As Long) As Long
+            Private callbackCount As Long
+
+            Private Function Callback(ByVal localeName As LongPtr) As Long
+                callbackCount = callbackCount + 1
+                Callback = 1
+            End Function
+
+            Sub Main()
+                Dim status As Long
+                status = EnumSystemLocalesA(AddressOf Callback, 0)
+                Debug.Print status <> 0
+                Debug.Print callbackCount > 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
 }

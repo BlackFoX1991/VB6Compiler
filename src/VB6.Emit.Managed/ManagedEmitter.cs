@@ -806,7 +806,7 @@ public sealed class ManagedEmitter
                     encoder.LoadLocal(localAddress.Local.Id);
                     break;
                 case IrAddressOfExpression addressOf:
-                    EmitAddressOf(encoder, addressOf);
+                    EmitAddressOf(encoder, procedure, addressOf);
                     break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
@@ -1114,7 +1114,10 @@ public sealed class ManagedEmitter
             }
         }
 
-        private void EmitAddressOf(InstructionEncoder encoder, IrAddressOfExpression expression)
+        private void EmitAddressOf(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressOfExpression expression)
         {
             if (!_procedureSymbolHandles.TryGetValue(expression.Procedure, out var target))
             {
@@ -1122,8 +1125,34 @@ public sealed class ManagedEmitter
                     $"Procedure '{expression.Procedure.Name}' has no managed method definition.");
             }
 
-            encoder.OpCode(ILOpCode.Ldftn);
+            var targetProcedure = AllProcedures()
+                .FirstOrDefault(candidate => ReferenceEquals(candidate.Symbol, expression.Procedure))
+                ?? throw new InvalidOperationException(
+                    $"Procedure '{expression.Procedure.Name}' has no managed procedure definition.");
+
+            encoder.OpCode(ILOpCode.Ldtoken);
             encoder.Token(target);
+            if (targetProcedure.IsStatic)
+            {
+                encoder.OpCode(ILOpCode.Ldnull);
+            }
+            else if (!procedure.IsStatic &&
+                     ReferenceEquals(procedure.DeclaringClass, targetProcedure.DeclaringClass))
+            {
+                encoder.LoadArgument(0);
+            }
+            else
+            {
+                throw new NotSupportedException(
+                    $"AddressOf instance procedure '{expression.Procedure.Name}' needs an explicit target object.");
+            }
+
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBCallbackRegistry).GetMethod(
+                    nameof(VBCallbackRegistry.GetFunctionPointer),
+                    BindingFlags.Public | BindingFlags.Static,
+                    new[] { typeof(RuntimeMethodHandle), typeof(object) })
+                ?? throw new MissingMethodException("VBCallbackRegistry.GetFunctionPointer is required.")));
             if (expression.ResultType == TypeSymbol.Long)
             {
                 encoder.OpCode(ILOpCode.Conv_i4);
