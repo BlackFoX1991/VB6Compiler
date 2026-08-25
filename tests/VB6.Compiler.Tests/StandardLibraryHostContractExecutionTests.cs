@@ -135,6 +135,20 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void Lower_UsesClipboardGetTextRuntimeContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Debug.Print Clipboard.GetText
+            End Sub
+            """);
+
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionClipboardGetText);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesErlRuntimeContract()
     {
         var output = VB6TestProgram.Run("""

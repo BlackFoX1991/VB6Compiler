@@ -36,6 +36,13 @@ public interface IVB6Host
     {
     }
 
+    /// <summary>Tries to read text from the host clipboard.</summary>
+    bool TryGetClipboardText(out string? text)
+    {
+        text = null;
+        return false;
+    }
+
     void Load(object target);
 
     void Unload(object target);

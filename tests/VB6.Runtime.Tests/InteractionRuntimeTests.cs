@@ -69,6 +69,21 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void ClipboardGetText_UsesConfiguredHeadlessSink()
+    {
+        var previousSink = VBInteraction.ClipboardTextSink;
+        try
+        {
+            VBInteraction.ClipboardTextSink = () => "clipboard value";
+            Assert.AreEqual("clipboard value", VBInteraction.ClipboardGetText());
+        }
+        finally
+        {
+            VBInteraction.ClipboardTextSink = previousSink;
+        }
+    }
+
+    [TestMethod]
     public void Shell_UsesHeadlessContractOrStartsAWindowsProcess()
     {
         if (!OperatingSystem.IsWindows())

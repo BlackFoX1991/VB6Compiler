@@ -633,6 +633,7 @@ public enum IrRuntimeMethod
     InteractionApplicationMajor,
     InteractionApplicationMinor,
     InteractionApplicationRevision,
+    InteractionClipboardGetText,
     MemoryVarPtr,
     MemoryObjPtr,
     MemoryStrPtr,
