@@ -2611,3 +2611,12 @@ WinForms-Host verwendet für `Wait=True` `SendWait` und für den asynchronen VB6
 headless Hosts behalten den deterministischen No-op-Vertrag. Die Runtime-Weiterleitung ist mit
 einem konfigurierten Host regressiongesichert. Die Vollsuite umfasst nun **1060 Testfälle**, davon
 **1060 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller LoadPicture-Dateipfad-Nachtrag
+
+Der WinForms-Host lädt `VBPicture`-Werte aus `LoadPicture("datei")` jetzt auch in den normalen
+`Picture`-Propertypfaden von Forms und Controls. Die Bilddaten werden unabhängig vom Quelldatei-
+Handle in eine eigene `Bitmap`-Instanz kopiert; der bestehende `.frx`- und `PaintPicture`-Pfad
+bleibt unverändert. Eine echte PNG-Regression setzt `PictureBox.Picture` über `LoadPicture` und
+prüft die resultierende Bildgröße. Die Vollsuite umfasst nun **1061 Testfälle**, davon **1061
+bestanden** und **0 fehlgeschlagen**.
