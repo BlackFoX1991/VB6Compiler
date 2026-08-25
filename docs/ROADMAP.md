@@ -2508,3 +2508,12 @@ Das MSBuild-SDK verfolgt bei Einzelprojekten und `.vbg`-Gruppen jetzt auch Legac
 invalidieren damit den inkrementellen Compile-Stempel und lösen die CLI-Emission erneut aus.
 Die Regression ist über einen echten `dotnet msbuild`-Gruppenbuild abgesichert. Der serielle
 Solution-Lauf umfasst damit weiterhin **1043 Testfälle**, davon **1043 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Empty-/Single-Variant-Divisionsnachtrag
+
+Bei der Variant-Division wird `Empty` jetzt wie ein Integer-Operand in die
+Promotionentscheidung einbezogen. Dadurch liefert `Empty / Single` einen `Single`-Variantwert
+statt fälschlich `Double`; `Single / Empty` bewahrt denselben effektiven Typ und meldet danach
+korrekt Division durch null. Runtime- und kompilierter Managed-Ausführungspfad sind regressions-
+gesichert. Die Vollsuite umfasst damit **1045 Testfälle**, davon **1045 bestanden** und **0
+fehlgeschlagen**.

@@ -564,7 +564,7 @@ public static partial class VBOperators
     }
 
     private static bool IsSingleDivisionOperand(object? value) =>
-        value is byte or short or ushort or float or bool;
+        value is null or byte or short or ushort or float or bool;
 
     private static void ThrowIfErrorOperand(object? value)
     {

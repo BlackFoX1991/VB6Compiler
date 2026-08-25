@@ -28,6 +28,30 @@ public sealed class FloatingExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PreservesSinglePromotionForEmptyVariantDivision()
+    {
+        var compilation = VBCompilation.Create("""
+            Sub Main()
+                Dim emptyValue As Variant
+                Dim singleValue As Single
+                Dim result As Variant
+
+                singleValue = 2
+                result = emptyValue / singleValue
+                Debug.Print VarType(result)
+                Debug.Print result
+            End Sub
+            """, "Module1.bas");
+
+        var standardOutput = VB6TestProgram.Run(compilation);
+        var lines = standardOutput.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.AreEqual(2, lines.Length);
+        Assert.AreEqual("4", lines[0].Trim());
+        Assert.AreEqual("0", lines[1].Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesVb6RoundingForVariantModOperands()
     {
         var compilation = VBCompilation.Create("""
