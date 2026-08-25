@@ -9,7 +9,11 @@ const string usage =
     "       vb6c <project.vbp> --report\n" +
     "       vb6c <project.vbg> --report\n" +
     "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu] [--com-host] [--com-manifest]\n" +
-    "       vb6c <comhost.dll> --register-com|--unregister-com [--x86|--x64|--anycpu]";
+    "       vb6c <comhost.dll> --register-com|--unregister-com [--x86|--x64|--anycpu]\n" +
+    "\n" +
+    "Architecture defaults to x86 for .vbp and .vbg projects, because legacy VB6 projects are\n" +
+    "32-bit and their ActiveX controls cannot load into a 64-bit process. Single source files\n" +
+    "default to AnyCpu. The chosen architecture also drives #If Win64.";
 
 if (args.Length == 0)
 {
@@ -70,14 +74,15 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return loadResult.Success ? 0 : 1;
     }
 
-    var projectPlatform = ManagedPlatform.AnyCpu;
+    // Legacy VB6 projects are 32-bit: their ActiveX controls cannot load into a 64-bit process.
+    var projectPlatform = ManagedPlatform.X86;
     var projectComHost = false;
     var projectComManifest = false;
     VBCompilationOptions? projectCompilationOptions = null;
     if (args.Length is >= 3 and <= 6 &&
         string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedArguments(args, out projectPlatform, out projectComHost, out projectComManifest))
+        if (!TryParseManagedArguments(args, projectPlatform, out projectPlatform, out projectComHost, out projectComManifest))
         {
             return 1;
         }
@@ -171,7 +176,7 @@ VBCompilationOptions? sourceCompilationOptions = null;
 if (args.Length is >= 3 and <= 6 &&
     string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
-    if (!TryParseManagedArguments(args, out sourcePlatform, out sourceComHost, out sourceComManifest))
+    if (!TryParseManagedArguments(args, sourcePlatform, out sourcePlatform, out sourceComHost, out sourceComManifest))
     {
         return 1;
     }
@@ -283,14 +288,15 @@ static int WriteIr(string dump, string? outputPath)
 
 static int HandleProjectGroup(string path, string[] args)
 {
-    var groupPlatform = ManagedPlatform.AnyCpu;
+    // Legacy VB6 project groups follow the same 32-bit default as single projects.
+    var groupPlatform = ManagedPlatform.X86;
     var groupComHost = false;
     var groupComManifest = false;
     VBCompilationOptions? groupCompilationOptions = null;
     if (args.Length is >= 3 and <= 6 &&
         string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedArguments(args, out groupPlatform, out groupComHost, out groupComManifest))
+        if (!TryParseManagedArguments(args, groupPlatform, out groupPlatform, out groupComHost, out groupComManifest))
         {
             return 1;
         }
@@ -463,13 +469,19 @@ static int EmitLlvm(IrProgram program, string outputPath, string? architectureAr
     return 0;
 }
 
+/// <summary>
+/// Parses the trailing managed emit options. <paramref name="defaultPlatform"/> carries the
+/// architecture that applies when the command line names none: legacy VB6 projects default to
+/// x86 because their ActiveX dependencies are 32-bit, single source files stay AnyCpu.
+/// </summary>
 static bool TryParseManagedArguments(
     string[] arguments,
+    ManagedPlatform defaultPlatform,
     out ManagedPlatform platform,
     out bool enableComHosting,
     out bool enableComManifest)
 {
-    platform = ManagedPlatform.AnyCpu;
+    platform = defaultPlatform;
     enableComHosting = false;
     enableComManifest = false;
     ManagedPlatform? selectedPlatform = null;

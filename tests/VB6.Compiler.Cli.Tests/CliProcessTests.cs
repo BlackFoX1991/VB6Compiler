@@ -944,6 +944,90 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_DefaultsLegacyVbpProjectsToX86()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            WriteExecutableProject(directory, "DefaultBitness");
+            var outputPath = Path.Combine(directory, "bin", "DefaultBitness.exe");
+
+            // No architecture switch: a legacy VB6 project is 32-bit by definition.
+            var result = RunCli(
+                Path.Combine(directory, "DefaultBitness.vbp"),
+                "--emit-assembly",
+                outputPath);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            using var stream = File.OpenRead(Path.ChangeExtension(outputPath, ".dll"));
+            using var peReader = new PEReader(stream);
+            Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
+            Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitAssembly_LeavesWin64FalseForLegacyVbpProjectsByDefault()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "Bitness.vbp"),
+                "Type=Exe\nStartup=\"Sub Main\"\nName=\"Bitness\"\nModule=Main; Bitness.bas\n");
+            File.WriteAllText(Path.Combine(directory, "Bitness.bas"), """
+                #If Win64 Then
+                    Sub Main()
+                        Debug.Print 64
+                    End Sub
+                #Else
+                    Sub Main()
+                        Debug.Print 32
+                    End Sub
+                #End If
+                """);
+            var outputPath = Path.Combine(directory, "bin", "Bitness.exe");
+
+            // Without the x86 project default this followed the bitness of the compiler process,
+            // so a legacy project saw Win64 as true on a 64-bit machine.
+            var result = RunCli(
+                Path.Combine(directory, "Bitness.vbp"),
+                "--emit-assembly",
+                outputPath);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var startInfo = new ProcessStartInfo(outputPath)
+            {
+                WorkingDirectory = Path.GetDirectoryName(outputPath)!,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the default-bitness output.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.AreEqual("32", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_AcceptsX86ForLegacyVbpProjects()
     {
         var directory = CreateTemporaryDirectory();
