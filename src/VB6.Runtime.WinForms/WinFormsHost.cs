@@ -501,6 +501,90 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return control;
     }
 
+    /// <summary>
+    /// Creates a control array element at runtime for <c>Load ctlButton(3)</c>. VB6 clones the
+    /// element the designer created, down to position and size, and starts the copy hidden so the
+    /// program decides when it appears — a freshly loaded element that showed itself immediately
+    /// would land on top of its template.
+    /// </summary>
+    public object? LoadControlArrayElement(object owner, string name, int index, object? template)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ThrowIfDisposed();
+
+        if (template is not Control source)
+        {
+            return null;
+        }
+
+        var binding = GetOrCreateBinding(owner);
+        var elementName = FormatControlArrayElementName(name, index);
+        if (binding.Controls.TryGetValue(elementName, out var existing))
+        {
+            return existing;
+        }
+
+        if (Activator.CreateInstance(source.GetType()) is not Control clone)
+        {
+            return null;
+        }
+
+        CopyControlArrayTemplate(source, clone);
+        clone.Name = elementName
+            .Replace("(", "_", StringComparison.Ordinal)
+            .Replace(")", string.Empty, StringComparison.Ordinal);
+        binding.Controls.Add(elementName, clone);
+        (source.Parent ?? binding.Form.Controls.Owner as Control)?.Controls.Add(clone);
+        if (clone.Parent is null)
+        {
+            binding.Form.Controls.Add(clone);
+        }
+
+        AttachGeneratedControlEvents(owner, clone, elementName);
+        return clone;
+    }
+
+    public void UnloadControlArrayElement(object owner, string name, int index, object? element)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ThrowIfDisposed();
+
+        var elementName = FormatControlArrayElementName(name, index);
+        if (_bindings.TryGetValue(owner, out var binding))
+        {
+            binding.Controls.Remove(elementName);
+        }
+
+        if (element is Control control)
+        {
+            control.Parent?.Controls.Remove(control);
+            control.Dispose();
+        }
+    }
+
+    private static string FormatControlArrayElementName(string name, int index) =>
+        string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{name}({index})");
+
+    /// <summary>
+    /// Copies the VB6-visible state a loaded element inherits from its template. The clone starts
+    /// hidden regardless of the template's visibility, which is what VB6 does.
+    /// </summary>
+    private static void CopyControlArrayTemplate(Control source, Control clone)
+    {
+        clone.SetBounds(source.Left, source.Top, source.Width, source.Height);
+        clone.Font = source.Font;
+        clone.ForeColor = source.ForeColor;
+        clone.BackColor = source.BackColor;
+        clone.Text = source.Text;
+        clone.Enabled = source.Enabled;
+        clone.RightToLeft = source.RightToLeft;
+        clone.Visible = false;
+    }
+
     public void EnsureForm(object target)
     {
         ArgumentNullException.ThrowIfNull(target);

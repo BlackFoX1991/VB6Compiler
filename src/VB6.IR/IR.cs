@@ -617,6 +617,8 @@ public enum IrRuntimeMethod
     InteractionRunWinFormsMessageLoop,
     InteractionLoad,
     InteractionUnload,
+    InteractionLoadControlArrayElement,
+    InteractionUnloadControlArrayElement,
     InteractionShow,
     InteractionCreateControl,
     InteractionSetMember,

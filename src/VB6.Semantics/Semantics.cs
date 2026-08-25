@@ -444,6 +444,7 @@ public enum BoundNodeKind
     GraphicsLineStatement,
     FilePrintStatement,
     InvocationStatement,
+    ControlArrayElementStatement,
     LabelStatement,
     GoToStatement,
     GoSubStatement,
@@ -706,6 +707,20 @@ public sealed record BoundArgument(
     ProcedureSymbol Procedure,
     ImmutableArray<BoundArgument> Arguments)
     : BoundStatement(BoundNodeKind.InvocationStatement);
+
+/// <summary>
+/// <c>Load ctlButton(3)</c> and <c>Unload ctlButton(3)</c> on a control array. This cannot be an
+/// ordinary intrinsic call: VB6 addresses an array slot that does not exist yet, so evaluating the
+/// element first — as every other argument is evaluated — would fail before Load could create it.
+/// The target is therefore kept as an assignable array place, exactly like <c>ReDim Preserve</c>.
+/// </summary>
+public sealed record BoundControlArrayElementStatement(
+    BoundExpression Target,
+    BoundExpression Index,
+    string Name,
+    BoundExpression Owner,
+    bool Unload)
+    : BoundStatement(BoundNodeKind.ControlArrayElementStatement);
 
 public sealed record BoundRaiseEventStatement(
     EventSymbol Event,
