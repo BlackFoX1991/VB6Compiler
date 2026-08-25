@@ -1716,6 +1716,62 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostConnectsTheActiveXSpecificEventSignatures()
+    {
+        using var host = new WinFormsHost();
+        var owner = new OcxEventSink();
+        host.Load(owner);
+
+        var treeView = (TreeView)host.CreateControl(owner, "tvProject", "MSComctlLib.TreeView")!;
+        var richText = (RichTextBox)host.CreateControl(owner, "RTB", "RichTextLib.RichTextBox")!;
+        var combo = (Control)host.CreateControl(owner, "cmbObject", "MSComctlLib.ImageCombo")!;
+
+        var node = treeView.Nodes.Add("root", "Root");
+        Raise(
+            treeView,
+            "OnNodeMouseClick",
+            new TreeNodeMouseClickEventArgs(node, MouseButtons.Left, 1, 0, 0));
+        Raise(richText, "OnSelectionChanged", EventArgs.Empty);
+        Raise(combo, "OnDropDown", EventArgs.Empty);
+
+        // VB6 hands NodeClick the clicked Node, not the WinForms mouse arguments.
+        Assert.AreEqual(1, owner.NodeClickCount);
+        Assert.AreEqual("Root", owner.ClickedNodeText);
+        Assert.AreEqual("root", owner.ClickedNodeKey);
+
+        // SelChange and Dropdown take no arguments in VB6.
+        Assert.AreEqual(1, owner.SelChangeCount);
+        Assert.AreEqual(1, owner.DropdownCount);
+
+        host.Unload(owner);
+    }
+
+    private static void Raise(Control control, string methodName, EventArgs arguments) =>
+        control.GetType()
+            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(control, new object[] { arguments });
+
+    private sealed class OcxEventSink
+    {
+        public int NodeClickCount { get; private set; }
+        public string? ClickedNodeText { get; private set; }
+        public string? ClickedNodeKey { get; private set; }
+        public int SelChangeCount { get; private set; }
+        public int DropdownCount { get; private set; }
+
+        private void tvProject_NodeClick(object node)
+        {
+            NodeClickCount++;
+            ClickedNodeText = (node as TreeNodeProxy)?.Text;
+            ClickedNodeKey = (node as TreeNodeProxy)?.Key;
+        }
+
+        private void RTB_SelChange() => SelChangeCount++;
+
+        private void cmbObject_Dropdown() => DropdownCount++;
+    }
+
+    [STATestMethod]
     public void HostClonesTheDesignerElementWhenLoadingAControlArrayElement()
     {
         using var host = new WinFormsHost();

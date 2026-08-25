@@ -1509,11 +1509,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return;
         }
 
+        // Subscribe under the VB6 event names. FindEvent maps them onto the WinForms events of the
+        // managed adapters, while a native OCX needs its own name on the COM connection point —
+        // "TextChanged" or "Enter" mean nothing to an ActiveX control.
         TrySubscribeEvent(control, "Click", owner, baseName + "_Click", controlArrayIndex);
-        TrySubscribeEvent(control, "TextChanged", owner, baseName + "_Change", controlArrayIndex);
-        TrySubscribeEvent(control, "Enter", owner, baseName + "_GotFocus", controlArrayIndex);
-        TrySubscribeEvent(control, "Leave", owner, baseName + "_LostFocus", controlArrayIndex);
-        TrySubscribeEvent(control, "DoubleClick", owner, baseName + "_DblClick", controlArrayIndex);
+        TrySubscribeEvent(control, "Change", owner, baseName + "_Change", controlArrayIndex);
+        TrySubscribeEvent(control, "GotFocus", owner, baseName + "_GotFocus", controlArrayIndex);
+        TrySubscribeEvent(control, "LostFocus", owner, baseName + "_LostFocus", controlArrayIndex);
+        TrySubscribeEvent(control, "DblClick", owner, baseName + "_DblClick", controlArrayIndex);
         TrySubscribeEvent(control, "MouseDown", owner, baseName + "_MouseDown", controlArrayIndex);
         TrySubscribeEvent(control, "MouseUp", owner, baseName + "_MouseUp", controlArrayIndex);
         TrySubscribeEvent(control, "MouseMove", owner, baseName + "_MouseMove", controlArrayIndex);
@@ -1522,6 +1525,33 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(control, "KeyUp", owner, baseName + "_KeyUp", controlArrayIndex);
         TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize", controlArrayIndex);
         TrySubscribeVb6Paint(control, owner, baseName + "_Paint", controlArrayIndex);
+        AttachOcxControlEvents(owner, control, baseName, controlArrayIndex);
+    }
+
+    /// <summary>
+    /// The events the ActiveX controls add on top of the intrinsic set. The managed adapters must
+    /// deliver the same VB6 signature as the native OCX path, so a program cannot tell which one
+    /// it is running on: <c>NodeClick</c> hands over a Node, <c>SelChange</c> and <c>Dropdown</c>
+    /// take no arguments.
+    /// </summary>
+    private void AttachOcxControlEvents(
+        object owner,
+        Control control,
+        string baseName,
+        int? controlArrayIndex)
+    {
+        switch (control)
+        {
+            case TreeView:
+                TrySubscribeEvent(control, "NodeClick", owner, baseName + "_NodeClick", controlArrayIndex);
+                break;
+            case RichTextBox:
+                TrySubscribeEvent(control, "SelChange", owner, baseName + "_SelChange", controlArrayIndex);
+                break;
+            case ComboBox:
+                TrySubscribeEvent(control, "Dropdown", owner, baseName + "_Dropdown", controlArrayIndex);
+                break;
+        }
     }
 
     private static string GetControlEventBaseName(string name, out int? controlArrayIndex)
@@ -1711,6 +1741,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "Activate" => "Activated",
             "QueryUnload" => "FormClosing",
             "Unload" => "FormClosed",
+
+            // ActiveX events the managed adapters stand in for.
+            "NodeClick" => "NodeMouseClick",
+            "SelChange" => "SelectionChanged",
+            "Dropdown" => "DropDown",
             _ => name
         };
         return type.GetEvents(BindingFlags.Instance | BindingFlags.Public)
@@ -1829,6 +1864,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                     ToTwips(eventSource, mouse.Y)
                 }, controlArrayIndex);
             }
+        }
+
+        // VB6 hands NodeClick the clicked Node, not the WinForms mouse arguments.
+        if (normalized == "NODECLICK" &&
+            eventArguments.Length == 2 &&
+            eventArguments[1] is TreeNodeMouseClickEventArgs { Node: { } clickedNode } &&
+            eventSource is TreeView clickedTree)
+        {
+            return AddControlArrayIndex(
+                new object?[] { new TreeNodeProxy(clickedTree, clickedNode) },
+                controlArrayIndex);
+        }
+
+        // SelChange and Dropdown carry no VB6 arguments; drop the WinForms sender/EventArgs pair.
+        if (normalized is "SELCHANGE" or "DROPDOWN" && eventArguments.Length == 2)
+        {
+            return AddControlArrayIndex(Array.Empty<object?>(), controlArrayIndex);
         }
 
         if (eventArguments.Length == 2 && eventArguments[1] is KeyEventArgs key)
