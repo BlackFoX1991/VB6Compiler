@@ -99,12 +99,14 @@ public sealed class RuntimeTests
     {
         try
         {
-            VBErrors.Raise(5, "unit", "message", string.Empty, 0);
+            VBErrors.Raise(5, "unit", "message", "help.chm", 42);
         }
         catch (VB6RaisedError)
         {
             Assert.AreEqual("unit", VBErrors.SourceValue());
             Assert.AreEqual("message", VBErrors.DescriptionValue());
+            Assert.AreEqual("help.chm", VBErrors.HelpFileValue());
+            Assert.AreEqual(42, VBErrors.HelpContextValue());
         }
 
         VBErrors.Set(new InvalidOperationException("failure"));
@@ -116,5 +118,31 @@ public sealed class RuntimeTests
         {
             VBErrors.Clear();
         }
+    }
+
+    [TestMethod]
+    public void ErrClear_ResetsHelpFieldsAndLastDllErrorReadsTheNativeSlot()
+    {
+        try
+        {
+            System.Runtime.InteropServices.Marshal.SetLastPInvokeError(1234);
+            Assert.AreEqual(1234, VBErrors.LastDllErrorValue());
+
+            VBErrors.Raise(5, "unit", "message", "help.chm", 42);
+        }
+        catch (VB6RaisedError)
+        {
+            // The native last-error slot is independent of the Err object fields.
+            Assert.AreEqual("help.chm", VBErrors.HelpFileValue());
+            Assert.AreEqual(42, VBErrors.HelpContextValue());
+        }
+        finally
+        {
+            VBErrors.Clear();
+            System.Runtime.InteropServices.Marshal.SetLastPInvokeError(0);
+        }
+
+        Assert.AreEqual(string.Empty, VBErrors.HelpFileValue());
+        Assert.AreEqual(0, VBErrors.HelpContextValue());
     }
 }

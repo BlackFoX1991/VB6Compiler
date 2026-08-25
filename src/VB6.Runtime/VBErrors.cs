@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace VB6.Runtime;
 
 /// <summary>Thread-local VB6 Err state shared by generated procedures on the current thread.</summary>
@@ -9,6 +11,9 @@ public static class VBErrors
     public static int NumberValue() => _state?.Number ?? 0;
     public static string DescriptionValue() => _state?.Description ?? string.Empty;
     public static string SourceValue() => _state?.Source ?? string.Empty;
+    public static string HelpFileValue() => _state?.HelpFile ?? string.Empty;
+    public static int HelpContextValue() => _state?.HelpContext ?? 0;
+    public static int LastDllErrorValue() => Marshal.GetLastPInvokeError();
     public static int LineNumberValue() => _state?.LineNumber ?? 0;
     public static int ResumeIndexValue() => _state?.ResumeIndex ?? -1;
 

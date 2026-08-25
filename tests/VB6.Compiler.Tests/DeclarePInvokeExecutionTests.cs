@@ -242,6 +242,21 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExposesLastDllErrorAfterDeclareCall()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Sub SetLastError Lib "kernel32" (ByVal errorCode As Long)
+
+            Sub Main()
+                SetLastError 1234
+                Debug.Print Err.LastDllError
+            End Sub
+            """);
+
+        Assert.AreEqual("1234", output.Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesLongPtrDeclareFunction()
     {
         var output = VB6TestProgram.Run("""
