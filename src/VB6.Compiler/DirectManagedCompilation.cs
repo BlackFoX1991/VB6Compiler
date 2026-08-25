@@ -162,6 +162,11 @@ public static class DirectManagedCompilation
             CreateProjectSourceDocuments(lowering.Analysis),
             outputKind);
         var program = lowering.Program;
+        if (actualOptions.OutputKind == ManagedOutputKind.Application)
+        {
+            program = AddCommandLineInitialization(program);
+        }
+
         var hasStartupForm = VBProjectCompilation.TryGetStartupForm(lowering.Analysis, out _);
         if (actualOptions.EnableWinFormsHost && hasStartupForm)
         {
@@ -264,6 +269,48 @@ public static class DirectManagedCompilation
         };
     }
 
+    private static IrProgram AddCommandLineInitialization(IrProgram program)
+    {
+        var entryPoint = program.EntryPoint ??
+            throw new InvalidOperationException("Managed application output requires an IR entry point.");
+        if (entryPoint.Blocks.Any(block => block.Instructions
+                .OfType<IrEvaluateInstruction>()
+                .Select(instruction => instruction.Expression)
+                .OfType<IrRuntimeCallExpression>()
+                .Any(call => call.Method == IrRuntimeMethod.InteractionInitializeCommandLine)))
+        {
+            return program;
+        }
+
+        var initializeCommandLine = new IrEvaluateInstruction(new IrRuntimeCallExpression(
+            IrRuntimeMethod.InteractionInitializeCommandLine,
+            ImmutableArray<IrCallArgument>.Empty,
+            TypeSymbol.Error));
+        var updatedEntryPoint = entryPoint with
+        {
+            Blocks = entryPoint.Blocks
+                .Select((block, index) => index == 0
+                    ? block with { Instructions = block.Instructions.Insert(0, initializeCommandLine) }
+                    : block)
+                .ToImmutableArray()
+        };
+        var updatedModules = program.Modules
+            .Select(module => module with
+            {
+                Procedures = module.Procedures
+                    .Select(procedure => ReferenceEquals(procedure, entryPoint)
+                        ? updatedEntryPoint
+                        : procedure)
+                    .ToImmutableArray()
+            })
+            .ToImmutableArray();
+        return program with
+        {
+            Modules = updatedModules,
+            EntryPoint = updatedEntryPoint
+        };
+    }
+
     private static ManagedApplicationEmitResult WriteArtifacts(
         LoweringResult lowering,
         IrProgram program,
@@ -279,6 +326,11 @@ public static class DirectManagedCompilation
         }
 
         var actualOptions = PrepareOptions(options, assemblyName, sourceDocuments);
+        if (actualOptions.OutputKind == ManagedOutputKind.Application)
+        {
+            program = AddCommandLineInitialization(program);
+        }
+
         var backend = EmitBackend(program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {

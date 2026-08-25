@@ -3629,6 +3629,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionGetObject) return Static(typeof(VBInteraction), nameof(VBInteraction.GetObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));
             if (m == IrRuntimeMethod.InteractionCommand) return Static(typeof(VBInteraction), nameof(VBInteraction.Command));
+            if (m == IrRuntimeMethod.InteractionInitializeCommandLine) return Static(typeof(VBInteraction), nameof(VBInteraction.InitializeCommandLine));
             if (m == IrRuntimeMethod.InteractionEnviron) return Static(typeof(VBInteraction), nameof(VBInteraction.Environ), typeof(object));
             if (m == IrRuntimeMethod.InteractionApplication) return Static(typeof(VBInteraction), nameof(VBInteraction.Application));
             if (m == IrRuntimeMethod.InteractionApplicationExeName) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationExeName));

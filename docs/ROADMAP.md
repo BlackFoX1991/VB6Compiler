@@ -2630,3 +2630,13 @@ deterministischen Text liefern; der WinForms-Host liest Text über die Windows-Z
 behandelt fehlende UI-/Clipboard-Handles als leeren Wert. Compiler- und Runtime-Regressionen
 prüfen getrennt den emittierten IR-Aufruf und den Sink-Vertrag. Die Vollsuite umfasst nun **1063
 Testfälle**, davon **1063 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Command-Prozessargument-Nachtrag
+
+Managed-Anwendungen initialisieren `Command` jetzt am generierten Application-Entry-Point aus der
+aktuellen Prozesszeile. Dadurch liefert ein direkt gestarteter CLI-AppHost auch quotierte Argumente
+wie `first "two words"` im VB6-kompatiblen Command-String. Der `GeneratedApplicationRunner` setzt
+seine explizit übergebenen Argumente als Host-Override, bevor der Entry-Point ausgeführt wird;
+portable Runtime-Aufrufe ohne generierte Application-Initialisierung bleiben deterministisch leer.
+Eine echte CLI-Regression startet den erzeugten AppHost mit zwei Argumenten und prüft die vollständige
+Ausgabe. Die Vollsuite umfasst nun **1065 Testfälle**, davon **1065 bestanden** und **0 fehlgeschlagen**.

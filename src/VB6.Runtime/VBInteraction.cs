@@ -12,6 +12,8 @@ public static class VBInteraction
     private static readonly Dictionary<string, string> Settings = new(StringComparer.Ordinal);
     private static readonly object SettingsGate = new();
     private static readonly VBApplication ApplicationValue = VBApplication.Create();
+    private static string _commandLine = string.Empty;
+    private static bool _commandLineSetByHost;
 
     /// <summary>
     /// Optional UI host. Generated code can be executed headless when this is null; UI-sensitive
@@ -292,8 +294,74 @@ public static class VBInteraction
         return defaultResponse;
     }
 
-    /// <summary>Returns an empty command line in headless runs; hosts can supply process arguments.</summary>
-    public static string Command() => string.Empty;
+    /// <summary>Initializes <c>Command</c> from the current process unless a host supplied arguments.</summary>
+    public static void InitializeCommandLine()
+    {
+        if (!_commandLineSetByHost)
+        {
+            _commandLine = ExtractCommandLineTail(Environment.CommandLine);
+        }
+    }
+
+    /// <summary>Provides command-line arguments when a host invokes a generated application.</summary>
+    public static void SetCommandLineArguments(IEnumerable<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        _commandLine = string.Join(" ", arguments.Select(QuoteCommandArgument));
+        _commandLineSetByHost = true;
+    }
+
+    /// <summary>Clears a command-line override supplied by an external application runner.</summary>
+    public static void ClearCommandLineArguments()
+    {
+        _commandLine = string.Empty;
+        _commandLineSetByHost = false;
+    }
+
+    /// <summary>Returns the command-line tail initialized by the generated entry point or host.</summary>
+    public static string Command() => _commandLine;
+
+    private static string ExtractCommandLineTail(string commandLine)
+    {
+        var value = commandLine.TrimStart();
+        if (value.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var index = 0;
+        if (value[0] == '"')
+        {
+            index = 1;
+            while (index < value.Length && value[index] != '"')
+            {
+                index++;
+            }
+
+            if (index < value.Length)
+            {
+                index++;
+            }
+        }
+        else
+        {
+            while (index < value.Length && !char.IsWhiteSpace(value[index]))
+            {
+                index++;
+            }
+        }
+
+        return value[index..].TrimStart();
+    }
+
+    private static string QuoteCommandArgument(string argument)
+    {
+        ArgumentNullException.ThrowIfNull(argument);
+        return argument.Length > 0 && argument.All(character => !char.IsWhiteSpace(character) && character != '"')
+            ? argument
+            : '"' + argument.Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal) + '"';
+    }
 
     /// <summary>
     /// Returns an environment value by name or a complete <c>NAME=VALUE</c> entry by one-based
