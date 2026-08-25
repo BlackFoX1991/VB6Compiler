@@ -287,7 +287,7 @@ public sealed class CliProcessTests
                 "--no-build",
                 "--no-restore",
                 "--nologo",
-                "-p:PackageVersion=1.0.0-test",
+                "-p:PackageVersion=1.0.0-vbg-output-reconciliation-test",
                 "-p:PackageOutputPath=" + packageDirectory);
             Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
             File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
@@ -304,7 +304,7 @@ public sealed class CliProcessTests
             var outputDirectory = Path.Combine(directory, "bin", "Release", "legacy");
             var compilerPath = Path.Combine(AppContext.BaseDirectory, "vb6c.exe");
             File.WriteAllText(projectPath, $"""
-                <Project Sdk="VB6.Compiler.Sdk/1.0.0-test" DefaultTargets="Build">
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-vbg-output-reconciliation-test" DefaultTargets="Build">
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <Configuration>Release</Configuration>
@@ -362,6 +362,26 @@ public sealed class CliProcessTests
             var designerBuild = RunMsBuild(projectPath);
             Assert.AreEqual(0, designerBuild.ExitCode, designerBuild.StandardError + designerBuild.StandardOutput);
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > thirdStamp);
+
+            var designerStamp = File.GetLastWriteTimeUtc(stampPath);
+            Thread.Sleep(1100);
+            File.AppendAllText(
+                Path.Combine(directory, "First.vbp"),
+                "ExeName32=renamed\\FirstRenamed.exe\n");
+            var renameBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, renameBuild.ExitCode, renameBuild.StandardError + renameBuild.StandardOutput);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "First.exe")));
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > designerStamp);
+
+            Thread.Sleep(1100);
+            File.WriteAllText(
+                groupPath,
+                "Type=Group\nProject=First.vbp\n");
+            var removalBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, removalBuild.ExitCode, removalBuild.StandardError + removalBuild.StandardOutput);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
         }
         finally
         {

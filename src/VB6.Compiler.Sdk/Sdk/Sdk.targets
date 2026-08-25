@@ -133,6 +133,14 @@
     Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)')"
     Inputs="@(VB6CompilerGroupInput)"
     Outputs="$(VB6CompilerGroupStamp);$(VB6CompilerGroupManifest)">
+    <ReadLinesFromFile
+      File="$(VB6CompilerGroupManifest)"
+      Condition="Exists('$(VB6CompilerGroupManifest)')">
+      <Output TaskParameter="Lines" ItemName="_VB6CompilerGroupPreviousOutput" />
+    </ReadLinesFromFile>
+    <Delete
+      Files="@(_VB6CompilerGroupPreviousOutput)"
+      Condition="'@(_VB6CompilerGroupPreviousOutput)' != ''" />
     <MakeDir Directories="$(TargetDir)" Condition="'$(TargetDir)' != ''" />
     <MakeDir Directories="$(VB6CompilerGroupOutputDirectoryFullPath)" />
     <MakeDir Directories="$(IntermediateOutputPath)" />
@@ -144,6 +152,11 @@
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.pdb" />
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.manifest" />
     </ItemGroup>
+    <ItemGroup>
+      <_VB6CompilerGroupStaleOutput Include="@(_VB6CompilerGroupPreviousOutput)" />
+      <_VB6CompilerGroupStaleOutput Remove="@(_VB6CompilerGroupGeneratedOutput)" />
+    </ItemGroup>
+    <Delete Files="@(_VB6CompilerGroupStaleOutput)" />
     <WriteLinesToFile
       File="$(VB6CompilerGroupManifest)"
       Lines="@(_VB6CompilerGroupGeneratedOutput)"
