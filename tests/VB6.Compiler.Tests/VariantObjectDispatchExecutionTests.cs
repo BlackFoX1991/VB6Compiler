@@ -240,6 +240,11 @@ public sealed class VariantObjectDispatchExecutionTests
                     Debug.Print dictionary.Count
                     dictionary("answer") = 42
                     Debug.Print dictionary("answer")
+
+                    Dim keys() As Variant
+                    keys = dictionary.Keys
+                    Debug.Print UBound(keys)
+                    Debug.Print keys(0)
                 End Sub
                 """);
 
@@ -253,7 +258,7 @@ public sealed class VariantObjectDispatchExecutionTests
                         .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
 
             CollectionAssert.AreEqual(
-                new[] { "1", "42" },
+                new[] { "1", "42", "0", "answer" },
                 VB6TestProgram.RunProjectLines(projectPath));
         }
         finally
