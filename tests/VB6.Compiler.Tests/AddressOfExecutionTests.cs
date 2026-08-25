@@ -86,4 +86,43 @@ public sealed class AddressOfExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_InvokesNativeDeclareByRefUdtCallback()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native ByRef callback test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Type RECT
+                Left As Long
+                Top As Long
+                Right As Long
+                Bottom As Long
+            End Type
+
+            Private Declare Function EnumDisplayMonitors Lib "user32" (ByVal hdc As LongPtr, ByVal clipRect As LongPtr, ByVal callback As LongPtr, ByVal data As LongPtr) As Long
+            Private callbackCount As Long
+            Private callbackShapeValid As Boolean
+
+            Private Function Callback(ByVal monitor As LongPtr, ByVal hdc As LongPtr, ByRef monitorRect As RECT, ByVal data As LongPtr) As Long
+                callbackCount = callbackCount + 1
+                callbackShapeValid = monitorRect.Right > monitorRect.Left And monitorRect.Bottom > monitorRect.Top
+                Callback = 1
+            End Function
+
+            Sub Main()
+                Dim status As Long
+                status = EnumDisplayMonitors(0, 0, AddressOf Callback, 0)
+                Debug.Print status <> 0
+                Debug.Print callbackCount > 0
+                Debug.Print callbackShapeValid
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
 }

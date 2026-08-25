@@ -1185,8 +1185,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       echter Managed-Invocation; ANSI-String-Marshalling, variable `ByVal String`-Puffer mit
       `StringBuilder` und aufrufseitigem Write-back, native `ByRef`-UDT-Rückschreibung sowie
       Scalar-Pointer-Transfers für `As Any` stehen, `AddressOf` erzeugt Managed-Funktionsadressen
-      für direkte Prozedurziele, komplexes Array-Marshalling sowie vollständige
-      Callback-ABI-/Delegate-Verträge bleiben offen
+      für direkte Prozedurziele und blittable `ByRef`-Callback-Parameter, komplexes Array-Marshalling
+      sowie verschachtelte Pointer-/Variant-/String-Callback-ABI-Verträge bleiben offen
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
@@ -1222,8 +1222,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
 - [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
       sind mit `CUShort`, `CUInt` und `CULng` sowie checked Managed-/P/Invoke-/Variant-Verträgen ergänzt
-- [x] `AddressOf` — direkte Prozedurziele werden als `LongPtr`-Funktionsadresse emittiert und für
-      Legacy-`Long`-Callbackparameter konvertiert; native Callback-ABI und Delegate-Lebensdauer offen
+- [~] `AddressOf` — direkte Prozedurziele werden als `LongPtr`-Funktionsadresse emittiert und für
+      Legacy-`Long`-Callbackparameter konvertiert; blittable native Callback-Parameter und
+      Delegate-Lebensdauer stehen, komplexe Callback-ABIs bleiben offen
 
 ## Meilenstein 9 — Forms
 
@@ -2266,8 +2267,7 @@ Vollsuite umfasst nun **991 Tests**.
 `AddressOf`-Prozeduren können im Managed-`Declare`-Pfad jetzt als native Funktionszeiger verwendet
 werden. Die Runtime erzeugt dafür nicht-generische Delegate-Thunks mit `Winapi`-Calling-Convention
 und hält die Delegate-Instanzen über die gesamte Prozesslaufzeit; statische Callback-Prozeduren und
-Instanzmethoden im selben generierten Klassenobjekt werden unterstützt. ByRef-Callback-Parameter
-bleiben bis zu einem expliziten Signaturadapter zurückgestellt. Ein echter
+Instanzmethoden im selben generierten Klassenobjekt werden unterstützt. Ein echter
 `EnumSystemLocalesA`-Aufruf prüft die Callback-Ausführung; die Vollsuite umfasst nun **992 Tests**.
 
 ## Aktueller Declare-ByRef-Variant-Nachtrag
@@ -2286,3 +2286,11 @@ nun **993 Tests**.
 Automation-Repräsentation statt des impliziten 4-Byte-Win32-`BOOL`-Vertrags. Ein echter
 `oleaut32!VarBoolFromI4`-Aufruf prüft den `ByRef Boolean`-Rückweg; die Vollsuite umfasst nun
 **994 Tests**.
+
+## Aktueller Declare-ByRef-Callback-Nachtrag
+
+Blittable `ByRef`-Parameter bleiben in den dynamisch erzeugten nativen Callback-Delegaten jetzt
+erhalten, einschließlich generierter VB6-UDT-Records. Ein echter
+`user32!EnumDisplayMonitors`-Aufruf prüft die Rückgabe eines nativen `RECT*` in einen VB6-Callback
+auf AnyCPU und x86; komplexe verschachtelte Pointer-, Variant-, String- und nicht-blittable
+Callback-Signaturen benötigen weiterhin eigene ABI-Adapter. Die Vollsuite umfasst nun **995 Tests**.
