@@ -40,6 +40,11 @@
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frx" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.pag" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.res" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ocx" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.tlb" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.olb" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dll" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.exe" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('$(VB6ProjectGroupFullPath)')">
@@ -55,6 +60,11 @@
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frx" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.pag" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.res" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.ocx" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.tlb" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.olb" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dll" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.exe" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
   </ItemGroup>
 
   <Target

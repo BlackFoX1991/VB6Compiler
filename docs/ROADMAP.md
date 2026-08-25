@@ -2709,3 +2709,12 @@ Dateien, PDBs und Manifests neu geschrieben. Dadurch bleiben beim Entfernen eine
 Eintrags oder beim Ändern eines `ExeName32`-Ziels keine veralteten Projektartefakte im
 Gruppenverzeichnis liegen. Der Vertrag ist über den gepackten SDK-Pfad und einen echten
 `dotnet msbuild`-Rebuild regressionsgesichert; die Vollsuite bleibt bei **1080 Testfällen**.
+
+## Aktueller MSBuild-VBG-Referenzinput-Nachtrag
+
+Der SDK-Inputvertrag verfolgt unterhalb des VBP-/VBG-Verzeichnisses nun auch lokale
+`.ocx`-, `.tlb`-, `.olb`- sowie TypeLib-tragende `.dll`- und `.exe`-Dateien. Eine geänderte
+ActiveX- oder TypeLib-Datei invalidiert damit den inkrementellen Build, während das konfigurierte
+Ausgabeverzeichnis aus dem Scan ausgeschlossen bleibt und keinen Selbsttrigger erzeugt. Der
+gepackte SDK-Pfad ist mit einer echten `.ocx`-Änderung regressionsgesichert; die Vollsuite bleibt
+bei **1080 Testfällen**.

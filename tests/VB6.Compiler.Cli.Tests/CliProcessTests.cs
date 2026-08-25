@@ -264,6 +264,10 @@ public sealed class CliProcessTests
                 "Type=Group\nProject=First.vbp\nProject=Second.vbp\n");
             WriteExecutableProject(directory, "First");
             WriteExecutableProject(directory, "Second");
+            var localControlDirectory = Path.Combine(directory, "References");
+            Directory.CreateDirectory(localControlDirectory);
+            var localControlPath = Path.Combine(localControlDirectory, "LegacyControl.ocx");
+            File.WriteAllBytes(localControlPath, new byte[] { 0x4C, 0x65, 0x67, 0x61, 0x63, 0x79 });
             File.AppendAllText(
                 Path.Combine(directory, "First.vbp"),
                 "Designer=MSDataEnvironment; First.dsr\n");
@@ -287,7 +291,7 @@ public sealed class CliProcessTests
                 "--no-build",
                 "--no-restore",
                 "--nologo",
-                "-p:PackageVersion=1.0.0-vbg-output-reconciliation-test",
+                "-p:PackageVersion=1.0.0-vbg-binary-input-test",
                 "-p:PackageOutputPath=" + packageDirectory);
             Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
             File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
@@ -304,7 +308,7 @@ public sealed class CliProcessTests
             var outputDirectory = Path.Combine(directory, "bin", "Release", "legacy");
             var compilerPath = Path.Combine(AppContext.BaseDirectory, "vb6c.exe");
             File.WriteAllText(projectPath, $"""
-                <Project Sdk="VB6.Compiler.Sdk/1.0.0-vbg-output-reconciliation-test" DefaultTargets="Build">
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-vbg-binary-input-test" DefaultTargets="Build">
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <Configuration>Release</Configuration>
@@ -331,6 +335,12 @@ public sealed class CliProcessTests
             var secondBuild = RunMsBuild(projectPath);
             Assert.AreEqual(0, secondBuild.ExitCode, secondBuild.StandardError + secondBuild.StandardOutput);
             Assert.AreEqual(firstStamp, File.GetLastWriteTimeUtc(stampPath));
+
+            Thread.Sleep(1100);
+            File.AppendAllText(localControlPath, "\nchanged");
+            var controlReferenceBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, controlReferenceBuild.ExitCode, controlReferenceBuild.StandardError + controlReferenceBuild.StandardOutput);
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
 
             Thread.Sleep(1100);
             File.Delete(Path.Combine(outputDirectory, "Second.exe"));
