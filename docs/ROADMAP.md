@@ -40,7 +40,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1103 Tests, alle grün**
+**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1104 Tests, alle grün**
 (Stand 2026-08-25).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
@@ -489,11 +489,16 @@ danach, unbelegte Konstrukte gar nicht.
       **Priorität sind die fünf im Korpus tatsächlich verwendeten Typen**: `MSComDlg.CommonDialog`
       (4 Instanzen), `MSComctlLib.ImageList` (3), `RichTextLib.RichTextBox` (2),
       `MSComctlLib.TreeView` (2), `MSComctlLib.ImageCombo` (2) — alle fünf haben bereits einen
-      managed Late-Binding-Vertrag, offen sind vor allem die vollständigen Event-Signaturen
-      (belegt: `NodeClick`). Dabei gilt: **nativer `AxHost`-Pfad und managed Adapter müssen
-      dieselbe Signatur liefern.** Der native Pfad ist an registrierte 32-Bit-OCX gebunden und
-      wird über `VB6_REQUIRE_NATIVE_OCX=1` erzwungen; ohne Registrierung — etwa auf einem
-      CI-Runner — muss der managed Pfad grün bleiben.
+      managed Late-Binding-Vertrag. Die im Korpus belegten Event-Signaturen stehen: `NodeClick`
+      (TreeView, mit typisiertem `Node`), `SelChange` (RichTextBox) und `Dropdown` (ImageCombo),
+      dazu der intrinsische Satz. Alle Subscriptions verwenden die **VB6-Eventnamen**; die
+      Übersetzung auf die WinForms-Entsprechung liegt allein in `FindEvent`. Das ist die
+      Bedingung dafür, dass **nativer `AxHost`-Pfad und managed Adapter dieselbe Signatur
+      liefern** — der native Pfad reicht den Namen unübersetzt an den COM-Connection-Point weiter,
+      dem ein WinForms-Name nichts sagt. Der native Pfad ist an registrierte 32-Bit-OCX gebunden
+      und wird über `VB6_REQUIRE_NATIVE_OCX=1` erzwungen; ohne Registrierung — etwa auf einem
+      CI-Runner — muss der managed Pfad grün bleiben. Offen bleiben die nicht belegten
+      Event-Signaturen der übrigen OCX-Oberfläche.
 
 ## Meilenstein 10 — IDE
 
