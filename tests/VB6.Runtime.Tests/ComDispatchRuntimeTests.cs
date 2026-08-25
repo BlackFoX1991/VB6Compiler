@@ -364,6 +364,45 @@ public sealed class ComDispatchRuntimeTests
 
     [TestMethod]
     [SupportedOSPlatform("windows")]
+    public void DeclareArrayBuffer_PreservesVariantSafeArrayStates()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Variant SAFEARRAY test requires Windows.");
+            return;
+        }
+
+        var source = new VBArray<object>(new VBArrayBound(0, 6));
+        source[0] = null!;
+        source[1] = VBVariants.NullValue();
+        source[2] = VBVariants.NothingValue();
+        source[3] = VBVariants.MissingValue();
+        source[4] = new VBErrorValue(2001);
+        source[5] = new VBDateValue(43832d);
+        source[6] = VBCurrency.FromDecimal(12.3456m);
+
+        using var buffer = VBDeclareArrayBuffer.Create(
+            source,
+            (ushort)((ushort)VarEnum.VT_ARRAY | (ushort)VarEnum.VT_VARIANT));
+
+        var safeArray = Marshal.ReadIntPtr(buffer.GetNativeAddress());
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        Assert.AreEqual(0, SafeArrayGetVartype(safeArray, out var actualType));
+        Assert.AreEqual((ushort)VarEnum.VT_VARIANT, actualType);
+
+        var result = buffer.GetManagedArray<object>();
+        Assert.AreSame(source, result);
+        Assert.IsTrue(VBVariants.IsEmpty(source[0]));
+        Assert.IsTrue(VBVariants.IsNull(source[1]));
+        Assert.IsTrue(VBVariants.IsNothing(source[2]));
+        Assert.IsTrue(VBVariants.IsMissing(source[3]));
+        Assert.AreEqual(2001, ((VBErrorValue)source[4]!).Code);
+        Assert.AreEqual(43832d, ((VBDateValue)source[5]!).OADate);
+        Assert.AreEqual(12.3456m, ((VBCurrency)source[6]!).ToDecimal());
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
     public void DeclareArrayBuffer_MarshalsDispatchSafeArrayObjectsAndNothing()
     {
         if (!OperatingSystem.IsWindows())
