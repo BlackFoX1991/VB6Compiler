@@ -472,7 +472,7 @@ public sealed class CliProcessTests
                 "--no-build",
                 "--no-restore",
                 "--nologo",
-                "-p:PackageVersion=1.0.0-single-incremental-test",
+                "-p:PackageVersion=1.0.0-single-output-reconciliation-test2",
                 "-p:PackageOutputPath=" + packageDirectory);
             Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
             File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
@@ -488,7 +488,7 @@ public sealed class CliProcessTests
             var projectPath = Path.Combine(directory, "SingleSdk.csproj");
             var outputPath = Path.Combine(directory, "bin", "Release", "legacy", "SingleSdk.dll");
             File.WriteAllText(projectPath, $"""
-                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-incremental-test" DefaultTargets="Build">
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-output-reconciliation-test2" DefaultTargets="Build">
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <Configuration>Release</Configuration>
@@ -517,6 +517,27 @@ public sealed class CliProcessTests
             Assert.AreEqual(0, recoveryBuild.ExitCode, recoveryBuild.StandardError + recoveryBuild.StandardOutput);
             Assert.IsTrue(File.Exists(outputPath));
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
+
+            var recoveryStamp = File.GetLastWriteTimeUtc(stampPath);
+            var renamedOutputPath = Path.Combine(directory, "bin", "Release", "legacy", "SingleSdkRenamed.dll");
+            Thread.Sleep(1100);
+            File.WriteAllText(projectPath, $"""
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-output-reconciliation-test2" DefaultTargets="Build">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Configuration>Release</Configuration>
+                    <OutputPath>bin\Release\</OutputPath>
+                    <VB6Project>{Path.Combine(directory, "SingleSdk.vbp")}</VB6Project>
+                    <VB6CompilerPath>{Path.Combine(AppContext.BaseDirectory, "vb6c.exe")}</VB6CompilerPath>
+                    <VB6CompilerOutput>{renamedOutputPath}</VB6CompilerOutput>
+                  </PropertyGroup>
+                </Project>
+                """);
+            var renameBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, renameBuild.ExitCode, renameBuild.StandardError + renameBuild.StandardOutput);
+            Assert.IsFalse(File.Exists(outputPath));
+            Assert.IsTrue(File.Exists(renamedOutputPath));
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > recoveryStamp);
         }
         finally
         {

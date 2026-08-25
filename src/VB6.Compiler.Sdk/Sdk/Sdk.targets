@@ -30,6 +30,7 @@
 
   <ItemGroup Condition="Exists('$(VB6ProjectFullPath)')">
     <None Include="$(VB6ProjectFullPath)" Visible="false" />
+    <VB6CompilerInput Include="$(MSBuildProjectFullPath)" Condition="'$(MSBuildProjectFullPath)' != ''" />
     <VB6CompilerInput Include="$(VB6ProjectFullPath)" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.bas" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.cls" />
@@ -40,15 +41,16 @@
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frx" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.pag" />
     <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.res" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ocx" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.tlb" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.olb" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dll" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.exe" Exclude="$(VB6CompilerOutputDirectoryFullPath)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ocx" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.tlb" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.olb" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dll" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
+    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.exe" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('$(VB6ProjectGroupFullPath)')">
     <None Include="$(VB6ProjectGroupFullPath)" Visible="false" />
+    <VB6CompilerGroupInput Include="$(MSBuildProjectFullPath)" Condition="'$(MSBuildProjectFullPath)' != ''" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupFullPath)" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.vbp" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.bas" />
@@ -117,6 +119,14 @@
     Condition="'$(VB6ProjectGroup)' == '' and Exists('$(VB6ProjectFullPath)')"
     Inputs="@(VB6CompilerInput)"
     Outputs="$(VB6CompilerStamp);$(VB6CompilerManifest)">
+    <ReadLinesFromFile
+      File="$(VB6CompilerManifest)"
+      Condition="Exists('$(VB6CompilerManifest)')">
+      <Output TaskParameter="Lines" ItemName="_VB6CompilerPreviousOutput" />
+    </ReadLinesFromFile>
+    <Delete
+      Files="@(_VB6CompilerPreviousOutput)"
+      Condition="'@(_VB6CompilerPreviousOutput)' != ''" />
     <MakeDir Directories="$(TargetDir)" />
     <MakeDir Directories="$(VB6CompilerOutputDirectory)" />
     <MakeDir Directories="$(IntermediateOutputPath)" />
@@ -129,6 +139,11 @@
       <_VB6CompilerGeneratedOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
       <_VB6CompilerGeneratedOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
     </ItemGroup>
+    <ItemGroup>
+      <_VB6CompilerStaleOutput Include="@(_VB6CompilerPreviousOutput)" />
+      <_VB6CompilerStaleOutput Remove="@(_VB6CompilerGeneratedOutput)" />
+    </ItemGroup>
+    <Delete Files="@(_VB6CompilerStaleOutput)" />
     <WriteLinesToFile
       File="$(VB6CompilerManifest)"
       Lines="@(_VB6CompilerGeneratedOutput)"
