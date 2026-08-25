@@ -1058,7 +1058,7 @@ public static class VBDebug
             IntPtr pointer => FormatNumeric(pointer.ToInt64().ToString(CultureInfo.InvariantCulture)),
             float number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
-            decimal number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
+            decimal number => FormatNumeric(number.ToString("G29", CultureInfo.InvariantCulture)),
             VBCurrency currency => FormatNumeric(currency.ToDecimal().ToString("G15", CultureInfo.InvariantCulture)),
             VBDateValue date => FormatNumeric(date.OADate.ToString("G15", CultureInfo.InvariantCulture)),
             _ => VBConversions.CStr(value)
