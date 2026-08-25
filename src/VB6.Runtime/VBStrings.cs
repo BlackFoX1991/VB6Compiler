@@ -415,6 +415,15 @@ public static class VBStrings
             return FormatDate(date, format, firstDayOfWeek, firstWeekOfYear);
         }
 
+        if (expression is DateTime dateTime)
+        {
+            return FormatDate(
+                new VBDateValue(dateTime.ToOADate()),
+                format,
+                firstDayOfWeek,
+                firstWeekOfYear);
+        }
+
         if (!TryGetFormatNumber(expression, out var number))
         {
             throw new InvalidCastException(
