@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
 using VB6.Runtime;
 
 namespace VB6.Runtime.Tests;
@@ -63,6 +65,25 @@ public sealed class VBEventsTests
         var value = 10;
         byRefSource.Raise(ref value);
         Assert.AreEqual(15, value);
+    }
+
+    [TestMethod]
+    public void ComEventDelegateType_UsesAutomationMarshallingForVariantValues()
+    {
+        var method = typeof(AutomationEventTarget).GetMethod(
+            "OnAutomation",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var delegateType = VBEvents.GetComEventDelegateType(method);
+        var invoke = delegateType.GetMethod("Invoke")!;
+        var parameters = invoke.GetParameters();
+
+        Assert.AreSame(delegateType, VBEvents.GetComEventDelegateType(method));
+        Assert.AreEqual(typeof(object).MakeByRefType(), parameters[0].ParameterType);
+        Assert.AreEqual(UnmanagedType.Struct, parameters[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.VariantBool, parameters[1].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.BStr, parameters[2].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.IsNull(parameters[3].GetCustomAttribute<MarshalAsAttribute>());
     }
 
     [TestMethod]
@@ -176,6 +197,21 @@ public sealed class VBEventsTests
         public int CallCount { get; private set; }
 
         private void OnChanged() => CallCount++;
+    }
+
+    private sealed class AutomationEventTarget
+    {
+        private void OnAutomation(
+            [MarshalAs(UnmanagedType.Struct)] ref object? value,
+            bool flag,
+            string text,
+            object? source)
+        {
+            _ = value;
+            _ = flag;
+            _ = text;
+            _ = source;
+        }
     }
 
     private delegate void ByRefChangedHandler(ref int value);
