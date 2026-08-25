@@ -406,6 +406,7 @@ public sealed class WinFormsHostTests
 
                 Private WithEvents source As RichTextLib.RichTextBox
                 Private changeCount As Integer
+                Private designerChangeCount As Integer
                 Private formInitialized As Boolean
                 Private sourceKeyValue As Integer
                 Private observedKey As Integer
@@ -427,6 +428,14 @@ public sealed class WinFormsHostTests
                     observedKey = KeyAscii
                     KeyAscii = Asc("y")
                 End Sub
+
+                Private Sub Editor_Change()
+                    designerChangeCount = designerChangeCount + 1
+                End Sub
+
+                Public Property Get DesignerChange() As Integer
+                    DesignerChange = designerChangeCount
+                End Property
 
                 Public Property Get ObservedChange() As Integer
                     ObservedChange = changeCount
@@ -470,6 +479,17 @@ public sealed class WinFormsHostTests
             var observedChangeGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single(method => method.Name.Contains("ObservedChange", StringComparison.OrdinalIgnoreCase));
             Assert.AreEqual((short)1, observedChangeGetter.Invoke(form, null));
+
+            // The designer convention has to reach the native OCX too, not just WithEvents. This
+            // is what the VB6 event names are for: the COM connection point knows "Change", never
+            // the WinForms name "TextChanged".
+            var designerChangeGetter = formType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(method => method.Name.Contains("DesignerChange", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual(
+                (short)1,
+                designerChangeGetter.Invoke(form, null),
+                "Editor_Change did not fire through the native connection point.");
+
             Assert.IsTrue(host.TrySetMember(editor, "Text", Array.Empty<object?>(), string.Empty));
 
             _ = SendMessage(control.Handle, WindowMessageChar, (IntPtr)'x', IntPtr.Zero);
