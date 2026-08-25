@@ -69,6 +69,20 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void Command_UsesArgumentsProvidedByHost()
+    {
+        VBInteraction.SetCommandLineArguments(new[] { "first", "two words" });
+        try
+        {
+            Assert.AreEqual("first \"two words\"", VBInteraction.Command());
+        }
+        finally
+        {
+            VBInteraction.ClearCommandLineArguments();
+        }
+    }
+
+    [TestMethod]
     public void ClipboardGetText_UsesConfiguredHeadlessSink()
     {
         var previousSink = VBInteraction.ClipboardTextSink;

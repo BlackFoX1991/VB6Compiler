@@ -624,6 +624,7 @@ public enum IrRuntimeMethod
     InteractionGetObject,
     InteractionShell,
     InteractionCommand,
+    InteractionInitializeCommandLine,
     InteractionEnviron,
     InteractionApplication,
     InteractionApplicationExeName,

@@ -180,6 +180,46 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_PassesProcessArgumentsToCommandIntrinsic()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "CommandLine.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\n    Debug.Print Command$\nEnd Sub\n");
+            var outputPath = Path.Combine(directory, "bin", "CommandLine.exe");
+
+            var result = RunCli(sourcePath, "--emit-assembly", outputPath);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var startInfo = new ProcessStartInfo(outputPath)
+            {
+                WorkingDirectory = Path.GetDirectoryName(outputPath)!,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("first");
+            startInfo.ArgumentList.Add("two words");
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the generated Command apphost.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            Assert.AreEqual("first \"two words\"", standardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesSingleLibraryVbpIntoAnOutputDirectory()
     {
         var directory = CreateTemporaryDirectory();

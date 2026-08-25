@@ -108,6 +108,7 @@ public static class GeneratedApplicationRunner
         try
         {
             VBInteraction.Host = host;
+            VBInteraction.SetCommandLineArguments(arguments);
             entryPoint.Invoke(null, invokeArguments);
             return host.RunMessageLoop();
         }
@@ -117,6 +118,7 @@ public static class GeneratedApplicationRunner
         }
         finally
         {
+            VBInteraction.ClearCommandLineArguments();
             VBInteraction.Host = previousHost;
         }
     }
