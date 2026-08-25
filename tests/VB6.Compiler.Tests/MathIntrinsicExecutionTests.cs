@@ -88,6 +88,43 @@ public sealed class MathIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesMissingAndArrayMathErrorContracts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                Dim values As Variant
+                value = Missing
+                values = Array(1)
+
+                On Error Resume Next
+                Debug.Print Abs(value)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print Fix(value)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print Round(value)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print Abs(values)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print Fix(values)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print Round(values)
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "448", "448", "448", "13", "13", "13" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesRndAndRandomizeContracts()
     {
         var output = VB6TestProgram.RunLines("""

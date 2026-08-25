@@ -2443,3 +2443,11 @@ numerische Strings und reine String-zu-String-Vergleiche behalten ihre bisherige
 lexikalischen Regeln. Direkte Runtime- und kompilierte Managed-Regressionen decken `<`, `=`, `>` und
 den Date-Fall ab. Die abschließende Variant-Promotionstabelle sowie Objekt-/Array-Varianten bleiben
 weiterhin offen; die Vollsuite umfasst nun **1024 Tests**.
+
+## Aktueller Variant-Math-State-Nachtrag
+
+`Abs`, `Fix` und `Round` verwenden jetzt denselben `Missing`-/Array-Guard wie die übrigen
+Variant-Math-Pfade. Ein ausgelassenes `Optional Variant`-Argument führt damit deterministisch zum
+VB6-Fehler 448, eine Array-Variante zum Type-Mismatch 13, und die bestehende `Null`-/`Empty`-
+Semantik bleibt unverändert. Runtime- und kompilierte Regressionen decken beide Zustände für alle
+drei Intrinsics ab; die Vollsuite umfasst nun **1026 Tests**.

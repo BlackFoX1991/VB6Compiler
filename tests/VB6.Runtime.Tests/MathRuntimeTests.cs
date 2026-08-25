@@ -48,6 +48,20 @@ public sealed class MathRuntimeTests
     }
 
     [TestMethod]
+    public void VariantMath_UsesStandardMissingAndArrayErrors()
+    {
+        var missing = VBVariants.MissingValue();
+        var array = new VBArray<object>(new VBArrayBound(0, 0));
+
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBMath.Abs(missing));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBMath.Fix(missing));
+        Assert.ThrowsException<VB6MissingArgumentException>(() => VBMath.Round(missing, 0));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBMath.Abs(array));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBMath.Fix(array));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBMath.Round(array, 0));
+    }
+
+    [TestMethod]
     public void ObjectVariants_ResolveDefaultValuesForVariantMathAndErrorConversion()
     {
         var number = new NumericDefaultObject();
