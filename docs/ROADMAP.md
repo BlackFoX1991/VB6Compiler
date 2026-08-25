@@ -1121,7 +1121,8 @@ Blockstruktur, nicht mehr des Textgenerators.
 - [x] Quellpositionen: der Binder hängt `SourceLocation` referenziell an jede gebundene Anweisung,
       `IrLowerer` stempelt sie auf die entstehenden Instruktionen, der Emitter merkt sich die
       IL-Offsets und `PortablePdbEmitter` schreibt daraus Sequenzpunkte. Die PDB trägt damit
-      Dokumente, Locals und Anweisungsgrenzen. **Offen:** Prozedurgrenzen und `Debug.Assert`
+      Dokumente, Locals, Anweisungsgrenzen und procedure-wide Scopes mit Start/Length. Die
+      verbleibende native Debug-ABI ist offen.
 
 ## Meilenstein 7 — Standardbibliothek
 
@@ -2752,4 +2753,12 @@ vollstaendig erhalten bleiben. Die beiden Regressionen erhoehen die gemessene Vo
 gebunden und im kompilierten Managed-Programm vollstaendig elidiert. Damit werden auch Assert-
 Bedingungen mit Seiteneffekten nicht ausgefuehrt, wie es der VB6-EXE-Vertrag verlangt. Parser- und
 E2E-Regressionen erhoehen die gemessene Vollsuite auf **1087 Testfaelle**, davon **1087 bestanden**
+und **0 fehlgeschlagen**.
+
+## Aktueller Portable-PDB-Prozedurscope-Nachtrag
+
+Der Portable-PDB-Emitter schreibt nun fuer jede Methode mit IL einen Scope ueber den gesamten
+Methodenkoerper, auch wenn die VB6-Prozedur keine Benutzer-Locals besitzt. Damit sind
+Prozedurgrenzen fuer Debugger und Visual Studio nicht mehr von einer `Dim`-Deklaration abhaengig.
+Der neue PDB-Test erhoeht die gemessene Vollsuite auf **1088 Testfaelle**, davon **1088 bestanden**
 und **0 fehlgeschlagen**.
