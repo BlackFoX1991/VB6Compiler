@@ -40,7 +40,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1099 Tests, alle grün**
+**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1103 Tests, alle grün**
 (Stand 2026-08-25).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
@@ -450,7 +450,12 @@ danach, unbelegte Konstrukte gar nicht.
       Komposition bleiben offen; der geprüfte native OCX-Pfad ist separat regressiongesichert.
 - [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
       als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
-      initialisiert; die vollständige Laufzeit-/WinForms-Nachbildung bleibt offen.
+      initialisiert. `Load name(index)` und `Unload name(index)` laufen zur Laufzeit: Der Binder
+      behält das Array als zuweisbaren Platz, statt das noch nicht existierende Element
+      auszuwerten, die Runtime wächst es bis zum Index und wählt das unterste vorhandene Element
+      als Vorlage, der Host klont es unsichtbar in denselben Container und verdrahtet die Events
+      mit dem neuen Index. Fehler 360 und 9 entsprechen VB6. Offen bleiben `Load` auf Formularen
+      innerhalb eines Arrays sowie Menü-Control-Arrays.
 - [~] Zeichnen auf Form/PictureBox — persistentes `GraphicsLine`-Rendering auf der aktiven
       Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; ein unterstütztes
       `PaintPicture`-Subset zeichnet `Bitmap`-/FRX-/`VBPicture`-Quellen persistent mit; qualifizierte
