@@ -413,15 +413,20 @@ public sealed class ManagedEmitter
             {
                 var first = MetadataTokens.ParameterHandle(_metadata.GetRowCount(TableIndex.Param) + 1);
                 result.Add(procedure, first);
-                if (procedure.IsExternal &&
-                    procedure.ReturnType is TypeSymbol returnType &&
-                    (returnType == TypeSymbol.String || returnType == TypeSymbol.Boolean))
+                if (procedure.ReturnType is TypeSymbol returnType &&
+                    (returnType == TypeSymbol.Variant ||
+                     (procedure.IsExternal &&
+                      (returnType == TypeSymbol.String || returnType == TypeSymbol.Boolean))))
                 {
                     var returnParameter = _metadata.AddParameter(
                         ParameterAttributes.None,
                         default,
                         sequenceNumber: 0);
-                    if (returnType == TypeSymbol.String)
+                    if (returnType == TypeSymbol.Variant)
+                    {
+                        AddVariantMarshalling(returnParameter);
+                    }
+                    else if (returnType == TypeSymbol.String)
                     {
                         AddAnsiStringMarshalling(returnParameter);
                     }
@@ -437,7 +442,12 @@ public sealed class ManagedEmitter
                         ParameterAttributes.None,
                         _metadata.GetOrAddString(parameter.Name),
                         parameter.Index + 1);
-                    if (procedure.IsExternal &&
+                    if (parameter.Type == TypeSymbol.Variant &&
+                        !(procedure.IsExternal && parameter.Symbol?.IsAny == true))
+                    {
+                        AddVariantMarshalling(parameterHandle);
+                    }
+                    else if (procedure.IsExternal &&
                         parameter.Type == TypeSymbol.String &&
                         parameter.PassingMode != ParameterPassingMode.ByVal)
                     {
@@ -463,6 +473,13 @@ public sealed class ManagedEmitter
         {
             var blob = new BlobBuilder();
             blob.WriteByte((byte)UnmanagedType.VariantBool);
+            _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
+        }
+
+        private void AddVariantMarshalling(ParameterHandle parameter)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte((byte)UnmanagedType.Struct);
             _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
         }
 
