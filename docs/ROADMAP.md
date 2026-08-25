@@ -2726,3 +2726,11 @@ vollständig ab: Ein einzelnes `Null` wird als leerer String verkettet, `Null & 
 dagegen ein `Null`-Variant. Die Regression deckt den direkten Runtime-Aufruf sowie den
 kompilierten Pfad mit `IsNull` und `TypeName` ab. Die aktuelle Vollsuite umfasst **1082
 Testfälle**, davon **1082 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller MSBuild-VBP-Output-Reconciliation-Nachtrag
+
+Der inkrementelle `VB6Project`-Target verfolgt nun auch die MSBuild-Projektdatei als Input und
+liest vor einer erneuten Einzelprojektemission sein eigenes Output-Manifest. Ändert sich dadurch
+der konfigurierte `VB6CompilerOutput`-Pfad, werden der alte Assembly-/PDB-/Runtime-Satz entfernt
+und der neue Output-Satz geschrieben. Der gepackte SDK-Pfad ist mit einem echten
+`dotnet msbuild`-Rename regressionsgesichert; die Vollsuite bleibt bei **1082 Testfällen**.
