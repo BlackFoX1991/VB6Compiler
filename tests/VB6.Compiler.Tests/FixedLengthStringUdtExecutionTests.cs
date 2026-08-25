@@ -122,4 +122,34 @@ public sealed class FixedLengthStringUdtExecutionTests
 
         CollectionAssert.AreEqual(new[] { "7", "7", "0" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesLSetAcrossBooleanUdtLayouts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type SourceRecord
+                Enabled As Boolean
+                Value As Long
+            End Type
+
+            Type TargetRecord
+                Enabled As Boolean
+                Result As Long
+            End Type
+
+            Sub Main()
+                Dim source As SourceRecord
+                Dim target As TargetRecord
+
+                source.Enabled = True
+                source.Value = 42
+                LSet target = source
+
+                Debug.Print target.Enabled
+                Debug.Print target.Result
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "42" }, output);
+    }
 }

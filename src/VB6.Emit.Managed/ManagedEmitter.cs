@@ -379,6 +379,10 @@ public sealed class ManagedEmitter
                         {
                             AddByValAnsiStringMarshalling(actual, fixedString.Length);
                         }
+                        else if (field.Type == TypeSymbol.Boolean)
+                        {
+                            AddVariantBooleanFieldMarshalling(actual);
+                        }
                     }
                 }
                 else if (plan.Class is not null)
@@ -489,6 +493,13 @@ public sealed class ManagedEmitter
             var blob = new BlobBuilder();
             blob.WriteByte((byte)UnmanagedType.VariantBool);
             _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
+        }
+
+        private void AddVariantBooleanFieldMarshalling(FieldDefinitionHandle field)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte((byte)UnmanagedType.VariantBool);
+            _metadata.AddMarshallingDescriptor(field, _metadata.GetOrAddBlob(blob));
         }
 
         private void AddVariantMarshalling(ParameterHandle parameter)

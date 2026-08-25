@@ -122,7 +122,8 @@ public static class VBMemory
                      System.Reflection.BindingFlags.NonPublic))
         {
             var fieldType = field.FieldType;
-            if (fieldType == typeof(byte) ||
+            if (fieldType == typeof(bool) ||
+                fieldType == typeof(byte) ||
                 fieldType == typeof(short) ||
                 fieldType == typeof(int) ||
                 fieldType == typeof(long) ||
