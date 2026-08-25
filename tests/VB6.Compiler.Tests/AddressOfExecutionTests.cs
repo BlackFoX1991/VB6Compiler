@@ -220,6 +220,120 @@ public sealed class AddressOfExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_MarshalsVariantArrayCallbackAndWritesBackReplacement()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native Variant array callback test requires Windows.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantArrayCallbackTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var assemblyPath = Path.Combine(directory, "VariantArrayCallback.dll");
+
+        try
+        {
+            var result = VBCompilation.Create("""
+                Private Function ArrayCallback(ByRef values() As Variant) As Long
+                    ReDim values(2 To 3)
+                    values(2) = "changed"
+                    values(3) = 99
+                    ArrayCallback = 1
+                End Function
+
+                Private Function ArrayReturn() As Variant()
+                    Dim values() As Variant
+                    ReDim values(-1 To 0)
+                    values(-1) = "returned"
+                    values(0) = 7
+                    ArrayReturn = values
+                End Function
+
+                Sub Main()
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(assemblyPath);
+
+            Assert.IsTrue(
+                result.Success,
+                string.Join(
+                    Environment.NewLine,
+                    result.Diagnostics.Select(diagnostic => diagnostic.ToString()),
+                    result.BackendResult?.Diagnostics.Select(diagnostic => diagnostic.Message) ?? []));
+
+            var assembly = Assembly.Load(File.ReadAllBytes(assemblyPath));
+            var method = FindGeneratedMethod(assembly, "ArrayCallback");
+            Assert.AreEqual(typeof(VBArray<object>).MakeByRefType(), method.GetParameters().Single().ParameterType);
+            var marshal = method.GetParameters().Single().GetCustomAttribute<MarshalAsAttribute>();
+            Assert.AreEqual(UnmanagedType.SafeArray, marshal?.Value);
+            Assert.AreEqual(VarEnum.VT_VARIANT, marshal?.SafeArraySubType);
+
+            var pointer = VBCallbackRegistry.GetFunctionPointer(method.MethodHandle, null);
+            var callbackAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .Single(assembly => assembly.GetName().Name == "VB6.Runtime.NativeCallbacks");
+            var callbackType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    var parameter = invoke?.GetParameters().SingleOrDefault();
+                    var callbackMarshal = parameter?.GetCustomAttribute<MarshalAsAttribute>();
+                    return invoke?.ReturnType == typeof(int) &&
+                        parameter?.ParameterType == typeof(Array).MakeByRefType() &&
+                        callbackMarshal?.Value == UnmanagedType.SafeArray &&
+                        callbackMarshal.SafeArraySubType == VarEnum.VT_VARIANT;
+                });
+            var callback = Marshal.GetDelegateForFunctionPointer(pointer, callbackType);
+            Array values = Array.CreateInstance(typeof(object), new[] { 1 }, new[] { 0 });
+            values.SetValue("original", 0);
+            var callbackArguments = new object?[] { values };
+
+            Assert.AreEqual(1, callback.DynamicInvoke(callbackArguments));
+            values = (Array)callbackArguments[0]!;
+            Assert.AreEqual(2, values.GetLowerBound(0));
+            Assert.AreEqual(3, values.GetUpperBound(0));
+            Assert.AreEqual("changed", values.GetValue(2));
+            Assert.AreEqual((short)99, values.GetValue(3));
+
+            var returnMethod = FindGeneratedMethod(assembly, "ArrayReturn");
+            Assert.AreEqual(typeof(VBArray<object>), returnMethod.ReturnType);
+            var returnMarshal = returnMethod.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>();
+            Assert.AreEqual(UnmanagedType.SafeArray, returnMarshal?.Value);
+            Assert.AreEqual(VarEnum.VT_VARIANT, returnMarshal?.SafeArraySubType);
+
+            var returnPointer = VBCallbackRegistry.GetFunctionPointer(returnMethod.MethodHandle, null);
+            var returnType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    var returnParameter = invoke?.ReturnParameter;
+                    var callbackMarshal = returnParameter?.GetCustomAttribute<MarshalAsAttribute>();
+                    return invoke?.GetParameters().Length == 0 &&
+                        invoke.ReturnType == typeof(Array) &&
+                        callbackMarshal?.Value == UnmanagedType.SafeArray &&
+                        callbackMarshal.SafeArraySubType == VarEnum.VT_VARIANT;
+                });
+            var returnCallback = Marshal.GetDelegateForFunctionPointer(returnPointer, returnType);
+            var returned = (Array)returnCallback.DynamicInvoke()!;
+            Assert.AreEqual(-1, returned.GetLowerBound(0));
+            Assert.AreEqual(0, returned.GetUpperBound(0));
+            Assert.AreEqual("returned", returned.GetValue(-1));
+            Assert.AreEqual((short)7, returned.GetValue(0));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesNativeDeclareByRefUdtCallback()
     {
         if (!OperatingSystem.IsWindows())

@@ -281,8 +281,13 @@ public static class VBArrayOperations
     /// COM dispatch returns <see cref="System.Array"/> even when the imported VB6 signature is a
     /// typed array, so the managed backend performs this conversion at the dynamic-call boundary.
     /// </summary>
-    public static VBArray<T> FromObject<T>(object? value)
+    public static VBArray<T>? FromObject<T>(object? value)
     {
+        if (value is null)
+        {
+            return null;
+        }
+
         if (value is VBArray<T> typed)
         {
             return typed;
@@ -314,7 +319,7 @@ public static class VBArrayOperations
             return null;
         }
 
-        var source = FromObject<T>(value);
+        var source = FromObject<T>(value)!;
         if (target is null || target.Rank != source.Rank)
         {
             return source;

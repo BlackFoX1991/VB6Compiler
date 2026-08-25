@@ -119,7 +119,7 @@ public sealed class VBEventsTests
         Assert.AreEqual(10, clr.GetValue(-2, 3));
         Assert.AreEqual(40, clr.GetValue(1, 4));
 
-        var roundTrip = VBArrayOperations.FromObject<int>(clr);
+        var roundTrip = VBArrayOperations.FromObject<int>(clr)!;
         Assert.AreEqual(-2, roundTrip.LBound(1));
         Assert.AreEqual(3, roundTrip.LBound(2));
         Assert.AreEqual(30, roundTrip[1, 3]);

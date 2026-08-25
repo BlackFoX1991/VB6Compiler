@@ -415,6 +415,8 @@ public sealed class ManagedEmitter
                 result.Add(procedure, first);
                 if (procedure.ReturnType is TypeSymbol returnType &&
                     (returnType == TypeSymbol.Variant ||
+                     (returnType is ArrayTypeSymbol &&
+                      IsPInvokeArrayElement(((ArrayTypeSymbol)returnType).ElementType)) ||
                      (procedure.IsExternal &&
                       (returnType == TypeSymbol.String || returnType == TypeSymbol.Boolean))))
                 {
@@ -425,6 +427,10 @@ public sealed class ManagedEmitter
                     if (returnType == TypeSymbol.Variant)
                     {
                         AddVariantMarshalling(returnParameter);
+                    }
+                    else if (returnType is ArrayTypeSymbol arrayReturnType)
+                    {
+                        AddSafeArrayMarshalling(returnParameter, arrayReturnType.ElementType);
                     }
                     else if (returnType == TypeSymbol.String)
                     {
