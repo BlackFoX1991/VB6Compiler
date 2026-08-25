@@ -2509,6 +2509,15 @@ invalidieren damit den inkrementellen Compile-Stempel und lösen die CLI-Emissio
 Die Regression ist über einen echten `dotnet msbuild`-Gruppenbuild abgesichert. Der serielle
 Solution-Lauf umfasst damit weiterhin **1043 Testfälle**, davon **1043 bestanden** und **0 fehlgeschlagen**.
 
+## Aktueller Boolean-UDT-LSet-Nachtrag
+
+Der Managed-`LSet`-Vertrag akzeptiert jetzt auch UDTs mit VB6-`Boolean`-Feldern. Der Emitter
+kennzeichnet diese Felder als 2-Byte-`VARIANT_BOOL`, während Layoutprüfung und Runtime-Rohtransfer
+dieselbe Größe und Ausrichtung verwenden. Ein kompilierter Transfer zwischen unterschiedlich
+aufgebauten UDTs ist regressionsgesichert. Nicht unterstützte dynamische Strings, Arrays,
+`Variant`-Felder und native-width `LongPtr`-Layouts bleiben weiterhin separate ABI-Schritte; die
+Vollsuite umfasst nun **1046 Testfälle**, davon **1046 bestanden** und **0 fehlgeschlagen**.
+
 ## Aktueller Empty-/Single-Variant-Divisionsnachtrag
 
 Bei der Variant-Division wird `Empty` jetzt wie ein Integer-Operand in die
