@@ -281,6 +281,30 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesTypeMismatchForBoundsOnNonArrayVariants()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim values As Variant
+                values = Array(10, 20)
+
+                Debug.Print LBound(values)
+                Debug.Print UBound(values)
+
+                On Error Resume Next
+                Debug.Print LBound(Empty)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print UBound(Empty)
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "0", "1", "13", "13" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesDateSubtypeInsideVariant()
     {
         var output = VB6TestProgram.RunLines("""
