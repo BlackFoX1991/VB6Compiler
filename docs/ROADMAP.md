@@ -2774,3 +2774,15 @@ werden nicht mehr ueber ein beliebiges `object[]`-Mapping verformt. Der Rueckweg
 Bounds aus dem nativen Deskriptor und rekonstruiert die VB6-Zustaende, bevor kompatible Arrays in
 den bestehenden `VBArray<T>`-Container zurueckgeschrieben werden. Die Runtime-Regression erhoeht
 die gemessene Vollsuite auf **1089 Testfaelle**, davon **1089 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Declare-SAFEARRAY-Rueckgabe-Nachtrag
+
+Externe `Declare Function`-Signaturen mit `As T()` werden am nativen P/Invoke-Rand nun als
+`System.Array` mit explizitem `SAFEARRAY(T)`-Marshalling emittiert. Direkt nach dem nativen Aufruf
+wandelt der Managed-Emitter das Ergebnis ueber `VBArrayOperations.FromObject<T>` wieder in den
+gebundenen `VBArray<T>`-Vertrag um; untere Grenzen, Rang und typisierte Elementkonversion bleiben
+damit im restlichen VB6-Programm erhalten. Die Signaturvalidierung akzeptiert nur Elementtypen,
+fuer die bereits ein nativer SAFEARRAY-Vertrag existiert. Der E2E-Test ruft
+`oleaut32!SafeArrayCreateVector` ueber ein echtes VB6-`Declare` auf und prueft die nicht-nullbasierte
+Rueckgabe. Die gemessene Vollsuite umfasst damit **1090 Testfaelle**, davon **1090 bestanden** und
+**0 fehlgeschlagen**.
