@@ -2214,3 +2214,12 @@ bestehende skalare und ByRef-Dispatcher bleibt dabei unverändert; nicht unterst
 Pointer und UDT-Elemente fallen weiterhin kontrolliert auf den bisherigen Pfad zurück. Der
 Native-VARIANT-Test prüft die echten Untergrenzen und die `VT_ARRAY|VT_VARIANT`-Signatur; die
 Vollsuite umfasst nun **986 Tests**, VISIA bleibt bei **40/40** fehlerfreien Projektitems.
+
+## Aktueller COM-SAFEARRAY-Rückgabewert-Nachtrag
+
+Der Managed-Emitter bewahrt bei dynamischen TypeLib-Property- und Methodenaufrufen jetzt den
+deklarierten `ArrayTypeSymbol`-Rückgabetyp. Ein vom Raw-`IDispatch` geliefertes CLR-
+`System.Array` wird dadurch in `VBArray<T>` überführt; Rang, explizite Untergrenzen und
+Elementkonversionen bleiben erhalten. Der bisherige `Variant`-Rückgabepfad sowie direkte
+`VBArray<T>`-Werte bleiben unverändert. Die Runtime-Regression prüft einen zweidimensionalen
+SAFEARRAY mit nicht-nullbasierter Grenze; die Vollsuite umfasst nun **987 Tests**.

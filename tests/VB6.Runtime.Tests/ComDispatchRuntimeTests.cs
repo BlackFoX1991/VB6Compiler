@@ -179,6 +179,24 @@ public sealed class ComDispatchRuntimeTests
         Assert.AreEqual(25, source[0]);
     }
 
+    [TestMethod]
+    public void AutomationArrayResults_ConvertClrArraysToBoundPreservingVbArrays()
+    {
+        var source = Array.CreateInstance(typeof(int), new[] { 2, 2 }, new[] { -1, 3 });
+        source.SetValue(10, -1, 3);
+        source.SetValue(20, -1, 4);
+        source.SetValue(30, 0, 3);
+        source.SetValue(40, 0, 4);
+
+        var result = VBArrayOperations.FromObject<int>(source);
+
+        Assert.AreEqual(2, result.Rank);
+        Assert.AreEqual(-1, result.LBound(1));
+        Assert.AreEqual(4, result.UBound(2));
+        Assert.AreEqual(10, result[-1, 3]);
+        Assert.AreEqual(40, result[0, 4]);
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));

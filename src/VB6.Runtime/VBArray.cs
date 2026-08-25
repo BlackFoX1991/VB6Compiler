@@ -222,25 +222,8 @@ public sealed class VBArray<T> : IVBArray
         }
     }
 
-    private static T ConvertElement(object? value)
-    {
-        if (value is null)
-        {
-            return default!;
-        }
-
-        if (value is T typed)
-        {
-            return typed;
-        }
-
-        if (typeof(T) == typeof(string))
-        {
-            return (T)(object)Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)!;
-        }
-
-        return (T)Convert.ChangeType(value, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
-    }
+    private static T ConvertElement(object? value) =>
+        (T)VBArrayOperations.ConvertArrayElement(value, typeof(T))!;
 
     private VBArrayBound GetBound(int dimension)
     {
@@ -289,6 +272,96 @@ public static class VBArrayOperations
 
     public static object RequireAllocated(object? value) => value ??
         throw new InvalidOperationException("The array must be allocated before file data can be read into it.");
+
+    /// <summary>
+    /// Converts a CLR SAFEARRAY result into the compiler's bound-preserving array representation.
+    /// COM dispatch returns <see cref="System.Array"/> even when the imported VB6 signature is a
+    /// typed array, so the managed backend performs this conversion at the dynamic-call boundary.
+    /// </summary>
+    public static VBArray<T> FromObject<T>(object? value)
+    {
+        if (value is VBArray<T> typed)
+        {
+            return typed;
+        }
+
+        if (value is IVBArray vbArray)
+        {
+            return CopyArray<T>(vbArray, indices => vbArray.GetObjectValue(indices));
+        }
+
+        if (value is Array clrArray)
+        {
+            return CopyArray<T>(
+                clrArray,
+                indices => clrArray.GetValue(indices));
+        }
+
+        throw new InvalidCastException("The dynamic result does not contain a VB6 array.");
+    }
+
+    private static VBArray<T> CopyArray<T>(IVBArray source, Func<int[], object?> getValue)
+    {
+        var bounds = new VBArrayBound[source.Rank];
+        for (var dimension = 0; dimension < bounds.Length; dimension++)
+        {
+            bounds[dimension] = new VBArrayBound(
+                source.LBound(dimension + 1),
+                source.UBound(dimension + 1));
+        }
+
+        return CopyArray(new VBArray<T>(bounds), getValue);
+    }
+
+    private static VBArray<T> CopyArray<T>(Array source, Func<int[], object?> getValue)
+    {
+        var bounds = new VBArrayBound[source.Rank];
+        for (var dimension = 0; dimension < bounds.Length; dimension++)
+        {
+            bounds[dimension] = new VBArrayBound(
+                source.GetLowerBound(dimension),
+                source.GetUpperBound(dimension));
+        }
+
+        return CopyArray(new VBArray<T>(bounds), getValue);
+    }
+
+    private static VBArray<T> CopyArray<T>(VBArray<T> target, Func<int[], object?> getValue)
+    {
+        if (target.Length == 0)
+        {
+            return target;
+        }
+
+        var lowerBounds = Enumerable.Range(1, target.Rank)
+            .Select(target.LBound)
+            .ToArray();
+        var upperBounds = Enumerable.Range(1, target.Rank)
+            .Select(target.UBound)
+            .ToArray();
+        var indices = lowerBounds.ToArray();
+        for (var offset = 0; offset < target.Length; offset++)
+        {
+            ((IVBArray)target).SetObjectValue(indices, getValue(indices));
+            IncrementIndices(indices, lowerBounds, upperBounds);
+        }
+
+        return target;
+    }
+
+    private static void IncrementIndices(int[] indices, int[] lowerBounds, int[] upperBounds)
+    {
+        for (var dimension = indices.Length - 1; dimension >= 0; dimension--)
+        {
+            if (indices[dimension] < upperBounds[dimension])
+            {
+                indices[dimension]++;
+                return;
+            }
+
+            indices[dimension] = lowerBounds[dimension];
+        }
+    }
 
     public static int LBound(object? value, int dimension = 1) => value switch
     {
@@ -365,7 +438,7 @@ public static class VBArrayOperations
         _ => throw new InvalidOperationException("The Variant does not contain an array.")
     };
 
-    private static object? ConvertArrayElement(object? value, Type elementType)
+    internal static object? ConvertArrayElement(object? value, Type elementType)
     {
         if (value is null)
         {
@@ -391,6 +464,7 @@ public static class VBArrayOperations
         if (elementType == typeof(bool)) return VBConversions.CBool(value);
         if (elementType == typeof(string)) return VBConversions.CStr(value);
         if (elementType == typeof(VBCurrency)) return VBConversions.CCur(value);
+        if (elementType == typeof(VBDateValue)) return new VBDateValue(VBConversions.CDbl(value));
         if (elementType == typeof(DateTime)) return DateTime.FromOADate(VBConversions.CDbl(value));
         if (elementType.IsEnum)
         {
