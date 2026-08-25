@@ -2734,3 +2734,11 @@ liest vor einer erneuten Einzelprojektemission sein eigenes Output-Manifest. Än
 der konfigurierte `VB6CompilerOutput`-Pfad, werden der alte Assembly-/PDB-/Runtime-Satz entfernt
 und der neue Output-Satz geschrieben. Der gepackte SDK-Pfad ist mit einem echten
 `dotnet msbuild`-Rename regressionsgesichert; die Vollsuite bleibt bei **1082 Testfällen**.
+
+## Aktueller Decimal-Debug-Ausgabe-Nachtrag
+
+`Debug.Print` kuerzt Decimal-Variantwerte nicht mehr auf 15 signifikante Stellen. Die Runtime
+verwendet fuer den Decimal-Subtype jetzt denselben `G29`-Praezisionsvertrag wie `CStr`, sodass
+hochpraezise `CDec`-Werte im direkten Runtime-Aufruf und im kompilierten Managed-Programm
+vollstaendig erhalten bleiben. Die beiden Regressionen erhoehen die gemessene Vollsuite auf
+**1084 Testfaelle**, davon **1084 bestanden** und **0 fehlgeschlagen**.

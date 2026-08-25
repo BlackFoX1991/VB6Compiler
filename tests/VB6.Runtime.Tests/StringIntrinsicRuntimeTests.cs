@@ -194,6 +194,14 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void DebugPrint_PreservesFullDecimalVariantPrecision()
+    {
+        var value = VBConversions.CDec("7922816251426433759354395033.5");
+
+        Assert.AreEqual(" 7922816251426433759354395033.5", VBDebug.Format(value));
+    }
+
+    [TestMethod]
     public void String_RepeatsNumericAndStringCharacters()
     {
         Assert.AreEqual("xxx", VBStrings.String(3, "x"));

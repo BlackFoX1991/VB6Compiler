@@ -75,4 +75,20 @@ public sealed class FloatingExecutionTests
         Assert.AreEqual("0", lines[0].Trim());
         Assert.AreEqual("3", lines[1].Trim());
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesFullDecimalPrecisionInDebugPrint()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CDec("7922816251426433759354395033.5")
+                Debug.Print value
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "7922816251426433759354395033.5" },
+            output);
+    }
 }
