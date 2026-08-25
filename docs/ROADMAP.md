@@ -1080,8 +1080,9 @@ Zwei Nachträge:
 - [~] Array-Variant-Vertrag: `IsArray`, `VarType` und typisierte `TypeName`-Ergebnisse stehen;
       skalare Operatoren und Konversionen melden fuer Array-Operanden Type Mismatch, und
       Elementzugriff mit Lesen/Schreiben laeuft ueber den Variant-Array-Runtimevertrag; Variant()-
-      Elemente koennen an Variant-ByRef-Parameter weitergereicht werden. Vollstaendige
-      Objekt-/Array-Promotion und weitere Variant-ByRef-Faelle bleiben offen
+      Elemente koennen an Variant-ByRef-Parameter weitergereicht werden; auch ein kompletter
+      Variant-Array-Wert kann an `ByRef value As Variant` uebergeben und im Callee ersetzt werden.
+      Vollstaendige Objekt-/Array-Promotion sowie typisierte/COM-ByRef-Array-Faelle bleiben offen
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
@@ -2660,3 +2661,10 @@ als Fehler **5** behandelt. Die Fehler werden über den threadlokalen `Err`-Disp
 bleiben damit unter `On Error Resume Next` aus VB6-Code auswertbar. Direkte Runtime- und generierte
 Managed-Programmtests sichern Duplicate-Key, Missing-Key und ungültige Positionsangaben. Die
 Vollsuite umfasst nun **1070 Testfälle**, davon **1070 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller LBound-/UBound-Variant-Nachtrag
+
+`LBound` und `UBound` akzeptieren weiterhin Variant-Ausdrücke, deren Array-Natur erst zur
+Laufzeit feststeht. Enthält der Ausdruck dann kein Array, liefern die Runtime-Funktionen jetzt
+den VB6-Fehler **13 (Type mismatch)** statt einer generischen CLR-Fehlernummer. Array-Werte,
+echte CLR-Arrays und die bisherigen Bounds-/Dimensionsfehler bleiben unverändert.
