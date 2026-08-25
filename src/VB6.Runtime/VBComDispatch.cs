@@ -20,9 +20,12 @@ internal static class VBComDispatch
     private const ushort VariantByRef = 0x4000;
     private const ushort VariantArray = 0x2000;
     private const ushort VariantTypeMask = 0x0FFF;
+    private const ushort VariantEmpty = 0x0000;
+    private const ushort VariantNull = 0x0001;
     private const ushort VariantVariant = 0x000C;
     private const ushort VariantDate = 0x0007;
     private const ushort VariantCurrency = 0x0006;
+    private const ushort VariantError = 0x000A;
     private const ushort VariantDispatch = 0x0009;
     private const ushort VariantUnknown = 0x000D;
     private const ushort VariantPointer = 0x001A;
@@ -812,7 +815,11 @@ internal static class VBComDispatch
                         var valueVariant = IntPtr.Add(
                             byRefValues,
                             index * VariantSize);
-                        var updatedValue = Marshal.GetObjectForNativeVariant(valueVariant);
+                        var updatedValue = (byRefArguments[sourceIndex] & VariantArray) != 0 &&
+                                            (byRefArguments[sourceIndex] & VariantTypeMask) == VariantVariant &&
+                                            TryReadVariantArrayFromNativeVariant(valueVariant, out var variantArray)
+                            ? variantArray
+                            : Marshal.GetObjectForNativeVariant(valueVariant);
                         if (!TryCopyArrayBack(
                                 arguments[sourceIndex],
                                 updatedValue))
@@ -973,6 +980,11 @@ internal static class VBComDispatch
         {
             if (value is IVBArray vbArray)
             {
+                if ((expectedType & VariantTypeMask) == VariantVariant)
+                {
+                    return TryInitializeVariantArray(vbArray, destination, expectedType);
+                }
+
                 if ((expectedType & VariantTypeMask) == VariantDispatch)
                 {
                     return TryInitializeDispatchArray(vbArray, destination, expectedType);
@@ -1019,8 +1031,7 @@ internal static class VBComDispatch
 
         if (expectedType == VariantVariant)
         {
-            Marshal.GetNativeVariantForObject(value, destination);
-            return true;
+            return TryInitializeVariantElement(value, destination);
         }
 
         if (value is null || value is DBNull || value is System.Reflection.Missing)
@@ -1074,6 +1085,269 @@ internal static class VBComDispatch
     }
 
     internal static void ClearNativeVariant(IntPtr variant) => _ = VariantClear(variant);
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryInitializeVariantElement(object? value, IntPtr destination)
+    {
+        ClearVariantStorage(destination);
+        if (value is null)
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantEmpty));
+            return true;
+        }
+
+        if (VBVariants.IsNull(value))
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantNull));
+            return true;
+        }
+
+        if (VBVariants.IsNothing(value))
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantDispatch));
+            return true;
+        }
+
+        if (VBVariants.IsMissing(value))
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantError));
+            Marshal.WriteInt32(destination, VariantDataOffset, unchecked((int)0x80020004));
+            return true;
+        }
+
+        if (value is VBErrorValue error)
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantError));
+            Marshal.WriteInt32(destination, VariantDataOffset, error.Code);
+            return true;
+        }
+
+        if (value is VBDateValue date)
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantDate));
+            Marshal.WriteInt64(destination, VariantDataOffset, BitConverter.DoubleToInt64Bits(date.OADate));
+            return true;
+        }
+
+        if (value is VBCurrency currency)
+        {
+            Marshal.WriteInt16(destination, unchecked((short)VariantCurrency));
+            Marshal.WriteInt64(destination, VariantDataOffset, currency.ScaledValue);
+            return true;
+        }
+
+        try
+        {
+            Marshal.GetNativeVariantForObject(value, destination);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryInitializeVariantArray(
+        IVBArray source,
+        IntPtr destination,
+        ushort expectedType)
+    {
+        if (source.Rank < 1)
+        {
+            return false;
+        }
+
+        var bounds = new NativeSafeArrayBound[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        var upperBounds = new int[source.Rank];
+        var sourceLength = 1L;
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lowerBounds[dimension] = source.LBound(dimension + 1);
+            upperBounds[dimension] = source.UBound(dimension + 1);
+            var length = (long)upperBounds[dimension] - lowerBounds[dimension] + 1L;
+            if (length < 0 || length > uint.MaxValue)
+            {
+                return false;
+            }
+
+            bounds[dimension] = new NativeSafeArrayBound((uint)length, lowerBounds[dimension]);
+            if (length == 0)
+            {
+                sourceLength = 0;
+            }
+            else if (sourceLength != 0)
+            {
+                try
+                {
+                    sourceLength = checked(sourceLength * length);
+                }
+                catch (OverflowException)
+                {
+                    return false;
+                }
+
+                if (sourceLength > int.MaxValue)
+                {
+                    return false;
+                }
+            }
+        }
+
+        var safeArray = SafeArrayCreate(VariantVariant, (uint)source.Rank, bounds);
+        if (safeArray == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var elementStorage = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            if (sourceLength != 0)
+            {
+                var indices = lowerBounds.ToArray();
+                for (var offset = 0L; offset < sourceLength; offset++)
+                {
+                    if (!TryInitializeVariantElement(source.GetObjectValue(indices), elementStorage) ||
+                        SafeArrayPutElement(safeArray, indices, elementStorage) < 0)
+                    {
+                        return false;
+                    }
+
+                    IncrementIndices(indices, lowerBounds, upperBounds);
+                }
+            }
+
+            Marshal.WriteInt16(destination, unchecked((short)expectedType));
+            Marshal.WriteIntPtr(destination, VariantDataOffset, safeArray);
+            safeArray = IntPtr.Zero;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        finally
+        {
+            _ = VariantClear(elementStorage);
+            Marshal.FreeCoTaskMem(elementStorage);
+            if (safeArray != IntPtr.Zero)
+            {
+                _ = SafeArrayDestroy(safeArray);
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static bool TryReadVariantArrayFromNativeVariant(
+        IntPtr variant,
+        out object? value)
+    {
+        value = null;
+        var variantType = unchecked((ushort)Marshal.ReadInt16(variant));
+        if ((variantType & (VariantArray | VariantTypeMask)) != (VariantArray | VariantVariant))
+        {
+            return false;
+        }
+
+        var safeArray = Marshal.ReadIntPtr(variant, VariantDataOffset);
+        var rank = safeArray == IntPtr.Zero ? 0u : SafeArrayGetDim(safeArray);
+        if (rank == 0 || rank > int.MaxValue)
+        {
+            return false;
+        }
+
+        var rankCount = (int)rank;
+        var lengths = new int[rankCount];
+        var lowerBounds = new int[rankCount];
+        var upperBounds = new int[rankCount];
+        for (var dimension = 0; dimension < rankCount; dimension++)
+        {
+            var nativeDimension = (uint)(dimension + 1);
+            if (SafeArrayGetLBound(safeArray, nativeDimension, out var lowerBound) < 0 ||
+                SafeArrayGetUBound(safeArray, nativeDimension, out var upperBound) < 0)
+            {
+                return false;
+            }
+
+            var length = (long)upperBound - lowerBound + 1L;
+            if (length < 0 || length > int.MaxValue)
+            {
+                return false;
+            }
+
+            lengths[dimension] = (int)length;
+            lowerBounds[dimension] = lowerBound;
+            upperBounds[dimension] = upperBound;
+        }
+
+        var result = Array.CreateInstance(typeof(object), lengths, lowerBounds);
+        var elementStorage = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            if (result.Length != 0)
+            {
+                var indices = lowerBounds.ToArray();
+                for (var offset = 0; offset < result.Length; offset++)
+                {
+                    ClearVariantStorage(elementStorage);
+                    if (SafeArrayGetElement(safeArray, indices, elementStorage) < 0)
+                    {
+                        return false;
+                    }
+
+                    result.SetValue(ReadVariantElement(elementStorage), indices);
+                    IncrementIndices(indices, lowerBounds, upperBounds);
+                }
+            }
+
+            value = result;
+            return true;
+        }
+        finally
+        {
+            _ = VariantClear(elementStorage);
+            Marshal.FreeCoTaskMem(elementStorage);
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static object? ReadVariantElement(IntPtr variant)
+    {
+        var type = unchecked((ushort)Marshal.ReadInt16(variant)) & VariantTypeMask;
+        return type switch
+        {
+            VariantEmpty => null,
+            VariantNull => VBVariants.NullValue(),
+            VariantError => ReadVariantError(variant),
+            VariantDate => new VBDateValue(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(variant, VariantDataOffset))),
+            VariantCurrency => VBCurrency.FromScaled(Marshal.ReadInt64(variant, VariantDataOffset)),
+            VariantDispatch or VariantUnknown when Marshal.ReadIntPtr(variant, VariantDataOffset) == IntPtr.Zero =>
+                VBVariants.NothingValue(),
+            _ => Marshal.GetObjectForNativeVariant(variant)
+        };
+    }
+
+    private static object ReadVariantError(IntPtr variant)
+    {
+        var code = Marshal.ReadInt32(variant, VariantDataOffset);
+        return code == unchecked((int)0x80020004)
+            ? VBVariants.MissingValue()
+            : new VBErrorValue(code);
+    }
 
     private static bool TryInitializeCurrencyArray(
         IVBArray source,
@@ -1757,6 +2031,27 @@ internal static class VBComDispatch
         IntPtr safeArray,
         int[] indices,
         IntPtr value);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetElement(
+        IntPtr safeArray,
+        int[] indices,
+        IntPtr value);
+
+    [DllImport("oleaut32.dll")]
+    private static extern uint SafeArrayGetDim(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetLBound(
+        IntPtr safeArray,
+        uint dimension,
+        out int lowerBound);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetUBound(
+        IntPtr safeArray,
+        uint dimension,
+        out int upperBound);
 
     [DllImport("oleaut32.dll")]
     private static extern int SafeArrayDestroy(IntPtr safeArray);

@@ -1082,7 +1082,9 @@ Zwei Nachträge:
       Elementzugriff mit Lesen/Schreiben laeuft ueber den Variant-Array-Runtimevertrag; Variant()-
       Elemente koennen an Variant-ByRef-Parameter weitergereicht werden; auch ein kompletter
       Variant-Array-Wert kann an `ByRef value As Variant` uebergeben und im Callee ersetzt werden.
-      Vollstaendige Objekt-/Array-Promotion sowie typisierte/COM-ByRef-Array-Faelle bleiben offen
+      Native `VT_VARIANT`-SAFEARRAYs bewahren dabei `Empty`, `Null`, `Nothing`, `Missing`,
+      `Error`, `Date` und `Currency` ueber den Managed-Declare-/COM-ByRef-Roundtrip. Vollstaendige
+      Objekt-/Array-Promotion sowie UDT-/Pointer-/nicht kompatible SAFEARRAY-Faelle bleiben offen
 - [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` inklusive `Null & Null` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
@@ -2762,3 +2764,13 @@ Methodenkoerper, auch wenn die VB6-Prozedur keine Benutzer-Locals besitzt. Damit
 Prozedurgrenzen fuer Debugger und Visual Studio nicht mehr von einer `Dim`-Deklaration abhaengig.
 Der neue PDB-Test erhoeht die gemessene Vollsuite auf **1088 Testfaelle**, davon **1088 bestanden**
 und **0 fehlgeschlagen**.
+
+## Aktueller Variant-SAFEARRAY-Zustandsnachtrag
+
+`Variant()`-SAFEARRAYs werden fuer Managed-`Declare`- und Raw-COM-ByRef-Aufrufe nun als echte
+`SAFEARRAY(VT_VARIANT)`-Deskriptoren materialisiert. Die einzelnen nativen `VARIANT`-Slots tragen
+ihren VB6-Zustand direkt: `Empty`, `Null`, `Nothing`, `Missing`, `Error`, `Date` und `Currency`
+werden nicht mehr ueber ein beliebiges `object[]`-Mapping verformt. Der Rueckweg liest Rang und
+Bounds aus dem nativen Deskriptor und rekonstruiert die VB6-Zustaende, bevor kompatible Arrays in
+den bestehenden `VBArray<T>`-Container zurueckgeschrieben werden. Die Runtime-Regression erhoeht
+die gemessene Vollsuite auf **1089 Testfaelle**, davon **1089 bestanden** und **0 fehlgeschlagen**.
