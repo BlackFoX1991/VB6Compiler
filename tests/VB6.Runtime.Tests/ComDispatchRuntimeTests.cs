@@ -266,6 +266,57 @@ public sealed class ComDispatchRuntimeTests
         Assert.AreEqual(33.3m, result![0].ToDecimal());
     }
 
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void DeclareArrayBuffer_MarshalsNativeWidthLongPtrSafeArrayElements()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native-width SAFEARRAY test requires Windows.");
+            return;
+        }
+
+        var elementType = IntPtr.Size == 4 ? (ushort)VarEnum.VT_I4 : (ushort)VarEnum.VT_I8;
+        var source = new VBArray<IntPtr>(new VBArrayBound(-2, 0));
+        source[-2] = new IntPtr(7);
+        source[-1] = new IntPtr(8);
+        source[0] = new IntPtr(9);
+        using var buffer = VBDeclareArrayBuffer.Create(
+            source,
+            (ushort)((ushort)VarEnum.VT_ARRAY | elementType));
+
+        var safeArray = Marshal.ReadIntPtr(buffer.GetNativeAddress());
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        Assert.AreEqual(0, SafeArrayGetVartype(safeArray, out var actualType));
+        Assert.AreEqual(elementType, actualType);
+
+        var replacement = IntPtr.Size == 4
+            ? new IntPtr(123456)
+            : new IntPtr(0x1_0000_1234L);
+        var storage = Marshal.AllocCoTaskMem(IntPtr.Size);
+        try
+        {
+            if (IntPtr.Size == 4)
+            {
+                Marshal.WriteInt32(storage, replacement.ToInt32());
+            }
+            else
+            {
+                Marshal.WriteInt64(storage, replacement.ToInt64());
+            }
+
+            Assert.AreEqual(0, SafeArrayPutElement(safeArray, new[] { -1 }, storage));
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(storage);
+        }
+
+        var result = buffer.GetManagedArray<IntPtr>();
+        Assert.AreSame(source, result);
+        Assert.AreEqual(replacement, source[-1]);
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
@@ -310,6 +361,17 @@ public sealed class ComDispatchRuntimeTests
         IntPtr safeArray,
         int[] indices,
         ref int value);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetVartype(
+        IntPtr safeArray,
+        out ushort variantType);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll", EntryPoint = "SafeArrayPutElement")]
+    private static extern int SafeArrayPutElement(
+        IntPtr safeArray,
+        int[] indices,
+        IntPtr value);
 
     [System.Runtime.InteropServices.DllImport("oleaut32.dll", EntryPoint = "SafeArrayPutElement")]
     private static extern int SafeArrayPutCurrencyElement(

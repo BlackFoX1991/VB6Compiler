@@ -2758,7 +2758,7 @@ public sealed class ManagedEmitter
             procedure.ReturnType is null &&
             string.Equals(procedure.Name, ".cctor", StringComparison.Ordinal);
 
-        private static void ValidateExternalSignature(IrProcedure procedure)
+        private void ValidateExternalSignature(IrProcedure procedure)
         {
             if (procedure.ReturnType is not null && !IsPInvokeScalar(procedure.ReturnType))
             {
@@ -2810,11 +2810,12 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Currency ||
             type == TypeSymbol.String;
 
-        private static bool IsPInvokeArrayElement(TypeSymbol type) =>
+        private bool IsPInvokeArrayElement(TypeSymbol type) =>
             type == TypeSymbol.Byte ||
             type == TypeSymbol.Integer ||
             type == TypeSymbol.Long ||
             type == TypeSymbol.LongLong ||
+            type == TypeSymbol.LongPtr ||
             type == TypeSymbol.UShort ||
             type == TypeSymbol.UInteger ||
             type == TypeSymbol.ULong ||
@@ -2826,16 +2827,18 @@ public sealed class ManagedEmitter
             type == TypeSymbol.String ||
             type == TypeSymbol.Variant;
 
-        private static bool IsCallbackArrayElement(TypeSymbol type) =>
+        private bool IsCallbackArrayElement(TypeSymbol type) =>
+            type == TypeSymbol.LongPtr ||
             type is ClassTypeSymbol classType &&
             (ReferenceEquals(classType, VBStandardTypes.Object) ||
              classType.IsRuntimeObjectContract);
 
-        private static int GetAutomationArrayVariantType(TypeSymbol type) =>
+        private int GetAutomationArrayVariantType(TypeSymbol type) =>
             type == TypeSymbol.Byte ? 0x2011 :
             type == TypeSymbol.Integer ? 0x2002 :
             type == TypeSymbol.Long ? 0x2003 :
             type == TypeSymbol.LongLong ? 0x2014 :
+            type == TypeSymbol.LongPtr ? GetNativeWidthArrayVariantType() :
             type == TypeSymbol.UShort ? 0x2012 :
             type == TypeSymbol.UInteger ? 0x2013 :
             type == TypeSymbol.ULong ? 0x2015 :
@@ -2848,11 +2851,12 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Variant ? 0x200C :
             throw new NotSupportedException($"Declare SAFEARRAY element type '{type.Name}' is not supported.");
 
-        private static ushort GetSafeArrayElementVariantType(TypeSymbol type) =>
+        private ushort GetSafeArrayElementVariantType(TypeSymbol type) =>
             type == TypeSymbol.Byte ? (ushort)VarEnum.VT_UI1 :
             type == TypeSymbol.Integer ? (ushort)VarEnum.VT_I2 :
             type == TypeSymbol.Long ? (ushort)VarEnum.VT_I4 :
             type == TypeSymbol.LongLong ? (ushort)VarEnum.VT_I8 :
+            type == TypeSymbol.LongPtr ? GetNativeWidthSafeArrayVariantType() :
             type == TypeSymbol.UShort ? (ushort)VarEnum.VT_UI2 :
             type == TypeSymbol.UInteger ? (ushort)VarEnum.VT_UI4 :
             type == TypeSymbol.ULong ? (ushort)VarEnum.VT_UI8 :
@@ -2865,6 +2869,21 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Variant ? (ushort)VarEnum.VT_VARIANT :
             IsCallbackArrayElement(type) ? (ushort)VarEnum.VT_DISPATCH :
             throw new NotSupportedException($"SAFEARRAY element type '{type.Name}' is not supported.");
+
+        private ushort GetNativeWidthSafeArrayVariantType()
+        {
+            return _options.Platform switch
+            {
+                ManagedPlatform.X86 => (ushort)VarEnum.VT_I4,
+                ManagedPlatform.X64 => (ushort)VarEnum.VT_I8,
+                _ => throw new NotSupportedException(
+                    "LongPtr() SAFEARRAY contracts require an explicit --x86 or --x64 target; " +
+                    "AnyCPU cannot select both VT_I4 and VT_I8.")
+            };
+        }
+
+        private int GetNativeWidthArrayVariantType() =>
+            GetNativeWidthSafeArrayVariantType();
 
         private MethodDefinitionHandle ResolveEntryPoint()
         {

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using VB6.Emit.Managed;
 using VB6.IR;
 using VB6.Runtime;
 using VB6.Semantics;
@@ -390,6 +391,124 @@ public sealed class AddressOfExecutionTests
             Assert.AreEqual(5, objectValues.GetUpperBound(0));
             Assert.AreSame(VBVariants.NothingValue(), objectValues.GetValue(4));
             Assert.AreSame(VBVariants.NothingValue(), objectValues.GetValue(5));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_MarshalsNativeWidthLongPtrArrayCallback()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native-width SAFEARRAY callback test requires Windows.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerLongPtrArrayCallbackTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var assemblyPath = Path.Combine(directory, "LongPtrArrayCallback.dll");
+        var platform = Environment.Is64BitProcess ? ManagedPlatform.X64 : ManagedPlatform.X86;
+        var expectedElementType = Environment.Is64BitProcess ? VarEnum.VT_I8 : VarEnum.VT_I4;
+
+        try
+        {
+            var result = VBCompilation.Create("""
+                Private Function LongPtrArrayCallback(ByRef values() As LongPtr) As Long
+                    ReDim values(2 To 3)
+                    values(2) = CLngPtr(42)
+                    values(3) = CLngPtr(99)
+                    LongPtrArrayCallback = 1
+                End Function
+
+                Private Function LongPtrArrayReturn() As LongPtr()
+                    Dim values() As LongPtr
+                    ReDim values(-1 To 0)
+                    values(-1) = CLngPtr(7)
+                    values(0) = CLngPtr(8)
+                    LongPtrArrayReturn = values
+                End Function
+
+                Sub Main()
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                    assemblyPath,
+                    new ManagedEmitOptions("LongPtrArrayCallback", Platform: platform));
+
+            Assert.IsTrue(
+                result.Success,
+                string.Join(
+                    Environment.NewLine,
+                    result.Diagnostics.Select(diagnostic => diagnostic.ToString()),
+                    result.BackendResult?.Diagnostics.Select(diagnostic => diagnostic.Message) ?? []));
+
+            var assembly = Assembly.Load(File.ReadAllBytes(assemblyPath));
+            var method = FindGeneratedMethod(assembly, "LongPtrArrayCallback");
+            Assert.AreEqual(typeof(VBArray<IntPtr>).MakeByRefType(), method.GetParameters().Single().ParameterType);
+            var methodMarshal = method.GetParameters().Single().GetCustomAttribute<MarshalAsAttribute>();
+            Assert.AreEqual(UnmanagedType.SafeArray, methodMarshal?.Value);
+            Assert.AreEqual(expectedElementType, methodMarshal?.SafeArraySubType);
+
+            var pointer = VBCallbackRegistry.GetFunctionPointer(method.MethodHandle, null);
+            var callbackAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .Single(loaded => loaded.GetName().Name == "VB6.Runtime.NativeCallbacks");
+            var callbackType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    var parameter = invoke?.GetParameters().SingleOrDefault();
+                    var callbackMarshal = parameter?.GetCustomAttribute<MarshalAsAttribute>();
+                    return invoke?.ReturnType == typeof(int) &&
+                        parameter?.ParameterType == typeof(Array).MakeByRefType() &&
+                        callbackMarshal?.Value == UnmanagedType.SafeArray &&
+                        callbackMarshal.SafeArraySubType == expectedElementType;
+                });
+            var callback = Marshal.GetDelegateForFunctionPointer(pointer, callbackType);
+            var nativeValues = Array.CreateInstance(
+                Environment.Is64BitProcess ? typeof(long) : typeof(int),
+                new[] { 1 },
+                new[] { 0 });
+            nativeValues.SetValue(Environment.Is64BitProcess ? (object)11L : 11, 0);
+            var callbackArguments = new object?[] { nativeValues };
+
+            Assert.AreEqual(1, callback.DynamicInvoke(callbackArguments));
+            nativeValues = (Array)callbackArguments[0]!;
+            Assert.AreEqual(2, nativeValues.GetLowerBound(0));
+            Assert.AreEqual(3, nativeValues.GetUpperBound(0));
+            Assert.AreEqual(42L, Convert.ToInt64(nativeValues.GetValue(2)));
+            Assert.AreEqual(99L, Convert.ToInt64(nativeValues.GetValue(3)));
+
+            var returnMethod = FindGeneratedMethod(assembly, "LongPtrArrayReturn");
+            var returnMarshal = returnMethod.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>();
+            Assert.AreEqual(UnmanagedType.SafeArray, returnMarshal?.Value);
+            Assert.AreEqual(expectedElementType, returnMarshal?.SafeArraySubType);
+            var returnPointer = VBCallbackRegistry.GetFunctionPointer(returnMethod.MethodHandle, null);
+            var returnType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    var callbackMarshal = invoke?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>();
+                    return invoke?.GetParameters().Length == 0 &&
+                        invoke.ReturnType == typeof(Array) &&
+                        callbackMarshal?.Value == UnmanagedType.SafeArray &&
+                        callbackMarshal.SafeArraySubType == expectedElementType;
+                });
+            var returnCallback = Marshal.GetDelegateForFunctionPointer(returnPointer, returnType);
+            var returned = (Array)returnCallback.DynamicInvoke()!;
+            Assert.AreEqual(-1, returned.GetLowerBound(0));
+            Assert.AreEqual(0, returned.GetUpperBound(0));
+            Assert.AreEqual(7L, Convert.ToInt64(returned.GetValue(-1)));
+            Assert.AreEqual(8L, Convert.ToInt64(returned.GetValue(0)));
         }
         finally
         {

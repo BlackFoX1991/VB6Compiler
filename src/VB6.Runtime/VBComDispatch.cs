@@ -1262,6 +1262,38 @@ internal static class VBComDispatch
             return true;
         }
 
+        if (targetType == typeof(int) && value is IntPtr pointer)
+        {
+            try
+            {
+                converted = checked((int)pointer.ToInt64());
+                return true;
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
+        }
+
+        if (targetType == typeof(long) && value is IntPtr longPointer)
+        {
+            converted = longPointer.ToInt64();
+            return true;
+        }
+
+        if (targetType == typeof(IntPtr))
+        {
+            try
+            {
+                converted = new IntPtr(Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture));
+                return true;
+            }
+            catch (Exception exception) when (exception is InvalidCastException or FormatException or OverflowException)
+            {
+                return false;
+            }
+        }
+
         if (targetType == typeof(decimal) && value is VBCurrency currencyValue)
         {
             converted = currencyValue.ToDecimal();

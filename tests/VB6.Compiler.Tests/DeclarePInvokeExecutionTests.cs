@@ -2,6 +2,9 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using VB6.Emit.Managed;
+using VB6.Runtime;
 
 namespace VB6.Compiler.Tests;
 
@@ -250,6 +253,75 @@ public sealed class DeclarePInvokeExecutionTests
             """);
 
         Assert.AreEqual("True", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_EmitsNativeWidthLongPtrDeclareArrayForSelectedPlatform()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerLongPtrDeclareArrayTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var assemblyPath = Path.Combine(directory, "LongPtrDeclareArray.dll");
+        var platform = Environment.Is64BitProcess ? ManagedPlatform.X64 : ManagedPlatform.X86;
+        var expectedElementType = Environment.Is64BitProcess ? VarEnum.VT_I8 : VarEnum.VT_I4;
+
+        try
+        {
+            var result = VBCompilation.Create("""
+                Private Declare Sub NativeLongPtrArray Lib "kernel32" (ByRef values() As LongPtr)
+
+                Sub Main()
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                    assemblyPath,
+                    new ManagedEmitOptions("LongPtrDeclareArray", Platform: platform));
+
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+            var assembly = Assembly.Load(File.ReadAllBytes(assemblyPath));
+            var method = assembly
+                .GetTypes()
+                .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+                .Single(candidate => candidate.Name == "NativeLongPtrArray");
+            var parameter = method.GetParameters().Single();
+            Assert.AreEqual(typeof(IntPtr), parameter.ParameterType);
+            var marshal = parameter.GetCustomAttribute<MarshalAsAttribute>();
+            Assert.AreEqual(UnmanagedType.SafeArray, marshal?.Value);
+            Assert.AreEqual(expectedElementType, marshal?.SafeArraySubType);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RejectsAnyCpuLongPtrDeclareArray()
+    {
+        var result = VBCompilation.Create("""
+            Private Declare Sub NativeLongPtrArray Lib "kernel32" (ByRef values() As LongPtr)
+
+            Sub Main()
+            End Sub
+            """, "Module1.bas").EmitManagedApplication(
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "VB6CompilerLongPtrDeclareArrayTests",
+                    Guid.NewGuid().ToString("N"),
+                    "AnyCpu.dll"),
+                new ManagedEmitOptions("AnyCpuLongPtrDeclareArray"));
+
+        Assert.IsFalse(result.Success);
+        var diagnostics = result.Diagnostics
+            .Select(diagnostic => diagnostic.ToString())
+            .Concat(result.BackendResult?.Diagnostics.Select(diagnostic => diagnostic.Message) ?? []);
+        StringAssert.Contains(
+            string.Join(Environment.NewLine, diagnostics),
+            "LongPtr() SAFEARRAY contracts require an explicit --x86 or --x64 target");
     }
 
     [TestMethod]
