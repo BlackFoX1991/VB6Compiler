@@ -83,4 +83,43 @@ public sealed class FixedLengthStringUdtExecutionTests
             new[] { "[Hi   ]" },
             standardOutput.Trim().Split(Environment.NewLine));
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesLSetAcrossSupportedUdtLayouts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type SourceRecord
+                Prefix As Byte
+                Value As Long
+            End Type
+
+            Type NarrowRecord
+                Value As Long
+            End Type
+
+            Type WideRecord
+                Value As Long
+                Tail As Long
+            End Type
+
+            Sub Main()
+                Dim source As SourceRecord
+                Dim narrow As NarrowRecord
+                Dim wide As WideRecord
+
+                source.Prefix = 7
+                source.Value = 42
+                LSet narrow = source
+                Debug.Print narrow.Value
+
+                wide.Value = 11
+                wide.Tail = 99
+                LSet wide = narrow
+                Debug.Print wide.Value
+                Debug.Print wide.Tail
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "7", "7", "0" }, output);
+    }
 }
