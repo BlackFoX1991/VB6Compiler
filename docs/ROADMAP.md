@@ -2699,3 +2699,13 @@ Callback-/COM-Event-Adapter nicht mehr durch mehrdeutige `FromObject`-Überladun
 
 Die aktuelle Vollsuite umfasst nun **1080 Testfälle**, davon **1080 bestanden** und
 **0 fehlgeschlagen**.
+
+## Aktueller MSBuild-VBG-Output-Reconciliation-Nachtrag
+
+Der inkrementelle `VB6ProjectGroup`-Target liest vor einer erneuten Gruppenemission sein
+eigenes Output-Manifest und entfernt die dort verzeichneten vorherigen Artefakte. Nach dem
+Compile wird das Manifest mit den tatsächlich neu erzeugten Assemblies, AppHosts, Runtime-
+Dateien, PDBs und Manifests neu geschrieben. Dadurch bleiben beim Entfernen eines `Project=`-
+Eintrags oder beim Ändern eines `ExeName32`-Ziels keine veralteten Projektartefakte im
+Gruppenverzeichnis liegen. Der Vertrag ist über den gepackten SDK-Pfad und einen echten
+`dotnet msbuild`-Rebuild regressionsgesichert; die Vollsuite bleibt bei **1080 Testfällen**.
