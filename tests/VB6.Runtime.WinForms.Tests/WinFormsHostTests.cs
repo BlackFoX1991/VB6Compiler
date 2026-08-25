@@ -224,6 +224,57 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void NativeComSubscriptionUnsubscribesThroughTheConnectedRcwAfterProviderResetInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native RichTextBox OCX validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var richText = host.CreateControl(owner, "Editor", "RichTextLib.RichTextBox")!;
+        Assert.IsInstanceOfType<AxHost>(richText);
+        var control = (Control)richText;
+        control.CreateControl();
+        var connectedComObject = ((IVBComObjectProvider)richText).ComObject;
+        Assert.IsNotNull(connectedComObject);
+
+        var provider = new MutableComObjectProvider(connectedComObject);
+        var sink = new NativeRichTextEventSink();
+        Assert.IsTrue(VBEvents.TrySubscribeComMethod(provider, "Change", sink, "OnChange"));
+        try
+        {
+            Assert.IsTrue(host.TrySetMember(richText, "Text", Array.Empty<object?>(), "first"));
+            Application.DoEvents();
+            Assert.AreEqual(1, sink.ChangeCount);
+
+            // The wrapper has lost its current COM reference, but the connection point was
+            // installed on the RCW returned during subscription.
+            provider.ComObject = null;
+            VBEvents.UnsubscribeMethod(provider, "Change", sink, "OnChange");
+
+            Assert.IsTrue(host.TrySetMember(richText, "Text", Array.Empty<object?>(), "second"));
+            Application.DoEvents();
+            Assert.AreEqual(1, sink.ChangeCount);
+        }
+        finally
+        {
+            VBEvents.UnsubscribeObject(provider);
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostBridgesNativeRichTextKeyPressByRefEventThroughConventionalHostHookInX86()
     {
         if (Environment.Is64BitProcess ||
@@ -1555,6 +1606,16 @@ public sealed class WinFormsHostTests
         public int ChangeCount { get; private set; }
 
         private void OnChange() => ChangeCount++;
+    }
+
+    private sealed class MutableComObjectProvider : IVBComObjectProvider
+    {
+        public MutableComObjectProvider(object? comObject)
+        {
+            ComObject = comObject;
+        }
+
+        public object? ComObject { get; set; }
     }
 
     private sealed class NativeRichTextKeyPressEventSink
