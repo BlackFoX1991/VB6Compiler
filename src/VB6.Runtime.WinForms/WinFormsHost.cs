@@ -2868,23 +2868,54 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private static bool TryCreateImage(object? value, out Image? image)
     {
         image = null;
-        if (!TryDecodeFrxResource(value, out var resource))
+        if (TryDecodeFrxResource(value, out var resource))
+        {
+            try
+            {
+                using var stream = new MemoryStream(resource, writable: false);
+                using var source = Image.FromStream(stream, useEmbeddedColorManagement: false, validateImageData: true);
+                image = new Bitmap(source);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+            }
+            catch (ExternalException)
+            {
+            }
+        }
+
+        return value is VBPicture picture &&
+               TryLoadImageFile(picture.FileName, out image);
+    }
+
+    private static bool TryLoadImageFile(string fileName, out Image? image)
+    {
+        image = null;
+        if (string.IsNullOrWhiteSpace(fileName))
         {
             return false;
         }
 
         try
         {
-            using var stream = new MemoryStream(resource, writable: false);
-            using var source = Image.FromStream(stream, useEmbeddedColorManagement: false, validateImageData: true);
+            using var source = Image.FromFile(fileName);
             image = new Bitmap(source);
             return true;
+        }
+        catch (ExternalException)
+        {
+            return false;
         }
         catch (ArgumentException)
         {
             return false;
         }
-        catch (ExternalException)
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (OutOfMemoryException)
         {
             return false;
         }
@@ -2908,27 +2939,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
-        if (value is VBPicture picture && !string.IsNullOrWhiteSpace(picture.FileName))
+        if (value is VBPicture picture &&
+            TryLoadImageFile(picture.FileName, out image))
         {
-            try
-            {
-                using var loaded = Image.FromFile(picture.FileName);
-                image = new Bitmap(loaded);
-                ownsImage = true;
-                return true;
-            }
-            catch (ArgumentException)
-            {
-            }
-            catch (ExternalException)
-            {
-            }
-            catch (IOException)
-            {
-            }
-            catch (OutOfMemoryException)
-            {
-            }
+            ownsImage = true;
+            return true;
         }
 
         image = null;

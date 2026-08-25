@@ -117,6 +117,45 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostLoadsPictureFileThroughLoadPictureIntoPictureBox()
+    {
+        var filePath = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerPicture_" + Guid.NewGuid().ToString("N") + ".png");
+        try
+        {
+            using (var source = new Bitmap(3, 2))
+            {
+                source.SetPixel(0, 0, Color.Red);
+                source.Save(filePath, ImageFormat.Png);
+            }
+
+            using var host = new WinFormsHost();
+            var owner = new object();
+            host.Load(owner);
+            var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+
+            Assert.IsTrue(host.TrySetMember(
+                pictureBox,
+                "Picture",
+                Array.Empty<object?>(),
+                VBInteraction.LoadPicture(filePath)));
+            Assert.IsNotNull(pictureBox.Image);
+            Assert.AreEqual(3, pictureBox.Image!.Width);
+            Assert.AreEqual(2, pictureBox.Image.Height);
+
+            host.Unload(owner);
+        }
+        finally
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
+    }
+
+    [STATestMethod]
     public void HostLoadsAndUnloadsExistingControlWithoutCreatingSyntheticFormBinding()
     {
         using var host = new WinFormsHost();
