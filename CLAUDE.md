@@ -9,7 +9,54 @@ VB6-kompatibler Compiler in C#, der bestehende VB6-Projekte nach .NET 10 überse
 3. **Moderne Erweiterungen obendrauf** — 64 Bit, breitere Integer-Typen, echtes `Decimal`, bessere Fließkommatypen.
 4. **Später:** eigene IDE mit WinForms-Designer.
 
-Detaillierte Reihenfolge und offene Architekturentscheidungen: `docs/ROADMAP.md`.
+## Fokus — woran gerade gearbeitet wird
+
+Die Priorisierung ist **.NET-first**. Der Managed-Pfad ist der Zielpfad, an dem Kompatibilität
+entschieden wird; alles andere ordnet sich unter.
+
+Aktuelle Arbeitsfront, in dieser Reihenfolge:
+
+1. **COM/ActiveX-Konsum und OCX-Hosting** (M8/M9). `MSComctlLib`, `RichTextLib`, `MSComDlg`
+   über den nativen `AxHost`-Pfad, Connection-Point-Events, TypeLib-Import, typisiertes
+   ByRef-Marshalling.
+2. **Forms/UserControls auf WinForms** (M9). Designer-Werte, Control-Arrays, Event-Mapping,
+   Zeichenoperationen.
+3. **Managed-Kern nachziehen**, wo COM/Forms es verlangen — Variant-Promotion,
+   Default-Property-Regeln, Event-Lifecycle.
+
+**Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
+
+- **LLVM/natives Backend** (`VB6.Emit.Llvm`). In der Roadmap ausdrücklich als *optional/deferred*
+  geführt: „Dieser Pfad blockiert den Managed/.NET-Abschluss nicht." Der Code bleibt im Build,
+  wird aber nicht weitergetrieben. Wichtig zu wissen: er ist **ausschließlich über Textvergleiche
+  auf dem erzeugten LLVM-IR abgesichert** — nichts wird assembliert, gelinkt oder ausgeführt.
+  Also genau das Prüfmuster, das für das C#-Backend abgeschafft wurde. Aussagen über native
+  Korrektheit sind entsprechend schwach gedeckt.
+- **IDE und LSP** (`VB6.LanguageServer`, M10). Ein erster Slice steht (Diagnosen, Completion,
+  Definition, Dokumentsymbole); bewusst nach dem Compiler-Kern eingeordnet.
+
+**Offene Entscheidung, die die aktuelle Arbeitsfront direkt betrifft:** Die Roadmap hat „x86 als
+Default-Ausgabe, x64 opt-in" entschieden — begründet damit, dass der Korpus an 32-Bit-OCX hängt,
+die kein 64-Bit-Prozess in-process lädt — und vermerkt, das müsse *vor* M8 endgültig geklärt sein.
+Implementiert ist es nicht: CLI, SDK und `ManagedEmitOptions` defaulten durchgängig auf `AnyCpu`,
+während der Emitter `AnyCpu` für architekturabhängige Array-Verträge diagnostisch ablehnt. M8
+läuft bereits. Diese Lücke schließen, bevor weiterer Marshalling-Code darauf aufsetzt.
+
+## Roadmap und Historie
+
+Zwei getrennte Dokumente — die Trennung bitte halten:
+
+- **`docs/ROADMAP.md`** (~430 Zeilen) ist **Ist-Stand und Offenes**: Produktziel, die beiden
+  aktuellen Messwerte, Korpus-Frequenzen, „Entschiedene Weichenstellungen" und die Meilensteine
+  0–10 mit `[x]`/`[~]`/`[ ]`-Listen. `[~]` heißt „begonnen, teilweise ausgabefähig" — der
+  häufigste Zustand. Hier steht, was zu tun ist.
+- **`docs/CHANGELOG.md`** (~2400 Zeilen) ist das **chronologische Arbeitsjournal**, älteste
+  Einträge zuerst. Hier steht, was getan wurde.
+
+Nach einem abgeschlossenen Feature: den Meilensteinstatus in der Roadmap fortschreiben und den
+Arbeitsschritt **ans Ende** des Changelogs hängen. Keine Verlaufsprosa in die Roadmap
+zurückschreiben — genau daran ist sie vorher auf 2800 Zeilen angewachsen, in denen 130
+Abschnitte gleichzeitig „Aktueller …-Nachtrag" hießen.
 
 ## Die eine Regel, die alles andere schlägt
 
@@ -28,6 +75,8 @@ Daraus folgende Invarianten — nicht ohne ausdrückliche Entscheidung antasten:
 
 ## Architektur
 
+Kernpipeline — hier läuft jedes Sprachfeature durch:
+
 ```
 VB6.Syntax        SourceText, Tokens, Trivia, Syntaxknoten, Diagnostics
 VB6.Lexer         case-insensitiv, Trivia-erhaltend
@@ -36,10 +85,24 @@ VB6.Semantics     Binder: Syntax -> Symbole + Bound Tree (typisiert)
 VB6.IR            Lowering: Bound Tree -> Basic Blocks mit expliziten Sprüngen
 VB6.Emit.Managed  IR -> CIL + Metadaten + Portable PDB (System.Reflection.Metadata)
 VB6.Runtime       VB6-Laufzeitsemantik (Arithmetik, Konvertierung, VBCurrency)
-VB6.ProjectSystem .vbp laden
-VB6.Compiler      VBCompilation / VBProjectCompilation: Pipeline
+VB6.ProjectSystem .vbp/.vbg laden, Designer-/`.frx`-Parsing
+VB6.Compiler      VBCompilation / VBProjectCompilation / VBProjectGroupCompilation,
+                  TypeLib-Import, COM-Host-/Manifest-Erzeugung
 VB6.Compiler.Cli  vb6c
 ```
+
+Drumherum — beim Ändern der Pipeline mitdenken, sie hängen daran:
+
+```
+VB6.Runtime.WinForms         IVB6Host auf WinForms: Controls, Twips, OLE-Farben, Fonts,
+                             Form-Lifecycle, natives OCX-Hosting über AxHost (net10.0-windows)
+VB6.Runtime.WinForms.Runner  Startprozess für emittierte Forms-Assemblies
+VB6.Compiler.Sdk             MSBuild-SDK: VB6Project/VB6ProjectGroup-Targets, NuGet-Paket
+VB6.LanguageServer           LSP-Slice für Visual Studio (auf Eis, siehe Fokus)
+VB6.Emit.Llvm                natives x86/x64-Backend (auf Eis, siehe Fokus)
+```
+
+13 Testprojekte spiegeln diese Struktur; das Gewicht liegt in `VB6.Compiler.Tests` (E2E).
 
 Es gibt **kein C#-Backend mehr**. Der Weg vom Bound Tree zur Assembly führt ausschließlich über
 `VB6.IR` und `VB6.Emit.Managed`; Roslyn ist nicht mehr im Build. `vb6c --dump-ir` zeigt die
@@ -69,6 +132,12 @@ Test <X> lowering               |
 Test <X> end to end            /
 Document <X> support           README
 ```
+
+Bei Host-Features (Controls, OCX, Forms) kommt eine Schicht dazu: `VB6.Runtime` definiert den
+host-neutralen Vertrag mit deterministischem Headless-Verhalten, `VB6.Runtime.WinForms`
+implementiert ihn gegen echte Controls. Headless muss ohne UI-Host durchlaufen — die Suite hat
+keinen. Der native OCX-Pfad ist x86-gebunden und lässt sich über `VB6_REQUIRE_NATIVE_OCX=1` von
+„überspringen, wenn nicht registriert" auf „hart melden" schalten.
 
 Commit-Betreffs: imperativ, kurz, kein Präfix, kein Punkt (`Bind Currency arithmetic`). Die bestehende Historie nutzt keine Co-Authored-By-Trailer.
 
@@ -126,16 +195,37 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung: 525 Tests in 159 Testklassen, alle grün.
+Stand der letzten Prüfung (2026-08-25): **1090 Tests in 13 Testprojekten, alle grün.**
 
-CI ist Windows-only (`.github/workflows`), .NET 10, Restore/Build/Test auf `main` und `agent/**`.
+Zweite Messung neben der Suite ist die Korpusparität — sie fängt Regressionen, die kein
+Unittest sieht:
+
+```
+dotnet run --project src/VB6.Compiler.Cli -c Release -- conformance/VISIA/4.8.7.1/prjVisia.vbp --report
+```
+
+Stand: **40 von 40 Projektitems, 0 Fehler**; das Gesamtprojekt emittiert auch durch
+(`--emit-assembly`). Der Wert darf nicht steigen. VISIA ist Testkorpus, nicht Portierungsziel.
+
+Die Testpyramide steht derzeit auf dem Kopf: die Absicherung liegt fast vollständig in
+`VB6.Compiler.Tests` (391 E2E-Tests), während `VB6.IR.Tests` (5) und `VB6.Emit.Managed.Tests`
+(10) dünn sind. Folge: ein Lowering- oder Emit-Defekt zeigt sich als falsche Programmausgabe
+statt als lokalisierter Fehler. Beim Ergänzen von Tests bevorzugt die untere Ebene bedienen —
+`VB6TestIr` für Übersetzungsentscheidungen, E2E zusätzlich, nicht ersatzweise.
+
+CI ist Windows-only (`.github/workflows/build.yml`), .NET 10, Restore/Build/Test auf `main` und
+`agent/**`, plus VISIA-Paritätsreport als Artefakt bei jedem Lauf. Die Tests laufen dort
+projektweise, nicht solutionweit.
 
 ## Fallen
 
-- **`Debug.Print` ist noch .NET-Formatierung**, nicht VB6 (kein führendes Vorzeichen-Leerzeichen, .NET-Shortest-Roundtrip statt 15 signifikanter Stellen). Die E2E-Tests vergleichen mit `.Trim()` und verdecken das. Beim Anfassen von Zahlenausgabe mitdenken.
-- **`VB6.Runtime` konvertiert ausschließlich mit `CultureInfo.InvariantCulture`.** Kompilierte Programme sollen auf jeder Maschine dieselben Werte liefern; mit `CurrentCulture` ergab `"2.5" * 2` unter `de-DE` den Wert 50 statt 5. Klassisches VB6 war hier locale-abhängig — dagegen wurde bewusst entschieden. `CultureInfo.CurrentCulture` gehört nicht mehr in `VB6.Runtime`; `Debug.Print` läuft deshalb über `VBConversions.CStr` statt direkt über `Console.WriteLine`. `CultureIndependenceTests` prüft das unter `de-DE`, weil CI auf `en-US` einen Rückfall nicht sehen würde.
+- **`Debug.Print` ist inzwischen VB6-nah formatiert** — führendes Vorzeichen-Leerzeichen über `FormatNumeric`, `G15` für Gleitkomma/Currency, `G29` für den Decimal-Subtype (`Runtime.cs`). Weiterhin gilt: die E2E-Helfer trimmen bewusst, Spalten-/Plattformformat ist damit *nicht* abgedeckt. Beim Anfassen von Zahlenausgabe mitdenken.
+- **`VB6.Runtime` konvertiert ausschließlich mit `CultureInfo.InvariantCulture`.** Kompilierte Programme sollen auf jeder Maschine dieselben Werte liefern; mit `CurrentCulture` ergab `"2.5" * 2` unter `de-DE` den Wert 50 statt 5. Klassisches VB6 war hier locale-abhängig — dagegen wurde bewusst entschieden. `Debug.Print` läuft deshalb über `VBConversions.CStr` statt direkt über `Console.WriteLine`. `CultureIndependenceTests` prüft das unter `de-DE`, weil CI auf `en-US` einen Rückfall nicht sehen würde.
+- **Von dieser Regel gibt es genau zwei Ausnahmen — keine dritte ohne Entscheidung.** `VBComDispatch` leitet die Dispatch-LCID aus `CurrentCulture` ab (bewusst, siehe Roadmap „culture-aware COM dispatch LCIDs"). `VBStrings.ToFirstDayOfWeek`/`ToCalendarWeekRule` lösen `vbUseSystem` (Wert 0) über `CurrentCulture.DateTimeFormat` auf. Letzteres ist VB6-treu, verletzt aber die Determinismus-Entscheidung: `Weekday(d, vbUseSystemDayOfWeek)` und `Format(d, "ww")` liefern unter `de-DE` andere Werte als unter `en-US`, und **kein Test deckt das ab**. Der Zielkonflikt ist offen — nicht einfach in eine Richtung auflösen.
 - **Vergleiche boxen**: `VBOperators.Equal(object?, object?)` für jeden Vergleich, obwohl der Binder beide Seiten bereits auf denselben Typ konvertiert hat.
 - **Der Emitter hat genau einen Fehlerkanal.** `NotSupportedException` heißt „diese IR-Form kann das Backend noch nicht" und wird als `VB6E0001` mit der genannten Konstruktion gemeldet; jede andere Ausnahme ist ein Emitter-Defekt und wird als `VB6E0003` samt Typ und Stacktrace gemeldet. Beim Ergänzen von Emit-Code diese Trennung halten — sonst sieht ein NullReference wie eine Sprachlücke aus.
 - **Typnamen im IR sind eindeutig, Symbole sind es nicht.** Ein `Private Type` verdeckt ein gleichnamiges `Public Type`; beide sind verschiedene Symbole und brauchen verschiedene Speichernamen (`__vb6_udt_Point`, `__vb6_udt_Point_2`), sonst lehnt die Runtime die Assembly wegen doppelten Typs ab.
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
+- **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Aktuell haben 21 der 72 Codes keine einzige Testreferenz (u. a. `VB6L0002/3/4`, `VB6E0002`, `VB6S0002/9/12/13/14/17/40/42/43/57/59/60/61/65/66/68/69`); `VB6L0004` wird an 27 Stellen ausgelöst und nirgends geprüft. Beim Anfassen eines dieser Pfade den Test gleich mitnehmen.
+- **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 6`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.
