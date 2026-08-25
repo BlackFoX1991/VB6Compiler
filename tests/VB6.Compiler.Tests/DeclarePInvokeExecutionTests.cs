@@ -384,6 +384,34 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InvokesSafeArrayReturningDeclareFunction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The SAFEARRAY return test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Declare Function SafeArrayCreateVector Lib "oleaut32" (ByVal variantType As Integer, ByVal lowerBound As Long, ByVal elementCount As Long) As Long()
+
+            Sub Main()
+                Dim values() As Long
+                values = SafeArrayCreateVector(3, -1, 2)
+                Debug.Print LBound(values)
+                Debug.Print UBound(values)
+                Debug.Print values(-1)
+                Debug.Print values(0)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "-1", "0", "0", "0" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesUIntegerDeclareFunction()
     {
         var output = VB6TestProgram.Run("""

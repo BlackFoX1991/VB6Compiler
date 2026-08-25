@@ -1436,6 +1436,22 @@ public sealed class ManagedEmitter
                 encoder.Call(target);
             }
 
+            if (call.Procedure.IsExternal && call.ResultType is ArrayTypeSymbol externalArrayResult)
+            {
+                var hasElementDescriptor = externalArrayResult.ElementType is ClassTypeSymbol;
+                if (hasElementDescriptor)
+                {
+                    EmitArrayElementDescriptor(encoder, externalArrayResult.ElementType);
+                }
+
+                // CLR SAFEARRAY returns are exposed as System.Array at the P/Invoke boundary;
+                // restore VB6 bounds and the semantic element descriptor before the value enters
+                // the rest of the generated program.
+                encoder.Call(GetDynamicArrayConversionReference(
+                    externalArrayResult.ElementType,
+                    hasElementDescriptor));
+            }
+
             if (call.ResultTemporary is not null)
             {
                 encoder.StoreLocal(call.ResultTemporary.Id);
@@ -2289,6 +2305,10 @@ public sealed class ManagedEmitter
                     {
                         returnType.Void();
                     }
+                    else if (procedure.IsExternal && procedure.ReturnType is ArrayTypeSymbol)
+                    {
+                        EncodeReflectionType(returnType.Type(), typeof(Array));
+                    }
                     else
                     {
                         EncodeType(returnType.Type(), procedure.ReturnType);
@@ -2845,7 +2865,16 @@ public sealed class ManagedEmitter
 
         private void ValidateExternalSignature(IrProcedure procedure)
         {
-            if (procedure.ReturnType is not null && !IsPInvokeScalar(procedure.ReturnType))
+            if (procedure.ReturnType is ArrayTypeSymbol returnArray)
+            {
+                if (!IsPInvokeArrayElement(returnArray.ElementType))
+                {
+                    throw new NotSupportedException(
+                        $"Declare function '{procedure.Name}' return array element type " +
+                        $"'{returnArray.ElementType.Name}' needs a supported ByRef SAFEARRAY contract.");
+                }
+            }
+            else if (procedure.ReturnType is not null && !IsPInvokeScalar(procedure.ReturnType))
             {
                 throw new NotSupportedException(
                     $"Declare function '{procedure.Name}' return type '{procedure.ReturnType.Name}' " +
