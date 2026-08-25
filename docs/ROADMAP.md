@@ -2671,3 +2671,22 @@ Vollsuite umfasst nun **1070 Testfälle**, davon **1070 bestanden** und **0 fehl
 Laufzeit feststeht. Enthält der Ausdruck dann kein Array, liefern die Runtime-Funktionen jetzt
 den VB6-Fehler **13 (Type mismatch)** statt einer generischen CLR-Fehlernummer. Array-Werte,
 echte CLR-Arrays und die bisherigen Bounds-/Dimensionsfehler bleiben unverändert.
+
+## Aktueller VBG-Referenzabschluss
+
+Eine `.vbg`-Analyse prüft jetzt nicht nur `Project=`-Einträge und `StartupProject=`, sondern auch
+projektbezogene `Reference=`-Einträge jedes enthaltenen `.vbp`. Verweist ein Projekt auf ein
+vorhandenes, aber nicht in der Gruppe deklariertes `.vbp`, wird `VB6VBG0008` ausgegeben und die
+Gruppenemission erzeugt kein unvollständiges Consumer-Artefakt. Der Compiler- und CLI-Prozesspfad
+sind regressionsgesichert.
+
+## Aktueller registrierter COM-Referenzabschluss
+
+Historische `Reference=`- und `Object=`-Einträge ohne auflösbaren lokalen Dateipfad können auf
+Windows jetzt über `HKCR\TypeLib` beziehungsweise `HKCR\CLSID` anhand GUID, Version, LCID und
+Prozessbitness aufgelöst werden. Explizit vorhandene Projekt-/Dateipfade behalten Vorrang; der
+Managed-TypeLib-Importer kann dadurch registrierte `stdole`-/OCX-Verträge auch aus alten VBP-
+Dateinamen laden. Eine echte registrierte `stdole2.tlb`-Regression deckt die Bindung ab.
+
+Die aktuelle Vollsuite umfasst nun **1076 Testfälle**, davon **1076 bestanden** und
+**0 fehlgeschlagen**.
