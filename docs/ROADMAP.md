@@ -2515,7 +2515,7 @@ Der Managed-`LSet`-Vertrag akzeptiert jetzt auch UDTs mit VB6-`Boolean`-Feldern.
 kennzeichnet diese Felder als 2-Byte-`VARIANT_BOOL`, während Layoutprüfung und Runtime-Rohtransfer
 dieselbe Größe und Ausrichtung verwenden. Ein kompilierter Transfer zwischen unterschiedlich
 aufgebauten UDTs ist regressionsgesichert. Nicht unterstützte dynamische Strings, Arrays,
-`Variant`-Felder und native-width `LongPtr`-Layouts bleiben weiterhin separate ABI-Schritte; die
+`Variant`-Felder und weitere native ABI-Layouts bleiben weiterhin separate ABI-Schritte; die
 Vollsuite umfasst nun **1046 Testfälle**, davon **1046 bestanden** und **0 fehlgeschlagen**.
 
 ## Aktueller Empty-/Single-Variant-Divisionsnachtrag
@@ -2526,3 +2526,13 @@ statt fälschlich `Double`; `Single / Empty` bewahrt denselben effektiven Typ un
 korrekt Division durch null. Runtime- und kompilierter Managed-Ausführungspfad sind regressions-
 gesichert. Die Vollsuite umfasst damit **1045 Testfälle**, davon **1045 bestanden** und **0
 fehlgeschlagen**.
+
+## Aktueller LongPtr-UDT-LSet-Nachtrag
+
+Der Managed-`LSet`-Vertrag akzeptiert jetzt zusätzlich native-width `LongPtr`-Felder in
+unterschiedlich aufgebauten UDTs. Die generierte Struct-Repräsentation verwendet `IntPtr`;
+Layout-Guard und Rohtransfer sind für die aktuelle Prozessarchitektur ausgelegt. Der x64-
+Managed-Ausführungspfad ist mit einem kompilierten Pointer-/Long-Transfer abgesichert;
+Cross-Architecture-Targeting sowie dynamische Strings, Arrays, `Variant`-Felder, verschachtelte
+Pointer und weitere rohe C-Array-Layouts bleiben offen. Die Vollsuite umfasst nun **1047
+Testfälle**, davon **1047 bestanden** und **0 fehlgeschlagen**.
