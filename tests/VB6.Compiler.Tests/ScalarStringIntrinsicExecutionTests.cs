@@ -35,6 +35,20 @@ public sealed class ScalarStringIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesWindows1252StringIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print Asc("€")
+                Debug.Print Asc("ä")
+                Debug.Print Asc(Chr(128))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "128", "228", "128" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesBoundsAndElementsOfAnArrayHeldInVariant()
     {
         var output = VB6TestProgram.Run("""

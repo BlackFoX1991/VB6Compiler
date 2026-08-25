@@ -76,6 +76,23 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void Chr_UsesDeterministicWindows1252ForExtendedByteValues()
+    {
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("ja-JP");
+        try
+        {
+            Assert.AreEqual("€", VBStrings.Chr(128));
+            Assert.AreEqual("‚", VBStrings.Chr(130));
+            Assert.AreEqual("ÿ", VBStrings.Chr(255));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [TestMethod]
     public void ChrWAndAscW_RoundTripUnicodeCodeUnits()
     {
         Assert.AreEqual("\u20AC", VBStrings.ChrW(0x20AC));
@@ -87,10 +104,11 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
-    public void Chr_RejectsExtendedAnsiUntilCodePageSemanticsAreModeled()
+    public void Chr_RejectsOutOfRangeAndUndefinedWindows1252Values()
     {
         Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(-1));
-        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(128));
+        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(256));
+        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Chr(129));
     }
 
     [TestMethod]
