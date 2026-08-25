@@ -955,6 +955,9 @@ public sealed class WinFormsHostTests
             Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
             Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
 
+            // VB6 only keeps drawing output in a persistent surface while AutoRedraw is on.
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+
             VBInteraction.GraphicsLine(
                 0,
                 0,
@@ -1008,6 +1011,9 @@ public sealed class WinFormsHostTests
             Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
             Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
 
+            // VB6 only keeps drawing output in a persistent surface while AutoRedraw is on.
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+
             VBInteraction.PaintPicture(source, 1440, 720, 1440, 720);
 
             Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var image));
@@ -1035,6 +1041,9 @@ public sealed class WinFormsHostTests
         var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
         pictureBox.Size = new Size(240, 120);
 
+        // VB6 only keeps drawing output in a persistent surface while AutoRedraw is on.
+        Assert.IsTrue(host.TrySetMember(pictureBox, "AutoRedraw", Array.Empty<object?>(), true));
+
         Assert.IsTrue(host.TryInvokeMember(
             pictureBox,
             "PaintPicture",
@@ -1058,6 +1067,9 @@ public sealed class WinFormsHostTests
         host.Load(owner);
         var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
         pictureBox.Size = new Size(240, 120);
+
+        // VB6 only keeps drawing output in a persistent surface while AutoRedraw is on.
+        Assert.IsTrue(host.TrySetMember(pictureBox, "AutoRedraw", Array.Empty<object?>(), true));
 
         host.GraphicsLine(
             pictureBox,
@@ -1570,6 +1582,121 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostRaisesFormPaintOnlyWhileAutoRedrawIsOff()
+    {
+        using var host = new WinFormsHost();
+        var owner = new PaintEventSink();
+        using var form = new Form();
+        using var surface = new Bitmap(120, 120);
+        using var graphics = Graphics.FromImage(surface);
+
+        host.Register(owner, form);
+        host.Load(owner);
+
+        RaisePaint(form, graphics);
+        Assert.AreEqual(1, owner.PaintCount, "VB6 raises Paint while AutoRedraw is off.");
+
+        // With AutoRedraw on, the persistent surface carries the output and VB6 stays silent.
+        Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+        RaisePaint(form, graphics);
+        Assert.AreEqual(1, owner.PaintCount, "AutoRedraw suppresses the Paint event.");
+
+        Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), false));
+        RaisePaint(form, graphics);
+        Assert.AreEqual(2, owner.PaintCount, "Turning AutoRedraw off restores the Paint event.");
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostRoutesDrawingInsidePaintToThePaintContext()
+    {
+        using var host = new WinFormsHost();
+        var previousHost = VBInteraction.Host;
+        using var form = new Form();
+        using var surface = new Bitmap(120, 120);
+        using var graphics = Graphics.FromImage(surface);
+
+        // A VB6 Paint handler redraws by issuing the same drawing statements again; they have to
+        // land on the paint context, not on a stored bitmap nobody is going to show.
+        var owner = new PaintEventSink
+        {
+            PaintCallback = () => VBInteraction.GraphicsLine(
+                0,
+                0,
+                1440,
+                1440,
+                ColorTranslator.ToOle(Color.Red),
+                false,
+                false,
+                false)
+        };
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Register(owner, form);
+            host.Load(owner);
+
+            RaisePaint(form, graphics);
+
+            Assert.AreEqual(1, owner.PaintCount);
+            var painted = surface.GetPixel(48, 48);
+            Assert.IsTrue(
+                painted.R > 180 && painted.G < 120 && painted.B < 120,
+                $"The Paint handler's line did not reach the paint context: {painted}.");
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
+    public void HostDiscardsThePersistentSurfaceWhenAutoRedrawIsTurnedOff()
+    {
+        using var host = new WinFormsHost();
+        var previousHost = VBInteraction.Host;
+        var owner = new object();
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+
+            VBInteraction.GraphicsLine(
+                0,
+                0,
+                1440,
+                1440,
+                ColorTranslator.ToOle(Color.Red),
+                false,
+                false,
+                false);
+            Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var image));
+            Assert.IsInstanceOfType<Bitmap>(image);
+
+            // VB6 throws the AutoRedraw bitmap away when the property is turned off.
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), false));
+            Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var discarded));
+            Assert.IsNull(discarded);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    private static void RaisePaint(Control control, Graphics graphics) =>
+        typeof(Control).GetMethod("OnPaint", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(control, new object[] { new PaintEventArgs(graphics, control.ClientRectangle) });
+
+    [STATestMethod]
     public void HostMapsConventionalFormLifecycleEvents()
     {
         using var host = new WinFormsHost();
@@ -1735,6 +1862,19 @@ public sealed class WinFormsHostTests
         }
 
         private void Form_Resize() => FormResizeCount++;
+    }
+
+    private sealed class PaintEventSink
+    {
+        public int PaintCount { get; private set; }
+
+        public Action? PaintCallback { get; init; }
+
+        private void Form_Paint()
+        {
+            PaintCount++;
+            PaintCallback?.Invoke();
+        }
     }
 
     private sealed class FormLifecycleEventSink

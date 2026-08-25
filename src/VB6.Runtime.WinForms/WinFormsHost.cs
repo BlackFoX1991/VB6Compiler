@@ -177,7 +177,6 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     private void RenderGraphicsLine(Control target, VBGraphicsLine line)
     {
-        var surface = GetDrawingSurface(target);
         var state = GetDesignerControlState(target);
         var scale = state.ScaleMode switch
         {
@@ -202,7 +201,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
 
-        using var graphics = Graphics.FromImage(surface);
+        using var drawing = BeginDrawing(target);
+        var graphics = drawing.Graphics;
         using var pen = new Pen(color, 1f);
         if (line.DrawBox)
         {
@@ -225,8 +225,6 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             graphics.DrawLine(pen, startX, startY, endX, endY);
         }
-
-        target.Invalidate();
     }
 
     public void PaintPicture(VBPaintPicture picture)
@@ -250,7 +248,6 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         try
         {
-            var surface = GetDrawingSurface(target);
             var state = GetDesignerControlState(target);
             var scale = state.ScaleMode switch
             {
@@ -263,9 +260,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             var width = picture.Width == 0 ? source!.Width : picture.Width * scale;
             var height = picture.Height == 0 ? source!.Height : picture.Height * scale;
 
-            using var graphics = Graphics.FromImage(surface);
-            graphics.DrawImage(source!, new RectangleF(x, y, width, height));
-            target.Invalidate();
+            using var drawing = BeginDrawing(target);
+            drawing.Graphics.DrawImage(source!, new RectangleF(x, y, width, height));
         }
         finally
         {
@@ -948,6 +944,82 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Subscribes a VB6 Paint handler. Paint does not go through the generic reflection path
+    /// because it needs host state: VB6 raises it only while AutoRedraw is off, and the drawing
+    /// statements inside the handler must target the paint context rather than a stored bitmap.
+    /// The subscription is still registered like any other so that UnsubscribeEvent keeps working.
+    /// </summary>
+    private bool TrySubscribeVb6Paint(
+        object source,
+        object target,
+        string methodName,
+        int? controlArrayIndex)
+    {
+        ThrowIfDisposed();
+        if (ResolveEventSource(source) is not Control control)
+        {
+            return false;
+        }
+
+        var eventInfo = FindEvent(control.GetType(), "Paint");
+        var method = FindHandler(target.GetType(), methodName);
+        if (eventInfo is null || method is null || method.GetParameters().Length > 1)
+        {
+            return false;
+        }
+
+        PaintEventHandler handler = (_, arguments) =>
+            DispatchVb6Paint(control, target, method, arguments, controlArrayIndex);
+        eventInfo.AddEventHandler(control, handler);
+        _events.Add(new EventBinding(
+            source,
+            "Paint",
+            target,
+            methodName,
+            control,
+            eventInfo,
+            handler));
+        return true;
+    }
+
+    private void DispatchVb6Paint(
+        Control control,
+        object target,
+        MethodInfo method,
+        PaintEventArgs paintArguments,
+        int? controlArrayIndex)
+    {
+        var state = GetDesignerControlState(control);
+
+        // VB6 raises Paint only when AutoRedraw is off. With AutoRedraw on, the persistent surface
+        // already carries the output and the handler must not run at all.
+        if (state.AutoRedraw)
+        {
+            return;
+        }
+
+        var parameters = method.GetParameters();
+        var arguments = parameters.Length == 1
+            ? new[] { ConvertEventArgument(controlArrayIndex ?? 0, parameters[0].ParameterType) }
+            : Array.Empty<object?>();
+
+        var previous = state.ActivePaintGraphics;
+        state.ActivePaintGraphics = paintArguments.Graphics;
+        try
+        {
+            method.Invoke(target, arguments);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            throw exception.InnerException;
+        }
+        finally
+        {
+            state.ActivePaintGraphics = previous;
+        }
+    }
+
     public void UnsubscribeEvent(
         object source,
         string eventName,
@@ -1149,6 +1221,81 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Resolves where a VB6 drawing statement goes. VB6 ties this to AutoRedraw: with AutoRedraw
+    /// on, output accumulates in a persistent bitmap that the control redraws by itself; with
+    /// AutoRedraw off, output goes straight to the visible surface and is lost on the next
+    /// repaint — which is the reason the Paint event exists at all. Inside a Paint handler the
+    /// statements target that paint context, so a redraw lands where the repaint expects it.
+    /// </summary>
+    private DrawingScope BeginDrawing(Control target)
+    {
+        var state = GetDesignerControlState(target);
+        if (state.ActivePaintGraphics is { } activePaint)
+        {
+            return new DrawingScope(activePaint, ownsGraphics: false, invalidate: null);
+        }
+
+        if (state.AutoRedraw)
+        {
+            var surface = GetDrawingSurface(target);
+            return new DrawingScope(Graphics.FromImage(surface), ownsGraphics: true, invalidate: target);
+        }
+
+        return new DrawingScope(target.CreateGraphics(), ownsGraphics: true, invalidate: null);
+    }
+
+    /// <summary>
+    /// Drops the persistent drawing surface. VB6 discards the AutoRedraw bitmap when AutoRedraw
+    /// is turned off, so a later repaint shows the Paint handler's output rather than stale pixels.
+    /// </summary>
+    private void DiscardDrawingSurface(Control target)
+    {
+        var state = GetDesignerControlState(target);
+        if (state.DrawingSurface is null)
+        {
+            return;
+        }
+
+        if (target is PictureBox pictureBox && ReferenceEquals(pictureBox.Image, state.DrawingSurface))
+        {
+            pictureBox.Image = null;
+        }
+        else if (ReferenceEquals(target.BackgroundImage, state.DrawingSurface))
+        {
+            target.BackgroundImage = null;
+        }
+
+        state.DrawingSurface.Dispose();
+        state.DrawingSurface = null;
+        target.Invalidate();
+    }
+
+    private readonly struct DrawingScope : IDisposable
+    {
+        private readonly bool _ownsGraphics;
+        private readonly Control? _invalidate;
+
+        public DrawingScope(Graphics graphics, bool ownsGraphics, Control? invalidate)
+        {
+            Graphics = graphics;
+            _ownsGraphics = ownsGraphics;
+            _invalidate = invalidate;
+        }
+
+        public Graphics Graphics { get; }
+
+        public void Dispose()
+        {
+            if (_ownsGraphics)
+            {
+                Graphics.Dispose();
+            }
+
+            _invalidate?.Invalidate();
+        }
+    }
+
     private Bitmap GetDrawingSurface(Control target)
     {
         var state = GetDesignerControlState(target);
@@ -1244,6 +1391,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(control, "KeyPress", owner, baseName + "_KeyPress", controlArrayIndex);
         TrySubscribeEvent(control, "KeyUp", owner, baseName + "_KeyUp", controlArrayIndex);
         TrySubscribeEvent(control, "Resize", owner, baseName + "_Resize", controlArrayIndex);
+        TrySubscribeVb6Paint(control, owner, baseName + "_Paint", controlArrayIndex);
     }
 
     private static string GetControlEventBaseName(string name, out int? controlArrayIndex)
@@ -1314,6 +1462,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(target, "KeyDown", target, "Form_KeyDown");
         TrySubscribeEvent(target, "KeyPress", target, "Form_KeyPress");
         TrySubscribeEvent(target, "KeyUp", target, "Form_KeyUp");
+        TrySubscribeVb6Paint(target, target, "Form_Paint", null);
     }
 
     private void AttachGeneratedUserControlEvents(object target)
@@ -1327,6 +1476,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         TrySubscribeEvent(target, "KeyDown", target, "UserControl_KeyDown");
         TrySubscribeEvent(target, "KeyPress", target, "UserControl_KeyPress");
         TrySubscribeEvent(target, "KeyUp", target, "UserControl_KeyUp");
+        TrySubscribeVb6Paint(target, target, "UserControl_Paint", null);
     }
 
     private static void InvokeGeneratedUserControlLifecycle(object target, string methodName)
@@ -2715,7 +2865,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         var state = GetDesignerControlState(control);
-        if (string.Equals(memberName, "AutoRedraw", StringComparison.OrdinalIgnoreCase)) state.AutoRedraw = VBConversions.CBool(value);
+        if (string.Equals(memberName, "AutoRedraw", StringComparison.OrdinalIgnoreCase))
+        {
+            var autoRedraw = VBConversions.CBool(value);
+            if (state.AutoRedraw && !autoRedraw)
+            {
+                // VB6 throws away the AutoRedraw bitmap when the property is turned off.
+                DiscardDrawingSurface(control);
+            }
+
+            state.AutoRedraw = autoRedraw;
+        }
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) state.FillStyle = VBConversions.CLng(value);
         else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) state.MousePointer = VBConversions.CLng(value);
         else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = VBConversions.CLng(value);
@@ -3743,6 +3903,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public int Appearance { get; set; }
 
         public bool AutoRedraw { get; set; }
+
+        /// <summary>
+        /// Non-null only while a VB6 Paint handler runs for this control. Drawing statements
+        /// issued from the handler target this context instead of the persistent surface.
+        /// </summary>
+        public Graphics? ActivePaintGraphics { get; set; }
 
         public int FillStyle { get; set; }
 
