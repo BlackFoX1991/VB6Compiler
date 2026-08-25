@@ -344,6 +344,47 @@ public static class VBArrayOperations
         return target;
     }
 
+    /// <summary>
+    /// Creates a CLR array with the same bounds and physical element order as a VB6 array.
+    /// COM event delegates use this representation at the SAFEARRAY boundary.
+    /// </summary>
+    public static Array? ToClrArray<T>(VBArray<T>? source)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        var lengths = new int[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lowerBounds[dimension] = source.LBound(dimension + 1);
+            lengths[dimension] = checked(source.UBound(dimension + 1) - lowerBounds[dimension] + 1);
+        }
+
+        var result = Array.CreateInstance(typeof(T), lengths, lowerBounds);
+        if (result.Length == 0)
+        {
+            return result;
+        }
+
+        var upperBounds = new int[source.Rank];
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            upperBounds[dimension] = source.UBound(dimension + 1);
+        }
+
+        var indices = lowerBounds.ToArray();
+        for (var offset = 0; offset < source.Length; offset++)
+        {
+            result.SetValue(source.GetValueAtFlatIndex(offset), indices);
+            IncrementIndices(indices, lowerBounds, upperBounds);
+        }
+
+        return result;
+    }
+
     private static VBArray<T> CopyArray<T>(IVBArray source, Func<int[], object?> getValue)
     {
         var bounds = new VBArrayBound[source.Rank];

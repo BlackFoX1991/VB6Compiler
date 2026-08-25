@@ -87,6 +87,65 @@ public sealed class VBEventsTests
     }
 
     [TestMethod]
+    public void ComEventDelegateType_UsesTypedSafeArrayForAutomationArrays()
+    {
+        var method = typeof(SafeArrayEventTarget).GetMethod(
+            "OnValues",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var delegateType = VBEvents.GetComEventDelegateType(method);
+        var parameter = delegateType.GetMethod("Invoke")!.GetParameters().Single();
+        var marshal = parameter.GetCustomAttribute<MarshalAsAttribute>();
+
+        Assert.AreEqual(typeof(Array).MakeByRefType(), parameter.ParameterType);
+        Assert.AreEqual(UnmanagedType.SafeArray, marshal?.Value);
+        Assert.AreEqual(VarEnum.VT_I4, marshal?.SafeArraySubType);
+    }
+
+    [TestMethod]
+    public void VBArray_ConvertsToClrArrayWithBoundsAndElementOrder()
+    {
+        var source = new VBArray<int>(new VBArrayBound(-2, 1), new VBArrayBound(3, 4));
+        source[-2, 3] = 10;
+        source[-2, 4] = 20;
+        source[1, 3] = 30;
+        source[1, 4] = 40;
+
+        var clr = VBArrayOperations.ToClrArray(source)!;
+        Assert.AreEqual(typeof(int), clr.GetType().GetElementType());
+        Assert.AreEqual(2, clr.Rank);
+        Assert.AreEqual(-2, clr.GetLowerBound(0));
+        Assert.AreEqual(3, clr.GetLowerBound(1));
+        Assert.AreEqual(10, clr.GetValue(-2, 3));
+        Assert.AreEqual(40, clr.GetValue(1, 4));
+
+        var roundTrip = VBArrayOperations.FromObject<int>(clr);
+        Assert.AreEqual(-2, roundTrip.LBound(1));
+        Assert.AreEqual(3, roundTrip.LBound(2));
+        Assert.AreEqual(30, roundTrip[1, 3]);
+    }
+
+    [TestMethod]
+    public void ComEventAdapter_ConvertsSafeArrayAndWritesBackReplacement()
+    {
+        var method = typeof(SafeArrayEventTarget).GetMethod(
+            "OnValues",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var target = new SafeArrayEventTarget();
+        var native = Array.CreateInstance(typeof(int), new[] { 2 }, new[] { -1 });
+        native.SetValue(7, -1);
+        native.SetValue(8, 0);
+        var arguments = new object?[] { native };
+
+        VBEvents.CreateComEventDelegate(target, method).DynamicInvoke(arguments);
+
+        var replacement = (Array)arguments[0]!;
+        Assert.AreEqual(4, replacement.GetLowerBound(0));
+        Assert.AreEqual(5, replacement.GetUpperBound(0));
+        Assert.AreEqual(42, replacement.GetValue(4));
+    }
+
+    [TestMethod]
     public void SubscribeMethod_DoesNotBindComProvidersToWrapperClrEvents()
     {
         var source = new ComProviderEventSource();
@@ -211,6 +270,15 @@ public sealed class VBEventsTests
             _ = flag;
             _ = text;
             _ = source;
+        }
+    }
+
+    private sealed class SafeArrayEventTarget
+    {
+        private void OnValues(ref VBArray<int> values)
+        {
+            values = new VBArray<int>(new VBArrayBound(4, 5));
+            values[4] = 42;
         }
     }
 

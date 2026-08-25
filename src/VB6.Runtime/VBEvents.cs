@@ -577,12 +577,7 @@ public static class VBEvents
 
         try
         {
-            var callback = new EventCallback(target, method);
-            var parameterTypes = method.GetParameters()
-                .Select(parameter => parameter.ParameterType)
-                .ToArray();
-            var delegateType = GetComEventDelegateType(method);
-            @delegate = CreateEventDelegate(delegateType, parameterTypes, callback);
+            @delegate = CreateComEventDelegate(target, method);
             ComEventsHelper.Combine(comSource, parsedInterfaceId, parsedDispId, @delegate);
             interfaceId = parsedInterfaceId;
             dispId = parsedDispId;
@@ -599,6 +594,16 @@ public static class VBEvents
             @delegate = null;
             return false;
         }
+    }
+
+    internal static Delegate CreateComEventDelegate(object target, MethodInfo method)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(method);
+        var callback = new EventCallback(target, method);
+        var parameterTypes = GetComEventDelegateParameterTypes(method);
+        var delegateType = GetComEventDelegateType(method);
+        return CreateEventDelegate(delegateType, parameterTypes, callback);
     }
 
     internal static Type GetComEventDelegateType(MethodInfo method)
@@ -648,7 +653,7 @@ public static class VBEvents
                 MethodAttributes.NewSlot |
                 MethodAttributes.Virtual,
                 typeof(void),
-                parameters.Select(parameter => parameter.ParameterType).ToArray());
+                GetComEventDelegateParameterTypes(parameters));
             invoke.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
             for (var index = 0; index < parameters.Length; index++)
@@ -674,6 +679,11 @@ public static class VBEvents
             return "variant";
         }
 
+        if (TryGetComEventArray(parameter, out _, out var safeArraySubType))
+        {
+            return "safearray-" + ((int)safeArraySubType).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         var elementType = parameter.ParameterType.IsByRef
             ? parameter.ParameterType.GetElementType()!
             : parameter.ParameterType;
@@ -686,6 +696,24 @@ public static class VBEvents
 
     private static void ApplyComEventMarshal(ParameterBuilder parameter, ParameterInfo source)
     {
+        if (TryGetComEventArray(source, out _, out var safeArraySubType))
+        {
+            var safeArrayConstructor = typeof(MarshalAsAttribute).GetConstructor(new[] { typeof(UnmanagedType) })
+                ?? throw new MissingMethodException(typeof(MarshalAsAttribute).FullName);
+            var safeArraySubtype = typeof(MarshalAsAttribute).GetField(
+                nameof(MarshalAsAttribute.SafeArraySubType),
+                BindingFlags.Instance | BindingFlags.Public)
+                ?? throw new MissingMethodException(nameof(MarshalAsAttribute.SafeArraySubType));
+            parameter.SetCustomAttribute(new CustomAttributeBuilder(
+                safeArrayConstructor,
+                new object[] { UnmanagedType.SafeArray },
+                Array.Empty<PropertyInfo>(),
+                Array.Empty<object>(),
+                new[] { safeArraySubtype },
+                new object[] { safeArraySubType }));
+            return;
+        }
+
         var elementType = source.ParameterType.IsByRef
             ? source.ParameterType.GetElementType()!
             : source.ParameterType;
@@ -706,6 +734,64 @@ public static class VBEvents
         parameter.SetCustomAttribute(new CustomAttributeBuilder(
             constructor,
             new object[] { unmanagedType.Value }));
+    }
+
+    private static Type[] GetComEventDelegateParameterTypes(MethodInfo method) =>
+        GetComEventDelegateParameterTypes(method.GetParameters());
+
+    private static Type[] GetComEventDelegateParameterTypes(IReadOnlyList<ParameterInfo> parameters) =>
+        parameters.Select(parameter =>
+        {
+            if (!TryGetComEventArray(parameter, out _, out _))
+            {
+                return parameter.ParameterType;
+            }
+
+            var arrayType = typeof(Array);
+            return parameter.ParameterType.IsByRef
+                ? arrayType.MakeByRefType()
+                : arrayType;
+        }).ToArray();
+
+    private static bool TryGetComEventArray(
+        ParameterInfo parameter,
+        out Type elementType,
+        out VarEnum safeArraySubType)
+    {
+        var parameterType = parameter.ParameterType.IsByRef
+            ? parameter.ParameterType.GetElementType()!
+            : parameter.ParameterType;
+        if (!parameterType.IsGenericType ||
+            parameterType.GetGenericTypeDefinition() != typeof(VBArray<>))
+        {
+            elementType = null!;
+            safeArraySubType = default;
+            return false;
+        }
+
+        elementType = parameterType.GetGenericArguments()[0];
+        var explicitMarshal = parameter.GetCustomAttribute<MarshalAsAttribute>();
+        if (explicitMarshal?.Value == UnmanagedType.SafeArray)
+        {
+            safeArraySubType = explicitMarshal.SafeArraySubType;
+            return true;
+        }
+
+        safeArraySubType = elementType == typeof(byte) ? VarEnum.VT_UI1
+            : elementType == typeof(short) ? VarEnum.VT_I2
+            : elementType == typeof(int) ? VarEnum.VT_I4
+            : elementType == typeof(long) ? VarEnum.VT_I8
+            : elementType == typeof(ushort) ? VarEnum.VT_UI2
+            : elementType == typeof(uint) ? VarEnum.VT_UI4
+            : elementType == typeof(ulong) ? VarEnum.VT_UI8
+            : elementType == typeof(float) ? VarEnum.VT_R4
+            : elementType == typeof(double) ? VarEnum.VT_R8
+            : elementType == typeof(bool) ? VarEnum.VT_BOOL
+            : elementType == typeof(string) ? VarEnum.VT_BSTR
+            : elementType == typeof(VBCurrency) ? VarEnum.VT_CY
+            : elementType == typeof(object) ? VarEnum.VT_VARIANT
+            : default;
+        return safeArraySubType != default;
     }
 
     private static Delegate CreateEventDelegate(Type eventHandlerType, EventCallback callback)
@@ -805,14 +891,92 @@ public static class VBEvents
     {
         private readonly object _target;
         private readonly MethodInfo _method;
+        private readonly ParameterInfo[] _parameters;
 
         public EventCallback(object target, MethodInfo method)
         {
             _target = target;
             _method = method;
+            _parameters = method.GetParameters();
         }
 
-        public void Invoke(object?[] arguments) => _method.Invoke(_target, arguments);
+        public void Invoke(object?[] arguments)
+        {
+            var callbackArguments = arguments.ToArray();
+            for (var index = 0; index < _parameters.Length; index++)
+            {
+                if (TryGetComEventArray(_parameters[index], out var elementType, out _))
+                {
+                    callbackArguments[index] = ConvertComEventArrayArgument(elementType, callbackArguments[index]);
+                }
+            }
+
+            _method.Invoke(_target, callbackArguments);
+
+            for (var index = 0; index < _parameters.Length; index++)
+            {
+                if (!_parameters[index].ParameterType.IsByRef)
+                {
+                    continue;
+                }
+
+                if (TryGetComEventArray(
+                    _parameters[index],
+                    out var elementType,
+                    out var safeArraySubType))
+                {
+                    arguments[index] = ConvertComEventArrayBack(
+                        elementType,
+                        safeArraySubType,
+                        callbackArguments[index]);
+                }
+                else
+                {
+                    arguments[index] = callbackArguments[index];
+                }
+            }
+        }
+
+        private static object? ConvertComEventArrayArgument(Type elementType, object? value)
+        {
+            if (value is null)
+            {
+                return null;
+            }
+
+            var method = typeof(VBArrayOperations).GetMethod(
+                nameof(VBArrayOperations.FromObject),
+                BindingFlags.Public | BindingFlags.Static)
+                ?? throw new MissingMethodException(nameof(VBArrayOperations.FromObject));
+            return method.MakeGenericMethod(elementType).Invoke(null, new[] { value });
+        }
+
+        private static object? ConvertComEventArrayBack(
+            Type elementType,
+            VarEnum safeArraySubType,
+            object? value)
+        {
+            if (value is null)
+            {
+                return null;
+            }
+
+            if (value is not IVBArray array ||
+                !VBComDispatch.TryCreateAutomationArray(
+                    array,
+                    (ushort)((ushort)VarEnum.VT_ARRAY | (ushort)safeArraySubType),
+                    out var result) ||
+                result is null)
+            {
+                var method = typeof(VBArrayOperations).GetMethod(
+                    nameof(VBArrayOperations.ToClrArray),
+                    BindingFlags.Public | BindingFlags.Static)
+                    ?? throw new MissingMethodException(nameof(VBArrayOperations.ToClrArray));
+                return method.MakeGenericMethod(elementType).Invoke(null, new[] { value });
+            }
+
+            return result;
+        }
     }
 
     private static object? GetComObject(object source) =>

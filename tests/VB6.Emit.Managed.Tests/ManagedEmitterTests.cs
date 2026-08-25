@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using VB6.Compiler;
 using VB6.IR;
 using VB6.Semantics;
@@ -53,6 +55,33 @@ public sealed class ManagedEmitterTests
         Assert.IsTrue(first.Success, string.Join(Environment.NewLine, first.Diagnostics));
         Assert.IsTrue(second.Success, string.Join(Environment.NewLine, second.Diagnostics));
         CollectionAssert.AreEqual(first.PeImage!, second.PeImage!);
+    }
+
+    [TestMethod]
+    public void Emit_AnnotatesDeclareArraysWithTheirAutomationElementTypes()
+    {
+        var program = Lower("""
+            Private Declare Sub Native Lib "native" (ByRef dates() As Date, ByRef amounts() As Currency)
+
+            Sub Main()
+            End Sub
+            """);
+
+        var result = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "SafeArrayMetadata",
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        var assembly = Assembly.Load(result.PeImage!);
+        var method = assembly.GetTypes()
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+            .Single(candidate => candidate.Name == "Native");
+        var parameters = method.GetParameters();
+
+        Assert.AreEqual(UnmanagedType.SafeArray, parameters[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(VarEnum.VT_DATE, parameters[0].GetCustomAttribute<MarshalAsAttribute>()?.SafeArraySubType);
+        Assert.AreEqual(UnmanagedType.SafeArray, parameters[1].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(VarEnum.VT_CY, parameters[1].GetCustomAttribute<MarshalAsAttribute>()?.SafeArraySubType);
     }
 
     private static IrProgram Lower(string source)
