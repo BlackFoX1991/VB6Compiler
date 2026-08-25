@@ -2356,3 +2356,13 @@ Legacy-Projektnamen aus `ExeName32` beziehungsweise `Name` und wählt für EXE-/
 Projekte automatisch `.exe` beziehungsweise `.dll`; ein nicht vorhandenes endungsloses Verzeichnis
 wird angelegt. Ein echter CLI-Prozessstart für eine EXE und die DLL-Ausgabe eines Library-Projekts
 sind regressionsgesichert. Die Vollsuite umfasst nun **1005 Tests**.
+
+## Aktueller ObjPtr-COM-Nachtrag
+
+`ObjPtr` verwendet jetzt den nativen `LongPtr`-Vertrag und liefert für echte COM-/ActiveX-
+Objekte den kontrollierenden `IUnknown`-Zeiger, ohne die von `GetIUnknownForObject` erworbene
+temporäre Referenz zu leaken. `Nothing` beziehungsweise ein leerer Wert ergibt null, skalare
+Varianten melden Type Mismatch. Ein echter `htmlfile`-RCW sowie ein generierter `ObjPtr(Nothing)`-
+Aufruf sind auf AnyCPU regressiongesichert. Direkte `VarPtr`-/`StrPtr`-Speicheradressen und
+UDT-/Pointer-Marshalling bleiben wegen ihrer separaten Lebensdauer- und ABI-Regeln offen. Die
+Vollsuite umfasst nun **1010 Tests**.

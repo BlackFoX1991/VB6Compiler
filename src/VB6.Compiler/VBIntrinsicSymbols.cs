@@ -328,7 +328,7 @@ internal static class VBIntrinsicSymbols
         Sub("Load", VBIntrinsicKind.Load, "VBInteraction.Load", Parameter("Object", TypeSymbol.Variant)),
         Sub("Unload", VBIntrinsicKind.Unload, "VBInteraction.Unload", Parameter("Object", TypeSymbol.Variant)),
         Function("VarPtr", VBIntrinsicKind.VarPtr, "VBMemory.VarPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
-        Function("ObjPtr", VBIntrinsicKind.ObjPtr, "VBMemory.ObjPtr", TypeSymbol.Long, Parameter("Object", TypeSymbol.Variant)),
+        Function("ObjPtr", VBIntrinsicKind.ObjPtr, "VBMemory.ObjPtr", TypeSymbol.LongPtr, Parameter("Object", TypeSymbol.Variant)),
         Function("StrPtr", VBIntrinsicKind.StrPtr, "VBMemory.StrPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Sub("LSet", VBIntrinsicKind.LSet, "VBMemory.LSet", Parameter("Target", TypeSymbol.Variant), Parameter("Source", TypeSymbol.Variant)),
         Function(
