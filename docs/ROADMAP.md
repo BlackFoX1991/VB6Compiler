@@ -2552,4 +2552,6 @@ Vollsuite umfasst nun **1049 Testfälle**, davon **1049 bestanden** und **0 fehl
 Der native `IDispatch::Invoke`-Pfad gibt die von COM gelieferten `EXCEPINFO`-BSTR-Felder
 `Source`, `Description` und `HelpFile` jetzt auch bei Fehler-HRESULTs und Folgefehlern sicher
 mit `SysFreeString` frei. Der Windows-only Runtime-Test prüft die vollständige Bereinigung;
-die Vollsuite umfasst nun **1050 Testfälle**, davon **1050 bestanden** und **0 fehlgeschlagen**.
+die Dispatch-Aufrufe verwenden außerdem die aktuelle Prozess-LCID mit einem stabilen
+Invariant-Fallback. Die Vollsuite umfasst nun **1051 Testfälle**, davon **1051 bestanden** und
+**0 fehlgeschlagen**.

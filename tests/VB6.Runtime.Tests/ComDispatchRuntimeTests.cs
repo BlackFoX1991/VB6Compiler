@@ -8,6 +8,26 @@ namespace VB6.Runtime.Tests;
 public sealed class ComDispatchRuntimeTests
 {
     [TestMethod]
+    public void ComDispatch_UsesCurrentCultureLocaleWithInvariantFallback()
+    {
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture =
+                System.Globalization.CultureInfo.GetCultureInfo("de-DE");
+            Assert.AreEqual((uint)1031, VBComDispatch.ComLocaleId);
+
+            System.Globalization.CultureInfo.CurrentCulture =
+                System.Globalization.CultureInfo.InvariantCulture;
+            Assert.AreEqual((uint)1033, VBComDispatch.ComLocaleId);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [TestMethod]
     [SupportedOSPlatform("windows")]
     public void NativeExceptionInfo_ClearsAllBstrFields()
     {
