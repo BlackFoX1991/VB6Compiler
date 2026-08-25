@@ -88,7 +88,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
 
     if (args.Length == 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
     {
-        var projectAnalysis = projectCompilation.Analyze();
+        var projectAnalysis = projectCompilation.AnalyzeForEmission();
         var report = VBProjectParityReport.Create(projectAnalysis);
         Console.Write(report.Render());
         PrintProjectDiagnostics(projectAnalysis);

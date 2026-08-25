@@ -32,6 +32,33 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void Report_ReturnsNonZeroForExecutableProjectWithoutEntryPoint()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "NoMain.vbp");
+            File.WriteAllText(
+                projectPath,
+                "Type=Exe\nStartup=\"Sub Main\"\nName=NoMain\nModule=Only; Only.bas\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Only.bas"),
+                "Sub Helper()\n    Debug.Print 1\nEnd Sub\n");
+
+            var result = RunCli(projectPath, "--report");
+
+            Assert.AreNotEqual(0, result.ExitCode, result.StandardError);
+            StringAssert.Contains(result.StandardError, "VB6PRJ0005");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesVbgProjectsThroughTheCli()
     {
         var directory = CreateTemporaryDirectory();
@@ -441,6 +468,34 @@ public sealed class CliProcessTests
 
             Assert.AreNotEqual(0, result.ExitCode, result.StandardError);
             StringAssert.Contains(result.StandardError, "VB6VBG0007");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Report_ReturnsNonZeroForVbgProjectWithoutEntryPoint()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=NoMain.vbp\n");
+            File.WriteAllText(
+                Path.Combine(directory, "NoMain.vbp"),
+                "Type=Exe\nStartup=\"Sub Main\"\nName=NoMain\nModule=Only; Only.bas\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Only.bas"),
+                "Sub Helper()\n    Debug.Print 1\nEnd Sub\n");
+
+            var result = RunCli(groupPath, "--report");
+
+            Assert.AreNotEqual(0, result.ExitCode, result.StandardError);
+            StringAssert.Contains(result.StandardError, "VB6PRJ0005");
         }
         finally
         {

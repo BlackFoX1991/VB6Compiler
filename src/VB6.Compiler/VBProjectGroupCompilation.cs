@@ -61,7 +61,7 @@ public sealed class VBProjectGroupCompilation
             VBProjectCompilationAnalysis? compilation = null;
             if (projectDiagnostics.Count == 0)
             {
-                compilation = VBProjectCompilation.Create(projectPath, _options).Analyze();
+                compilation = VBProjectCompilation.Create(projectPath, _options).AnalyzeForEmission();
             }
 
             projects.Add(new VBProjectGroupProjectAnalysis(
