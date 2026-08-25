@@ -22,6 +22,7 @@ internal static class VBComDispatch
     private const ushort VariantVariant = 0x000C;
     private const ushort VariantDate = 0x0007;
     private const ushort VariantCurrency = 0x0006;
+    private const ushort VariantDispatch = 0x0009;
     private const ushort VariantPointer = 0x001A;
     private const ushort VariantSafeArray = 0x001B;
     private const int DispIdPropertyPut = -3;
@@ -936,6 +937,11 @@ internal static class VBComDispatch
         {
             if (value is IVBArray vbArray)
             {
+                if ((expectedType & VariantTypeMask) == VariantDispatch)
+                {
+                    return TryInitializeDispatchArray(vbArray, destination, expectedType);
+                }
+
                 if ((expectedType & VariantTypeMask) == VariantCurrency)
                 {
                     return TryInitializeCurrencyArray(vbArray, destination, expectedType);
@@ -1127,6 +1133,139 @@ internal static class VBComDispatch
         }
     }
 
+    [SupportedOSPlatform("windows")]
+    private static bool TryInitializeDispatchArray(
+        IVBArray source,
+        IntPtr destination,
+        ushort expectedType)
+    {
+        if (source.Rank < 1)
+        {
+            return false;
+        }
+
+        var bounds = new NativeSafeArrayBound[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        var upperBounds = new int[source.Rank];
+        var sourceLength = 1L;
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lowerBounds[dimension] = source.LBound(dimension + 1);
+            upperBounds[dimension] = source.UBound(dimension + 1);
+            var length = (long)upperBounds[dimension] - lowerBounds[dimension] + 1L;
+            if (length < 0 || length > uint.MaxValue)
+            {
+                return false;
+            }
+
+            bounds[dimension] = new NativeSafeArrayBound((uint)length, lowerBounds[dimension]);
+            if (length == 0)
+            {
+                sourceLength = 0;
+            }
+            else if (sourceLength != 0)
+            {
+                sourceLength = checked(sourceLength * length);
+                if (sourceLength > int.MaxValue)
+                {
+                    return false;
+                }
+            }
+        }
+
+        var safeArray = SafeArrayCreate(
+            VariantDispatch,
+            (uint)source.Rank,
+            bounds);
+        if (safeArray == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (sourceLength != 0)
+            {
+                var indices = lowerBounds.ToArray();
+                for (var offset = 0L; offset < sourceLength; offset++)
+                {
+                    var value = source.GetObjectValue(indices);
+                    var dispatchPointer = IntPtr.Zero;
+                    try
+                    {
+                        var comValue = UnwrapComValue(value);
+                        if (comValue is null ||
+                            comValue is DBNull ||
+                            comValue is System.Reflection.Missing ||
+                            VBVariants.IsNull(comValue) ||
+                            VBVariants.IsNothing(comValue))
+                        {
+                            IncrementIndices(indices, lowerBounds, upperBounds);
+                            continue;
+                        }
+                        dispatchPointer = Marshal.GetIDispatchForObject(comValue);
+                        if (dispatchPointer == IntPtr.Zero)
+                        {
+                            return false;
+                        }
+
+                        // VT_DISPATCH elements are passed as the interface pointer itself; the
+                        // SafeArray API does not expect an additional pointer indirection.
+                        if (SafeArrayPutElement(safeArray, indices, dispatchPointer) < 0)
+                        {
+                            return false;
+                        }
+                    }
+                    finally
+                    {
+                        if (dispatchPointer != IntPtr.Zero)
+                        {
+                            Marshal.Release(dispatchPointer);
+                        }
+                    }
+
+                    IncrementIndices(indices, lowerBounds, upperBounds);
+                }
+            }
+
+            Marshal.WriteInt16(destination, unchecked((short)expectedType));
+            Marshal.WriteIntPtr(destination, VariantDataOffset, safeArray);
+            safeArray = IntPtr.Zero;
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
+        finally
+        {
+            if (safeArray != IntPtr.Zero)
+            {
+                _ = SafeArrayDestroy(safeArray);
+            }
+        }
+    }
+
     internal static bool TryCreateAutomationArray(
         IVBArray source,
         ushort expectedType,
@@ -1194,6 +1333,44 @@ internal static class VBComDispatch
             result = null;
             return false;
         }
+    }
+
+    internal static object? NormalizeDispatchArray(object? value)
+    {
+        if (value is not Array source)
+        {
+            return value;
+        }
+
+        var lengths = new int[source.Rank];
+        var lowerBounds = new int[source.Rank];
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            lengths[dimension] = source.GetLength(dimension);
+            lowerBounds[dimension] = source.GetLowerBound(dimension);
+        }
+
+        var result = Array.CreateInstance(typeof(object), lengths, lowerBounds);
+        if (source.Length == 0)
+        {
+            return result;
+        }
+
+        var upperBounds = new int[source.Rank];
+        for (var dimension = 0; dimension < source.Rank; dimension++)
+        {
+            upperBounds[dimension] = source.GetUpperBound(dimension);
+        }
+
+        var indices = lowerBounds.ToArray();
+        for (var offset = 0; offset < source.Length; offset++)
+        {
+            var element = source.GetValue(indices);
+            result.SetValue(element ?? VBVariants.NothingValue(), indices);
+            IncrementIndices(indices, lowerBounds, upperBounds);
+        }
+
+        return result;
     }
 
     private static Type? GetAutomationElementType(ushort expectedType)
