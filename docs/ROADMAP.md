@@ -1083,7 +1083,7 @@ Zwei Nachträge:
       Elemente koennen an Variant-ByRef-Parameter weitergereicht werden; auch ein kompletter
       Variant-Array-Wert kann an `ByRef value As Variant` uebergeben und im Callee ersetzt werden.
       Vollstaendige Objekt-/Array-Promotion sowie typisierte/COM-ByRef-Array-Faelle bleiben offen
-- [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
+- [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` inklusive `Null & Null` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
 - [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
 ## Meilenstein 5 — Prozeduren und Klassen
@@ -2718,3 +2718,11 @@ ActiveX- oder TypeLib-Datei invalidiert damit den inkrementellen Build, während
 Ausgabeverzeichnis aus dem Scan ausgeschlossen bleibt und keinen Selbsttrigger erzeugt. Der
 gepackte SDK-Pfad ist mit einer echten `.ocx`-Änderung regressionsgesichert; die Vollsuite bleibt
 bei **1080 Testfällen**.
+
+## Aktueller Variant-&-Null-Nachtrag
+
+Der Runtime- und Managed-Emitter-Vertrag bildet die VBA-Sonderregel für den `&`-Operator jetzt
+vollständig ab: Ein einzelnes `Null` wird als leerer String verkettet, `Null & Null` bleibt
+dagegen ein `Null`-Variant. Die Regression deckt den direkten Runtime-Aufruf sowie den
+kompilierten Pfad mit `IsNull` und `TypeName` ab. Die aktuelle Vollsuite umfasst **1082
+Testfälle**, davon **1082 bestanden** und **0 fehlgeschlagen**.
