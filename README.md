@@ -287,6 +287,11 @@ Variant objects now resolve their default property in numeric, string, type, and
 
 Current native LLVM status (optional/deferred): checked integer Add/Subtract/Multiply and Integer narrowing/sign conversions plus Currency Add/Subtract/Negate use pending-error-aware i64 helpers with explicit target-width guards. Currency multiplication now uses a scaled `i128` product with VB6 banker's rounding and an `Int64` range guard. Rounded Single/Double-to-integer conversions now cover typed integer targets through 64-bit using `roundeven` and safe representable range guards; Currency-to-integer conversions use the same scaled ties-to-even helper; exact integer- and Boolean-to-Currency conversions use checked i128 scaling with VB6's `True = -10000` representation; rounded Single/Double-to-Currency conversions use scaled `roundeven`, finite/range guards and checked `fptosi`. Native `On Error Resume Next` and label-directed handler boundaries now consume pending scalar errors, with native `Err.Number`/`Err.Clear` access; `Resume Next` and targetless `Resume` select the recorded boundary continuation/retry labels. String-valued Err fields and complex native ABI contracts remain open. The suite now contains **1014 tests**.
 
+Typed `Object()`/Control() callback and connection-point arrays now carry explicit
+`SAFEARRAY(VT_DISPATCH)` metadata. The managed adapter preserves VB6 bounds and writes
+replacement arrays back through the native delegate boundary; UDT-, pointer- and nested string
+array ABIs remain separate interop work.
+
 ## Next milestones
 
 The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate compiler order is:

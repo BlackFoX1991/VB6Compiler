@@ -260,6 +260,13 @@ public sealed class AddressOfExecutionTests
                     LongArrayCallback = 1
                 End Function
 
+                Private Function ObjectArrayCallback(ByRef values() As Object) As Long
+                    ReDim values(4 To 5)
+                    Set values(4) = Nothing
+                    Set values(5) = Nothing
+                    ObjectArrayCallback = 1
+                End Function
+
                 Sub Main()
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(assemblyPath);
@@ -354,6 +361,35 @@ public sealed class AddressOfExecutionTests
             Assert.AreEqual(2, longValues.GetUpperBound(0));
             Assert.AreEqual(123456, longValues.GetValue(1));
             Assert.AreEqual(-4, longValues.GetValue(2));
+
+            var objectMethod = FindGeneratedMethod(assembly, "ObjectArrayCallback");
+            Assert.AreEqual(typeof(VBArray<object>).MakeByRefType(), objectMethod.GetParameters().Single().ParameterType);
+            var objectMarshal = objectMethod.GetParameters().Single().GetCustomAttribute<MarshalAsAttribute>();
+            Assert.AreEqual(UnmanagedType.SafeArray, objectMarshal?.Value);
+            Assert.AreEqual(VarEnum.VT_DISPATCH, objectMarshal?.SafeArraySubType);
+
+            var objectPointer = VBCallbackRegistry.GetFunctionPointer(objectMethod.MethodHandle, null);
+            var objectCallbackType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    var parameter = invoke?.GetParameters().SingleOrDefault();
+                    var callbackMarshal = parameter?.GetCustomAttribute<MarshalAsAttribute>();
+                    return invoke?.ReturnType == typeof(int) &&
+                        parameter?.ParameterType == typeof(Array).MakeByRefType() &&
+                        callbackMarshal?.Value == UnmanagedType.SafeArray &&
+                        callbackMarshal.SafeArraySubType == VarEnum.VT_DISPATCH;
+                });
+            var objectCallback = Marshal.GetDelegateForFunctionPointer(objectPointer, objectCallbackType);
+            Array objectValues = Array.CreateInstance(typeof(object), new[] { 1 }, new[] { 0 });
+            var objectArguments = new object?[] { objectValues };
+            Assert.AreEqual(1, objectCallback.DynamicInvoke(objectArguments));
+            objectValues = (Array)objectArguments[0]!;
+            Assert.AreEqual(4, objectValues.GetLowerBound(0));
+            Assert.AreEqual(5, objectValues.GetUpperBound(0));
+            Assert.AreSame(VBVariants.NothingValue(), objectValues.GetValue(4));
+            Assert.AreSame(VBVariants.NothingValue(), objectValues.GetValue(5));
         }
         finally
         {
