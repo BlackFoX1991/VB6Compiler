@@ -83,8 +83,9 @@ Drei Schlüsse, die die Reihenfolge in M8 und M9 bestimmen:
 1. **Intrinsische Controls und ihr Eventmodell dominieren**, nicht OCX — 149 intrinsische
    Designer-Instanzen gegen 13 OCX-Instanzen. Die Forms-Grundmechanik wiegt schwerer als die
    ActiveX-Oberfläche, obwohl letztere spektakulärer aussieht.
-2. **`Paint` ist das einzige verbreitete Event, das der Host nicht verdrahtet** — zusammen mit
-   12× `AutoRedraw` ist das die größte belegte Lücke im Forms-Vertrag.
+2. **`Paint` war das einzige verbreitete Event, das der Host nicht verdrahtet hat** — zusammen mit
+   12× `AutoRedraw` die größte belegte Lücke im Forms-Vertrag. Inzwischen geschlossen; das
+   Eventmodell der intrinsischen Controls ist damit vollständig.
 3. **MDI kommt im Korpus nicht ein einziges Mal vor.** Es steht in M9 als offener Punkt und wird
    deshalb zurückgestellt, nicht gebaut.
 
