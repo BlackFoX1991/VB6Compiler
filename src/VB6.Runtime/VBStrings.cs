@@ -39,6 +39,7 @@ public static class VBStrings
             double => 8,
             bool => 2,
             VBDateValue => 8,
+            DateTime => 8,
             VBCurrency => 8,
             _ when IsGeneratedUserDefinedType(value) => Marshal.SizeOf(value),
             _ => throw new InvalidCastException(
@@ -84,6 +85,7 @@ public static class VBStrings
             double => 8,
             bool => 2,
             VBDateValue => 8,
+            DateTime => 8,
             VBCurrency => 8,
             _ when IsGeneratedUserDefinedType(value) => Marshal.SizeOf(value),
             _ => throw new InvalidCastException(
