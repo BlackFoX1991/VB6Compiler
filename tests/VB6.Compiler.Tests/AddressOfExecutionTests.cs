@@ -1,4 +1,7 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
 using VB6.IR;
+using VB6.Runtime;
 using VB6.Semantics;
 
 namespace VB6.Compiler.Tests;
@@ -123,6 +126,100 @@ public sealed class AddressOfExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_MarshalsVariantCallbackSlotsWithoutChangingObjectSlots()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The native Variant callback test requires Windows.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantCallbackTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var assemblyPath = Path.Combine(directory, "VariantCallback.dll");
+
+        try
+        {
+            var result = VBCompilation.Create("""
+                Private Function VariantCallback(ByVal value As Variant) As Variant
+                    VariantCallback = value
+                End Function
+
+                Private Function ObjectCallback(ByVal value As Object) As Object
+                    ObjectCallback = value
+                End Function
+
+                Sub Main()
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(assemblyPath);
+
+            Assert.IsTrue(
+                result.Success,
+                string.Join(
+                    Environment.NewLine,
+                    result.Diagnostics.Select(diagnostic => diagnostic.ToString()),
+                    result.BackendResult?.Diagnostics.Select(diagnostic => diagnostic.Message) ?? []));
+
+            var assembly = Assembly.Load(File.ReadAllBytes(assemblyPath));
+            var variantMethod = FindGeneratedMethod(assembly, "VariantCallback");
+            var objectMethod = FindGeneratedMethod(assembly, "ObjectCallback");
+            var variantParameter = variantMethod.GetParameters().Single();
+            var objectParameter = objectMethod.GetParameters().Single();
+
+            Assert.AreEqual(typeof(object), variantParameter.ParameterType);
+            Assert.AreEqual(
+                UnmanagedType.Struct,
+                variantParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+            Assert.AreEqual(
+                UnmanagedType.Struct,
+                variantMethod.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+            Assert.IsNull(objectParameter.GetCustomAttribute<MarshalAsAttribute>());
+            Assert.IsNull(objectMethod.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>());
+
+            var pointer = VBCallbackRegistry.GetFunctionPointer(variantMethod.MethodHandle, null);
+            var objectPointer = VBCallbackRegistry.GetFunctionPointer(objectMethod.MethodHandle, null);
+            var callbackAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .Single(assembly => assembly.GetName().Name == "VB6.Runtime.NativeCallbacks");
+            var callbackType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    return invoke is not null &&
+                        invoke.GetParameters().Length == 1 &&
+                        invoke.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value == UnmanagedType.Struct &&
+                        invoke.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value == UnmanagedType.Struct;
+                });
+            var callback = Marshal.GetDelegateForFunctionPointer(pointer, callbackType);
+            Assert.AreEqual(17, callback.DynamicInvoke(17));
+
+            var objectCallbackType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    return invoke is not null &&
+                        invoke.GetParameters().Length == 1 &&
+                        invoke.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>() is null &&
+                        invoke.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>() is null;
+                });
+            Assert.AreNotEqual(callbackType, objectCallbackType);
+            var objectCallback = Marshal.GetDelegateForFunctionPointer(objectPointer, objectCallbackType);
+            Assert.AreEqual(19, objectCallback.DynamicInvoke(19));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesNativeDeclareByRefUdtCallback()
     {
         if (!OperatingSystem.IsWindows())
@@ -160,4 +257,13 @@ public sealed class AddressOfExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    private static MethodInfo FindGeneratedMethod(Assembly assembly, string name)
+    {
+        return assembly
+            .GetTypes()
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance))
+            .Single(method => method.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+    }
+
 }

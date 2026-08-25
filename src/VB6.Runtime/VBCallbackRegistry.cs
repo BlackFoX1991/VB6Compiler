@@ -31,11 +31,13 @@ public static class VBCallbackRegistry
             throw new InvalidOperationException("AddressOf does not refer to a managed method.");
         var parameters = method.GetParameters();
 
-        var delegateSignature = parameters
-            .Select(parameter => parameter.ParameterType)
-            .Append(method.ReturnType)
-            .ToArray();
-        var delegateType = GetDelegateType(delegateSignature);
+        var parameterTypes = parameters.Select(parameter => parameter.ParameterType).ToArray();
+        var variantParameters = parameters.Select(IsVariantSlot).ToArray();
+        var delegateType = GetDelegateType(
+            parameterTypes,
+            variantParameters,
+            method.ReturnType,
+            IsVariantSlot(method.ReturnParameter));
         var callback = target is null
             ? method.CreateDelegate(delegateType)
             : method.CreateDelegate(delegateType, target);
@@ -44,11 +46,21 @@ public static class VBCallbackRegistry
         return pointer;
     }
 
-    private static Type GetDelegateType(IReadOnlyList<Type> signature)
+    private static Type GetDelegateType(
+        IReadOnlyList<Type> parameterTypes,
+        IReadOnlyList<bool> variantParameters,
+        Type returnType,
+        bool variantReturn)
     {
         var key = string.Join(
             ";",
-            signature.Select(type => type.AssemblyQualifiedName ?? type.FullName ?? type.Name));
+            parameterTypes
+                .Select((type, index) =>
+                    (type.AssemblyQualifiedName ?? type.FullName ?? type.Name) +
+                    (variantParameters[index] ? ":variant" : ":default"))
+                .Append(
+                    (returnType.AssemblyQualifiedName ?? returnType.FullName ?? returnType.Name) +
+                    (variantReturn ? ":variant" : ":default")));
         lock (DelegateTypeLock)
         {
             if (DelegateTypes.TryGetValue(key, out var cached))
@@ -73,29 +85,29 @@ public static class VBCallbackRegistry
                 new[] { typeof(object), typeof(IntPtr) });
             constructor.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
-            var parameterTypes = signature.Take(signature.Count - 1).ToArray();
             var invoke = type.DefineMethod(
                 "Invoke",
                 MethodAttributes.Public |
                 MethodAttributes.HideBySig |
                 MethodAttributes.NewSlot |
                 MethodAttributes.Virtual,
-                signature[^1],
-                parameterTypes);
+                returnType,
+                parameterTypes.ToArray());
             invoke.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
-            for (var index = 0; index < parameterTypes.Length; index++)
+            for (var index = 0; index < parameterTypes.Count; index++)
             {
                 var parameter = invoke.DefineParameter(
                     index + 1,
                     ParameterAttributes.None,
                     "arg" + index);
-                ApplyNativeMarshal(parameter, parameterTypes[index]);
+                ApplyNativeMarshal(parameter, parameterTypes[index], variantParameters[index]);
             }
 
             ApplyNativeMarshal(
                 invoke.DefineParameter(0, ParameterAttributes.None, "return"),
-                signature[^1]);
+                returnType,
+                variantReturn);
 
             var callingConventionAttribute = typeof(UnmanagedFunctionPointerAttribute)
                 .GetConstructor(new[] { typeof(CallingConvention) })
@@ -118,14 +130,19 @@ public static class VBCallbackRegistry
         }
     }
 
-    private static void ApplyNativeMarshal(ParameterBuilder parameter, Type type)
+    private static bool IsVariantSlot(ParameterInfo parameter) =>
+        parameter.GetCustomAttribute<MarshalAsAttribute>()?.Value == UnmanagedType.Struct;
+
+    private static void ApplyNativeMarshal(ParameterBuilder parameter, Type type, bool variant)
     {
         var elementType = type.IsByRef ? type.GetElementType()! : type;
-        var unmanagedType = elementType == typeof(bool)
-            ? UnmanagedType.Bool
-            : elementType == typeof(string)
-                ? UnmanagedType.LPStr
-                : (UnmanagedType?)null;
+        var unmanagedType = variant
+            ? UnmanagedType.Struct
+            : elementType == typeof(bool)
+                ? UnmanagedType.Bool
+                : elementType == typeof(string)
+                    ? UnmanagedType.LPStr
+                    : (UnmanagedType?)null;
         if (unmanagedType is null)
         {
             return;

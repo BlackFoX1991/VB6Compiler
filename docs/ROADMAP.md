@@ -1187,7 +1187,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `StringBuilder` und aufrufseitigem Write-back, native `ByRef`-UDT-Rückschreibung sowie
       Scalar-Pointer-Transfers für `As Any` stehen, `AddressOf` erzeugt Managed-Funktionsadressen
       für direkte Prozedurziele und blittable `ByRef`-Callback-Parameter, komplexes Array-Marshalling
-      sowie verschachtelte Pointer-/Variant-/String-Callback-ABI-Verträge bleiben offen
+      sowie verschachtelte Pointer-/String-Callback-ABI-Verträge bleiben offen; native
+      `VARIANT`-Slots für einfache Variant-Callback-Parameter und -Rückgaben sind ergänzt
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
@@ -1226,7 +1227,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 - [~] `AddressOf` — direkte Prozedurziele werden als `LongPtr`-Funktionsadresse emittiert und für
       Legacy-`Long`-Callbackparameter konvertiert; blittable native Callback-Parameter und
       Delegate-Lebensdauer stehen; dynamische Callback-Delegaten markieren Win32-`BOOL` und
-      ANSI-Strings jetzt explizit, komplexe Variant-/UDT-/verschachtelte Pointer-ABIs bleiben offen
+      ANSI-Strings sowie einfache `Variant`-Slots jetzt explizit, komplexe UDT-/verschachtelte
+      Pointer-/Variant-Array-ABIs bleiben offen
 
 ## Meilenstein 9 — Forms
 
@@ -2313,4 +2315,13 @@ UTF-16-Puffer mit deterministischer Freigabe. Ist das Ziel eine beschreibbare St
 wird der native Inhalt nach dem Aufruf mit der ursprünglichen Zeichenlänge zurückübertragen.
 Ein echter `kernel32!RtlMoveMemory`-Roundtrip ist auf AnyCPU und x86 regressionsgesichert;
 direkte freie `StrPtr`-Aufrufe und weitere rohe String-/UDT-Pointer bleiben bewusst separate
-native Speicherverträge.
+native Speicherverträge. Die Vollsuite umfasst nun **997 Tests**.
+
+## Aktueller Variant-Callback-Nachtrag
+
+Einfache `Variant`-Parameter und -Rückgaben von `AddressOf`-Prozeduren werden im Managed-Emitter
+jetzt als CLR-`object` mit explizitem `UnmanagedType.Struct`-Descriptor geführt. Die dynamische
+Callback-Registry trennt diese nativen `VARIANT`-Slots vom unveränderten `Object`-ABI auch im
+Delegattyp-Cache; eine Reflection- und Funktionszeiger-Regression prüft beide Formen. Variant-
+Arrays, UDTs und verschachtelte Pointer im Callback bleiben separate komplexe ABI-Schritte; die
+Vollsuite umfasst nun **998 Tests**.
