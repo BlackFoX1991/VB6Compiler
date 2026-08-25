@@ -99,6 +99,61 @@ public sealed class VBProjectGroupCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ReportsProjectReferenceThatIsNotDeclaredInTheGroup()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=Consumer.vbp\n");
+            File.WriteAllText(Path.Combine(directory, "Shared.vbp"), """
+                Type=OleDll
+                Name=Shared
+                Class=Customer; Customer.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Customer.cls"), """
+                Public Function Value() As Long
+                    Value = 7
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.vbp"), """
+                Type=Exe
+                Startup="Sub Main"
+                Name=Consumer
+                Reference=*\G{00025E01-0000-0000-C000-000000000046}#1.0#0#Shared.vbp#Shared
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Debug.Print 1
+                End Sub
+                """);
+
+            var compilation = VBProjectGroupCompilation.Create(groupPath);
+            var analysis = compilation.Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            var diagnostic = analysis.Projects
+                .Single(project => project.Project.RelativePath == "Consumer.vbp")
+                .Diagnostics
+                .Single(diagnostic => diagnostic.Code == "VB6VBG0008");
+            StringAssert.Contains(diagnostic.Message, "Shared.vbp");
+
+            var outputDirectory = Path.Combine(directory, "bin");
+            var emit = compilation.EmitManagedApplications(outputDirectory);
+            Assert.IsFalse(emit.Success);
+            Assert.AreEqual(0, emit.Projects.Length);
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Consumer.exe")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplications_UsesExeName32ForExecutableProjects()
     {
         var directory = CreateTemporaryDirectory();

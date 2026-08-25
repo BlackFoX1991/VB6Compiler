@@ -824,6 +824,47 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void Report_ReturnsNonZeroForVbgProjectReferenceOutsideTheGroup()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=Consumer.vbp\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Shared.vbp"),
+                "Type=OleDll\nName=Shared\nClass=Customer; Customer.cls\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Customer.cls"),
+                "Public Function Value() As Long\n    Value = 7\nEnd Function\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Consumer.vbp"),
+                "Type=Exe\nStartup=\"Sub Main\"\nName=Consumer\n" +
+                "Reference=*\\G{00025E01-0000-0000-C000-000000000046}#1.0#0#Shared.vbp#Shared\n" +
+                "Module=Main; Main.bas\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Main.bas"),
+                "Sub Main()\n    Debug.Print 1\nEnd Sub\n");
+
+            var result = RunCli(groupPath, "--report");
+
+            Assert.AreNotEqual(0, result.ExitCode, result.StandardError);
+            StringAssert.Contains(result.StandardError, "VB6VBG0008");
+
+            var outputDirectory = Path.Combine(directory, "bin");
+            var emit = RunCli(groupPath, "--emit-assembly", outputDirectory);
+            Assert.AreNotEqual(0, emit.ExitCode, emit.StandardError);
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Consumer.exe")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Report_ReturnsNonZeroForVbgProjectWithoutEntryPoint()
     {
         var directory = CreateTemporaryDirectory();
