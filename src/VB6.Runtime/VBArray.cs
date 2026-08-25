@@ -37,6 +37,8 @@ public readonly record struct VBArrayBound(int Lower, int Upper)
 public interface IVBArray
 {
     int Rank { get; }
+    string? ElementTypeName { get; }
+    short ElementVarType { get; }
     int LBound(int dimension = 1);
     int UBound(int dimension = 1);
     object? GetObjectValue(int[] indices);
@@ -52,8 +54,20 @@ public sealed class VBArray<T> : IVBArray
 {
     private readonly VBArrayBound[] _bounds;
     private readonly T[] _items;
+    private readonly string? _elementTypeName;
+    private readonly short _elementVarType;
 
     public VBArray(params VBArrayBound[] bounds)
+        : this(null, 0, bounds)
+    {
+    }
+
+    /// <summary>
+    /// Creates an array with an explicit VB element descriptor. This is needed when a semantic
+    /// object type is represented by CLR <see cref="object"/> storage, so Variant() and Object()
+    /// keep distinct TypeName/VarType results.
+    /// </summary>
+    public VBArray(string? elementTypeName, short elementVarType, params VBArrayBound[] bounds)
     {
         ArgumentNullException.ThrowIfNull(bounds);
         if (bounds.Length == 0)
@@ -62,6 +76,8 @@ public sealed class VBArray<T> : IVBArray
         }
 
         _bounds = bounds.ToArray();
+        _elementTypeName = string.IsNullOrWhiteSpace(elementTypeName) ? null : elementTypeName;
+        _elementVarType = elementVarType;
         long totalLength = 1;
         foreach (var bound in _bounds)
         {
@@ -78,6 +94,8 @@ public sealed class VBArray<T> : IVBArray
 
     public int Rank => _bounds.Length;
     public int Length => _items.Length;
+    public string? ElementTypeName => _elementTypeName;
+    public short ElementVarType => _elementVarType;
 
     public int LBound(int dimension = 1) => GetBound(dimension).Lower;
     public int UBound(int dimension = 1) => GetBound(dimension).Upper;
@@ -124,8 +142,19 @@ public sealed class VBArray<T> : IVBArray
     /// itself contains managed backing storage.
     /// </summary>
     public VBArray<T> Clone(Func<T, T>? elementCloner = null)
+        => CloneWithElementDescriptor(_elementTypeName, _elementVarType, elementCloner);
+
+    /// <summary>
+    /// Creates independent array storage while replacing the optional VB element descriptor.
+    /// Managed assignment and SAFEARRAY conversion use this when the destination declaration is
+    /// more specific than the CLR representation of the source value.
+    /// </summary>
+    public VBArray<T> CloneWithElementDescriptor(
+        string? elementTypeName,
+        short elementVarType,
+        Func<T, T>? elementCloner = null)
     {
-        var clone = new VBArray<T>(_bounds);
+        var clone = new VBArray<T>(elementTypeName, elementVarType, _bounds);
         if (elementCloner is null)
         {
             Array.Copy(_items, clone._items, _items.Length);
@@ -186,7 +215,7 @@ public sealed class VBArray<T> : IVBArray
                 nameof(bounds));
         }
 
-        var resized = new VBArray<T>(bounds);
+        var resized = new VBArray<T>(_elementTypeName, _elementVarType, bounds);
         var oldLastLength = _bounds[lastDimension].Length;
         var newLastLength = bounds[lastDimension].Length;
         var preservedLastLength = Math.Min(oldLastLength, newLastLength);
@@ -281,7 +310,17 @@ public static class VBArrayOperations
     /// COM dispatch returns <see cref="System.Array"/> even when the imported VB6 signature is a
     /// typed array, so the managed backend performs this conversion at the dynamic-call boundary.
     /// </summary>
-    public static VBArray<T>? FromObject<T>(object? value)
+    public static VBArray<T>? FromObject<T>(object? value) => FromObject<T>(value, null, 0);
+
+    /// <summary>
+    /// Converts a dynamic array result while optionally applying the destination's declared VB
+    /// element descriptor. This keeps Object() distinct from Variant() even though both use
+    /// <see cref="object"/> as their managed storage type.
+    /// </summary>
+    public static VBArray<T>? FromObject<T>(
+        object? value,
+        string? elementTypeName,
+        short elementVarType)
     {
         if (value is null)
         {
@@ -290,19 +329,28 @@ public static class VBArrayOperations
 
         if (value is VBArray<T> typed)
         {
-            return typed;
+            return HasElementDescriptor(elementTypeName, elementVarType) &&
+                   (typed.ElementTypeName != elementTypeName || typed.ElementVarType != elementVarType)
+                ? typed.CloneWithElementDescriptor(elementTypeName, elementVarType)
+                : typed;
         }
 
         if (value is IVBArray vbArray)
         {
-            return CopyArray<T>(vbArray, indices => vbArray.GetObjectValue(indices));
+            return CopyArray<T>(
+                vbArray,
+                indices => vbArray.GetObjectValue(indices),
+                elementTypeName,
+                elementVarType);
         }
 
         if (value is Array clrArray)
         {
             return CopyArray<T>(
                 clrArray,
-                indices => clrArray.GetValue(indices));
+                indices => clrArray.GetValue(indices),
+                elementTypeName,
+                elementVarType);
         }
 
         throw new InvalidCastException("The dynamic result does not contain a VB6 array.");
@@ -319,7 +367,10 @@ public static class VBArrayOperations
             return null;
         }
 
-        var source = FromObject<T>(value)!;
+        var source = FromObject<T>(
+            value,
+            target?.ElementTypeName,
+            target?.ElementVarType ?? (short)0)!;
         if (target is null || target.Rank != source.Rank)
         {
             return source;
@@ -415,7 +466,11 @@ public static class VBArrayOperations
         return result;
     }
 
-    private static VBArray<T> CopyArray<T>(IVBArray source, Func<int[], object?> getValue)
+    private static VBArray<T> CopyArray<T>(
+        IVBArray source,
+        Func<int[], object?> getValue,
+        string? elementTypeName = null,
+        short elementVarType = 0)
     {
         var bounds = new VBArrayBound[source.Rank];
         for (var dimension = 0; dimension < bounds.Length; dimension++)
@@ -425,10 +480,21 @@ public static class VBArrayOperations
                 source.UBound(dimension + 1));
         }
 
-        return CopyArray(new VBArray<T>(bounds), getValue);
+        return CopyArray(
+            new VBArray<T>(
+                elementTypeName ?? (typeof(T) == typeof(object) ? source.ElementTypeName : null),
+                elementVarType != 0
+                    ? elementVarType
+                    : typeof(T) == typeof(object) ? source.ElementVarType : (short)0,
+                bounds),
+            getValue);
     }
 
-    private static VBArray<T> CopyArray<T>(Array source, Func<int[], object?> getValue)
+    private static VBArray<T> CopyArray<T>(
+        Array source,
+        Func<int[], object?> getValue,
+        string? elementTypeName = null,
+        short elementVarType = 0)
     {
         var bounds = new VBArrayBound[source.Rank];
         for (var dimension = 0; dimension < bounds.Length; dimension++)
@@ -438,8 +504,11 @@ public static class VBArrayOperations
                 source.GetUpperBound(dimension));
         }
 
-        return CopyArray(new VBArray<T>(bounds), getValue);
+        return CopyArray(new VBArray<T>(elementTypeName, elementVarType, bounds), getValue);
     }
+
+    private static bool HasElementDescriptor(string? elementTypeName, short elementVarType) =>
+        !string.IsNullOrWhiteSpace(elementTypeName) || elementVarType != 0;
 
     private static VBArray<T> CopyArray<T>(VBArray<T> target, Func<int[], object?> getValue)
     {
@@ -737,9 +806,20 @@ public static class VBTypeStorage
     /// than in a copy of the enclosing value.
     /// </summary>
     public static VBArray<T> EnsureArray<T>(ref VBArray<T>? storage, params VBArrayBound[] bounds)
+        => EnsureArray(ref storage, null, 0, bounds);
+
+    /// <summary>
+    /// Descriptor-aware overload used for fixed UDT members whose semantic element type is a
+    /// reference type represented by managed <see cref="object"/> storage.
+    /// </summary>
+    public static VBArray<T> EnsureArray<T>(
+        ref VBArray<T>? storage,
+        string? elementTypeName,
+        short elementVarType,
+        params VBArrayBound[] bounds)
     {
         ArgumentNullException.ThrowIfNull(bounds);
-        return storage ??= new VBArray<T>(bounds);
+        return storage ??= new VBArray<T>(elementTypeName, elementVarType, bounds);
     }
 
     /// <summary>
@@ -748,9 +828,21 @@ public static class VBTypeStorage
     /// leave both values sharing one array.
     /// </summary>
     public static VBArray<T> CopyArray<T>(VBArray<T>? source, params VBArrayBound[] bounds)
+        => CopyArray(source, null, 0, bounds);
+
+    /// <summary>Descriptor-aware copy helper for fixed UDT array members.</summary>
+    public static VBArray<T> CopyArray<T>(
+        VBArray<T>? source,
+        string? elementTypeName,
+        short elementVarType,
+        params VBArrayBound[] bounds)
     {
         ArgumentNullException.ThrowIfNull(bounds);
-        return source is null ? new VBArray<T>(bounds) : source.Clone();
+        return source is null
+            ? new VBArray<T>(elementTypeName, elementVarType, bounds)
+            : string.IsNullOrWhiteSpace(elementTypeName) && elementVarType == 0
+                ? source.Clone()
+                : source.CloneWithElementDescriptor(elementTypeName, elementVarType);
     }
 
     /// <summary>

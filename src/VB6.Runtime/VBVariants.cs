@@ -110,6 +110,11 @@ public static class VBVariants
 
     public static string ArrayTypeName(object? value)
     {
+        if (value is IVBArray describedArray && describedArray.ElementTypeName is { } describedType)
+        {
+            return describedType + "()";
+        }
+
         var elementType = value switch
         {
             IVBArray array => GetArrayElementType(array.GetType()),
@@ -134,7 +139,7 @@ public static class VBVariants
     {
         if (value is IVBArray or Array)
         {
-            return ArrayVarType(value.GetType());
+            return ArrayVarType(value);
         }
 
         return VarType(value, depth: 0);
@@ -144,7 +149,7 @@ public static class VBVariants
     {
         if (value is IVBArray or Array)
         {
-            return ArrayVarType(value.GetType());
+            return ArrayVarType(value);
         }
 
         if (depth < 8 &&
@@ -181,8 +186,14 @@ public static class VBVariants
         };
     }
 
-    private static short ArrayVarType(Type arrayType)
+    private static short ArrayVarType(object array)
     {
+        if (array is IVBArray describedArray && describedArray.ElementVarType != 0)
+        {
+            return checked((short)(8192 + describedArray.ElementVarType));
+        }
+
+        var arrayType = array.GetType();
         var elementType = GetArrayElementType(arrayType);
         var elementVarType = elementType == typeof(object) ? 12
             : elementType == typeof(string) ? 8

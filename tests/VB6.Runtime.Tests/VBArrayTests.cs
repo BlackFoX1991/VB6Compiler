@@ -158,6 +158,37 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
+    public void Array_CloneAndReDimPreserveElementDescriptor()
+    {
+        var array = new VBArray<object>("Object", 9, new VBArrayBound(0, 1));
+
+        var clone = array.Clone();
+        var resized = array.ReDimPreserve(new VBArrayBound(0, 2));
+
+        Assert.AreEqual("Object", clone.ElementTypeName);
+        Assert.AreEqual((short)9, clone.ElementVarType);
+        Assert.AreEqual("Object", resized.ElementTypeName);
+        Assert.AreEqual((short)9, resized.ElementVarType);
+    }
+
+    [TestMethod]
+    public void Array_CopyBackPreservesDestinationDescriptorWhenShapeChanges()
+    {
+        var target = new VBArray<object>("Object", 9, new VBArrayBound(0, 1));
+        var source = Array.CreateInstance(typeof(object), new[] { 3 }, new[] { 0 });
+        source.SetValue("first", 0);
+        source.SetValue("last", 2);
+
+        var result = VBArrayOperations.CopyBack(target, source)!;
+
+        Assert.AreEqual("Object", result.ElementTypeName);
+        Assert.AreEqual((short)9, result.ElementVarType);
+        Assert.AreEqual("Object()", VBFunctions.TypeName(result));
+        Assert.AreEqual((short)8201, VBVariants.VarType(result));
+        Assert.AreEqual("last", result[2]);
+    }
+
+    [TestMethod]
     public void Array_ReDimPreserveCanGrowLastDimension()
     {
         var array = new VBArray<int>(

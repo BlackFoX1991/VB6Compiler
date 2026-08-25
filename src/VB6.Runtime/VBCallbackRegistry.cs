@@ -412,9 +412,12 @@ public static class VBCallbackRegistry
 
     private static MethodInfo GetArrayConversionMethod(string name, Type elementType)
     {
-        var method = typeof(VBArrayOperations).GetMethod(
-            name,
-            BindingFlags.Public | BindingFlags.Static)
+        var method = typeof(VBArrayOperations)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .SingleOrDefault(candidate =>
+                candidate.Name == name &&
+                candidate.IsGenericMethodDefinition &&
+                candidate.GetParameters().Length == 1)
             ?? throw new MissingMethodException(typeof(VBArrayOperations).FullName, name);
         return method.MakeGenericMethod(elementType);
     }

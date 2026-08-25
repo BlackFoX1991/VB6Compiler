@@ -119,6 +119,9 @@ public sealed class VariantStateTests
         Assert.AreEqual("Long()", VBFunctions.TypeName(new VBArray<int>(new VBArrayBound(0, 1))));
         Assert.AreEqual("String()", VBFunctions.TypeName(new VBArray<string>(new VBArrayBound(0, 1))));
         Assert.AreEqual("Variant()", VBFunctions.TypeName(new VBArray<object>(new VBArrayBound(0, 1))));
+        var objects = new VBArray<object>("Object", 9, new VBArrayBound(0, 1));
+        Assert.AreEqual("Object()", VBFunctions.TypeName(objects));
+        Assert.AreEqual((short)8201, VBVariants.VarType(objects));
     }
 
     [TestMethod]
