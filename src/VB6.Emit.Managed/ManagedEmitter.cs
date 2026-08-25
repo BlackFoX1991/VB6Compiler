@@ -457,6 +457,11 @@ public sealed class ManagedEmitter
                     {
                         AddVariantBooleanMarshalling(parameterHandle);
                     }
+                    else if (parameter.Type is ArrayTypeSymbol arrayType &&
+                             IsPInvokeArrayElement(arrayType.ElementType))
+                    {
+                        AddSafeArrayMarshalling(parameterHandle, arrayType.ElementType);
+                    }
                 }
             }
             return result;
@@ -480,6 +485,14 @@ public sealed class ManagedEmitter
         {
             var blob = new BlobBuilder();
             blob.WriteByte((byte)UnmanagedType.Struct);
+            _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
+        }
+
+        private void AddSafeArrayMarshalling(ParameterHandle parameter, TypeSymbol elementType)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte((byte)UnmanagedType.SafeArray);
+            blob.WriteByte((byte)GetSafeArrayElementVariantType(elementType));
             _metadata.AddMarshallingDescriptor(parameter, _metadata.GetOrAddBlob(blob));
         }
 
@@ -2819,6 +2832,23 @@ public sealed class ManagedEmitter
             type == TypeSymbol.String ? 0x2008 :
             type == TypeSymbol.Variant ? 0x200C :
             throw new NotSupportedException($"Declare SAFEARRAY element type '{type.Name}' is not supported.");
+
+        private static ushort GetSafeArrayElementVariantType(TypeSymbol type) =>
+            type == TypeSymbol.Byte ? (ushort)VarEnum.VT_UI1 :
+            type == TypeSymbol.Integer ? (ushort)VarEnum.VT_I2 :
+            type == TypeSymbol.Long ? (ushort)VarEnum.VT_I4 :
+            type == TypeSymbol.LongLong ? (ushort)VarEnum.VT_I8 :
+            type == TypeSymbol.UShort ? (ushort)VarEnum.VT_UI2 :
+            type == TypeSymbol.UInteger ? (ushort)VarEnum.VT_UI4 :
+            type == TypeSymbol.ULong ? (ushort)VarEnum.VT_UI8 :
+            type == TypeSymbol.Single ? (ushort)VarEnum.VT_R4 :
+            type == TypeSymbol.Date ? (ushort)VarEnum.VT_DATE :
+            type == TypeSymbol.Double ? (ushort)VarEnum.VT_R8 :
+            type == TypeSymbol.Boolean ? (ushort)VarEnum.VT_BOOL :
+            type == TypeSymbol.Currency ? (ushort)VarEnum.VT_CY :
+            type == TypeSymbol.String ? (ushort)VarEnum.VT_BSTR :
+            type == TypeSymbol.Variant ? (ushort)VarEnum.VT_VARIANT :
+            throw new NotSupportedException($"SAFEARRAY element type '{type.Name}' is not supported.");
 
         private MethodDefinitionHandle ResolveEntryPoint()
         {

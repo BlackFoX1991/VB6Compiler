@@ -1208,8 +1208,10 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       kompatible SAFEARRAYs steht mit sicherem ByVal-Fallback; grundlegendes natives OCX-Hosting
       und TypeInfo-/Connection-Point-Event-Bridging stehen für den geprüften x86-Pfad; einfache
       `VARIANT`-/`VARIANT_BOOL`-/`BSTR`-Eventparameter werden über dedizierte Automation-Delegaten
-      geführt; vollständiger Connection-Point-Event-ABI, UDT-/Pointer-Marshalling und der native
-      LLVM-Pfad bleiben offen. Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
+      geführt; typisierte SAFEARRAY-Eventparameter werden über `System.Array`-Delegaten mit Bounds-
+      und `VBArray<T>`-Konvertierung geführt; vollständiger Connection-Point-Event-ABI für UDTs,
+      Pointer und nicht unterstützte SAFEARRAY-Elemente sowie der native LLVM-Pfad bleiben offen.
+      Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. Reg-Free-Manifest-/Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
       vollständige Runtime-/Projektverträge bleiben offen
@@ -2335,3 +2337,13 @@ vom Managed-Emitter gesetzten `Variant`-Descriptors übernimmt und zusätzlich `
 geprüfte x86-OCX-Pfad bleibt mit RichText- und Standard-Control-Events kompatibel. UDT-,
 SAFEARRAY- und verschachtelte Pointer-Eventverträge bleiben weitere Interop-Schritte; die Vollsuite
 umfasst nun **999 Tests**.
+
+## Aktueller COM-Connection-Point-SAFEARRAY-Nachtrag
+
+TypeLib-/VB6-Eventhandler mit unterstützten typisierten SAFEARRAY-Parametern verwenden jetzt einen
+rohen COM-Delegaten mit `System.Array` und explizitem `SafeArraySubType`. Der Adapter konvertiert
+die native Array-Repräsentation in `VBArray<T>`, bewahrt Rang und echte Untergrenzen und schreibt
+ByRef-Ersatzarrays über denselben Automation-Descriptor zurück; `Date` und `Currency` erhalten
+ihre jeweiligen `VARTYPE`s auch in den erzeugten Assembly-Metadaten. UDT-, Pointer- und nicht
+unterstützte SAFEARRAY-Elemente bleiben bewusst separate ABI-Schritte. Die Vollsuite umfasst nun
+**1003 Tests**.
