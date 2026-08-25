@@ -2640,3 +2640,13 @@ seine explizit übergebenen Argumente als Host-Override, bevor der Entry-Point a
 portable Runtime-Aufrufe ohne generierte Application-Initialisierung bleiben deterministisch leer.
 Eine echte CLI-Regression startet den erzeugten AppHost mit zwei Argumenten und prüft die vollständige
 Ausgabe. Die Vollsuite umfasst nun **1065 Testfälle**, davon **1065 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Err-Feld-Nachtrag
+
+Der Managed-`Err`-Vertrag stellt jetzt zusätzlich `HelpFile`, `HelpContext` und `LastDllError`
+bereit. `Err.Raise` bewahrt die beiden Hilfeangaben im threadlokalen Fehlerzustand; `LastDllError`
+liest den von Managed-`Declare`-Aufrufen gesetzten nativen Last-Error-Slot. Dafür werden emittierte
+P/Invoke-Imports mit dem expliziten `SetLastError`-Metadatenflag versehen. `Err.Clear` setzt die
+gespeicherten Hilfeangaben wieder auf die VB6-Defaultwerte zurück. Runtime-, Managed-End-to-End-
+und echter `kernel32!SetLastError`-Regressionstest sichern den Vertrag. Die Vollsuite umfasst nun
+**1068 Testfälle**, davon **1068 bestanden** und **0 fehlgeschlagen**.

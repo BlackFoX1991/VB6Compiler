@@ -175,6 +175,26 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesErrHelpAndLastDllErrorRuntimeContracts()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error Resume Next
+                Err.Raise 5, "unit", "message", "help.chm", 42
+                Debug.Print Err.HelpFile
+                Debug.Print Err.HelpContext
+                Debug.Print Err.LastDllError
+                Err.Clear
+                Debug.Print Err.HelpFile
+                Debug.Print Err.HelpContext
+            End Sub
+            """);
+
+        var lines = VB6TestProgram.SplitLines(output);
+        CollectionAssert.AreEqual(new[] { "help.chm", "42", "0", "", "0" }, lines);
+    }
+
+    [TestMethod]
     public void Lower_UsesGraphicsLineHostContract()
     {
         var program = VB6TestIr.Lower("""

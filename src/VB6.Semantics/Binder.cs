@@ -294,6 +294,21 @@ public sealed class Binder
             return CreateErrProcedure("Err.Source", VBIntrinsicKind.ErrSource, "VBErrors.SourceValue", TypeSymbol.String);
         }
 
+        if (string.Equals(memberName, "HelpFile", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure("Err.HelpFile", VBIntrinsicKind.ErrHelpFile, "VBErrors.HelpFileValue", TypeSymbol.String);
+        }
+
+        if (string.Equals(memberName, "HelpContext", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure("Err.HelpContext", VBIntrinsicKind.ErrHelpContext, "VBErrors.HelpContextValue", TypeSymbol.Long);
+        }
+
+        if (string.Equals(memberName, "LastDllError", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateErrProcedure("Err.LastDllError", VBIntrinsicKind.ErrLastDllError, "VBErrors.LastDllErrorValue", TypeSymbol.Long);
+        }
+
         if (string.Equals(memberName, "Clear", StringComparison.OrdinalIgnoreCase))
         {
             return CreateErrProcedure("Err.Clear", VBIntrinsicKind.ErrClear, "VBErrors.Clear", null);
