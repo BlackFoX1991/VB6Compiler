@@ -8,6 +8,21 @@ namespace VB6.Runtime;
 /// </summary>
 public static class VBStrings
 {
+    private const int WindowsAnsiCodePage = 1252;
+    private static readonly Encoding WindowsAnsiEncoding = CreateWindowsAnsiEncoding();
+
+    private static Encoding CreateWindowsAnsiEncoding()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(
+            WindowsAnsiCodePage,
+            EncoderFallback.ExceptionFallback,
+            DecoderFallback.ExceptionFallback);
+    }
+
+    private static bool IsUndefinedWindowsAnsiByte(byte value) =>
+        value is 0x81 or 0x8D or 0x8F or 0x90 or 0x9D;
+
     /// <summary>
     /// Implements the VB6 Len intrinsic for the scalar values currently representable by the runtime.
     /// Strings return their character count; non-string scalar Variants return their VB6 storage size.
@@ -197,10 +212,7 @@ public static class VBStrings
         return value.TrimEnd(' ');
     }
 
-    /// <summary>
-    /// VB6 Asc. Restricted to ASCII for the same reason Chr is: anything above 127 depends on the
-    /// active code page, which the compiler does not model yet.
-    /// </summary>
+    /// <summary>Returns the first character's Windows-1252 byte value for the VB6 Asc intrinsic.</summary>
     public static int Asc(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -210,13 +222,28 @@ public static class VBStrings
         }
 
         var character = value[0];
-        if (character > 127)
+        if (character <= 127)
         {
-            throw new NotSupportedException(
-                "The current VB6 Asc subset supports ASCII character codes 0 through 127 only.");
+            return character;
         }
 
-        return character;
+        try
+        {
+            var bytes = WindowsAnsiEncoding.GetBytes(new[] { character });
+            if (bytes.Length == 1 && !IsUndefinedWindowsAnsiByte(bytes[0]))
+            {
+                return bytes[0];
+            }
+
+            throw new NotSupportedException(
+                $"VB6 Asc cannot represent U+{(int)character:X4} in Windows-1252.");
+        }
+        catch (EncoderFallbackException exception)
+        {
+            throw new NotSupportedException(
+                $"VB6 Asc cannot represent U+{(int)character:X4} in Windows-1252.",
+                exception);
+        }
     }
 
     /// <summary>Parses the numeric prefix accepted by the VB6 Val intrinsic.</summary>
@@ -1178,20 +1205,37 @@ public static class VBStrings
         return array;
     }
 
-    /// <summary>
-    /// Implements the ASCII subset of VB6 Chr that is reachable in the current corpus.
-    /// Extended ANSI values depend on the active VB6 code page and remain an explicit runtime
-    /// boundary until code-page handling is modeled by the compiler/runtime.
-    /// </summary>
+    /// <summary>Returns the Windows-1252 character represented by a VB6 Chr code.</summary>
     public static string Chr(int charCode)
     {
-        if (charCode is < 0 or > 127)
+        if (charCode is < 0 or > 255)
         {
             throw new NotSupportedException(
-                "The current VB6 Chr subset supports ASCII character codes 0 through 127 only.");
+                "VB6 Chr accepts Windows-1252 byte values from 0 through 255 only.");
         }
 
-        return ((char)charCode).ToString();
+        if (charCode <= 127)
+        {
+            return ((char)charCode).ToString();
+        }
+
+        try
+        {
+            var byteValue = (byte)charCode;
+            if (IsUndefinedWindowsAnsiByte(byteValue))
+            {
+                throw new NotSupportedException(
+                    $"VB6 Chr cannot map byte {charCode} in Windows-1252.");
+            }
+
+            return WindowsAnsiEncoding.GetString(new[] { byteValue });
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw new NotSupportedException(
+                $"VB6 Chr cannot map byte {charCode} in Windows-1252.",
+                exception);
+        }
     }
 
     /// <summary>Returns the UTF-16 character represented by a VB6 ChrW code.</summary>

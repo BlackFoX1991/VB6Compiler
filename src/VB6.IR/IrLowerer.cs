@@ -3117,15 +3117,95 @@ public static class IrLowerer
                 return;
             }
 
-            // Cross-UDT copies need native field offsets and padding. Keep that unsupported case
-            // explicit, but pass values rather than addresses so the managed fallback remains a
-            // valid call and reports the intended runtime capability gap.
+            if (target.Type is UserDefinedTypeSymbol targetUdt &&
+                source.Type is UserDefinedTypeSymbol sourceUdt &&
+                IsManagedLSetLayoutSupported(targetUdt) &&
+                IsManagedLSetLayoutSupported(sourceUdt))
+            {
+                Emit(new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                    IrRuntimeMethod.MemoryLSet,
+                    ImmutableArray.Create(
+                        new IrCallArgument(
+                            new IrAddressExpression(LowerPlace(target)),
+                            IrCallArgumentKind.Address),
+                        new IrCallArgument(LowerValueCopy(source))),
+                    TypeSymbol.Error)));
+                return;
+            }
+
+            // Layouts containing references, arrays, dynamic strings, or native-width fields are
+            // not safe to treat as a raw managed record. Keep those cases diagnostically guarded.
             Emit(new IrEvaluateInstruction(Runtime(
                 IrRuntimeMethod.MemoryLSet,
                 TypeSymbol.Error,
                 LowerValueCopy(target),
                 LowerValueCopy(source))));
         }
+
+        private static bool IsManagedLSetLayoutSupported(UserDefinedTypeSymbol type) =>
+            TryGetManagedLSetLayout(
+                type,
+                new HashSet<UserDefinedTypeSymbol>(ReferenceEqualityComparer.Instance),
+                out _,
+                out _);
+
+        private static bool TryGetManagedLSetLayout(
+            UserDefinedTypeSymbol type,
+            HashSet<UserDefinedTypeSymbol> activePath,
+            out int size,
+            out int alignment)
+        {
+            size = 0;
+            alignment = 1;
+            if (!activePath.Add(type) || type.Members.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            foreach (var member in type.Members)
+            {
+                if (!TryGetManagedLSetFieldLayout(member.Type, activePath, out var fieldSize, out var fieldAlignment))
+                {
+                    activePath.Remove(type);
+                    size = 0;
+                    alignment = 1;
+                    return false;
+                }
+
+                fieldAlignment = Math.Min(fieldAlignment, 4);
+                size = Align(size, fieldAlignment);
+                size = checked(size + fieldSize);
+                alignment = Math.Max(alignment, fieldAlignment);
+            }
+
+            size = Align(size, alignment);
+            activePath.Remove(type);
+            return true;
+        }
+
+        private static bool TryGetManagedLSetFieldLayout(
+            TypeSymbol type,
+            HashSet<UserDefinedTypeSymbol> activePath,
+            out int size,
+            out int alignment)
+        {
+            if (type is UserDefinedTypeSymbol nested)
+            {
+                return TryGetManagedLSetLayout(nested, activePath, out size, out alignment);
+            }
+
+            size = type == TypeSymbol.Byte ? 1
+                : type == TypeSymbol.Integer || type == TypeSymbol.UShort ? 2
+                : type == TypeSymbol.Long || type == TypeSymbol.UInteger || type == TypeSymbol.Single ? 4
+                : type == TypeSymbol.LongLong || type == TypeSymbol.ULong ||
+                  type == TypeSymbol.Date || type == TypeSymbol.Double || type == TypeSymbol.Currency ? 8
+                : 0;
+            alignment = size;
+            return size > 0;
+        }
+
+        private static int Align(int offset, int alignment) =>
+            checked((offset + alignment - 1) / alignment * alignment);
 
         private IrExpression LowerLSetStringValue(BoundExpression source)
         {

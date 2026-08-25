@@ -46,10 +46,14 @@ public sealed class StringFunctionTests
     }
 
     [TestMethod]
-    public void Asc_ReturnsTheCharacterCodeAndRejectsNonAscii()
+    public void Asc_ReturnsWindows1252CodesAndRejectsUnrepresentableCharacters()
     {
         Assert.AreEqual(65, VBStrings.Asc("ABC"));
-        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Asc("ä"));
+        Assert.AreEqual(128, VBStrings.Asc("€"));
+        Assert.AreEqual(228, VBStrings.Asc("ä"));
+        Assert.AreEqual(255, VBStrings.Asc("ÿ"));
+        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Asc("Ā"));
+        Assert.ThrowsException<NotSupportedException>(() => VBStrings.Asc("\u0081"));
         Assert.ThrowsException<ArgumentException>(() => VBStrings.Asc(string.Empty));
     }
 

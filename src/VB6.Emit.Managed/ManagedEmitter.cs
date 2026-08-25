@@ -1247,6 +1247,21 @@ public sealed class ManagedEmitter
                 return;
             }
 
+            if (call.Method == IrRuntimeMethod.MemoryLSet &&
+                call.Arguments.Length == 2 &&
+                call.Arguments[0].Kind == IrCallArgumentKind.Address)
+            {
+                EmitExpression(encoder, procedure, call.Arguments[0].Expression);
+                EmitExpressionWithAssignmentConversion(
+                    encoder,
+                    procedure,
+                    call.Arguments[1].Expression,
+                    TypeSymbol.Variant);
+
+                encoder.Call(GetManagedLSetReference(call.Arguments[0].Expression.Type));
+                return;
+            }
+
             var dynamicArrayResult = call.Method is (IrRuntimeMethod.DynamicGetMember or
                 IrRuntimeMethod.DynamicGetIndexedMember or
                 IrRuntimeMethod.DynamicInvokeMember) &&
@@ -1264,6 +1279,12 @@ public sealed class ManagedEmitter
                 var argument = call.Arguments[index];
                 EmitExpression(encoder, procedure, argument.Expression);
                 var target = parameters[emittedIndex++].ParameterType;
+                if (argument.Kind == IrCallArgumentKind.Address && target == typeof(IntPtr))
+                {
+                    encoder.OpCode(ILOpCode.Conv_i);
+                    continue;
+                }
+
                 if (target == typeof(object) && IsValueType(argument.Expression.Type))
                 {
                     encoder.OpCode(ILOpCode.Box);
@@ -3178,6 +3199,45 @@ public sealed class ManagedEmitter
             var specBlob = new BlobBuilder();
             var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
             EncodeType(arguments.AddArgument(), elementType);
+            var spec = (EntityHandle)_metadata.AddMethodSpecification(
+                definition,
+                _metadata.GetOrAddBlob(specBlob));
+            _methodSpecifications.Add(specKey, spec);
+            return spec;
+        }
+
+        private EntityHandle GetManagedLSetReference(TypeSymbol targetType)
+        {
+            var specKey = "VBMemory::LSet<" + targetType.Name + ">";
+            if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
+            {
+                return cachedSpec;
+            }
+
+            const string definitionKey = "VBMemory::LSet";
+            if (!_memberReferences.TryGetValue(definitionKey, out var definition))
+            {
+                var blob = new BlobBuilder();
+                new BlobEncoder(blob)
+                    .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
+                    .Parameters(
+                        2,
+                        returnType => returnType.Void(),
+                        parameters =>
+                        {
+                            parameters.AddParameter().Type(isByRef: true).GenericMethodTypeParameter(0);
+                            parameters.AddParameter().Type().Object();
+                        });
+                definition = _metadata.AddMemberReference(
+                    GetReflectionTypeReference(typeof(VBMemory)),
+                    _metadata.GetOrAddString(nameof(VBMemory.LSet)),
+                    _metadata.GetOrAddBlob(blob));
+                _memberReferences.Add(definitionKey, definition);
+            }
+
+            var specBlob = new BlobBuilder();
+            var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
+            EncodeType(arguments.AddArgument(), targetType);
             var spec = (EntityHandle)_metadata.AddMethodSpecification(
                 definition,
                 _metadata.GetOrAddBlob(specBlob));
