@@ -253,6 +253,13 @@ public sealed class AddressOfExecutionTests
                     ArrayReturn = values
                 End Function
 
+                Private Function LongArrayCallback(ByRef values() As Long) As Long
+                    ReDim values(1 To 2)
+                    values(1) = 123456
+                    values(2) = -4
+                    LongArrayCallback = 1
+                End Function
+
                 Sub Main()
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(assemblyPath);
@@ -323,6 +330,30 @@ public sealed class AddressOfExecutionTests
             Assert.AreEqual(0, returned.GetUpperBound(0));
             Assert.AreEqual("returned", returned.GetValue(-1));
             Assert.AreEqual((short)7, returned.GetValue(0));
+
+            var longMethod = FindGeneratedMethod(assembly, "LongArrayCallback");
+            var longPointer = VBCallbackRegistry.GetFunctionPointer(longMethod.MethodHandle, null);
+            var longCallbackType = callbackAssembly
+                .GetTypes()
+                .Single(type =>
+                {
+                    var invoke = type.GetMethod("Invoke");
+                    var parameter = invoke?.GetParameters().SingleOrDefault();
+                    var callbackMarshal = parameter?.GetCustomAttribute<MarshalAsAttribute>();
+                    return invoke?.ReturnType == typeof(int) &&
+                        parameter?.ParameterType == typeof(Array).MakeByRefType() &&
+                        callbackMarshal?.Value == UnmanagedType.SafeArray &&
+                        callbackMarshal.SafeArraySubType == VarEnum.VT_I4;
+                });
+            var longCallback = Marshal.GetDelegateForFunctionPointer(longPointer, longCallbackType);
+            Array longValues = Array.CreateInstance(typeof(int), new[] { 1 }, new[] { 0 });
+            var longArguments = new object?[] { longValues };
+            Assert.AreEqual(1, longCallback.DynamicInvoke(longArguments));
+            longValues = (Array)longArguments[0]!;
+            Assert.AreEqual(1, longValues.GetLowerBound(0));
+            Assert.AreEqual(2, longValues.GetUpperBound(0));
+            Assert.AreEqual(123456, longValues.GetValue(1));
+            Assert.AreEqual(-4, longValues.GetValue(2));
         }
         finally
         {
@@ -374,10 +405,15 @@ public sealed class AddressOfExecutionTests
 
     private static MethodInfo FindGeneratedMethod(Assembly assembly, string name)
     {
-        return assembly
+        var methods = assembly
             .GetTypes()
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance))
-            .Single(method => method.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+            .ToArray();
+        return methods.FirstOrDefault(method =>
+                   string.Equals(method.Name, name, StringComparison.OrdinalIgnoreCase)) ??
+            methods.FirstOrDefault(method =>
+                method.Name.EndsWith("_" + name, StringComparison.OrdinalIgnoreCase)) ??
+            methods.Single(method => method.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
     }
 
 }
