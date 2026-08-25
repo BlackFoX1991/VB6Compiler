@@ -53,6 +53,16 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void Division_TreatsEmptyAsIntegerWhenPromotingWithSingle()
+    {
+        var emptyLeft = VBOperators.DivideVariant(null, 2f);
+
+        Assert.IsInstanceOfType<float>(emptyLeft);
+        Assert.AreEqual(0f, emptyLeft);
+        Assert.ThrowsException<DivideByZeroException>(() => VBOperators.DivideVariant(2f, null));
+    }
+
+    [TestMethod]
     public void Arithmetic_PromotesSingleAndIntegerOverflowToTheNextVariantWidth()
     {
         var singleAdd = VBOperators.AddVariant(float.MaxValue, float.MaxValue);
