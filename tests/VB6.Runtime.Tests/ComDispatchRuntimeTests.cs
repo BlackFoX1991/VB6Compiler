@@ -9,6 +9,31 @@ public sealed class ComDispatchRuntimeTests
 {
     [TestMethod]
     [SupportedOSPlatform("windows")]
+    public void NativeExceptionInfo_ClearsAllBstrFields()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The EXCEPINFO cleanup test requires Windows.");
+            return;
+        }
+
+        var exception = new VBComDispatch.NativeExcepInfo
+        {
+            Source = Marshal.StringToBSTR("source"),
+            Description = Marshal.StringToBSTR("description"),
+            HelpFile = Marshal.StringToBSTR("help")
+        };
+
+        VBComDispatch.ClearNativeExcepInfo(ref exception);
+
+        Assert.AreEqual(IntPtr.Zero, exception.Source);
+        Assert.AreEqual(IntPtr.Zero, exception.Description);
+        Assert.AreEqual(IntPtr.Zero, exception.HelpFile);
+        Assert.AreEqual(IntPtr.Zero, exception.DeferredFillIn);
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
     public void DefaultMember_UsesDispatchValueWhenComObjectHasNoItemMember()
     {
         if (!OperatingSystem.IsWindows())

@@ -780,40 +780,49 @@ internal static class VBComDispatch
                 NamedArgumentCount = namedArguments == IntPtr.Zero ? 0u : 1u
             };
             var exception = default(NativeExcepInfo);
-            var iid = Guid.Empty;
-            var hr = dispatch.Invoke(
-                dispId,
-                ref iid,
-                1033,
-                flags,
-                ref parameters,
-                out result,
-                out exception,
-                out _);
-            if (hr >= 0 && byRefArguments is not null)
+            try
             {
-                for (var index = 0; index < arguments.Length; index++)
+                var iid = Guid.Empty;
+                var hr = dispatch.Invoke(
+                    dispId,
+                    ref iid,
+                    1033,
+                    flags,
+                    ref parameters,
+                    out result,
+                    out exception,
+                    out _);
+                if (hr >= 0 && byRefArguments is not null)
                 {
-                    var sourceIndex = arguments.Length - index - 1;
-                    if (byRefArguments[sourceIndex] is null)
+                    for (var index = 0; index < arguments.Length; index++)
                     {
-                        continue;
-                    }
+                        var sourceIndex = arguments.Length - index - 1;
+                        if (byRefArguments[sourceIndex] is null)
+                        {
+                            continue;
+                        }
 
-                    var valueVariant = IntPtr.Add(
-                        byRefValues,
-                        index * VariantSize);
-                    var updatedValue = Marshal.GetObjectForNativeVariant(valueVariant);
-                    if (!TryCopyArrayBack(
-                            arguments[sourceIndex],
-                            updatedValue))
-                    {
-                        arguments[sourceIndex] = updatedValue;
+                        var valueVariant = IntPtr.Add(
+                            byRefValues,
+                            index * VariantSize);
+                        var updatedValue = Marshal.GetObjectForNativeVariant(valueVariant);
+                        if (!TryCopyArrayBack(
+                                arguments[sourceIndex],
+                                updatedValue))
+                        {
+                            arguments[sourceIndex] = updatedValue;
+                        }
                     }
                 }
-            }
 
-            return hr;
+                return hr;
+            }
+            finally
+            {
+                // IDispatch owns EXCEPINFO's BSTR fields only until Invoke returns. Release them
+                // even when the call fails or ByRef result conversion throws.
+                ClearNativeExcepInfo(ref exception);
+            }
         }
         finally
         {
@@ -846,6 +855,25 @@ internal static class VBComDispatch
                 Marshal.FreeCoTaskMem(byRefValues);
             }
         }
+    }
+
+    internal static void ClearNativeExcepInfo(ref NativeExcepInfo exception)
+    {
+        FreeNativeBstr(ref exception.Source);
+        FreeNativeBstr(ref exception.Description);
+        FreeNativeBstr(ref exception.HelpFile);
+        exception.DeferredFillIn = IntPtr.Zero;
+    }
+
+    private static void FreeNativeBstr(ref IntPtr value)
+    {
+        if (value == IntPtr.Zero)
+        {
+            return;
+        }
+
+        Marshal.FreeBSTR(value);
+        value = IntPtr.Zero;
     }
 
     [SupportedOSPlatform("windows")]
@@ -1784,7 +1812,7 @@ internal static class VBComDispatch
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct NativeExcepInfo
+    internal struct NativeExcepInfo
     {
         public ushort Code;
         public ushort Reserved;
