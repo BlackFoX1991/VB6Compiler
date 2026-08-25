@@ -1172,6 +1172,10 @@ public sealed class ManagedEmitter
                 return;
             }
 
+            var dynamicArrayResult = call.Method is (IrRuntimeMethod.DynamicGetMember or
+                IrRuntimeMethod.DynamicGetIndexedMember or
+                IrRuntimeMethod.DynamicInvokeMember) &&
+                call.ResultType is ArrayTypeSymbol;
             var info = ResolveRuntimeMethod(call, out var skippedArgument);
             var parameters = info.GetParameters();
             var emittedIndex = 0;
@@ -1192,6 +1196,10 @@ public sealed class ManagedEmitter
                 }
             }
             encoder.Call(GetRuntimeMethodReference(info));
+            if (dynamicArrayResult && call.ResultType is ArrayTypeSymbol arrayResult)
+            {
+                encoder.Call(GetDynamicArrayConversionReference(arrayResult.ElementType));
+            }
         }
 
         private void EmitProcedureCall(InstructionEncoder encoder, IrProcedure procedure, IrProcedureCallExpression call)
@@ -2759,6 +2767,41 @@ public sealed class ManagedEmitter
                 definition = _metadata.AddMemberReference(
                     GetReflectionTypeReference(typeof(VBFiles)),
                     _metadata.GetOrAddString(name),
+                    _metadata.GetOrAddBlob(blob));
+                _memberReferences.Add(definitionKey, definition);
+            }
+
+            var specBlob = new BlobBuilder();
+            var arguments = new BlobEncoder(specBlob).MethodSpecificationSignature(1);
+            EncodeType(arguments.AddArgument(), elementType);
+            var spec = (EntityHandle)_metadata.AddMethodSpecification(
+                definition,
+                _metadata.GetOrAddBlob(specBlob));
+            _methodSpecifications.Add(specKey, spec);
+            return spec;
+        }
+
+        private EntityHandle GetDynamicArrayConversionReference(TypeSymbol elementType)
+        {
+            var specKey = "VBArrayOperations::FromObject<" + elementType.Name + ">";
+            if (_methodSpecifications.TryGetValue(specKey, out var cachedSpec))
+            {
+                return cachedSpec;
+            }
+
+            const string definitionKey = "VBArrayOperations::FromObject";
+            if (!_memberReferences.TryGetValue(definitionKey, out var definition))
+            {
+                var blob = new BlobBuilder();
+                new BlobEncoder(blob)
+                    .MethodSignature(genericParameterCount: 1, isInstanceMethod: false)
+                    .Parameters(
+                        1,
+                        returnType => EncodeOpenVBArray(returnType.Type()),
+                        parameters => parameters.AddParameter().Type().Object());
+                definition = _metadata.AddMemberReference(
+                    GetReflectionTypeReference(typeof(VBArrayOperations)),
+                    _metadata.GetOrAddString(nameof(VBArrayOperations.FromObject)),
                     _metadata.GetOrAddBlob(blob));
                 _memberReferences.Add(definitionKey, definition);
             }

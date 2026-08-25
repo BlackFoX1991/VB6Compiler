@@ -2604,7 +2604,11 @@ public static class IrLowerer
         {
             if (requested.IsLateBound || IsRuntimeObject(receiver))
             {
-                return LowerDynamicInvoke(receiver, requested.Name, arguments);
+                return LowerDynamicInvoke(
+                    receiver,
+                    requested.Name,
+                    arguments,
+                    requested.ReturnType ?? TypeSymbol.Variant);
             }
 
             if (receiver.Type is ClassTypeSymbol collectionType &&
@@ -2792,7 +2796,8 @@ public static class IrLowerer
         private IrExpression LowerDynamicInvoke(
             BoundExpression receiver,
             string memberName,
-            ImmutableArray<BoundArgument> arguments)
+            ImmutableArray<BoundArgument> arguments,
+            TypeSymbol resultType)
         {
             var dynamicArguments = arguments.Length == 1 && arguments[0].Parameter?.IsParamArray == true
                 ? LowerValueCopy(arguments[0].Expression)
@@ -2803,7 +2808,7 @@ public static class IrLowerer
                     new IrCallArgument(LowerExpression(receiver)),
                     new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)),
                     new IrCallArgument(dynamicArguments)),
-                TypeSymbol.Variant);
+                resultType);
         }
 
         private IrExpression LowerDynamicSet(
