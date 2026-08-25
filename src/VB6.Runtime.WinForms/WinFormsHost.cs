@@ -73,6 +73,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
     public void DoEvents() => Application.DoEvents();
 
+    public void SendKeys(string keys, bool wait)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(keys);
+
+        if (wait)
+        {
+            System.Windows.Forms.SendKeys.SendWait(keys);
+        }
+        else
+        {
+            System.Windows.Forms.SendKeys.Send(keys);
+        }
+    }
+
     public void PopupMenu(object? menu, int flags, float x, float y)
     {
         ThrowIfDisposed();

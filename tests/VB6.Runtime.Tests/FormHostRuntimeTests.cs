@@ -53,6 +53,26 @@ public sealed class FormHostRuntimeTests
     }
 
     [TestMethod]
+    public void SendKeys_ForwardsKeyboardInputToConfiguredHost()
+    {
+        var previousHost = VBInteraction.Host;
+        var host = new TestHost();
+        try
+        {
+            VBInteraction.Host = host;
+
+            VBInteraction.SendKeys("{DOWN}", wait: true);
+
+            Assert.AreEqual("{DOWN}", host.SentKeys);
+            Assert.IsTrue(host.WaitForKeys);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+        }
+    }
+
+    [TestMethod]
     public void DesignerControlCreation_UsesHostAndHeadlessProxyFallback()
     {
         var previousHost = VBInteraction.Host;
@@ -100,9 +120,19 @@ public sealed class FormHostRuntimeTests
 
         public int ShowCount { get; private set; }
 
+        public string? SentKeys { get; private set; }
+
+        public bool WaitForKeys { get; private set; }
+
         public object? CreatedControl { get; private set; }
 
         public void DoEvents() => DoEventsCount++;
+
+        public void SendKeys(string keys, bool wait)
+        {
+            SentKeys = keys;
+            WaitForKeys = wait;
+        }
 
         public void Load(object target) => LoadCount++;
 
