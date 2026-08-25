@@ -146,6 +146,33 @@ public sealed class VBEventsTests
     }
 
     [TestMethod]
+    public void ComEventAdapter_ConvertsNativeWidthLongPtrArrayAndWritesBackReplacement()
+    {
+        var method = typeof(SafeArrayEventTarget).GetMethod(
+            "OnLongPtrValues",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var target = new SafeArrayEventTarget();
+        var delegateType = VBEvents.GetComEventDelegateType(method);
+        var parameter = delegateType.GetMethod("Invoke")!.GetParameters().Single();
+        var marshal = parameter.GetCustomAttribute<MarshalAsAttribute>();
+        Assert.AreEqual(typeof(Array).MakeByRefType(), parameter.ParameterType);
+        Assert.AreEqual(UnmanagedType.SafeArray, marshal?.Value);
+        Assert.AreEqual(VarEnum.VT_I8, marshal?.SafeArraySubType);
+
+        Array native = Array.CreateInstance(typeof(long), new[] { 1 }, new[] { -1 });
+        native.SetValue(7L, -1);
+        var arguments = new object?[] { native };
+
+        VBEvents.CreateComEventDelegate(target, method).DynamicInvoke(arguments);
+
+        var replacement = (Array)arguments[0]!;
+        Assert.AreEqual(4, replacement.GetLowerBound(0));
+        Assert.AreEqual(5, replacement.GetUpperBound(0));
+        Assert.AreEqual(42L, replacement.GetValue(4));
+        Assert.AreEqual(99L, replacement.GetValue(5));
+    }
+
+    [TestMethod]
     public void SubscribeMethod_DoesNotBindComProvidersToWrapperClrEvents()
     {
         var source = new ComProviderEventSource();
@@ -279,6 +306,15 @@ public sealed class VBEventsTests
         {
             values = new VBArray<int>(new VBArrayBound(4, 5));
             values[4] = 42;
+        }
+
+        private void OnLongPtrValues(
+            [MarshalAs(UnmanagedType.SafeArray, SafeArraySubType = VarEnum.VT_I8)]
+            ref VBArray<IntPtr> values)
+        {
+            values = new VBArray<IntPtr>(new VBArrayBound(4, 5));
+            values[4] = new IntPtr(42);
+            values[5] = new IntPtr(99);
         }
     }
 

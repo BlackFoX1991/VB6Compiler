@@ -361,9 +361,23 @@ public static class VBCallbackRegistry
 
             generator.Emit(OpCodes.Ldarg, index + 1);
             generator.Emit(OpCodes.Ldloc, convertedArrays[index]);
-            generator.Emit(
-                OpCodes.Call,
-                GetArrayConversionMethod(nameof(VBArrayOperations.ToClrArray), arrayElementTypes[index]!));
+            if (arrayElementTypes[index] == typeof(IntPtr))
+            {
+                generator.Emit(
+                    OpCodes.Ldc_I4,
+                    (int)GetSafeArrayVariantType(
+                        method.GetParameters()[index],
+                        arrayElementTypes[index]!));
+                generator.Emit(
+                    OpCodes.Call,
+                    GetNativeArrayConversionMethod(arrayElementTypes[index]!));
+            }
+            else
+            {
+                generator.Emit(
+                    OpCodes.Call,
+                    GetArrayConversionMethod(nameof(VBArrayOperations.ToClrArray), arrayElementTypes[index]!));
+            }
             generator.Emit(OpCodes.Stind_Ref);
         }
 
@@ -372,9 +386,21 @@ public static class VBCallbackRegistry
             generator.Emit(OpCodes.Ldloc, returnValue);
             if (returnArrayElementType is not null)
             {
-                generator.Emit(
-                    OpCodes.Call,
-                    GetArrayConversionMethod(nameof(VBArrayOperations.ToClrArray), returnArrayElementType));
+                if (returnArrayElementType == typeof(IntPtr))
+                {
+                    generator.Emit(
+                        OpCodes.Ldc_I4,
+                        (int)GetSafeArrayVariantType(method.ReturnParameter, returnArrayElementType));
+                    generator.Emit(
+                        OpCodes.Call,
+                        GetNativeArrayConversionMethod(returnArrayElementType));
+                }
+                else
+                {
+                    generator.Emit(
+                        OpCodes.Call,
+                        GetArrayConversionMethod(nameof(VBArrayOperations.ToClrArray), returnArrayElementType));
+                }
             }
         }
 
@@ -389,6 +415,17 @@ public static class VBCallbackRegistry
             name,
             BindingFlags.Public | BindingFlags.Static)
             ?? throw new MissingMethodException(typeof(VBArrayOperations).FullName, name);
+        return method.MakeGenericMethod(elementType);
+    }
+
+    private static MethodInfo GetNativeArrayConversionMethod(Type elementType)
+    {
+        var method = typeof(VBArrayOperations).GetMethod(
+            nameof(VBArrayOperations.ToNativeSafeArray),
+            BindingFlags.Public | BindingFlags.Static)
+            ?? throw new MissingMethodException(
+                typeof(VBArrayOperations).FullName,
+                nameof(VBArrayOperations.ToNativeSafeArray));
         return method.MakeGenericMethod(elementType);
     }
 }

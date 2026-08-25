@@ -1191,8 +1191,10 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `VARIANT`-Slots sowie `Variant()`-SAFEARRAY-Callback-Parameter und -Rückgaben mit Bounds-
       und ByRef-Ersatz-Write-back sind ergänzt, ebenso `Object()`-/Control-Arrays als
       `SAFEARRAY(VT_DISPATCH)` in Managed-Callbacks und COM-Event-Delegaten; verschachtelte
-      Pointer-/String-Callback-ABI-
-      Verträge und UDT-/Pointer-Arrays bleiben offen
+      Pointer-/String-Callback-ABI-Verträge sowie UDT-/Record-Arrays und rohe Pointer-/C-Array-
+      Verträge bleiben offen; native-width `LongPtr()`-Arrays sind für explizite x86/x64-Ziele als
+      `SAFEARRAY(VT_I4)` beziehungsweise `SAFEARRAY(VT_I8)` ergänzt. `AnyCPU` wird für diesen
+      architekturabhängigen Array-Vertrag diagnostisch abgelehnt.
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
@@ -1214,7 +1216,7 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `VARIANT`-/`VARIANT_BOOL`-/`BSTR`-Eventparameter werden über dedizierte Automation-Delegaten
       geführt; typisierte SAFEARRAY-Eventparameter werden über `System.Array`-Delegaten mit Bounds-
       und `VBArray<T>`-Konvertierung geführt; vollständiger Connection-Point-Event-ABI für UDTs,
-      Pointer und nicht unterstützte SAFEARRAY-Elemente sowie der native LLVM-Pfad bleiben offen.
+      rohe Pointer und nicht unterstützte SAFEARRAY-Elemente sowie der native LLVM-Pfad bleiben offen.
       Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. Reg-Free-Manifest-/Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
@@ -1235,7 +1237,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Legacy-`Long`-Callbackparameter konvertiert; blittable native Callback-Parameter und
       Delegate-Lebensdauer stehen; dynamische Callback-Delegaten markieren Win32-`BOOL`,
       ANSI-Strings, einfache `Variant`-Slots und `Variant()`-SAFEARRAYs mit nativer Konvertierung
-      und ByRef-Rückschreibung, komplexe UDT-/verschachtelte Pointer-/String-ABIs bleiben offen
+      und ByRef-Rückschreibung; `LongPtr()`-SAFEARRAYs verwenden auf expliziten x86/x64-Zielen
+      `VT_I4`/`VT_I8`, komplexe UDT-/verschachtelte rohe Pointer-/String-ABIs bleiben offen
 
 ## Meilenstein 9 — Forms
 
@@ -2398,3 +2401,13 @@ Projektitems und **0** Parser-, Lexer- oder Semantikdiagnosen. Zusätzlich erzeu
 `vb6c conformance/VISIA/4.8.7.1/prjVisia.vbp --emit-assembly <verzeichnis> --x86` erfolgreich die
 Managed-Assembly, den nativen x86-AppHost, PDB und Runtime-Dateien. Der Conformance-Ratchet prüft
 jetzt sowohl die 40/40-Schwelle als auch die Diagnosezahl 0; die Vollsuite umfasst **1014 Tests**.
+
+## Aktueller LongPtr-SAFEARRAY-Nachtrag
+
+`LongPtr()`-Arrays verwenden im Managed-Interop-Pfad jetzt einen expliziten nativen Elementvertrag:
+`VT_I4` für x86 und `VT_I8` für x64. Das gilt für `ByRef`-`Declare`-SAFEARRAYs sowie für
+`AddressOf`-Callbackparameter und -Rückgaben; der Adapter bewahrt VB6-Untergrenzen und schreibt
+ersetzte Arrays inklusive neuer Bounds zurück. COM-Event-Delegaten verwenden denselben typisierten
+Arraypfad. Ein `AnyCPU`-Emit wird für diesen architekturabhängigen Vertrag kontrolliert mit einer
+Backenddiagnose abgelehnt. Runtime-, Reflection- und End-to-End-Regressionen laufen auf x86 und
+x64; die Vollsuite umfasst nun **1019 Tests**.

@@ -390,6 +390,31 @@ public static class VBArrayOperations
         return result;
     }
 
+    /// <summary>
+    /// Creates the CLR array shape expected by a native SAFEARRAY descriptor. Native-width
+    /// <c>LongPtr()</c> arrays use <c>VT_I4</c> on x86 and <c>VT_I8</c> on x64, while their
+    /// compiler-facing storage remains <see cref="IntPtr"/>.
+    /// </summary>
+    public static Array? ToNativeSafeArray<T>(VBArray<T>? source, ushort safeArrayElementType)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        if (!VBComDispatch.TryCreateAutomationArray(
+                source,
+                (ushort)((ushort)VarEnum.VT_ARRAY | safeArrayElementType),
+                out var result) ||
+            result is null)
+        {
+            throw new InvalidOperationException(
+                $"The VB6 array could not be converted to SAFEARRAY element type 0x{safeArrayElementType:X4}.");
+        }
+
+        return result;
+    }
+
     private static VBArray<T> CopyArray<T>(IVBArray source, Func<int[], object?> getValue)
     {
         var bounds = new VBArrayBound[source.Rank];
