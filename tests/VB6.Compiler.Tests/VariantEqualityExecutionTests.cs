@@ -186,4 +186,21 @@ public sealed class VariantEqualityExecutionTests
         CollectionAssert.AreEqual(new[] { "False", "True" }, output);
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_OrdersVariantNumericValueBeforeNonNumericString()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = 1
+
+                Debug.Print value < "abc"
+                Debug.Print value = "abc"
+                Debug.Print "abc" > value
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "False", "True" }, output);
+    }
+
 }
