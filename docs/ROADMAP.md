@@ -2542,5 +2542,7 @@ Testfälle**, davon **1047 bestanden** und **0 fehlgeschlagen**.
 Das VB6-MSBuild-SDK bricht jetzt mit einer eindeutigen Diagnose ab, wenn das konfigurierte
 `.vbp` oder `.vbg` nicht existiert oder beide Eingabearten gleichzeitig gesetzt sind. Damit
 führt ein falsch konfiguriertes SDK-Projekt nicht mehr stillschweigend nur einen normalen
-.NET-Build aus. Der Negativpfad ist über den CLI-Prozess-Regressionstest abgesichert; die
-Vollsuite umfasst nun **1048 Testfälle**, davon **1048 bestanden** und **0 fehlgeschlagen**.
+.NET-Build aus. Der Einzelprojektpfad verwendet zusätzlich einen Compile-Stempel mit
+Output-Manifest: unveränderte Builds werden übersprungen, fehlende Artefakte automatisch
+repariert. Beide Verträge sind über echte `dotnet msbuild`-Regressionen abgesichert; die
+Vollsuite umfasst nun **1049 Testfälle**, davon **1049 bestanden** und **0 fehlgeschlagen**.

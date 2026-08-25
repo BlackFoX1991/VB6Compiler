@@ -326,6 +326,77 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void MsBuildSdk_TracksSingleVbpIncrementallyAndRepairsMissingOutput()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            WriteExecutableProject(directory, "SingleSdk");
+            var packageDirectory = Path.Combine(directory, "packages");
+            var repositoryRoot = FindRepositoryRoot();
+            var packResult = RunDotNet(
+                "pack",
+                Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
+                "-c",
+                "Release",
+                "--no-build",
+                "--no-restore",
+                "--nologo",
+                "-p:PackageVersion=1.0.0-single-incremental-test",
+                "-p:PackageOutputPath=" + packageDirectory);
+            Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
+            File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{packageDirectory}" />
+                  </packageSources>
+                </configuration>
+                """);
+
+            var projectPath = Path.Combine(directory, "SingleSdk.csproj");
+            var outputPath = Path.Combine(directory, "bin", "Release", "legacy", "SingleSdk.dll");
+            File.WriteAllText(projectPath, $"""
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-incremental-test" DefaultTargets="Build">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Configuration>Release</Configuration>
+                    <OutputPath>bin\Release\</OutputPath>
+                    <VB6Project>{Path.Combine(directory, "SingleSdk.vbp")}</VB6Project>
+                    <VB6CompilerPath>{Path.Combine(AppContext.BaseDirectory, "vb6c.exe")}</VB6CompilerPath>
+                    <VB6CompilerOutput>{outputPath}</VB6CompilerOutput>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var firstBuild = RunMsBuild(projectPath, restore: true);
+            Assert.AreEqual(0, firstBuild.ExitCode, firstBuild.StandardError + firstBuild.StandardOutput);
+            Assert.IsTrue(File.Exists(outputPath));
+            var stampPath = Directory.GetFiles(directory, "VB6Compile.stamp", SearchOption.AllDirectories).Single();
+            var firstStamp = File.GetLastWriteTimeUtc(stampPath);
+
+            Thread.Sleep(1100);
+            var secondBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, secondBuild.ExitCode, secondBuild.StandardError + secondBuild.StandardOutput);
+            Assert.AreEqual(firstStamp, File.GetLastWriteTimeUtc(stampPath));
+
+            Thread.Sleep(1100);
+            File.Delete(outputPath);
+            var recoveryBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, recoveryBuild.ExitCode, recoveryBuild.StandardError + recoveryBuild.StandardOutput);
+            Assert.IsTrue(File.Exists(outputPath));
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_CompilesVbgProjectWithNativeOcxDesignerThroughTheCli()
     {
         var typeLibraryPath = Path.Combine(

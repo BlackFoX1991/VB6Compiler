@@ -23,6 +23,9 @@
     <VB6CompilerGroupStamp Condition="'$(VB6ProjectGroup)' != '' and '$(BaseIntermediateOutputPath)' != ''">$([System.IO.Path]::Combine('$(BaseIntermediateOutputPath)', '$(Configuration)', 'VB6GroupCompile.stamp'))</VB6CompilerGroupStamp>
     <VB6CompilerGroupStamp Condition="'$(VB6ProjectGroup)' != '' and '$(VB6CompilerGroupStamp)' == ''">$(MSBuildProjectDirectory)\obj\$(Configuration)\VB6GroupCompile.stamp</VB6CompilerGroupStamp>
     <VB6CompilerGroupManifest Condition="'$(VB6ProjectGroup)' != '' and '$(VB6CompilerGroupStamp)' != ''">$(VB6CompilerGroupStamp).outputs</VB6CompilerGroupManifest>
+    <VB6CompilerStamp Condition="'$(VB6Project)' != '' and '$(BaseIntermediateOutputPath)' != ''">$([System.IO.Path]::Combine('$(BaseIntermediateOutputPath)', '$(Configuration)', 'VB6Compile.stamp'))</VB6CompilerStamp>
+    <VB6CompilerStamp Condition="'$(VB6Project)' != '' and '$(VB6CompilerStamp)' == ''">$(MSBuildProjectDirectory)\obj\$(Configuration)\VB6Compile.stamp</VB6CompilerStamp>
+    <VB6CompilerManifest Condition="'$(VB6Project)' != '' and '$(VB6CompilerStamp)' != ''">$(VB6CompilerStamp).outputs</VB6CompilerManifest>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(VB6ProjectFullPath)')">
@@ -84,14 +87,44 @@
   </Target>
 
   <Target
+    Name="ValidateVB6CompilerOutputs"
+    BeforeTargets="CompileVB6Project"
+    Condition="'$(VB6ProjectGroup)' == '' and '$(VB6Project)' != '' and Exists('$(VB6CompilerStamp)') and Exists('$(VB6CompilerManifest)')">
+    <ReadLinesFromFile File="$(VB6CompilerManifest)">
+      <Output TaskParameter="Lines" ItemName="_VB6CompilerExpectedOutput" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_VB6CompilerMissingOutput Include="@(_VB6CompilerExpectedOutput)" Condition="!Exists('%(_VB6CompilerExpectedOutput.Identity)')" />
+    </ItemGroup>
+    <Delete
+      Files="$(VB6CompilerStamp)"
+      Condition="'@(_VB6CompilerMissingOutput)' != ''" />
+  </Target>
+
+  <Target
     Name="CompileVB6Project"
     BeforeTargets="Build"
     Condition="'$(VB6ProjectGroup)' == '' and Exists('$(VB6ProjectFullPath)')"
     Inputs="@(VB6CompilerInput)"
-    Outputs="$(VB6CompilerOutputFullPath);$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'));$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'));$(VB6CompilerRuntimeOutput);$(VB6CompilerComHostOutput);$(VB6CompilerComManifestOutput)">
+    Outputs="$(VB6CompilerStamp);$(VB6CompilerManifest)">
     <MakeDir Directories="$(TargetDir)" />
     <MakeDir Directories="$(VB6CompilerOutputDirectory)" />
+    <MakeDir Directories="$(IntermediateOutputPath)" />
     <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
+    <ItemGroup>
+      <_VB6CompilerGeneratedOutput Include="$(VB6CompilerOutputFullPath)" />
+      <_VB6CompilerGeneratedOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'))" />
+      <_VB6CompilerGeneratedOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'))" />
+      <_VB6CompilerGeneratedOutput Include="$(VB6CompilerRuntimeOutput)" Condition="'$(VB6CompilerRuntimeOutput)' != ''" />
+      <_VB6CompilerGeneratedOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
+      <_VB6CompilerGeneratedOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
+    </ItemGroup>
+    <WriteLinesToFile
+      File="$(VB6CompilerManifest)"
+      Lines="@(_VB6CompilerGeneratedOutput)"
+      Overwrite="true"
+      Encoding="UTF-8" />
+    <Touch Files="$(VB6CompilerStamp)" AlwaysCreate="true" />
   </Target>
 
   <Target
