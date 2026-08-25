@@ -2605,6 +2605,7 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Date ||
             type == TypeSymbol.Double ||
             type == TypeSymbol.Boolean ||
+            type == TypeSymbol.Currency ||
             type == TypeSymbol.String;
 
         private static bool IsPInvokeArrayElement(TypeSymbol type) =>

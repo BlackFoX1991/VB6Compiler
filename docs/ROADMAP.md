@@ -2252,3 +2252,11 @@ führt native Änderungen anschließend wieder verlustarm nach `VBCurrency` zur�
 `Currency`-Sonderfall vom CLR-`decimal`-SAFEARRAY-Mapping entkoppelt; UDT-, Pointer- und Callback-
 ABIs bleiben weiterhin separate Interop-Schritte. Eine Windows-Regression prüft Erzeugung,
 native Elementänderung und Rückkopieren; die Vollsuite umfasst nun **990 Tests**.
+
+## Aktueller Declare-Currency-Scalar-Nachtrag
+
+Skalare `Currency`-Parameter und Rückgabewerte sind jetzt im Managed-`Declare`-Vertrag als native
+8-Byte-`CY`-Werte zugelassen. Der bestehende `VBCurrency`-Speicher bewahrt dabei die VB6-Skalierung
+mit vier Nachkommastellen; ein echter `oleaut32!VarCyFromR8`-Aufruf prüft den `ByRef Currency`-
+Rückweg. UDT-, Pointer- und Callback-ABI-Sonderfälle bleiben separate Roadmap-Schritte; die
+Vollsuite umfasst nun **991 Tests**.
