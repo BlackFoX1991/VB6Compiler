@@ -1189,7 +1189,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Scalar-Pointer-Transfers für `As Any` stehen, `AddressOf` erzeugt Managed-Funktionsadressen
       für direkte Prozedurziele und blittable `ByRef`-Callback-Parameter; einfache native
       `VARIANT`-Slots sowie `Variant()`-SAFEARRAY-Callback-Parameter und -Rückgaben mit Bounds-
-      und ByRef-Ersatz-Write-back sind ergänzt, verschachtelte Pointer-/String-Callback-ABI-
+      und ByRef-Ersatz-Write-back sind ergänzt, ebenso `Object()`-/Control-Arrays als
+      `SAFEARRAY(VT_DISPATCH)` in Managed-Callbacks und COM-Event-Delegaten; verschachtelte
+      Pointer-/String-Callback-ABI-
       Verträge und UDT-/Pointer-Arrays bleiben offen
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum

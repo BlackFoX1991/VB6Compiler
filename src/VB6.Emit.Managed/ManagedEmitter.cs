@@ -416,7 +416,9 @@ public sealed class ManagedEmitter
                 if (procedure.ReturnType is TypeSymbol returnType &&
                     (returnType == TypeSymbol.Variant ||
                      (returnType is ArrayTypeSymbol &&
-                      IsPInvokeArrayElement(((ArrayTypeSymbol)returnType).ElementType)) ||
+                      (IsPInvokeArrayElement(((ArrayTypeSymbol)returnType).ElementType) ||
+                       (!procedure.IsExternal &&
+                        IsCallbackArrayElement(((ArrayTypeSymbol)returnType).ElementType)))) ||
                      (procedure.IsExternal &&
                       (returnType == TypeSymbol.String || returnType == TypeSymbol.Boolean))))
                 {
@@ -464,7 +466,9 @@ public sealed class ManagedEmitter
                         AddVariantBooleanMarshalling(parameterHandle);
                     }
                     else if (parameter.Type is ArrayTypeSymbol arrayType &&
-                             IsPInvokeArrayElement(arrayType.ElementType))
+                             (IsPInvokeArrayElement(arrayType.ElementType) ||
+                              (!procedure.IsExternal &&
+                               IsCallbackArrayElement(arrayType.ElementType))))
                     {
                         AddSafeArrayMarshalling(parameterHandle, arrayType.ElementType);
                     }
@@ -2822,6 +2826,11 @@ public sealed class ManagedEmitter
             type == TypeSymbol.String ||
             type == TypeSymbol.Variant;
 
+        private static bool IsCallbackArrayElement(TypeSymbol type) =>
+            type is ClassTypeSymbol classType &&
+            (ReferenceEquals(classType, VBStandardTypes.Object) ||
+             classType.IsRuntimeObjectContract);
+
         private static int GetAutomationArrayVariantType(TypeSymbol type) =>
             type == TypeSymbol.Byte ? 0x2011 :
             type == TypeSymbol.Integer ? 0x2002 :
@@ -2854,6 +2863,7 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Currency ? (ushort)VarEnum.VT_CY :
             type == TypeSymbol.String ? (ushort)VarEnum.VT_BSTR :
             type == TypeSymbol.Variant ? (ushort)VarEnum.VT_VARIANT :
+            IsCallbackArrayElement(type) ? (ushort)VarEnum.VT_DISPATCH :
             throw new NotSupportedException($"SAFEARRAY element type '{type.Name}' is not supported.");
 
         private MethodDefinitionHandle ResolveEntryPoint()
