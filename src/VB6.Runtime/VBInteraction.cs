@@ -36,6 +36,42 @@ public static class VBInteraction
         Host?.DoEvents();
     }
 
+    /// <summary>
+    /// Activates the optional WinForms host assembly for a generated Form startup. Reflection is
+    /// intentional here: the portable runtime must remain usable without WindowsDesktop.
+    /// </summary>
+    public static void StartWinFormsHost() => InvokeOptionalWinFormsHost(nameof(StartWinFormsHost));
+
+    /// <summary>Runs the optional WinForms message loop and returns its process result.</summary>
+    public static int RunWinFormsMessageLoop() =>
+        Convert.ToInt32(InvokeOptionalWinFormsHost(nameof(RunWinFormsMessageLoop)) ?? 0, CultureInfo.InvariantCulture);
+
+    private static object? InvokeOptionalWinFormsHost(string methodName)
+    {
+        var hostType = Type.GetType(
+            "VB6.Runtime.WinForms.WinFormsApplicationHost, VB6.Runtime.WinForms",
+            throwOnError: false);
+        var method = hostType?.GetMethod(
+            methodName,
+            BindingFlags.Public | BindingFlags.Static,
+            binder: null,
+            Type.EmptyTypes,
+            modifiers: null);
+        if (method is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return method.Invoke(null, null);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            throw exception.InnerException;
+        }
+    }
+
     /// <summary>Loads a form/control through the configured UI host.</summary>
     public static void Load(object? value)
     {

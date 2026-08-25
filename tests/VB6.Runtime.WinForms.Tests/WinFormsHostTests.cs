@@ -38,6 +38,29 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void GeneratedWinFormsHostStartsAndCleansUpWithoutAForm()
+    {
+        var previousHost = VBInteraction.Host;
+        VBInteraction.Host = null;
+        try
+        {
+            VBInteraction.StartWinFormsHost();
+            Assert.IsInstanceOfType<WinFormsHost>(VBInteraction.Host);
+            Assert.AreEqual(0, VBInteraction.RunWinFormsMessageLoop());
+            Assert.AreSame(previousHost, VBInteraction.Host);
+        }
+        finally
+        {
+            if (VBInteraction.Host is WinFormsHost)
+            {
+                VBInteraction.RunWinFormsMessageLoop();
+            }
+
+            VBInteraction.Host = previousHost;
+        }
+    }
+
+    [STATestMethod]
     public void HostCreatesDesignerControlsAndMapsVb6Properties()
     {
         using var host = new WinFormsHost();

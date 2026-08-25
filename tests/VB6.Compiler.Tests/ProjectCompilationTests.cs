@@ -929,6 +929,111 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_OptingIntoWinFormsHostWritesRunnableFormArtifacts()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "HostedForm.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="MainForm"
+                Name="HostedForm"
+                Form=MainForm.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainForm.frm"), """
+                VERSION 5.00
+                Begin VB.Form MainForm
+                   Caption = "Hosted"
+                End
+                Attribute VB_Name = "MainForm"
+                Attribute VB_PredeclaredId = True
+                """);
+
+            var result = VBProjectCompilation.Create(projectPath)
+                .EmitManagedApplication(
+                    Path.Combine(directory, "HostedForm.dll"),
+                    new VB6.Emit.Managed.ManagedEmitOptions("HostedForm")
+                    {
+                        EnableWinFormsHost = true
+                    });
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+            Assert.IsNotNull(result.WinFormsRuntimeAssemblyPath);
+            Assert.IsTrue(File.Exists(result.WinFormsRuntimeAssemblyPath!));
+            Assert.IsNotNull(result.RuntimeConfigPath);
+            using var config = System.Text.Json.JsonDocument.Parse(
+                File.ReadAllText(result.RuntimeConfigPath!));
+            var frameworks = config.RootElement
+                .GetProperty("runtimeOptions")
+                .GetProperty("frameworks")
+                .EnumerateArray()
+                .Select(framework => framework.GetProperty("name").GetString())
+                .ToArray();
+            CollectionAssert.Contains(frameworks, "Microsoft.WindowsDesktop.App");
+
+            var assembly = System.Reflection.Assembly.Load(File.ReadAllBytes(result.AssemblyPath!));
+            Assert.IsNotNull(assembly.EntryPoint);
+            Assert.IsNotNull(assembly.EntryPoint!.GetCustomAttributes(typeof(STAThreadAttribute), false).SingleOrDefault());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_OptingIntoWinFormsHostRunsAndUnloadsAForm()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ClosingForm.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="MainForm"
+                Name="ClosingForm"
+                Form=MainForm.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainForm.frm"), """
+                VERSION 5.00
+                Begin VB.Form MainForm
+                   Caption = "Closes during load"
+                End
+                Attribute VB_Name = "MainForm"
+                Attribute VB_PredeclaredId = True
+
+                Private Sub Form_Load()
+                    Unload Me
+                End Sub
+                """);
+
+            var output = VB6TestProgram.RunEmitted(directory =>
+            {
+                var result = VBProjectCompilation.Create(projectPath)
+                    .EmitManagedApplication(
+                        Path.Combine(directory, "ClosingForm.dll"),
+                        new VB6.Emit.Managed.ManagedEmitOptions("ClosingForm")
+                        {
+                            EnableWinFormsHost = true
+                        });
+                Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+                return result.AssemblyPath!;
+            });
+
+            Assert.AreEqual(string.Empty, output);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesMdiFormDesignerKind()
     {
         var directory = CreateTemporaryDirectory();

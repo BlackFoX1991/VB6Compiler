@@ -161,7 +161,20 @@ public static class DirectManagedCompilation
             assemblyName,
             CreateProjectSourceDocuments(lowering.Analysis),
             outputKind);
-        var backend = EmitBackend(lowering.Program, actualOptions);
+        var program = lowering.Program;
+        var hasStartupForm = VBProjectCompilation.TryGetStartupForm(lowering.Analysis, out _);
+        if (actualOptions.EnableWinFormsHost && hasStartupForm)
+        {
+            program = AddWinFormsStartupLifecycle(program);
+        }
+        else if (actualOptions.EnableWinFormsHost)
+        {
+            // The optional WindowsDesktop framework belongs only to an actual Form startup. Do
+            // not burden Sub Main or COM-library artifacts with a UI runtime dependency.
+            actualOptions = actualOptions with { EnableWinFormsHost = false };
+        }
+
+        var backend = EmitBackend(program, actualOptions);
         if (!backend.Success || backend.PeImage is null)
         {
             return new VBProjectManagedApplicationEmitResult(lowering, backend, null, null, null, null);
@@ -179,6 +192,7 @@ public static class DirectManagedCompilation
                 artifacts.RuntimeConfigPath)
             {
                 ManagedAssemblyPath = artifacts.ManagedAssemblyPath,
+                WinFormsRuntimeAssemblyPath = artifacts.WinFormsRuntimeAssemblyPath,
                 ComManifestPath = artifacts.ComManifestPath
             };
         }
@@ -197,6 +211,57 @@ public static class DirectManagedCompilation
                 null,
                 null);
         }
+    }
+
+    private static IrProgram AddWinFormsStartupLifecycle(IrProgram program)
+    {
+        var entryPoint = program.EntryPoint ??
+            throw new InvalidOperationException("A Form startup project has no generated entry point.");
+        if (entryPoint.Blocks.Any(block => block.Instructions
+                .OfType<IrEvaluateInstruction>()
+                .Select(instruction => instruction.Expression)
+                .OfType<IrRuntimeCallExpression>()
+                .Any(call => call.Method == IrRuntimeMethod.InteractionStartWinForms)))
+        {
+            return program;
+        }
+
+        var startHost = new IrEvaluateInstruction(new IrRuntimeCallExpression(
+            IrRuntimeMethod.InteractionStartWinForms,
+            ImmutableArray<IrCallArgument>.Empty,
+            TypeSymbol.Error));
+        var runMessageLoop = new IrEvaluateInstruction(new IrRuntimeCallExpression(
+            IrRuntimeMethod.InteractionRunWinFormsMessageLoop,
+            ImmutableArray<IrCallArgument>.Empty,
+            TypeSymbol.Integer));
+        var updatedEntryPoint = entryPoint with
+        {
+            Blocks = entryPoint.Blocks
+                .Select((block, index) => index == 0
+                    ? block with
+                    {
+                        Instructions = block.Instructions
+                            .Insert(0, startHost)
+                            .Add(runMessageLoop)
+                    }
+                    : block)
+                .ToImmutableArray()
+        };
+        var updatedModules = program.Modules
+            .Select(module => module with
+            {
+                Procedures = module.Procedures
+                    .Select(procedure => ReferenceEquals(procedure, entryPoint)
+                        ? updatedEntryPoint
+                        : procedure)
+                    .ToImmutableArray()
+            })
+            .ToImmutableArray();
+        return program with
+        {
+            Modules = updatedModules,
+            EntryPoint = updatedEntryPoint
+        };
     }
 
     private static ManagedApplicationEmitResult WriteArtifacts(
@@ -232,6 +297,7 @@ public static class DirectManagedCompilation
                 artifacts.RuntimeConfigPath)
             {
                 ManagedAssemblyPath = artifacts.ManagedAssemblyPath,
+                WinFormsRuntimeAssemblyPath = artifacts.WinFormsRuntimeAssemblyPath,
                 ComManifestPath = artifacts.ComManifestPath
             };
         }
@@ -363,6 +429,9 @@ public sealed record ManagedApplicationEmitResult(
     /// </summary>
     public string? ManagedAssemblyPath { get; init; }
 
+    /// <summary>The optional WinForms runtime companion copied for a Form startup application.</summary>
+    public string? WinFormsRuntimeAssemblyPath { get; init; }
+
     /// <summary>The side-by-side activation manifest when COM hosting was requested.</summary>
     public string? ComManifestPath { get; init; }
 
@@ -380,6 +449,9 @@ public sealed record VBProjectManagedApplicationEmitResult(
 {
     /// <summary>The managed companion assembly when the requested output is an apphost.</summary>
     public string? ManagedAssemblyPath { get; init; }
+
+    /// <summary>The optional WinForms runtime companion copied for a Form startup application.</summary>
+    public string? WinFormsRuntimeAssemblyPath { get; init; }
 
     /// <summary>The side-by-side activation manifest when COM hosting was requested.</summary>
     public string? ComManifestPath { get; init; }
@@ -437,10 +509,30 @@ internal static class ManagedArtifactWriter
             File.Copy(runtimeSourcePath, runtimeOutputPath, overwrite: true);
         }
 
+        string? winFormsRuntimeOutputPath = null;
+        if (options.EnableWinFormsHost)
+        {
+            var winFormsSourcePath = FindWinFormsRuntimeAssembly();
+            if (winFormsSourcePath is null)
+            {
+                throw new ManagedArtifactException(
+                    "Form startup emission requires VB6.Runtime.WinForms.dll. Build or install the optional WinForms runtime companion.");
+            }
+
+            winFormsRuntimeOutputPath = Path.Combine(outputDirectory, "VB6.Runtime.WinForms.dll");
+            if (!string.Equals(
+                    Path.GetFullPath(winFormsSourcePath),
+                    Path.GetFullPath(winFormsRuntimeOutputPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(winFormsSourcePath, winFormsRuntimeOutputPath, overwrite: true);
+            }
+        }
+
         var runtimeConfigPath = Path.Combine(
             outputDirectory,
             Path.GetFileNameWithoutExtension(managedAssemblyPath) + ".runtimeconfig.json");
-        File.WriteAllText(runtimeConfigPath, CreateRuntimeConfig());
+        File.WriteAllText(runtimeConfigPath, CreateRuntimeConfig(options.EnableWinFormsHost));
 
         if (!string.Equals(managedAssemblyPath, fullOutputPath, StringComparison.OrdinalIgnoreCase) &&
             !ManagedAppHostWriter.TryCreate(managedAssemblyPath, fullOutputPath, options.Platform))
@@ -477,21 +569,97 @@ internal static class ManagedArtifactWriter
             pdbPath,
             runtimeOutputPath,
             runtimeConfigPath,
-            comManifestPath);
+            comManifestPath,
+            winFormsRuntimeOutputPath);
     }
 
-    private static string CreateRuntimeConfig()
+    private static string? FindWinFormsRuntimeAssembly()
+    {
+        var candidates = new List<string>();
+        var runtimeDirectory = Path.GetDirectoryName(typeof(VBConversions).Assembly.Location);
+        if (!string.IsNullOrWhiteSpace(runtimeDirectory))
+        {
+            candidates.Add(Path.Combine(runtimeDirectory, "VB6.Runtime.WinForms.dll"));
+        }
+
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "VB6.Runtime.WinForms.dll"));
+
+        foreach (var root in EnumerateAncestors(runtimeDirectory).Concat(EnumerateAncestors(Environment.CurrentDirectory)))
+        {
+            var binDirectory = Path.Combine(root, "src", "VB6.Runtime.WinForms", "bin");
+            if (!Directory.Exists(binDirectory))
+            {
+                continue;
+            }
+
+            try
+            {
+                candidates.AddRange(Directory.EnumerateFiles(
+                    binDirectory,
+                    "VB6.Runtime.WinForms.dll",
+                    SearchOption.AllDirectories));
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return candidates
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(path => string.Equals(
+                Path.GetFileName(Path.GetDirectoryName(path)),
+                "net10.0-windows",
+                StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+
+        static IEnumerable<string> EnumerateAncestors(string? start)
+        {
+            if (string.IsNullOrWhiteSpace(start))
+            {
+                yield break;
+            }
+
+            var current = new DirectoryInfo(Path.GetFullPath(start));
+            while (current is not null)
+            {
+                yield return current.FullName;
+                current = current.Parent;
+            }
+        }
+    }
+
+    private static string CreateRuntimeConfig(bool enableWinFormsHost)
     {
         var targetFramework = $"net{Environment.Version.Major}.{Environment.Version.Minor}";
         var frameworkVersion = $"{Environment.Version.Major}.{Environment.Version.Minor}.0";
-        return $$"""
-            {
-              "runtimeOptions": {
-                "tfm": "{{targetFramework}}",
+        var frameworkSection = enableWinFormsHost
+            ? $$"""
+                "frameworks": [
+                  {
+                    "name": "Microsoft.NETCore.App",
+                    "version": "{{frameworkVersion}}"
+                  },
+                  {
+                    "name": "Microsoft.WindowsDesktop.App",
+                    "version": "{{frameworkVersion}}"
+                  }
+                ]
+                """
+            : $$"""
                 "framework": {
                   "name": "Microsoft.NETCore.App",
                   "version": "{{frameworkVersion}}"
                 }
+                """;
+        return $$"""
+            {
+              "runtimeOptions": {
+                "tfm": "{{targetFramework}}",
+                {{frameworkSection}}
               }
             }
             """;
@@ -504,7 +672,8 @@ internal sealed record ManagedArtifactPaths(
     string? PdbPath,
     string RuntimeAssemblyPath,
     string RuntimeConfigPath,
-    string? ComManifestPath);
+    string? ComManifestPath,
+    string? WinFormsRuntimeAssemblyPath);
 
 internal sealed class ManagedArtifactException : Exception
 {

@@ -125,7 +125,12 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
         var outputPath = ResolveSingleProjectOutputPath(path, args[2]);
-        var emitOptions = CreateManagedEmitOptions(outputPath, projectPlatform, projectComHost, projectComManifest);
+        var emitOptions = CreateManagedEmitOptions(
+            outputPath,
+            projectPlatform,
+            projectComHost,
+            projectComManifest,
+            enableWinFormsHost: true);
         var emitResult = projectCompilation.EmitManagedApplication(outputPath, emitOptions);
         PrintProjectDiagnostics(emitResult.Lowering.Analysis);
         PrintBackendDiagnostics(emitResult.BackendResult);
@@ -139,6 +144,10 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         PrintDebugInformation(emitResult.PdbPath);
         Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
         Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
+        if (emitResult.WinFormsRuntimeAssemblyPath is not null)
+        {
+            Console.WriteLine($"WinForms runtime support: {emitResult.WinFormsRuntimeAssemblyPath}");
+        }
         if (emitResult.ComManifestPath is not null)
         {
             Console.WriteLine($"COM manifest: {emitResult.ComManifestPath}");
@@ -227,6 +236,10 @@ if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", St
     PrintDebugInformation(emitResult.PdbPath);
     Console.WriteLine($"Runtime support: {emitResult.RuntimeAssemblyPath}");
     Console.WriteLine($"Runtime config: {emitResult.RuntimeConfigPath}");
+    if (emitResult.WinFormsRuntimeAssemblyPath is not null)
+    {
+        Console.WriteLine($"WinForms runtime support: {emitResult.WinFormsRuntimeAssemblyPath}");
+    }
     if (emitResult.ComManifestPath is not null)
     {
         Console.WriteLine($"COM manifest: {emitResult.ComManifestPath}");
@@ -310,7 +323,12 @@ static int HandleProjectGroup(string path, string[] args)
 
     if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        var emitOptions = CreateManagedEmitOptions(args[2], groupPlatform, groupComHost, groupComManifest);
+        var emitOptions = CreateManagedEmitOptions(
+            args[2],
+            groupPlatform,
+            groupComHost,
+            groupComManifest,
+            enableWinFormsHost: true);
         var result = compilation.EmitManagedApplications(args[2], emitOptions);
         PrintProjectGroupSummary(result.Analysis);
         PrintProjectGroupDiagnostics(result.Analysis);
@@ -324,6 +342,10 @@ static int HandleProjectGroup(string path, string[] args)
                 PrintDebugInformation(project.Emit.PdbPath);
                 Console.WriteLine($"Runtime support: {project.Emit.RuntimeAssemblyPath}");
                 Console.WriteLine($"Runtime config: {project.Emit.RuntimeConfigPath}");
+                if (project.Emit.WinFormsRuntimeAssemblyPath is not null)
+                {
+                    Console.WriteLine($"WinForms runtime support: {project.Emit.WinFormsRuntimeAssemblyPath}");
+                }
                 if (project.Emit.ComManifestPath is not null)
                 {
                     Console.WriteLine($"COM manifest: {project.Emit.ComManifestPath}");
@@ -521,13 +543,15 @@ static ManagedEmitOptions CreateManagedEmitOptions(
     string outputPath,
     ManagedPlatform platform,
     bool enableComHosting = false,
-    bool enableComManifest = false) =>
+    bool enableComManifest = false,
+    bool enableWinFormsHost = false) =>
     new(
         Path.GetFileNameWithoutExtension(Path.GetFullPath(outputPath)),
         Platform: platform)
     {
         EnableComHosting = enableComHosting,
-        EnableComManifest = enableComManifest
+        EnableComManifest = enableComManifest,
+        EnableWinFormsHost = enableWinFormsHost
     };
 
 static string ResolveSingleProjectOutputPath(string projectPath, string requestedPath)
