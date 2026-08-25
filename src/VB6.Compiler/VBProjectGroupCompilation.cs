@@ -38,6 +38,9 @@ public sealed class VBProjectGroupCompilation
 
         var projects = ImmutableArray.CreateBuilder<VBProjectGroupProjectAnalysis>();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var declaredProjectPaths = loadResult.Group.Projects
+            .Select(project => project.GetFullPath(loadResult.Group.ProjectDirectory))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var project in loadResult.Group.Projects)
         {
             var projectPath = project.GetFullPath(loadResult.Group.ProjectDirectory);
@@ -62,6 +65,10 @@ public sealed class VBProjectGroupCompilation
             if (projectDiagnostics.Count == 0)
             {
                 compilation = VBProjectCompilation.Create(projectPath, _options).AnalyzeForEmission();
+                ValidateDeclaredProjectReferences(
+                    compilation.Project,
+                    declaredProjectPaths,
+                    projectDiagnostics);
             }
 
             projects.Add(new VBProjectGroupProjectAnalysis(
@@ -93,6 +100,27 @@ public sealed class VBProjectGroupCompilation
             loadResult.Group,
             groupDiagnostics.ToImmutable(),
             projects.ToImmutable());
+    }
+
+    private static void ValidateDeclaredProjectReferences(
+        VBProject project,
+        IReadOnlySet<string> declaredProjectPaths,
+        ImmutableArray<VBProjectGroupCompilationDiagnostic>.Builder projectDiagnostics)
+    {
+        foreach (var reference in project.References.Where(reference =>
+                     reference.Metadata.Kind == VBProjectReferenceKind.Project))
+        {
+            var referencePath = reference.Metadata.GetFullPath(project.ProjectDirectory);
+            if (referencePath is null || declaredProjectPaths.Contains(referencePath))
+            {
+                continue;
+            }
+
+            projectDiagnostics.Add(new VBProjectGroupCompilationDiagnostic(
+                "VB6VBG0008",
+                $"Project reference '{reference.Metadata.FilePath}' is not declared in the project group.",
+                project.FilePath));
+        }
     }
 
     public VBProjectGroupEmitResult EmitManagedApplications(
