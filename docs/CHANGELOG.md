@@ -2480,3 +2480,28 @@ persistente Flaeche. Die vier bestehenden Zeichentests setzen `AutoRedraw` jetzt
 statt sich auf das alte unbedingte Verhalten zu verlassen. Die gemessene Vollsuite umfasst
 **1097 Testfaelle**, davon **1097 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt
 bei 0 Fehlern und 40 von 40.
+
+## ScaleMode-Nachtrag
+
+Die Zeichenpfade kannten drei `ScaleMode`-Werte: Pixel, Point und alles uebrige als Twips. Inch,
+Millimeter, Zentimeter und Character landeten damit stillschweigend auf Twips — jede Koordinate um
+Groessenordnungen daneben, ohne Meldung. Genau der Fall, fuer den die Regel „Diagnose statt
+Naeherung" gilt.
+
+VB6 definiert jeden `ScaleMode` ausser `User` als feste Anzahl Einheiten pro Zoll, der Faktor ist
+also exakt und nicht geschaetzt. `GetScaleFactors` liefert ihn jetzt fuer Twip, Point, Pixel,
+Character, Inch, Millimeter und Zentimeter, und zwar **pro Achse**: Character ist die einzige
+asymmetrische Einheit — 120 Twips breit, 240 Twips hoch —, was ein einzelner Skalar nicht
+ausdruecken kann. Die Berechnung stand zuvor doppelt in `Line` und `PaintPicture` und liegt jetzt
+an einer Stelle. `User` (0) bleibt Twips, solange kein eigener Massstab ueber `ScaleWidth` und
+`ScaleHeight` existiert; das ist der Wert, den VB6 dort ebenfalls liefert. Ein `ScaleMode`
+ausserhalb 0 bis 7 meldet wie in VB6 Fehler 380.
+
+Zwei Regressionen: eine Zoll-Strecke deckt in allen sechs Einheiten dieselbe Pixelbreite ab,
+Character trifft dabei mit 12 zu 6 Einheiten ein Quadrat, und `ScaleMode` 8 loest 380 aus.
+
+Nebenbefund aus der Nachmessung: `DrawMode` kommt im Korpus gar nicht vor. Die drei Treffer der
+urspruenglichen Zaehlung waren ein gleichnamiges Enum, ein Kommentar und ein
+`SetROP2`-P/Invoke-Parameter, keine VB6-Eigenschaft. Die Roadmap fuehrt `DrawMode` deshalb wie MDI
+als zurueckgestellt. Die gemessene Vollsuite umfasst **1099 Testfaelle**, davon **1099 bestanden**
+und **0 fehlgeschlagen**; die Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.

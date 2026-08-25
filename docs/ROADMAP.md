@@ -40,7 +40,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1097 Tests, alle grün**
+**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1099 Tests, alle grün**
 (Stand 2026-08-25).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
@@ -70,7 +70,7 @@ Forms und Controls statt an Parserfehlern. Erhoben über die 6 `.frm`- und 4 `.c
 | `VB.Menu` | 29 | `Click` | 34 | `ForeColor` | 82 |
 | `VB.Label` | 28 | `MouseDown` | 14 | `AutoRedraw` | **12** |
 | `VB.Shape` | 15 | `Resize` | 13 | `.Line` | 8 |
-| `VB.PictureBox` | 12 | `MouseMove` | 11 | `DrawMode` | 3 |
+| `VB.PictureBox` | 12 | `MouseMove` | 11 | `DrawMode` | 0 |
 | `VB.Image` | 9 | `MouseUp` | 10 | `.Cls` | 3 |
 | `VB.Line` | 7 | `KeyDown` | 7 | `ScaleMode` | 2 |
 | `VB.CommandButton` | 6 | `LostFocus` | 6 | `TextWidth`/`TextHeight` | 4 |
@@ -86,8 +86,13 @@ Drei Schlüsse, die die Reihenfolge in M8 und M9 bestimmen:
 2. **`Paint` war das einzige verbreitete Event, das der Host nicht verdrahtet hat** — zusammen mit
    12× `AutoRedraw` die größte belegte Lücke im Forms-Vertrag. Inzwischen geschlossen; das
    Eventmodell der intrinsischen Controls ist damit vollständig.
-3. **MDI kommt im Korpus nicht ein einziges Mal vor.** Es steht in M9 als offener Punkt und wird
-   deshalb zurückgestellt, nicht gebaut.
+3. **MDI und `DrawMode` kommen im Korpus nicht ein einziges Mal vor.** Beide stehen in M9 als
+   offene Punkte und werden deshalb zurückgestellt, nicht gebaut.
+
+Zur `DrawMode`-Zeile: Sie stand zunächst mit 3 in dieser Tabelle. Die Nachmessung beim Umsetzen
+zeigte, dass alle drei Treffer keine VB6-Eigenschaft waren — ein gleichnamiges Enum, ein Kommentar
+und ein `SetROP2`-P/Invoke-Parameter. Beim Zählen also auf die Eigenschaftszuweisung prüfen, nicht
+auf den bloßen Namen.
 
 ## Korpus-Frequenzen
 
@@ -450,9 +455,15 @@ danach, unbelegte Konstrukte gar nicht.
       Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; ein unterstütztes
       `PaintPicture`-Subset zeichnet `Bitmap`-/FRX-/`VBPicture`-Quellen persistent mit; qualifizierte
       `PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe lösen ihr eigenes Ziel auf.
-      Offen bleiben `ScaleMode` und `DrawMode`: Umgesetzt wird das im Korpus belegte Subset
-      (`ScaleMode` 2×, `DrawMode` 3×), der Rest wird wie bisher als Diagnose gemeldet statt
-      genähert. `AutoRedraw` gehört zum `Paint`-Punkt oben.
+      `ScaleMode` ist vollständig: Twip, Point, Pixel, Character, Inch, Millimeter und Zentimeter
+      rechnen exakt und pro Achse — Character ist mit 120 zu 240 Twips die einzige asymmetrische
+      Einheit. `User` (0) bleibt Twips, bis ein eigener Maßstab über `ScaleWidth`/`ScaleHeight`
+      existiert; ein Wert außerhalb 0–7 meldet wie in VB6 Fehler 380. `AutoRedraw` gehört zum
+      `Paint`-Punkt oben.
+- [ ] **`DrawMode` — zurückgestellt, mangels Korpusbeleg.** Die Rasteroperationen (`Xor Pen`,
+      `Invert` und die übrigen 14) kommen in den 40 Quellen nicht vor; die drei früheren Treffer
+      der Messung waren ein gleichnamiges Enum, ein Kommentar und ein `SetROP2`-P/Invoke-Parameter.
+      Wie MDI erst bauen, wenn ein Korpusprojekt es fordert.
 - [ ] **MDI — zurückgestellt, mangels Korpusbeleg.** Weder `MDIForm` noch `MDIChild` kommt in den
       40 VISIA-Quellen vor. Der Punkt bleibt für die VB6-Vollständigkeit stehen, wird aber erst
       angefasst, wenn ein Korpusprojekt ihn fordert.
