@@ -661,6 +661,12 @@ public static class VBStrings
     private static int Weekday(DateTime value, DayOfWeek firstDayOfWeek) =>
         ((int)value.DayOfWeek - (int)firstDayOfWeek + 7) % 7 + 1;
 
+    /// <summary>
+    /// Resolves a VB6 FirstDayOfWeek constant. <c>vbUseSystem</c> (0) deliberately follows the
+    /// ambient culture — the caller asked for the system setting. Sanctioned exception to the
+    /// invariant-culture rule; see docs/ROADMAP.md and VBDateTime.ResolveFirstDayOfWeek, which
+    /// must stay in agreement with this.
+    /// </summary>
     private static DayOfWeek ToFirstDayOfWeek(int value) => value switch
     {
         0 => System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek,
@@ -677,6 +683,10 @@ public static class VBStrings
             "VB6 FirstDayOfWeek must be vbUseSystem or a weekday value from 1 through 7.")
     };
 
+    /// <summary>
+    /// Resolves a VB6 FirstWeekOfYear constant. <c>vbUseSystem</c> (0) follows the ambient culture
+    /// for the same reason as <see cref="ToFirstDayOfWeek"/>; explicit constants do not.
+    /// </summary>
     private static System.Globalization.CalendarWeekRule ToCalendarWeekRule(int value) => value switch
     {
         0 => System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.CalendarWeekRule,

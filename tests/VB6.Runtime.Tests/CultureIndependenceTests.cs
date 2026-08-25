@@ -69,14 +69,84 @@ public sealed class CultureIndependenceTests
         Assert.AreEqual(" 1.23456789012346", VBDebug.Format(1.234567890123456d));
     }
 
-    private static void UnderCommaDecimalCulture(Action action)
+    /// <summary>
+    /// vbUseSystem is the one sanctioned exception to the invariant-culture rule: the caller
+    /// explicitly asks for the system setting, so the ambient culture is the requested value and
+    /// not an accidental leak. de-DE starts its week on Monday, en-US on Sunday.
+    /// </summary>
+    [TestMethod]
+    public void FirstDayOfWeek_FollowsTheAmbientCultureOnlyForUseSystem()
+    {
+        // OLE date 43832 is Thursday, 2 January 2020.
+        const double thursday = 43832d;
+
+        Assert.AreEqual(
+            (short)5,
+            UnderCulture("en-US", () => VBDateTime.Weekday(thursday, 0)),
+            "en-US starts the week on Sunday, so Thursday is the fifth day.");
+        Assert.AreEqual(
+            (short)4,
+            UnderCulture("de-DE", () => VBDateTime.Weekday(thursday, 0)),
+            "de-DE starts the week on Monday, so Thursday is the fourth day.");
+
+        // An explicit constant is a value, not a question to the system: it stays invariant.
+        foreach (var culture in new[] { "en-US", "de-DE" })
+        {
+            Assert.AreEqual(
+                (short)5,
+                UnderCulture(culture, () => VBDateTime.Weekday(thursday, 1)),
+                $"vbSunday must not depend on {culture}.");
+            Assert.AreEqual(
+                (short)4,
+                UnderCulture(culture, () => VBDateTime.Weekday(thursday, 2)),
+                $"vbMonday must not depend on {culture}.");
+        }
+    }
+
+    /// <summary>
+    /// Format's week token uses the same contract, through VBStrings rather than VBDateTime.
+    /// Both resolvers must agree about what vbUseSystem means.
+    /// </summary>
+    [TestMethod]
+    public void FormatWeekTokens_FollowTheAmbientCultureOnlyForUseSystem()
+    {
+        // OLE date 44197 is Friday, 1 January 2021: en-US counts it as week 1, while de-DE's
+        // four-day-week rule still assigns it to the final week of 2020.
+        var newYear = DateTime.FromOADate(44197d);
+
+        var systemUnitedStates = UnderCulture("en-US", () => VBStrings.FormatValue(newYear, "ww", 0, 0));
+        var systemGermany = UnderCulture("de-DE", () => VBStrings.FormatValue(newYear, "ww", 0, 0));
+        Assert.AreNotEqual(
+            systemUnitedStates,
+            systemGermany,
+            "vbUseSystem must follow the ambient culture for both the first day and the week rule.");
+
+        var explicitUnitedStates = UnderCulture("en-US", () => VBStrings.FormatValue(newYear, "ww", 1, 1));
+        var explicitGermany = UnderCulture("de-DE", () => VBStrings.FormatValue(newYear, "ww", 1, 1));
+        Assert.AreEqual(
+            explicitUnitedStates,
+            explicitGermany,
+            "Explicit vbSunday/vbFirstJan1 must produce the same week everywhere.");
+    }
+
+    private static void UnderCommaDecimalCulture(Action action) =>
+        UnderCulture(CommaDecimalCulture, action);
+
+    private static void UnderCulture(string culture, Action action) =>
+        UnderCulture(culture, () =>
+        {
+            action();
+            return true;
+        });
+
+    private static T UnderCulture<T>(string culture, Func<T> action)
     {
         var originalCulture = CultureInfo.CurrentCulture;
-        CultureInfo.CurrentCulture = new CultureInfo(CommaDecimalCulture);
+        CultureInfo.CurrentCulture = new CultureInfo(culture);
 
         try
         {
-            action();
+            return action();
         }
         finally
         {
