@@ -2450,3 +2450,33 @@ Aufloeser verweisen im Kommentar aufeinander.
 Zwei Regressionen halten beide Seiten fest: `vbUseSystem` liefert unter `en-US` und `de-DE`
 verschiedene Wochentage und Wochennummern, explizite Konstanten dagegen dieselben. Die gemessene
 Vollsuite umfasst **1094 Testfaelle**, davon **1094 bestanden** und **0 fehlgeschlagen**.
+
+## Paint-und-AutoRedraw-Nachtrag
+
+`Paint` war das einzige verbreitete Event, das der WinForms-Host nicht verdrahtet hat. Die
+Korpusmessung ueber die 6 `.frm`- und 4 `.ctl`-Quellen zeigt 34 `Click`-, 14 `MouseDown`- und 13
+`Resize`-Handler, die alle liefen, sowie 3 `Paint`-Handler, die nicht liefen. Gleichzeitig setzt
+der Korpus 12 mal `AutoRedraw`, waehrend die Eigenschaft zwar gebunden und im Controlzustand
+gespeichert, aber an keiner Stelle ausgewertet wurde.
+
+Beides gehoert zusammen. VB6 zeichnet bei `AutoRedraw = True` in eine persistente Bitmap, die das
+Control selbst wieder anzeigt, und feuert `Paint` dann **nicht**; bei `False` geht die Ausgabe
+direkt auf die sichtbare Flaeche und ist beim naechsten Neuzeichnen verloren — genau deshalb gibt
+es `Paint`. Der Host zeichnete bisher unbedingt persistent, verhielt sich also immer so, als waere
+`AutoRedraw` eingeschaltet, obwohl der VB6-Default fuer Forms und PictureBoxen `False` ist.
+
+`BeginDrawing` entscheidet das jetzt pro Zeichenoperation: innerhalb eines `Paint`-Handlers auf
+dessen Zeichenkontext, bei `AutoRedraw` auf die persistente Flaeche mit anschliessendem
+`Invalidate`, sonst direkt auf die sichtbare Flaeche. Wird `AutoRedraw` abgeschaltet, wird die
+Bitmap wie in VB6 verworfen. `Paint` laeuft bewusst nicht ueber den generischen Reflection-Pfad,
+weil der Dispatch Hostzustand braucht — die `AutoRedraw`-Abfrage und den Zeichenkontext fuer die
+Dauer des Handlers; die Subscription wird trotzdem regulaer registriert, damit
+`UnsubscribeEvent` weiter greift. Verdrahtet ist sie fuer Designer-Controls einschliesslich
+Control-Array-Index, Forms und UserControls.
+
+Drei Regressionen decken den Vertrag ab: `Paint` feuert nur bei abgeschaltetem `AutoRedraw`, eine
+aus dem Handler gezeichnete Linie landet im Zeichenkontext, und das Abschalten verwirft die
+persistente Flaeche. Die vier bestehenden Zeichentests setzen `AutoRedraw` jetzt ausdruecklich,
+statt sich auf das alte unbedingte Verhalten zu verlassen. Die gemessene Vollsuite umfasst
+**1097 Testfaelle**, davon **1097 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt
+bei 0 Fehlern und 40 von 40.

@@ -40,7 +40,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1094 Tests, alle grün**
+**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1097 Tests, alle grün**
 (Stand 2026-08-25).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
@@ -83,8 +83,9 @@ Drei Schlüsse, die die Reihenfolge in M8 und M9 bestimmen:
 1. **Intrinsische Controls und ihr Eventmodell dominieren**, nicht OCX — 149 intrinsische
    Designer-Instanzen gegen 13 OCX-Instanzen. Die Forms-Grundmechanik wiegt schwerer als die
    ActiveX-Oberfläche, obwohl letztere spektakulärer aussieht.
-2. **`Paint` ist das einzige verbreitete Event, das der Host nicht verdrahtet** — zusammen mit
-   12× `AutoRedraw` ist das die größte belegte Lücke im Forms-Vertrag.
+2. **`Paint` war das einzige verbreitete Event, das der Host nicht verdrahtet hat** — zusammen mit
+   12× `AutoRedraw` die größte belegte Lücke im Forms-Vertrag. Inzwischen geschlossen; das
+   Eventmodell der intrinsischen Controls ist damit vollständig.
 3. **MDI kommt im Korpus nicht ein einziges Mal vor.** Es steht in M9 als offener Punkt und wird
    deshalb zurückgestellt, nicht gebaut.
 
@@ -422,12 +423,12 @@ Größter Einzelblock. Die Reihenfolge folgt den gemessenen Korpusgewichten oben
 Vollständigkeit der VB6-Oberfläche: intrinsische Controls und ihr Eventmodell zuerst, ActiveX
 danach, unbelegte Konstrukte gar nicht.
 
-- [ ] **`Paint`-Event und `AutoRedraw`-Semantik** — die größte belegte Lücke im Forms-Vertrag.
-      `Paint` ist als einziges verbreitetes Event nicht verdrahtet, während der Korpus 12×
-      `AutoRedraw` setzt. Beide hängen zusammen: Bei `AutoRedraw = True` hält VB6 die
-      Zeichenoperationen in einem persistenten Puffer und feuert `Paint` **nicht**, bei `False`
-      muss der Handler bei jedem Neuzeichnen selbst wiederherstellen. Anknüpfungspunkt ist das
-      vorhandene persistente `GraphicsLine`-Rendering, nicht eine zweite Zeichenschicht.
+- [x] **`Paint`-Event und `AutoRedraw`-Semantik** — `Paint` ist für Designer-Controls
+      (einschließlich Control-Array-Index), Forms und UserControls verdrahtet und wird wie in VB6
+      nur bei abgeschaltetem `AutoRedraw` ausgelöst. `BeginDrawing` entscheidet pro
+      Zeichenoperation über das Ziel: innerhalb eines `Paint`-Handlers dessen Zeichenkontext, bei
+      `AutoRedraw` die persistente Fläche, sonst direkt die sichtbare Fläche. Das Abschalten von
+      `AutoRedraw` verwirft die Bitmap. Offen bleibt `Cls` als eigene Operation.
 - [~] `.frm`/`.frx` parsen; die Designer-Hülle wird mit verschachtelten Controls, Eigenschaften,
       `BeginProperty`-Blöcken und hexadezimalen `.frx`-Ressourcenoffsets erfasst. Intrinsische
       Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
