@@ -124,6 +124,30 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesVariantBoolForDeclareBoolean()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Declare Boolean ABI test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Declare Function VarBoolFromI4 Lib "oleaut32" (ByVal inputValue As Long, ByRef outputValue As Boolean) As Long
+
+            Sub Main()
+                Dim value As Boolean
+                Dim status As Long
+                status = VarBoolFromI4(-1, value)
+                Debug.Print status = 0
+                Debug.Print value
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesPInvokeMethodImportMetadata()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeTests", Guid.NewGuid().ToString("N"));

@@ -2278,3 +2278,11 @@ Der bestehende Managed-P/Invoke-Vertrag behandelt `Variant`-Parameter jetzt ausd
 damit ist kein zusätzlicher String- oder Array-Sonderpuffer erforderlich. UDT-, Pointer- und
 komplexe SAFEARRAY-Descriptoren bleiben weiterhin separate ABI-Schritte; die Vollsuite umfasst
 nun **993 Tests**.
+
+## Aktueller Declare-Boolean-ABI-Nachtrag
+
+`Boolean`-Parameter und Rückgabewerte externer `Declare`-Prozeduren erhalten jetzt den expliziten
+`VARIANT_BOOL`-Marshalling-Descriptor. Dadurch verwendet der Managed-Emitter die 2-Byte-VB6-
+Automation-Repräsentation statt des impliziten 4-Byte-Win32-`BOOL`-Vertrags. Ein echter
+`oleaut32!VarBoolFromI4`-Aufruf prüft den `ByRef Boolean`-Rückweg; die Vollsuite umfasst nun
+**994 Tests**.
