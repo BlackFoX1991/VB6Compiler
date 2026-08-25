@@ -1,0 +1,2416 @@
+# Änderungshistorie
+
+Chronologisches Arbeitsjournal des Compilers: was in welchem Schritt implementiert, gemessen
+und regressionsgesichert wurde. **Älteste Einträge zuerst, neue kommen ans Ende.**
+
+Dieses Dokument beschreibt ausdrücklich **nicht** den Ist-Stand. Jeder Eintrag war zum Zeitpunkt
+seines Entstehens aktuell und ist es seitdem nicht mehr zwingend. Wer wissen will, wo das Projekt
+heute steht und was offen ist, liest `ROADMAP.md`.
+
+Die Einträge stammen aus der Roadmap, in der sie ursprünglich angehängt wurden. Beim Herauslösen
+wurde nur das jeweils führende „Aktueller" aus den Überschriften entfernt — 130 Abschnitte konnten
+nicht gleichzeitig aktuell sein. Inhaltlich ist nichts geändert.
+
+## Paritätsmessungen im Verlauf
+
+Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42 Quelldateien).
+Jede Zeile ist ein Messpunkt nach einem abgeschlossenen Arbeitsschritt:
+
+| Stand | Fehler gesamt | Parser | Lexer | Semantik | fehlerfreie Dateien |
+|---|---|---|---|---|---|
+| Nulllinie (M0) | 3361 | 3183 | 178 | 0 | 0 von 27 |
+| nach M2-Grundlagen | **2464** | 2276 | 68 | 120 | 0 von 27 |
+| nach `Declare`-Syntax | **2322** | 2116 | 68 | 138 | 0 von 27 |
+| nach `Enum`-Syntax | **2100** | 1894 | 68 | 138 | 0 von 27 |
+| nach `Optional`-Syntax | **2216** | 1800 | 68 | 348 | 0 von 27 |
+| nach `Option Base` / `Option Compare` | **2210** | 1794 | 68 | 348 | 0 von 27 |
+| nach Mehrfachdeklaratoren | **2223** | 1762 | 68 | 393 | 0 von 27 |
+| M2 abgeschlossen (`Static`, `^`, `Like`, `Is`) | **2219** | 1758 | 68 | 393 | 0 von 27 |
+| M3 Array-Syntax/Runtime-Basis | **2105** | 1644 | 68 | 393 | 0 von 27 |
+| M3 Array-Bindung/Elementzugriff | **2032** | 1571 | 68 | 393 | 0 von 27 |
+| M3 `ReDim` / `ReDim Preserve` | **2299** | 1474 | 68 | 757 | 0 von 27 |
+| M3 `Erase` / `LBound` / `UBound` | **2294** | 1474 | 68 | 752 | 0 von 27 |
+| M3 `Type ... End Type`-Syntax | **2034** | 1214 | 68 | 752 | 0 von 27 |
+| M3 UDT-Typraum / Scope-Bindung | **2034** | 1214 | 68 | 752 | 0 von 27 |
+| M3 UDT-Werte, `With`, `For Each`; M4-Grundlage | **1339** | 480 | 62 | 797 | 0 von 27 |
+| M4 untypisierte Functions | **1473** | 466 | 62 | 945 | 0 von 27 |
+| M5 ByRef-Randfälle vorgezogen | **1064** | 466 | 62 | 536 | 0 von 27 |
+| ReDim-Recovery bei qualifizierten Zielen | **1052** | 454 | 62 | 536 | 0 von 27 |
+| M7 Datei-I/O-Syntax vorgezogen | **832** | 218 | 0 | 614 | 0 von 27 |
+| M7 Datei-I/O-Runtime (numerisch) | **822** | 218 | 0 | 604 | 0 von 27 |
+| `TypeOf ... Is`-Syntax | **726** | 110 | 0 | 604 | 0 von 27 |
+| Aufrufseitiges `ByVal` | **724** | 71 | 0 | 641 | 0 von 27 |
+| Intrinsics umgebaut, Konvertierungen ergänzt | **717** | 71 | 0 | 634 | 0 von 27 |
+| String-Funktionen | **692** | 71 | 0 | 609 | 0 von 27 |
+| M6 Kontrollfluss-Syntax vorgezogen | **752** | 37 | 0 | 703 | 0 von 27 |
+| Qualifizierte Aufrufe | **784** | 12 | 0 | 760 | 0 von 27 |
+| Sichtbare Deklarationen aus fehlerhaften Modulen | **489** | 12 | 0 | 465 | 0 von 27 |
+| Sichtbare Typen aus fehlerhaften Modulen | **416** | 12 | 0 | 392 | **1 von 27** |
+| Qualifiziertes `ReDim`, `UBound` auf Ausdrücken, dynamische UDT-Member | **459** | 12 | 0 | 447 | 1 von 27 |
+| M5 `Optional`-Aufrufsemantik vorgezogen | **367** | 12 | 0 | 355 | **3 von 27** |
+| Datei-Funktionen, nackte Funktionsnamen | **322** | 12 | 0 | 310 | **4 von 27** |
+| Backend-Cutover auf direkte Managed-Emission | **304** | 12 | 0 | 292 | **5 von 27** |
+| Klassenquellen, Property/Event-Grundlage | **377** | 12 | 0 | 365 | **5 von 30** |
+| Klassen/Form-/Control-Analyse, Variant-/Objektverträge, Fehlerdispatcher und String-I/O | **779** | **0** | **0** | **779** | **21 von 40** |
+| Standard-VB-Konstanten und Host-unabhängige Numeric-Verträge | **680** | **0** | **0** | **680** | **22 von 40** |
+| Standardbibliotheks- und hostfähige Interaktionsverträge | **515** | **0** | **0** | **515** | **22 von 40** |
+| `Call`-qualifizierte Objektaufrufe | **335** | **0** | **0** | **335** | **22 von 40** |
+| Modulbezogene UDT-Scope-Auflösung in Klassen/Forms/Controls | **289** | **0** | **0** | **289** | **22 von 40** |
+| Kontextuelle `Set`-Zuweisung auf indizierte Member | **286** | **0** | **0** | **286** | **22 von 40** |
+| `Command`-/`StrPtr`-Standardverträge | **278** | **0** | **0** | **278** | **22 von 40** |
+| Implizite UserControl-Host-Intrinsics | **276** | **0** | **0** | **276** | **22 von 40** |
+| Kontextuelle `LSet`-Zuweisungssyntax | **272** | **0** | **0** | **272** | **23 von 40** |
+| Variant-Guard für boolesche Vergleichsoperatoren | **268** | **0** | **0** | **268** | **23 von 40** |
+| Modulbezogener Designer-Control-Scope | **221** | **0** | **0** | **221** | **27 von 40** |
+| Implizite Form-/UserControl-Host-Properties | **205** | **0** | **0** | **205** | **27 von 40** |
+| Qualifizierte Enum-Memberauflösung | **258** | **0** | **0** | **258** | **23 von 40** |
+| Modulkonstanten mit projektweiten Enum-Symbolen | **202** | **0** | **0** | **202** | **27 von 40** |
+| Externe VB6-/Win32-Konstantenverträge | **172** | **0** | **0** | **172** | **27 von 40** |
+| `Erl`- und `Clipboard.GetText`-Hostverträge | **169** | **0** | **0** | **169** | **27 von 40** |
+| Externe Control-/COM-Typaliase und TreeView-Node-Vertrag | **134** | **0** | **0** | **134** | **27 von 40** |
+| Graphics-`Line`-Runtimevertrag | **120** | **0** | **0** | **120** | **27 von 40** |
+| Verschachtelte Label-/`GoTo`-Auflösung | **80** | **0** | **0** | **80** | **31 von 40** |
+| `End`-Prozessbeendigungsvertrag | **77** | **0** | **0** | **77** | **31 von 40** |
+| Whitespace-/Variant-Auflösung qualifizierter Member-Aufrufe | **73** | **0** | **0** | **73** | **31 von 40** |
+| `Erase` auf UDT-Memberarrays | **71** | **0** | **0** | **71** | **31 von 40** |
+| ByRef-Konstanten als typisierte Temporaries | **65** | **0** | **0** | **65** | **33 von 40** |
+| Identifier-Typensuffixe in Bindung und impliziten Variablen | **55** | **0** | **0** | **55** | **34 von 40** |
+| Statement-Aufrufe von Functions mit verworfenem Rückgabewert | **50** | **0** | **0** | **50** | **34 von 40** |
+| Standardbibliotheks- und Host-Intrinsics (`Val`, `Hex`, `String`, `Input`, `TextHeight`, `Print`, `PaintPicture`) | **43** | **0** | **0** | **43** | **34 von 40** |
+| Standardtypen `Picture`-/`Screen`-Properties | **36** | **0** | **0** | **36** | **34 von 40** |
+| Case-insensitive Standard-Property-Bindung für UserControl-Hosts | **20** | **0** | **0** | **20** | **34 von 40** |
+| `As New`-Klassendeklaratoren | **16** | **0** | **0** | **16** | **34 von 40** |
+| `Err.Source`-Runtimevertrag | **15** | **0** | **0** | **15** | **34 von 40** |
+| `For Each` über Host-/Control-Sammlungen | **9** | **0** | **0** | **9** | **36 von 40** |
+| Klassen-Property-Targets in `With`-Blöcken | **6** | **0** | **0** | **6** | **37 von 40** |
+| `LBound`/`UBound` mit leeren Arrayklammern | **3** | **0** | **0** | **3** | **38 von 40** |
+| RichTextBox-Dateityp-Konstanten (`rtfRTF`, `rtfText`) | **2** | **0** | **0** | **2** | **38 von 40** |
+| `Format`/`Format$`-Subset für deterministische Zahlen-, Datums-/Zeit- und Stringmasken | **2** | **0** | **0** | **2** | **38 von 40** |
+| Skalare Date-Part-/Timer-Intrinsics | **2** | **0** | **0** | **2** | **38 von 40** |
+| DateSerial/TimeSerial sowie DateAdd/DateDiff-Intervalle inklusive `w`/`ww` | **2** | **0** | **0** | **2** | **38 von 40** |
+| `DatePart` mit Kalender-, Zeit- und Wochenanteilen | **2** | **0** | **0** | **2** | **38 von 40** |
+| `Weekday`/`WeekdayName`/`MonthName` | **2** | **0** | **0** | **2** | **38 von 40** |
+| Variant-Date-Arithmetik mit Date-Subtype-Erhalt | **2** | **0** | **0** | **2** | **38 von 40** |
+| `DateValue`/`TimeValue`-Normalisierung | **2** | **0** | **0** | **2** | **38 von 40** |
+| Skalare Mathematik-Intrinsics `Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn` | **2** | **0** | **0** | **2** | **38 von 40** |
+| Variant-Mathematik mit `Null`-/`Empty`-Semantik | **2** | **0** | **0** | **2** | **38 von 40** |
+| Decimal-Promotion bei Variant-Vergleichen | **2** | **0** | **0** | **2** | **38 von 40** |
+| Aktueller Managed-Emit-Messpunkt (2026-08-25) | **0** | **0** | **0** | **0** | **40 von 40** |
+
+Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
+gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
+Get/Let/Set`, Events, `WithEvents`, `New`, `Set`, `TypeOf`, Variant-Arrays, Standard-Collection,
+late-bound Object-/Control-Mitglieder sowie `On Error` mit `Err` und `Resume Next` sind als
+Compiler-Kern vorhanden. Managed-Klasseninstanzen besitzen jetzt eigenen Feldspeicher, Konstruktor-
+und Terminator-Lifecycle, Property-Dispatch, `RaiseEvent`/`WithEvents`-Emission sowie echte
+Referenzidentitaet. `Implements`-Vertraege werden als CLR-Interfaces emittiert und ueber
+`callvirt` inklusive Property-Accessors dispatcht. COM-Identitaet/Dispatch, native ABI-Emission
+und viele Parser-/UDT-/Forms-Faelle stehen noch aus.
+VISIA bleibt dabei ein Regressionstest- und Messkorpus, nicht das fachliche Portierungsziel.
+
+## Frühe Messungen und ihre Planungsfolgen
+
+Die Top-Blocker sind kleinteiliger und billiger als erwartet. Alle 27 Module scheiterten anfangs
+an derselben Stelle: **Zeile 1 jeder `.bas`-Datei ist `Attribute VB_Name = "..."`**. Diese
+frühen Parserbarrieren werden deshalb zuerst entfernt, auch wenn die vollständige Semantik eines
+Konstrukts erst in einem späteren Meilenstein folgt.
+
+Nach `Enum` zeigte die Messung zudem, dass ein großer Teil der verbliebenen `AsKeyword`-Kaskaden
+nicht von Mehrfach-`Dim`, sondern von `Optional ... As ...` in realen Prozedurköpfen stammt.
+Deshalb wurde die `Optional`-**Syntax** nach M2 vorgezogen; Default-/Missing-Aufrufsemantik bleibt
+weiterhin M5.
+
+`Option Base` und `Option Compare` haben außerdem bestätigt, dass VB6-Kontextwörter nicht
+vorschnell global reserviert werden dürfen: `Base` wird im bestehenden Akzeptanzkorpus legal als
+Bezeichner verwendet. Beide Direktiven werden deshalb nur direkt hinter `Option` erkannt; die
+Wörter bleiben sonst normale Identifier.
+
+Der `:`-Anweisungstrenner war im Parser bereits über die gemeinsame Zeilenabschlusslogik
+implementiert. Actions #588 verifiziert ihn ausdrücklich mit Parser- und End-to-End-Tests für
+mehrere Statements pro Zeile, Single-Line-`If` und `Case`. Labels wie `LinkFail:` gehören
+weiterhin zum späteren Sprung-/IR-Meilenstein und sind von diesem Statement-Separator-Support
+getrennt.
+
+Bei Mehrfachdeklarationen gilt die echte VB6-Regel **pro Deklarator**: `Dim a, b As Integer`
+macht nur `b` zu Integer; `a` bleibt Variant. Der Syntaxbaum speichert deshalb `As Type` an jedem
+Deklarator einzeln. Explizit typisierte Listen werden bereits vollständig gebunden und emittiert.
+Untypisierte Deklaratoren werden bis M4 als `VB6S0020` diagnostiziert, statt stillschweigend den
+Typ des Nachbarn zu erben. Actions #604 verifiziert das mit Parser-, Binder- und End-to-End-Tests.
+
+`Static` verwendet dieselbe Deklaratorstruktur, aber einen eigenen Syntaxknoten. Der Binder macht
+die Namen für Folgeausdrücke sichtbar und registriert prozedurbezogenen Modul-Storage; der bestehende
+Modulinitialisierer setzt String- und Array-Defaults einmalig, während skalare Defaults aus dem CLR-Nullwert kommen.
+`Like` und expression-level `Is` werden analog syntaktisch bewahrt, aber mit `VB6S0023` bzw.
+`VB6S0024` gestoppt, bis Pattern-/`Option Compare`- bzw. Objektidentitätssemantik existiert.
+`^` ist dagegen bereits vollständig von Lexer bis End-to-End-Ausführung implementiert. Actions
+#662 validiert den abgeschlossenen M2-Stand mit 243 Tests.
+
+Der nächste konkrete VISIA-Blocker in `envSort.bas` ist nun ein aufrufseitiges `ByVal`, etwa
+`CopyMemory SwpVal, ByVal VarPtr(String1), 4`. Das gehört zu den späteren ByRef-Randfällen; M3
+bleibt trotzdem bei Arrays/UDTs, weil dieselbe Datei Arrayparameter und feste lokale Arrays enthält
+und Arrays/UDTs der geplante Strukturblock sind.
+
+Danach, nach betroffenen Dateien sortiert:
+
+| Blocker | Belege |
+|---|---|
+| `Attribute`-Kopfzeile | 27 von 27 Dateien |
+| Deklarationen auf Modulebene (`Public x As Long`) | 22 Dateien |
+| `Sub`/`Function` mit `Public`/`Private`-Modifizierer | 20 Dateien |
+| `With`-Blöcke (`.Feld`-Zugriff) | 19 Dateien, 629 Vorkommen |
+| Bezeichner-Typsuffixe | `Mid$` 110×, `ret&` 26×, `lphKey&` 10× |
+| `:` als Anweisungstrenner | `AppType = 0: pError = False` ✅ |
+| Datei-I/O mit Dateinummern | `Open ... For Binary/Input/Output/Append As #1`, `Get #1`, `Put #1`, `Print #1`, `Close #1` |
+
+Konsequenz: Diese Punkte sind einzeln klein, betreffen aber viele Dateien und blockieren dadurch
+die Messung von allem Übrigen. Sie stehen deshalb vorn.
+
+## Compiler-Kern nach dem Managed-Emit-Messpunkt
+
+Seit dem Messpunkt sind mehrere bisher offene, backendunabhängige Kernpfade implementiert und
+regressionsgesichert: `Like` mit `Option Compare Binary/Text` (Wildcard-, Zeichenlisten- und
+Bereichsmuster), `Is` für Variant-/Hostobjektreferenzidentität, variable String-Transfers bei
+binärem `Get`/`Put` mit Zwei-Byte-Längenpräfix sowie `Debug.Print` mit VB6-naher numerischer
+Formatierung. `InStr`, `InStrRev`, zweiargumentiges `Mid`, `MsgBox`/`InputBox` als hostfähige headless
+Vertrag und der mathematische Kern `Abs`/`Sgn`/`Fix`/`Round`/`Sqr` sind ebenfalls über Symbol,
+IR, Managed-Emitter und Runtime verdrahtet. Skalare `Declare`-Signaturen werden als echte
+Managed-P/Invoke-Methoden mit `Lib`/`Alias`-Importmetadaten emittiert. ANSI-String-Marshalling in
+`Declare` ist über `CharSetAnsi` und echte Windows-E2E-Aufrufe abgedeckt. Skalare UDT-Records werden
+bei binärem `Get`/`Put` feldweise in Deklarationsreihenfolge übertragen; skalare feste `String * n`-
+UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste UDT-Arrayfelder mit
+skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
+`Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
+deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages und nicht unterstützte
+zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten UDT-Elementen
+übertragen außerhalb eines UDT nur ihre elementweise Payload ohne äußeren Descriptor. Dynamische
+UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
+als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
+`Len(udt)` verwendet bei emittierten `VB6.Generated`-Records nun den tatsächlichen nativen
+4-Byte-gepackten Struct-Umfang, einschließlich `String * n`-Feldern; nicht repräsentierbare
+benutzerdefinierte CLR-Structs werden weiterhin nicht implizit als VB6-UDT akzeptiert.
+Date-Werte werden als OLE-Automation-Doubles übertragen und bei `Input #` konvertiert; beim
+Ablegen typisierter Date-Werte in Variant bleibt der Date-Subtype `VarType = 7` erhalten.
+`For ... Next` akzeptiert jetzt alle numerischen Zählerformen des Sprachvertrags: `Byte`,
+`Integer`, `Long`, `LongLong`, `Single`, `Double`, `Currency` und `Date`. Default-`Step`-Werte,
+Richtungstests und die Date-OLE-Darstellung laufen dabei typisiert durch Binder, IR und Managed-
+Emitter. Scalar-Pointer-Transfers für `Declare ... As Any` inklusive `ByVal VarPtr(...)` und
+temporärer UTF-16-Puffer für `ByVal StrPtr(...)` sind über `IntPtr` abgedeckt; beschreibbare
+Stringziele werden nach dem Native-Aufruf mit ihrer ursprünglichen VB6-Länge zurückgeschrieben.
+Die semantisch vorhandene Standard-`Collection` besitzt jetzt ebenfalls eine echte
+Managed-Runtime: `New Collection`, one-based und schlüsselbasierter `Item`-Zugriff, `Count`,
+`Add` mit `Key`/`Before`, `Remove` sowie `For Each` in Einfügereihenfolge laufen über eigene
+IR-Runtime-IDs und werden im Managed-Emitter typkorrekt auf `VBCollection` abgebildet. `For Each`
+arbeitet dabei mit einem Variant-Snapshot, sodass leere Collections und `Exit For` denselben
+kontrollflussstabilen Pfad wie Array-Iteration verwenden. Weitere zusammengesetzte String-/Random-Layouts,
+komplexes `As Any`-Marshalling, COM, native LLVM-Emission und Forms bleiben bewusst offen.
+Late-bound `Variant`-/`Object`-Memberzugriffe sind jetzt ebenfalls als eigener Runtime-Vertrag
+verdrahtet: Property-Get/Let/Set und Methoden werden auf erzeugten Klassen über `__vb6_`-Reflection
+aufgelöst, während gewöhnliche CLR-Properties als Host-Fallback bestehen bleiben. Dadurch fallen
+17 bisherige `VB6S0047`-Diagnosen weg; der Messpunkt sinkt auf 275 Fehler und 21 von 40 fehlerfreie
+Dateien. Vollständige COM-/IDispatch-Identität, ByRef-Writeback und Host-ABI-Regeln bleiben offen.
+Der Managed-Kern fuer Klassen, Ereignisse und den erweiterten Kontrollfluss
+ist inzwischen regressionsgesichert.
+
+Seit dem letzten Messpunkt verarbeitet der Parser führende Punktaufrufe in `With`-Blöcken auch
+ohne Argumentliste, etwa `.ShowOpen` oder `.Cls`. Außerdem überspringt `Select Case` Leer- und
+Kommentarzeilen vor dem ersten `Case`, wie sie im realen VB6-Quelltext häufig vorkommen. Die
+beiden Syntax-Slices sind mit Parser-Regressionstests abgesichert; dadurch sinkt der VISIA-
+Messpunkt auf **205 Gesamtfehler**, davon **124 Parser**, **0 Lexer** und **81 Semantik**. Die
+Zahl der fehlerfrei analysierten Dateien bleibt bei **21 von 40**, weil die verbleibenden Blocker
+überwiegend in Binder- und Objektverträgen liegen.
+
+Zusätzlich akzeptiert und bindet der Compiler nun procedure-level `Const`-Deklarationen mit
+explizitem oder inferiertem Typ. Ihre Werte werden als lokale Initializer in den Managed-IR-Prolog
+überführt, sodass reale Muster wie `Const ProcName = "..."` nicht nur syntaktisch, sondern auch
+bei der Ausführung korrekt bleiben. Damit fällt der Parserzähler auf **104** und der Gesamtstand
+auf **185** Fehler bei weiterhin **21 von 40** fehlerfreien Dateien.
+
+Der Aufrufparser akzeptiert nun auch `Foo(arg1, arg2)` ohne das optionale `Call` sowie
+qualifizierte Aufrufe wie `object.Method(value)`. Die VB6-Unterscheidung zu `Foo (value)` bleibt
+erhalten: ein Leerzeichen vor der Klammer markiert weiterhin den ByVal-Ausdruck. Damit sinkt die
+Parserdiagnostik auf **99** und der Gesamtstand auf **180** Fehler; die acht neuen Regressionstests
+heben die Suite auf **652 Tests**.
+
+Qualifizierte Deklarationstypen wie `MSComctlLib.Node` werden jetzt als vollständige Typnamen im
+Syntaxbaum erhalten, statt nach dem ersten Identifier abzubrechen. Das gilt für Parameter,
+Variablen, Konstanten, Rückgabetypen, `Declare`, `TypeOf`, `New`, `ReDim` und UDT-Felder; der
+Binder verwendet für Meldungen und Auflösung ebenfalls den vollständigen Namen. Zwei Parser-
+Regressionstests sichern Tokenfolge und Text ab. Der VISIA-Stand sinkt dadurch auf **170
+Gesamtfehler**, davon **89 Parser**, **0 Lexer** und **81 Semantik**, bei weiterhin **21 von 40**
+fehlerfreien Dateien; die Suite umfasst **654 Tests**.
+
+`AddressOf ProcedureName` wird nun als eigener Ausdruck bis zur semantischen Grenze erhalten. Der
+Binder meldet den noch offenen Callback-/Funktionszeigervertrag explizit, statt die nachfolgenden
+Argumente als Parserfehler zu behandeln. Dadurch sinkt der VISIA-Parserstand auf **84** und der
+Gesamtstand auf **167** Fehler bei weiterhin **21 von 40** fehlerfreien Dateien; die Suite umfasst
+**655 Tests**.
+
+Deklaratoren mit `As New TypeName` werden nun vollständig als Deklaratorsyntax erhalten, inklusive
+des kontextuellen `New`-Tokens und qualifizierten Typnamens. Damit verschwinden die vier
+Kaskadenfehler aus den betroffenen VISIA-Quellen; die implizite Objektinstanziierung bleibt als
+separater Semantikbaustein offen. Der Stand sinkt auf **163 Gesamtfehler**, davon **80 Parser**,
+**0 Lexer** und **83 Semantik**, bei weiterhin **21 von 40** fehlerfreien Dateien. Die Suite umfasst
+**656 Tests**.
+
+Der nächste Syntaxabschluss verarbeitet nun die restliche VISIA-Parseroberfläche: numerische `!`-/`#`-
+Suffixe, Grafik-`Line` mit Koordinaten, `On Local Error`, `End` in Einzeilenbedingungen, Array-
+Rückgabetypen, `#Const`, `Erase .Member`, Graphics-`Print` sowie kommentierte Fortsetzungszeilen.
+Damit analysiert der Parser alle 40 VISIA-Projektdateien ohne Parserdiagnose. Die Semantikzahl steigt
+bewusst auf **779**, weil zuvor versteckte Bindungs- und Objektmodelllücken jetzt sichtbar werden; die
+fehlerfreien Dateien bleiben bei **21 von 40**. Die nächste Arbeit liegt daher im Binder-/Runtime-
+Vertrag für Controls, Late Binding, Standardbibliothek und COM, nicht mehr in der VISIA-Syntax-
+Wiederherstellung.
+
+Darauf baut der Standardkonstanten-Slice auf: Der Compiler stellt nun die numerischen VB6-Konstanten
+für Farben, Dialogschaltflächen, Variant-Typcodes, Cursor, Fensterzustände, Tastaturmasken,
+Picture-Typen und grundlegende Grafik-/Dateiverträge bereit. Sie werden wie die vorhandenen
+Stringkonstanten projektweit sichtbar, bleiben typisiert und werden weiterhin von gleichnamigen
+Benutzerdeklarationen überschattet. Dadurch sinkt der VISIA-Stand auf **680 semantische Fehler**;
+**22 von 40** Dateien analysieren fehlerfrei. Controls, `PropertyChanged`, `IIf`, `RGB`,
+`PropertyBag` und COM-/Forms-Objektmodelle bleiben getrennte Compilerkern-Slices.
+
+Der anschließende Standardbibliotheks-Slice verdrahtet `IIf` und `RGB` backendunabhängig durch
+Binder, IR, Managed-Emitter und Runtime. `IIf` behält die VB6-eager Auswertung beider Wertzweige;
+`RGB` erzeugt geklemmte Windows-`OLE_COLOR`-Werte. `GetSetting`/`SaveSetting` besitzen einen
+deterministischen, case-insensitiven Prozessspeicher für headless Hosts; `SendKeys`, `PopupMenu`
+und `PropertyChanged` sind explizite hostfähige No-op-Verträge. `LoadPicture` liefert einen
+hostneutralen Picture-Platzhalter. `Screen`, `Ambient`, `Picture`, `Font` und `PropertyBag`
+stehen als typisierte Standardobjekte im Typraum; `PropertyBag` kann Werte über einen
+case-insensitiven Runtime-Speicher lesen und schreiben. Der VISIA-Stand sinkt damit auf **515
+semantische Fehler**, weiterhin **22 von 40** fehlerfreie Dateien. Controls, COM-Dispatch,
+Forms-Lifecycle und komplexes Host-Marshalling bleiben die nächsten separaten Blöcke.
+
+Der anschließende Parserabschluss behandelt `Call receiver.Member(...)` und die VB6-Variante ohne
+Klammern als denselben qualifizierten Aufrufpfad. Zuvor wurde `Call PropBag.ReadProperty(...)`
+fälschlich als globaler Aufruf der Prozedur `PropBag` zerlegt; außerdem verloren führende
+Punktzugriffe in verschachtelten `With`-Blöcken ihren Empfängerkontext. Der korrigierte Parserpfad
+bewahrt den vollständigen Empfänger und bindet die vorhandene Late-Binding-/PropertyBag-Semantik.
+Damit verschwinden **180** semantische Kaskadenfehler; der VISIA-Stand beträgt **335 semantische
+Fehler**, bei weiterhin **22 von 40** fehlerfreien Dateien.
+
+Die UDT-Auflösung wird nun auch beim Aufbau von Member- und Prozedursymbolen für Klassen, Forms und
+UserControls unter dem jeweiligen Modul-Scope ausgeführt. Zuvor wurden private Typen wie `POINTAPI`
+bei der frühen Signaturerzeugung als unbekannt markiert; dadurch zerfielen dynamische UDT-Arrays und
+`With`-Zugriffe in Folgefehler. Der Scope-Fix entfernt **46** semantische Kaskaden, darunter alle
+`DstPoint`-/`POINTAPI`-Fehler in `GpTabs.ctl`. Der aktuelle VISIA-Stand beträgt **289 semantische
+Fehler**, weiterhin **22 von 40** fehlerfreien Dateien.
+
+Die kontextuelle `Set`-Erkennung scannt nun auch indizierte Empfänger wie
+`Set m_ButtonItem(index).TB_Icon = value` bis zum Gleichheitszeichen. Zuvor wurde diese Form als
+Aufruf einer nicht vorhandenen Prozedur `Set` klassifiziert. Der Parser-Fix entfernt drei weitere
+semantische Kaskaden; der VISIA-Stand beträgt **286 semantische Fehler**, weiterhin **22 von 40**
+fehlerfreien Dateien.
+
+Die Standardverträge umfassen nun auch `Command()`/`Command$` für headless Hosts sowie `StrPtr()`
+als explizit typisierten Native-ABI-Vertrag. `Command` liefert im headless Runtime einen stabilen
+leeren Wert; `StrPtr` bleibt bis zum nativen Backend bewusst geschützt. Der VISIA-Stand sinkt damit
+um **8** auf **278 semantische Fehler**, weiterhin **22 von 40** fehlerfreien Dateien.
+
+`ScaleX`, `ScaleY` und `TextWidth` werden nun als implizite Host-Intrinsics nur für Form- und
+UserControl-Module ergänzt. Der headless Runtime-Vertrag nutzt Identitätsskalierung und eine
+deterministische Zeichenbreiten-Näherung; ein UI-Host kann diese Verträge später ersetzen. Der
+VISIA-Stand sinkt um **2** auf **276 semantische Fehler**, weiterhin **22 von 40** fehlerfreien
+Dateien.
+
+Die Parserbehandlung von `LSet target = source` nutzt nun die tatsächliche VB6-Zuweisungsschreibweise
+und führt sie mit zwei Argumenten in den bestehenden `LSet`-Vertrag. Dadurch verschwinden die vier
+Arity-Kaskaden in `comMath.bas`; der VISIA-Stand sinkt auf **272 semantische Fehler**, und **23 von
+40** Dateien analysieren fehlerfrei. Der Managed-Pfad bewahrt nun die konkreten Operandentypen und führt
+feste String-Ziele sowie gleichartige UDT-Kopien aus; unterschiedliche UDT-Layouts bleiben wegen ihrer nativen
+Feld-/Paddingsemantik bis zum nativen Backend bewusst separat offen.
+
+Der Variant-Operations-Guard akzeptiert nun auch `Not` und boolesche logische Operatoren über
+Vergleichsergebnisse mit Variant-/Objektursprung. Diese Ausdrücke werden bereits typkorrekt als
+`NotBoolean` beziehungsweise boolesche Logik gelowert und waren zuvor nur von einer zu engen
+Diagnosebedingung blockiert. Der VISIA-Stand sinkt auf **268 semantische Fehler**, bei weiterhin
+**23 von 40** fehlerfreien Dateien.
+
+Qualifizierte Enum-Ausdrücke wie `eMsgWhen.MSG_BEFORE` werden nun als Long-Konstanten aus dem
+jeweiligen Enum-Scope gebunden. Damit bleiben auch private Modul-Enums in Forms und UserControls
+für ihre qualifizierten Memberzugriffe sichtbar; der VISIA-Stand sinkt um **10** auf **258
+semantische Fehler**, bei weiterhin **23 von 40** fehlerfreien Dateien.
+
+Designer-Controls werden nun nur noch im eigenen Form- oder UserControl-Modul als implizite
+Mitglieder gebunden. Dadurch überschattet ein Control wie `frmMain.Code` nicht mehr das gleichnamige
+öffentliche Enum-Mitglied `ENUM_SECTION_TYPE.Code` in Standardmodulen. Der VISIA-Stand sinkt um
+**37** auf **221 semantische Fehler**, und die Zahl der fehlerfreien Dateien steigt auf **27 von 40**.
+
+Form- und UserControl-Module binden nun auch bare Host-Properties wie Height, ScaleWidth, hWnd,
+CurrentX und FillStyle gegen Me. Der bestehende Host-Vertrag wird damit nicht nur für ScaleX,
+ScaleY und TextWidth, sondern auch für die häufige Property-Syntax sichtbar. Der VISIA-Stand sinkt
+um **16** auf **205 semantische Fehler**, bei weiterhin **27 von 40** fehlerfreien Dateien.
+
+Modulvariablen und Konstanten binden ihre Initializer nun gegen bereits bekannte projektweite
+Symbole und zuvor deklarierte Modulvariablen. Dadurch können beispielsweise Enum-Member in
+typisierten Modulkonstanten verwendet werden, ohne die Duplikatprüfung eigener Deklarationen zu
+umgehen. Der VISIA-Stand sinkt um **3** auf **202 semantische Fehler**, bei weiterhin **27 von 40**
+fehlerfreien Dateien; die Suite umfasst **682 Tests**.
+
+Der projektweite Konstantenvertrag enthält nun auch die nachgewiesenen externen Werte für
+TreeView-Kindknoten, Win32-Rahmenflags, `vbGrayText` und `vbSrcCopy`. Die Konstanten bleiben
+typisierte Long-Werte und können weiterhin durch eigene Moduldeklarationen überschattet werden.
+Dadurch sinkt der VISIA-Stand um **30** auf **172 semantische Fehler**, bei weiterhin **27 von 40**
+fehlerfreien Dateien; die Suite umfasst **683 Tests**.
+
+`Erl` ist nun als nullargumentiger Intrinsic bis in den Managed-Runtime-Vertrag verdrahtet und
+`Clipboard.GetText` besitzt einen typisierten Objektvertrag. Ohne weitergereichte Quellzeile
+liefert `Erl` im aktuellen Headless-Backend bewusst **0**; die Zeilenverfolgung bei abgefangenen
+Fehlern bleibt ein eigener Runtime-Slice. Der VISIA-Stand sinkt um **3** auf **169 semantische
+Fehler**, bei weiterhin **27 von 40** fehlerfreien Dateien; die Suite umfasst **685 Tests**.
+
+Die Typauflösung kennt nun die im Korpus verwendeten VB6-Standard- und ActiveX-Controlnamen als
+late-bound `Control`-Verträge, Long-basierte Konstantentypen sowie `IPicture`. `MSComctlLib.Node`
+ist als eigener Minimalvertrag mit `Key`, `Text` und `Index` modelliert. Damit verschwinden **35**
+Typ-/Folgefehler; der VISIA-Stand beträgt **134 semantische Fehler**, weiterhin **27 von 40**
+fehlerfreien Dateien, bei **686 Tests**. COM-Identität, echtes OCX-Hosting und vollständige
+Memberbibliotheken bleiben bewusst spätere Interop-Slices.
+
+Graphics-`Line`-Anweisungen werden nun semantisch gebunden, nach `Single` konvertiert und über
+einen host-neutralen IR-/Managed-Runtimevertrag emittiert. Der Vertrag trägt Farbwert, `Step`
+sowie die Box-/Fill-Optionen `B` und `F`; ein UI-Host kann die strukturierte Operation über den
+`GraphicsLineSink` übernehmen, während Headless-Läufe ohne Sink deterministisch bleiben. Dadurch
+fallen **14** bisherige VISIA-Diagnosen weg: Der Stand sinkt auf **120 semantische Fehler** bei
+weiterhin **27 von 40** fehlerfreien Dateien; die Suite umfasst **688 Tests**. Die verbleibenden
+Objektmodellfälle wie `End`, `Erase` auf Objektmembern und echte Control-/COM-Methoden bleiben
+separate Compiler-/Interop-Slices.
+
+Die Labelauflösung ist nun prozedurweit statt nur auf der äußersten Statementebene aktiv. Dadurch
+werden auch Sprünge in Labels innerhalb von `If`, Schleifen und `Select Case` als IR-Basic-Block-
+Ziele gebunden und im Managed-Backend ausgeführt. Die 40 bisherigen Label-/`GoTo`-Diagnosen
+entfallen; der VISIA-Stand sinkt auf **80 semantische Fehler** bei **31 von 40** fehlerfreien
+Dateien.
+
+`End` wird nun als host-neutraler `EndProgram`-Runtimevertrag gebunden und im Managed-Backend
+prozessweit beendet. IDE- und Test-Hosts können den Vorgang über `EndProgramSink` übernehmen.
+Damit sind die drei verbliebenen `End`-Diagnosen entfernt: Der VISIA-Stand beträgt **77
+semantische Fehler** bei weiterhin **31 von 40** fehlerfreien Dateien; die Suite umfasst **691
+Tests**.
+
+Qualified Member-Aufrufe bewahren nun auch die VB6-Form mit Leerzeichen vor der Argumentklammer,
+ohne die mehrteilige `PSet (X, Y), Farbe`-Schreibweise als Parserfehler zu behandeln. Der Binder
+dispatcht Variant-Empfänger bei Statement-Aufrufen über denselben Late-Bound-Vertrag wie
+Ausdrucksaufrufe. Damit entfallen vier weitere VISIA-Objektmodellfehler; der Stand sinkt auf
+**73 semantische Fehler** bei weiterhin **31 von 40** fehlerfreien Dateien. Die Suite umfasst
+nun **694 Tests**.
+
+`Erase .Member` in einem `With`-Block bindet nun über denselben adressierbaren UDT-Memberpfad
+wie `ReDim` und Memberzuweisungen. Die IR speichert dynamische Memberarrays über ihr Feld- bzw.
+With-Place zurück, statt nur lokale Variablensymbole zu akzeptieren. Damit entfallen die beiden
+verbliebenen `VB6S0062`-Diagnosen in `mcToolBar.ctl`; der Stand sinkt auf **71 semantische Fehler**
+bei weiterhin **31 von 40** fehlerfreien Dateien. Die Suite umfasst nun **696 Tests**.
+
+Konstanten werden bei ByRef-Aufrufen nun wie Literale als typisierte Temporaries übergeben. Das
+entfernt die sechs falschen Typmismatch-Diagnosen für die `EX_*`- und `REG_SZ`-Konstanten in
+VISIA; echte beschreibbare ByRef-/Interop-Mismatches bleiben sichtbar. Der Stand sinkt auf
+**65 semantische Fehler**, und **33 von 40** Dateien analysieren fehlerfrei. Die Suite umfasst
+nun **697 Tests**.
+
+Identifier-Typensuffixe werden nun vom Lexer bis zur Semantik erhalten. `&`, `%`, `$`, `!`, `#`
+und `@` typisieren deklarierte und implizite Variablen, Parameter sowie Funktionsrückgaben nach
+VB6-Regeln; dadurch werden unter anderem die `lphKey&`-/`ret&`-Pfade in `envAssociation.bas`
+korrekt als `Long` gebunden. Der VISIA-Stand sinkt auf **55 semantische Fehler**, bei **34 von
+40** fehlerfreien Dateien. Die Suite umfasst nun **699 Tests**.
+
+Statementartige Aufrufe von Klassen-Functions dürfen ihren Rückgabewert nun wie in VB6 verwerfen;
+der Aufruf bleibt als ausgewertete IR-Anweisung erhalten, damit Seiteneffekte ausgeführt werden.
+Damit verschwinden die fünf `Append`-Diagnosen aus `CodeEdit.ctl`. Der VISIA-Stand sinkt auf
+**50 semantische Fehler**, bei weiterhin **34 von 40** fehlerfreien Dateien. Die verbliebene
+`String`-zu-`Variant`-ByRef-Diagnose bleibt bewusst sichtbar, weil VB6 bei einem typisierten
+ByRef-Argument den exakten Parametertyp verlangt.
+
+Der anschließende Standardbibliotheks- und Host-Slice ergänzt `Val`, `Hex`, die wiederholende
+`String`-Funktion, die Ausdrucksform `Input`, sowie `TextHeight`, unqualifiziertes Control-`Print`
+und den beobachteten fünfargumentigen `PaintPicture`-Vertrag. Alle sieben Pfade laufen durch
+Intrinsic-Symbol, IR, Managed-Emitter und headless Runtime-Tests. Dadurch sinkt der VISIA-Stand
+auf **43 semantische Fehler**, weiterhin **34 von 40** fehlerfreien Dateien; die Suite umfasst nun
+**705 Tests**. Die verbleibende `String`-zu-`Variant`-ByRef-Diagnose sowie Host-/COM-/Forms-Lücken
+bleiben bewusst sichtbar.
+
+Der folgende Host-Object-Slice ergänzt die lesbaren Standardmitglieder `Picture.Width`,
+`Picture.Height`, `Picture.Type` sowie `Screen.TwipsPerPixelX` und `Screen.TwipsPerPixelY`.
+`LoadPicture` liefert dafür deterministische headless Defaults. Die sieben `VB6S0064`-Diagnosen
+entfallen; der VISIA-Stand sinkt auf **36 semantische Fehler**, weiterhin **34 von 40** fehlerfreien
+Dateien. Die Suite umfasst nun **706 Tests**.
+
+Die Standard-Property-Schlüssel werden nun case-insensitiv verglichen, wie es VB6 für Namen
+verlangt. Dadurch binden unqualifizierte Host-Mitglieder wie `hdc` und `hwnd` an die vorhandenen
+`hDC`-/`hWnd`-Verträge, auch unter `Option Explicit`; die 16 entsprechenden `VB6S0001`-Diagnosen
+entfallen. Der VISIA-Stand sinkt auf **20 semantische Fehler**, weiterhin **34 von 40** fehlerfreien
+Dateien.
+
+`As New`-Deklaratoren werden nun als Objektinitialisierer gebunden und über denselben IR-/Managed-
+Konstruktorpfad wie explizites `New` ausgeführt; `Class_Initialize` wird dabei erreicht. Dadurch
+entfallen die vier verbliebenen impliziten Objektkonstruktionsdiagnosen aus `clsFont` und `CodeEdit`.
+Der VISIA-Stand sinkt auf **16 semantische Fehler**, weiterhin **34 von 40** fehlerfreien Dateien;
+die Suite umfasst nun **707 Tests**.
+
+`Err.Source` wird nun als lesbares Standardmitglied gebunden und über IR, Managed-Emitter und
+Runtime aufgelöst. Der Fehlerzustand bewahrt dabei auch den explizit an `Err.Raise` übergebenen
+Quelltext, statt ihn beim Fehlerhandler durch den CLR-Fehlertyp zu ersetzen. Damit entfällt die
+letzte `Err.Source`-Diagnose; der VISIA-Stand sinkt auf **15 semantische Fehler**, weiterhin
+**34 von 40** fehlerfreien Dateien. Die Suite umfasst nun **709 Tests**.
+
+`For Each` unterstützt nun auch hostbereitgestellte Form-/UserControl-Sammlungen und late-bound
+`Object`-Werte über einen host-neutralen Enumeration-Callback. Objektvariablen sind als Schleifen-
+steuerung zulässig, während numerische Array-Steuerungen weiterhin diagnostiziert werden; implizite
+Schleifenvariablen ohne `Option Explicit` werden als Variant angelegt. Damit entfallen die sechs
+`For Each`-Diagnosen aus `frmDesign.frm` und `envBorders.bas`; der VISIA-Stand sinkt auf **9
+semantische Fehler**, bei **36 von 40** fehlerfreien Dateien. Die Suite umfasst nun **711 Tests**.
+
+Klassen-Property-Ergebnisse sind nun ebenfalls gültige `With`-Targets, wenn sie einen Objektwert
+liefern. Die IR-Absenkung wertet den indizierten Property-Get einmal aus und bindet den resultierenden
+Klassenverweis lokal, während UDT-Targets weiterhin über echte Adressen laufen. Damit entfallen die
+drei `With`-Diagnosen aus `GpTabs.ctl`; der VISIA-Stand sinkt auf **6 semantische Fehler**, bei
+**37 von 40** fehlerfreien Dateien. Die Suite umfasst nun **712 Tests**.
+
+`LBound` und `UBound` akzeptieren nun auch die VB6-Schreibweise mit leeren Arrayklammern, etwa
+`UBound(values())`. Der Binder bewahrt in diesem Kontext die Arrayreferenz, statt den Ausdruck als
+elementlosen Zugriff mit dem Elementtyp zu behandeln. Damit entfallen die drei `UBound`-Diagnosen
+aus `mcToolBar.ctl`; der VISIA-Stand sinkt auf **3 semantische Fehler**, bei **38 von 40**
+fehlerfreien Dateien. Die Suite umfasst nun **714 Tests**.
+
+Die globalen RichTextBox-OCX-Konstanten `rtfRTF = 0` und `rtfText = 1` sind nun als Built-in-
+Konstanten verfügbar und respektieren weiterhin die Überschreibung durch Benutzerdeklarationen.
+Damit entfällt die `rtfText`-Diagnose aus `CodeEdit.ctl`; der VISIA-Stand sinkt auf **2 semantische
+Fehler**, bei weiterhin **38 von 40** fehlerfreien Dateien. Die Suite umfasst nun **715 Tests**.
+
+`Format` und `Format$` sind nun als Intrinsics bis zum Managed-Backend verdrahtet. Der
+deterministische Teilumfang formatiert numerische Masken mit `0`, `#`, Gruppierung, Dezimalstellen,
+Prozent und Abschnitten sowie die Standardnamen `General Number`, `Currency`, `Fixed`, `Standard`,
+`Percent` und `Scientific`; bei Strings sind die `<`- und `>`-Fallmasken abgedeckt. Für
+`VBDateValue` kommen die gebräuchlichen Jahres-, Monats-, Tages-, Stunden-, Minuten-, Sekunden-
+und `AM/PM`-Token sowie die Standardnamen `General Date`, `Short Date`, `Long Date`, `Short Time`
+und `Long Time` hinzu. Wochenmasken, Locale-Auswahl und weitere String-Platzhalter bleiben bewusst
+offen, statt über eine unklare Annäherung als kompatibel zu gelten. Der VISIA-Stand bleibt
+unverändert bei **2 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst
+nun **720 Tests**.
+
+Die skalaren Date-Part-/Timer-Intrinsics `Year`, `Month`, `Day`, `Hour`, `Minute`, `Second` und
+`Timer` sind nun als backendunabhängige Runtime-Verträge ergänzt. Die Date-Part-Funktionen lesen
+typisierte `Date`-Ausdrücke über die bestehende OLE-Automation-Darstellung; `Timer` liefert die
+Sekunden seit lokaler Mitternacht im VB6-Tagesbereich. Der VISIA-Stand bleibt bei **2 semantischen
+Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **722 Tests**.
+
+`DateSerial` und `TimeSerial` normalisieren nun Date-/Zeitbestandteile auf der bestehenden
+OLE-Automation-Darstellung. `DateAdd` und `DateDiff` unterstützen die Intervalle `yyyy`, `q`, `m`,
+`y`, `d`, `h`, `n` und `s`; Wochenintervalle bleiben wegen der zusätzlichen Wochentagsparameter
+ein eigener späterer Vertrag. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und **38 von 40**
+fehlerfreien Dateien; die Suite umfasst nun **723 Tests**.
+
+`DateAdd` und `DateDiff` unterstützen nun auch die VB6-Wochenintervalle `w` und `ww`. `DateDiff`
+akzeptiert zusätzlich `firstdayofweek` und `firstweekofyear` mit den portablen VB6-Konstantwerten;
+die Wochengrenzen werden auf dem OLE-Datewert ausgewertet. Der VISIA-Stand bleibt bei **2
+semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst weiterhin **733 Tests**.
+
+`DatePart` ist nun als eigener Intrinsic-Vertrag ergänzt und liefert Kalender-, Zeit-, Wochentags-
+und Kalenderwochenanteile mit den portablen `firstdayofweek`-/`firstweekofyear`-Regeln. Die
+Standardkonstanten `vbSunday` bis `vbSaturday` sowie `vbFirstJan1`, `vbFirstFourDays` und
+`vbFirstFullWeek` sind projektweit verfügbar. Der VISIA-Stand bleibt bei **2 semantischen Fehlern**
+und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **735 Tests**.
+
+`Weekday`, `WeekdayName` und `MonthName` ergänzen den Date-/Time-Intrinsic-Slice mit konfigurierbarer
+Wochenbasis und invariant-stabilen Namen für das portable Compilerprofil. Der VISIA-Stand bleibt bei
+**2 semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **737 Tests**.
+
+Variant-Arithmetik erhält bei `Date + Zahl` und `Date - Zahl` den Date-Subtype; `Date - Date`
+liefert weiterhin einen numerischen Abstand. Damit bleibt die typisierte OLE-Automation-Darstellung
+auch nach dynamischer Variant-Arithmetik erhalten. Der VISIA-Stand bleibt bei **2 semantischen
+Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **725 Tests**.
+
+`DateValue` und `TimeValue` normalisieren nun den Tages- beziehungsweise Zeitanteil beliebiger
+Date-Ausdrücke auf die bestehende OLE-Automation-Darstellung. Der VISIA-Stand bleibt bei **2
+semantischen Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **727 Tests**.
+
+Die skalaren Mathematik-Intrinsics `Exp`, `Log`, `Sin`, `Cos`, `Tan` und `Atn` sind nun als
+portable Runtime-Verträge ergänzt. Winkel werden im bestehenden Radiant-Vertrag verarbeitet,
+`Log` ist der natürliche Logarithmus; ungültige Log-Eingaben und `Exp`-Überläufe bleiben explizite
+Laufzeitfehler. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und **38 von 40** fehlerfreien
+Dateien; die Suite umfasst nun **729 Tests**.
+
+`Abs`, `Fix` und `Round` geben bei einem `Null`-Variant wieder `Null` zurück und behandeln
+`Empty` als numerische 0. Damit folgt der bestehende Math-Slice auch bei uninitialisierten und
+explizit ungültigen Variant-Zuständen dem VB6-Vertrag. Der VISIA-Stand bleibt bei **2 semantischen
+Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **731 Tests**.
+
+`LongPtr` und `CLngPtr` sind nun als native-width `System.IntPtr`-Verträge ergänzt. Der Typ läuft
+durch Binder, IR, Managed-Emitter und Runtime mit checked Integer-/Bitwise-Operatoren, kann als
+`For`-Zähler verwendet werden, wird in Variants numerisch konvertiert und erscheint in `Declare`
+als echte pointergroße P/Invoke-Signatur. Der VISIA-Stand bleibt bei **2 semantischen Fehlern** und
+**38 von 40** fehlerfreien Dateien; die Suite umfasst nun **741 Tests**.
+
+`UInteger` mit dem Alias `UInt32` ergänzt die unsigned Integer-Basis. `CUInt`, checked Arithmetic
+und Bitwise-Operationen, `For`-Zähler, boxed-Variant-Konvertierung sowie skalare `Declare`-/P/Invoke-
+Signaturen nutzen den vollständigen Bereich 0 bis 4.294.967.295. `UShort`/`UInt16` und `ULong`/`UInt64`
+ergänzen nun dieselben checked Managed-, Variant-, `For`- und skalaren `Declare`-/P/Invoke-Verträge
+für 16 und 64 Bit mit `CUShort` und `CULng`. Der VISIA-Stand bleibt bei **2 semantischen Fehlern**
+und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **749 Tests**.
+
+`AddressOf` löst jetzt direkte Prozedurziele semantisch auf und senkt sie über IR und Managed-Emitter
+zu einer echten Funktionsadresse. `LongPtr` verwendet dabei `ldftn` und native-width `System.IntPtr`,
+während Legacy-Callback-Deklarationen mit `Long` explizit auf den 32-Bit-Vertrag konvertiert werden.
+Signaturprüfung, native Callback-ABI und die Lebensdauer von Callback-Delegates bleiben als eigener
+Interop-Schritt offen. Der VISIA-Stand verbessert sich dadurch auf **1 semantischen Fehler** und
+**39 von 40** fehlerfreien Dateien; die Suite umfasst nun **751 Tests**.
+
+Error-Varianten sind jetzt als eigener Runtime-Zustand ergänzt: `CVErr`/`IsError`, `VarType = 10`
+und `TypeName = "Error"` laufen durch Symbolik, IR, Managed-Emitter und End-to-End-Ausführung.
+`CVErr(Null)` bewahrt dabei die bestehende Null-Semantik. Der VISIA-Stand bleibt bei **1 semantischen
+Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **752 Tests**.
+
+Benannte Argumente mit `name:=value` werden jetzt im Parser bewahrt und im Binder case-insensitiv
+aufgelöst. Die Argumente werden in Signaturreihenfolge gebracht, optionale Lücken erhalten ihre
+Defaults, und die Reihenfolge kann damit unabhängig von der Deklaration verwendet werden. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **754 Tests**.
+
+`IsArray`, `IsDate` und `IsObject` sind jetzt als eigene Variant-Typprädikate durch Symbolik, IR,
+Managed-Emitter und Runtime geführt. Arrays bleiben gegenüber Objekten getrennt, `Nothing` wird
+als Objekt erkannt, und Datumserkennung umfasst den erhaltenen Date-Subtype sowie parsebare
+invariante Datums-/Zeitstrings. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von
+40** fehlerfreien Dateien; die Suite umfasst nun **756 Tests**.
+
+Die Standardfunktion `Array(...)` erzeugt jetzt über denselben ParamArray-/Array-Emitter ein
+nullbasiertes Variant-Array. Leere Aufrufe und gemischte Werte sind durch Runtime- und End-to-End-
+Tests abgedeckt; der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien
+Dateien, die Suite umfasst nun **758 Tests**.
+
+`Join` und `Filter` verarbeiten jetzt typisierte `String()`-Arrays über eigene Intrinsic-, IR-,
+Emitter- und Runtime-Verträge. `Join` unterstützt das optionale Trennzeichen; `Filter` bewahrt die
+Reihenfolge und unterstützt Include-/Binary-/Text-Vergleiche, auch bei leeren Ergebnissen. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **760 Tests**.
+
+`Oct` ergänzt `Hex` als Variant-String-Konversion mit bis zu elf Long-Oktalziffern und erhaltener
+`Null`-Semantik. `CVar` führt die Typkonversionsfamilie als expliziter Variant-Vertrag fort und
+bewahrt Date-Subtype und Variant-Zustände. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und
+**39 von 40** fehlerfreien Dateien; die Suite umfasst nun **762 Tests**.
+
+`Choose` ergänzt die Variant-ParamArray-Familie um eine 1-basierte Auswahl mit gerundetem Index,
+eager Auswertung aller Auswahlargumente und `Null` für Indizes außerhalb des gültigen Bereichs.
+Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
+Suite umfasst nun **764 Tests**.
+
+`Switch` bewahrt bei vollständig ausgewerteten Bedingungs-/Wertpaaren nun auch den korrekten
+Variant-`Null`-Zustand, wenn keine Bedingung wahr ist. Der VISIA-Stand bleibt bei **1 semantischen
+Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **766 Tests**.
+
+`Str` ergänzt die numerischen Konversionen um invariant-stabile VB6-Ausgabe mit führendem
+Vorzeichen-Leerzeichen für nichtnegative Werte. Der VISIA-Stand bleibt bei **1 semantischen Fehler**
+und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun **767 Tests**.
+
+`ChrW` und `AscW` ergänzen die String-Intrinsics um Unicode-UTF-16-Codeunit-Konvertierung mit
+signiertem `AscW`-Integer-Vertrag. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von
+40** fehlerfreien Dateien; die Suite umfasst nun **769 Tests**.
+
+`CCur` ist nun als vollständiger Compiler-Intrinsic an die vorhandene Currency-Runtime angebunden.
+Die Managed-Ausführung prüft die VB6-kompatible Vier-Dezimalstellen-Rundung, boolesche Werte und
+den erhaltenen `Currency`-Variant-Subtype. Der VISIA-Stand bleibt bei **1 semantischen Fehler** und
+**39 von 40** fehlerfreien Dateien; die Suite umfasst nun **770 Tests**.
+
+`Date` und `Time` liefern nun wie in VB6 `Variant(Date)`-Werte über `VBDateValue`; `CVDate` wandelt
+beliebige kompatible Ausdrücke in denselben Date-Subtype um. `VarType`, `IsDate` und bestehende
+Date-Part-Intrinsics bleiben dadurch auf einem gemeinsamen OLE-Automation-Pfad. Der VISIA-Stand
+bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite umfasst nun
+**772 Tests**.
+
+`CStr` behandelt die verbliebenen Error-/Null-Variantfälle nun explizit: Error-Werte werden als
+`Error <Nummer>` formatiert, während `Null` einen kontrollierten Konversionsfehler auslöst. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **774 Tests**.
+
+`Environ` ist nun als hostneutraler Interaktions-Intrinsic verdrahtet. Der Compiler unterstützt
+case-insensitiven Namenszugriff sowie den numerischen, gerundeten 1-basierten Zugriff mit stabil
+sortierten `NAME=VALUE`-Einträgen; unbekannte Namen und Positionen liefern den leeren String. Der
+VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die Suite
+umfasst nun **776 Tests**.
+
+Das globale `App`-Objekt besitzt nun einen hostneutralen Managed-Vertrag. `EXEName`, `Path`,
+`Title`, `Major`, `Minor` und `Revision` werden aus der Entry-Assembly abgeleitet; `hInstance`
+liefert im Headless-Profil deterministisch `0`. Die Properties werden mit typisierten IR-/Runtime-
+Aufrufen emittiert, damit numerische Werte nicht über den objektbasierten Late-Bound-Pfad laufen.
+Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
+Suite umfasst nun **778 Tests**.
+
+`Rnd` und `Randomize` sind nun als vollständiger mathematischer Runtime-Slice verdrahtet. Der
+Managed-Kern nutzt die dokumentierte VB6-24-Bit-LCG, unterscheidet negative, null, positive und
+ausgelassene `Rnd`-Argumente und unterstützt timerbasierte sowie reproduzierbare numerische Seeds.
+Der VISIA-Stand bleibt bei **1 semantischen Fehler** und **39 von 40** fehlerfreien Dateien; die
+Suite umfasst nun **781 Tests**.
+
+Der native LLVM-Emitter trägt nun den ersten ausgabefähigen Skalar-Slice: `Byte`, `Integer`,
+`Long`, `LongLong`, `LongPtr`, die unsigned Ganzzahlbreiten, `Single`, `Double`, `Date`,
+`Currency` und `Boolean` werden mit x86-/x64-breiten Typen, lokalen, globalen und Parameter-Slots,
+arithmetischen/vergleichenden Runtime-Operationen, Returns und Basic-Block-Verzweigungen als
+LLVM-Text emittiert. Direkte interne skalare Prozeduraufrufe werden mit Wert- und Pointer-Argumenten
+ebenfalls als native Calls emittiert. Skalare externe `Declare`-Prozeduren werden mit x86-/x64-
+Signaturen als LLVM-`declare`-Verträge ausgegeben und von generiertem Code aufgerufen. Skalare
+ByRef-Parameter werden als native Pointer-Slots gelesen und geschrieben. Currency-Literale
+werden als skalierte `i64`-Slots mit vier Nachkommastellen emittiert. Sichere skalare
+Konversionen wie native Integer-Erweiterungen, Integer-zu-Floating und Bool-Tests werden
+direkt emittiert; geprüfte Integer-Verengungen und Vorzeichenwechsel werden nun über
+trap-geschützte i64-Helper emittiert. Currency-Multiplikation wird nun über ein skaliertes
+`i128`-Produkt mit Banker's Rounding und `Int64`-Range-Guard emittiert. Komplexe
+Variant-/String-/Objekt-/ByRef-Werte und Klassen bleiben
+explizit diagnostiziert. `vb6c --emit-llvm` macht diesen Backend-Slice für Einzeldateien und
+`.vbp`-Projekte mit x64-Default sowie explizitem x86/x64-Target erreichbar. Die Suite umfasst nun
+**823 Tests**. Gerundete Single-/Double-zu-Integer-Konversionen bis 64 Bit verwenden nun
+`llvm.roundeven.f64`, NaN-/Range-Guards und sichere `fptosi`/`fptoui`-Konversionen mit darstellbaren
+Grenzwerten. Currency-zu-Integer-Konversionen verwenden nun denselben skalierten
+Ties-to-even-Helper; exakte Integer- und Boolean-zu-Currency-Konversionen
+skalieren nun mit i128, prüfen den Int64-Currency-Bereich und bilden `True`
+als `-10000` ab. Gerundete Single-/Double-zu-Currency-Konversionen skalieren
+nun mit `roundeven`, prüfen NaN-/Range-Fälle und verwenden eine geprüfte
+`fptosi`-Konversion.
+Typisierte
+Integer-Division und Restbildung werden über sign-/zero-erweiterte
+i64-Helper mit expliziten Guards für den Divisor `0` und signedem `MinValue / -1` als LLVM-
+Operationen ausgegeben; die Guard-Pfade schreiben nun Fehlernummer `11` bzw. `6` in einen
+thread-lokalen pending-Status. `On Error Resume Next` und label-directed Handler-Boundaries
+verzweigen auf dieser Basis, `Err.Number` und `Err.Clear` sind nativ lesbar bzw. nutzbar.
+`Resume Next` und targetloses `Resume` verwenden die gespeicherte Boundary-ID für Fortsetzung bzw.
+Wiederholung. Stringwertige Err-Felder bleiben offen. Single-Arithmetik und -Negation
+sowie Single-/Double-Division verwenden nun ebenfalls pending-error-aware LLVM-Helper für
+Single-Overflow und Division durch `0`.
+Integer-Addieren/-Subtrahieren/-Multiplizieren und Currency-Addieren/-Subtrahieren/-Negieren
+verwenden nun Overflow-Intrinsics mit expliziten Zielbreiten-Guards; Currency-Multiplikation ist
+mit der skalierten, gerundeten Zwischenrechnung nun ebenfalls nativ umgesetzt.
+
+Der Missing-Variant-Slice ist nun ebenfalls geschlossen: ausgelassene `Optional Variant`-Argumente
+bleiben fuer `IsMissing` erkennbar, erscheinen ueber `TypeName` als `Error`, loesen bei expliziten
+numerischen Konversionen den stabil dokumentierten Fehlerwert **448** auf und melden bei sonstiger
+Verwendung (Variant-Operatoren, String-Konversion, Bool-Kontext und `Debug.Print`) `Err.Number =
+448`. Die Runtime-, Error-Handling- und Managed-End-to-End-Regressionen decken diese Trennung vom
+normalen `CVErr`-Error-Variant ab.
+
+Array-Varianten bilden nun ebenfalls einen expliziten Grenzvertrag: `TypeName` liefert fuer
+`VBArray<T>` die VB6-Form `T()`, und skalare arithmetische, logische, relationale, String- und
+Konversionspfade melden bei Array-Operanden `Err.Number = 13` statt einer generischen CLR-Ausnahme.
+Elementzugriff mit Lesen und Schreiben laeuft nun ueber den Variant-Array-Runtimevertrag; Variant()-
+Elemente koennen an Variant-ByRef-Parameter weitergereicht werden. UDT-Arrays, Default-Properties
+und vollstaendige Objekt-/Array-Promotion bleiben separate offene M4-/M5-Vertraege. Die Suite
+umfasst nun **817 Tests**.
+
+Variant-Vergleiche konvertieren `Single`- und `Double`-Operanden nun in den bestehenden Decimal-
+Promotionspfad, sobald der Gegenwert als Decimal vergleichbar ist. Dadurch bleibt die Decimal-
+Präzision gegenüber binären Gleitkommawerten erhalten; der VISIA-Stand bleibt bei **2 semantischen
+Fehlern** und **38 von 40** fehlerfreien Dateien; die Suite umfasst nun **733 Tests**.
+
+Seit diesem Messpunkt sind Klasseninstanzen als eigener Managed-Typ mit Instanzfeldern,
+`Class_Initialize`, `Class_Terminate`, `New`, `Set`, `Is`, `TypeOf`, Properties und einfachen
+Events/`WithEvents` emittierbar. Der M6-Kontrollfluss ist fuer numerische und benannte Labels,
+`GoTo`, `On ... GoTo`, `GoSub`/`Return` und `On ... GoSub` im Basic-Block-IR und Managed-Backend
+verifiziert.
+
+`Declare` senkt die Gesamtzahl um 142 und die Parserfehler um 160. `Enum` bringt weitere 222
+Parserfehler weg. `Optional` senkt die Parserfehler nochmals um 94. Die rohe Gesamtzahl steigt
+dabei von 2100 auf 2216, weil 210 zusätzliche Semantikdiagnosen sichtbar werden: mehr echte
+Prozeduren erreichen nun den Binder, statt an ihrer Parameterliste zu entgleisen. Das ist kein
+Parser-Rückschritt, sondern genau der gewünschte Übergang von Syntaxkaskaden zu konkreten
+semantischen Lücken. `Option Base` / `Option Compare` entfernen danach weitere 6 Parserfehler.
+Mehrfachdeklaratoren senken die Parserfehler anschließend um weitere 32 auf 1762. Die Semantik
+steigt dabei von 348 auf 393: unter anderem werden 4 echte implizite-Variant-Deklaratoren jetzt
+präzise als `VB6S0020` sichtbar, statt den Typ eines späteren Deklarators zu übernehmen oder im
+Parser zu entgleisen. `Static` entfernt weitere 4 Parserfehler und schließt M2 bei 1758
+Parserfehlern ab. `^`, `Like` und expression-level `Is` ändern den aktuellen VISIA-Zähler nicht,
+sind aber regressionsgesichert.
+
+Der erste M3-Slice bewahrt feste, explizit begrenzte, mehrdimensionale und dynamische
+Arraydeklarationen sowie Arrayparameter im Syntaxbaum. Damit sanken die Parserfehler um 114 auf
+1644 und die Gesamtzahl auf 2105. `ArrayTypeSymbol` und die bounds-erhaltende `VBArray<T>`-Runtime
+bildeten dafür das Fundament.
+
+Die anschließende echte Array-Bindung, feste Initialisierung, `Option Base`, Elementzugriffe und
+ByRef-fähige Arrayelemente senkten die Parserdiagnostik weiter auf 1571 und die Gesamtzahl auf
+2032. Dynamische Arrays und `values()`-Arrayparameter tragen jetzt bewusst einen unbekannten Rang;
+bei festen Deklarationen bleibt der Rang bekannt und wird statisch geprüft. Ganze Arrayparameter
+sind wie in VB6 ByRef, während einzelne Elemente dank des `ref`-Indexers auch als echte ByRef-
+Argumente weitergereicht werden können.
+
+`ReDim` und `ReDim Preserve` sind nun für explizit typisierte dynamische Arrays von Lexer bis
+End-to-End-Ausführung verdrahtet. `Preserve` bewahrt Werte beim Ändern der Obergrenze der letzten
+Dimension und lehnt Rang-, frühere Dimensions- und Untergrenzenänderungen ab. Dadurch fallen die
+Parserfehler nochmals von 1571 auf 1474. Gleichzeitig steigt die sichtbare Semantik auf 757 und
+die rohe Gesamtsumme auf 2299: 97 weitere Parserbarrieren sind verschwunden und deutlich mehr
+realer VISIA-Code gelangt nun in Namensauflösung und ByRef-Prüfung. Dieser Anstieg ist daher wie
+bei `Optional` ein Übergang von Parserkaskaden zu konkreten späteren Semantiklücken. Actions #793
+validiert diesen Stand mit 298 Tests, 0 Warnungen und 0 Buildfehlern sowie erfolgreichen
+Compiler-/Runtime-End-to-End-Tests für `ReDim` und `ReDim Preserve`.
+
+`Erase`, `LBound` und `UBound` schließen den nächsten Array-Runtime-/Bibliotheksslice. `Erase`
+setzt feste Arrays auf ihre VB6-Initialwerte zurück und bewahrt deren Grenzen; dynamische Arrays
+werden deallokiert und können anschließend wieder per `ReDim` angelegt werden. Variable-length
+String-Arrayelemente verwenden dabei den VB6-Initialwert `""` statt CLR-`null`. `LBound` und
+`UBound` liefern VB6-`Long`, unterstützen die optionale Dimension und verwenden ohne Angabe
+Dimension 1. Actions #812 validiert den Slice mit 314 Tests, 0 Warnungen und 0 Buildfehlern. Im
+VISIA-Report bleibt der Parser bei 1474, während die Semantik von 757 auf 752 und die Gesamtsumme
+von 2299 auf 2294 sinkt.
+
+Die UDT-Syntax für `Type ... End Type` ist jetzt verlustfrei im Syntaxbaum vertreten: optionale
+Sichtbarkeit, skalare Felder, feste und mehrdimensionale Arrayfelder, verschachtelte Typnamen und
+`String * n` bleiben erhalten. UDT-Feldnamen dürfen dabei wie in klassischem VB auch reservierte
+Schlüsselwörter sein. Eine gezielte Recovery bei fehlerhaften/noch nicht unterstützten Feldformen
+stellt sicher, dass der Parser im realen Korpus immer Fortschritt macht und nicht in einem
+`Type`-Block hängen bleibt. Actions #832 validiert den Implementierungsstand mit 319 Tests,
+0 Warnungen und 0 Buildfehlern. Die Parserdiagnostik sinkt um 260 von 1474 auf 1214; die Semantik
+bleibt bei 752, die Gesamtsumme fällt entsprechend von 2294 auf 2034.
+
+Darauf baut jetzt ein eigener zweipassiger UDT-Typraum auf. `UserDefinedTypeSymbol` erzeugt vor
+der Memberauflösung stabile Typidentitäten, sodass Vorwärtsreferenzen zwischen UDTs ohne
+String-Platzhalter möglich sind. Membernamen werden case-insensitiv gebunden; feste und
+dynamische Arraymember behalten ihren Rang, `String * n` erhält einen eigenen
+`FixedLengthStringTypeSymbol`. Öffentliche Typen teilen projektweit dieselbe Identität, private
+Typen bleiben modullokal und dürfen in anderen Modulen denselben Namen tragen. Sowohl
+`VBCompilation` als auch `VBProjectCompilation` geben diese Typmodelle und ihre Diagnosen jetzt
+im Analyseergebnis zurück; ungültige UDT-Deklarationen stoppen die Codegenerierung statt später als
+`object?` approximiert zu werden. Actions #866 validiert diesen Scope-/Analyse-Slice mit
+**337 Tests**, 0 Warnungen und 0 Buildfehlern. Der VISIA-Zähler bleibt erwartungsgemäß bei
+2034 / 1214 Parser / 68 Lexer / 752 Semantik, weil UDT-Werte in Variablen und Parametern erst im
+nächsten Slice in den bestehenden Haupt-Binder integriert werden.
+
+Danach sind UDT-Werte in Locals/Parametern/Modulvariablen, `With`-Blöcke, `For Each` über feste,
+mehrdimensionale und dynamische Arrays, die Variant-Grundlage (Speicherung, Konvertierung,
+Multiplikation, `&`-Verkettung, eine Gleichheits-Teilmenge), das Enum-Binding, die eingebauten
+VB-String-Konstanten und die ersten String-Intrinsics (`Len`, `Mid`, `Chr`) gelandet. Die Messung
+dazu ergibt **1339** Gesamtfehler: **480 Parser**, **62 Lexer**, **797 Semantik**.
+
+Der Parserzähler fällt damit von 1214 auf 480 — mit −734 der mit Abstand größte Einzelsprung der
+bisherigen Historie, und der erste, bei dem die Gesamtsumme trotz steigender Semantik deutlich
+mitfällt (2034 → 1339). Der Grund steht seit M0 in der Blockertabelle: `With` kommt in 19 Dateien
+629-mal vor, und ohne Memberzugriff entgleiste dort jede Folgezeile. Die Semantik steigt
+erwartungsgemäß von 752 auf 797.
+
+Die Rangfolge der Blocker hat sich dadurch verschoben:
+
+| Code | Vorkommen | Dateien | Bedeutung |
+|---|---|---|---|
+| `VB6P0001` | 480 | 15 | verbleibende Parserlücken |
+| `VB6S0005` | 342 | 10 | Prozedur nicht deklariert — überwiegend Folge nicht parsender Module und fehlender Bibliotheksfunktionen |
+| `VB6S0007` | 290 | 6 | ByRef-Argument muss eine Variable sein |
+| `VB6S0001` | 147 | 9 | Variable nicht deklariert |
+| `VB6L0001` | 62 | 6 | `#` — Dateinummern der Datei-I/O |
+| `VB6S0006` | 16 | 4 | falsche Argumentanzahl |
+
+**`VB6S0007` ist die Überraschung dieser Messung.** Die ByRef-Randfälle stehen bisher als kleiner
+Punkt in M5, sind mit 290 Vorkommen in 6 Dateien aber der zweitgrößte semantische Blocker. Der
+Auslöser ist die in `CLAUDE.md` notierte Einschränkung: ByRef verlangt heute eine Variable mit
+exakt passendem Typ, also scheitern geklammerte Argumente und temporäre Konvertierungen. Das
+sollte vor dem Rest von M5 gezogen werden.
+
+Untypisierte `Function`-Deklarationen senken die Parserfehler danach von 480 auf 466. Die
+Gesamtsumme steigt dabei von 1339 auf 1473, weil 14 weitere Prozeduren nicht mehr an ihrem Kopf
+entgleisen und komplett in den Binder gelangen: `VB6S0007` springt von 290 auf 409, `VB6S0006`
+von 16 auf 36. Derselbe Übergang wie bei `Optional` — Parserkaskade raus, konkrete Semantiklücke
+rein. Er unterstreicht zugleich, wie dominant die ByRef-Randfälle inzwischen sind.
+
+Danach wurden die ByRef-Randfälle aus M5 vorgezogen — nach demselben Kriterium wie damals
+`Optional`: gemessene Blockerbreite schlägt Meilensteinreihenfolge. `VB6S0007` verschwindet
+vollständig, alle 409 Vorkommen, und die Gesamtsumme fällt von 1473 auf **1064**. Das war kein
+implementierter Sonderfall, sondern eine falsche Annahme: VB6 akzeptiert Literale, Ausdrücke und
+Funktionsergebnisse an ByRef-Parametern, indem es einen Temporary übergibt und das Rückschreiben
+verwirft. Nur eine *Variable* falschen Typs bleibt ein Fehler (`VB6S0008`), weil das
+Rückschreiben dort ein Ziel hätte.
+
+Im selben Zug fiel eine stille Abweichung: `Foo (x)` hat `x` verändert. In VB6 erzwingen
+Klammern Auswertung zum Wert, der Aufgerufene kann also nicht zurückschreiben. Ursache war der
+Parser, der `Foo (x)` und `Call Foo(x)` beide als Argumentliste las — nur ein `Call`-Statement
+hat aber eine geklammerte Argumentliste. Genau die Sorte Fehler, die die Projektregeln als
+schlimmer einstufen als eine Diagnose: falsches Ergebnis statt gemeldeter Lücke.
+
+`ReDim Section(0).Bytes(0)` — ein `ReDim` auf ein Arraymember innerhalb eines UDT-Elements — war
+danach der Ersterfehler in vier Modulen. Das gebundene Modell nimmt dort weiterhin ein einfaches
+`VariableSymbol`, die Konstruktion ist also noch nicht absenkbar; der unbehandelte Punkt riss
+aber die ganze restliche Prozedur mit. `VB6P0002` benennt sie jetzt und verwirft nur die Zeile,
+nach demselben Recovery-Muster wie bei den `Type`-Membern. 24 Kaskadenfehler weichen 12 präzisen,
+Parser 466 → 454.
+
+**Offen und bewusst nicht halb gebaut:** volle Unterstützung verlangt ein Zielausdruck statt
+eines Symbols in `BoundReDimStatement`, also Syntax, Binder und Codegen. Das ist der nächste
+große Array-Slice.
+
+Danach wurde die Datei-I/O-**Syntax** aus M7 vorgezogen, weil der Lexer an `#` scheiterte und
+ein kaputter Tokenstrom die teuerste Sorte Barriere ist. Die Wirkung ist entsprechend groß:
+**Lexerfehler verschwinden vollständig** (62 → 0) und die Parserfehler fallen von 454 auf 218 —
+die 62 gemeldeten Lexerfehler hatten also weit mehr als 200 Parserfehler nach sich gezogen.
+Gesamtsumme 1052 → 832.
+
+`Open`, `Close`, `Get`, `Put` und `Seek` werden **kontextuell** am Statement-Anfang erkannt, nicht
+global reserviert — dieselbe Lehre wie bei `Option Base`. Eine Zuweisung an eine Variable namens
+`Get` bleibt eine Zuweisung.
+
+Der Binder gibt für unbekannte Statements `null` zurück; ohne Guard wären die Anweisungen also
+kommentarlos aus dem erzeugten Programm gefallen — ein falsches Programm statt einer gemeldeten
+Lücke.
+
+Der Folgeslice hat Runtime, Bindung und Codegen nachgezogen: `VB6Files` bildet die prozessweite
+Dateinummerntabelle nach, Positionen sind einsbasiert, jeder Typ liest und schreibt seine exakte
+VB6-Speichergröße, und `Currency` geht als skalierter Int64 auf die Platte. Damit kompilieren 11
+der 17 I/O-Anweisungen im Korpus. **Offen bleiben Transfers von `String` und UDT-Werten**
+(`VB6S0058`, 6 Vorkommen): der eine braucht das Zwei-Byte-Längenpräfix, der andere ein
+Record-Layout — beides eigene Regeln, die hier nicht geraten werden.
+
+`TypeOf x Is T` wurde als zwei benachbarte Bezeichner gelesen, und ein einziges Vorkommen riss
+den Rest der Datei mit: allein `envBorders.bas` verlor 72 Parserfehler daran. Die Syntax wird
+jetzt bewahrt, die Semantik als `VB6S0060` gemeldet — sie braucht das Objektmodell aus M5/M9.
+Parser 218 → 110, Gesamtsumme 822 → 726.
+
+Aufrufseitiges `ByVal` — in der Blockertabelle seit M0 als `CopyMemory SwpVal, ByVal
+VarPtr(String1), 4` notiert — senkt die Parserfehler von 110 auf 71. Die Bindung fiel dabei
+billig aus: explizites `ByVal` überschreibt einen ByRef-Parameter genau wie Klammern und nutzt
+denselben Temporary. Die Semantik steigt von 604 auf 641, weil wieder mehr Code den Binder
+erreicht.
+
+`On Error GoTo` blieb der Ersterfehler in sieben Modulen, deshalb wurde die **M6-Syntax**
+vorgezogen: `On Error GoTo <Label>`, `On Error GoTo 0`, `On Error Resume Next`, `GoTo` und
+Labels. Parser 71 → 37. Die Gesamtsumme steigt dabei von 692 auf 752 — der inzwischen vertraute
+Übergang, hier besonders deutlich: `VB6S0060` (TypeOf) taucht mit 24 Vorkommen überhaupt erst
+auf, weil `envBorders.bas` zum ersten Mal den Binder erreicht.
+
+Ein Label wird nur erkannt, wenn es allein auf seiner Zeile steht. `Foo: Bar` ist in VB6 ein
+parameterloser Aufruf plus Anweisungstrenner; es als Label zu lesen würde den Aufruf still
+verschlucken. Alle 21 Labels im Korpus stehen auf eigenen Zeilen.
+
+Qualifizierte Aufrufe (`frmMain.SelectObjectObject "Frames"`) und ausgelassene Argumente
+(`List.Add , , "General"`) waren die letzte breite Parserlücke. Damit fällt der Parserzähler auf
+**12** — von 480 zu Beginn dieser Arbeit, also 97 %.
+
+Zwei Regeln halten den Lookahead ehrlich, beide von Tests erzwungen, die zuerst brachen: der
+Punkt muss direkt auf den Empfänger folgen, sonst wird `Consume record.Value` als Memberaufruf
+gelesen; und das Leerzeichen entscheidet den Rest, weil `Consume .Value` innerhalb eines `With`
+das With-Member als Argument übergibt. VB6 zieht dieselbe Grenze — und der trivia-erhaltende
+Lexer macht sie überhaupt erst sichtbar.
+
+Der größte Sprung dieser Reihe kam dann nicht aus einem Sprachfeature, sondern aus der
+Projekt-Pipeline. Sie sammelte Deklarationen — Prozeduren, Modulvariablen, Enums, UDTs —
+ausschließlich aus Modulen **ohne** Parserfehler. Ein Modul mit einem einzigen Syntaxfehler war
+damit projektweit unsichtbar, und jeder Aufruf hinein wurde „nicht deklariert".
+
+Das widersprach dem eigenen Entwurf: der Parser ist ausdrücklich fehlertolerant, damit er trotz
+Fehlern einen brauchbaren Baum liefert. `comSummary.bas` hat genau einen Parserfehler und
+beherbergt `ErrMessage` (30 Aufrufe aus sieben Dateien); `comLinker.bas` hat drei und deklariert
+`ENUM_APP_TYPE` und `ENUM_SECTION_TYPE`. Acht der 27 Module waren betroffen.
+
+Gesamtsumme 784 → 489 → **416**, `VB6S0005` von 364 auf 94, `VB6S0001` von 179 auf 119. Vor
+allem aber: **die erste Datei analysiert fehlerfrei** (`envVirtualFiles.bas`). Genau wie oben
+vorhergesagt kam dieser Sprung schlagartig, nicht schrittweise — weil projektweit gebunden wird
+und eine Datei erst sauber sein kann, wenn ihre Abhängigkeiten es sind. Der Ratchet steht
+entsprechend auf 1.
+
+`ReDim Section(0).Bytes(0)` ist damit echt implementiert statt abgefangen; `VB6P0002` entfällt.
+Die Modellgrenze war, dass `BoundReDimStatement` und `BoundArrayBoundExpression` ein
+`VariableSymbol` trugen — ein Array in einem UDT-Element hat aber kein eigenes Symbol. Beide
+nehmen jetzt den Ausdruck, der es lokalisiert.
+
+Zwei Folgearbeiten fielen dabei an, beide von der Messung erzwungen: die wiederholte
+Elementtypangabe (`... As Byte`), und `UBound` auf einem Arrayausdruck statt nur auf einem Namen
+— letzteres allein 48 Diagnosen. Zuletzt konnte der Layout-Guard für **dynamische Arraymember**
+gelöst werden: der Generator konnte sie längst, er wurde nur nicht gelassen.
+
+Die `Optional`-Aufrufsemantik aus M5 war danach der größte Einzelposten hinter `VB6S0006`:
+`AddSymbol` deklariert fünf Parameter, zwei davon `Optional`, und jeder Aufruf liefert vier.
+Ein ausgelassenes Argument trägt jetzt seinen deklarierten Default — oder den Default seines
+Typs, wenn die Deklaration keinen nennt. Ein ausgelassener ByRef-`Optional` bekommt einen
+Temporary und hat damit kein Ziel zum Zurückschreiben, wie in VB6.
+
+Gesamtsumme 459 → **367**, und die Zahl fehlerfreier Dateien steigt von 1 auf **3**.
+
+`FileNum = FreeFile` ist in VB6 ein Funktionsaufruf; ein nackter Name suchte aber nur nach einer
+Variablen. Zusammen mit `FreeFile`, `LOF`, `EOF` und der `Seek`-Funktion — die Runtime hatte alle
+bis auf `EOF` bereits, sie waren nur nicht freigegeben — sinkt die Summe auf **322** bei
+**4 von 27** fehlerfreien Dateien.
+
+**Die billigen Hebel sind dünner geworden, aber nicht erschöpft.** Stand nach dem
+Backend-Cutover: **304 Fehler**, davon 12 Parser, 0 Lexer, 292 Semantik, bei **5 von 27**
+fehlerfreien Dateien.
+
+| Code | Anzahl | wartet auf |
+|---|---|---|
+| `VB6S0005` / `VB6S0001` | 148 / 137 | Standardbibliotheksfunktionen und fehlende Projekt-/Objektbezeichner; davon sind `CopyMemory`, `DoEvents`, `VarPtr`, `RaiseEvent`, `frmMain`, `App` und `Err` die breiten Blocker |
+| `VB6S0003` | 31 | fehlende externe Typen wie `Collection`, `Control` und `OLE_COLOR`; COM-/Forms-Typraum folgt |
+| `VB6S0061` | 27 | `On Error` und Handler-Semantik; das lowered IR aus M6 steht inzwischen |
+| `VB6P0001` | 12 | verstreute Parserreste |
+| `VB6S0012` | 8 | verbliebene Typkonvertierungen |
+| `VB6S0058` | 6 | Datei-I/O-Formen jenseits der numerischen Binärtransfers |
+
+Zum damaligen Messstand wurden `.bas` und `.cls` gelesen und analysiert; `.ctl` (4) und `.frm`
+(6) lagen noch außerhalb des Compiler-Kerns. Der aktuelle Stand liest zusätzlich die Designer-
+Hüllen dieser Module, ohne die historische Messreihe nachträglich umzuschreiben.
+
+Dass zunehmend *semantische* Fehler auftauchen, ist der eigentliche Fortschritt: Dateien kommen
+bis zum Binder durch, statt schon im Parser zu entgleisen.
+
+Die Zahl fehlerfreier Dateien blieb lange bei 0: gebunden wird projektweit, also kann eine Datei
+erst sauber sein, wenn auch ihre Abhängigkeiten parsen. Der Sprung kam schlagartig, wie
+erwartet — siehe die Zeile mit 1 von 27 oben.
+
+## .NET-Nachtrag
+
+Der late-bound Managed-/CLR-Dispatch füllt nun optionale Parameter auf, bündelt `ParamArray`-
+Argumente, konvertiert Property- und Indexerargumente über die VB-Runtime und schreibt geänderte
+ByRef-Argumente in die Variant-Argumentliste zurück. Die drei Runtime-Regressionstests erhöhen die
+Suite auf **826 Tests**. COM-/IDispatch-spezifische Identität, Event-Sinks und Host-ABI bleiben als
+separater Interop-Schritt offen.
+
+Die Projektintegration unterstützt nun zusätzlich `.vbg`-Gruppen: deklarierte `.vbp`-Pfade werden
+relativ zum Gruppenverzeichnis in abhängigkeitssicherer Reihenfolge aufgelöst (referenzierte
+Bibliotheken vor ihren Verbrauchern, unabhängige Projekte in Deklarationsreihenfolge), einzeln analysiert und über
+`vb6c <gruppe.vbg> --emit-assembly <ausgabeverzeichnis>` als Managed-Artefakte ausgegeben. Gruppen-
+und projektbezogene Fehler behalten den aufgelösten Pfad. `Reference=`/`Object=` werden mit
+GUID-, Versions-, LCID- und Pfadmetadaten erfasst; fehlende explizite `.vbp`-Verweise erzeugen
+aufgelöste Compilerdiagnosen; vorhandene Referenzprojekte liefern ihre Klassenverträge unter
+Projekt- und Klassennamen in die semantische Sicht und in Managed-IL-Assembly-/Member-References,
+und die verbreiteten `MSComctlLib`-/
+`RichTextLib`-/`MSComDlg`-Controltypen werden projektlokal erkannt. Designer-Controlfelder werden
+mit diesen Typverträgen als Klassenfelder gebunden; der Managed-Pfad nutzt dafür Late Binding und
+emittiert keine falschen CLR-Typreferenzen auf OCX-Dateien. Die Projektgruppenregressionen
+erhöhen die Suite auf
+**848 Tests**. `.frm`-/`.ctl`-Designerhüllen werden jetzt offsettreu geparst, verschachtelte
+Controls und Control-Arrays werden in die Klassenfelder übernommen; die Legacy-Schreibweise
+`controls.LBound`/`controls.UBound` wird als Array-Bound gebunden, und ein späteres `End` im
+Quellcode wird nicht mehr als Designerabschluss diagnostiziert. `.frx`-Verweise behalten
+ihren aufgelösten Pfad sowie Hex-Offset. `Type=OleDll`, `Type=OleExe`, `Type=ActiveX EXE` und `Type=Control` werden dabei als
+Managed-Libraries ohne `Sub Main`
+emittiert. EXE-Projekte mit `Startup="FormName"` erhalten einen generierten Einstiegspunkt, der
+die erzeugte Formklasse konstruiert; Fenstererzeugung, Message Loop und OCX-Hosting bleiben
+Host-/Interop-Aufgaben. `PropertyPage`- und `UserDocument`-Quellen werden ebenfalls als
+Projektklassen analysiert und in Managed-Libraries aufgenommen; vollständiger
+ActiveX-/COM-Server- und Typbibliotheksimport bleiben separate Kompatibilitätsstufen.
+
+Variant-Objektindizes verwenden nun den bestehenden Managed-Dispatch auch dann, wenn der
+Empfänger erst zur Laufzeit als Objekt bekannt ist: `value(index)` bleibt für echte `IVBArray`-
+Werte ein Arrayzugriff und fällt für Objekte auf `Item`-Get/Let zurück. Die Suite umfasst damit
+**855 Tests**; COM-Default-Member werden für echte COM-Objekte nun über `DISPID_VALUE` aufgelöst,
+Windows-TypeLib-Records wie `GUID` und `EXCEPINFO` werden mit skalaren Feldern in den Managed-
+UDT-Pfad übernommen, und COM-RCW-Identität wird über `IUnknown` verglichen; die vollständige
+Dispatch-ABI bleibt offen.
+
+`.vbg`-Gruppen schreiben ihre Managed-Artefakte jetzt mit dem passenden Zieltyp: `Type=Exe`-
+Projekte erhalten `.exe`, Bibliotheksprojekte `.dll`. Die Abhängigkeitsreihenfolge und die
+expliziten Einzelprojekt-Ausgabepfade bleiben unverändert.
+
+Variant-Indizes behalten nun ihren ursprünglichen Ausdruckstyp: echte Variant-Arrays konvertieren
+ihre Subscripte weiterhin nach `Long`, während Objekt-Default-Properties auch String-Schlüssel
+über den Managed-Dispatch erhalten. Echte COM-Objekte verwenden für Defaultzugriffe zuerst den
+leeren Dispatch-Namen (`DISPID_VALUE`); der ByRef-Writeback und die übrige COM-ABI bleiben offen.
+
+Statisch deklarierte `Object`-Empfänger nutzen denselben dynamischen `Item`-Default-Property-
+Vertrag wie `Variant`: String-Indizes werden gebunden, an den Managed-Dispatch weitergereicht
+und können gelesen sowie geschrieben werden. Die direkte COM-Aktivierung und vollständige
+`IDispatch`-Default-Member-Ermittlung für COM-Objekte ist über `DISPID_VALUE` angebunden; vollständige
+COM-ByRef-/Event- und Aktivierungsregeln bleiben offen.
+
+VB6-`VB_UserMemId = 0`-Namen werden für erzeugte Klassen nun als CLR-
+`DefaultMemberAttribute` emittiert. Dadurch verwenden late-bound `Variant`- und `Object`-
+Zugriffe auch benannte Default-Properties wie `Text(...)`; die vollständige COM-Dispatch-ABI
+bleibt separat offen.
+
+## CLI-Legacy-Nachtrag
+
+Der Managed-CLI-Pfad kompiliert nun reale Legacy-Projekte über beide Projektcontainer: Für
+`conformance/VISIA/4.8.7.1/prjVisia.vbp` liefert `vb6c ... --report` 40 von 40 fehlerfrei
+analysierte Projektitems, und `vb6c ... --emit-assembly` erzeugt erfolgreich die Managed-
+Anwendung samt PDB, Runtime-DLL und Runtime-Konfiguration. Dabei werden unter anderem lokale
+Konstanten in `Static`-Arraygrenzen, Klassen-/Formfelder, scoped `Declare`/P/Invoke-Verträge,
+UDT- und Hosttypen in nativen Signaturen sowie `Font`/`StdFont`-Erzeugung berücksichtigt.
+Projekt-, Designer- und Quelltextdateien akzeptieren UTF-8/UTF-16-BOMs und verwenden für ältere
+VB6-ANSI-Dateien einen Windows-1252-Fallback. `.vbg`-Batch-Emission bleibt über die bestehende
+Abhängigkeitsreihenfolge und die getrennte
+Ausgabe von `.exe`-/`.dll`-Projekten regression-getestet; ausführbare Projekte verwenden dabei
+bevorzugt den Legacy-Namen aus `ExeName32` und fallen auf `Name=` zurück. Die Gesamtsuite umfasst
+**886 Tests**.
+`--report` gibt Projekt- und Quelldiagnosen bei Fehlern auf `stderr` aus und liefert dann einen
+Fehler-Exitcode statt eines erfolgreichen Status. Zwei Prozessregressionen prüfen sowohl ein
+fehlerhaftes `.vbp` als auch die echte `.vbg`-Batch-Emission über den CLI-Prozess. Die Gesamtsuite
+umfasst **886 Tests**.
+
+Die Managed-CLI akzeptiert für Einzelprojekte und `.vbg`-Batch-Emission zusätzlich `--x86`,
+`--x64` und `--anycpu`. Die Auswahl wird bis in den PE-Header durchgereicht; `--x86` setzt für
+Legacy-OCX-/ActiveX-Projekte `Machine.I386` und `Requires32Bit`, ohne die projektabhängige
+Ausgabeentscheidung zwischen `.exe` und `.dll` zu überschreiben. Der CLI-Prozesspfad ist dafür
+regression-getestet. Die Gesamtsuite umfasst **889 Tests**.
+
+Legacy-Designerprojekte werden jetzt ebenfalls über den CLI-Projektpfad kompiliert: `Designer=`-
+Einträge mit der historischen `DesignerType; Datei.dsr`-Form werden in Designer-Typ und echten
+relativen Quellpfad aufgeteilt. `.dsr`-Quellen werden als klassenartige Projektquellen normalisiert,
+analysiert und in Managed-Libraries emittiert. Das ergänzt die vorhandene Unterstützung für
+`.frm`, `.ctl`, `.pag` und `.dob`; die eigentliche Designer-/OCX-Laufzeit bleibt davon getrennt.
+Die drei Regressionen erhöhen die Gesamtsuite auf **902 Tests**.
+
+Der gleiche Architekturvertrag gilt jetzt auch für direkte `.bas`-Emission; `--x64` erzeugt
+einen PE-Header mit `Machine.Amd64`, während die Projekt- und Gruppenpfade weiterhin ihre
+projektabhängige `.exe`-/`.dll`-Ausgabe beibehalten. Die Gesamtsuite umfasst **890 Tests**.
+
+Variant-Exponentiation verwirft nun ebenfalls nichtdarstellbare `Double`-Ergebnisse als
+Overflow, statt `Infinity` in ein laufendes VB6-Programm durchsickern zu lassen. Die Regression
+ist direkt im Runtime-Vertrag abgesichert; die Gesamtsuite umfasst **891 Tests**.
+
+Offen bleiben die vollständige Forms-/OCX-Hostlaufzeit, COM-ByRef-/Event-ABI und die weitere
+Abdeckung von Legacy-Projektsonderfällen.
+
+## Forms-Host-Nachtrag
+
+Der Managed-Form-Startup erzeugt Designer-Controls jetzt über einen expliziten portablen
+`IVB6Host`-Vertrag und ruft für die gehaltene Startup-Instanz `Load` sowie `Show` auf. Ohne
+Host bleibt der Compiler headless lauffähig und verwendet `VBControlProxy`-Objekte. Der optionale
+`VB6.Runtime.WinForms`-Adapter erzeugt Standard-WinForms-Controls, löst Designer-Namen auf,
+überträgt `Caption`/`Text`, `Visible`, `Enabled`, Position und Größe in VB6-Twips, OLE-Farben,
+Fonts und Handles und führt `Unload`/`DoEvents` aus. Konventionelle Handlernamen wie
+`Text1_Change` werden an WinForms-Events angebunden; explizite `VBEvents.SubscribeMethod`-
+Abonnements werden bei Reassignment wieder entfernt. Portable Runtime-, Compiler-E2E- und STA-
+WinForms-Regressionen sichern diesen Umfang ab. Der häufige Standard-Event-Satz für Controls und
+Forms (`MouseDown`/`MouseUp`/`MouseMove`, `KeyDown`/`KeyPress`/`KeyUp`, `Resize`, `Click`,
+`Change`, Fokus und Doppelklick) wird auf VB6-Button-/Shift-/Key-/Twips-Argumente abgebildet.
+Vollständige `.frx`-Ressourcendekodierung, vollständige MDI-Fenster-/Menüverwaltung,
+UserControl-/OCX-Hosting und COM-Connection-Points bleiben nachgelagerte Roadmap-Blöcke.
+Verschachtelte Designer-Controls werden über qualifizierte Namen nun in ihre Parent-Container
+registriert; die Regression deckt sowohl IR-Erzeugung als auch die konkrete WinForms-Hierarchie ab.
+
+Der erweiterte Event-Adapter ist mit echten WinForms-Events für Maus-, Tastatur- und Form-Resize-
+Argumente regressionsgesichert. Die Gesamtsuite umfasst **892 Tests**.
+
+## Variant-Nachtrag
+
+`Sgn` ist als Variant-Intrinsic typisiert und bewahrt nun `Null`, während `Empty` weiterhin als
+numerische Null behandelt wird. `Int` prüft Missing-/Array-Zustände, bewahrt `Null` und nutzt die
+zentrale Variant-Konversion für Date-/Currency-/Boolean-Werte. Die Verträge laufen durch Symbolik,
+Managed-Emission und Runtime-Regressionen. Variant-`/` liefert für Byte-/Integer-/Single-Paare
+nun `Single`, für Decimal-Beteiligung `Decimal` und sonst `Double`; überlaufende `Single`-
+Ergebnisse aus `+`, `-`, `*` und `/` werden auf `Double` hochgestuft, Integer-/Long-Negationen
+wechseln bei `MinValue`-Überlauf ebenfalls auf die nächste darstellbare Breite, und Variant-
+`Double`-Überläufe werden bei `+`, `-`, `*` und `/` als Fehler abgelehnt. Die vollständige VB6-
+Promotionstabelle sowie Objekt- und Array-Varianten bleiben offen. Die Gesamtsuite umfasst
+**887 Tests**.
+
+## VBG-Diagnostik-Nachtrag
+
+`StartupProject=` wird nun gegen die tatsächlich deklarierten `.vbp`-Einträge aufgelöst.
+Fehlende oder falsch geschriebene Startprojekte erzeugen `VB6VBG0007`, verhindern die Batch-
+Emission und liefern über den CLI-Report einen Fehler-Exitcode. Der Prozesspfad ist mit einer
+echten `.vbg`-Regression abgesichert. Die Gesamtsuite umfasst **888 Tests**.
+
+## LSP-Navigations-Nachtrag
+
+Der LSP liefert neben Compilerdiagnosen nun echte Completion-, Go-to-definition- und
+Dokument-Symbol-Antworten. Die Antworten werden direkt aus dem bestehenden Syntaxbaum erzeugt,
+berücksichtigen modulare Sub-/Function-/Property-/Event-/Declare-/Enum-/Type-/Const- und
+Variablendeklarationen und ergänzen eine kleine Liste häufig genutzter VB6-Intrinsics. Wortpräfixe
+und Cursorpositionen werden als LSP-Zeilen-/Spaltenpositionen aufgelöst; `didClose` entfernt
+Dokumente wieder aus dem Serverzustand. Der vollständige JSON-RPC-Pfad ist mit einer Regression
+für Completion, Definition und Dokument-Symbole abgesichert. Die Gesamtsuite umfasst
+**897 Tests**. Vollständige Typermittlung, projektübergreifende Definitionen und semantisch
+kontextabhängige Completion bleiben nachgelagerte Visual-Studio-Integrationsschritte.
+
+## COM-Event-Nachtrag
+
+`VBEvents.SubscribeMethod` verbindet neben dem portablen Host-Hook nun auch CLR-Events und COM-
+RCWs. Importierte `FSOURCE`-Events tragen ihre Source-Interface-IID und DISPID aus der TypeLib
+bis in die generierte `WithEvents`-Subscription; auf Windows nutzt die Runtime dafür
+`ComEventsHelper`, bildet die Handlerparameter dynamisch ab und entfernt die Verbindung bei
+Reassignment. Ein dynamischer Delegate-Adapter packt die Eventargumente in den bestehenden
+VB6-Handlervertrag und schreibt geänderte `ByRef`-Argumente zurück. Der Umfang ist mit normalen
+CLR-Events, einem echten `ByRef`-Event und dem Windows-`stdole2.tlb`-Import regressionsgesichert.
+Raw-`IDispatch`-ABI-Aufrufe, COM-Server-Registrierung und native ABI-Marshalling bleiben offen.
+
+Der Windows-RCW-Pfad deckt nun zusätzlich case-insensitive Automation-Methoden und Properties
+sowie Default-`Item`-Get/Let über `DISPID_VALUE` ab. Der Umfang ist mit `Scripting.Dictionary`
+gegen einen realen COM-Server regressionsgesichert; rohe `IDispatch::Invoke`-Strukturen,
+COM-ByRef-Variant-Marshalling und Server-Registrierung bleiben separate ABI-Schritte. Der
+kompilierte VB6-`CreateObject`-Pfad ist mit Methoden-, Property- und Default-Indexer-Zugriff auf
+`Scripting.Dictionary` end-to-end abgesichert. Die Gesamtsuite umfasst **904 Tests**.
+
+## VB6-Variant-Mod-Nachtrag
+
+Der `Mod`-Operator folgt für `Single`, `Double` und `Decimal` nun der klassischen
+VB6/VBA-Regel: Fließkommawerte werden vor der Restbildung zu Ganzzahlen gerundet, und das
+Ergebnis bleibt ein Long-artiger Variant-Wert. Die Regression deckt die historischen Beispiele
+`12 Mod 4.3 = 0`, `12.6 Mod 5 = 3` sowie den kompilierten Variant-Ausführungspfad ab. Die
+Gesamtsuite umfasst **906 Tests**.
+
+## VBG-Referenznachtrag
+
+Die `.vbg`-Emission validiert nun auch den tatsächlichen Lauf eines Consumers gegen eine zuvor
+emittierte referenzierte VB6-Klassenbibliothek. Externe Klassenmember verwenden dabei denselben
+Managed-Namen wie ihre Library-Definitionen (`__vb6_...`), sodass Projektgruppen mit
+`Reference=...; Shared.vbp; ...` nicht nur in Dependency-Reihenfolge gebaut werden, sondern auch
+zur Laufzeit aufgelöst werden. Der vollständige CLI-Pfad ist mit einem gestarteten Consumer
+regressionsgesichert. Die Gesamtsuite umfasst **908 Tests**.
+
+## MSBuild-SDK-Nachtrag
+
+Der SDK-Targetvertrag arbeitet nun inkrementell: Neben der `.vbp` werden die Legacy-Quellen
+`.bas`, `.cls`, `.frm`, `.ctl`, `.pag`, `.dob` sowie `.frx`-/`.res`-Designerressourcen als
+Inputs registriert. Assembly, PDB, Runtimeconfig und `VB6.Runtime.dll` werden als Outputs verfolgt;
+unveränderte Projekte werden von MSBuild übersprungen, während eine geänderte Quell- oder
+Designerdatei eine neue CLI-Emission auslöst. Der SDK bleibt ein dünner Buildadapter und ersetzt
+nicht das `.vbp`-Projektmodell oder den späteren Visual-Studio-Designer. Direkte CLI-Aufrufe über
+`vb6c <projekt.vbp> --emit-assembly <ausgabe>` bleiben der primäre, unabhängig nutzbare Vertrag.
+Das Release-Paket wurde mit `dotnet pack src/VB6.Compiler.Sdk/VB6.Compiler.Sdk.csproj -c Release
+--no-restore` erzeugt und enthält `Sdk/Sdk.props`, `Sdk/Sdk.targets`, README, Nuspec und die
+`net10.0`-SDK-Assembly.
+
+## Standard-Control-Nachtrag
+
+Der WinForms-Host deckt nun auch häufige Legacy-Controlmember ab: `ListBox` und `ComboBox`
+unterstützen `AddItem`, `RemoveItem`, `Clear`, die indizierte `List`-Property sowie `ListCount`
+und `ListIndex`; `TextBox` unterstützt `SelStart`, `SelLength` und `SelText`; `CheckBox` und
+`OptionButton` stellen `Value` bereit. Die Verträge laufen durch den bestehenden Twips-/Late-
+Bound-Hostpfad und sind mit einer STA-Regression für Einfügen, Ersetzen, Entfernen, Auswahl und
+Textselektion abgesichert. Vollständige OCX-Memberbibliotheken, MDI und UserControl-Hosting
+bleiben separate Forms-/Interop-Schritte. `Timer` wird als eigener unsichtbarer WinForms-Host-
+Control mit `Interval`, `Enabled` und konventionellem `TimerName_Timer`-Handler verdrahtet.
+Die Gesamtsuite umfasst **899 Tests**.
+
+## Conditional-Compilation-Nachtrag
+
+Die Managed-Compilation wertet jetzt `#Const`, verschachtelte `#If`-/`#ElseIf`-/`#Else`-/
+`#End If`-Blöcke und die gängigen `VBA6`-/`VBA7`-/`VBA`-/`Win16`-/`Win32`-/`Win64`- sowie
+Mac-Plattformkonstanten vor Parser und Binder aus. Inaktive Zeilen bleiben durch
+positionsstabile Leerzeichen und Zeilenumbrüche im Quelltext erhalten; fehlerhafte oder nicht
+abgeschlossene Blöcke liefern datei- und zeilenbezogene `VB6CC`-Diagnosen. Der gleiche Vertrag
+gilt für direkte `.bas`-Emission und echte `.vbp`-Projektquellen, einschließlich Designer-
+Klassenmodulen. Die expliziten CLI-Ziele `--x86` und `--x64` werden bis in die
+Conditional-Compilation-Konstanten durchgereicht, sodass `Win64` nicht mehr versehentlich aus
+der Breite des Compilerprozesses gewählt wird; `Win32` bleibt dabei auch auf Win64 wahr. Die
+vollständige Release-Suite umfasst **914 Tests**; der VISIA-CLI-Report analysiert weiterhin 40 von
+40 Projektitems ohne Fehler.
+
+Projektweite `CondComp=`-Einträge aus `.vbp`-Dateien werden zusätzlich verlustfrei geladen und
+als globale Conditional-Compilation-Konstanten vor den moduleigenen `#Const`-Definitionen in
+den jeweiligen Projektquellen ausgewertet. Ungültige Projektwerte erzeugen `VB6CC0007`; die
+Abhängigkeit wird auch bei referenzierten `.vbp`-Projekten separat pro Projekt angewendet.
+
+Der `Format$`-Stringmaskenpfad unterstützt nun neben `<`/`>` auch `@`- und `&`-Platzhalter,
+`!`-gesteuertes Füllen von links nach rechts, das klassische VB6-Füllen von rechts nach links
+und die zweite Maskensektion für leere beziehungsweise `Null`-Strings. Die direkte Runtime-
+und kompilierte Ausführung ist regressionsgesichert; locale-abhängige Named-Formate und weitere
+Datum-/Finanzmasken bleiben separat offen. Die Gesamtsuite umfasst **915 Tests**.
+
+## Declare-UDT-Nachtrag
+
+Blittable `Type`-Records werden im Managed-Emitter jetzt als sequenzielle Structs in nativen
+`Declare`-Signaturen verwendet und erhalten explizit das für den VB6-UDT-Pfad erforderliche
+4-Byte-Packing. Echte Windows-Aufrufe von `GetSystemTime`, `GetVersionExA` und
+`RtlMoveMemory` regressionssichern den vollständigen `ByRef`-Pfad einschließlich Feld-Write-back,
+`Byte`-/`Double`-Alignment sowie feste `String * n`-Felder über `BYVALTSTR`/`SizeConst`. Variable
+Stringfelder, Arrays, nicht-blittable UDTs und Callback-Delegates bleiben separate ABI-Schritte.
+Die Gesamtsuite umfasst **919 Tests**.
+
+## UDT-Len-Nachtrag
+
+`Len` erkennt emittierte VB6-UDTs über ihren Managed-Namespace und fragt ihren nativen
+Struct-Umfang über `Marshal.SizeOf` ab. Dadurch liefert ein `Byte`-/`Double`-Record mit VB6-
+4-Byte-Packing `12` statt der CLR-defaulteten Ausrichtung; feste `String * n`-Felder werden
+über ihre `BYVALTSTR`-Metadaten ebenfalls korrekt berücksichtigt. Die direkte Managed-Ausführung
+ist mit zwei End-to-End-Tests regressionsgesichert. Die Gesamtsuite umfasst **921 Tests**.
+
+## Declare-Stringpuffer-Nachtrag
+
+Variable `ByVal String`-Parameter werden im Managed-P/Invoke als ANSI-`StringBuilder` emittiert.
+Aufrufseitig addressierbare VB6-Strings werden nach dem nativen Aufruf per `ToString()` in ihr
+ursprüngliches Ziel zurückgeschrieben; Rückgabewerte von Funktionen mit gleichzeitigem Puffer-
+Write-back bleiben über Compiler-Temporaries erhalten. `GetComputerNameA` ist als echter Windows-
+End-to-End-Aufruf regressionsgesichert. Array-Marshalling, nicht-blittable UDTs und Callback-
+Delegates bleiben separate ABI-Schritte. Die Gesamtsuite umfasst **918 Tests**.
+
+## LenB-Nachtrag
+
+`Len` und `LenB` verwenden jetzt Variant-Rückgaben, sodass `Null` gemäß dem VB6-Vertrag erhalten
+bleibt. `LenB` ist als eigene Intrinsic-Signatur durch Binder, IR, Managed-Emitter und Runtime
+verdrahtet: Unicode-Strings liefern zwei Bytes je UTF-16-Codeeinheit, Scalar-Varianten behalten
+ihre VB6-Speicherbreite, und emittierte UDTs verwenden den nativen In-Memory-Umfang einschließlich
+Padding. Die direkte Ausführung ist mit String-, Scalar-, `Null`- und UDT-Fällen regressions-
+gesichert. Die Gesamtsuite umfasst **924 Tests**.
+
+## CommonDialog-Nachtrag
+
+Der WinForms-Host behandelt `MSComDlg.CommonDialog` jetzt als nichtvisuelle Komponente statt als
+unbekanntes `Panel`. `FileName`, `Filter`, `DialogTitle`, `FilterIndex`, `CancelError` und
+`DefaultExt` werden über einen Managed-Adapter bereitgestellt; `ShowOpen` und `ShowSave` nutzen
+die nativen WinForms-Dateidialoge und übernehmen den ausgewählten Dateinamen zurück in den
+VB6-Objektvertrag. Die Komponente bleibt aus der visuellen Control-Hierarchie heraus, ist aber
+über die bestehende Form-/Control-Namensauflösung und den Late-Bound-Dispatch erreichbar.
+Vollständiges ActiveX-OCX-Hosting, insbesondere die echte `MSComDlg`-Typbibliothek und deren
+gesamte Ereignis-/ABI-Oberfläche, bleibt separat offen. Die Gesamtsuite umfasst **925 Tests**.
+
+## TreeView-Nachtrag
+
+Der WinForms-Host stellt `MSComctlLib.TreeView.Nodes` jetzt als Managed-Adapter bereit. Der
+Adapter unterstützt den VB6-Aufruf `Nodes.Add` mit `Relative`, `Relationship`, `Key`, `Text`,
+`Image` und `SelectedImage`, einsbasierte numerische oder schlüsselbasierte `Item`-Auflösung,
+`Remove`, `Clear`, `Count` sowie `Node`-Properties für `Key`, `Text`, `Index`, `Expanded`,
+`Image`, `SelectedImage`, `Selected` und `Parent`. `Style` und `LineStyle` werden am TreeView
+hostseitig gespeichert, ohne die native WinForms-Control-Hierarchie zu verfälschen. Die Regression
+läuft durch den bestehenden Late-Bound-Dispatch und prüft Parent/Child-Aufbau, Bilder,
+einsbasierte Indizes, Text-Writeback und Entfernen. Vollständiges ActiveX-Hosting, ImageList-
+Ressourcendekodierung und die übrige COM-Connection-Point-ABI bleiben offen. Die Gesamtsuite
+umfasst **926 Tests**.
+
+## ImageList-/ImageCombo-Nachtrag
+
+Der WinForms-Host behandelt `MSComctlLib.ImageList` nun als nichtvisuelle Komponente mit
+`ListImages`, einsbasierter beziehungsweise schlüsselbasierter `Item`-Auflösung, `Add`, `Remove`,
+`Clear`, `Count`, `Key`, `Index`, `Picture`, `ImageWidth`, `ImageHeight` und `hImageList`.
+`MSComctlLib.ImageCombo` verwendet eine echte WinForms-ComboBox mit einem Managed-
+`ComboItems`-Adapter für `Add`, `Remove`, `Clear`, `Count`, `Item`, `Key`, `Index`, `Text`,
+`Selected` und `Image`; die `ImageList`-Verknüpfung bleibt als Objektbeziehung erhalten. Die
+Regression prüft den Late-Bound-Collection-Pfad, Dateibild-Metadaten, einsbasierte Indizes,
+Auswahl und die Verknüpfung beider Controls. Native OCX-Rendering, `.frx`-Dekodierung und
+vollständiges ActiveX-/Connection-Point-Hosting bleiben offen. Die Gesamtsuite umfasst
+**927 Tests**.
+
+## Generated-Assembly-Runner-Nachtrag
+
+`VB6.Runtime.WinForms.Runner` ergänzt den Compiler um einen separaten Startvertrag für erzeugte
+Form-Assemblies. `GeneratedApplicationRunner` lädt den Entry-Point auf einem STA-Thread,
+installiert den `WinFormsHost` nur für diesen Prozess und startet nach `Load`/`Show` die
+WinForms-Message-Pump. Reine `Sub Main`-Assemblies können denselben Runner verwenden und kehren
+ohne Formularschleife zurück. Dadurch bleibt die Compiler-Assembly headless und von Visual Studio
+oder einem anderen Host aufrufbar, während eine erzeugte Form-Anwendung direkt mit
+`dotnet run --project src/VB6.Runtime.WinForms.Runner -- <assembly.exe>` gestartet werden kann.
+Die Regression prüft den Launcher-Fehlervertrag für fehlende Assemblies; vollständige Form-
+End-to-End-Läufe mit echten OCX-Abhängigkeiten bleiben separat. Die Gesamtsuite umfasst
+**928 Tests**.
+
+## RichTextBox-Host-Nachtrag
+
+Der Managed-WinForms-Host bildet für `RichTextLib.RichTextBox` nun den häufigen VB6-Vertrag
+für `TextRTF`, `SelStart`, `SelLength`, `SelText`, `SelColor`, `SelBold`, `SelItalic` und
+`SelUnderline` ab. `FileName`, `Modified`, `RightMargin`, `HideSelection` und
+`GetLineFromChar` sind ebenfalls verdrahtet; `LoadFile` und `SaveFile` akzeptieren den
+optionalen `rtfRTF`-/`rtfText`-Dateityp und führen PlainText-Zeilenenden am Host auf VB6-`CRLF`
+zurück. Die Regression nutzt den echten Late-Bound-Hostpfad und prüft Auswahlformatierung,
+RTF-Roundtrip, Zeilenauflösung sowie Textdatei-Laden/Speichern. Vollständige RichTextLib-OCX-
+ABI- und native Connection-Point-Kompatibilität bleiben offen. Die Gesamtsuite umfasst
+**929 Tests**.
+
+## FRX-Ressourcen-Nachtrag
+
+`VBDesignerParser` erkennt nun auch die VB6-Designerform `TextRTF = $"file.frx":offset`.
+`VBFrxResourceReader` validiert den little-endian 32-Bit-Längenpräfix am Offset, prüft die
+Dateigrenze und stellt die folgenden Nutzdaten als `VBDesignerProperty.ResourceData` bereit.
+Die Bytes bleiben bewusst opaque: RTF-, Bild-, Icon- und OCX-spezifische Interpretation gehört
+in den jeweiligen Hostadapter und wird nicht durch eine unsichere Universaldecodierung ersetzt.
+Fehlerhafte vorhandene Ressourcen erzeugen `VB6FRX0001` als Warnung, während fehlende optionale
+Designerdateien für reine Analysepfade weiterhin diagnostikfrei bleiben. Die Gesamtsuite umfasst
+**931 Tests**.
+
+## Designer-Initialisierungs-Nachtrag
+
+Designerwerte für `Caption`, `Text`, Sichtbarkeit, Aktivierung, Position, Größe, Farben,
+`RichTextBox`-Auswahl und `Timer.Interval` werden nun beim generierten Form-Konstruktor nach der
+Control-Erzeugung als explizite `InteractionSetMember`-Aufrufe emittiert. Der portable Runtime-
+Vertrag reicht diese Werte an den konfigurierten Host weiter; der WinForms-Host setzt sie über
+Twips-, OLE-Farb- und RichTextBox-Konvertierungen. Nicht skalare oder noch opaque Ressourcenwerte
+bleiben bewusst beim jeweiligen Hostadapter. Die IR-Regression prüft den Designer-Property-
+Namen und den emittierten Wert; die Gesamtsuite bleibt bei **931 Tests**.
+
+## Forms-Designerwert-Nachtrag
+
+Der generierte Form-Konstruktor setzt nun zusätzlich häufige skalare Designerwerte für das
+Root-Form und Standardcontrols. Dazu gehören Form-Rahmen, `ControlBox`, Min-/Max-Button,
+`ShowInTaskbar`, `StartUpPosition`, `WindowState`, `BorderStyle`, `Appearance`, `Tag`,
+`ToolTipText` sowie die hostseitig gespeicherten VB6-Zustände `AutoRedraw`, `FillStyle`,
+`MousePointer` und `ScaleMode`. `ImageList.ImageWidth`/`ImageHeight` und die skalaren
+`CommonDialog`-Eigenschaften werden ebenfalls über den Managed-Host abgebildet. Der Parser
+ignoriert dabei Inline-Kommentare außerhalb von Zeichenketten, wie sie in älteren `.frm`-Dateien
+häufig vorkommen. Die VISIA-Emission und der native WinForms-Runner laufen damit ohne Analyse-
+oder Startfehler; direkte Ausführung der erzeugten Managed-PE bleibt bis zur separaten AppHost-
+Erzeugung auf `dotnet` beziehungsweise den Runner angewiesen. Die Gesamtsuite umfasst
+**932 Tests**.
+
+## FRX-Bild-Nachtrag
+
+`.frx`-Ressourcen für Form-/Control-`Picture` und Form-`Icon` werden nun als transportierbare
+Werte in den generierten Form-Konstruktor übernommen. Der WinForms-Host entpackt die historische
+VB6-StdPicture-Hülle und dekodiert BMP-/ICO-Payloads für `PictureBox`, `Image` und Form-Hintergrund
+bzw. Form-Icon. Der Pfad bleibt absichtlich auf die intrinsischen Bildmember begrenzt; die
+ressourcenbasierte `ImageList`-Einträge werden nun ebenfalls in den Managed-Adapter übernommen;
+OCX-eigenes Rendering und vollständige OLE-Picture-Konvertierung folgen in separaten Host-/
+ActiveX-Slices. Die VISIA-Emission wurde erneut erzeugt
+und im STA-Runner ohne Ausnahme oder Messagebox gestartet. Die Gesamtsuite umfasst **935 Tests**.
+
+## ImageList-FRX-Nachtrag
+
+Verschachtelte `BeginProperty Images`-/`ListImageN`-Blöcke werden nun als Designer-Initialisierer
+für `MSComctlLib.ImageList` erkannt. `ListImageN.Picture` dekodiert die eingebettete BMP-/ICO-
+StdPicture-Payload, `ListImageN.Key` erhält den Legacy-Schlüssel, und fehlende Zwischenindizes
+werden einsbasiert im Managed-Collection-Adapter angelegt. Die Bildobjekte bleiben bewusst im
+Managed-Vertrag; eine echte native `ImageList`-Zuordnung zu OCX-Controls und deren Rendering
+bleibt ein separater ActiveX-Host-Schritt. Die Regression deckt sowohl den verschachtelten
+Designerpfad als auch den bestehenden `ListImages`-Late-Bound-Vertrag ab. Die Gesamtsuite
+umfasst **935 Tests**.
+
+## Shape-/Line-Forms-Nachtrag
+
+`VB.Shape` und `VB.Line` werden im Managed-WinForms-Host nicht mehr als generische Panels
+angelegt. `Shape` rendert Rechteck, Quadrat, Oval, Kreis und abgerundete Varianten mit
+`BackColor`, `FillColor`, `FillStyle`, `BackStyle`, `BorderColor` und `BorderWidth`; `Line`
+zeichnet seine Endpunkte über die VB6-Twips-Konvertierung aus `X1`, `Y1`, `X2` und `Y2`.
+Die Designer-Allowlist übernimmt diese Werte in den generierten Formkonstruktor, und die
+Regression prüft sowohl die IR-Emission als auch gerenderte Pixel im STA-Host. Native
+Zeichen-APIs wie `PaintPicture`, vollständige AutoRedraw-/DrawMode-Semantik und MDI bleiben
+separate Forms-Schritte. Die Gesamtsuite umfasst **938 Tests**.
+
+## Menu-Forms-Nachtrag
+
+Verschachtelte `VB.Menu`-Designerobjekte werden jetzt mit ihrem ursprünglichen Typnamen bis zur
+IR-Emission erhalten und im WinForms-Host als echter `MenuStrip`-/`ToolStripMenuItem`-Baum
+angelegt. `Caption`/`Text`, `Visible`, `Enabled`, `Checked`, `Index`, `Tag` und `Shortcut`
+laufen über den bestehenden Late-Bound-Hostvertrag; Parent-Menüs werden anhand des qualifizierten
+Designerpfads verbunden, und `MenuName_Click`-Handler werden an `ToolStripMenuItem.Click`
+angeschlossen. Die Regression deckt Designer-Emission, Hierarchie und Event-Auslösung ab.
+Separator-Semantik, vollständige VB6-Shortcut-Konvertierung, `PopupMenu` und MDI-Menüs bleiben
+separate Forms-Schritte. Die Gesamtsuite umfasst **938 Tests**.
+
+## Managed-AppHost-Nachtrag
+
+Windows-Anwendungen, die mit `--emit-assembly <name>.exe` ausgegeben werden, erhalten nun neben
+der Managed-Companion-Assembly `<name>.dll` einen echten nativen .NET-AppHost. Die Ausgabe kann
+dadurch direkt gestartet werden; die frühere `System.Private.CoreLib, Version=10.0.0.0`-
+Ladeexception durch eine Managed-Assembly mit `.exe`-Endung entfällt. Der WinForms-Runner erkennt
+beide Ausgabeteile und lädt automatisch die Managed-Assembly, sodass bestehende Runner-Aufrufe
+weiter funktionieren. Der direkte AppHost bleibt headless; sichtbare Formulare laufen weiterhin
+über den optionalen `VB6.Runtime.WinForms.Runner`. Die CLI-Regression startet `.vbp`-/`.vbg`-
+Ausgaben direkt und prüft die Architektur der Companion-Assembly. Die AppHost-Auswahl bevorzugt
+jetzt die zur erzeugenden Runtime passende Major-/Minor-Version und sortiert verbleibende Packs
+numerisch statt lexikografisch, damit ein installiertes `10.x` nicht versehentlich mit einem
+`8.x`-AppHost ausgegeben wird. Die Gesamtsuite umfasst **946 Tests**.
+
+## PopupMenu-Forms-Nachtrag
+
+`VBInteraction.PopupMenu` delegiert nun an den konfigurierten `IVB6Host`. Der WinForms-Host baut
+für ein `VB.Menu` einen separaten `ContextMenuStrip`-Snapshot auf, sodass der vorhandene
+`MenuStrip`-Baum an Ort und Stelle bleibt. Verschachtelte Items, Separatoren, Sichtbarkeit,
+Aktivierung, Checkzustand und Tags werden in den Snapshot übernommen; Popup-Klicks werden auf die
+bereits am Original-Menü verdrahteten VB6-Handler weitergeleitet. Flags, vollständige
+VB6-Shortcut-Konvertierung und MDI-Popup-Menüs bleiben weitere Kompatibilitätsschritte. Die
+Regression prüft Delegation, Snapshot-Verhalten, Originalhierarchie und Handlerauslösung. Die
+Gesamtsuite umfasst **939 Tests**.
+
+## GraphicsLine-Forms-Nachtrag
+
+Der portable `IVB6Host`-Vertrag übernimmt nun `VBGraphicsLine`-Operationen vom Runtime-Pfad. Der
+WinForms-Host zeichnet Linien sowie B-/F-Rechtecke persistent auf einer Bitmap-Oberfläche der
+aktiven Form, übernimmt vorhandene Hintergrundbilder, interpretiert `Step`-Koordinaten und
+skaliert VB6-Twips, Punkte und Pixel in die aktuelle DPI-Auflösung. Die Regression prüft echte
+gerenderte Pixel und die Füll-/Rahmensemantik. Ein `PaintPicture`-Subset verarbeitet `Bitmap`-,
+FRX- und dateibasierte `VBPicture`-Quellen auf derselben persistenten Oberfläche. Qualifizierte
+`PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe werden über den bestehenden late-bound
+Control-Dispatch auf die PictureBox-Bitmap gerendert. MDI, DrawMode sowie vollständige
+AutoRedraw-/ScaleMode-Regeln bleiben weitere Graphics-/Forms-Slices. Die Gesamtsuite umfasst
+**945 Tests**.
+
+## UserControl-Host-Nachtrag
+
+Der WinForms-Host erkennt bei einem unbekannten Designer-Controltyp eine parameterlose generierte
+CLR-Klasse aus derselben Projektassembly, instanziiert sie und hostet ihre eigene Runtime-Bindung
+als borderlose, eingebettete Formfläche. Dadurch können `.ctl`-Klassen als verschachtelte Managed-
+Designerkomponenten geladen werden, ohne den Compilerkern an WinForms zu koppeln. Vollständige
+UserControl-Ereignis-/PropertyBag-Semantik, ActiveX-Connection-Points und natives OCX-Hosting
+bleiben bewusst separate Kompatibilitätsschritte. Der Host hält pro eingebetteter Instanz einen
+`VBPropertyBag` und ruft `UserControl_ReadProperties` beim Einfügen sowie
+`UserControl_WriteProperties` vor `UserControl_Terminate` auf. Die Regression umfasst den
+Instanzierungs-, Komponenten-, PropertyBag- und Initialize-/Terminate-/Unload-Lifecycle. Die
+Gesamtsuite umfasst **950 Tests**.
+
+## Form-Lifecycle-Nachtrag
+
+Der WinForms-Host bindet nun `Form_Initialize`/`Form_Terminate` sowie
+`Form_Activate`, `Form_Deactivate`, `Form_QueryUnload` und `Form_Unload` an den Managed-
+Form-Lifecycle und die WinForms-Ereignisse `Activated`, `Deactivate`, `FormClosing` und
+`FormClosed`. Die Initialisierung erfolgt pro Bindung genau einmal; der Terminate-Aufruf wird
+auch beim Host-Dispose ausgeführt. Für
+`Form_QueryUnload` werden `Cancel` und `UnloadMode` in den VB6-Argumentvertrag übersetzt; ein
+geänderter `Cancel`-ByRef-Wert wird in `FormClosingEventArgs.Cancel` zurückgeschrieben. Die
+Regression löst die geschützten WinForms-Ereignisse direkt aus und prüft Aktivierung,
+Deaktivierung, Unload-Modus und Abbruchsemantik. MDI und vollständige OCX-/Connection-Point-
+Integration bleiben weitere Forms-/Interop-Schritte. Die Gesamtsuite umfasst **950 Tests**.
+
+## MDI-Forms-Nachtrag
+
+`VB.MDIForm`-Designerwurzeln werden als MDI-Containerinitialisierung in die Managed-IR übernommen.
+`MDIChild=True` wird als Form-Designerwert gebunden; der WinForms-Host ordnet solche Child-Forms
+automatisch dem registrierten MDI-Container zu und hält den Wert über den Host-Dispatch lesbar.
+Die Regression deckt sowohl Designer-Emission als auch die konkrete Parent-/Child-Hierarchie ab.
+Vollständige MDI-Fensterbefehle, MDI-Menüs und persistente Window-Management-Regeln bleiben offen.
+Die Gesamtsuite umfasst **950 Tests**.
+
+## Native-OCX-/AppHost-Nachtrag
+
+Der optionale `VB6.Runtime.WinForms.Runner` läuft standardmäßig als x86-Prozess, damit die auf
+Legacy-Systemen üblichen 32-Bit-OCX-Dateien aus `SysWOW64` überhaupt geladen werden können. Für
+registrierte `MSComctlLib`-Visual-Controls ohne bestehenden Managed-Adapter versucht der Host nun
+eine echte `AxHost`-Aktivierung; fehlt die OCX oder ist sie für die andere Prozessarchitektur
+registriert, bleibt der Managed-Fallback aktiv. TreeView, ImageList, ImageCombo, RichTextBox und
+CommonDialog behalten ihre vorhandenen Managed-Adapter, weil diese bereits die benötigten VB6-
+Objekt- und Collection-Verträge abbilden. Die Ausgabeerzeugung verweigert außerdem einen
+scheinbaren `.exe`-Output, wenn kein passender nativer .NET-AppHost erstellt werden kann; eine
+Managed-DLL wird nicht mehr als startbare `.exe` kopiert, wodurch die bekannte
+`System.Private.CoreLib`-Ladeexception vermieden wird. VISIA wurde frisch mit `--x86` emittiert
+und über den x86-Runner ohne unbehandelte Ausnahme gestartet. Die Gesamtsuite umfasst
+**950 Tests**.
+
+## COM-Wrapper-Interop-Nachtrag
+
+Native `AxHost`-Controls stellen nun über `IVBComObjectProvider` ihr zugrunde liegendes RCW für
+den portablen Runtime-Kern bereit. `VBDynamicDispatch` leitet dadurch Late-Bound Methoden,
+Properties und `DISPID_VALUE`-Defaultzugriffe auf das echte COM-Objekt weiter, ohne die
+WinForms-Geometrie des Wrappers zu verlieren. Der bestehende `ComEventsHelper`-Pfad verwendet
+für `WithEvents`-Subscriptions und deren Abmeldung ebenfalls das entpackte RCW; damit können
+TypeLib-importierte Source-IIDs/DISPIDs auch für native OCX-Wrapper verwendet werden. Der
+Regressionstest deckt diesen Vertrag mit einem realen `Scripting.Dictionary`-RCW ab. Die Runtime
+stellt außerdem `VBEvents.UnsubscribeMethod` als explizite, quellenbezogene Abmeldung bereit;
+ein `null`-Quellobjekt entfernt alle passenden Verbindungen. Raw-
+`IDispatch`-ABI-Marshalling, vollständige OCX-Event-Signaturabdeckung und COM-Server-Emission
+bleiben separate Interop-Schritte. Die Gesamtsuite umfasst **952 Tests**.
+
+## Native-OCX-Dispatch-Nachtrag
+
+Der WinForms-Host leitet Memberzugriffe auf native `AxHost`-Controls jetzt nach den normalen
+VB6-/WinForms-Sonderregeln direkt an das zugrunde liegende COM-RCW weiter. Damit funktionieren
+auch COM-Properties und Methoden, die der CLR-Wrapper selbst nicht als Managed-Property anbietet.
+Der x86-Test aktiviert die auf diesem Rechner registrierte `MSCOMCTL.OCX` als echtes
+`MSComctlLib.ListViewCtrl.2`, setzt `View` und liest den Automation-Wert wieder aus. Die
+64-Bit-Fallback-Regel bleibt aktiv, weil die 32-Bit-OCX dort trotz sichtbarer ProgID nicht
+aktivierbar ist. Vollständiges `IDispatch`-ABI-Marshalling, native OCX-Events und die weiteren
+MSComctl-/RichText-/CommonDialog-Oberflächen bleiben offen.
+
+## nativer RichText-Nachtrag
+
+Der opt-in-Native-Pfad hostet `RichTextLib.RichTextBox` jetzt über `RICHTEXT.RichtextCtrl.1`,
+wenn die 32-Bit-OCX im x86-Prozess aktivierbar ist. `TextRTF` wird dabei direkt über das COM-RCW
+gelesen und geschrieben; der VISIA-Runner bleibt mit diesem Pfad ohne Ausnahme und ohne
+Messagebox stabil. `MSComctlLib.TreeView` bleibt vorerst beim Managed-Adapter, da der native
+`Nodes`-Collection-ABI noch nicht stabil genug für den Runner ist. Die vollständige native
+TreeView-/ImageList-/ImageCombo-/CommonDialog-Oberfläche und ihre Event-ABIs bleiben offen.
+
+## Format-Nachtrag
+
+`Format$` verarbeitet die VBA-Datums-Token `w` (Wochentag), `ww` (Kalenderwoche) und `q`
+(Quartal) jetzt auch im vollständigen Managed-Compilerpfad. `FirstDayOfWeek` unterstützt die
+VB6-Werte `vbUseSystem`/`vbSunday` bis `vbSaturday`; `FirstWeekOfYear` unterstützt
+`vbUseSystem`/`vbFirstJan1`/`vbFirstFourDays`/`vbFirstFullWeek`. Die Woche wird mit dem
+invariant-gregorianischen Kalender berechnet; `vbUseSystem` übernimmt die aktuellen
+Culture-Einstellungen für Wochenbeginn und Wochenregel, systemabhängige Text-/Locale-Ausgabe
+bleibt ein separater Schritt. Runtime- und E2E-Regressionen decken die Token und Parameter ab.
+Die Gesamtsuite umfasst nun **954 Tests**.
+
+## Standard-OCX-Hosting-Nachtrag
+
+Die auf dem Testsystem registrierten 32-Bit-Standard-OCX werden jetzt im x86-Runner konkret
+aktiviert: `MSComctlLib.ImageListCtrl.2`, `ImageComboCtl.2`, `ListViewCtrl.2`, `ProgCtrl.2`,
+`Slider.2`, `SBarCtrl.2`, `TabStrip.2`, `Toolbar.2` und `RICHTEXT.RichtextCtrl.1` laufen über
+echte `AxHost`-Wrapper. `MSComDlg.CommonDialog.1` wird als nichtvisuelle COM-Komponente gehalten;
+seine Properties werden direkt über das RCW gelesen und geschrieben. Die native Auswahl bleibt
+opt-in und fällt bei fehlender Registrierung oder falscher Bitness auf die bestehenden Managed-
+Adapter zurück. TreeView bleibt wegen des noch instabilen nativen `Nodes`-ABI bewusst beim
+Managed-Adapter. Der x86- und der x64-WinForms-Testlauf umfassen jeweils **28 Tests**; die
+Gesamtsuite liegt nun bei **954 Tests**. Native Connection-Point-Events, vollständiges
+`IDispatch`-ByRef-Marshalling und die komplette TreeView-Collection bleiben offen.
+
+## Control-Array-Lifecycle-Nachtrag
+
+`Load` und `Unload` auf einem bereits erzeugten WinForms-Control-Element erzeugen jetzt keine
+künstliche Formbindung mehr. Der Host initialisiert bei `Load` den Control-Handle, macht das
+Element sichtbar und blendet es bei `Unload` aus, ohne das Control oder seine Owner-Form zu
+disponieren; Forms behalten ihren bisherigen Initialisierungs- und Terminierungsweg. Damit ist
+der Lifecycle vorhandener Designer-Index-Elemente belastbar. Dynamische Neuerzeugung außerhalb
+der statisch gebundenen Control-Array-Indizes, vollständige VB6-Recreate-/Dispose-Semantik und
+die native `TreeCtrl.2`-`Nodes`-Collection bleiben separate Aufgaben. `TreeCtrl.2` ist auf dem
+Testsystem nun ebenfalls registriert und als COM-Klasse aktivierbar, wird aber wegen dieses
+instabilen nativen Collections-ABI weiterhin über den Managed-TreeView-Adapter gehostet. Die
+x86- und x64-WinForms-Regression umfasst jeweils **29 Tests**; die Gesamtsuite umfasst nun
+**955 Tests**.
+
+## nativer TreeView-/IDispatch-Nachtrag
+
+Die registrierte `MSComctlLib.TreeCtrl.2` wird im opt-in-Native-Host jetzt als echter `AxHost`
+aktiviert. Für das zugrunde liegende `Nodes`-RCW verwendet die Runtime eine direkte Windows-
+`IDispatch`-Brücke vor dem CLR-Reflection-Fallback. Dadurch funktionieren im x86-Pfad
+`Nodes.Count`, `Nodes.Add`, einbasierter `Nodes.Item`-Zugriff sowie Lesen und Schreiben der
+Node-Properties, ohne den instabilen Reflection-Aufruf auf alten OCX-Collections auszulösen.
+Der normale Host behält den portablen Managed-TreeView-Adapter; der native Pfad bleibt wegen
+weiterer Event-, ByRef- und vollständiger ImageList-/ImageCombo-Verträge opt-in. Alle auf dem
+Testsystem registrierten Standard-OCX bleiben architekturabhängig und benötigen den x86-Runner,
+wenn nur die 32-Bit-Registrierung vorhanden ist. Die x86- und x64-WinForms-Regression umfasst
+jeweils **31 Tests**; die Gesamtsuite umfasst nun **959 Tests**. Der direkte native AppHost-
+Start der neu emittierten VISIA-Ausgabe endet ohne `System.Private.CoreLib`-Ladefehler; der
+automatisierte Runner-Lauf bleibt in der nicht-interaktiven Testumgebung ohne sichtbaren
+Fenster-Handle und muss für eine visuelle GUI-Abnahme in einer interaktiven Windows-Sitzung
+geprüft werden.
+
+## nativer OCX-Objektübergabe-Nachtrag
+
+Native OCX-Properties verwenden bei objektwertigen Zuweisungen jetzt den passenden
+`PROPERTYPUTREF`-Vertrag und entpacken `IVBComObjectProvider`-Wrapper vor der VARIANT-
+Marshalling-Grenze auf ihr zugrunde liegendes COM-RCW. Falls ein OCX die alternative
+Automation-Konvention erwartet, wird mit `PROPERTYPUT` beziehungsweise `PROPERTYPUTREF`
+erneut versucht, bevor der Reflection-Fallback greift. Der x86-Regressionspfad erzeugt ein
+echtes `IPictureDisp`, fügt damit ein Bild in die native `ImageList.ListImages`-Collection ein
+und weist anschließend die native ImageList der `ImageCombo.ImageList`-Property zu. Damit ist
+die Objektübergabe zwischen zwei real aktivierten Standard-OCX abgesichert. Die x86- und
+x64-WinForms-Regression umfasst weiterhin jeweils **31 Tests**; die Gesamtsuite bleibt bei
+**959 Tests**. TypeInfo-gesteuertes typisiertes COM-ByRef-Marshalling für unterstützte
+Automation-Typen steht; Connection-Point-Events und die restlichen
+nativen ABI-Sonderfälle bleiben separate Roadmap-Schritte.
+
+## nativer OCX-Collections-Nachtrag
+
+`For Each` über native Host-/OCX-Collections nutzt jetzt auch die reale RCW-Enumeration. Einige
+ältere `IEnumVARIANT`-Implementierungen liefern hinter den gezählten Elementen noch einen
+`VT_EMPTY`-Platzhalter; der Host verwirft diesen `null`-Eintrag für COM-Collections, ohne die
+Enumeration normaler Managed-Collections zu verändern. Der x86-Regressionspfad legt einen
+TreeView-Node über die native `Nodes`-Collection an und prüft, dass `VBInteraction.EnumerateControls`
+genau diesen einen Node für den generierten `For Each`-Vertrag zurückgibt. Die x86- und x64-
+WinForms-Regression umfasst nun jeweils **32 Tests**; die Gesamtsuite umfasst **960 Tests**.
+Vollständige UDT-/Pointer-/Event-ABI und weitere Connection-Point-Sonderfälle bleiben offen.
+
+## TypeInfo-gesteuerter COM-ByRef-Nachtrag
+
+Die Raw-`IDispatch`-Brücke liest vor einem Aufruf die `FUNCDESC`-/`PARAMDESC`-/`TYPEDESC`-Metadaten
+der TypeLibrary und setzt für `PARAMFLAG_FOUT`-Parameter den passenden Automation-Typ. Die
+unterstützten skalaren `VARTYPE`s, `DATE`, `CURRENCY`, `VARIANT` und kompatible SAFEARRAYs werden
+mit einer inneren VARIANT initialisiert; bei typisierten ByRef-Werten zeigt der äußere VARIANT
+auf die Datenunion, bei `VT_BYREF|VT_VARIANT` auf die innere VARIANT. Nach `Invoke` werden die
+geänderten Werte in das ursprüngliche Late-Bound-Argumentarray zurückgeschrieben. Nicht
+abbildbare UDT-, C-Array- und Pointer-Verträge oder nicht konvertierbare Eingaben lösen einen
+sicheren vollständigen ByVal-Wiederholungsversuch aus. Die bestehenden Scripting-Dictionary-,
+emittierten COM-Host- und nativen x86-OCX-Regressionspfade bleiben stabil; vollständige
+`[in]`-/`[out]`-Sonderfälle, UDT-/Pointer-/SAFEARRAY-Descriptor-Marshalling und Connection-Point-
+Events bleiben separate COM-ABI-Schritte.
+
+## SAFEARRAY-/CLR-Array-Variant-Nachtrag
+
+Automation-Arrays, die über COM als `System.Array` in die Managed-Runtime gelangen, werden jetzt
+wie Variant-Arrays erkannt. `IsArray`, `IsObject`, `VarType` und `TypeName` liefern die passenden
+VB6-Array-Subtypen; `LBound`/`UBound` berücksichtigen die echten CLR-Untergrenzen und der
+Variant-Elementzugriff liest und schreibt auch mehrdimensionale beziehungsweise nicht bei null
+beginnende CLR-Arrays. Die bisherigen `VBArray<T>`-Pfade und Default-Property-Indizes für normale
+Managed-Objekte bleiben unverändert. ByRef-Elementadressen von CLR-/SAFEARRAY-Werten, vollständige
+SAFEARRAY-Descriptor-Konvertierung und SAFEARRAYs mit UDT-/Pointer-Elementen bleiben separate
+Interop-Schritte. Die Gesamtsuite umfasst **958 Tests**.
+
+## COM-Connection-Point-Metadaten-Nachtrag
+
+Der COM-Eventpfad verwendet weiterhin importierte Source-IIDs und DISPIDs, wenn der Compiler diese
+aus einer TypeLibrary kennt. Für rein late-bound COM-Objekte ohne importierte Eventmetadaten liest
+die Runtime nun den `IDispatch`-`ITypeInfo`-Vertrag, durchsucht die als `FSOURCE` markierten
+Connection-Point-Schnittstellen und ermittelt den Event-DISPID per Namen. Die daraus gewonnene
+Identität wird an `ComEventsHelper` weitergereicht und beim Abmelden mit derselben Delegate-Instanz
+entfernt; CLR- und WinForms-Eventbrücken bleiben unverändert. Vollständige COM-Event-Signatur-
+Konversion, Cancel-/ByRef-Fehlerverträge und der gesamte Connection-Point-Lebenszyklus bleiben
+separate ABI-Schritte.
+
+## nativer OCX-Event-Nachtrag
+
+Native `AxHost`-Wrapper bevorzugen für VB6-Ereignisse nun den zugrunde liegenden COM-
+Connection-Point und nicht die geerbten WinForms-Ereignisse des Wrappers. Wenn ein OCX keine
+brauchbare Event-TypeInfo über `IDispatch` liefert, versucht die Runtime zuerst `IProvideClassInfo`
+und danach die registrierte TypeLib des konkreten CLSID; dabei werden `FSOURCE`-Interfaces aus
+Coclasses rekursiv durchsucht. Der x86-Test aktiviert die registrierte `RichTextLib.RichTextBox`
+und verifiziert den nativen `Change`-Event inklusive sauberem Abmelden. Vollständige Event-
+Signaturkonversion, Cancel-/ByRef-Verträge, Bitness-/Designer-Sonderfälle und der gesamte
+Connection-Point-Lifecycle bleiben offen.
+
+## Managed-COM-Server-Nachtrag
+
+Der Managed-Emitter akzeptiert für Bibliotheksausgaben die CLI-Option `--com-host`. Jede
+emittierte VB6-Klasse erhält dabei eine deterministische CLSID aus Assembly- und Klassennamen,
+eine passende `ProgID`, `ComVisible` sowie `ClassInterface(AutoDual)`; vorhandene Interface-
+Verträge erhalten ebenfalls COM-kompatible Identitäten. Der Artefaktpfad ruft das installierte
+.NET-SDK in einem isolierten temporären Projekt auf, ersetzt dessen Zwischenassembly durch die
+VB6-Assembly und übernimmt den SDK-generierten `*.comhost.dll`-Server samt CLSID-Map. Eine
+Windows-Prozessregression ruft den exportierten `DllGetClassObject`-Entry-Point direkt auf,
+erzeugt über `IClassFactory` eine Instanz und erreicht die `IDispatch`-Methode eines emittierten
+VB6-Klassenmoduls.
+
+Der Schalter ist bewusst auf `ManagedOutputKind.Library` begrenzt. COM-Registry-Installation,
+Reg-Free-Manifest-/Typbibliotheks-Emission, vollständige `[in]`-/`[out]`-Konversion über alle
+Automation- und User-Defined-Typen und ein eigener Raw-`IUnknown`-/`IDispatch`-Serververtrag
+bleiben nachgelagerte Interop-Schritte. Die
+Gesamtsuite umfasst **960 Tests**.
+
+## Variant-Objekt-Default-Nachtrag
+
+Objektwerte in Variant-Kontexten lösen jetzt die VB6-Default-Property aus, wenn der numerische,
+zeichenbezogene oder typbezogene Kontext einen Wert benötigt. Das gilt für `+`, `-`, `*`, `/`,
+`\`, `Mod`, `^`, bitweise Operatoren, Vergleiche, `&`, `VarType`, die numerischen/string-
+bezogenen Konvertierungen sowie `Debug.Print`; Default-Property-Ketten werden begrenzt verfolgt,
+und Objekte ohne passende Default-Property behalten den bisherigen Objektvertrag. `VarType`
+liefert dadurch den Subtyp des Default-Wertes, während echte Fehler aus einem Default-Getter
+unverändert weitergereicht werden. Runtime- und End-to-End-Regressionen decken Managed-Klassen
+mit `VB_UserMemId = 0` sowie CLR-Default-Properties ab. Die Gesamtsuite umfasst nun **963 Tests**.
+
+## Variant-Objekt-Intrinsic-Nachtrag
+
+Die Default-Property-Auflösung greift nun auch an den bisher offenen Intrinsic-Grenzen: `Len` und
+`LenB` bestimmen die Speicher-/Zeichenlänge des Default-Wertes, `Format`, `Str`, `Oct` und der
+Zeichenparameter von `String` verwenden den aufgelösten Wert, und `IsNumeric`/`IsDate` prüfen
+dessen tatsächlichen Variant-Inhalt. Der `Like`-Pfad löst beide Operanden vor der Null- und
+Stringbehandlung auf; `Val` profitiert im Compilerpfad von der bestehenden Variant-zu-String-
+Konversion. `IsArray`, `IsObject` und `TypeName` bleiben bewusst container-/identitätsbezogen.
+Runtime-Tests für CLR-Default-Properties und ein emittiertes `.vbp` mit numerischem und textuellem
+Default-Wert decken die Intrinsics gemeinsam ab. Die Gesamtsuite umfasst nun **967 Tests**.
+
+## nativer OCX-Event-ByRef-Nachtrag
+
+Der verpflichtende x86-WinForms-Lauf aktiviert die registrierten Standard-OCX-Komponenten jetzt
+mit **33/33** Tests. Neben dem parameterlosen nativen `RichTextBox.Change`-Event deckt eine echte
+`RichTextBox.KeyPress`-Connection-Point-Regression einen `ByRef`-Parameter ab: Der Handler erhält
+`KeyAscii`, ändert ihn von `x` auf `y`, und der geänderte Wert wird vom OCX in den Text übernommen.
+Damit ist der generische `VBEvents`-Delegate-Adapter für diesen nativen ByRef-Signaturtyp belegt;
+weitere Event-Signaturen, Cancel-/ByRef-Sonderfälle, Connection-Point-Lifecycle und vollständige
+native ABI-Konversion bleiben separate Schritte. Die Gesamtsuite umfasst nun **968 Tests**.
+
+## Variant-Objekt-Math-Nachtrag
+
+Die verbleibenden Variant-Math-Intrinsics lösen nun ebenfalls die Default-Property auf, bevor sie
+Null-, Array- oder numerische State-Regeln anwenden: `Abs`, `Sgn`, `Fix`, `Round` und `Int` folgen
+dem tatsächlichen Default-Wert eines Objekts. `CVErr` übernimmt denselben Vertrag für die
+explizite Error-Variant-Konversion; ein Default-Wert `Null` bleibt dabei `Null`. Direkte Runtime-
+Tests decken numerische, Null- und Error-Default-Properties ab, und ein emittiertes `.vbp` prüft
+den vollständigen Managed-Aufrufpfad. Die Gesamtsuite umfasst nun **970 Tests**.
+
+## Variant-Objekt-Boolean-Nachtrag
+
+Der zentrale Variant-zu-Boolean-Pfad löst Default-Properties jetzt auch vor `If`-Bedingungen,
+`IIf`-Ausdrücken und `Switch`-Kriterien auf. Nichtnullige numerische Default-Werte werden wahr,
+`Null` bleibt falsch, und ein `Missing`-Default löst weiterhin den VB6-Fehler 448 aus. Ein direkter
+Runtime-Test sowie ein emittiertes `.vbp` mit allen drei Boolean-Kontexten sichern den Vertrag ab.
+Die Gesamtsuite umfasst nun **972 Tests**.
+
+## nativer OCX-Parameterized-Event-Nachtrag
+
+Der native x86-OCX-Pfad deckt neben `RichTextBox.Change` und dem einzelnen `ByRef`-
+`RichTextBox.KeyPress`-Parameter jetzt auch ein parametrisiertes `RichTextBox.MouseDown`-Event
+ab. Die Connection-Point-Regression übergibt `Button`, `Shift`, `X` und `Y` aus einer echten
+Windows-Nachricht an den VB6-Handler und prüft die Automation-Typkonversion (`I2`/`R4`). Der
+erzwungene x86-WinForms-Lauf umfasst damit **34/34** Tests; vollständige Event-Signatur- und
+Connection-Point-Lifecycle-Regeln bleiben offen. Die Gesamtsuite umfasst nun **973 Tests**.
+
+## x86-AppHost-Start-Nachtrag
+
+Ein aus einem Legacy-`.vbp` mit `--x86` erzeugtes EXE wird jetzt in der CLI-Regression tatsächlich
+gestartet. Der native .NET-AppHost lädt die danebenliegende Managed-DLL, `VB6.Runtime.dll` und
+die Runtime-Konfiguration korrekt, führt `Sub Main` aus und beendet sich ohne
+`System.Private.CoreLib`-Ladefehler. Damit ist der zuvor nur über PE-Header geprüfte x86-Output-
+Vertrag auch als Prozessstart abgesichert. Die Gesamtsuite umfasst nun **974 Tests**.
+
+## SAFEARRAY-ByRef-Nachtrag
+
+Der TypeInfo-gesteuerte Raw-`IDispatch`-Pfad materialisiert interne `VBArray<T>`-Werte für
+unterstützte typed SAFEARRAY-ByRef-Parameter jetzt als CLR-Arrays. Rang, echte Untergrenzen und
+die physische VB6-Elementreihenfolge bleiben erhalten; skalare Automation-Elemente werden vor
+dem Übergang in den nativen VARIANT konvertiert. Nach dem Aufruf werden gleich geformte
+SAFEARRAY-Rückgaben wieder in den bestehenden `VBArray<T>`-Container geschrieben, statt dessen
+Identität durch ein fremdes CLR-Array zu ersetzen. Ein echter emittierter `comhost`-Prozess prüft
+weiterhin den zweidimensionalen, nicht bei null beginnenden `ByRef Variant`-SAFEARRAY-ABI. UDT-,
+Pointer- und nicht kompatible SAFEARRAY-Descriptoren bleiben bewusst separate Interop-Schritte.
+Die Gesamtsuite umfasst nun **974 Tests**.
+
+## Managed-WinForms-Event-ByRef-Nachtrag
+
+Der Managed-WinForms-Host schreibt `ByRef`-Änderungen aus `KeyPress`-Handlern jetzt in das
+zugrunde liegende `KeyPressEventArgs.KeyChar` zurück. Für `KeyDown` und `KeyUp` wird ein vom
+VB6-Handler geänderter `KeyCode` über den verfügbaren WinForms-Vertrag als `Handled`/`SuppressKeyPress`
+abgebildet, da WinForms den KeyCode selbst schreibgeschützt anbietet. ByVal-Handler bleiben davon
+unverändert; der Rückweg wird nur für tatsächlich deklarierte ByRef-Parameter aktiviert. Der
+Managed-Lauf und der verpflichtende x86-Lauf mit registrierten Standard-OCX-Komponenten umfassen
+weiterhin jeweils **34/34** Tests. Vollständige Event-Signaturkonversion und der native
+Connection-Point-Lifecycle bleiben separate ABI-Schritte.
+
+## COM-Connection-Point-Lifecycle-Nachtrag
+
+`VBEvents` kann generierte Methodensubscriptions jetzt objektbezogen nach Source oder Target
+entfernen. `WinFormsHost.Unload` und `Dispose` nutzen diesen Vertrag für Formulare, Controls und
+Komponenten, sodass auch über `ComEventsHelper` installierte native Connection-Point-Delegates vor
+dem Freigeben der OCX-Objekte entfernt werden. Die bestehende explizite Abmeldung und die
+Reassignment-Regel bleiben unverändert; die Runtime-Regression umfasst nun **200** Tests, der
+Managed-WinForms-Lauf und der verpflichtende x86-Lauf mit registrierten Standard-OCX-Komponenten
+jeweils **34/34**. Vollständige Event-Signaturkonversion sowie UDT-/Pointer-ABI bleiben separate
+Interop-Schritte. Die Gesamtsuite umfasst nun **975 Tests**.
+
+## COM-Host-Registrierungs-Nachtrag
+
+Die CLI kann einen erzeugten SDK-`.comhost.dll` jetzt explizit über
+`--register-com` beziehungsweise `--unregister-com` installieren oder entfernen. Dabei wird
+unter Windows das passende `regsvr32` aus `System32` oder `SysWOW64` anhand von `--x64` oder
+`--x86` gewählt und mit `/s` gestartet, damit Registry-/Load-Fehler als Exitcode und
+Standardfehler an den Build zurückgehen statt eine native Messagebox zu öffnen. Der Pfad ist
+bewusst auf Dateien mit `.comhost.dll`-Suffix begrenzt; Typbibliotheks-Emission und UDT-/Pointer-
+Marshalling bleiben separate COM-Verträge. Die Compiler-Regression umfasst nun **347** Tests,
+die Gesamtsuite **977**.
+
+## direkter ActiveX-ProgID-Nachtrag
+
+Der native WinForms-Host versucht bei qualifizierten, im Projekt auftretenden Typnamen neben den
+bisherigen Standard-Aliassen jetzt auch den direkt registrierten ProgID. Vor der Erstellung des
+`AxHost` wird per `IOleObject`-Query geprüft, dass die COM-Klasse tatsächlich ein visuelles
+ActiveX-Control ist; nonvisual Komponenten wie `MSComDlg.CommonDialog` fallen weiterhin in den
+dedizierten COM-Adapter. Der verpflichtende x86-Lauf mit den registrierten Standard-OCX umfasst
+weiterhin **34/34** Tests, die Gesamtsuite **977**. Vollständiges generisches OCX-Event-/UDT- und
+Pointer-Marshalling bleibt ein separater ABI-Vertrag.
+
+## nativer OCX-Event-Routing-Nachtrag
+
+COM-Provider werden im generischen `VBEvents`-Pfad nicht mehr an gleichnamige geerbte CLR-/WinForms-
+Events eines `AxHost`-Wrappers gebunden. Native ActiveX-Quellen bleiben dadurch am COM-
+Connection-Point, sodass ByRef- und Automation-Signaturen nicht durch die Wrapper-Signatur
+verdeckt werden; reine Managed-CLR-Events behalten ihren bisherigen Adapter. Die Runtime-
+Regression umfasst **201** Tests, der verpflichtende x86-WinForms-Lauf mit registrierten
+Standard-OCX weiterhin **34/34**. Vollständige generische Event-Signatur-, UDT- und Pointer-
+Marshalling-Verträge bleiben separate ABI-Schritte.
+
+## TypeLib-Event-ByRef-Nachtrag
+
+Der TypeLib-Importer behandelt `VT_PTR`-Parameter klassischer Automation-Events jetzt als
+`ByRef`, wenn der Pointer auf einen unterstützten skalaren Automation-Typ zeigt. Dadurch wird
+beispielsweise `RichTextLib.RichTextBox.KeyPress(KeyAscii)` aus der echten `RICHTX32.OCX`-
+TypeLibrary als `Integer ByRef` gebunden; verschachtelte oder nicht sicher abbildbare Pointer
+bleiben `Object`. Der Importvertrag ist mit der registrierten TypeLibrary regressionsgesichert;
+die vollständige UDT-/SAFEARRAY-/Pointer-ABI bleibt weiterhin offen. Die Compiler-Suite umfasst
+nun **348** Tests.
+
+## nativer Designer-Event-Nachtrag
+
+Der direkte `WinFormsHost.TrySubscribeEvent`-Pfad erkennt native `AxHost`-Controls jetzt als COM-
+Provider und verbindet konventionelle Designer-Handler wie `Editor_KeyPress` über den nativen
+Connection Point. Der Wrapper-CLR-Eventpfad wird dabei nicht doppelt aktiviert; Abmeldung und
+Lifecycle-Aufräumen laufen weiterhin über `VBEvents`. Der echte x86-RichTextBox-ByRef-Test deckt
+diesen Host-Hook ab; Runtime und WinForms bleiben bei **201** beziehungsweise **34/34** Tests.
+
+## generierter nativer OCX-Designer-End-to-End-Nachtrag
+
+Ein echtes kompiliertes `.vbp`/`.frm` mit `RichTextLib.RichTextBox` erzeugt und hostet jetzt den
+nativen `AxHost` vollständig über den Managed-Compilerpfad. Die konventionelle VB6-Prozedur
+`Editor_KeyPress` wird nach der Handle-Erzeugung automatisch am COM-Connection-Point verbunden;
+die Handlerauflösung bleibt dabei VB6-konform case-insensitive. Der x86-Test prüft den gesamten
+Weg vom TypeLib-importierten `Integer ByRef` über den generierten Formkonstruktor bis zum
+geänderten Zeichenwert im OCX. Native Designerbindungen werden nach `Show` erneut aufgebaut,
+weil ein `AxHost` im Konstruktor noch kein COM-Objekt besitzen muss. Runtime und WinForms umfassen
+damit **201** beziehungsweise **35/35** Tests; die Gesamtsuite umfasst **980 Tests**.
+
+## CLI-VBG-OCX-Nachtrag
+
+Der CLI-Gruppenpfad kompiliert jetzt auch eine reale `.vbg` mit einem `.vbp`, das eine registrierte
+`RichTextLib.RichTextBox`-Designerquelle und TypeLib-Referenz enthält. `vb6c --emit-assembly
+<ausgabeverzeichnis> --x86` erzeugt daraus die x86-Managed-Companion-Assembly, den nativen
+AppHost und die Runtime-Abhängigkeit; der PE-Header trägt `Machine.I386` und `Requires32Bit`.
+Damit ist der command-line Compile-Vertrag für Legacy-Projektgruppen mit nativen OCX-Designer-
+inputs explizit regressiongesichert. Die CLI-Suite umfasst nun **10** Tests, die Gesamtsuite
+**981 Tests**.
+
+## nativer WithEvents-Nachtrag
+
+`WithEvents`-Zuweisungen auf native OCX-Controls funktionieren jetzt auch aus `Form_Load` heraus.
+Der Compiler bewahrt die aus der TypeLibrary importierten Connection-Point-Events, wenn ein
+Projekt denselben Control-Vertrag zugleich über `Reference=` und `Object=` einbindet; der stabile
+explizite Control-Vertrag behält dabei seine vorhandenen Late-Bound-Mitglieder. Der WinForms-Host
+wiederholt eine vor der nativen COM-Aktivierung angelegte Subscription nach `Show`, sodass auch
+spät erzeugte `AxHost`-COM-Objekte korrekt verbunden werden. Der kompilierte x86-`.vbp`/`.frm`-
+Regressionstest prüft `Form_Load`, `source_Change` und den bestehenden ByRef-KeyPress-Pfad;
+Compiler und WinForms umfassen damit **348** beziehungsweise **35/35** Tests, die Gesamtsuite
+weiterhin **981** Tests.
+
+## importierter COM-Event-Identitäts-Nachtrag
+
+Verzögert angelegte native Event-Subscriptions bewahren nun auch die aus der TypeLibrary
+importierte Source-IID und DISPID, solange der `AxHost` noch kein COM-Objekt besitzt. Beim späteren
+Retry nach der Aktivierung wird dadurch der bereits gebundene Connection-Point verwendet; die
+zusätzliche x86-Regression prüft `WithEvents source_KeyPress(KeyAscii As Integer)` samt ByRef-
+Write-back neben dem konventionellen Designer-Handler. Die bestehende Testabdeckung bleibt bei
+**981** Tests, davon **35/35** im WinForms-x86-Lauf.
+
+## intrinsischer Control-Array-Event-Nachtrag
+
+Designer-Control-Arrays für intrinsische WinForms-Steuerelemente bewahren jetzt ihre aus
+`Index=` ermittelten Unter- und Obergrenzen bis in den generierten Klassenkonstruktor. Dadurch
+werden beispielsweise `Buttons(0)` und `Buttons(1)` als echte Array-Elemente angelegt und die
+konventionellen Handler `Buttons_Click(Index)` sowie `Buttons_KeyPress(Index, KeyAscii)` erhalten
+den jeweiligen VB6-Index. Auch der ByRef-Parameter bleibt bei Array-Handlern an seiner korrekten
+Position und kann `KeyAscii` zurückschreiben. Der kompilierte `.vbp`/`.frm`-Regressionstest prüft
+beide Elemente und beide Ereignispfade; die Gesamtsuite umfasst damit **982** Tests, davon
+**36/36** im WinForms-Lauf.
+
+## lückenhafter Control-Array-Index-Nachtrag
+
+Die Designer-Indexliste wird jetzt zusätzlich zur Array-Range bewahrt. Bei nicht zusammenhängenden
+VB6-Designer-Arrays wie `Buttons(0)` und `Buttons(2)` erzeugt der Formkonstruktor dadurch nur die
+tatsächlich vorhandenen Controls; ein nicht vorhandenes `Buttons(1)` wird weder als Host-Control
+angelegt noch an einen konventionellen Event-Handler gebunden. Der bestehende kompilierte
+`.vbp`/`.frm`-Regressionstest deckt den lückenhaften Click- und KeyPress-Pfad ab; die
+Testgesamtzahl bleibt bei **983**, davon **36/36** im WinForms-Lauf.
+
+## MSBuild-VBG-SDK-Nachtrag
+
+Der MSBuild-SDK-Gruppenpfad ist jetzt über den tatsächlich gepackten
+`VB6.Compiler.Sdk/1.0.0`-Vertrag regressiongesichert. Ein SDK-Projekt mit `VB6ProjectGroup` baut
+eine reale `.vbg` über `dotnet msbuild`, verfolgt Gruppen-, Projekt-, Quell- und Designerinputs
+inkrementell und überspringt unveränderte Builds. Das Target schreibt zusätzlich ein Output-
+Manifest; wenn ein erzeugtes Assembly-, AppHost-, Runtime-, PDB- oder Runtimeconfig-Artefakt
+fehlt, wird der Compile-Stempel invalidiert und die Gruppe vollständig repariert. Der CLI-Bereich
+umfasst damit **11** Tests, die Gesamtsuite **983** Tests. Die vollständige Visual-Studio-
+Projektmodell- und Design-Time-Integration bleibt der nächste Ausbau dieses Vertrags.
+
+## TypeLib-SAFEARRAY-Elementtyp-Nachtrag
+
+Der TypeLib-Importer bewahrt `VT_ARRAY|T` und verschachtelte `VT_SAFEARRAY(T)`-Beschreibungen
+jetzt als `ArrayTypeSymbol` mit dem importierten Elementtyp. Dadurch wird beispielsweise
+`MSHTML.IHTMLDocument2.write` aus der realen Windows-`mshtml.tlb` als `Variant()` gebunden und
+kann den vorhandenen `VBArray<T>`-/Automation-Array-Vertrag verwenden. C-Arrays und Pointer-
+Konstrukte bleiben weiterhin opaque, bis ihr natives ABI explizit modelliert ist. Der echte
+`mshtml`-TypeLib-Bindungstest sowie eine Runtime-Regression für `SAFEARRAY(I4)` sichern Elementtyp,
+Untergrenzen und Rückkopieren ab. Die Gesamtsuite umfasst damit **985 Tests**.
+
+## COM-ByVal-SAFEARRAY-Nachtrag
+
+Der Raw-`IDispatch`-Aufruf erkennt typisierte, nicht-ByRef-SAFEARRAY-Parameter aus der TypeInfo
+und materialisiert `VBArray<T>`-Argumente vor `Invoke` als native `VT_ARRAY|T`-VARIANTs. Der
+bestehende skalare und ByRef-Dispatcher bleibt dabei unverändert; nicht unterstützte C-Arrays,
+Pointer und UDT-Elemente fallen weiterhin kontrolliert auf den bisherigen Pfad zurück. Der
+Native-VARIANT-Test prüft die echten Untergrenzen und die `VT_ARRAY|VT_VARIANT`-Signatur; die
+Vollsuite umfasst nun **986 Tests**, VISIA bleibt bei **40/40** fehlerfreien Projektitems.
+
+## COM-SAFEARRAY-Rückgabewert-Nachtrag
+
+Der Managed-Emitter bewahrt bei dynamischen TypeLib-Property- und Methodenaufrufen jetzt den
+deklarierten `ArrayTypeSymbol`-Rückgabetyp. Ein vom Raw-`IDispatch` geliefertes CLR-
+`System.Array` wird dadurch in `VBArray<T>` überführt; Rang, explizite Untergrenzen und
+Elementkonversionen bleiben erhalten. Der bisherige `Variant`-Rückgabepfad sowie direkte
+`VBArray<T>`-Werte bleiben unverändert. Die Runtime-Regression prüft einen zweidimensionalen
+SAFEARRAY mit nicht-nullbasierter Grenze; die Vollsuite umfasst nun **987 Tests**.
+
+## Variant-Array-Zuweisungsnachtrag
+
+Der Managed-Emitter konvertiert dynamische `Object`-/`Variant`-Ergebnisse jetzt auch beim
+Zuweisen in eine typisierte VB6-Arrayvariable über `VBArrayOperations.FromObject<T>`. Damit
+funktionieren beispielsweise spät gebundene COM-Properties, die ein SAFEARRAY liefern, in
+`Dim values() As Variant` inklusive `LBound`, `UBound` und Elementzugriff. Der echte
+`Scripting.Dictionary.Keys`-End-to-End-Test sichert diesen Legacy-Pfad; die Vollsuite bleibt
+bei **987 Tests**.
+
+## Declare-SAFEARRAY-Nachtrag
+
+`Declare`-Parameter der Form `ByRef values() As ...` werden im Managed-Backend jetzt als native
+`SAFEARRAY**`-Argumente emittiert. Der Compiler materialisiert unterstützte Automation-Arrays mit
+ihren echten VB6-Untergrenzen, hält die native Pointer-Storage bis zum Aufruf und schreibt
+Elementänderungen sowie ersetzte Arrayformen anschließend zurück. Der Vertrag deckt die
+unterstützten skalaren Automation-Typen und `Variant()` ab; UDT-, Pointer- und `Currency`-
+SAFEARRAYs bleiben wegen ihres eigenen nativen Deskriptors separate Interop-Schritte. Die
+Regression prüft IR, Managed-Emission und einen echten `oleaut32`-SAFEARRAY-Write-back; die
+Vollsuite umfasst nun **989 Tests**.
+
+## Declare-Currency-SAFEARRAY-Nachtrag
+
+`Currency()`-Declare-Parameter werden jetzt als native `SAFEARRAY(CY)`-Deskriptoren materialisiert.
+Die Runtime schreibt den skalierten 64-Bit-Currency-Wert direkt in die Automation-Elemente und
+führt native Änderungen anschließend wieder verlustarm nach `VBCurrency` zurück. Damit ist der
+`Currency`-Sonderfall vom CLR-`decimal`-SAFEARRAY-Mapping entkoppelt; UDT-, Pointer- und Callback-
+ABIs bleiben weiterhin separate Interop-Schritte. Eine Windows-Regression prüft Erzeugung,
+native Elementänderung und Rückkopieren; die Vollsuite umfasst nun **990 Tests**.
+
+## Declare-Currency-Scalar-Nachtrag
+
+Skalare `Currency`-Parameter und Rückgabewerte sind jetzt im Managed-`Declare`-Vertrag als native
+8-Byte-`CY`-Werte zugelassen. Der bestehende `VBCurrency`-Speicher bewahrt dabei die VB6-Skalierung
+mit vier Nachkommastellen; ein echter `oleaut32!VarCyFromR8`-Aufruf prüft den `ByRef Currency`-
+Rückweg. UDT-, Pointer- und Callback-ABI-Sonderfälle bleiben separate Roadmap-Schritte; die
+Vollsuite umfasst nun **991 Tests**.
+
+## Declare-Callback-Nachtrag
+
+`AddressOf`-Prozeduren können im Managed-`Declare`-Pfad jetzt als native Funktionszeiger verwendet
+werden. Die Runtime erzeugt dafür nicht-generische Delegate-Thunks mit `Winapi`-Calling-Convention
+und hält die Delegate-Instanzen über die gesamte Prozesslaufzeit; statische Callback-Prozeduren und
+Instanzmethoden im selben generierten Klassenobjekt werden unterstützt. Ein echter
+`EnumSystemLocalesA`-Aufruf prüft die Callback-Ausführung; die Vollsuite umfasst nun **992 Tests**.
+
+## Declare-ByRef-Variant-Nachtrag
+
+Der bestehende Managed-P/Invoke-Vertrag behandelt `Variant`-Parameter jetzt ausdrücklich als native
+`VARIANT`-Slots, auch wenn sie in VB6 als `ByRef` deklariert sind. Ein echter
+`oleaut32!VariantChangeType`-Aufruf schreibt sowohl den Zielwert als auch seinen `VarType` zurück;
+damit ist kein zusätzlicher String- oder Array-Sonderpuffer erforderlich. UDT-, Pointer- und
+komplexe SAFEARRAY-Descriptoren bleiben weiterhin separate ABI-Schritte; die Vollsuite umfasst
+nun **993 Tests**.
+
+## Declare-Boolean-ABI-Nachtrag
+
+`Boolean`-Parameter und Rückgabewerte externer `Declare`-Prozeduren erhalten jetzt den expliziten
+`VARIANT_BOOL`-Marshalling-Descriptor. Dadurch verwendet der Managed-Emitter die 2-Byte-VB6-
+Automation-Repräsentation statt des impliziten 4-Byte-Win32-`BOOL`-Vertrags. Ein echter
+`oleaut32!VarBoolFromI4`-Aufruf prüft den `ByRef Boolean`-Rückweg; die Vollsuite umfasst nun
+**994 Tests**.
+
+## Declare-ByRef-Callback-Nachtrag
+
+Blittable `ByRef`-Parameter bleiben in den dynamisch erzeugten nativen Callback-Delegaten jetzt
+erhalten, einschließlich generierter VB6-UDT-Records. Ein echter
+`user32!EnumDisplayMonitors`-Aufruf prüft die Rückgabe eines nativen `RECT*` in einen VB6-Callback
+auf AnyCPU und x86; komplexe verschachtelte Pointer-, Variant-, String- und nicht-blittable
+Callback-Signaturen benötigen weiterhin eigene ABI-Adapter. Die Vollsuite umfasst nun **995 Tests**.
+
+## Callback-String-/BOOL-Nachtrag
+
+Die dynamisch erzeugten `AddressOf`-Delegaten tragen für native Callback-Parameter und Rückgaben
+jetzt explizite `BOOL`- beziehungsweise ANSI-String-Marshalling-Attribute. Ein echter
+`kernel32!EnumSystemLocalesA`-Aufruf prüft einen `String`-Callbackparameter und den
+vier-Byte-Win32-`Boolean`-Rückgabevertrag auf AnyCPU und x86; Variant-, UDT- und verschachtelte
+Pointer-Callbacks bleiben als separate komplexe ABI-Schritte offen. Die Vollsuite umfasst nun
+**996 Tests**.
+
+## Declare-StrPtr-Nachtrag
+
+`ByVal StrPtr(text)` in einem `Declare ... As Any`-Aufruf verwendet jetzt einen temporären
+UTF-16-Puffer mit deterministischer Freigabe. Ist das Ziel eine beschreibbare Stringvariable,
+wird der native Inhalt nach dem Aufruf mit der ursprünglichen Zeichenlänge zurückübertragen.
+Ein echter `kernel32!RtlMoveMemory`-Roundtrip ist auf AnyCPU und x86 regressionsgesichert;
+direkte freie `StrPtr`-Aufrufe und weitere rohe String-/UDT-Pointer bleiben bewusst separate
+native Speicherverträge. Die Vollsuite umfasst nun **997 Tests**.
+
+## Variant-Callback-Nachtrag
+
+Einfache `Variant`-Parameter und -Rückgaben von `AddressOf`-Prozeduren werden im Managed-Emitter
+jetzt als CLR-`object` mit explizitem `UnmanagedType.Struct`-Descriptor geführt. Die dynamische
+Callback-Registry trennt diese nativen `VARIANT`-Slots vom unveränderten `Object`-ABI auch im
+Delegattyp-Cache; eine Reflection- und Funktionszeiger-Regression prüft beide Formen. Variant-
+Arrays, UDTs und verschachtelte Pointer im Callback bleiben separate komplexe ABI-Schritte; die
+Vollsuite umfasst nun **998 Tests**.
+
+## COM-Connection-Point-Variant-Nachtrag
+
+Native COM-Connection-Point-Events verwenden jetzt einen eigenen dynamischen Delegattyp, der die
+vom Managed-Emitter gesetzten `Variant`-Descriptors übernimmt und zusätzlich `VARIANT_BOOL` sowie
+`BSTR` für Automation-Eventparameter abbildet. Der Win32-Callback-ABI bleibt davon getrennt; der
+geprüfte x86-OCX-Pfad bleibt mit RichText- und Standard-Control-Events kompatibel. UDT-,
+SAFEARRAY- und verschachtelte Pointer-Eventverträge bleiben weitere Interop-Schritte; die Vollsuite
+umfasst nun **999 Tests**.
+
+## COM-Connection-Point-SAFEARRAY-Nachtrag
+
+TypeLib-/VB6-Eventhandler mit unterstützten typisierten SAFEARRAY-Parametern verwenden jetzt einen
+rohen COM-Delegaten mit `System.Array` und explizitem `SafeArraySubType`. Der Adapter konvertiert
+die native Array-Repräsentation in `VBArray<T>`, bewahrt Rang und echte Untergrenzen und schreibt
+ByRef-Ersatzarrays über denselben Automation-Descriptor zurück; `Date` und `Currency` erhalten
+ihre jeweiligen `VARTYPE`s auch in den erzeugten Assembly-Metadaten. UDT-, Pointer- und nicht
+unterstützte SAFEARRAY-Elemente bleiben bewusst separate ABI-Schritte. Die Vollsuite umfasst nun
+**1003 Tests**.
+
+## Einzelprojekt-CLI-Nachtrag
+
+`vb6c <projekt.vbp> --emit-assembly <ausgabeverzeichnis>` akzeptiert jetzt neben einem direkten
+Dateipfad auch ein vorhandenes oder endungsloses Zielverzeichnis. Der Compiler erzeugt darin den
+Legacy-Projektnamen aus `ExeName32` beziehungsweise `Name` und wählt für EXE-/OleDll-/ActiveX-
+Projekte automatisch `.exe` beziehungsweise `.dll`; ein nicht vorhandenes endungsloses Verzeichnis
+wird angelegt. Ein echter CLI-Prozessstart für eine EXE und die DLL-Ausgabe eines Library-Projekts
+sind regressionsgesichert. Die Vollsuite umfasst nun **1005 Tests**.
+
+## ObjPtr-COM-Nachtrag
+
+`ObjPtr` verwendet jetzt den nativen `LongPtr`-Vertrag und liefert für echte COM-/ActiveX-
+Objekte den kontrollierenden `IUnknown`-Zeiger, ohne die von `GetIUnknownForObject` erworbene
+temporäre Referenz zu leaken. `Nothing` beziehungsweise ein leerer Wert ergibt null, skalare
+Varianten melden Type Mismatch. Ein echter `htmlfile`-RCW sowie ein generierter `ObjPtr(Nothing)`-
+Aufruf sind auf AnyCPU regressiongesichert. Direkte `VarPtr`-/`StrPtr`-Speicheradressen und
+UDT-/Pointer-Marshalling bleiben wegen ihrer separaten Lebensdauer- und ABI-Regeln offen. Die
+Vollsuite umfasst nun **1010 Tests**.
+
+## AddressOf-Variant-Array-Nachtrag
+
+`AddressOf`-Prozeduren mit `Variant()`-Parametern und -Rückgaben verwenden jetzt einen eigenen
+nativen `SAFEARRAY(VARIANT)`-Delegaten. Der Callback-Adapter konvertiert die native `System.Array`-
+Repräsentation in `VBArray<object>`, bewahrt echte Untergrenzen und schreibt ersetzte `ByRef`-
+Arrays einschließlich ihrer neuen Bounds zurück. Ein echter Function-Pointer-Aufruf prüft sowohl
+`ByRef Variant()` mit `ReDim` als auch einen `Variant()`-Rückgabewert auf AnyCPU und x86. UDT-,
+Pointer-, String- und nicht unterstützte Arrayelement-ABIs bleiben separate Schritte. Die
+Vollsuite umfasst nun **1011 Tests**.
+
+## CLI-Entry-Point-Diagnostik-Nachtrag
+
+Die öffentliche `AnalyzeForEmission()`-Analyse wendet jetzt denselben Entry-Point-Vertrag wie
+die Managed-Emission an. Dadurch melden `vb6c <projekt.vbp> --report` und
+`vb6c <projekt.vbg> --report` fehlende oder ungültige EXE-Startpunkte bereits mit
+`VB6PRJ0004`/`VB6PRJ0005`; gültige Form-Starts und Library-Projekte ohne `Sub Main` bleiben
+zulässig. Die VBG-Vorprüfung verwendet denselben Vertrag, bevor einzelne Projekte emittiert
+werden. Zwei echte CLI-Prozessregressionen decken Einzelprojekt und Gruppe ab; die Vollsuite
+umfasst nun **1013 Tests**.
+
+## VISIA-Managed-Emit-Messpunkt
+
+Der aktuelle `.vbp`-Vertrag analysiert das vollständige VISIA-Projekt mit **40 von 40** fehlerfreien
+Projektitems und **0** Parser-, Lexer- oder Semantikdiagnosen. Zusätzlich erzeugt
+`vb6c conformance/VISIA/4.8.7.1/prjVisia.vbp --emit-assembly <verzeichnis> --x86` erfolgreich die
+Managed-Assembly, den nativen x86-AppHost, PDB und Runtime-Dateien. Der Conformance-Ratchet prüft
+jetzt sowohl die 40/40-Schwelle als auch die Diagnosezahl 0; die Vollsuite umfasst **1014 Tests**.
+
+## LongPtr-SAFEARRAY-Nachtrag
+
+`LongPtr()`-Arrays verwenden im Managed-Interop-Pfad jetzt einen expliziten nativen Elementvertrag:
+`VT_I4` für x86 und `VT_I8` für x64. Das gilt für `ByRef`-`Declare`-SAFEARRAYs sowie für
+`AddressOf`-Callbackparameter und -Rückgaben; der Adapter bewahrt VB6-Untergrenzen und schreibt
+ersetzte Arrays inklusive neuer Bounds zurück. COM-Event-Delegaten verwenden denselben typisierten
+Arraypfad. Ein `AnyCPU`-Emit wird für diesen architekturabhängigen Vertrag kontrolliert mit einer
+Backenddiagnose abgelehnt. Runtime-, Reflection- und End-to-End-Regressionen laufen auf x86 und
+x64; die Vollsuite umfasst nun **1019 Tests**.
+
+## Declare-Dispatch-SAFEARRAY-Nachtrag
+
+`Declare`-Parameter der Form `ByRef values() As Object` beziehungsweise `As Control` werden im
+Managed-Backend jetzt als native `SAFEARRAY(VT_DISPATCH)**`-Argumente materialisiert. Die Runtime
+schreibt echte COM-/ActiveX-`IDispatch`-Einträge direkt in den nativen Deskriptor, entpackt
+Host-Provider vor dem Aufruf und lässt `Nothing`-Elemente als nulles Dispatch-Element bestehen.
+Beim Write-back werden COM-Objekte übernommen und native null-Dispatch-Einträge wieder als VB6-
+`Nothing` dargestellt. Bounds, Dimensionen und die bestehende Array-Identität bleiben erhalten;
+UDT-, Pointer- und verschachtelte String-Arrays bleiben separate ABI-Schritte. Die Regression
+prüft Emitter-Metadaten für Object/Control und einen echten `Scripting.Dictionary`-Roundtrip;
+die Vollsuite umfasst nun **1021 Tests**.
+
+## Callback-String-SAFEARRAY-Nachtrag
+
+`AddressOf`-Prozeduren können `ByRef values() As String` jetzt als nativen
+`SAFEARRAY(VT_BSTR)`-Callbackparameter und `String()`-Rückgabewert verwenden. Der Managed-Adapter
+bewahrt die VB6-Untergrenzen, konvertiert zwischen `VBArray<string>` und `System.Array` und schreibt
+ersetzte Bounds sowie Inhalte über die native Delegate-Grenze zurück. Verschachtelte String-Pointer-
+ABIs, Stringfelder in UDTs und weitere rohe Pointerverträge bleiben separate Interop-Schritte;
+die Regression läuft auf x86 und x64, die Vollsuite umfasst nun **1022 Tests**.
+
+## Variant-Vergleichs-Nachtrag
+
+Variant-Vergleiche ordnen einen numerischen Wert jetzt vor einem nicht numerisch konvertierbaren
+String ein, statt in einen CLR-Typvergleich zu fallen. Das gilt auch für erhaltene Date-Variantwerte;
+numerische Strings und reine String-zu-String-Vergleiche behalten ihre bisherigen Promotions- bzw.
+lexikalischen Regeln. Direkte Runtime- und kompilierte Managed-Regressionen decken `<`, `=`, `>` und
+den Date-Fall ab. Die abschließende Variant-Promotionstabelle sowie Objekt-/Array-Varianten bleiben
+weiterhin offen; die Vollsuite umfasst nun **1024 Tests**.
+
+## Variant-Math-State-Nachtrag
+
+`Abs`, `Fix` und `Round` verwenden jetzt denselben `Missing`-/Array-Guard wie die übrigen
+Variant-Math-Pfade. Ein ausgelassenes `Optional Variant`-Argument führt damit deterministisch zum
+VB6-Fehler 448, eine Array-Variante zum Type-Mismatch 13, und die bestehende `Null`-/`Empty`-
+Semantik bleibt unverändert. Runtime- und kompilierte Regressionen decken beide Zustände für alle
+drei Intrinsics ab; die Vollsuite umfasst nun **1026 Tests**.
+
+## OLE-Date-Variant-Nachtrag
+
+`VBDateValue` und `DateTime` werden in den zentralen numerischen `C*`-Konversionen jetzt als
+OLE-Automation-Doubles behandelt. Das schließt `CDbl`, `CDec`, Integer-/Pointer-/Currency- und
+Single-Konversionen, `CBool`/`CStr` sowie Variant-Addition und -Subtraktion ein; Date-Arithmetik
+behält dabei den `Date`-Subtype. Damit können auch aus COM-Dispatch stammende `DateTime`-Werte den
+gleichen Managed-Variantpfad wie interne VB6-Datewerte nutzen. Die Regression deckt Konversionen
+und Date-Arithmetik ab; die Vollsuite umfasst nun **1027 Tests**.
+
+## Managed-Interop- und UDT-Nachtrag
+
+Managed-`LSet` unterstützt jetzt unterschiedlich aufgebaute, rein skalare UDTs: Der Rohdatentransfer
+schneidet auf die Zielgröße zu beziehungsweise füllt den Rest mit Nullbytes auf. Die generische
+`ref`-Runtime-Signatur hält das Ziel während temporärer Marshaling-Puffer als verwaltete Referenz
+stabil. Layouts mit Strings, Arrays, `Variant`, Referenzen, `Boolean` oder `LongPtr` bleiben bis zu
+ihrem eigenen ABI-Vertrag diagnostisch geschützt.
+
+`Chr` und `Asc` verwenden für den erweiterten Bereich `128..255` deterministisch Windows-1252;
+`ChrW` und `AscW` bleiben UTF-16-basiert. Nicht abbildbare Zeichen und die undefinierten
+Windows-1252-Bytes werden kontrolliert abgelehnt.
+
+`DateTime` wird in den Managed-`AddressOf`- und COM-Event-SAFEARRAY-Verträgen jetzt als `VT_DATE`
+beschrieben. Bounds, ByRef-Write-back und Ersatzarrays sind für Callback- und Event-Adapter
+regressionsgesichert; ein echter externer nativer COM-Connection-Point mit `VT_DATE` bleibt ein
+separater Integrationsschritt. Die Vollsuite umfasst nun **1036 Tests**.
+
+## Dokumentationsabgleich: reg-free COM, `VT_UNKNOWN` und Variant/Decimal
+
+Der aktuelle Baum belegt jetzt den vollständigen reg-free-Manifest-Schritt für den Managed-COM-
+Pfad: `--com-host` erzeugt den nativen `.comhost.dll`-Loader, `--com-manifest` schreibt daneben
+ein Side-by-Side-Manifest mit Assembly-Identität, Architektur, CLSID und `ProgID`; der MSBuild-
+SDK-Vertrag reicht beide Optionen weiter. Eine Windows-CLI-Regression erzeugt das Manifest und
+aktiviert die Klasse anschließend weiterhin über den COM-Host. Dieser Vertrag ist damit für den
+Managed-Library-Pfad belegt; Registrierung, vollständige TypeLib-Emission und der native LLVM-
+COM-Server bleiben offen.
+
+`Declare`-Objektarrays unterstützen jetzt zusätzlich `SAFEARRAY(VT_UNKNOWN)`: `IUnknown*`-Elemente,
+`Nothing`, Referenzfreigabe sowie der Rückweg nach `VBArray<object>` sind im Runtime-Code und in
+einer Windows-COM-Regression belegt. `VT_RECORD`/`IRecordInfo`, rohe Pointer-/C-Array-Verträge
+und nicht unterstützte SAFEARRAY-Elementtypen bleiben offen.
+
+Der Variant/Decimal-Pfad enthält weiterhin belegte Teilverträge für Decimal-Subtype 14,
+arithmetische Decimal-Operationen, Date-Konversionen und mehrere `Missing`-/Array-Guards. Die
+vollständige VB6-Promotionstabelle ist nicht erledigt; der aktuelle operator-spezifische Vertrag
+bleibt jedoch erhalten: `Currency * Double` liefert `Currency`, während `Currency + Double`
+`Double` liefert. Der serielle Solution-Lauf vom 25.08.2026 umfasst **1043 Testfälle**, davon
+**1043 bestanden** und **0 fehlgeschlagen**. Nach dem Lauf blieb kein sichtbares Win32-
+Messagebox- oder Dialogfenster offen.
+
+## MSBuild-Designer-Input-Nachtrag
+
+Das MSBuild-SDK verfolgt bei Einzelprojekten und `.vbg`-Gruppen jetzt auch Legacy-
+`.dsr`-Designerquellen als Inputs. Änderungen an einer `Designer=...; Datei.dsr`-Quelle
+invalidieren damit den inkrementellen Compile-Stempel und lösen die CLI-Emission erneut aus.
+Die Regression ist über einen echten `dotnet msbuild`-Gruppenbuild abgesichert. Der serielle
+Solution-Lauf umfasst damit weiterhin **1043 Testfälle**, davon **1043 bestanden** und **0 fehlgeschlagen**.
+
+## Boolean-UDT-LSet-Nachtrag
+
+Der Managed-`LSet`-Vertrag akzeptiert jetzt auch UDTs mit VB6-`Boolean`-Feldern. Der Emitter
+kennzeichnet diese Felder als 2-Byte-`VARIANT_BOOL`, während Layoutprüfung und Runtime-Rohtransfer
+dieselbe Größe und Ausrichtung verwenden. Ein kompilierter Transfer zwischen unterschiedlich
+aufgebauten UDTs ist regressionsgesichert. Nicht unterstützte dynamische Strings, Arrays,
+`Variant`-Felder und weitere native ABI-Layouts bleiben weiterhin separate ABI-Schritte; die
+Vollsuite umfasst nun **1046 Testfälle**, davon **1046 bestanden** und **0 fehlgeschlagen**.
+
+## Empty-/Single-Variant-Divisionsnachtrag
+
+Bei der Variant-Division wird `Empty` jetzt wie ein Integer-Operand in die
+Promotionentscheidung einbezogen. Dadurch liefert `Empty / Single` einen `Single`-Variantwert
+statt fälschlich `Double`; `Single / Empty` bewahrt denselben effektiven Typ und meldet danach
+korrekt Division durch null. Runtime- und kompilierter Managed-Ausführungspfad sind regressions-
+gesichert. Die Vollsuite umfasst damit **1045 Testfälle**, davon **1045 bestanden** und **0
+fehlgeschlagen**.
+
+## LongPtr-UDT-LSet-Nachtrag
+
+Der Managed-`LSet`-Vertrag akzeptiert jetzt zusätzlich native-width `LongPtr`-Felder in
+unterschiedlich aufgebauten UDTs. Die generierte Struct-Repräsentation verwendet `IntPtr`;
+Layout-Guard und Rohtransfer sind für die aktuelle Prozessarchitektur ausgelegt. Der x64-
+Managed-Ausführungspfad ist mit einem kompilierten Pointer-/Long-Transfer abgesichert;
+Cross-Architecture-Targeting sowie dynamische Strings, Arrays, `Variant`-Felder, verschachtelte
+Pointer und weitere rohe C-Array-Layouts bleiben offen. Die Vollsuite umfasst nun **1047
+Testfälle**, davon **1047 bestanden** und **0 fehlgeschlagen**.
+
+## MSBuild-SDK-Validierungsnachtrag
+
+Das VB6-MSBuild-SDK bricht jetzt mit einer eindeutigen Diagnose ab, wenn das konfigurierte
+`.vbp` oder `.vbg` nicht existiert oder beide Eingabearten gleichzeitig gesetzt sind. Damit
+führt ein falsch konfiguriertes SDK-Projekt nicht mehr stillschweigend nur einen normalen
+.NET-Build aus. Der Einzelprojektpfad verwendet zusätzlich einen Compile-Stempel mit
+Output-Manifest: unveränderte Builds werden übersprungen, fehlende Artefakte automatisch
+repariert. Beide Verträge sind über echte `dotnet msbuild`-Regressionen abgesichert; die
+Vollsuite umfasst nun **1049 Testfälle**, davon **1049 bestanden** und **0 fehlgeschlagen**.
+
+## COM-EXCEPINFO-Nachtrag
+
+Der native `IDispatch::Invoke`-Pfad gibt die von COM gelieferten `EXCEPINFO`-BSTR-Felder
+`Source`, `Description` und `HelpFile` jetzt auch bei Fehler-HRESULTs und Folgefehlern sicher
+mit `SysFreeString` frei. Der Windows-only Runtime-Test prüft die vollständige Bereinigung;
+die Dispatch-Aufrufe verwenden außerdem die aktuelle Prozess-LCID mit einem stabilen
+Invariant-Fallback. Die Vollsuite umfasst nun **1051 Testfälle**, davon **1051 bestanden** und
+**0 fehlgeschlagen**.
+
+## Managed-Form-AppHost-Nachtrag
+
+Form-Startup-Projekte können über den CLI-`--emit-assembly`-Pfad jetzt direkt als sichtbare
+Managed-Windows-Anwendungen gestartet werden. Der Emit aktiviert dafür den optionalen
+`VB6.Runtime.WinForms`-Host, kopiert dessen Runtime-Assembly neben die erzeugte Anwendung,
+fordert `Microsoft.WindowsDesktop.App` an und markiert den generierten Entry-Point als STA.
+Der Host startet nach `Load`/`Show` die Nachrichtenschleife, räumt sich nach `Unload` oder dem
+Schließen des Startformulars auf und übernimmt einen bereits gesetzten externen Runner-Host ohne
+doppelte Registrierung. Die öffentliche Compiler-API bleibt standardmäßig headless; mit
+`ManagedEmitOptions.EnableWinFormsHost` ist derselbe direkte AppHost-Vertrag opt-in verfügbar.
+Vollständige `.frx`-/MDI-/OCX-/Connection-Point-Abdeckung bleibt in M9 offen. Die Vollsuite
+umfasst nun **1055 Testfälle**, davon **1055 bestanden** und **0 fehlgeschlagen**.
+
+## nativer-OCX-CLI-Nachtrag
+
+Der CLI-Gruppenpfad ist zusätzlich als echter Prozessvertrag abgesichert: Eine `.vbg` mit
+`RICHTX32.OCX` und `RichTextLib.RichTextBox` wird für x86 emittiert, startet den erzeugten
+Windows-AppHost mit der registrierten `AxHost`-Komponente und beendet sich nach `Unload Me`
+fehlerfrei. Damit ist neben Analyse und Artefakt-Erzeugung auch der direkte Legacy-Startpfad für
+ein installiertes Standard-OCX geprüft; vollständige OCX-Event-/ABI-Abdeckung und weitere
+Bitness-/Designer-Sonderfälle bleiben separate M9-Schritte. Die Vollsuite umfasst nun
+**1056 Testfälle**, davon **1056 bestanden** und **0 fehlgeschlagen**.
+
+## COM-ROT-Nachtrag
+
+`GetObject(, "ProgID")` bindet auf Windows nun ein bereits laufendes, registriertes COM-Objekt
+über die Running Object Table. Monikerpfade, Host-Sinks und der deterministische headless
+Platzhalter bleiben erhalten; ein registrierter ProgID ohne laufende Instanz liefert den nativen
+COM-Fehler statt stillschweigend ein falsches Objekt. Die vollständige ROT-/Server-Lebensdauer
+und die übrige COM-ABI bleiben separate Interop-Schritte.
+Die Vollsuite umfasst nun **1057 Testfälle**, davon **1057 bestanden** und **0 fehlgeschlagen**.
+
+## Shell-Nachtrag
+
+`Shell` startet auf Windows nun echte Prozesse, trennt die üblichen VB6-Befehlszeilenformen in
+Programm und Argumente und bildet `vbHide`, Minimieren und Maximieren auf den Windows-Prozessstil
+ab. Nicht-Windows-/headless-Läufe behalten den deterministischen Rückgabewert `0`.
+
+## COM-Connection-Point-Lifecycle-Nachtrag
+
+COM-Event-Subscriptions halten jetzt neben dem VB6-/Host-Wrapper auch den tatsächlich verbundenen
+RCW fest. Dadurch kann `Unsubscribe` den ursprünglichen Connection Point noch entfernen, wenn ein
+ActiveX-Wrapper seine aktuelle `ComObject`-Referenz inzwischen verloren oder freigegeben hat.
+Die Aufräumlogik behandelt bereits ungültige RCWs als best-effort Cleanup, entfernt aber weiterhin
+die Managed-Subscription. Eine echte x86-RichTextBox-Regression setzt den Provider nach der
+Verbindung zurück, trennt den Handler und prüft, dass ein anschließendes `Change`-Event nicht mehr
+ankommt. Die Vollsuite umfasst nun **1059 Testfälle**, davon **1059 bestanden** und **0 fehlgeschlagen**.
+
+## SendKeys-Host-Nachtrag
+
+`SendKeys` wird aus dem portablen Runtime-Vertrag jetzt an `IVB6Host` weitergereicht. Der
+WinForms-Host verwendet für `Wait=True` `SendWait` und für den asynchronen VB6-Fall `Send`;
+headless Hosts behalten den deterministischen No-op-Vertrag. Die Runtime-Weiterleitung ist mit
+einem konfigurierten Host regressiongesichert. Die Vollsuite umfasst nun **1060 Testfälle**, davon
+**1060 bestanden** und **0 fehlgeschlagen**.
+
+## LoadPicture-Dateipfad-Nachtrag
+
+Der WinForms-Host lädt `VBPicture`-Werte aus `LoadPicture("datei")` jetzt auch in den normalen
+`Picture`-Propertypfaden von Forms und Controls. Die Bilddaten werden unabhängig vom Quelldatei-
+Handle in eine eigene `Bitmap`-Instanz kopiert; der bestehende `.frx`- und `PaintPicture`-Pfad
+bleibt unverändert. Eine echte PNG-Regression setzt `PictureBox.Picture` über `LoadPicture` und
+prüft die resultierende Bildgröße. Die Vollsuite umfasst nun **1061 Testfälle**, davon **1061
+bestanden** und **0 fehlgeschlagen**.
+
+## Clipboard.GetText-Nachtrag
+
+`Clipboard.GetText` wird jetzt aus dem gebundenen Member-Aufruf direkt auf den typisierten
+`InteractionClipboardGetText`-IR-Vertrag abgesenkt und im Managed-Emitter an
+`VBInteraction.ClipboardGetText` gebunden. Headless-/Testhosts können über `ClipboardTextSink`
+deterministischen Text liefern; der WinForms-Host liest Text über die Windows-Zwischenablage und
+behandelt fehlende UI-/Clipboard-Handles als leeren Wert. Compiler- und Runtime-Regressionen
+prüfen getrennt den emittierten IR-Aufruf und den Sink-Vertrag. Die Vollsuite umfasst nun **1063
+Testfälle**, davon **1063 bestanden** und **0 fehlgeschlagen**.
+
+## Command-Prozessargument-Nachtrag
+
+Managed-Anwendungen initialisieren `Command` jetzt am generierten Application-Entry-Point aus der
+aktuellen Prozesszeile. Dadurch liefert ein direkt gestarteter CLI-AppHost auch quotierte Argumente
+wie `first "two words"` im VB6-kompatiblen Command-String. Der `GeneratedApplicationRunner` setzt
+seine explizit übergebenen Argumente als Host-Override, bevor der Entry-Point ausgeführt wird;
+portable Runtime-Aufrufe ohne generierte Application-Initialisierung bleiben deterministisch leer.
+Eine echte CLI-Regression startet den erzeugten AppHost mit zwei Argumenten und prüft die vollständige
+Ausgabe. Die Vollsuite umfasst nun **1065 Testfälle**, davon **1065 bestanden** und **0 fehlgeschlagen**.
+
+## Err-Feld-Nachtrag
+
+Der Managed-`Err`-Vertrag stellt jetzt zusätzlich `HelpFile`, `HelpContext` und `LastDllError`
+bereit. `Err.Raise` bewahrt die beiden Hilfeangaben im threadlokalen Fehlerzustand; `LastDllError`
+liest den von Managed-`Declare`-Aufrufen gesetzten nativen Last-Error-Slot. Dafür werden emittierte
+P/Invoke-Imports mit dem expliziten `SetLastError`-Metadatenflag versehen. `Err.Clear` setzt die
+gespeicherten Hilfeangaben wieder auf die VB6-Defaultwerte zurück. Runtime-, Managed-End-to-End-
+und echter `kernel32!SetLastError`-Regressionstest sichern den Vertrag. Die Vollsuite umfasst nun
+**1068 Testfälle**, davon **1068 bestanden** und **0 fehlgeschlagen**.
+
+## Collection-Fehlercode-Nachtrag
+
+Der Managed-`Collection`-Pfad verwendet jetzt die relevanten VB6-Fehlernummern: ein bereits
+vergebener Schlüssel liefert **457**, ungültige Schlüssel oder ein ungültiger einbasierter Index
+liefern **5**, und `Add` mit gleichzeitig gesetzten `Before`- und `After`-Argumenten wird ebenfalls
+als Fehler **5** behandelt. Die Fehler werden über den threadlokalen `Err`-Dispatcher geführt und
+bleiben damit unter `On Error Resume Next` aus VB6-Code auswertbar. Direkte Runtime- und generierte
+Managed-Programmtests sichern Duplicate-Key, Missing-Key und ungültige Positionsangaben. Die
+Vollsuite umfasst nun **1070 Testfälle**, davon **1070 bestanden** und **0 fehlgeschlagen**.
+
+## LBound-/UBound-Variant-Nachtrag
+
+`LBound` und `UBound` akzeptieren weiterhin Variant-Ausdrücke, deren Array-Natur erst zur
+Laufzeit feststeht. Enthält der Ausdruck dann kein Array, liefern die Runtime-Funktionen jetzt
+den VB6-Fehler **13 (Type mismatch)** statt einer generischen CLR-Fehlernummer. Array-Werte,
+echte CLR-Arrays und die bisherigen Bounds-/Dimensionsfehler bleiben unverändert.
+
+## VBG-Referenzabschluss
+
+Eine `.vbg`-Analyse prüft jetzt nicht nur `Project=`-Einträge und `StartupProject=`, sondern auch
+projektbezogene `Reference=`-Einträge jedes enthaltenen `.vbp`. Verweist ein Projekt auf ein
+vorhandenes, aber nicht in der Gruppe deklariertes `.vbp`, wird `VB6VBG0008` ausgegeben und die
+Gruppenemission erzeugt kein unvollständiges Consumer-Artefakt. Der Compiler- und CLI-Prozesspfad
+sind regressionsgesichert.
+
+## registrierter COM-Referenzabschluss
+
+Historische `Reference=`- und `Object=`-Einträge ohne auflösbaren lokalen Dateipfad können auf
+Windows jetzt über `HKCR\TypeLib` beziehungsweise `HKCR\CLSID` anhand GUID, Version, LCID und
+Prozessbitness aufgelöst werden. Explizit vorhandene Projekt-/Dateipfade behalten Vorrang; der
+Managed-TypeLib-Importer kann dadurch registrierte `stdole`-/OCX-Verträge auch aus alten VBP-
+Dateinamen laden. Eine echte registrierte `stdole2.tlb`-Regression deckt die Bindung ab.
+
+## Object-/Variant-Array-Descriptor-Nachtrag
+
+`Object()`-Arrays werden im Managed-Backend weiterhin als `VBArray<object>` gespeichert, tragen
+aber jetzt zusätzlich ihren VB6-Elementnamen und den Automation-Subtype. Dadurch liefern lokale
+`ReDim`-Arrays, Variant-Zuweisungen, `Clone`, `ReDim Preserve` und SAFEARRAY-Ersatzwerte
+unterscheidbar `Object()`/`8201`, während gewöhnliche `Variant()`-Arrays bei `Variant()`/`8204`
+bleiben. Der Descriptor wird außerdem durch die Runtime-Konvertierung und die Reflection-basierten
+Callback-/COM-Event-Adapter nicht mehr durch mehrdeutige `FromObject`-Überladungen verloren.
+
+Die aktuelle Vollsuite umfasst nun **1080 Testfälle**, davon **1080 bestanden** und
+**0 fehlgeschlagen**.
+
+## MSBuild-VBG-Output-Reconciliation-Nachtrag
+
+Der inkrementelle `VB6ProjectGroup`-Target liest vor einer erneuten Gruppenemission sein
+eigenes Output-Manifest und entfernt die dort verzeichneten vorherigen Artefakte. Nach dem
+Compile wird das Manifest mit den tatsächlich neu erzeugten Assemblies, AppHosts, Runtime-
+Dateien, PDBs und Manifests neu geschrieben. Dadurch bleiben beim Entfernen eines `Project=`-
+Eintrags oder beim Ändern eines `ExeName32`-Ziels keine veralteten Projektartefakte im
+Gruppenverzeichnis liegen. Der Vertrag ist über den gepackten SDK-Pfad und einen echten
+`dotnet msbuild`-Rebuild regressionsgesichert; die Vollsuite bleibt bei **1080 Testfällen**.
+
+## MSBuild-VBG-Referenzinput-Nachtrag
+
+Der SDK-Inputvertrag verfolgt unterhalb des VBP-/VBG-Verzeichnisses nun auch lokale
+`.ocx`-, `.tlb`-, `.olb`- sowie TypeLib-tragende `.dll`- und `.exe`-Dateien. Eine geänderte
+ActiveX- oder TypeLib-Datei invalidiert damit den inkrementellen Build, während das konfigurierte
+Ausgabeverzeichnis aus dem Scan ausgeschlossen bleibt und keinen Selbsttrigger erzeugt. Der
+gepackte SDK-Pfad ist mit einer echten `.ocx`-Änderung regressionsgesichert; die Vollsuite bleibt
+bei **1080 Testfällen**.
+
+## Variant-&-Null-Nachtrag
+
+Der Runtime- und Managed-Emitter-Vertrag bildet die VBA-Sonderregel für den `&`-Operator jetzt
+vollständig ab: Ein einzelnes `Null` wird als leerer String verkettet, `Null & Null` bleibt
+dagegen ein `Null`-Variant. Die Regression deckt den direkten Runtime-Aufruf sowie den
+kompilierten Pfad mit `IsNull` und `TypeName` ab. Die aktuelle Vollsuite umfasst **1082
+Testfälle**, davon **1082 bestanden** und **0 fehlgeschlagen**.
+
+## MSBuild-VBP-Output-Reconciliation-Nachtrag
+
+Der inkrementelle `VB6Project`-Target verfolgt nun auch die MSBuild-Projektdatei als Input und
+liest vor einer erneuten Einzelprojektemission sein eigenes Output-Manifest. Ändert sich dadurch
+der konfigurierte `VB6CompilerOutput`-Pfad, werden der alte Assembly-/PDB-/Runtime-Satz entfernt
+und der neue Output-Satz geschrieben. Der gepackte SDK-Pfad ist mit einem echten
+`dotnet msbuild`-Rename regressionsgesichert; die Vollsuite bleibt bei **1082 Testfällen**.
+
+## Decimal-Debug-Ausgabe-Nachtrag
+
+`Debug.Print` kuerzt Decimal-Variantwerte nicht mehr auf 15 signifikante Stellen. Die Runtime
+verwendet fuer den Decimal-Subtype jetzt denselben `G29`-Praezisionsvertrag wie `CStr`, sodass
+hochpraezise `CDec`-Werte im direkten Runtime-Aufruf und im kompilierten Managed-Programm
+vollstaendig erhalten bleiben. Die beiden Regressionen erhoehen die gemessene Vollsuite auf
+**1084 Testfaelle**, davon **1084 bestanden** und **0 fehlgeschlagen**.
+
+## Debug-Assert-Nachtrag
+
+`Debug.Assert` wird nun kontextsensitiv hinter `Debug.` geparst, semantisch als Boolean-Ausdruck
+gebunden und im kompilierten Managed-Programm vollstaendig elidiert. Damit werden auch Assert-
+Bedingungen mit Seiteneffekten nicht ausgefuehrt, wie es der VB6-EXE-Vertrag verlangt. Parser- und
+E2E-Regressionen erhoehen die gemessene Vollsuite auf **1087 Testfaelle**, davon **1087 bestanden**
+und **0 fehlgeschlagen**.
+
+## Portable-PDB-Prozedurscope-Nachtrag
+
+Der Portable-PDB-Emitter schreibt nun fuer jede Methode mit IL einen Scope ueber den gesamten
+Methodenkoerper, auch wenn die VB6-Prozedur keine Benutzer-Locals besitzt. Damit sind
+Prozedurgrenzen fuer Debugger und Visual Studio nicht mehr von einer `Dim`-Deklaration abhaengig.
+Der neue PDB-Test erhoeht die gemessene Vollsuite auf **1088 Testfaelle**, davon **1088 bestanden**
+und **0 fehlgeschlagen**.
+
+## Variant-SAFEARRAY-Zustandsnachtrag
+
+`Variant()`-SAFEARRAYs werden fuer Managed-`Declare`- und Raw-COM-ByRef-Aufrufe nun als echte
+`SAFEARRAY(VT_VARIANT)`-Deskriptoren materialisiert. Die einzelnen nativen `VARIANT`-Slots tragen
+ihren VB6-Zustand direkt: `Empty`, `Null`, `Nothing`, `Missing`, `Error`, `Date` und `Currency`
+werden nicht mehr ueber ein beliebiges `object[]`-Mapping verformt. Der Rueckweg liest Rang und
+Bounds aus dem nativen Deskriptor und rekonstruiert die VB6-Zustaende, bevor kompatible Arrays in
+den bestehenden `VBArray<T>`-Container zurueckgeschrieben werden. Die Runtime-Regression erhoeht
+die gemessene Vollsuite auf **1089 Testfaelle**, davon **1089 bestanden** und **0 fehlgeschlagen**.
+
+## Declare-SAFEARRAY-Rueckgabe-Nachtrag
+
+Externe `Declare Function`-Signaturen mit `As T()` werden am nativen P/Invoke-Rand nun als
+`System.Array` mit explizitem `SAFEARRAY(T)`-Marshalling emittiert. Direkt nach dem nativen Aufruf
+wandelt der Managed-Emitter das Ergebnis ueber `VBArrayOperations.FromObject<T>` wieder in den
+gebundenen `VBArray<T>`-Vertrag um; untere Grenzen, Rang und typisierte Elementkonversion bleiben
+damit im restlichen VB6-Programm erhalten. Die Signaturvalidierung akzeptiert nur Elementtypen,
+fuer die bereits ein nativer SAFEARRAY-Vertrag existiert. Der E2E-Test ruft
+`oleaut32!SafeArrayCreateVector` ueber ein echtes VB6-`Declare` auf und prueft die nicht-nullbasierte
+Rueckgabe. Die gemessene Vollsuite umfasst damit **1090 Testfaelle**, davon **1090 bestanden** und
+**0 fehlgeschlagen**.

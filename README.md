@@ -311,10 +311,15 @@ bounds and replacement write-back. Native-width `LongPtr()` arrays are supported
 
 ## Next milestones
 
-The detailed, measured plan lives in `docs/ROADMAP.md`. The immediate compiler order is:
+The detailed, measured plan lives in `docs/ROADMAP.md`; the chronological work journal is
+`docs/CHANGELOG.md`. The immediate compiler order is:
 
-1. broaden `.vbp`/`.vbg` legacy coverage and project diagnostics beyond the verified CLI baseline
-2. finish the Variant promotion matrix and the high-frequency standard library/runtime surface
-3. complete class lifecycle, object dispatch, events and COM/ActiveX compatibility for the Managed/.NET target
-4. harden the MSBuild SDK and LSP for Visual Studio; build the IDE/designer later
-5. resume the optional LLVM backend for native ABI/runtime emission after the .NET target is stable
+1. COM/ActiveX consumption and OCX hosting for the Managed/.NET target
+2. Forms and UserControls on WinForms: designer values, control arrays, event mapping, drawing
+3. complete class lifecycle, object dispatch and events where COM/Forms require it
+4. finish the Variant promotion matrix and the high-frequency standard library/runtime surface
+5. broaden `.vbp`/`.vbg` legacy coverage and project diagnostics beyond the verified CLI baseline
+6. harden the MSBuild SDK
+
+The LSP/IDE work and the optional LLVM backend are deliberately on hold until the Managed/.NET
+target is complete; neither blocks it.
