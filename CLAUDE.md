@@ -195,7 +195,7 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung (2026-08-25): **1104 Tests in 13 Testprojekten, alle grün.**
+Stand der letzten Prüfung (2026-08-25): **1121 Tests in 13 Testprojekten, alle grün.**
 
 Zweite Messung neben der Suite ist die Korpusparität — sie fängt Regressionen, die kein
 Unittest sieht:
@@ -227,5 +227,5 @@ projektweise, nicht solutionweit.
 - **Typnamen im IR sind eindeutig, Symbole sind es nicht.** Ein `Private Type` verdeckt ein gleichnamiges `Public Type`; beide sind verschiedene Symbole und brauchen verschiedene Speichernamen (`__vb6_udt_Point`, `__vb6_udt_Point_2`), sonst lehnt die Runtime die Assembly wegen doppelten Typs ab.
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
-- **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Aktuell haben 21 der 72 Codes keine einzige Testreferenz (u. a. `VB6L0002/3/4`, `VB6E0002`, `VB6S0002/9/12/13/14/17/40/42/43/57/59/60/61/65/66/68/69`); `VB6L0004` wird an 27 Stellen ausgelöst und nirgends geprüft. Beim Anfassen eines dieser Pfade den Test gleich mitnehmen.
+- **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Ohne Test bleiben nur noch fünf Codes: `VB6L0002/3/4` (eingefrorener LLVM-Emitter), `VB6E0002` (interner PDB-Fehlerkanal, bräuchte Fehlerinjektion) und `VB6S0068` (verlangt einen Interface-Vertrag aus einem Klassenprojekt). Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
 - **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 6`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.

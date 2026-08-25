@@ -2559,3 +2559,30 @@ Damit liefern beide Pfade dieselbe Signatur, wie es die Roadmap fuer M9 verlangt
 deckt die drei neuen Events ab; dass die bestehenden Change- und Fokustests unveraendert gruen
 bleiben, belegt die Namensuebersetzung. Die gemessene Vollsuite umfasst **1104 Testfaelle**, davon
 **1104 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.
+
+## Testschulden-Nachtrag
+
+Zwei Luecken im eigenen Sicherheitsnetz geschlossen.
+
+`ConformanceCorpusTests` prueft bisher nur, dass der Korpus **gebunden** wird. Emission ist die
+naechste Fehlerflaeche und zugleich das groesste Programm, das das Backend je sieht: 40 Module,
+Forms, UserControls und Klassen in einer Assembly. Ein Emitterdefekt, den kein handgeschriebener
+Test provoziert, zeigt sich dort zuerst. Der neue Fall emittiert das Projekt und prueft Assembly
+und PDB.
+
+Ausserdem hatten 21 der 72 Diagnose-Codes keine einzige Testreferenz. Bei einem Compiler, dessen
+Regel „lieber melden als raten" lautet, ist ein ungetesteter Diagnosepfad das Loch im eigenen Netz:
+Die Meldung kann veralten, die Bedingung kann aufhoeren zu greifen, und nichts faellt auf. 16 der
+17 semantischen Codes sind jetzt abgedeckt — VB6S0002, 0009, 0012, 0013, 0014, 0017, 0040, 0042,
+0043, 0057, 0059, 0060, 0061, 0065, 0066 und 0069. Die Faelle pruefen den Code, nicht den
+Meldungstext, damit die Formulierung frei bleibt; drei laufen ueber den UDT-Deklarationsbinder, der
+ein eigener Durchgang vor dem Prozedurbinder ist.
+
+Ohne Test bleiben fuenf: `VB6L0002`, `VB6L0003` und `VB6L0004` liegen im eingefrorenen
+LLVM-Emitter, `VB6E0002` ist der interne PDB-Fehlerkanal und braeuchte Fehlerinjektion, und
+`VB6S0068` verlangt einen Interface-Vertrag aus einem Klassenprojekt statt einer einzelnen
+Quelldatei.
+
+Nebenbefund: `Open ... For Random` wird laengst gebunden, der urspruengliche Testfall fuer
+`VB6S0057` traf deshalb nichts. Die gemessene Vollsuite umfasst **1121 Testfaelle**, davon **1121
+bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.

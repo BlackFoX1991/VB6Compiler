@@ -96,6 +96,55 @@ public sealed class ConformanceCorpusTests
             $"Parity regressed: {parserErrors} parser errors, the baseline is {VisiaParserErrorBaseline}.");
     }
 
+    /// <summary>
+    /// The parity report only proves that the corpus <em>binds</em>. Emission is the next failure
+    /// surface and the largest program the backend ever sees — 40 modules, forms, user controls
+    /// and classes in one assembly. An emitter defect that no hand-written test provokes shows up
+    /// here first, which is why this runs on the corpus rather than on a fixture.
+    /// </summary>
+    [TestMethod]
+    public void Emit_ProducesAnAssemblyForTheVisiaProject()
+    {
+        var projectPath = Path.Combine(FindCorpusDirectory(), VisiaProject);
+        Assert.IsTrue(File.Exists(projectPath), $"Corpus project not found: {projectPath}");
+
+        var directory = Path.Combine(Path.GetTempPath(), "vb6-corpus-emit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "Visia.dll");
+            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(assemblyPath);
+
+            Assert.IsTrue(
+                result.Success,
+                "Emitting the corpus project failed: " +
+                string.Join(
+                    Environment.NewLine,
+                    result.Lowering.Analysis.Diagnostics
+                        .Select(diagnostic => diagnostic.ToString())
+                        .Concat(
+                            result.BackendResult?.Diagnostics.Select(diagnostic => diagnostic.ToString())
+                            ?? Array.Empty<string>())));
+
+            Assert.IsTrue(File.Exists(assemblyPath), "No assembly was written.");
+            Assert.IsTrue(new FileInfo(assemblyPath).Length > 0, "The emitted assembly is empty.");
+            Assert.IsNotNull(result.PdbPath);
+            Assert.IsTrue(File.Exists(result.PdbPath!), "No debug information was written.");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A locked output file must not turn a passing emit into a failing test.
+            }
+        }
+    }
+
     private static VBProjectParityReport AnalyzeCorpusProject(string relativePath)
     {
         var projectPath = Path.Combine(FindCorpusDirectory(), relativePath);
