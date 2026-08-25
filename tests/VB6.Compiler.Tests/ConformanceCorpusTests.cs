@@ -28,7 +28,7 @@ public sealed class ConformanceCorpusTests
     /// cascade hid, so a real improvement can raise the total. Cleanly analyzed files can only
     /// grow, which makes them the honest progress metric.
     /// </summary>
-    private const int VisiaCleanModuleBaseline = 38;
+    private const int VisiaCleanModuleBaseline = 40;
 
     /// <summary>
     /// Parser errors the corpus still produces.
@@ -64,6 +64,14 @@ public sealed class ConformanceCorpusTests
             report.CleanFileCount >= VisiaCleanModuleBaseline,
             $"Parity regressed: {report.CleanFileCount} modules analyze cleanly, " +
             $"the baseline is {VisiaCleanModuleBaseline}.");
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsNoDiagnosticsOnTheVisiaProject()
+    {
+        var report = AnalyzeCorpusProject(VisiaProject);
+
+        Assert.AreEqual(0, report.TotalDiagnosticCount, report.Render());
     }
 
     [TestMethod]

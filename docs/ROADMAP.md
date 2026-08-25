@@ -104,6 +104,7 @@ Erhoben mit `vb6c <projekt.vbp> --report` gegen VISIA 4.8.7.1 (10.152 Zeilen, 42
 | Skalare Mathematik-Intrinsics `Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn` | **2** | **0** | **0** | **2** | **38 von 40** |
 | Variant-Mathematik mit `Null`-/`Empty`-Semantik | **2** | **0** | **0** | **2** | **38 von 40** |
 | Decimal-Promotion bei Variant-Vergleichen | **2** | **0** | **0** | **2** | **38 von 40** |
+| Aktueller Managed-Emit-Messpunkt (2026-08-25) | **0** | **0** | **0** | **0** | **40 von 40** |
 
 Die aktuelle Zeile ist der neue Messpunkt: alle 40 `.bas`, `.cls`, `.frm` und `.ctl`-Quellen werden
 gelesen, Designer-Metadaten werden offsettreu ausgeblendet, typisiert und gebunden. `Property
@@ -2387,3 +2388,11 @@ die Managed-Emission an. Dadurch melden `vb6c <projekt.vbp> --report` und
 zulässig. Die VBG-Vorprüfung verwendet denselben Vertrag, bevor einzelne Projekte emittiert
 werden. Zwei echte CLI-Prozessregressionen decken Einzelprojekt und Gruppe ab; die Vollsuite
 umfasst nun **1013 Tests**.
+
+## Aktueller VISIA-Managed-Emit-Messpunkt
+
+Der aktuelle `.vbp`-Vertrag analysiert das vollständige VISIA-Projekt mit **40 von 40** fehlerfreien
+Projektitems und **0** Parser-, Lexer- oder Semantikdiagnosen. Zusätzlich erzeugt
+`vb6c conformance/VISIA/4.8.7.1/prjVisia.vbp --emit-assembly <verzeichnis> --x86` erfolgreich die
+Managed-Assembly, den nativen x86-AppHost, PDB und Runtime-Dateien. Der Conformance-Ratchet prüft
+jetzt sowohl die 40/40-Schwelle als auch die Diagnosezahl 0; die Vollsuite umfasst **1014 Tests**.
