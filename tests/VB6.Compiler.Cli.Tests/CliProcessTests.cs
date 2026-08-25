@@ -63,6 +63,68 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_CompilesSingleVbpIntoAnOutputDirectoryAndRunsIt()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            WriteExecutableProject(directory, "SingleProject");
+            var outputDirectory = Path.Combine(directory, "bin");
+
+            var result = RunCli(
+                Path.Combine(directory, "SingleProject.vbp"),
+                "--emit-assembly",
+                outputDirectory);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var outputPath = Path.Combine(outputDirectory, "SingleProject.exe");
+            Assert.IsTrue(File.Exists(outputPath));
+            Assert.IsTrue(IsNativeWindowsAppHost(outputPath));
+
+            var run = RunProcess(outputPath, outputDirectory);
+            Assert.AreEqual(0, run.ExitCode, run.StandardError);
+            Assert.AreEqual("1", run.StandardOutput.Trim());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitAssembly_CompilesSingleLibraryVbpIntoAnOutputDirectory()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "SingleLibrary.vbp"),
+                "Type=OleDll\nName=SingleLibrary\nClass=Widget; Widget.cls\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Widget.cls"),
+                "VERSION 1.0 CLASS\nAttribute VB_Name = \"Widget\"\nPublic Function Value() As Long\n    Value = 7\nEnd Function\n");
+            var outputDirectory = Path.Combine(directory, "bin");
+            Directory.CreateDirectory(outputDirectory);
+
+            var result = RunCli(
+                Path.Combine(directory, "SingleLibrary.vbp"),
+                "--emit-assembly",
+                outputDirectory);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "SingleLibrary.dll")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void MsBuildSdk_CompilesAndTracksVbgProjectGroupsIncrementally()
     {
         var directory = CreateTemporaryDirectory();
@@ -617,6 +679,25 @@ public sealed class CliProcessTests
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start the dotnet process.");
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return new CliResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static CliResult RunProcess(string fileName, string workingDirectory)
+    {
+        var startInfo = new ProcessStartInfo(fileName)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Could not start '{fileName}'.");
         var standardOutput = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();

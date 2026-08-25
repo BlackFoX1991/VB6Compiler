@@ -2347,3 +2347,12 @@ ByRef-Ersatzarrays über denselben Automation-Descriptor zurück; `Date` und `Cu
 ihre jeweiligen `VARTYPE`s auch in den erzeugten Assembly-Metadaten. UDT-, Pointer- und nicht
 unterstützte SAFEARRAY-Elemente bleiben bewusst separate ABI-Schritte. Die Vollsuite umfasst nun
 **1003 Tests**.
+
+## Aktueller Einzelprojekt-CLI-Nachtrag
+
+`vb6c <projekt.vbp> --emit-assembly <ausgabeverzeichnis>` akzeptiert jetzt neben einem direkten
+Dateipfad auch ein vorhandenes oder endungsloses Zielverzeichnis. Der Compiler erzeugt darin den
+Legacy-Projektnamen aus `ExeName32` beziehungsweise `Name` und wählt für EXE-/OleDll-/ActiveX-
+Projekte automatisch `.exe` beziehungsweise `.dll`; ein nicht vorhandenes endungsloses Verzeichnis
+wird angelegt. Ein echter CLI-Prozessstart für eine EXE und die DLL-Ausgabe eines Library-Projekts
+sind regressionsgesichert. Die Vollsuite umfasst nun **1005 Tests**.
