@@ -1219,6 +1219,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       geführt; typisierte SAFEARRAY-Eventparameter werden über `System.Array`-Delegaten mit Bounds-
       und `VBArray<T>`-Konvertierung geführt; vollständiger Connection-Point-Event-ABI für UDTs,
       rohe Pointer und nicht unterstützte SAFEARRAY-Elemente sowie der native LLVM-Pfad bleiben offen.
+      Wenn eine historische `Reference=`-/`Object=`-Zeile nur den Dateinamen trägt, versucht der
+      Managed-Importer zusätzlich die registrierten `HKCR\TypeLib`-/`HKCR\CLSID`-Pfade in der
+      passenden Version, LCID und Prozessbitness aufzulösen.
       Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
 - [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. Reg-Free-Manifest-/Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und

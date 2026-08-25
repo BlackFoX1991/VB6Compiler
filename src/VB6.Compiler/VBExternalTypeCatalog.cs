@@ -20,7 +20,9 @@ internal static class VBExternalTypeCatalog
         foreach (var reference in project.References.Where(reference =>
                      reference.Metadata.Kind == VBProjectReferenceKind.TypeLibrary))
         {
-            var path = reference.Metadata.GetFullPath(project.ProjectDirectory);
+            var path = VBRegisteredInteropPathResolver.Resolve(
+                reference.Metadata,
+                project.ProjectDirectory);
             if (path is null)
             {
                 continue;
@@ -82,7 +84,9 @@ internal static class VBExternalTypeCatalog
                     break;
             }
 
-            var path = component.Metadata.GetFullPath(project.ProjectDirectory);
+            var path = VBRegisteredInteropPathResolver.Resolve(
+                component.Metadata,
+                project.ProjectDirectory);
             if (path is not null)
             {
                 MergeImportedTypeLibrary(
