@@ -21,6 +21,8 @@ resource triggers a new compile. It does not add a designer or replace the `.vbp
 The SDK fails the build when the configured `.vbp` or `.vbg` does not exist, and when both project
 properties are supplied; this prevents a normal .NET build from silently replacing the requested
 VB6 compilation.
+Single projects use a compile stamp and output manifest, just like project groups, so stale runtime
+copy timestamps do not force a rebuild and deleted generated artifacts are repaired automatically.
 
 Set `VB6EnableComHosting=true` for a library project to pass `--com-host` and produce the adjacent
 native .NET `*.comhost.dll` artifact. Set `VB6EnableComManifest=true` as well (or by itself) to
