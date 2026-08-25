@@ -2451,3 +2451,12 @@ Variant-Math-Pfade. Ein ausgelassenes `Optional Variant`-Argument führt damit d
 VB6-Fehler 448, eine Array-Variante zum Type-Mismatch 13, und die bestehende `Null`-/`Empty`-
 Semantik bleibt unverändert. Runtime- und kompilierte Regressionen decken beide Zustände für alle
 drei Intrinsics ab; die Vollsuite umfasst nun **1026 Tests**.
+
+## Aktueller OLE-Date-Variant-Nachtrag
+
+`VBDateValue` und `DateTime` werden in den zentralen numerischen `C*`-Konversionen jetzt als
+OLE-Automation-Doubles behandelt. Das schließt `CDbl`, `CDec`, Integer-/Pointer-/Currency- und
+Single-Konversionen, `CBool`/`CStr` sowie Variant-Addition und -Subtraktion ein; Date-Arithmetik
+behält dabei den `Date`-Subtype. Damit können auch aus COM-Dispatch stammende `DateTime`-Werte den
+gleichen Managed-Variantpfad wie interne VB6-Datewerte nutzen. Die Regression deckt Konversionen
+und Date-Arithmetik ab; die Vollsuite umfasst nun **1027 Tests**.
