@@ -2477,3 +2477,26 @@ Windows-1252-Bytes werden kontrolliert abgelehnt.
 beschrieben. Bounds, ByRef-Write-back und Ersatzarrays sind für Callback- und Event-Adapter
 regressionsgesichert; ein echter externer nativer COM-Connection-Point mit `VT_DATE` bleibt ein
 separater Integrationsschritt. Die Vollsuite umfasst nun **1036 Tests**.
+
+## Aktueller Dokumentationsabgleich: reg-free COM, `VT_UNKNOWN` und Variant/Decimal
+
+Der aktuelle Baum belegt jetzt den vollständigen reg-free-Manifest-Schritt für den Managed-COM-
+Pfad: `--com-host` erzeugt den nativen `.comhost.dll`-Loader, `--com-manifest` schreibt daneben
+ein Side-by-Side-Manifest mit Assembly-Identität, Architektur, CLSID und `ProgID`; der MSBuild-
+SDK-Vertrag reicht beide Optionen weiter. Eine Windows-CLI-Regression erzeugt das Manifest und
+aktiviert die Klasse anschließend weiterhin über den COM-Host. Dieser Vertrag ist damit für den
+Managed-Library-Pfad belegt; Registrierung, vollständige TypeLib-Emission und der native LLVM-
+COM-Server bleiben offen.
+
+`Declare`-Objektarrays unterstützen jetzt zusätzlich `SAFEARRAY(VT_UNKNOWN)`: `IUnknown*`-Elemente,
+`Nothing`, Referenzfreigabe sowie der Rückweg nach `VBArray<object>` sind im Runtime-Code und in
+einer Windows-COM-Regression belegt. `VT_RECORD`/`IRecordInfo`, rohe Pointer-/C-Array-Verträge
+und nicht unterstützte SAFEARRAY-Elementtypen bleiben offen.
+
+Der Variant/Decimal-Pfad enthält weiterhin belegte Teilverträge für Decimal-Subtype 14,
+arithmetische Decimal-Operationen, Date-Konversionen und mehrere `Missing`-/Array-Guards. Die
+vollständige VB6-Promotionstabelle ist nicht erledigt; der aktuelle operator-spezifische Vertrag
+bleibt jedoch erhalten: `Currency * Double` liefert `Currency`, während `Currency + Double`
+`Double` liefert. Der serielle Solution-Lauf vom 25.08.2026 umfasst **1043 Testfälle**, davon
+**1043 bestanden** und **0 fehlgeschlagen**. Nach dem Lauf blieb kein sichtbares Win32-
+Messagebox- oder Dialogfenster offen.
