@@ -1239,7 +1239,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Delegate-Lebensdauer stehen; dynamische Callback-Delegaten markieren Win32-`BOOL`,
       ANSI-Strings, einfache `Variant`-Slots und `Variant()`-SAFEARRAYs mit nativer Konvertierung
       und ByRef-Rückschreibung; `LongPtr()`-SAFEARRAYs verwenden auf expliziten x86/x64-Zielen
-      `VT_I4`/`VT_I8`, komplexe UDT-/verschachtelte rohe Pointer-/String-ABIs bleiben offen
+      `VT_I4`/`VT_I8`; einfache `String()`-Callbacks verwenden `SAFEARRAY(VT_BSTR)` mit Bounds-
+      und Ersatz-Write-back. Komplexe UDT-/verschachtelte rohe Pointer-/String-ABIs bleiben offen
 
 ## Meilenstein 9 — Forms
 
@@ -2424,3 +2425,12 @@ Beim Write-back werden COM-Objekte übernommen und native null-Dispatch-Einträg
 UDT-, Pointer- und verschachtelte String-Arrays bleiben separate ABI-Schritte. Die Regression
 prüft Emitter-Metadaten für Object/Control und einen echten `Scripting.Dictionary`-Roundtrip;
 die Vollsuite umfasst nun **1021 Tests**.
+
+## Aktueller Callback-String-SAFEARRAY-Nachtrag
+
+`AddressOf`-Prozeduren können `ByRef values() As String` jetzt als nativen
+`SAFEARRAY(VT_BSTR)`-Callbackparameter und `String()`-Rückgabewert verwenden. Der Managed-Adapter
+bewahrt die VB6-Untergrenzen, konvertiert zwischen `VBArray<string>` und `System.Array` und schreibt
+ersetzte Bounds sowie Inhalte über die native Delegate-Grenze zurück. Verschachtelte String-Pointer-
+ABIs, Stringfelder in UDTs und weitere rohe Pointerverträge bleiben separate Interop-Schritte;
+die Regression läuft auf x86 und x64, die Vollsuite umfasst nun **1022 Tests**.

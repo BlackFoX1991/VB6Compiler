@@ -2830,6 +2830,7 @@ public sealed class ManagedEmitter
 
         private bool IsCallbackArrayElement(TypeSymbol type) =>
             type == TypeSymbol.LongPtr ||
+            type == TypeSymbol.String ||
             IsDispatchArrayElement(type);
 
         private int GetAutomationArrayVariantType(TypeSymbol type) =>
