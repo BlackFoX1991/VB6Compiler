@@ -2223,3 +2223,12 @@ deklarierten `ArrayTypeSymbol`-Rückgabetyp. Ein vom Raw-`IDispatch` geliefertes
 Elementkonversionen bleiben erhalten. Der bisherige `Variant`-Rückgabepfad sowie direkte
 `VBArray<T>`-Werte bleiben unverändert. Die Runtime-Regression prüft einen zweidimensionalen
 SAFEARRAY mit nicht-nullbasierter Grenze; die Vollsuite umfasst nun **987 Tests**.
+
+## Aktueller Variant-Array-Zuweisungsnachtrag
+
+Der Managed-Emitter konvertiert dynamische `Object`-/`Variant`-Ergebnisse jetzt auch beim
+Zuweisen in eine typisierte VB6-Arrayvariable über `VBArrayOperations.FromObject<T>`. Damit
+funktionieren beispielsweise spät gebundene COM-Properties, die ein SAFEARRAY liefern, in
+`Dim values() As Variant` inklusive `LBound`, `UBound` und Elementzugriff. Der echte
+`Scripting.Dictionary.Keys`-End-to-End-Test sichert diesen Legacy-Pfad; die Vollsuite bleibt
+bei **987 Tests**.

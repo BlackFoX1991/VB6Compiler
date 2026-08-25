@@ -1098,6 +1098,15 @@ public sealed class ManagedEmitter
             TypeSymbol targetType)
         {
             EmitExpression(encoder, procedure, value);
+            if (targetType is ArrayTypeSymbol targetArray &&
+                value.Type is not ArrayTypeSymbol &&
+                (value.Type == TypeSymbol.Variant ||
+                 value.Type is ClassTypeSymbol valueClass && IsRuntimeObjectContract(valueClass)))
+            {
+                encoder.Call(GetDynamicArrayConversionReference(targetArray.ElementType));
+                return;
+            }
+
             if (targetType == TypeSymbol.Variant && IsValueType(value.Type))
             {
                 encoder.OpCode(ILOpCode.Box);
