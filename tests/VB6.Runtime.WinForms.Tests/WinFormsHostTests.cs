@@ -1692,6 +1692,98 @@ public sealed class WinFormsHostTests
         }
     }
 
+    [STATestMethod]
+    public void HostAppliesEveryVb6ScaleModeToDrawingCoordinates()
+    {
+        // VB6 defines each ScaleMode as a fixed number of units per inch, so one inch of drawing
+        // must land on the same pixel extent no matter which unit expresses it. Character mode is
+        // the asymmetric one: 120 twips wide but 240 twips high, so 12 units across equal 6 down.
+        foreach (var (scaleMode, unitsX, unitsY, name) in new[]
+        {
+            (ScaleModeTwip, 1440f, 1440f, "twip"),
+            (ScaleModePoint, 72f, 72f, "point"),
+            (ScaleModeCharacter, 12f, 6f, "character"),
+            (ScaleModeInch, 1f, 1f, "inch"),
+            (ScaleModeMillimetre, 25.4f, 25.4f, "millimetre"),
+            (ScaleModeCentimetre, 2.54f, 2.54f, "centimetre")
+        })
+        {
+            AssertScaledBoxExtent(scaleMode, unitsX, unitsY, expected: null, name);
+        }
+
+        // Pixel mode is the identity: the numbers are already device pixels.
+        AssertScaledBoxExtent(ScaleModePixel, 50f, 50f, expected: 50f, "pixel");
+    }
+
+    [STATestMethod]
+    public void HostRejectsAnInvalidScaleModeLikeVb6()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+
+        var error = Assert.ThrowsException<VB6RaisedError>(() =>
+            host.TrySetMember(pictureBox, "ScaleMode", Array.Empty<object?>(), 8));
+        Assert.AreEqual(380, error.Number, "VB6 reports Invalid property value for ScaleMode 8.");
+
+        host.Unload(owner);
+    }
+
+    private const int ScaleModeTwip = 1;
+    private const int ScaleModePoint = 2;
+    private const int ScaleModePixel = 3;
+    private const int ScaleModeCharacter = 4;
+    private const int ScaleModeInch = 5;
+    private const int ScaleModeMillimetre = 6;
+    private const int ScaleModeCentimetre = 7;
+
+    /// <summary>
+    /// Draws a filled box of the given size in the given scale mode and checks the pixel extent.
+    /// A null <paramref name="expected"/> means "one inch", resolved against the control's DPI.
+    /// </summary>
+    private static void AssertScaledBoxExtent(
+        int scaleMode,
+        float unitsX,
+        float unitsY,
+        float? expected,
+        string name)
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+        pictureBox.Size = new Size(400, 400);
+        Assert.IsTrue(host.TrySetMember(pictureBox, "AutoRedraw", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(pictureBox, "ScaleMode", Array.Empty<object?>(), scaleMode));
+
+        var extent = expected ?? pictureBox.DeviceDpi;
+        host.GraphicsLine(
+            pictureBox,
+            new VBGraphicsLine(
+                0,
+                0,
+                unitsX,
+                unitsY,
+                ColorTranslator.ToOle(Color.Red),
+                false,
+                DrawBox: true,
+                Fill: true));
+
+        Assert.IsNotNull(pictureBox.Image, $"{name}: nothing was drawn.");
+        using var snapshot = new Bitmap(pictureBox.Image!);
+        var inside = snapshot.GetPixel((int)extent - 3, (int)extent - 3);
+        var outside = snapshot.GetPixel((int)extent + 4, (int)extent + 4);
+        Assert.IsTrue(
+            inside.R > 180 && inside.G < 120,
+            $"{name}: expected the box to cover {extent} pixels, but ({(int)extent - 3}) was {inside}.");
+        Assert.IsFalse(
+            outside.R > 180 && outside.G < 120,
+            $"{name}: the box reached past {extent} pixels at ({(int)extent + 4}).");
+
+        host.Unload(owner);
+    }
+
     private static void RaisePaint(Control control, Graphics graphics) =>
         typeof(Control).GetMethod("OnPaint", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(control, new object[] { new PaintEventArgs(graphics, control.ClientRectangle) });

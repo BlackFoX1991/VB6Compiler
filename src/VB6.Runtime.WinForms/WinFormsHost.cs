@@ -19,6 +19,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 {
     private const string FrxResourcePrefix = "__VB6_FRX_BASE64__";
 
+    // VB6 ScaleMode constants. User (0) has no custom scale in this host yet; the remaining
+    // values are exact unit definitions.
+    private const int ScaleModeUser = 0;
+    private const int ScaleModeTwip = 1;
+    private const int ScaleModePoint = 2;
+    private const int ScaleModePixel = 3;
+    private const int ScaleModeCharacter = 4;
+    private const int ScaleModeInch = 5;
+    private const int ScaleModeMillimeter = 6;
+    private const int ScaleModeCentimeter = 7;
+
     private readonly bool _preferNativeActiveX;
 
     private readonly Dictionary<object, FormBinding> _bindings =
@@ -178,16 +189,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private void RenderGraphicsLine(Control target, VBGraphicsLine line)
     {
         var state = GetDesignerControlState(target);
-        var scale = state.ScaleMode switch
-        {
-            3 => 1f,
-            2 => target.DeviceDpi / 72f,
-            _ => target.DeviceDpi / 1440f
-        };
-        var startX = line.StartX * scale;
-        var startY = line.StartY * scale;
-        var endX = (line.IsStep ? line.StartX + line.EndX : line.EndX) * scale;
-        var endY = (line.IsStep ? line.StartY + line.EndY : line.EndY) * scale;
+        var scale = GetScaleFactors(target, state);
+        var startX = line.StartX * scale.X;
+        var startY = line.StartY * scale.Y;
+        var endX = (line.IsStep ? line.StartX + line.EndX : line.EndX) * scale.X;
+        var endY = (line.IsStep ? line.StartY + line.EndY : line.EndY) * scale.Y;
         var color = Color.Black;
         if (line.Color is int oleColor)
         {
@@ -249,16 +255,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         try
         {
             var state = GetDesignerControlState(target);
-            var scale = state.ScaleMode switch
-            {
-                3 => 1f,
-                2 => target.DeviceDpi / 72f,
-                _ => target.DeviceDpi / 1440f
-            };
-            var x = picture.X * scale;
-            var y = picture.Y * scale;
-            var width = picture.Width == 0 ? source!.Width : picture.Width * scale;
-            var height = picture.Height == 0 ? source!.Height : picture.Height * scale;
+            var scale = GetScaleFactors(target, state);
+            var x = picture.X * scale.X;
+            var y = picture.Y * scale.Y;
+            var width = picture.Width == 0 ? source!.Width : picture.Width * scale.X;
+            var height = picture.Height == 0 ? source!.Height : picture.Height * scale.Y;
 
             using var drawing = BeginDrawing(target);
             drawing.Graphics.DrawImage(source!, new RectangleF(x, y, width, height));
@@ -1219,6 +1220,51 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Converts VB6 scale units into device pixels. VB6 defines every ScaleMode except User as a
+    /// fixed number of units per inch, so the factor is exact rather than approximated. Character
+    /// mode is the reason this returns one factor per axis: a character is 120 twips wide but 240
+    /// twips high, so a single scalar cannot express it.
+    /// </summary>
+    /// <summary>
+    /// VB6 rejects a ScaleMode outside 0..7 with error 380 rather than picking something close.
+    /// Silently falling back to twips would move every drawing coordinate without saying so.
+    /// </summary>
+    private static int ValidateScaleMode(object? value)
+    {
+        var scaleMode = VBConversions.CLng(value);
+        if (scaleMode is < ScaleModeUser or > ScaleModeCentimeter)
+        {
+            VBErrors.Raise(
+                380,
+                "ScaleMode",
+                "Invalid property value",
+                string.Empty,
+                0);
+        }
+
+        return scaleMode;
+    }
+
+    private static (float X, float Y) GetScaleFactors(Control target, DesignerControlState state)
+    {
+        var dpi = target.DeviceDpi;
+        return state.ScaleMode switch
+        {
+            ScaleModePoint => (dpi / 72f, dpi / 72f),
+            ScaleModePixel => (1f, 1f),
+            ScaleModeCharacter => (dpi / 12f, dpi / 6f),
+            ScaleModeInch => (dpi, dpi),
+            ScaleModeMillimeter => (dpi / 25.4f, dpi / 25.4f),
+            ScaleModeCentimeter => (dpi / 2.54f, dpi / 2.54f),
+
+            // Twip is the VB6 default. User mode carries no custom scale yet — VB6 reports its
+            // coordinates in twips until ScaleWidth/ScaleHeight define one, so twips is the
+            // faithful answer here rather than a stand-in.
+            _ => (dpi / 1440f, dpi / 1440f)
+        };
     }
 
     /// <summary>
@@ -2878,7 +2924,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) state.FillStyle = VBConversions.CLng(value);
         else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) state.MousePointer = VBConversions.CLng(value);
-        else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = ValidateScaleMode(value);
         else return false;
 
         return true;
