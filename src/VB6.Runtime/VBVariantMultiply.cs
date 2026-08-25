@@ -128,6 +128,7 @@ public static partial class VBOperators
             VBCurrency => VariantNumericKind.Currency,
             decimal => VariantNumericKind.Decimal,
             VBDateValue => VariantNumericKind.Double,
+            DateTime => VariantNumericKind.Double,
             double => VariantNumericKind.Double,
             bool => VariantNumericKind.Integer,
             string text when double.TryParse(

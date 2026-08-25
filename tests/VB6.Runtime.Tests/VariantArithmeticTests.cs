@@ -95,6 +95,23 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void DateTimeVariants_UseOleDateConversionsAndPreserveDateArithmetic()
+    {
+        var date = new DateTime(2020, 1, 1);
+
+        Assert.AreEqual(43831d, VBConversions.CDbl(date));
+        Assert.AreEqual(43831m, VBConversions.CDec(date));
+
+        var next = VBOperators.AddVariant(date, 1);
+        Assert.IsInstanceOfType<VBDateValue>(next);
+        Assert.AreEqual(43832d, ((VBDateValue)next!).OADate);
+
+        var previous = VBOperators.SubtractVariant(date, 1);
+        Assert.IsInstanceOfType<VBDateValue>(previous);
+        Assert.AreEqual(43830d, ((VBDateValue)previous!).OADate);
+    }
+
+    [TestMethod]
     public void DecimalVariant_PreservesDecimalPrecisionAndUsesDoubleForPower()
     {
         var decimalValue = VBConversions.CDec("7922816251426433759354395033.5");

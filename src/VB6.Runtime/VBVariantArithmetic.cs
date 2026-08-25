@@ -15,7 +15,7 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
-        if (left is VBDateValue || right is VBDateValue)
+        if (IsDateVariant(left) || IsDateVariant(right))
         {
             return new VBDateValue(VBConversions.CDbl(left) + VBConversions.CDbl(right));
         }
@@ -82,10 +82,10 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
-        if (left is VBDateValue || right is VBDateValue)
+        if (IsDateVariant(left) || IsDateVariant(right))
         {
             var result = VBConversions.CDbl(left) - VBConversions.CDbl(right);
-            return left is VBDateValue && right is VBDateValue
+            return IsDateVariant(left) && IsDateVariant(right)
                 ? result
                 : new VBDateValue(result);
         }
@@ -609,6 +609,8 @@ public static partial class VBOperators
         byte or short or int or ushort or uint or long or ulong or IntPtr or
         float or double or bool;
 
+    private static bool IsDateVariant(object? value) => value is VBDateValue or DateTime;
+
     private static bool TryComparePromotedNumericValues(
         object? left,
         object? right,
@@ -733,6 +735,9 @@ public static partial class VBOperators
                 return true;
             case VBDateValue date:
                 number = Convert.ToDecimal(date.OADate, System.Globalization.CultureInfo.InvariantCulture);
+                return true;
+            case DateTime date:
+                number = Convert.ToDecimal(date.ToOADate(), System.Globalization.CultureInfo.InvariantCulture);
                 return true;
             case IntPtr pointer:
                 number = pointer.ToInt64();

@@ -38,6 +38,11 @@ public static class VBConversions
             return checked((byte)currency.ToRoundedInt64());
         }
 
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToByte(dateValue, CultureInfo.InvariantCulture);
+        }
+
         return value is bool boolean
             ? boolean ? byte.MaxValue : byte.MinValue
             : Convert.ToByte(value, CultureInfo.InvariantCulture);
@@ -66,6 +71,11 @@ public static class VBConversions
         if (value is VBCurrency currency)
         {
             return checked((short)currency.ToRoundedInt64());
+        }
+
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToInt16(dateValue, CultureInfo.InvariantCulture);
         }
 
         return value is bool boolean
@@ -98,6 +108,11 @@ public static class VBConversions
             return checked((int)currency.ToRoundedInt64());
         }
 
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToInt32(dateValue, CultureInfo.InvariantCulture);
+        }
+
         return value is bool boolean
             ? boolean ? -1 : 0
             : Convert.ToInt32(value, CultureInfo.InvariantCulture);
@@ -128,6 +143,11 @@ public static class VBConversions
             return currency.ToRoundedInt64();
         }
 
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToInt64(dateValue, CultureInfo.InvariantCulture);
+        }
+
         return value is bool boolean
             ? boolean ? -1L : 0L
             : Convert.ToInt64(value, CultureInfo.InvariantCulture);
@@ -151,6 +171,11 @@ public static class VBConversions
         if (value is IntPtr pointer)
         {
             return pointer;
+        }
+
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return new IntPtr(Convert.ToInt64(dateValue, CultureInfo.InvariantCulture));
         }
 
         var numeric = value is bool boolean
@@ -194,6 +219,11 @@ public static class VBConversions
             return checked((ushort)currency.ToRoundedInt64());
         }
 
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToUInt16(dateValue, CultureInfo.InvariantCulture);
+        }
+
         return Convert.ToUInt16(value, CultureInfo.InvariantCulture);
     }
 
@@ -230,6 +260,11 @@ public static class VBConversions
         if (value is VBCurrency currency)
         {
             return checked((uint)currency.ToRoundedInt64());
+        }
+
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToUInt32(dateValue, CultureInfo.InvariantCulture);
         }
 
         return Convert.ToUInt32(value, CultureInfo.InvariantCulture);
@@ -270,6 +305,11 @@ public static class VBConversions
             return checked((ulong)currency.ToRoundedInt64());
         }
 
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return Convert.ToUInt64(dateValue, CultureInfo.InvariantCulture);
+        }
+
         return Convert.ToUInt64(value, CultureInfo.InvariantCulture);
     }
 
@@ -301,6 +341,11 @@ public static class VBConversions
         if (value is bool boolean)
         {
             return VBCurrency.FromScaled(boolean ? -VBCurrency.Scale : 0L);
+        }
+
+        if (TryGetDateNumericValue(value, out var dateValue))
+        {
+            return VBCurrency.FromDecimal(Convert.ToDecimal(dateValue, CultureInfo.InvariantCulture));
         }
 
         var decimalValue = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
@@ -340,6 +385,11 @@ public static class VBConversions
         if (value is VBDateValue date)
         {
             return Convert.ToDecimal(date.OADate, CultureInfo.InvariantCulture);
+        }
+
+        if (value is DateTime dateTime)
+        {
+            return Convert.ToDecimal(dateTime.ToOADate(), CultureInfo.InvariantCulture);
         }
 
         if (value is bool boolean)
@@ -385,10 +435,12 @@ public static class VBConversions
         {
             IntPtr pointer => pointer.ToInt64(),
             VBCurrency currency => currency.ToSingle(),
+            VBDateValue date => date.OADate,
+            DateTime dateTime => dateTime.ToOADate(),
             bool boolean => boolean ? -1f : 0f,
             _ => Convert.ToSingle(value, CultureInfo.InvariantCulture)
         };
-        return CheckSingle(result);
+        return CheckSingle((float)result);
     }
 
     public static double CDbl(object? value) => VBVariantObject.ResolveDefaultValue(value) switch
@@ -399,6 +451,7 @@ public static class VBConversions
         IntPtr pointer => pointer.ToInt64(),
         VBCurrency currency => currency.ToDouble(),
         VBDateValue date => date.OADate,
+        DateTime date => date.ToOADate(),
         bool boolean => boolean ? -1d : 0d,
         _ => Convert.ToDouble(value, CultureInfo.InvariantCulture)
     };
@@ -450,6 +503,8 @@ public static class VBConversions
             VBErrorValue error => error.Code != 0,
             IntPtr pointer => pointer != IntPtr.Zero,
             VBCurrency currency => currency.ScaledValue != 0,
+            VBDateValue date => date.OADate != 0d,
+            DateTime date => date.ToOADate() != 0d,
             _ => Convert.ToBoolean(value, CultureInfo.InvariantCulture)
         };
     }
@@ -471,6 +526,7 @@ public static class VBConversions
             IntPtr pointer => pointer.ToInt64().ToString(CultureInfo.InvariantCulture),
             VBCurrency currency => currency.ToString(),
             VBDateValue date => date.OADate.ToString("G15", CultureInfo.InvariantCulture),
+            DateTime date => date.ToOADate().ToString("G15", CultureInfo.InvariantCulture),
             decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
@@ -570,6 +626,22 @@ public static class VBConversions
         {
             throw new VB6TypeMismatchException(
                 $"Cannot implicitly convert Error Variant {error.Code} to {targetType}.");
+        }
+    }
+
+    private static bool TryGetDateNumericValue(object? value, out double number)
+    {
+        switch (value)
+        {
+            case VBDateValue date:
+                number = date.OADate;
+                return true;
+            case DateTime date:
+                number = date.ToOADate();
+                return true;
+            default:
+                number = 0d;
+                return false;
         }
     }
 
