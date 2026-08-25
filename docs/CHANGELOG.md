@@ -2534,3 +2534,28 @@ Vier Regressionen: Wachstum mit Vorlagenwahl, die beiden Fehlerfaelle, `Unload` 
 Grenzen sowie das Klonen im Host einschliesslich Wiederholaufruf und Entfernen. Die gemessene
 Vollsuite umfasst **1103 Testfaelle**, davon **1103 bestanden** und **0 fehlgeschlagen**; die
 Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.
+
+## OCX-Eventsignatur-Nachtrag
+
+Der Korpus behandelt auf den fuenf verwendeten OCX-Typen drei Events, die ueber den intrinsischen
+Satz hinausgehen: `NodeClick` auf `TreeView` mit typisiertem `Node`-Argument, `SelChange` auf
+`RichTextBox` und `Dropdown` auf `ImageCombo`. `CommonDialog` und `ImageList` tragen im Korpus gar
+keine Handler. Keines der drei war verdrahtet.
+
+Die managed Adapter liefern sie jetzt mit der VB6-Signatur: `NodeClick` uebergibt den geklickten
+Node statt der WinForms-Mausargumente, `SelChange` und `Dropdown` nehmen wie in VB6 keine
+Argumente.
+
+Dabei kam ein aelterer Fehler mit heraus. `FindEvent` uebersetzt VB6-Eventnamen auf ihre
+WinForms-Entsprechung, aber die Designer-Controls umgingen das und uebergaben direkt
+WinForms-Namen: `TextChanged`, `Enter`, `Leave` und `DoubleClick`. Fuer die managed Adapter war das
+folgenlos, fuer einen nativen OCX nicht — dort geht der Name unuebersetzt an den
+COM-Connection-Point, und `TextChanged` oder `Enter` bedeuten einem ActiveX-Control nichts.
+`Change`, `GotFocus`, `LostFocus` und `DblClick` konnten auf dem nativen Pfad also gar nicht
+feuern. Alle Subscriptions verwenden jetzt die VB6-Namen, die Uebersetzung liegt an der einen
+Stelle, die dafuer vorgesehen ist.
+
+Damit liefern beide Pfade dieselbe Signatur, wie es die Roadmap fuer M9 verlangt. Die Regression
+deckt die drei neuen Events ab; dass die bestehenden Change- und Fokustests unveraendert gruen
+bleiben, belegt die Namensuebersetzung. Die gemessene Vollsuite umfasst **1104 Testfaelle**, davon
+**1104 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt bei 0 Fehlern und 40 von 40.
