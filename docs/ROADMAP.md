@@ -2269,3 +2269,12 @@ und hält die Delegate-Instanzen über die gesamte Prozesslaufzeit; statische Ca
 Instanzmethoden im selben generierten Klassenobjekt werden unterstützt. ByRef-Callback-Parameter
 bleiben bis zu einem expliziten Signaturadapter zurückgestellt. Ein echter
 `EnumSystemLocalesA`-Aufruf prüft die Callback-Ausführung; die Vollsuite umfasst nun **992 Tests**.
+
+## Aktueller Declare-ByRef-Variant-Nachtrag
+
+Der bestehende Managed-P/Invoke-Vertrag behandelt `Variant`-Parameter jetzt ausdrücklich als native
+`VARIANT`-Slots, auch wenn sie in VB6 als `ByRef` deklariert sind. Ein echter
+`oleaut32!VariantChangeType`-Aufruf schreibt sowohl den Zielwert als auch seinen `VarType` zurück;
+damit ist kein zusätzlicher String- oder Array-Sonderpuffer erforderlich. UDT-, Pointer- und
+komplexe SAFEARRAY-Descriptoren bleiben weiterhin separate ABI-Schritte; die Vollsuite umfasst
+nun **993 Tests**.

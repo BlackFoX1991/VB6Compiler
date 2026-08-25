@@ -97,6 +97,33 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InvokesByRefVariantDeclare()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The ByRef Variant Declare test requires Windows.");
+            return;
+        }
+
+        var output = VB6TestProgram.Run("""
+            Private Declare Function VariantChangeType Lib "oleaut32" (ByRef destination As Variant, ByRef source As Variant, ByVal flags As Integer, ByVal targetType As Integer) As Long
+
+            Sub Main()
+                Dim source As Variant
+                Dim destination As Variant
+                Dim status As Long
+                source = 12.5
+                status = VariantChangeType(destination, source, 0, 5)
+                Debug.Print status = 0
+                Debug.Print VarType(destination) = 5
+                Debug.Print CDbl(destination) = 12.5
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesPInvokeMethodImportMetadata()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeTests", Guid.NewGuid().ToString("N"));
