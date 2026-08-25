@@ -166,6 +166,18 @@ public sealed class CliProcessTests
                 "Type=Group\nProject=First.vbp\nProject=Second.vbp\n");
             WriteExecutableProject(directory, "First");
             WriteExecutableProject(directory, "Second");
+            File.AppendAllText(
+                Path.Combine(directory, "First.vbp"),
+                "Designer=MSDataEnvironment; First.dsr\n");
+            File.WriteAllText(
+                Path.Combine(directory, "First.dsr"),
+                "VERSION 5.00\n" +
+                "Begin MSDataEnvironment DataEnvironment1\n" +
+                "End\n" +
+                "Attribute VB_Name = \"DataEnvironment1\"\n" +
+                "Public Function Value() As Long\n" +
+                "    Value = 1\n" +
+                "End Function\n");
 
             var repositoryRoot = FindRepositoryRoot();
             var packageDirectory = Path.Combine(directory, "packages");
@@ -237,6 +249,21 @@ public sealed class CliProcessTests
             var thirdBuild = RunMsBuild(projectPath);
             Assert.AreEqual(0, thirdBuild.ExitCode, thirdBuild.StandardError + thirdBuild.StandardOutput);
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > recoveryStamp);
+
+            var thirdStamp = File.GetLastWriteTimeUtc(stampPath);
+            Thread.Sleep(1100);
+            File.WriteAllText(
+                Path.Combine(directory, "First.dsr"),
+                "VERSION 5.00\n" +
+                "Begin MSDataEnvironment DataEnvironment1\n" +
+                "End\n" +
+                "Attribute VB_Name = \"DataEnvironment1\"\n" +
+                "Public Function Value() As Long\n" +
+                "    Value = 2\n" +
+                "End Function\n");
+            var designerBuild = RunMsBuild(projectPath);
+            Assert.AreEqual(0, designerBuild.ExitCode, designerBuild.StandardError + designerBuild.StandardOutput);
+            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > thirdStamp);
         }
         finally
         {
