@@ -482,14 +482,14 @@ public static class VBArrayOperations
     {
         IVBArray array => array.LBound(dimension),
         Array array => array.GetLowerBound(dimension - 1),
-        _ => throw new InvalidOperationException("The Variant does not contain an array.")
+        _ => throw new VB6TypeMismatchException("LBound requires an array Variant value.")
     };
 
     public static int UBound(object? value, int dimension = 1) => value switch
     {
         IVBArray array => array.UBound(dimension),
         Array array => array.GetUpperBound(dimension - 1),
-        _ => throw new InvalidOperationException("The Variant does not contain an array.")
+        _ => throw new VB6TypeMismatchException("UBound requires an array Variant value.")
     };
 
     public static object? GetElement(object? value, int[] indices) =>

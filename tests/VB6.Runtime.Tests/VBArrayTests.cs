@@ -259,6 +259,13 @@ public sealed class VBArrayTests
         CollectionAssert.AreEqual(Array.Empty<int>(), array.EnumerateValues().ToArray());
     }
 
+    [TestMethod]
+    public void ArrayBounds_RejectNonArrayVariantsWithTypeMismatch()
+    {
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBArrayOperations.LBound(42));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBArrayOperations.UBound(42));
+    }
+
     private static void Increment(ref int value) => value++;
 
     private static void Replace(ref object? value) => value = "changed";
