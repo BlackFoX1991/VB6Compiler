@@ -955,13 +955,18 @@ public static partial class VBOperators
 
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
-    public static string ConcatVariant(object? left, object? right)
+    public static object? ConcatVariant(object? left, object? right)
     {
         left = VBVariantObject.ResolveDefaultValue(left);
         right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+
+        if (VBVariants.IsNull(left) && VBVariants.IsNull(right))
+        {
+            return VBVariants.NullValue();
+        }
 
         return (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left)) +
             (VBVariants.IsNull(right) ? string.Empty : VBConversions.CStr(right));

@@ -151,4 +151,22 @@ public sealed class VariantConcatenationExecutionTests
         CollectionAssert.AreEqual(new[] { "x", "x" }, output);
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_PropagatesNullWhenBothVariantOperandsAreNull()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim left As Variant
+                Dim right As Variant
+                left = Null
+                right = Null
+
+                Debug.Print IsNull(left & right)
+                Debug.Print TypeName(left & right)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "Null" }, output);
+    }
+
 }

@@ -220,6 +220,14 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void VariantConcatenation_PropagatesNullWhenBothOperandsAreNull()
+    {
+        var nullValue = VBVariants.NullValue();
+
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.ConcatVariant(nullValue, nullValue)));
+    }
+
+    [TestMethod]
     public void Addition_DistinguishesVariantStringAndEmptySemantics()
     {
         Assert.AreEqual("ab", VBOperators.AddVariant("a", "b"));
