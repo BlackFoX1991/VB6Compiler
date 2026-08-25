@@ -152,6 +152,16 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void ComActivation_UsesDeterministicPlaceholderForUnknownRunningClass()
+    {
+        var value = VBInteraction.GetObject(
+            "",
+            "VB6Compiler.Unknown." + Guid.NewGuid().ToString("N"));
+
+        Assert.IsInstanceOfType<VBComObject>(value);
+    }
+
+    [TestMethod]
     public void LoadPicture_ExposesDeterministicHostMetadataDefaults()
     {
         var picture = VBInteraction.LoadPicture(string.Empty);
