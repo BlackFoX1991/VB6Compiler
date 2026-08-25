@@ -30,11 +30,6 @@ public static class VBCallbackRegistry
         var method = MethodBase.GetMethodFromHandle(methodHandle) as MethodInfo ??
             throw new InvalidOperationException("AddressOf does not refer to a managed method.");
         var parameters = method.GetParameters();
-        if (parameters.Any(parameter => parameter.ParameterType.IsByRef))
-        {
-            throw new NotSupportedException(
-                $"Callback '{method.Name}' contains ByRef parameters, which need an explicit callback ABI.");
-        }
 
         var delegateSignature = parameters
             .Select(parameter => parameter.ParameterType)
