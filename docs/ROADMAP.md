@@ -2460,3 +2460,20 @@ Single-Konversionen, `CBool`/`CStr` sowie Variant-Addition und -Subtraktion ein;
 behält dabei den `Date`-Subtype. Damit können auch aus COM-Dispatch stammende `DateTime`-Werte den
 gleichen Managed-Variantpfad wie interne VB6-Datewerte nutzen. Die Regression deckt Konversionen
 und Date-Arithmetik ab; die Vollsuite umfasst nun **1027 Tests**.
+
+## Aktueller Managed-Interop- und UDT-Nachtrag
+
+Managed-`LSet` unterstützt jetzt unterschiedlich aufgebaute, rein skalare UDTs: Der Rohdatentransfer
+schneidet auf die Zielgröße zu beziehungsweise füllt den Rest mit Nullbytes auf. Die generische
+`ref`-Runtime-Signatur hält das Ziel während temporärer Marshaling-Puffer als verwaltete Referenz
+stabil. Layouts mit Strings, Arrays, `Variant`, Referenzen, `Boolean` oder `LongPtr` bleiben bis zu
+ihrem eigenen ABI-Vertrag diagnostisch geschützt.
+
+`Chr` und `Asc` verwenden für den erweiterten Bereich `128..255` deterministisch Windows-1252;
+`ChrW` und `AscW` bleiben UTF-16-basiert. Nicht abbildbare Zeichen und die undefinierten
+Windows-1252-Bytes werden kontrolliert abgelehnt.
+
+`DateTime` wird in den Managed-`AddressOf`- und COM-Event-SAFEARRAY-Verträgen jetzt als `VT_DATE`
+beschrieben. Bounds, ByRef-Write-back und Ersatzarrays sind für Callback- und Event-Adapter
+regressionsgesichert; ein echter externer nativer COM-Connection-Point mit `VT_DATE` bleibt ein
+separater Integrationsschritt. Die Vollsuite umfasst nun **1036 Tests**.
