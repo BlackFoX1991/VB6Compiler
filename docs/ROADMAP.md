@@ -2603,3 +2603,11 @@ Die Aufräumlogik behandelt bereits ungültige RCWs als best-effort Cleanup, ent
 die Managed-Subscription. Eine echte x86-RichTextBox-Regression setzt den Provider nach der
 Verbindung zurück, trennt den Handler und prüft, dass ein anschließendes `Change`-Event nicht mehr
 ankommt. Die Vollsuite umfasst nun **1059 Testfälle**, davon **1059 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller SendKeys-Host-Nachtrag
+
+`SendKeys` wird aus dem portablen Runtime-Vertrag jetzt an `IVB6Host` weitergereicht. Der
+WinForms-Host verwendet für `Wait=True` `SendWait` und für den asynchronen VB6-Fall `Send`;
+headless Hosts behalten den deterministischen No-op-Vertrag. Die Runtime-Weiterleitung ist mit
+einem konfigurierten Host regressiongesichert. Die Vollsuite umfasst nun **1060 Testfälle**, davon
+**1060 bestanden** und **0 fehlgeschlagen**.

@@ -31,6 +31,11 @@ public interface IVB6Host
     {
     }
 
+    /// <summary>Sends VB6 keyboard input through the active UI host.</summary>
+    void SendKeys(string keys, bool wait)
+    {
+    }
+
     void Load(object target);
 
     void Unload(object target);

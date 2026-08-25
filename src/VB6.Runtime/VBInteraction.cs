@@ -386,11 +386,11 @@ public static class VBInteraction
         }
     }
 
-    /// <summary>Keyboard injection belongs to the UI host; headless execution intentionally does nothing.</summary>
+    /// <summary>Forwards keyboard injection to the UI host; headless execution does nothing.</summary>
     public static void SendKeys(string keys, bool wait)
     {
-        _ = keys;
-        _ = wait;
+        ArgumentNullException.ThrowIfNull(keys);
+        Host?.SendKeys(keys, wait);
     }
 
     /// <summary>Context-menu display belongs to the UI host; headless execution intentionally does nothing.</summary>
