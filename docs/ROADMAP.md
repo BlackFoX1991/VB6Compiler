@@ -2568,3 +2568,13 @@ doppelte Registrierung. Die öffentliche Compiler-API bleibt standardmäßig hea
 `ManagedEmitOptions.EnableWinFormsHost` ist derselbe direkte AppHost-Vertrag opt-in verfügbar.
 Vollständige `.frx`-/MDI-/OCX-/Connection-Point-Abdeckung bleibt in M9 offen. Die Vollsuite
 umfasst nun **1055 Testfälle**, davon **1055 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller nativer-OCX-CLI-Nachtrag
+
+Der CLI-Gruppenpfad ist zusätzlich als echter Prozessvertrag abgesichert: Eine `.vbg` mit
+`RICHTX32.OCX` und `RichTextLib.RichTextBox` wird für x86 emittiert, startet den erzeugten
+Windows-AppHost mit der registrierten `AxHost`-Komponente und beendet sich nach `Unload Me`
+fehlerfrei. Damit ist neben Analyse und Artefakt-Erzeugung auch der direkte Legacy-Startpfad für
+ein installiertes Standard-OCX geprüft; vollständige OCX-Event-/ABI-Abdeckung und weitere
+Bitness-/Designer-Sonderfälle bleiben separate M9-Schritte. Die Vollsuite umfasst nun
+**1056 Testfälle**, davon **1056 bestanden** und **0 fehlgeschlagen**.

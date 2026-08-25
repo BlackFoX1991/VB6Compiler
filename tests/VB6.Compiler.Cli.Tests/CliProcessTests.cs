@@ -519,6 +519,89 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void EmitAssembly_StartsAndClosesAnX86VbgProjectWithNativeRichTextOcx()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Native OCX activation requires Windows.");
+        }
+
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "SysWow64",
+            "RICHTX32.OCX");
+        if (!File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The registered RichTextBox type library fixture is not available.");
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "NativeOcxStartup.vbg"),
+                "Type=Group\nProject=NativeOcxStartup.vbp\n");
+            File.WriteAllText(
+                Path.Combine(directory, "NativeOcxStartup.vbp"),
+                $"Type=Exe\nStartup=\"Main\"\nName=NativeOcxStartup\n" +
+                "Object={3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0; RICHTX32.OCX\n" +
+                $"Reference=*\\G{{3B7C8863-D78F-101B-B9B5-04021C009402}}#1.2#0#{typeLibraryPath}#RichTextLib\n" +
+                "Form=Main.frm\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Main.frm"),
+                "VERSION 5.00\n" +
+                "Begin VB.Form Main\n" +
+                "   Caption = \"Native OCX startup\"\n" +
+                "   Begin RichTextLib.RichTextBox editor\n" +
+                "   End\n" +
+                "End\n" +
+                "Attribute VB_Name = \"Main\"\n" +
+                "Attribute VB_PredeclaredId = True\n" +
+                "Private Sub Form_Load()\n" +
+                "    Unload Me\n" +
+                "End Sub\n");
+            var outputDirectory = Path.Combine(directory, "bin");
+
+            var result = RunCli(
+                Path.Combine(directory, "NativeOcxStartup.vbg"),
+                "--emit-assembly",
+                outputDirectory,
+                "--x86");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var appHostPath = Path.Combine(outputDirectory, "NativeOcxStartup.exe");
+            Assert.IsTrue(File.Exists(appHostPath));
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.WinForms.dll")));
+
+            var startInfo = new ProcessStartInfo(appHostPath)
+            {
+                WorkingDirectory = outputDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.Environment["VB6_REQUIRE_NATIVE_OCX"] = "1";
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Could not start the native OCX Form apphost.");
+            if (!process.WaitForExit(15000))
+            {
+                process.Kill(entireProcessTree: true);
+                Assert.Fail("The native OCX Form apphost did not exit after Unload Me.");
+            }
+
+            var standardError = process.StandardError.ReadToEnd();
+            Assert.AreEqual(0, process.ExitCode, standardError);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitAssembly_ProducesAnActivatableComHostForAnOleDllProject()
     {
         if (!OperatingSystem.IsWindows())
