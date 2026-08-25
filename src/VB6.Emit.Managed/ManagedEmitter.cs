@@ -1251,6 +1251,24 @@ public sealed class ManagedEmitter
                     ? call.Procedure.Parameters[index]
                     : null;
 
+                if (call.Procedure.IsExternal &&
+                    parameter?.IsAny == true &&
+                    argument.Kind == IrCallArgumentKind.StringPointer)
+                {
+                    EmitNewNativeStringPointer(
+                        encoder,
+                        procedure,
+                        argument.Expression);
+                    if (argument.BufferTemporary is not null)
+                    {
+                        encoder.OpCode(ILOpCode.Dup);
+                        encoder.StoreLocal(argument.BufferTemporary.Id);
+                    }
+
+                    encoder.Call(GetNativeStringPointerAddressReference());
+                    continue;
+                }
+
                 if (call.Procedure.IsExternal && parameter?.IsAny == true)
                 {
                     EmitExpression(encoder, procedure, argument.Expression);
@@ -1341,6 +1359,47 @@ public sealed class ManagedEmitter
 
             foreach (var argument in call.Arguments)
             {
+                if (argument.Kind == IrCallArgumentKind.StringPointer)
+                {
+                    if (argument.BufferTemporary is null)
+                    {
+                        throw new InvalidOperationException(
+                            "A Declare string pointer requires a compiler temporary.");
+                    }
+
+                    if (argument.WriteBackPlace is not null)
+                    {
+                        if (argument.WriteBackTemporary is null)
+                        {
+                            throw new InvalidOperationException(
+                                "A Declare string pointer write-back requires a compiler temporary.");
+                        }
+
+                        encoder.LoadLocal(argument.BufferTemporary.Id);
+                        encoder.OpCode(ILOpCode.Castclass);
+                        encoder.Token(GetReflectionTypeReference(typeof(VBNativeStringPointer)));
+                        encoder.Call(GetNativeStringPointerManagedStringReference());
+                        encoder.StoreLocal(argument.WriteBackTemporary.Id);
+                    }
+
+                    encoder.LoadLocal(argument.BufferTemporary.Id);
+                    encoder.OpCode(ILOpCode.Castclass);
+                    encoder.Token(GetReflectionTypeReference(typeof(VBNativeStringPointer)));
+                    encoder.Call(GetNativeStringPointerDisposeReference());
+
+                    if (argument.WriteBackPlace is not null &&
+                        argument.WriteBackTemporary is not null)
+                    {
+                        EmitStore(
+                            encoder,
+                            procedure,
+                            argument.WriteBackPlace,
+                            new IrLoadExpression(new IrLocalPlace(argument.WriteBackTemporary)));
+                    }
+
+                    continue;
+                }
+
                 if (argument.Kind == IrCallArgumentKind.ArrayBuffer)
                 {
                     if (argument.BufferTemporary is null)
@@ -1418,6 +1477,15 @@ public sealed class ManagedEmitter
             encoder.Token(GetStringBuilderConstructorReference());
         }
 
+        private void EmitNewNativeStringPointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrExpression value)
+        {
+            EmitExpressionWithAssignmentConversion(encoder, procedure, value, TypeSymbol.String);
+            encoder.Call(GetNativeStringPointerCreateReference());
+        }
+
         private void EmitNewDeclareArrayBuffer(
             InstructionEncoder encoder,
             IrProcedure procedure,
@@ -1462,6 +1530,74 @@ public sealed class ManagedEmitter
                 nameof(System.Text.StringBuilder.ToString),
                 Type.EmptyTypes)
                 ?? throw new MissingMethodException("System.Text.StringBuilder.ToString()");
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private MemberReferenceHandle GetNativeStringPointerCreateReference()
+        {
+            const string key = "VBNativeStringPointer::Create(string)";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(VBNativeStringPointer).GetMethod(
+                nameof(VBNativeStringPointer.Create),
+                new[] { typeof(string) })
+                ?? throw new MissingMethodException(typeof(VBNativeStringPointer).FullName, key);
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private MemberReferenceHandle GetNativeStringPointerAddressReference()
+        {
+            const string key = "VBNativeStringPointer::GetNativeAddress()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(VBNativeStringPointer).GetMethod(
+                nameof(VBNativeStringPointer.GetNativeAddress),
+                Type.EmptyTypes)
+                ?? throw new MissingMethodException(typeof(VBNativeStringPointer).FullName, key);
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private MemberReferenceHandle GetNativeStringPointerManagedStringReference()
+        {
+            const string key = "VBNativeStringPointer::GetManagedString()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(VBNativeStringPointer).GetMethod(
+                nameof(VBNativeStringPointer.GetManagedString),
+                Type.EmptyTypes)
+                ?? throw new MissingMethodException(typeof(VBNativeStringPointer).FullName, key);
+            var handle = GetRuntimeMethodReference(method);
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        private MemberReferenceHandle GetNativeStringPointerDisposeReference()
+        {
+            const string key = "VBNativeStringPointer::Dispose()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var method = typeof(VBNativeStringPointer).GetMethod(
+                nameof(VBNativeStringPointer.Dispose),
+                Type.EmptyTypes)
+                ?? throw new MissingMethodException(typeof(VBNativeStringPointer).FullName, key);
             var handle = GetRuntimeMethodReference(method);
             _memberReferences.Add(key, handle);
             return handle;

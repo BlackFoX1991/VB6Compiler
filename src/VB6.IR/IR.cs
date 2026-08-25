@@ -294,7 +294,8 @@ public enum IrCallArgumentKind
     Value,
     Address,
     StringBuffer,
-    ArrayBuffer
+    ArrayBuffer,
+    StringPointer
 }
 
 public sealed record IrCallArgument(

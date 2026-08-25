@@ -337,6 +337,26 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesTemporaryUtf16BufferForByValStrPtrAsAny()
+    {
+        var output = VB6TestProgram.Run("""
+            Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+            Sub Main()
+                Dim source As String
+                Dim destination As String
+                source = "ABCD"
+                destination = "...."
+
+                CopyMemory ByVal StrPtr(destination), ByVal StrPtr(source), 8
+                Debug.Print destination
+            End Sub
+            """);
+
+        Assert.AreEqual("ABCD", output.Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesByRefBlittableDeclareUdt()
     {
         var output = VB6TestProgram.Run("""

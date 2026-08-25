@@ -2978,7 +2978,7 @@ public static class IrLowerer
             {
                 if (procedure.IsExternal && argument.Parameter?.IsAny == true && argument.IsByValAtCallSite)
                 {
-                    lowered.Add(new IrCallArgument(LowerAnyPointerValue(argument.Expression)));
+                    lowered.Add(LowerAnyPointerArgument(argument.Expression));
                     continue;
                 }
 
@@ -3152,6 +3152,35 @@ public static class IrLowerer
             }
 
             return LowerExpression(expression);
+        }
+
+        private IrCallArgument LowerAnyPointerArgument(BoundExpression expression)
+        {
+            if (StripConversions(expression) is BoundInvocationExpression invocation &&
+                invocation.Procedure.IntrinsicKind == VBIntrinsicKind.StrPtr &&
+                invocation.Arguments.Length == 1)
+            {
+                var target = invocation.Arguments[0].Expression;
+                var writeBackPlace = TryLowerPlace(target);
+                var bufferTemporary = NewLocal(
+                    "__declare_strptr",
+                    TypeSymbol.Variant,
+                    compilerGenerated: true);
+                var writeBackTemporary = writeBackPlace is null
+                    ? null
+                    : NewLocal(
+                        "__declare_strptr_result",
+                        TypeSymbol.String,
+                        compilerGenerated: true);
+                return new IrCallArgument(
+                    LowerValueCopy(target),
+                    IrCallArgumentKind.StringPointer,
+                    writeBackPlace,
+                    bufferTemporary,
+                    writeBackTemporary);
+            }
+
+            return new IrCallArgument(LowerAnyPointerValue(expression));
         }
 
         private static BoundExpression StripConversions(BoundExpression expression)
