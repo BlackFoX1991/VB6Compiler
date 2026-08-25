@@ -55,6 +55,39 @@ OCX-Komposition, Forms-Vollständigkeit sowie native ABI-Emission.
 
 VISIA ist dabei Regressionstest- und Messkorpus, nicht das fachliche Portierungsziel.
 
+### Die Analyse-Achse ist ausgereizt
+
+Die Fehlerzahl aus `--report` hat das Projekt von 3361 auf 0 getrieben und kann nicht weiter
+fallen. Sie bleibt als Regressionsschwelle — sie darf nie wieder steigen —, taugt aber nicht mehr
+zur Priorisierung: Sie misst, ob eine Quelle *gebunden* werden kann, nicht ob der emittierte Code
+das Richtige tut.
+
+Die Reihenfolge der offenen Verträge wird deshalb weiterhin am Korpus gemessen, jetzt aber an
+Forms und Controls statt an Parserfehlern. Erhoben über die 6 `.frm`- und 4 `.ctl`-Quellen:
+
+| Designer-Controls | | Event-Handler | | Grafik-API | |
+|---|---|---|---|---|---|
+| `VB.Menu` | 29 | `Click` | 34 | `ForeColor` | 82 |
+| `VB.Label` | 28 | `MouseDown` | 14 | `AutoRedraw` | **12** |
+| `VB.Shape` | 15 | `Resize` | 13 | `.Line` | 8 |
+| `VB.PictureBox` | 12 | `MouseMove` | 11 | `DrawMode` | 3 |
+| `VB.Image` | 9 | `MouseUp` | 10 | `.Cls` | 3 |
+| `VB.Line` | 7 | `KeyDown` | 7 | `ScaleMode` | 2 |
+| `VB.CommandButton` | 6 | `LostFocus` | 6 | `TextWidth`/`TextHeight` | 4 |
+| `VB.TextBox`, `VB.Frame` | je 4 | `Load` | 5 | `PSet` | 1 |
+| **OCX gesamt** | **13** | **`Paint`** | **3** | `PaintPicture` | 1 |
+| eigene UserControls | 4 | `NodeClick` (OCX) | 2 | `Circle` | 0 |
+
+Drei Schlüsse, die die Reihenfolge in M8 und M9 bestimmen:
+
+1. **Intrinsische Controls und ihr Eventmodell dominieren**, nicht OCX — 149 intrinsische
+   Designer-Instanzen gegen 13 OCX-Instanzen. Die Forms-Grundmechanik wiegt schwerer als die
+   ActiveX-Oberfläche, obwohl letztere spektakulärer aussieht.
+2. **`Paint` ist das einzige verbreitete Event, das der Host nicht verdrahtet** — zusammen mit
+   12× `AutoRedraw` ist das die größte belegte Lücke im Forms-Vertrag.
+3. **MDI kommt im Korpus nicht ein einziges Mal vor.** Es steht in M9 als offener Punkt und wird
+   deshalb zurückgestellt, nicht gebaut.
+
 ## Korpus-Frequenzen
 
 Häufig in VISIA — es ist ein Systemprogramm (Assembler, Linker, PE-Erzeugung), kein
@@ -77,10 +110,14 @@ einen fehlerstellenspezifischen Fortsetzungsdispatcher. Der native Resume-/ABI-V
 
 - **Variant früh**, bewusst gegen die VISIA-Evidenz (dort nur 20 Treffer): der Umbau wird später
   teurer, und die Business-Legacy-Projekte brauchen ihn sehr wohl.
-- **x86 als Default-Ausgabe, x64 opt-in.** Bestätigt durch den Korpus: VISIA hängt an 32-Bit-OCX
-  (`MSComDlg.CommonDialog`, `MSComctlLib`, `RichTextLib`), die ein 64-Bit-Prozess nicht
+- **x86 als Default für Legacy-Projekte, x64 opt-in.** Bestätigt durch den Korpus: VISIA hängt an
+  32-Bit-OCX (`MSComDlg.CommonDialog`, `MSComctlLib`, `RichTextLib`), die ein 64-Bit-Prozess nicht
   in-process laden kann. „64 Bit" gilt für Sprache und Typen, nicht zwingend für den Prozess.
-  Muss vor Meilenstein 8 endgültig entschieden sein, weil Marshalling-Code davon abhängt.
+  Die Regel ist entschieden und gilt an der **Projektgrenze**: `.vbp` und `.vbg` emittieren ohne
+  Schalter als x86, weil jedes Legacy-VB6-Projekt 32-Bit ist; `--x64` und `--anycpu` bleiben
+  opt-in. Einzelne Quelldateien ohne Projektkontext bleiben AnyCpu, und `ManagedEmitOptions`
+  behält AnyCpu als API-Default — die Entscheidung gehört an die Projektgrenze, nicht in den
+  Emitter. Beachten: x86 impliziert `TargetIs64Bit: false` und damit `#If Win64`.
 - **Zahlkonvertierung ist invariant, nicht locale-abhängig.** `VB6.Runtime` konvertiert zwischen
   Strings und Zahlen ausschließlich mit `CultureInfo.InvariantCulture`. Klassisches VB6 wertete
   `CDbl("2.5")` gegen die aktive Locale aus, sodass derselbe Quelltext je nach Maschine 2,5 oder
@@ -88,6 +125,15 @@ einen fehlerstellenspezifischen Fortsetzungsdispatcher. Der native Resume-/ABI-V
   überall dasselbe tun. Echte locale-abhängige Ausgabe gehört später zu `Format$`, wo die Locale
   ein expliziter Parameter ist statt ambienter Thread-Zustand. Dies ist eine der wenigen
   Stellen, an denen bewusst von VB6 abgewichen wird.
+- **`vbUseSystem` ist die eine erlaubte Ausnahme davon.** Wo VB6 den Wert 0 als „frag das System"
+  definiert — `FirstDayOfWeek` und `FirstWeekOfYear` in `Weekday`, `WeekdayName`, `Format` und den
+  Datumsfunktionen — löst die Runtime bewusst über `CultureInfo.CurrentCulture` auf. Das ist keine
+  versehentliche Locale-Abhängigkeit, sondern genau der angeforderte Wert: Der Aufrufer verlangt
+  ausdrücklich die Systemeinstellung, und ihn auf Sonntag festzunageln wäre die Abweichung. Die
+  Ausnahme gilt eng für diesen einen Parameterwert; mit explizitem `vbSunday`/`vbMonday` ist das
+  Ergebnis kulturunabhängig. Ein Test hält beide Seiten fest. Ebenfalls bewusst kulturabhängig:
+  die LCID des COM-Dispatch. Jede weitere `CurrentCulture`-Verwendung in `VB6.Runtime` ist ein
+  Fehler, kein Präzedenzfall.
 - **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
   Es liegt versioniert unter `conformance/VISIA/` und wird von `ConformanceCorpusTests` in CI
   mitgemessen. Herkunft und Zweck: `conformance/README.md`.
@@ -336,6 +382,8 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       geführt; typisierte SAFEARRAY-Eventparameter werden über `System.Array`-Delegaten mit Bounds-
       und `VBArray<T>`-Konvertierung geführt; vollständiger Connection-Point-Event-ABI für UDTs,
       rohe Pointer und nicht unterstützte SAFEARRAY-Elemente sowie der native LLVM-Pfad bleiben offen.
+      Diese drei ABI-Lücken bleiben bewusst als Diagnose stehen, solange kein Korpusbeleg sie
+      fordert — die Arbeit geht zuerst in die fünf tatsächlich verwendeten Controltypen (siehe M9).
       Wenn eine historische `Reference=`-/`Object=`-Zeile nur den Dateinamen trägt, versucht der
       Managed-Importer zusätzlich die registrierten `HKCR\TypeLib`-/`HKCR\CLSID`-Pfade in der
       passenden Version, LCID und Prozessbitness aufzulösen.
@@ -370,8 +418,16 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 ## Meilenstein 9 — Forms
 
-Größter Einzelblock.
+Größter Einzelblock. Die Reihenfolge folgt den gemessenen Korpusgewichten oben, nicht der
+Vollständigkeit der VB6-Oberfläche: intrinsische Controls und ihr Eventmodell zuerst, ActiveX
+danach, unbelegte Konstrukte gar nicht.
 
+- [ ] **`Paint`-Event und `AutoRedraw`-Semantik** — die größte belegte Lücke im Forms-Vertrag.
+      `Paint` ist als einziges verbreitetes Event nicht verdrahtet, während der Korpus 12×
+      `AutoRedraw` setzt. Beide hängen zusammen: Bei `AutoRedraw = True` hält VB6 die
+      Zeichenoperationen in einem persistenten Puffer und feuert `Paint` **nicht**, bei `False`
+      muss der Handler bei jedem Neuzeichnen selbst wiederherstellen. Anknüpfungspunkt ist das
+      vorhandene persistente `GraphicsLine`-Rendering, nicht eine zweite Zeichenschicht.
 - [~] `.frm`/`.frx` parsen; die Designer-Hülle wird mit verschachtelten Controls, Eigenschaften,
       `BeginProperty`-Blöcken und hexadezimalen `.frx`-Ressourcenoffsets erfasst. Intrinsische
       Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
@@ -389,11 +445,16 @@ Größter Einzelblock.
 - [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
       als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
       initialisiert; die vollständige Laufzeit-/WinForms-Nachbildung bleibt offen.
-- [~] Zeichnen auf Form/PictureBox, MDI — persistentes `GraphicsLine`-Rendering auf der aktiven
+- [~] Zeichnen auf Form/PictureBox — persistentes `GraphicsLine`-Rendering auf der aktiven
       Formoberfläche mit Twips-/Pixel-Skalierung und Linien-/Rechteckfüllung steht; ein unterstütztes
       `PaintPicture`-Subset zeichnet `Bitmap`-/FRX-/`VBPicture`-Quellen persistent mit; qualifizierte
-      `PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe lösen ihr eigenes Ziel auf. MDI und vollständige
-      DrawMode-/AutoRedraw-/ScaleMode-Semantik bleiben offen
+      `PictureBox.PaintPicture`- und `PictureBox.Line`-Aufrufe lösen ihr eigenes Ziel auf.
+      Offen bleiben `ScaleMode` und `DrawMode`: Umgesetzt wird das im Korpus belegte Subset
+      (`ScaleMode` 2×, `DrawMode` 3×), der Rest wird wie bisher als Diagnose gemeldet statt
+      genähert. `AutoRedraw` gehört zum `Paint`-Punkt oben.
+- [ ] **MDI — zurückgestellt, mangels Korpusbeleg.** Weder `MDIForm` noch `MDIChild` kommt in den
+      40 VISIA-Quellen vor. Der Punkt bleibt für die VB6-Vollständigkeit stehen, wird aber erst
+      angefasst, wenn ein Korpusprojekt ihn fordert.
 - [~] `UserControl` (ActiveX) — generierte parameterlose `.ctl`-Klassen werden aus der Projektassembly
       instanziiert und als eingebettete borderlose WinForms-Hostflächen in Designer-Controls
       aufgenommen; `UserControl_Initialize`/`UserControl_Terminate` sowie die konventionellen
@@ -407,7 +468,15 @@ Größter Einzelblock.
       Regression kann mit `VB6_REQUIRE_NATIVE_OCX=1` fehlende Registrierungen hart melden. Native
       Connection-Point-Events werden für den RichTextBox-`Change`-Vertrag über `IProvideClassInfo`
       beziehungsweise die registrierte TypeLib aufgelöst; vollständige Event-Signaturen, alle
-      Bitness-/Designer-Sonderfälle und der vollständige native ABI-Vertrag bleiben offen
+      Bitness-/Designer-Sonderfälle und der vollständige native ABI-Vertrag bleiben offen.
+      **Priorität sind die fünf im Korpus tatsächlich verwendeten Typen**: `MSComDlg.CommonDialog`
+      (4 Instanzen), `MSComctlLib.ImageList` (3), `RichTextLib.RichTextBox` (2),
+      `MSComctlLib.TreeView` (2), `MSComctlLib.ImageCombo` (2) — alle fünf haben bereits einen
+      managed Late-Binding-Vertrag, offen sind vor allem die vollständigen Event-Signaturen
+      (belegt: `NodeClick`). Dabei gilt: **nativer `AxHost`-Pfad und managed Adapter müssen
+      dieselbe Signatur liefern.** Der native Pfad ist an registrierte 32-Bit-OCX gebunden und
+      wird über `VB6_REQUIRE_NATIVE_OCX=1` erzwungen; ohne Registrierung — etwa auf einem
+      CI-Runner — muss der managed Pfad grün bleiben.
 
 ## Meilenstein 10 — IDE
 
