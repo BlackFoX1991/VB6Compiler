@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -186,8 +187,76 @@ public static class VBInteraction
         IntPtr reserved,
         [MarshalAs(UnmanagedType.Interface)] out object? activeObject);
 
-    /// <summary>Process launching is delegated to the host; headless builds return a stable id.</summary>
-    public static int Shell(string pathName, short windowStyle) => 0;
+    /// <summary>
+    /// Starts a Windows process using the VB6 window-style contract. Portable headless hosts keep
+    /// the historical deterministic zero result instead of attempting platform-specific launch.
+    /// </summary>
+    public static int Shell(string pathName, short windowStyle)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return 0;
+        }
+
+        if (string.IsNullOrWhiteSpace(pathName))
+        {
+            throw new ArgumentException("Shell requires a non-empty command line.", nameof(pathName));
+        }
+
+        var command = SplitShellCommand(pathName);
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = command.FileName,
+            Arguments = command.Arguments,
+            UseShellExecute = true,
+            WindowStyle = ToProcessWindowStyle(windowStyle)
+        });
+        return process?.Id ?? 0;
+    }
+
+    private static ProcessWindowStyle ToProcessWindowStyle(short windowStyle) => windowStyle switch
+    {
+        0 => ProcessWindowStyle.Hidden,
+        2 or 6 => ProcessWindowStyle.Minimized,
+        3 => ProcessWindowStyle.Maximized,
+        _ => ProcessWindowStyle.Normal
+    };
+
+    private static (string FileName, string Arguments) SplitShellCommand(string commandLine)
+    {
+        var value = commandLine.Trim();
+        if (value[0] == '"')
+        {
+            var closingQuote = value.IndexOf('"', 1);
+            if (closingQuote > 0)
+            {
+                return (value[1..closingQuote], value[(closingQuote + 1)..].TrimStart());
+            }
+        }
+
+        if (File.Exists(value))
+        {
+            return (value, string.Empty);
+        }
+
+        foreach (var extension in new[] { ".exe", ".com", ".bat", ".cmd" })
+        {
+            var boundary = value.IndexOf(extension, StringComparison.OrdinalIgnoreCase);
+            if (boundary >= 0)
+            {
+                var end = boundary + extension.Length;
+                if (end == value.Length || char.IsWhiteSpace(value[end]))
+                {
+                    return (value[..end], value[end..].TrimStart());
+                }
+            }
+        }
+
+        var separator = value.IndexOfAny(new[] { ' ', '\t' });
+        return separator < 0
+            ? (value, string.Empty)
+            : (value[..separator], value[separator..].TrimStart());
+    }
 
     /// <summary>
     /// Returns the default affirmative/first button in headless builds. A GUI host can replace this

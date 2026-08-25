@@ -2587,3 +2587,9 @@ Platzhalter bleiben erhalten; ein registrierter ProgID ohne laufende Instanz lie
 COM-Fehler statt stillschweigend ein falsches Objekt. Die vollständige ROT-/Server-Lebensdauer
 und die übrige COM-ABI bleiben separate Interop-Schritte.
 Die Vollsuite umfasst nun **1057 Testfälle**, davon **1057 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Shell-Nachtrag
+
+`Shell` startet auf Windows nun echte Prozesse, trennt die üblichen VB6-Befehlszeilenformen in
+Programm und Argumente und bildet `vbHide`, Minimieren und Maximieren auf den Windows-Prozessstil
+ab. Nicht-Windows-/headless-Läufe behalten den deterministischen Rückgabewert `0`.
