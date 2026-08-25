@@ -188,7 +188,7 @@ public sealed class ComDispatchRuntimeTests
         source.SetValue(30, 0, 3);
         source.SetValue(40, 0, 4);
 
-        var result = VBArrayOperations.FromObject<int>(source);
+        var result = VBArrayOperations.FromObject<int>(source)!;
 
         Assert.AreEqual(2, result.Rank);
         Assert.AreEqual(-1, result.LBound(1));

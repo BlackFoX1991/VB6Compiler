@@ -1186,9 +1186,10 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       echter Managed-Invocation; ANSI-String-Marshalling, variable `ByVal String`-Puffer mit
       `StringBuilder` und aufrufseitigem Write-back, native `ByRef`-UDT-Rückschreibung sowie
       Scalar-Pointer-Transfers für `As Any` stehen, `AddressOf` erzeugt Managed-Funktionsadressen
-      für direkte Prozedurziele und blittable `ByRef`-Callback-Parameter, komplexes Array-Marshalling
-      sowie verschachtelte Pointer-/String-Callback-ABI-Verträge bleiben offen; native
-      `VARIANT`-Slots für einfache Variant-Callback-Parameter und -Rückgaben sind ergänzt
+      für direkte Prozedurziele und blittable `ByRef`-Callback-Parameter; einfache native
+      `VARIANT`-Slots sowie `Variant()`-SAFEARRAY-Callback-Parameter und -Rückgaben mit Bounds-
+      und ByRef-Ersatz-Write-back sind ergänzt, verschachtelte Pointer-/String-Callback-ABI-
+      Verträge und UDT-/Pointer-Arrays bleiben offen
 - [~] COM/ActiveX-Konsum: `Reference=`-/`Object=`-Einträge werden verlustfrei gespeichert und für
       GUID/Version/LCID/Pfad analysiert; explizite `.vbp`-Projektverweise werden relativ zum
       Verbraucherprojekt aufgelöst, und häufige qualifizierte ActiveX-Controltypen werden aus der
@@ -1229,9 +1230,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       sind mit `CUShort`, `CUInt` und `CULng` sowie checked Managed-/P/Invoke-/Variant-Verträgen ergänzt
 - [~] `AddressOf` — direkte Prozedurziele werden als `LongPtr`-Funktionsadresse emittiert und für
       Legacy-`Long`-Callbackparameter konvertiert; blittable native Callback-Parameter und
-      Delegate-Lebensdauer stehen; dynamische Callback-Delegaten markieren Win32-`BOOL` und
-      ANSI-Strings sowie einfache `Variant`-Slots jetzt explizit, komplexe UDT-/verschachtelte
-      Pointer-/Variant-Array-ABIs bleiben offen
+      Delegate-Lebensdauer stehen; dynamische Callback-Delegaten markieren Win32-`BOOL`,
+      ANSI-Strings, einfache `Variant`-Slots und `Variant()`-SAFEARRAYs mit nativer Konvertierung
+      und ByRef-Rückschreibung, komplexe UDT-/verschachtelte Pointer-/String-ABIs bleiben offen
 
 ## Meilenstein 9 — Forms
 
@@ -2366,3 +2367,13 @@ Varianten melden Type Mismatch. Ein echter `htmlfile`-RCW sowie ein generierter 
 Aufruf sind auf AnyCPU regressiongesichert. Direkte `VarPtr`-/`StrPtr`-Speicheradressen und
 UDT-/Pointer-Marshalling bleiben wegen ihrer separaten Lebensdauer- und ABI-Regeln offen. Die
 Vollsuite umfasst nun **1010 Tests**.
+
+## Aktueller AddressOf-Variant-Array-Nachtrag
+
+`AddressOf`-Prozeduren mit `Variant()`-Parametern und -Rückgaben verwenden jetzt einen eigenen
+nativen `SAFEARRAY(VARIANT)`-Delegaten. Der Callback-Adapter konvertiert die native `System.Array`-
+Repräsentation in `VBArray<object>`, bewahrt echte Untergrenzen und schreibt ersetzte `ByRef`-
+Arrays einschließlich ihrer neuen Bounds zurück. Ein echter Function-Pointer-Aufruf prüft sowohl
+`ByRef Variant()` mit `ReDim` als auch einen `Variant()`-Rückgabewert auf AnyCPU und x86. UDT-,
+Pointer-, String- und nicht unterstützte Arrayelement-ABIs bleiben separate Schritte. Die
+Vollsuite umfasst nun **1011 Tests**.
