@@ -230,6 +230,42 @@ public sealed class ComDispatchRuntimeTests
         Assert.AreEqual(42, source[0]);
     }
 
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void DeclareArrayBuffer_MarshalsCurrencySafeArrayElements()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Declare Currency SAFEARRAY test requires Windows.");
+            return;
+        }
+
+        var source = new VBArray<VBCurrency>(new VBArrayBound(0, 0));
+        source[0] = VBCurrency.FromScaled(125_000);
+        using var buffer = VBDeclareArrayBuffer.Create(source, (ushort)(0x2000 | 0x0006));
+
+        var safeArray = Marshal.ReadIntPtr(buffer.GetNativeAddress());
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        Assert.AreEqual(1u, SafeArrayGetDim(safeArray));
+
+        var storage = Marshal.AllocCoTaskMem(sizeof(long));
+        try
+        {
+            Marshal.WriteInt64(storage, 333_000);
+            Assert.AreEqual(
+                0,
+                SafeArrayPutCurrencyElement(safeArray, new[] { 0 }, storage));
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(storage);
+        }
+
+        var result = buffer.GetManagedArray<VBCurrency>();
+        Assert.IsNotNull(result);
+        Assert.AreEqual(33.3m, result![0].ToDecimal());
+    }
+
     private static VBArray<object> Arguments(params object?[] values)
     {
         var arguments = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
@@ -274,4 +310,10 @@ public sealed class ComDispatchRuntimeTests
         IntPtr safeArray,
         int[] indices,
         ref int value);
+
+    [System.Runtime.InteropServices.DllImport("oleaut32.dll", EntryPoint = "SafeArrayPutElement")]
+    private static extern int SafeArrayPutCurrencyElement(
+        IntPtr safeArray,
+        int[] indices,
+        IntPtr value);
 }

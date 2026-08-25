@@ -2243,3 +2243,12 @@ unterstützten skalaren Automation-Typen und `Variant()` ab; UDT-, Pointer- und 
 SAFEARRAYs bleiben wegen ihres eigenen nativen Deskriptors separate Interop-Schritte. Die
 Regression prüft IR, Managed-Emission und einen echten `oleaut32`-SAFEARRAY-Write-back; die
 Vollsuite umfasst nun **989 Tests**.
+
+## Aktueller Declare-Currency-SAFEARRAY-Nachtrag
+
+`Currency()`-Declare-Parameter werden jetzt als native `SAFEARRAY(CY)`-Deskriptoren materialisiert.
+Die Runtime schreibt den skalierten 64-Bit-Currency-Wert direkt in die Automation-Elemente und
+führt native Änderungen anschließend wieder verlustarm nach `VBCurrency` zurück. Damit ist der
+`Currency`-Sonderfall vom CLR-`decimal`-SAFEARRAY-Mapping entkoppelt; UDT-, Pointer- und Callback-
+ABIs bleiben weiterhin separate Interop-Schritte. Eine Windows-Regression prüft Erzeugung,
+native Elementänderung und Rückkopieren; die Vollsuite umfasst nun **990 Tests**.

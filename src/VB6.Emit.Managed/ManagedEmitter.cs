@@ -2619,6 +2619,7 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Date ||
             type == TypeSymbol.Double ||
             type == TypeSymbol.Boolean ||
+            type == TypeSymbol.Currency ||
             type == TypeSymbol.String ||
             type == TypeSymbol.Variant;
 
@@ -2634,6 +2635,7 @@ public sealed class ManagedEmitter
             type == TypeSymbol.Date ? 0x2007 :
             type == TypeSymbol.Double ? 0x2005 :
             type == TypeSymbol.Boolean ? 0x200B :
+            type == TypeSymbol.Currency ? 0x2006 :
             type == TypeSymbol.String ? 0x2008 :
             type == TypeSymbol.Variant ? 0x200C :
             throw new NotSupportedException($"Declare SAFEARRAY element type '{type.Name}' is not supported.");
