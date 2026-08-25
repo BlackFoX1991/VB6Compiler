@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
+using System.Globalization;
 using Microsoft.Win32;
 
 namespace VB6.Runtime;
@@ -29,6 +30,12 @@ internal static class VBComDispatch
     private const int DispIdPropertyPut = -3;
     private const int VariantSize = 16;
     private const int VariantDataOffset = 8;
+    private const uint InvariantComLocaleId = 1033;
+
+    internal static uint ComLocaleId =>
+        CultureInfo.CurrentCulture.LCID is 0 or 127
+            ? InvariantComLocaleId
+            : unchecked((uint)CultureInfo.CurrentCulture.LCID);
 
     public static bool TryInvoke(
         object target,
@@ -313,7 +320,7 @@ internal static class VBComDispatch
         dispId = 0;
         if (dispatch.GetTypeInfoCount(out var typeInfoCount) < 0 ||
             typeInfoCount == 0 ||
-            dispatch.GetTypeInfo(0, 1033, out var typeInfoPointer) < 0 ||
+            dispatch.GetTypeInfo(0, ComLocaleId, out var typeInfoPointer) < 0 ||
             typeInfoPointer == IntPtr.Zero)
         {
             return false;
@@ -481,7 +488,7 @@ internal static class VBComDispatch
         if (argumentCount == 0 ||
             dispatch.GetTypeInfoCount(out var typeInfoCount) < 0 ||
             typeInfoCount == 0 ||
-            dispatch.GetTypeInfo(0, 1033, out var typeInfoPointer) < 0 ||
+            dispatch.GetTypeInfo(0, ComLocaleId, out var typeInfoPointer) < 0 ||
             typeInfoPointer == IntPtr.Zero)
         {
             return null;
@@ -582,7 +589,7 @@ internal static class VBComDispatch
         if (argumentCount == 0 ||
             dispatch.GetTypeInfoCount(out var typeInfoCount) < 0 ||
             typeInfoCount == 0 ||
-            dispatch.GetTypeInfo(0, 1033, out var typeInfoPointer) < 0 ||
+            dispatch.GetTypeInfo(0, ComLocaleId, out var typeInfoPointer) < 0 ||
             typeInfoPointer == IntPtr.Zero)
         {
             return null;
@@ -683,7 +690,7 @@ internal static class VBComDispatch
                 ref iid,
                 names,
                 1,
-                1033,
+                ComLocaleId,
                 out dispId) >= 0;
         }
         finally
@@ -786,7 +793,7 @@ internal static class VBComDispatch
                 var hr = dispatch.Invoke(
                     dispId,
                     ref iid,
-                    1033,
+                    ComLocaleId,
                     flags,
                     ref parameters,
                     out result,
