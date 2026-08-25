@@ -786,6 +786,7 @@ public static class VBEvents
             : elementType == typeof(ulong) ? VarEnum.VT_UI8
             : elementType == typeof(float) ? VarEnum.VT_R4
             : elementType == typeof(double) ? VarEnum.VT_R8
+            : elementType == typeof(DateTime) ? VarEnum.VT_DATE
             : elementType == typeof(bool) ? VarEnum.VT_BOOL
             : elementType == typeof(string) ? VarEnum.VT_BSTR
             : elementType == typeof(VBCurrency) ? VarEnum.VT_CY

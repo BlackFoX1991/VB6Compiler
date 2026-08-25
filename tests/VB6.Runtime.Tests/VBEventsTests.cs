@@ -103,6 +103,22 @@ public sealed class VBEventsTests
     }
 
     [TestMethod]
+    public void ComEventDelegateType_UsesDateSafeArrayForDateTimeArrays()
+    {
+        var method = typeof(SafeArrayEventTarget).GetMethod(
+            "OnDateValues",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var delegateType = VBEvents.GetComEventDelegateType(method);
+        var parameter = delegateType.GetMethod("Invoke")!.GetParameters().Single();
+        var marshal = parameter.GetCustomAttribute<MarshalAsAttribute>();
+
+        Assert.AreEqual(typeof(Array).MakeByRefType(), parameter.ParameterType);
+        Assert.AreEqual(UnmanagedType.SafeArray, marshal?.Value);
+        Assert.AreEqual(VarEnum.VT_DATE, marshal?.SafeArraySubType);
+    }
+
+    [TestMethod]
     public void VBArray_ConvertsToClrArrayWithBoundsAndElementOrder()
     {
         var source = new VBArray<int>(new VBArrayBound(-2, 1), new VBArrayBound(3, 4));
@@ -143,6 +159,28 @@ public sealed class VBEventsTests
         Assert.AreEqual(4, replacement.GetLowerBound(0));
         Assert.AreEqual(5, replacement.GetUpperBound(0));
         Assert.AreEqual(42, replacement.GetValue(4));
+    }
+
+    [TestMethod]
+    public void ComEventAdapter_ConvertsDateSafeArrayAndWritesBackReplacement()
+    {
+        var method = typeof(SafeArrayEventTarget).GetMethod(
+            "OnDateValues",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var target = new SafeArrayEventTarget();
+        var native = Array.CreateInstance(typeof(DateTime), new[] { 2 }, new[] { -1 });
+        native.SetValue(new DateTime(2020, 1, 2), -1);
+        native.SetValue(new DateTime(2020, 1, 3), 0);
+        var arguments = new object?[] { native };
+
+        VBEvents.CreateComEventDelegate(target, method).DynamicInvoke(arguments);
+
+        var replacement = (Array)arguments[0]!;
+        Assert.AreEqual(typeof(DateTime), replacement.GetType().GetElementType());
+        Assert.AreEqual(4, replacement.GetLowerBound(0));
+        Assert.AreEqual(5, replacement.GetUpperBound(0));
+        Assert.AreEqual(new DateTime(2020, 2, 4), replacement.GetValue(4));
+        Assert.AreEqual(new DateTime(2020, 2, 5), replacement.GetValue(5));
     }
 
     [TestMethod]
@@ -306,6 +344,13 @@ public sealed class VBEventsTests
         {
             values = new VBArray<int>(new VBArrayBound(4, 5));
             values[4] = 42;
+        }
+
+        private void OnDateValues(ref VBArray<DateTime> values)
+        {
+            values = new VBArray<DateTime>(new VBArrayBound(4, 5));
+            values[4] = new DateTime(2020, 2, 4);
+            values[5] = new DateTime(2020, 2, 5);
         }
 
         private void OnLongPtrValues(
