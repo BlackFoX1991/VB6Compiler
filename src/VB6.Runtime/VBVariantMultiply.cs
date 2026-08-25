@@ -29,9 +29,9 @@ public static partial class VBOperators
             VariantNumericKind.Integer => MultiplyVariantInteger(left, right),
             VariantNumericKind.Long => MultiplyVariantLong(left, right),
             VariantNumericKind.LongLong => MultiplyVariantLongLong(left, right),
-            VariantNumericKind.UShort => MultiplyUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
-            VariantNumericKind.UInteger => MultiplyUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
-            VariantNumericKind.ULong => MultiplyULong(VBConversions.CULng(left), VBConversions.CULng(right)),
+            VariantNumericKind.UShort => MultiplyVariantUShort(left, right),
+            VariantNumericKind.UInteger => MultiplyVariantUInteger(left, right),
+            VariantNumericKind.ULong => MultiplyVariantULong(left, right),
             VariantNumericKind.Single => MultiplyVariantSingle(left, right),
             VariantNumericKind.Currency => MultiplyCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) * VariantDecimal(right)),
@@ -100,6 +100,42 @@ public static partial class VBOperators
         }
     }
 
+    private static object MultiplyVariantUShort(object? left, object? right)
+    {
+        try
+        {
+            return MultiplyUShort(VBConversions.CUShort(left), VBConversions.CUShort(right));
+        }
+        catch (OverflowException)
+        {
+            return MultiplyVariantUInteger(left, right);
+        }
+    }
+
+    private static object MultiplyVariantUInteger(object? left, object? right)
+    {
+        try
+        {
+            return MultiplyUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right));
+        }
+        catch (OverflowException)
+        {
+            return MultiplyVariantULong(left, right);
+        }
+    }
+
+    private static object MultiplyVariantULong(object? left, object? right)
+    {
+        try
+        {
+            return MultiplyULong(VBConversions.CULng(left), VBConversions.CULng(right));
+        }
+        catch (OverflowException)
+        {
+            return checked(VariantDecimal(left) * VariantDecimal(right));
+        }
+    }
+
     private static object MultiplyVariantDouble(object? left, object? right)
     {
         var result = MultiplyDouble(VBConversions.CDbl(left), VBConversions.CDbl(right));
@@ -151,14 +187,14 @@ public static partial class VBOperators
             return VariantNumericKind.Decimal;
         }
 
-        if (left == VariantNumericKind.Currency || right == VariantNumericKind.Currency)
-        {
-            return VariantNumericKind.Currency;
-        }
-
         if (left == VariantNumericKind.Double || right == VariantNumericKind.Double)
         {
             return VariantNumericKind.Double;
+        }
+
+        if (left == VariantNumericKind.Currency || right == VariantNumericKind.Currency)
+        {
+            return VariantNumericKind.Currency;
         }
 
         if (left == VariantNumericKind.Single || right == VariantNumericKind.Single)
@@ -172,23 +208,27 @@ public static partial class VBOperators
 
         if (left == VariantNumericKind.ULong || right == VariantNumericKind.ULong)
         {
-            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
-                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+            return IsSignedIntegerKind(left) || IsSignedIntegerKind(right)
                 ? VariantNumericKind.Decimal
                 : VariantNumericKind.ULong;
         }
 
         if (left == VariantNumericKind.UInteger || right == VariantNumericKind.UInteger)
         {
-            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
-                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+            return IsSignedIntegerKind(left) || IsSignedIntegerKind(right)
                 ? VariantNumericKind.Decimal
                 : VariantNumericKind.UInteger;
         }
 
         if (left == VariantNumericKind.UShort || right == VariantNumericKind.UShort)
         {
-            return VariantNumericKind.UShort;
+            var other = left == VariantNumericKind.UShort ? right : left;
+            return other switch
+            {
+                VariantNumericKind.Integer or VariantNumericKind.Long => VariantNumericKind.Long,
+                VariantNumericKind.LongLong => VariantNumericKind.LongLong,
+                _ => VariantNumericKind.UShort
+            };
         }
 
         if (left == VariantNumericKind.LongLong || right == VariantNumericKind.LongLong)
@@ -239,23 +279,27 @@ public static partial class VBOperators
 
         if (left == VariantNumericKind.ULong || right == VariantNumericKind.ULong)
         {
-            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
-                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+            return IsSignedIntegerKind(left) || IsSignedIntegerKind(right)
                 ? VariantNumericKind.Decimal
                 : VariantNumericKind.ULong;
         }
 
         if (left == VariantNumericKind.UInteger || right == VariantNumericKind.UInteger)
         {
-            return left is VariantNumericKind.Long or VariantNumericKind.LongLong ||
-                right is VariantNumericKind.Long or VariantNumericKind.LongLong
+            return IsSignedIntegerKind(left) || IsSignedIntegerKind(right)
                 ? VariantNumericKind.Decimal
                 : VariantNumericKind.UInteger;
         }
 
         if (left == VariantNumericKind.UShort || right == VariantNumericKind.UShort)
         {
-            return VariantNumericKind.UShort;
+            var other = left == VariantNumericKind.UShort ? right : left;
+            return other switch
+            {
+                VariantNumericKind.Integer or VariantNumericKind.Long => VariantNumericKind.Long,
+                VariantNumericKind.LongLong => VariantNumericKind.LongLong,
+                _ => VariantNumericKind.UShort
+            };
         }
 
         if (left == VariantNumericKind.LongLong || right == VariantNumericKind.LongLong)
@@ -275,6 +319,9 @@ public static partial class VBOperators
 
         return VariantNumericKind.Byte;
     }
+
+    private static bool IsSignedIntegerKind(VariantNumericKind kind) =>
+        kind is VariantNumericKind.Integer or VariantNumericKind.Long or VariantNumericKind.LongLong;
 
     private enum VariantNumericKind
     {

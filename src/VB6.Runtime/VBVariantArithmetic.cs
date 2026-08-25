@@ -15,11 +15,6 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
-        if (IsDateVariant(left) || IsDateVariant(right))
-        {
-            return new VBDateValue(VBConversions.CDbl(left) + VBConversions.CDbl(right));
-        }
-
         if (left is null)
         {
             return right ?? (short)0;
@@ -28,6 +23,11 @@ public static partial class VBOperators
         if (right is null)
         {
             return left;
+        }
+
+        if (IsDateVariant(left) || IsDateVariant(right))
+        {
+            return CreateDateArithmeticResult(VBConversions.CDbl(left) + VBConversions.CDbl(right));
         }
 
         if (left is string leftString && right is string rightString)
@@ -42,9 +42,9 @@ public static partial class VBOperators
             VariantNumericKind.Integer => AddVariantInteger(left, right),
             VariantNumericKind.Long => AddVariantLong(left, right),
             VariantNumericKind.LongLong => AddLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
-            VariantNumericKind.UShort => AddUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
-            VariantNumericKind.UInteger => AddUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
-            VariantNumericKind.ULong => AddULong(VBConversions.CULng(left), VBConversions.CULng(right)),
+            VariantNumericKind.UShort => AddVariantUShort(left, right),
+            VariantNumericKind.UInteger => AddVariantUInteger(left, right),
+            VariantNumericKind.ULong => AddVariantULong(left, right),
             VariantNumericKind.Single => AddVariantSingle(left, right),
             VariantNumericKind.Currency => AddCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) + VariantDecimal(right)),
@@ -87,7 +87,7 @@ public static partial class VBOperators
             var result = VBConversions.CDbl(left) - VBConversions.CDbl(right);
             return IsDateVariant(left) && IsDateVariant(right)
                 ? result
-                : new VBDateValue(result);
+                : CreateDateArithmeticResult(result);
         }
 
         var kind = PromoteVariantAddKind(GetVariantNumericKind(left), GetVariantNumericKind(right));
@@ -97,9 +97,9 @@ public static partial class VBOperators
             VariantNumericKind.Integer => SubtractVariantInteger(left, right),
             VariantNumericKind.Long => SubtractVariantLong(left, right),
             VariantNumericKind.LongLong => SubtractLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right)),
-            VariantNumericKind.UShort => SubtractUShort(VBConversions.CUShort(left), VBConversions.CUShort(right)),
-            VariantNumericKind.UInteger => SubtractUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right)),
-            VariantNumericKind.ULong => SubtractULong(VBConversions.CULng(left), VBConversions.CULng(right)),
+            VariantNumericKind.UShort => SubtractVariantUShort(left, right),
+            VariantNumericKind.UInteger => SubtractVariantUInteger(left, right),
+            VariantNumericKind.ULong => SubtractVariantULong(left, right),
             VariantNumericKind.Single => SubtractVariantSingle(left, right),
             VariantNumericKind.Currency => SubtractCurrency(VBConversions.CCur(left), VBConversions.CCur(right)),
             VariantNumericKind.Decimal => checked(VariantDecimal(left) - VariantDecimal(right)),
@@ -146,7 +146,9 @@ public static partial class VBOperators
         var kind = PromoteVariantMultiplyKind(GetVariantNumericKind(left), GetVariantNumericKind(right));
         return kind switch
         {
-            VariantNumericKind.Byte or VariantNumericKind.Integer =>
+            VariantNumericKind.Byte =>
+                (object)IntegerDivideByte(VBConversions.CByte(left), VBConversions.CByte(right)),
+            VariantNumericKind.Integer =>
                 (object)IntegerDivide(VBConversions.CInt(left), VBConversions.CInt(right)),
             VariantNumericKind.Long =>
                 (object)IntegerDivideLong(VBConversions.CLng(left), VBConversions.CLng(right)),
@@ -176,7 +178,9 @@ public static partial class VBOperators
         var kind = PromoteVariantMultiplyKind(GetVariantNumericKind(left), GetVariantNumericKind(right));
         return kind switch
         {
-            VariantNumericKind.Byte or VariantNumericKind.Integer =>
+            VariantNumericKind.Byte =>
+                (object)ModByte(VBConversions.CByte(left), VBConversions.CByte(right)),
+            VariantNumericKind.Integer =>
                 (object)ModInteger(VBConversions.CInt(left), VBConversions.CInt(right)),
             VariantNumericKind.Long =>
                 (object)ModLong(VBConversions.CLng(left), VBConversions.CLng(right)),
@@ -226,9 +230,9 @@ public static partial class VBOperators
             VariantNumericKind.Byte or VariantNumericKind.Integer => NegateVariantInteger(value),
             VariantNumericKind.Long => NegateVariantLong(value),
             VariantNumericKind.LongLong => (object)NegateLongLong(VBConversions.CLngLng(value)),
-            VariantNumericKind.UShort => (object)NegateUShort(VBConversions.CUShort(value)),
-            VariantNumericKind.UInteger => (object)NegateUInteger(VBConversions.CUInt(value)),
-            VariantNumericKind.ULong => (object)NegateULong(VBConversions.CULng(value)),
+            VariantNumericKind.UShort => (object)checked(-VBConversions.CUShort(value)),
+            VariantNumericKind.UInteger => (object)checked(-VBConversions.CLngLng(value)),
+            VariantNumericKind.ULong => (object)checked(-VariantDecimal(value)),
             VariantNumericKind.Single => (object)NegateSingle(VBConversions.CSng(value)),
             VariantNumericKind.Currency => (object)NegateCurrency(VBConversions.CCur(value)),
             VariantNumericKind.Decimal => checked(-VariantDecimal(value)),
@@ -308,6 +312,78 @@ public static partial class VBOperators
 
     public static object StringVariantGreaterOrEqual(object? left, object? right) =>
         CompareStringVariant(left, right, comparison => comparison >= 0);
+
+    private static object AddVariantUShort(object? left, object? right)
+    {
+        try
+        {
+            return AddUShort(VBConversions.CUShort(left), VBConversions.CUShort(right));
+        }
+        catch (OverflowException)
+        {
+            return AddVariantUInteger(left, right);
+        }
+    }
+
+    private static object AddVariantUInteger(object? left, object? right)
+    {
+        try
+        {
+            return AddUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right));
+        }
+        catch (OverflowException)
+        {
+            return AddVariantULong(left, right);
+        }
+    }
+
+    private static object AddVariantULong(object? left, object? right)
+    {
+        try
+        {
+            return AddULong(VBConversions.CULng(left), VBConversions.CULng(right));
+        }
+        catch (OverflowException)
+        {
+            return checked(VariantDecimal(left) + VariantDecimal(right));
+        }
+    }
+
+    private static object SubtractVariantUShort(object? left, object? right)
+    {
+        try
+        {
+            return SubtractUShort(VBConversions.CUShort(left), VBConversions.CUShort(right));
+        }
+        catch (OverflowException)
+        {
+            return SubtractLong(VBConversions.CLng(left), VBConversions.CLng(right));
+        }
+    }
+
+    private static object SubtractVariantUInteger(object? left, object? right)
+    {
+        try
+        {
+            return SubtractUInteger(VBConversions.CUInt(left), VBConversions.CUInt(right));
+        }
+        catch (OverflowException)
+        {
+            return SubtractLongLong(VBConversions.CLngLng(left), VBConversions.CLngLng(right));
+        }
+    }
+
+    private static object SubtractVariantULong(object? left, object? right)
+    {
+        try
+        {
+            return SubtractULong(VBConversions.CULng(left), VBConversions.CULng(right));
+        }
+        catch (OverflowException)
+        {
+            return checked(VariantDecimal(left) - VariantDecimal(right));
+        }
+    }
 
     private static object AddVariantByte(object? left, object? right)
     {
@@ -488,7 +564,7 @@ public static partial class VBOperators
     }
 
     private static bool IsSingleDivisionOperand(object? value) =>
-        value is byte or short or float;
+        value is byte or short or ushort or float or bool;
 
     private static void ThrowIfErrorOperand(object? value)
     {
@@ -610,6 +686,24 @@ public static partial class VBOperators
         float or double or bool;
 
     private static bool IsDateVariant(object? value) => value is VBDateValue or DateTime;
+
+    private static object CreateDateArithmeticResult(double value)
+    {
+        if (double.IsFinite(value))
+        {
+            try
+            {
+                _ = DateTime.FromOADate(value);
+                return new VBDateValue(value);
+            }
+            catch (ArgumentException)
+            {
+                // VB6 promotes an overflowing Date Variant arithmetic result to Double.
+            }
+        }
+
+        return value;
+    }
 
     private static bool TryComparePromotedNumericValues(
         object? left,
