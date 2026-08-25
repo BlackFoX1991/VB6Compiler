@@ -4,5 +4,6 @@
   <PropertyGroup>
     <VB6CompilerPath Condition="'$(VB6CompilerPath)' == ''">vb6c</VB6CompilerPath>
     <VB6EnableComHosting Condition="'$(VB6EnableComHosting)' == ''">false</VB6EnableComHosting>
+    <VB6EnableComManifest Condition="'$(VB6EnableComManifest)' == ''">false</VB6EnableComManifest>
   </PropertyGroup>
 </Project>

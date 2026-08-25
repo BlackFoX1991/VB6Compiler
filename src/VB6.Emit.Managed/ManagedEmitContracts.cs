@@ -40,6 +40,12 @@ public sealed record ManagedEmitOptions(
     /// .NET COM host for library output. Application output cannot be exposed through comhost.
     /// </summary>
     public bool EnableComHosting { get; init; }
+
+    /// <summary>
+    /// Emits a side-by-side activation manifest next to the native COM host. This requires
+    /// <see cref="EnableComHosting"/> and is available for Managed library output only.
+    /// </summary>
+    public bool EnableComManifest { get; init; }
 }
 
 public sealed record ManagedEmitDiagnostic(string Code, string Message);
