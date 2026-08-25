@@ -144,6 +144,7 @@ public enum SyntaxKind
     CaseRelationalClause,
     CaseElseClause,
     DebugPrintStatement,
+    DebugAssertStatement,
     FilePrintStatement,
     InvocationStatement,
     SkippedStatement,

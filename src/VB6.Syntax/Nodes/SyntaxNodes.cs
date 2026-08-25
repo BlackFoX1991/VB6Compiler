@@ -395,6 +395,12 @@ public sealed record DebugPrintStatementSyntax(
     SyntaxToken PrintKeyword,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugPrintStatement);
 
+public sealed record DebugAssertStatementSyntax(
+    SyntaxToken DebugKeyword,
+    SyntaxToken DotToken,
+    SyntaxToken AssertIdentifier,
+    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugAssertStatement);
+
 public sealed record FilePrintStatementSyntax(
     SyntaxToken PrintKeyword,
     FileNumberSyntax FileNumber,

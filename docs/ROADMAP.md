@@ -1299,7 +1299,8 @@ folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Dan
 ## Zusätzlich, klein und unabhängig
 
 1. [x] `Debug.Print` auf VB6-nahe Formatierung (führendes Vorzeichen-Leerzeichen, 15
-   signifikante Stellen); die E2E-Helfer trimmen weiterhin bewusst Plattform-/Spaltenformat
+   signifikante Stellen für Gleitkomma-/Currencywerte und vollständige Decimal-Präzision);
+   die E2E-Helfer trimmen weiterhin bewusst Plattform-/Spaltenformat
 2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
    Binder hat beide Seiten bereits angeglichen
 3. `Currency + Double` folgt nun der VB6-Promotionsreihenfolge und liefert `Double`, während
@@ -1307,6 +1308,8 @@ folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Dan
    Vergleichspromotionen behalten weiterhin die separate Currency-Präzisionsregel
 4. `Debug.Print` formatiert Zahlen invariant und mit VB6-nahem Vorzeichen-/Signifikanzformat
    unverändert unter Punkt 1
+5. [x] `Debug.Assert` wird als kompiliertes VB6-Statement akzeptiert und im Managed-Emit
+   vollständig elidiert.
 
 ## Aktueller .NET-Nachtrag
 
@@ -2742,3 +2745,11 @@ verwendet fuer den Decimal-Subtype jetzt denselben `G29`-Praezisionsvertrag wie 
 hochpraezise `CDec`-Werte im direkten Runtime-Aufruf und im kompilierten Managed-Programm
 vollstaendig erhalten bleiben. Die beiden Regressionen erhoehen die gemessene Vollsuite auf
 **1084 Testfaelle**, davon **1084 bestanden** und **0 fehlgeschlagen**.
+
+## Aktueller Debug-Assert-Nachtrag
+
+`Debug.Assert` wird nun kontextsensitiv hinter `Debug.` geparst, semantisch als Boolean-Ausdruck
+gebunden und im kompilierten Managed-Programm vollstaendig elidiert. Damit werden auch Assert-
+Bedingungen mit Seiteneffekten nicht ausgefuehrt, wie es der VB6-EXE-Vertrag verlangt. Parser- und
+E2E-Regressionen erhoehen die gemessene Vollsuite auf **1087 Testfaelle**, davon **1087 bestanden**
+und **0 fehlgeschlagen**.

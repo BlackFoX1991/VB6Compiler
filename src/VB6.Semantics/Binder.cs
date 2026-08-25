@@ -1248,6 +1248,10 @@ public sealed class Binder
             SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint =>
                 new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
+            DebugAssertStatementSyntax debugAssert =>
+                new BoundDebugAssertStatement(BindConversion(
+                    BindExpression(debugAssert.Expression, variables, procedures),
+                    TypeSymbol.Boolean)),
             LineStatementSyntax line => BindGraphicsLine(line, variables, procedures),
             FilePrintStatementSyntax filePrint => new BoundFilePrintStatement(
                 BindFileNumber(filePrint.FileNumber, variables, procedures),

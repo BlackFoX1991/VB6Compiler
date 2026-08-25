@@ -1180,6 +1180,11 @@ public static class IrLowerer
                         TypeSymbol.Error,
                         LowerExpression(print.Expression))));
                     break;
+                case BoundDebugAssertStatement:
+                    // VB6 removes Debug.Assert calls from compiled executables. Keeping the
+                    // bound expression for diagnostics while emitting no IR preserves that
+                    // release behavior and avoids evaluating assertion side effects.
+                    break;
                 case BoundGraphicsLineStatement line:
                     var graphicsLineMethod = line.Target is null
                         ? IrRuntimeMethod.GraphicsLine
@@ -1755,7 +1760,8 @@ public static class IrLowerer
             BoundOnGoSubStatement or
             BoundLabelStatement or
             BoundOnErrorStatement or
-            BoundResumeStatement);
+            BoundResumeStatement or
+            BoundDebugAssertStatement);
 
         private void LowerWithEventsSubscriptions(VariableSymbol variable)
         {
