@@ -3,6 +3,8 @@
 
   <PropertyGroup>
     <VB6CompilerPath Condition="'$(VB6CompilerPath)' == ''">vb6c</VB6CompilerPath>
+    <VB6TargetPlatform Condition="'$(VB6TargetPlatform)' == ''">x86</VB6TargetPlatform>
+    <VB6CompatibilityProfile Condition="'$(VB6CompatibilityProfile)' == ''">deterministic</VB6CompatibilityProfile>
     <VB6EnableComHosting Condition="'$(VB6EnableComHosting)' == ''">false</VB6EnableComHosting>
     <VB6EnableComManifest Condition="'$(VB6EnableComManifest)' == ''">false</VB6EnableComManifest>
   </PropertyGroup>

@@ -62,6 +62,17 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostCarriesSelectedCompatibilityProfile()
+    {
+        using var host = new WinFormsHost(
+            preferNativeActiveX: true,
+            compatibilityProfile: VBCompatibilityProfile.VB6Sp6);
+
+        Assert.AreEqual(VBCompatibilityProfile.VB6Sp6, host.CompatibilityProfile);
+        Assert.AreEqual(VBCompatibilityProfile.VB6Sp6, ((IVB6Host)host).CompatibilityProfile);
+    }
+
+    [STATestMethod]
     public void HostCreatesDesignerControlsAndMapsVb6Properties()
     {
         using var host = new WinFormsHost();

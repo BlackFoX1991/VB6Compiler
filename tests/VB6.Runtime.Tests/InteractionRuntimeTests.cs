@@ -284,6 +284,24 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void Cls_ForwardsToHeadlessHostSink()
+    {
+        var calls = 0;
+        var previousSink = VBInteraction.ClsSink;
+        try
+        {
+            VBInteraction.ClsSink = () => calls++;
+            VBInteraction.Cls();
+        }
+        finally
+        {
+            VBInteraction.ClsSink = previousSink;
+        }
+
+        Assert.AreEqual(1, calls);
+    }
+
+    [TestMethod]
     public void GraphicsLine_ForwardsTypedOperationToHostSink()
     {
         VBGraphicsLine? captured = null;

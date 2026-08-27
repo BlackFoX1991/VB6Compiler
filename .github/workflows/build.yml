@@ -32,34 +32,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore VB6Compiler.sln
-
-      - name: Build
-        run: dotnet build VB6Compiler.sln --configuration Release --no-restore
-
-      - name: Test
+      - name: Build, test and measure
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force artifacts/test-results | Out-Null
-          $failed = $false
-          Get-ChildItem tests -Filter *.csproj -Recurse | Sort-Object FullName | ForEach-Object {
-            $projectName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-            dotnet test $_.FullName --configuration Release --logger "trx;LogFileName=$projectName.trx" --results-directory artifacts/test-results
-            if ($LASTEXITCODE -ne 0) {
-              $failed = $true
-            }
-          }
-          if ($failed) {
-            exit 1
-          }
-
-      - name: VISIA parity report
-        if: always()
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force artifacts | Out-Null
-          dotnet run --project src/VB6.Compiler.Cli/VB6.Compiler.Cli.csproj --configuration Release --no-build -- conformance/VISIA/4.8.7.1/prjVisia.vbp --report | Tee-Object -FilePath artifacts/visia-report.txt
+        run: .\build.ps1 -Configuration Release -ResultsDirectory artifacts/test-results
 
       - name: Publish compiler CLI
         run: dotnet publish src/VB6.Compiler.Cli/VB6.Compiler.Cli.csproj --configuration Release --no-restore --output artifacts/vb6c

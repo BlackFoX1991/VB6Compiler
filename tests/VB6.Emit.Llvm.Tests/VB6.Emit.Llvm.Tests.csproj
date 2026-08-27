@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/VB6.Emit.Llvm/VB6.Emit.Llvm.csproj" />
+    <ProjectReference Include="../../src/VB6.Runtime/VB6.Runtime.csproj" />
   </ItemGroup>
 </Project>

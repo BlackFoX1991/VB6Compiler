@@ -8,6 +8,9 @@ namespace VB6.Runtime;
 /// </summary>
 public interface IVB6Host
 {
+    /// <summary>Compatibility contract selected for this host instance.</summary>
+    VBCompatibilityProfile CompatibilityProfile => VBCompatibilityProfile.Deterministic;
+
     void DoEvents();
 
     /// <summary>Shows a VB6 menu through the configured UI host.</summary>
@@ -28,6 +31,11 @@ public interface IVB6Host
 
     /// <summary>Draws a supported VB6 PaintPicture operation on the active host surface.</summary>
     void PaintPicture(VBPaintPicture picture)
+    {
+    }
+
+    /// <summary>Clears the active or specified VB6 drawing surface.</summary>
+    void GraphicsClear(object? target)
     {
     }
 

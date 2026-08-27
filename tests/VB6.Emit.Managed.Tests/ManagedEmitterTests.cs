@@ -5,6 +5,7 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using VB6.Compiler;
 using VB6.IR;
+using VB6.Runtime;
 using VB6.Semantics;
 
 namespace VB6.Emit.Managed.Tests;
@@ -37,6 +38,32 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    [DataRow(ManagedPlatform.X86, Machine.I386, true)]
+    [DataRow(ManagedPlatform.X64, Machine.Amd64, false)]
+    public void Emit_UsesTheSelectedPeArchitecture(
+        ManagedPlatform platform,
+        Machine machine,
+        bool requires32Bit)
+    {
+        var program = Lower("""
+            Sub Main()
+                Debug.Print 1
+            End Sub
+            """);
+
+        var result = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "SelectedPlatform",
+            Platform: platform,
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        using var stream = new MemoryStream(result.PeImage!);
+        using var pe = new PEReader(stream);
+        Assert.AreEqual(machine, pe.PEHeaders.CoffHeader.Machine);
+        Assert.AreEqual(requires32Bit, pe.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
+    }
+
+    [TestMethod]
     public void Emit_IsDeterministicForSameInput()
     {
         var program = Lower("""
@@ -58,10 +85,38 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    public void Emit_AnnotatesAssemblyWithCompatibilityProfile()
+    {
+        var analysis = VBCompilation.Create(
+            "Sub Main()\n    Debug.Print 1\nEnd Sub\n",
+            "Module1.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            }).Analyze();
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+
+        var program = IrLowerer.Lower(
+            new[] { new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!) },
+            compatibilityProfile: VBCompatibilityProfile.VB6Sp6);
+        var result = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "ProfileMetadata",
+            EmitPortablePdb: false,
+            Platform: ManagedPlatform.AnyCpu));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        var assembly = Assembly.Load(result.PeImage!);
+        var profile = assembly.GetCustomAttribute<VBCompatibilityProfileAttribute>();
+        Assert.IsNotNull(profile);
+        Assert.AreEqual("VB6Sp6", profile!.Profile);
+    }
+
+    [TestMethod]
     public void Emit_AnnotatesDeclareArraysWithTheirAutomationElementTypes()
     {
         var program = Lower("""
-            Private Declare Sub Native Lib "native" (ByRef dates() As Date, ByRef amounts() As Currency)
+            Private Declare Function Native Lib "native" () As Date()
+            Private Declare Sub NativeArrays Lib "native" (ByRef dates() As Date, ByRef amounts() As Currency)
 
             Sub Main()
             End Sub
@@ -75,13 +130,19 @@ public sealed class ManagedEmitterTests
         var assembly = Assembly.Load(result.PeImage!);
         var method = assembly.GetTypes()
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
-            .Single(candidate => candidate.Name == "Native");
+            .Single(candidate => candidate.Name == "NativeArrays");
         var parameters = method.GetParameters();
 
         Assert.AreEqual(UnmanagedType.SafeArray, parameters[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
         Assert.AreEqual(VarEnum.VT_DATE, parameters[0].GetCustomAttribute<MarshalAsAttribute>()?.SafeArraySubType);
         Assert.AreEqual(UnmanagedType.SafeArray, parameters[1].GetCustomAttribute<MarshalAsAttribute>()?.Value);
         Assert.AreEqual(VarEnum.VT_CY, parameters[1].GetCustomAttribute<MarshalAsAttribute>()?.SafeArraySubType);
+
+        var returnMethod = assembly.GetTypes()
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+            .Single(candidate => candidate.Name == "Native");
+        Assert.AreEqual(UnmanagedType.SafeArray, returnMethod.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(VarEnum.VT_DATE, returnMethod.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.SafeArraySubType);
     }
 
     private static IrProgram Lower(string source)

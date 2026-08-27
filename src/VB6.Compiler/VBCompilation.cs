@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using VB6.Parser;
+using VB6.Runtime;
 using VB6.Semantics;
 using VB6.Syntax.Diagnostics;
 using VB6.Syntax.Nodes;
@@ -12,25 +13,45 @@ public sealed class VBCompilation
 {
     private VBCompilation(
         SourceText text,
-        ImmutableArray<Diagnostic> conditionalCompilationDiagnostics)
+        ImmutableArray<Diagnostic> conditionalCompilationDiagnostics,
+        VBCompilationOptions compilationOptions)
     {
         Text = text;
         _conditionalCompilationDiagnostics = conditionalCompilationDiagnostics;
+        CompilationOptions = compilationOptions;
     }
 
     private readonly ImmutableArray<Diagnostic> _conditionalCompilationDiagnostics;
 
     public SourceText Text { get; }
 
+    /// <summary>Options that were used to preprocess and bind this compilation.</summary>
+    public VBCompilationOptions CompilationOptions { get; }
+
     public static VBCompilation Create(
         string source,
         string? filePath = null,
         VBCompilationOptions? options = null)
     {
-        var preprocessed = VBConditionalCompilation.Process(source, filePath, options);
+        var requestedOptions = options ?? new VBCompilationOptions();
+        var compilationOptions = requestedOptions.NormalizeForProfile();
+        var preprocessed = VBConditionalCompilation.Process(source, filePath, compilationOptions);
+        var diagnostics = preprocessed.Diagnostics;
+        if (requestedOptions.CompatibilityProfile == VBCompatibilityProfile.VB6Sp6 &&
+            requestedOptions.TargetIs64Bit == true)
+        {
+            diagnostics = diagnostics.Add(new Diagnostic(
+                "VB6C0001",
+                DiagnosticSeverity.Error,
+                "The VB6Sp6 compatibility profile supports x86 targets only.",
+                new TextSpan(0, 0),
+                filePath));
+        }
+
         return new(
             SourceText.From(preprocessed.Source, filePath),
-            preprocessed.Diagnostics);
+            diagnostics,
+            compilationOptions);
     }
 
     public CompilationAnalysis Analyze()
@@ -121,7 +142,20 @@ public sealed class VBCompilation
 /// </summary>
 public sealed record VBCompilationOptions(
     bool? TargetIs64Bit = null,
-    IReadOnlyDictionary<string, string>? DefinedConstants = null);
+    IReadOnlyDictionary<string, string>? DefinedConstants = null)
+{
+    /// <summary>
+    /// Selects the source and runtime compatibility contract. Existing callers retain the
+    /// deterministic behavior unless they explicitly opt into VB6Sp6.
+    /// </summary>
+    public VBCompatibilityProfile CompatibilityProfile { get; init; } = VBCompatibilityProfile.Deterministic;
+
+    /// <summary>Normalizes profile defaults before conditional compilation is evaluated.</summary>
+    public VBCompilationOptions NormalizeForProfile() =>
+        CompatibilityProfile == VBCompatibilityProfile.VB6Sp6
+            ? this with { TargetIs64Bit = false }
+            : this;
+}
 
 public sealed record CompilationAnalysis(
     ParseResult ParseResult,

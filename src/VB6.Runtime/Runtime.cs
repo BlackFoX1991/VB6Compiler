@@ -658,8 +658,21 @@ public static class VBConversions
             return VBVariants.NullValue();
         }
 
-        var numeric = value is null ? 0d : VBConversions.CDbl(value);
-        return Math.Floor(numeric);
+        return value switch
+        {
+            null => (short)0,
+            byte number => number,
+            short number => number,
+            int number => number,
+            long number => number,
+            IntPtr number => number,
+            float number => MathF.Floor(number),
+            double number => Math.Floor(number),
+            decimal number => decimal.Floor(number),
+            VBCurrency currency => VBCurrency.FromDecimal(decimal.Floor(currency.ToDecimal())),
+            VBDateValue date => new VBDateValue(Math.Floor(date.OADate)),
+            _ => Math.Floor(VBConversions.CDbl(value))
+        };
     }
 
     private static float CheckSingle(float value)

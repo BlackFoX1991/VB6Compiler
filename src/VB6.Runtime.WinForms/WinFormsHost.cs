@@ -45,10 +45,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private readonly ToolTip _toolTip = new();
     private bool _disposed;
 
-    public WinFormsHost(bool preferNativeActiveX = false)
+    public WinFormsHost(
+        bool preferNativeActiveX = false,
+        VBCompatibilityProfile compatibilityProfile = VBCompatibilityProfile.Deterministic)
     {
         _preferNativeActiveX = preferNativeActiveX;
+        CompatibilityProfile = compatibilityProfile;
     }
+
+    public VBCompatibilityProfile CompatibilityProfile { get; }
 
     public void Register(object vbObject, Form form)
     {
@@ -243,6 +248,38 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             _ = TryRenderPaintPicture(target, picture);
         }
+    }
+
+    public void GraphicsClear(object? target)
+    {
+        ThrowIfDisposed();
+        var control = ResolveDrawingTarget(target) ?? _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(form => !form.IsDisposed);
+        if (control is null)
+        {
+            return;
+        }
+
+        var state = GetDesignerControlState(control);
+        var color = control.BackColor;
+        if (state.ActivePaintGraphics is { } activePaint)
+        {
+            activePaint.Clear(color);
+            return;
+        }
+
+        if (state.AutoRedraw)
+        {
+            var surface = GetDrawingSurface(control);
+            using var graphics = Graphics.FromImage(surface);
+            graphics.Clear(color);
+            control.Invalidate();
+            return;
+        }
+
+        using var drawing = control.CreateGraphics();
+        drawing.Clear(color);
     }
 
     private bool TryRenderPaintPicture(Control target, VBPaintPicture picture)

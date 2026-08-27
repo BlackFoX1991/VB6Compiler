@@ -157,4 +157,48 @@ public sealed class VBDesignerParserTests
             File.Delete(filePath);
         }
     }
+
+    [TestMethod]
+    [DataRow("VB6FRM0001", "BeginProperty Font\nEnd")]
+    [DataRow("VB6FRM0002", "Begin VB.Form Main\n   BeginProperty \n   End\nEnd")]
+    [DataRow("VB6FRM0003", "Begin VB.Form Main\nEnd\nEndProperty")]
+    [DataRow("VB6FRM0004", "Begin Invalid\nEnd")]
+    [DataRow("VB6FRM0005", "Begin VB.Form Main\nEnd\nBegin VB.Form Other\nEnd")]
+    [DataRow("VB6FRM0007", "Begin Invalid\nEnd")]
+    [DataRow("VB6FRM0008", "Begin VB.Form Main\n   BeginProperty Font")]
+    [DataRow("VB6FRM0009", "Begin VB.Form Main")]
+    [DataRow("VB6FRM0010", "VERSION 5.00\nBegin Invalid")]
+    public void Parse_ReportsEachMalformedDesignerEnvelope(string code, string body)
+    {
+        var result = VBDesignerParser.Parse(body, Path.Combine(Path.GetTempPath(), "Broken.frm"));
+
+        Assert.IsTrue(
+            result.Diagnostics.Any(diagnostic => diagnostic.Code == code),
+            $"Expected {code}, got: {string.Join(", ", result.Diagnostics.Select(diagnostic => diagnostic.Code))}");
+    }
+
+    [TestMethod]
+    public void Parse_ReportsTruncatedFrxPayload()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6Designer", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var formPath = Path.Combine(directory, "Main.frm");
+        var resourcePath = Path.Combine(directory, "Main.frx");
+        var truncated = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(truncated, 4);
+        File.WriteAllBytes(resourcePath, truncated);
+
+        try
+        {
+            var result = VBDesignerParser.Parse(
+                "VERSION 5.00\nBegin VB.Form Main\n   Picture = $\"Main.frx\":00000000\nEnd",
+                formPath);
+
+            Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6FRX0001"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }

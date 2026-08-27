@@ -1,5 +1,8 @@
 namespace VB6.Compiler.Tests;
 
+using VB6.IR;
+using VB6.Runtime;
+
 [TestClass]
 public sealed class CompilationTests
 {
@@ -25,6 +28,52 @@ public sealed class CompilationTests
         Assert.AreEqual(0, analysis.Diagnostics.Length);
         Assert.IsNotNull(analysis.SemanticModel);
         Assert.AreEqual(1, analysis.SemanticModel!.Procedures.Length);
+    }
+
+    [TestMethod]
+    public void Lower_CarriesExplicitCompatibilityProfileIntoIr()
+    {
+        var compilation = VBCompilation.Create(
+            "Sub Main()\n    Debug.Print 1\nEnd Sub\n",
+            "Module1.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        var lowering = compilation.Lower();
+
+        Assert.IsTrue(lowering.Success, string.Join(Environment.NewLine, lowering.Diagnostics));
+        Assert.AreEqual(VBCompatibilityProfile.VB6Sp6, compilation.CompilationOptions.CompatibilityProfile);
+        Assert.AreEqual(VBCompatibilityProfile.VB6Sp6, lowering.Program!.CompatibilityProfile);
+        StringAssert.StartsWith(IrDumper.Dump(lowering.Program), "profile VB6Sp6");
+    }
+
+    [TestMethod]
+    public void Analyze_RejectsVB6Sp6ProfileForExplicitX64Target()
+    {
+        var compilation = VBCompilation.Create(
+            "Sub Main()\nEnd Sub\n",
+            "Module1.bas",
+            new VBCompilationOptions(TargetIs64Bit: true)
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        var analysis = compilation.Analyze();
+
+        Assert.IsFalse(analysis.Success);
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6C0001"));
+        Assert.IsFalse(compilation.CompilationOptions.TargetIs64Bit);
+    }
+
+    [TestMethod]
+    public void Lower_DefaultsToDeterministicCompatibilityProfile()
+    {
+        var lowering = VBCompilation.Create("Sub Main()\nEnd Sub\n", "Module1.bas").Lower();
+
+        Assert.IsTrue(lowering.Success, string.Join(Environment.NewLine, lowering.Diagnostics));
+        Assert.AreEqual(VBCompatibilityProfile.Deterministic, lowering.Program!.CompatibilityProfile);
     }
 
     [TestMethod]

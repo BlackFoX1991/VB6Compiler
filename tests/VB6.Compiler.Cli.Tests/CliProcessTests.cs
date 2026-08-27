@@ -251,6 +251,44 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
+    public void WriteInputManifest_ContainsOnlyDeclaredProjectDependencies()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Manifest.vbp");
+            File.WriteAllText(
+                projectPath,
+                "Type=Exe\nName=Manifest\nModule=Main; Main.bas\nForm=Main.frm\n");
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), "Sub Main()\nEnd Sub\n");
+            File.WriteAllText(
+                Path.Combine(directory, "Main.frm"),
+                "VERSION 5.00\nBegin VB.Form Main\nEnd\n");
+            File.WriteAllBytes(Path.Combine(directory, "Main.frx"), new byte[] { 1, 2, 3 });
+            var unrelatedDirectory = Path.Combine(directory, "unrelated");
+            Directory.CreateDirectory(unrelatedDirectory);
+            File.WriteAllText(Path.Combine(unrelatedDirectory, "Ignored.bas"), "Sub Ignored()\nEnd Sub\n");
+            var manifestPath = Path.Combine(directory, "obj", "Manifest.inputs");
+
+            var result = RunCli(projectPath, "--write-input-manifest", manifestPath);
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            var lines = File.ReadAllLines(manifestPath);
+            StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(directory, "Main.bas"));
+            StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(directory, "Main.frm"));
+            StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(directory, "Main.frx"));
+            Assert.IsFalse(lines.Any(line => line.Contains("Ignored.bas", StringComparison.OrdinalIgnoreCase)));
+            Assert.IsTrue(lines.All(line => line.Contains('\t')));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void MsBuildSdk_CompilesAndTracksVbgProjectGroupsIncrementally()
     {
         var directory = CreateTemporaryDirectory();
@@ -283,6 +321,7 @@ public sealed class CliProcessTests
 
             var repositoryRoot = FindRepositoryRoot();
             var packageDirectory = Path.Combine(directory, "packages");
+            var packageCache = Path.Combine(directory, "nuget");
             var packResult = RunDotNet(
                 "pack",
                 Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
@@ -291,7 +330,7 @@ public sealed class CliProcessTests
                 "--no-build",
                 "--no-restore",
                 "--nologo",
-                "-p:PackageVersion=1.0.0-vbg-binary-input-test",
+                "-p:PackageVersion=1.0.0-vbg-binary-input-platform-test",
                 "-p:PackageOutputPath=" + packageDirectory);
             Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
             File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
@@ -308,7 +347,7 @@ public sealed class CliProcessTests
             var outputDirectory = Path.Combine(directory, "bin", "Release", "legacy");
             var compilerPath = Path.Combine(AppContext.BaseDirectory, "vb6c.exe");
             File.WriteAllText(projectPath, $"""
-                <Project Sdk="VB6.Compiler.Sdk/1.0.0-vbg-binary-input-test" DefaultTargets="Build">
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-vbg-binary-input-platform-test" DefaultTargets="Build">
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <Configuration>Release</Configuration>
@@ -316,15 +355,17 @@ public sealed class CliProcessTests
                     <VB6ProjectGroup>{groupPath}</VB6ProjectGroup>
                     <VB6CompilerPath>{compilerPath}</VB6CompilerPath>
                     <VB6CompilerGroupOutputDirectory>{outputDirectory}</VB6CompilerGroupOutputDirectory>
+                    <VB6TargetPlatform>x64</VB6TargetPlatform>
                   </PropertyGroup>
                 </Project>
                 """);
 
-            var firstBuild = RunMsBuild(projectPath, restore: true);
+            var firstBuild = RunMsBuild(projectPath, restore: true, nugetPackages: packageCache);
             Assert.AreEqual(0, firstBuild.ExitCode, firstBuild.StandardError + firstBuild.StandardOutput);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "First.exe")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
+            AssertPeTarget(Path.Combine(outputDirectory, "First.dll"), Machine.Amd64, requires32Bit: false);
 
             var stampPath = Directory
                 .GetFiles(directory, "VB6GroupCompile.stamp", SearchOption.AllDirectories)
@@ -332,19 +373,22 @@ public sealed class CliProcessTests
             var firstStamp = File.GetLastWriteTimeUtc(stampPath);
             Thread.Sleep(1100);
 
-            var secondBuild = RunMsBuild(projectPath);
+            var secondBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, secondBuild.ExitCode, secondBuild.StandardError + secondBuild.StandardOutput);
             Assert.AreEqual(firstStamp, File.GetLastWriteTimeUtc(stampPath));
 
             Thread.Sleep(1100);
             File.AppendAllText(localControlPath, "\nchanged");
-            var controlReferenceBuild = RunMsBuild(projectPath);
+            var controlReferenceBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, controlReferenceBuild.ExitCode, controlReferenceBuild.StandardError + controlReferenceBuild.StandardOutput);
-            Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
+            Assert.AreEqual(
+                firstStamp,
+                File.GetLastWriteTimeUtc(stampPath),
+                "Undeclared files in the project directory must not invalidate an exact input manifest.");
 
             Thread.Sleep(1100);
             File.Delete(Path.Combine(outputDirectory, "Second.exe"));
-            var recoveryBuild = RunMsBuild(projectPath);
+            var recoveryBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, recoveryBuild.ExitCode, recoveryBuild.StandardError + recoveryBuild.StandardOutput);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
@@ -354,7 +398,7 @@ public sealed class CliProcessTests
             File.WriteAllText(
                 Path.Combine(directory, "First.bas"),
                 "Sub Main()\n    Debug.Print 2\nEnd Sub\n");
-            var thirdBuild = RunMsBuild(projectPath);
+            var thirdBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, thirdBuild.ExitCode, thirdBuild.StandardError + thirdBuild.StandardOutput);
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > recoveryStamp);
 
@@ -369,7 +413,7 @@ public sealed class CliProcessTests
                 "Public Function Value() As Long\n" +
                 "    Value = 2\n" +
                 "End Function\n");
-            var designerBuild = RunMsBuild(projectPath);
+            var designerBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, designerBuild.ExitCode, designerBuild.StandardError + designerBuild.StandardOutput);
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > thirdStamp);
 
@@ -378,7 +422,7 @@ public sealed class CliProcessTests
             File.AppendAllText(
                 Path.Combine(directory, "First.vbp"),
                 "ExeName32=renamed\\FirstRenamed.exe\n");
-            var renameBuild = RunMsBuild(projectPath);
+            var renameBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, renameBuild.ExitCode, renameBuild.StandardError + renameBuild.StandardOutput);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
             Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "First.exe")));
@@ -388,7 +432,7 @@ public sealed class CliProcessTests
             File.WriteAllText(
                 groupPath,
                 "Type=Group\nProject=First.vbp\n");
-            var removalBuild = RunMsBuild(projectPath);
+            var removalBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, removalBuild.ExitCode, removalBuild.StandardError + removalBuild.StandardOutput);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
             Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
@@ -454,15 +498,16 @@ public sealed class CliProcessTests
     }
 
     [TestMethod]
-    public void MsBuildSdk_TracksSingleVbpIncrementallyAndRepairsMissingOutput()
+    public void MsBuildSdk_DefaultsToX86AndSupportsExplicitX64AndAnyCpu()
     {
         var directory = CreateTemporaryDirectory();
 
         try
         {
             Directory.CreateDirectory(directory);
-            WriteExecutableProject(directory, "SingleSdk");
+            WriteExecutableProject(directory, "PlatformSdk");
             var packageDirectory = Path.Combine(directory, "packages");
+            var packageCache = Path.Combine(directory, "nuget");
             var repositoryRoot = FindRepositoryRoot();
             var packResult = RunDotNet(
                 "pack",
@@ -472,7 +517,100 @@ public sealed class CliProcessTests
                 "--no-build",
                 "--no-restore",
                 "--nologo",
-                "-p:PackageVersion=1.0.0-single-output-reconciliation-test2",
+                "-p:PackageVersion=1.0.0-platform-target-test",
+                "-p:PackageOutputPath=" + packageDirectory);
+            Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
+            File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{packageDirectory}" />
+                  </packageSources>
+                </configuration>
+                """);
+
+            var projectPath = Path.Combine(directory, "PlatformSdk.csproj");
+            var outputPath = Path.Combine(directory, "bin", "Release", "legacy", "PlatformSdk.dll");
+            WriteSdkProject(projectPath, directory, outputPath, null, "1.0.0-platform-target-test");
+
+            var defaultBuild = RunMsBuild(projectPath, restore: true, nugetPackages: packageCache);
+            Assert.AreEqual(0, defaultBuild.ExitCode, defaultBuild.StandardError + defaultBuild.StandardOutput);
+            AssertPeTarget(outputPath, Machine.I386, requires32Bit: true);
+
+            Thread.Sleep(1100);
+            WriteSdkProject(projectPath, directory, outputPath, "x64", "1.0.0-platform-target-test");
+            var x64Build = RunMsBuild(projectPath, nugetPackages: packageCache);
+            Assert.AreEqual(0, x64Build.ExitCode, x64Build.StandardError + x64Build.StandardOutput);
+            AssertPeTarget(outputPath, Machine.Amd64, requires32Bit: false);
+
+            Thread.Sleep(1100);
+            WriteSdkProject(projectPath, directory, outputPath, "AnyCPU", "1.0.0-platform-target-test");
+            var anyCpuBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
+            Assert.AreEqual(0, anyCpuBuild.ExitCode, anyCpuBuild.StandardError + anyCpuBuild.StandardOutput);
+            AssertPeTarget(outputPath, Machine.I386, requires32Bit: false);
+
+            Thread.Sleep(1100);
+            WriteSdkProject(
+                projectPath,
+                directory,
+                outputPath,
+                "x86",
+                "1.0.0-platform-target-test",
+                "vb6-sp6");
+            var strictBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
+            Assert.AreEqual(0, strictBuild.ExitCode, strictBuild.StandardError + strictBuild.StandardOutput);
+            AssertPeTarget(outputPath, Machine.I386, requires32Bit: true);
+
+            Thread.Sleep(1100);
+            WriteSdkProject(
+                projectPath,
+                directory,
+                outputPath,
+                "x64",
+                "1.0.0-platform-target-test",
+                "vb6-sp6");
+            var strictInvalidBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
+            Assert.AreNotEqual(0, strictInvalidBuild.ExitCode, strictInvalidBuild.StandardOutput);
+            StringAssert.Contains(
+                strictInvalidBuild.StandardError + strictInvalidBuild.StandardOutput,
+                "VB6CompatibilityProfile vb6-sp6 supports x86 targets only");
+
+            Thread.Sleep(1100);
+            WriteSdkProject(projectPath, directory, outputPath, "arm64", "1.0.0-platform-target-test");
+            var invalidBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
+            Assert.AreNotEqual(0, invalidBuild.ExitCode, invalidBuild.StandardOutput);
+            StringAssert.Contains(
+                invalidBuild.StandardError + invalidBuild.StandardOutput,
+                "VB6TargetPlatform must be x86, x64 or anycpu");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void MsBuildSdk_TracksSingleVbpIncrementallyAndRepairsMissingOutput()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            WriteExecutableProject(directory, "SingleSdk");
+            var packageDirectory = Path.Combine(directory, "packages");
+            var packageCache = Path.Combine(directory, "nuget");
+            var repositoryRoot = FindRepositoryRoot();
+            var packResult = RunDotNet(
+                "pack",
+                Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
+                "-c",
+                "Release",
+                "--no-build",
+                "--no-restore",
+                "--nologo",
+                "-p:PackageVersion=1.0.0-single-output-reconciliation-test3",
                 "-p:PackageOutputPath=" + packageDirectory);
             Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
             File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
@@ -488,7 +626,7 @@ public sealed class CliProcessTests
             var projectPath = Path.Combine(directory, "SingleSdk.csproj");
             var outputPath = Path.Combine(directory, "bin", "Release", "legacy", "SingleSdk.dll");
             File.WriteAllText(projectPath, $"""
-                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-output-reconciliation-test2" DefaultTargets="Build">
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-output-reconciliation-test3" DefaultTargets="Build">
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <Configuration>Release</Configuration>
@@ -500,20 +638,25 @@ public sealed class CliProcessTests
                 </Project>
                 """);
 
-            var firstBuild = RunMsBuild(projectPath, restore: true);
+            var designTimeBuild = RunMsBuild(projectPath, restore: true, nugetPackages: packageCache, properties: ["DesignTimeBuild=true"]);
+            Assert.AreEqual(0, designTimeBuild.ExitCode, designTimeBuild.StandardError + designTimeBuild.StandardOutput);
+            Assert.IsFalse(File.Exists(outputPath));
+            Assert.IsTrue(Directory.GetFiles(directory, "VB6Compile.stamp.inputs", SearchOption.AllDirectories).Length == 1);
+
+            var firstBuild = RunMsBuild(projectPath, restore: true, nugetPackages: packageCache);
             Assert.AreEqual(0, firstBuild.ExitCode, firstBuild.StandardError + firstBuild.StandardOutput);
             Assert.IsTrue(File.Exists(outputPath));
             var stampPath = Directory.GetFiles(directory, "VB6Compile.stamp", SearchOption.AllDirectories).Single();
             var firstStamp = File.GetLastWriteTimeUtc(stampPath);
 
             Thread.Sleep(1100);
-            var secondBuild = RunMsBuild(projectPath);
+            var secondBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, secondBuild.ExitCode, secondBuild.StandardError + secondBuild.StandardOutput);
             Assert.AreEqual(firstStamp, File.GetLastWriteTimeUtc(stampPath));
 
             Thread.Sleep(1100);
             File.Delete(outputPath);
-            var recoveryBuild = RunMsBuild(projectPath);
+            var recoveryBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, recoveryBuild.ExitCode, recoveryBuild.StandardError + recoveryBuild.StandardOutput);
             Assert.IsTrue(File.Exists(outputPath));
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > firstStamp);
@@ -522,7 +665,7 @@ public sealed class CliProcessTests
             var renamedOutputPath = Path.Combine(directory, "bin", "Release", "legacy", "SingleSdkRenamed.dll");
             Thread.Sleep(1100);
             File.WriteAllText(projectPath, $"""
-                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-output-reconciliation-test2" DefaultTargets="Build">
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-single-output-reconciliation-test3" DefaultTargets="Build">
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <Configuration>Release</Configuration>
@@ -533,7 +676,7 @@ public sealed class CliProcessTests
                   </PropertyGroup>
                 </Project>
                 """);
-            var renameBuild = RunMsBuild(projectPath);
+            var renameBuild = RunMsBuild(projectPath, nugetPackages: packageCache);
             Assert.AreEqual(0, renameBuild.ExitCode, renameBuild.StandardError + renameBuild.StandardOutput);
             Assert.IsFalse(File.Exists(outputPath));
             Assert.IsTrue(File.Exists(renamedOutputPath));
@@ -1187,6 +1330,115 @@ public sealed class CliProcessTests
         }
     }
 
+    [TestMethod]
+    public void EmitAssembly_AppliesVB6Sp6CompatibilityProfileAndDefaultsToX86()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Profile.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\n    Debug.Print 1\nEnd Sub\n");
+            var outputPath = Path.Combine(directory, "bin", "Profile.dll");
+
+            var result = RunCli(
+                sourcePath,
+                "--emit-assembly",
+                outputPath,
+                "--compatibility",
+                "vb6-sp6");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            using var stream = File.OpenRead(outputPath);
+            using var peReader = new PEReader(stream);
+            Assert.AreEqual(Machine.I386, peReader.PEHeaders.CoffHeader.Machine);
+            Assert.IsTrue(peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitAssembly_RejectsVB6Sp6CompatibilityProfileForX64()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Profile.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\nEnd Sub\n");
+            var outputPath = Path.Combine(directory, "bin", "Profile.dll");
+
+            var result = RunCli(
+                sourcePath,
+                "--emit-assembly",
+                outputPath,
+                "--x64",
+                "--compatibility",
+                "vb6-sp6");
+
+            Assert.AreNotEqual(0, result.ExitCode);
+            StringAssert.Contains(result.StandardError, "supports x86 targets only");
+            Assert.IsFalse(File.Exists(outputPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void DumpIr_AnnotatesSelectedCompatibilityProfile()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Profile.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\nEnd Sub\n");
+
+            var result = RunCli(
+                sourcePath,
+                "--dump-ir",
+                "--compatibility",
+                "vb6-sp6");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            StringAssert.StartsWith(result.StandardOutput, "profile VB6Sp6");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_AcceptsCompatibilityProfileOption()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Profile.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\nEnd Sub\n");
+
+            var result = RunCli(sourcePath, "--compatibility", "vb6-sp6");
+
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            StringAssert.Contains(result.StandardOutput, "Analyzed");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static CliResult RunCli(string inputPath, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("dotnet")
@@ -1212,7 +1464,11 @@ public sealed class CliProcessTests
         return new CliResult(process.ExitCode, standardOutput, standardError);
     }
 
-    private static CliResult RunMsBuild(string projectPath, bool restore = false)
+    private static CliResult RunMsBuild(
+        string projectPath,
+        bool restore = false,
+        string? nugetPackages = null,
+        params string[] properties)
     {
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -1228,9 +1484,17 @@ public sealed class CliProcessTests
         startInfo.ArgumentList.Add("/p:Configuration=Release");
         startInfo.ArgumentList.Add("/v:minimal");
         startInfo.ArgumentList.Add("/nologo");
+        if (!string.IsNullOrWhiteSpace(nugetPackages))
+        {
+            startInfo.Environment["NUGET_PACKAGES"] = nugetPackages;
+        }
         if (restore)
         {
             startInfo.ArgumentList.Add("/restore");
+        }
+        foreach (var property in properties)
+        {
+            startInfo.ArgumentList.Add("/p:" + property);
         }
 
         using var process = Process.Start(startInfo)
@@ -1314,6 +1578,44 @@ public sealed class CliProcessTests
         File.WriteAllText(
             Path.Combine(directory, name + ".bas"),
             "Sub Main()\n    Debug.Print 1\nEnd Sub\n");
+    }
+
+    private static void WriteSdkProject(
+        string projectPath,
+        string directory,
+        string outputPath,
+        string? targetPlatform,
+        string packageVersion,
+        string? compatibilityProfile = null)
+    {
+        var platformProperty = targetPlatform is null
+            ? string.Empty
+            : $"\n    <VB6TargetPlatform>{targetPlatform}</VB6TargetPlatform>";
+        var compatibilityProperty = compatibilityProfile is null
+            ? string.Empty
+            : $"\n    <VB6CompatibilityProfile>{compatibilityProfile}</VB6CompatibilityProfile>";
+        File.WriteAllText(projectPath, $"""
+            <Project Sdk="VB6.Compiler.Sdk/{packageVersion}" DefaultTargets="Build">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <Configuration>Release</Configuration>
+                <OutputPath>bin\Release\</OutputPath>
+                <VB6Project>{Path.Combine(directory, "PlatformSdk.vbp")}</VB6Project>
+                <VB6CompilerPath>{Path.Combine(AppContext.BaseDirectory, "vb6c.exe")}</VB6CompilerPath>
+                <VB6CompilerOutput>{outputPath}</VB6CompilerOutput>{platformProperty}{compatibilityProperty}
+              </PropertyGroup>
+            </Project>
+            """);
+    }
+
+    private static void AssertPeTarget(string path, Machine machine, bool requires32Bit)
+    {
+        using var stream = File.OpenRead(path);
+        using var peReader = new PEReader(stream);
+        Assert.AreEqual(machine, peReader.PEHeaders.CoffHeader.Machine);
+        Assert.AreEqual(
+            requires32Bit,
+            peReader.PEHeaders.CorHeader!.Flags.HasFlag(CorFlags.Requires32Bit));
     }
 
     private static string CreateTemporaryDirectory() =>

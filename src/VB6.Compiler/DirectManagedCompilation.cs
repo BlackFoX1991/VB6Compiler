@@ -16,6 +16,15 @@ namespace VB6.Compiler;
 /// </summary>
 public static class DirectManagedCompilation
 {
+    // Test-only seam: allows the compiler tests to exercise the diagnostic path around PDB
+    // emission without manufacturing an invalid PE image or depending on platform behaviour.
+    internal static Func<
+        IrProgram,
+        byte[],
+        ManagedEmitOptions,
+        IReadOnlyDictionary<IrProcedure, ImmutableArray<ManagedSequencePoint>>?,
+        byte[]>? PortablePdbEmitterOverride { get; set; }
+
     public static LoweringResult Lower(VBCompilation compilation)
     {
         ArgumentNullException.ThrowIfNull(compilation);
@@ -32,7 +41,9 @@ public static class DirectManagedCompilation
         var program = IrLowerer.Lower(new[]
         {
             new IrModuleInput(moduleName, sourcePath, analysis.SemanticModel)
-        }, analysis.SemanticModel.StaticVariables);
+        },
+        analysis.SemanticModel.StaticVariables,
+        compilation.CompilationOptions.CompatibilityProfile);
         return new LoweringResult(analysis, program);
     }
 
@@ -56,7 +67,8 @@ public static class DirectManagedCompilation
             .ToImmutableArray();
         var program = IrLowerer.Lower(
             modules,
-            analysis.SemanticModel.ModuleVariables.Concat(analysis.SemanticModel.StaticVariables));
+            analysis.SemanticModel.ModuleVariables.Concat(analysis.SemanticModel.StaticVariables),
+            compilation.CompilationOptions.CompatibilityProfile);
         if (VBProjectCompilation.TryGetStartupForm(analysis, out var startupForm))
         {
             program = AddStartupFormEntryPoint(program, startupForm!);
@@ -403,7 +415,8 @@ public static class DirectManagedCompilation
 
         try
         {
-            var pdbImage = PortablePdbEmitter.Emit(program, backend.PeImage, options, backend.SequencePoints);
+            var pdbEmitter = PortablePdbEmitterOverride ?? PortablePdbEmitter.Emit;
+            var pdbImage = pdbEmitter(program, backend.PeImage, options, backend.SequencePoints);
             return backend with { PdbImage = pdbImage };
         }
         catch (Exception exception)

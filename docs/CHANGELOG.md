@@ -2627,3 +2627,123 @@ AxHost-Artefakt der Fokuswanderung zwischen Wrapper und innerem Fenster ist.
 x86 mit `VB6_REQUIRE_NATIVE_OCX=1`: **47 von 47** gruen. Die gemessene x64-Vollsuite umfasst
 **1122 Testfaelle**, davon **1122 bestanden** und **0 fehlgeschlagen**; die Korpusparitaet bleibt
 bei 0 Fehlern und 40 von 40.
+
+## Roadmap-Stabilisierung: serieller Prüfpfad und Plattformvertrag
+
+`build.ps1` bündelt Restore, seriellen Release-Build, die 13 Testprojekte und den VISIA-Report;
+die CI verwendet denselben Pfad. Das MSBuild-SDK unterstützt `VB6TargetPlatform` mit x86 als
+Legacy-Default sowie validiertem x64-/AnyCpu-Opt-in für Einzelprojekte und Gruppen. Diagnosecodes
+sind durch explizite Tests beziehungsweise dokumentierte Guards abgedeckt; IR-/Emittertests
+sichern `Debug.Assert`, Control-Array-Lebenszyklus, PE-Architekturen und SAFEARRAY-Metadaten.
+Der kanonische Lauf vom 27.08.2026 meldet 1172 von 1172 Tests grün und 40/40 VISIA-Items ohne
+Fehler.
+
+## Kompatibilitätsprofil-Vertrag
+
+`VBCompatibilityProfile` ist als additive Runtime-/Compiler-API mit `Deterministic` als Default
+und `VB6Sp6` als dokumentationsbasiertem x86-Profil umgesetzt. CLI und MSBuild-SDK akzeptieren
+`--compatibility` beziehungsweise `VB6CompatibilityProfile`; IR und generierte Assemblies tragen
+die Auswahl. Explizites x64/AnyCpu wird für `vb6-sp6` abgelehnt. Die neuen Compiler-, Emitter- und
+CLI-Regressionen erhöhen die kanonische Suite auf **1172 von 1172** bestandene Tests; VISIA bleibt
+bei 40/40. Da VB6 nicht installiert ist, bleibt `oracle-verified` bewusst offen.
+
+## VB6-SP6-Kompatibilitätsmatrix
+
+`docs/vb6-sp6-compatibility-matrix.json` inventarisiert die zentralen Sprach-, Runtime-,
+Projekt-, COM/ActiveX-, Forms- und Build-Verträge mit Quellen, Locale-/Bitness-/COM-Rahmen,
+Implementierungs- und Verifikationsstatus sowie portablen Erwartungsfällen. `build.ps1` validiert
+die Matrixstruktur vor dem Build. Die Feingranularität einzelner Intrinsics und Stock-Controls
+bleibt als offener Ausbau der Etappe A markiert.
+
+`IVB6Host` trägt nun außerdem ein additives `CompatibilityProfile` mit deterministischem Default.
+`WinFormsHost`, `WinFormsApplicationHost` und `GeneratedApplicationRunner` übernehmen das Profil
+instanzbezogen aus dem Konstruktor beziehungsweise aus den Assembly-Metadaten. COM-/ActiveX-
+Semantik und ABI-Pfade bleiben für die nächste Host-Etappe offen.
+
+`VBStrings.StrConv` besitzt jetzt eine additive Profilüberladung: Der bestehende Aufruf bleibt
+invariant und deterministisch, während `VB6Sp6` für die dokumentierte Locale-Schicht die aktive
+Systemkultur verwendet. Der Managed-Emitter reicht das Profil als verstecktes, typisiertes
+Argument aus dem IR weiter; Runtime- und End-to-End-Tests sichern beide Pfade.
+
+## Managed-Fehlerautomat: `Erl` und aktive Handler
+
+Der Managed-Emitter führt jetzt einen prozedurbezogenen Fehlerkontext. Numerische VB6-Zeilenlabels
+werden im IR als `Erl`-Position gestempelt; `Err.Clear` löscht weiterhin nur den Fehlerwert, während
+`Resume` den aktiven Handler beendet. Löst ein Handler selbst einen Fehler aus, wird dieser an den
+Aufrufer weitergereicht, statt denselben Handler rekursiv erneut anzuspringen. Die Regressionen
+decken `Erl`, `Resume` und den verschachtelten Handlerpfad ab; 417 Compiler- und 253 Runtime-Tests
+sind grün, der VISIA-Report bleibt bei 40/40 fehlerfreien Projekt-Items.
+
+## Forms-Zeichenvertrag: `Cls`
+
+`Cls` ist als Host-Intrinsic in Symboltabelle, IR und Managed-Emitter aufgenommen. Im headless
+Profil bleibt die Operation deterministisch über einen Sink beobachtbar; `WinFormsHost` leert
+wahlweise den aktiven Paint-Kontext, die persistente `AutoRedraw`-Fläche oder die sichtbare Fläche.
+Compiler-, Runtime- und WinForms-Tests sichern den Vertrag.
+
+## `VB6Sp6`-Locale-Schicht für ANSI-Strings
+
+`LenB`, `Asc` und `Chr` erhalten additive profilbewusste Überladungen. Das deterministische Profil
+behält die bisherigen UTF-16-/Windows-1252-Verträge; `VB6Sp6` löst die aktive Windows-ANSI-Codepage
+für Bytezählung und Bytezeichen auf. Der Managed-Emitter reicht das Profil als verstecktes Argument
+weiter, ohne bestehende Runtime-Signaturen zu verändern.
+
+## `VB6Sp6`-Locale-Schicht fuer Format
+
+`Format` besitzt nun eine additive profilbewusste Ueberladung. Der bestehende Vier-Argument-
+Aufruf bleibt invariant und deterministisch; `VB6Sp6` verwendet fuer numerische Masken die
+aktive Kultur und lokalisiert Monats-/Wochentagsnamen. Der Managed-Emitter reicht das Profil als
+verstecktes Argument weiter. Der de-DE-Regressionsfall ist in der Runtime-Suite dokumentiert;
+die Matrix fuehrt ihn als `profile.format-locale`.
+
+## Standardbibliothek: Kern-Finanzfunktionen
+
+`FV`, `PV`, `PMT`, `NPV`, `IRR`, `SLN`, `SYD` und `DDB` sind als Double-basierte
+Managed-Intrinsics aufgenommen. Nullzins, End-/Anfangsperioden (`Type`), ParamArray-Abzinsung,
+iterative Cashflow-Wurzel, AbschreibungsplÃ¤ne und ungueltige Argumente sind als Runtime-Vertraege
+abgedeckt; Compiler-End-to-End- und Runtime-Regressionen sichern die Formeln.
+
+## Headless-MSBuild: deklarationsbasierter Resolver
+
+Das SDK verwendet für Einzelprojekte und Projektgruppen jetzt einen CLI-Resolver, der aus `.vbp`
+und `.vbg` ein exaktes Input-Manifest mit SHA-256-Fingerprints erzeugt. Erfasst werden nur
+deklarierte Quell-/Designerdateien, `.frx`-Sidecars, `RESFILE`-Ressourcen sowie `Reference=`- und
+`Object=`-Dateien; nicht deklarierte Dateien in Unterordnern lösen keinen Rebuild mehr aus.
+`ResolveVB6Project`, `ResolveVB6ProjectGroup`, `GetVB6ProjectOutputs` und
+`GetVB6ProjectGroupOutputs` stehen als stabile Targets zur Verfügung. `DesignTimeBuild=true`
+validiert und löst das Manifest auf, überspringt aber die Assembly-Emission. Die gepackte
+ProjectSystem-Task und vollständige Clean/Rebuild-/TypeLib-Orchestrierung bleiben offen.
+
+## Standardbibliothek: vollständiger Financial-Slice
+
+`IPmt`, `PPmt`, `NPer`, `Rate` und `MIRR` ergänzen die bereits vorhandenen Finanzfunktionen.
+Zahlungsanteile, Nullzins, End-/Anfangsperioden, iterative Zinsrückrechnung und getrennte
+Finanzierungs-/Wiederanlageraten sind in Runtime, Symboltabelle, IR und Managed-Emitter
+verdrahtet. Direkte Runtime- und generierte Programmtests decken damit alle dokumentierten
+VB6-Finanzfunktionen ab; Meilenstein 7 führt diesen Teilvertrag nun als abgeschlossen.
+
+## Standardbibliothek: vollständiger `Format$`-Vertrag
+
+`Format`/`Format$` deckt jetzt die dokumentierten benannten Zahlen-, Boolean-, Datums- und
+Zeitformate, bis zu vier numerische Abschnitte einschließlich `Null`, alle String-Platzhalter mit
+Literalen/Escapes sowie die vollständige Datums-/Zeit-Tokenoberfläche ab. Dazu gehören insbesondere
+`c`, `ddddd`, `dddddd`, `ttttt`, `AMPM`, zweistellige Jahre und systemabhängige Datums-/
+Zeittrennzeichen. Das Profil `VB6Sp6` verwendet zusätzlich die aktive Währung und die regionalen
+Kurz-/Langmuster; der deterministische Vertrag bleibt invariant. Runtime- und Managed-E2E-Tests
+sichern die neuen Fälle, und Meilenstein 7 führt `Format$` nun als abgeschlossen.
+
+## Standardbibliothek: vollständiger Math-Slice
+
+Die Managed-Math-Oberfläche umfasst jetzt `Abs`, `Sgn`, `Fix`, `Int`, `Round`, `Sqr`, `Exp`,
+`Log`, `Sin`, `Cos`, `Tan`, `Atn`, `Rnd` und `Randomize`. `Int`, `Fix` und `Abs` erhalten die
+VB6-Variant-Untertypen einschließlich `Currency` und `Date`; insbesondere kürzt `Fix` negative
+Currency-Werte gegen null, während `Int` gegen minus unendlich abrundet. `Round` akzeptiert nun
+auch Currency über die zentrale Decimal-Konvertierung. Runtime-Regressionen sichern zusätzlich
+Banker's Rounding sowie Definitionsbereichs- und Überlauffehler; ein Managed-E2E-Test prüft die
+Untertypen im generierten Programm. Meilenstein 7 führt den Math-Slice damit als abgeschlossen.
+
+## Kanonischer Release-Nachweis (27.08.2026)
+
+Der serielle `build.ps1`-Lauf ist mit **1195/1195** Tests, 0 Warnungen/Fehlern im Release-Build
+und **40/40** fehlerfrei analysierten VISIA-Projekt-Items grün. LLVM-, LSP- und IDE-Flächen bleiben
+wie beschlossen außerhalb des Ausbauumfangs.

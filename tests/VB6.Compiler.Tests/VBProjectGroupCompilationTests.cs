@@ -154,6 +154,30 @@ public sealed class VBProjectGroupCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ReportsDuplicateProjectEntries()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "Duplicate.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=App.vbp\nProject=App.vbp\n");
+            WriteProject(directory, "App", "App.vbp", "App.bas", "1");
+
+            var analysis = VBProjectGroupCompilation.Create(groupPath).Analyze();
+
+            Assert.IsTrue(
+                analysis.Projects.SelectMany(project => project.Diagnostics)
+                    .Any(diagnostic => diagnostic.Code == "VB6VBG0005"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplications_UsesExeName32ForExecutableProjects()
     {
         var directory = CreateTemporaryDirectory();

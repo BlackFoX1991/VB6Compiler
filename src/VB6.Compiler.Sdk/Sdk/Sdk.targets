@@ -26,47 +26,25 @@
     <VB6CompilerStamp Condition="'$(VB6Project)' != '' and '$(BaseIntermediateOutputPath)' != ''">$([System.IO.Path]::Combine('$(BaseIntermediateOutputPath)', '$(Configuration)', 'VB6Compile.stamp'))</VB6CompilerStamp>
     <VB6CompilerStamp Condition="'$(VB6Project)' != '' and '$(VB6CompilerStamp)' == ''">$(MSBuildProjectDirectory)\obj\$(Configuration)\VB6Compile.stamp</VB6CompilerStamp>
     <VB6CompilerManifest Condition="'$(VB6Project)' != '' and '$(VB6CompilerStamp)' != ''">$(VB6CompilerStamp).outputs</VB6CompilerManifest>
+    <VB6CompilerInputManifest Condition="'$(VB6Project)' != '' and '$(VB6CompilerStamp)' != ''">$(VB6CompilerStamp).inputs</VB6CompilerInputManifest>
+    <VB6CompilerGroupInputManifest Condition="'$(VB6ProjectGroup)' != '' and '$(VB6CompilerGroupStamp)' != ''">$(VB6CompilerGroupStamp).inputs</VB6CompilerGroupInputManifest>
+    <VB6TargetPlatformNormalized>$([System.String]::Copy('$(VB6TargetPlatform)').ToLowerInvariant())</VB6TargetPlatformNormalized>
+    <VB6CompatibilityProfileNormalized>$([System.String]::Copy('$(VB6CompatibilityProfile)').ToLowerInvariant())</VB6CompatibilityProfileNormalized>
+    <VB6DesignTimeBuildNormalized>$([System.String]::Copy('$(DesignTimeBuild)').Trim().ToLowerInvariant())</VB6DesignTimeBuildNormalized>
+    <VB6CompilerPlatformArgument> --$(VB6TargetPlatformNormalized)</VB6CompilerPlatformArgument>
+    <VB6CompilerCompatibilityArgument> --compatibility $(VB6CompatibilityProfileNormalized)</VB6CompilerCompatibilityArgument>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(VB6ProjectFullPath)')">
     <None Include="$(VB6ProjectFullPath)" Visible="false" />
     <VB6CompilerInput Include="$(MSBuildProjectFullPath)" Condition="'$(MSBuildProjectFullPath)' != ''" />
     <VB6CompilerInput Include="$(VB6ProjectFullPath)" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.bas" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.cls" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ctl" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dob" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dsr" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frm" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.frx" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.pag" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.res" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.ocx" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.tlb" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.olb" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.dll" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
-    <VB6CompilerInput Include="$(VB6ProjectDirectory)\**\*.exe" Exclude="$(VB6CompilerOutputDirectory)\**\*" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('$(VB6ProjectGroupFullPath)')">
     <None Include="$(VB6ProjectGroupFullPath)" Visible="false" />
     <VB6CompilerGroupInput Include="$(MSBuildProjectFullPath)" Condition="'$(MSBuildProjectFullPath)' != ''" />
     <VB6CompilerGroupInput Include="$(VB6ProjectGroupFullPath)" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.vbp" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.bas" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.cls" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.ctl" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dob" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dsr" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frm" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.frx" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.pag" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.res" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.ocx" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.tlb" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.olb" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.dll" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
-    <VB6CompilerGroupInput Include="$(VB6ProjectGroupDirectory)\**\*.exe" Exclude="$(VB6CompilerGroupOutputDirectoryFullPath)\**\*" />
   </ItemGroup>
 
   <Target
@@ -76,11 +54,63 @@
       Condition="'$(VB6Project)' != '' and '$(VB6ProjectGroup)' != ''"
       Text="VB6.Compiler.Sdk requires exactly one of VB6Project or VB6ProjectGroup; both were specified." />
     <Error
+      Condition="'$(VB6TargetPlatformNormalized)' != 'x86' and '$(VB6TargetPlatformNormalized)' != 'x64' and '$(VB6TargetPlatformNormalized)' != 'anycpu'"
+      Text="VB6TargetPlatform must be x86, x64 or anycpu; received '$(VB6TargetPlatform)'." />
+    <Error
+      Condition="'$(VB6CompatibilityProfileNormalized)' != 'deterministic' and '$(VB6CompatibilityProfileNormalized)' != 'vb6-sp6'"
+      Text="VB6CompatibilityProfile must be deterministic or vb6-sp6; received '$(VB6CompatibilityProfile)'." />
+    <Error
+      Condition="'$(VB6CompatibilityProfileNormalized)' == 'vb6-sp6' and '$(VB6TargetPlatformNormalized)' != 'x86'"
+      Text="VB6CompatibilityProfile vb6-sp6 supports x86 targets only; received '$(VB6TargetPlatform)'." />
+    <Error
       Condition="'$(VB6ProjectGroup)' == '' and !Exists('$(VB6ProjectFullPath)')"
       Text="VB6 project file was not found: $(VB6ProjectFullPath). Set VB6Project to an existing .vbp file." />
     <Error
       Condition="'$(VB6ProjectGroup)' != '' and !Exists('$(VB6ProjectGroupFullPath)')"
       Text="VB6 project group was not found: $(VB6ProjectGroupFullPath). Set VB6ProjectGroup to an existing .vbg file." />
+  </Target>
+
+  <Target
+    Name="ResolveVB6Project"
+    BeforeTargets="CompileVB6Project;Build"
+    DependsOnTargets="ValidateVB6CompilerInput"
+    Condition="'$(VB6ProjectGroup)' == '' and '$(VB6Project)' != '' and Exists('$(VB6ProjectFullPath)')">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(VB6CompilerInputManifest)'))" />
+    <Exec
+      Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --write-input-manifest &quot;$(VB6CompilerInputManifest)&quot;" />
+  </Target>
+
+  <Target
+    Name="ResolveVB6ProjectGroup"
+    BeforeTargets="CompileVB6ProjectGroup;Build"
+    DependsOnTargets="ValidateVB6CompilerInput"
+    Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)')">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(VB6CompilerGroupInputManifest)'))" />
+    <Exec
+      Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --write-input-manifest &quot;$(VB6CompilerGroupInputManifest)&quot;" />
+  </Target>
+
+  <Target
+    Name="GetVB6ProjectOutputs"
+    DependsOnTargets="ValidateVB6CompilerInput"
+    Condition="'$(VB6ProjectGroup)' == '' and '$(VB6Project)' != '' and Exists('$(VB6ProjectFullPath)')">
+    <ItemGroup>
+      <VB6ProjectOutput Include="$(VB6CompilerOutputFullPath)" />
+      <VB6ProjectOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'))" />
+      <VB6ProjectOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'))" />
+      <VB6ProjectOutput Include="$(VB6CompilerRuntimeOutput)" Condition="'$(VB6CompilerRuntimeOutput)' != ''" />
+      <VB6ProjectOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
+      <VB6ProjectOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
+    </ItemGroup>
+  </Target>
+
+  <Target
+    Name="GetVB6ProjectGroupOutputs"
+    DependsOnTargets="ValidateVB6CompilerInput"
+    Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)') and Exists('$(VB6CompilerGroupManifest)')">
+    <ReadLinesFromFile File="$(VB6CompilerGroupManifest)">
+      <Output TaskParameter="Lines" ItemName="VB6ProjectOutput" />
+    </ReadLinesFromFile>
   </Target>
 
   <Target
@@ -116,8 +146,9 @@
   <Target
     Name="CompileVB6Project"
     BeforeTargets="Build"
-    Condition="'$(VB6ProjectGroup)' == '' and Exists('$(VB6ProjectFullPath)')"
-    Inputs="@(VB6CompilerInput)"
+    DependsOnTargets="ResolveVB6Project"
+    Condition="'$(VB6ProjectGroup)' == '' and Exists('$(VB6ProjectFullPath)') and '$(VB6DesignTimeBuildNormalized)' != 'true'"
+    Inputs="$(VB6CompilerInputManifest);$(MSBuildProjectFullPath)"
     Outputs="$(VB6CompilerStamp);$(VB6CompilerManifest)">
     <ReadLinesFromFile
       File="$(VB6CompilerManifest)"
@@ -130,7 +161,7 @@
     <MakeDir Directories="$(TargetDir)" />
     <MakeDir Directories="$(VB6CompilerOutputDirectory)" />
     <MakeDir Directories="$(IntermediateOutputPath)" />
-    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --emit-assembly &quot;$(VB6CompilerOutputFullPath)&quot;$(VB6CompilerPlatformArgument)$(VB6CompilerCompatibilityArgument)$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
     <ItemGroup>
       <_VB6CompilerGeneratedOutput Include="$(VB6CompilerOutputFullPath)" />
       <_VB6CompilerGeneratedOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'))" />
@@ -155,8 +186,9 @@
   <Target
     Name="CompileVB6ProjectGroup"
     BeforeTargets="Build"
-    Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)')"
-    Inputs="@(VB6CompilerGroupInput)"
+    DependsOnTargets="ResolveVB6ProjectGroup"
+    Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)') and '$(VB6DesignTimeBuildNormalized)' != 'true'"
+    Inputs="$(VB6CompilerGroupInputManifest);$(MSBuildProjectFullPath)"
     Outputs="$(VB6CompilerGroupStamp);$(VB6CompilerGroupManifest)">
     <ReadLinesFromFile
       File="$(VB6CompilerGroupManifest)"
@@ -169,7 +201,7 @@
     <MakeDir Directories="$(TargetDir)" Condition="'$(TargetDir)' != ''" />
     <MakeDir Directories="$(VB6CompilerGroupOutputDirectoryFullPath)" />
     <MakeDir Directories="$(IntermediateOutputPath)" />
-    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --emit-assembly &quot;$(VB6CompilerGroupOutputDirectoryArgument)&quot;$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
+    <Exec Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --emit-assembly &quot;$(VB6CompilerGroupOutputDirectoryArgument)&quot;$(VB6CompilerPlatformArgument)$(VB6CompilerCompatibilityArgument)$(VB6CompilerComHostArgument)$(VB6CompilerComManifestArgument)" />
     <ItemGroup>
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.dll" />
       <_VB6CompilerGroupGeneratedOutput Include="$(VB6CompilerGroupOutputDirectoryFullPath)\*.exe" />

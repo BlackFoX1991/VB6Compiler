@@ -38,4 +38,16 @@ public sealed class VBProjectGroupLoaderTests
             new[] { "VB6VBG0003", "VB6VBG0004" },
             result.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
     }
+
+    [TestMethod]
+    [DataRow("VB6VBG0001", "Type=Group\nnot an assignment\nProject=App.vbp")]
+    [DataRow("VB6VBG0002", "Type=Group\nProject=\n")]
+    public void Parse_ReportsMalformedProjectGroupEntries(string code, string source)
+    {
+        var result = new VBProjectGroupLoader().Parse(
+            source,
+            Path.Combine(Path.GetTempPath(), "Broken.vbg"));
+
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Code == code));
+    }
 }

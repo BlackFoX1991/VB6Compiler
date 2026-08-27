@@ -87,6 +87,33 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_DebugAssertElidesTheConditionExpression()
+    {
+        var analysis = VBCompilation.Create("""
+            Function Mark() As Boolean
+                Mark = True
+            End Function
+
+            Sub Main()
+                Debug.Assert Mark()
+            End Sub
+            """, "Module1.bas").Analyze();
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+
+        var program = IrLowerer.Lower(new[]
+        {
+            new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!)
+        });
+        var main = program.EntryPoint!;
+
+        Assert.IsFalse(main.Blocks.SelectMany(block => block.Instructions)
+            .OfType<IrEvaluateInstruction>()
+            .Select(instruction => instruction.Expression)
+            .OfType<IrProcedureCallExpression>()
+            .Any(call => call.Procedure.Name.Equals("Mark", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
     public void Lower_CrossUdtLSetUsesManagedDestinationAddressForScalarLayouts()
     {
         var program = Lower("""

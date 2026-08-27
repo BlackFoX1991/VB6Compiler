@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 using VB6.Parser;
 using VB6.ProjectSystem;
+using VB6.Runtime;
 using VB6.Semantics;
 using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
@@ -30,6 +31,10 @@ public sealed class VBProjectCompilation
         return new VBProjectCompilation(projectFilePath, options);
     }
 
+    /// <summary>Options that apply to this project and all referenced project compilations.</summary>
+    public VBCompilationOptions CompilationOptions =>
+        (_options ?? new VBCompilationOptions()).NormalizeForProfile();
+
     public VBProjectCompilationAnalysis Analyze()
     {
         var activeProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -55,6 +60,15 @@ public sealed class VBProjectCompilation
         var sourceDiagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var parsedModules = ImmutableArray.CreateBuilder<ParsedProjectModule>();
         var designerDocuments = new Dictionary<string, VBDesignerDocument>(StringComparer.OrdinalIgnoreCase);
+
+        if (_options?.CompatibilityProfile == VBCompatibilityProfile.VB6Sp6 &&
+            _options.TargetIs64Bit == true)
+        {
+            projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                "VB6C0001",
+                "The VB6Sp6 compatibility profile supports x86 targets only.",
+                _projectFilePath));
+        }
 
         foreach (var diagnostic in loadResult.Diagnostics)
         {
@@ -451,12 +465,7 @@ public sealed class VBProjectCompilation
     private VBCompilationOptions CreateProjectCompilationOptions(VBProject project)
     {
         var projectConstants = ParseProjectConditionalConstants(project.ConditionalCompilation);
-        if (_options is null)
-        {
-            return new VBCompilationOptions(DefinedConstants: projectConstants);
-        }
-
-        return _options with
+        return (_options ?? new VBCompilationOptions()).NormalizeForProfile() with
         {
             DefinedConstants = projectConstants
         };
@@ -870,6 +879,14 @@ public sealed class VBProjectCompilation
                 ? Path.GetFileNameWithoutExtension(module.FilePath)
                 : module.Item.Name!;
             if (!classTypes.TryGetValue(name, out var classType))
+            {
+                continue;
+            }
+
+            // A duplicate class name has already been diagnosed while declaring class types. The
+            // first module owns the shared symbol; do not attempt to define that symbol again for
+            // the duplicate module, which would otherwise throw instead of returning PRJ0008.
+            if (!string.Equals(classType.SourcePath, module.FilePath, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

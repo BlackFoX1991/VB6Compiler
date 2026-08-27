@@ -8,6 +8,7 @@ public static class IrDumper
     {
         ArgumentNullException.ThrowIfNull(program);
         var builder = new StringBuilder();
+        builder.Append("profile ").AppendLine(program.CompatibilityProfile.ToString());
 
         foreach (var module in program.Modules)
         {

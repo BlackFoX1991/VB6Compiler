@@ -249,7 +249,8 @@ public sealed class Lexer
 
         if (isFloating)
         {
-            if (double.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingValue))
+            if (double.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingValue) &&
+                !double.IsInfinity(floatingValue))
             {
                 object value;
                 if (floatingSuffix == '!')

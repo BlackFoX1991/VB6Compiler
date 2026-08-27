@@ -30,6 +30,7 @@ public static class VBDesignerParser
         {
             lineNumber++;
             var trimmed = line.Trim();
+            var leftTrimmed = line.TrimStart();
             if (trimmed.Length == 0 || trimmed.StartsWith("'", StringComparison.Ordinal))
             {
                 continue;
@@ -41,7 +42,9 @@ public static class VBDesignerParser
                 continue;
             }
 
-            if (trimmed.StartsWith("BeginProperty ", StringComparison.OrdinalIgnoreCase))
+            if (leftTrimmed.StartsWith("BeginProperty", StringComparison.OrdinalIgnoreCase) &&
+                (leftTrimmed.Length == "BeginProperty".Length ||
+                 char.IsWhiteSpace(leftTrimmed["BeginProperty".Length])))
             {
                 if (nodes.Count == 0)
                 {
@@ -53,7 +56,7 @@ public static class VBDesignerParser
                     continue;
                 }
 
-                var propertyName = trimmed["BeginProperty ".Length..].Trim();
+                var propertyName = leftTrimmed["BeginProperty".Length..].Trim();
                 var metadataSeparator = propertyName.IndexOf(' ');
                 if (metadataSeparator > 0)
                 {
@@ -99,6 +102,7 @@ public static class VBDesignerParser
 
             if (trimmed.StartsWith("Begin ", StringComparison.OrdinalIgnoreCase))
             {
+                sawDesignerBlock = true;
                 if (!TryParseBegin(trimmed["Begin ".Length..], out var typeName, out var name))
                 {
                     diagnostics.Add(new VBDesignerDiagnostic(
@@ -108,8 +112,6 @@ public static class VBDesignerParser
                         lineNumber));
                     continue;
                 }
-
-                sawDesignerBlock = true;
 
                 var builder = new NodeBuilder(typeName, name, lineNumber);
                 if (nodes.Count == 0)

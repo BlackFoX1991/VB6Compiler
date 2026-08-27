@@ -1,3 +1,7 @@
+using System.Globalization;
+using System.Text;
+using VB6.Runtime;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -19,6 +23,53 @@ public sealed class ScalarStringIntrinsicExecutionTests
             """);
 
         CollectionAssert.AreEqual(new[] { "2", "2", "4", "a-x-x", "ABC", "-2", "2" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PassesSelectedProfileToStrConv()
+    {
+        var compilation = VBCompilation.Create(
+            "Sub Main()\n    Debug.Print StrConv(\"aBc\", vbUpperCase)\nEnd Sub\n",
+            "Module1.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        var output = VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation));
+
+        CollectionAssert.AreEqual(new[] { "ABC" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PassesSelectedProfileToLenBAscAndChr()
+    {
+        var compilation = VBCompilation.Create(
+            "Sub Main()\n    Debug.Print LenB(\"ä\")\n    Debug.Print Asc(\"ä\")\n    Debug.Print Chr(65)\nEnd Sub\n",
+            "Module1.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var encoding = Encoding.GetEncoding(
+            0,
+            EncoderFallback.ExceptionFallback,
+            DecoderFallback.ExceptionFallback);
+        var expectedLength = encoding.GetByteCount("ä").ToString(CultureInfo.InvariantCulture);
+        var expectedAsc = encoding.GetBytes("ä") is { Length: 1 } bytes
+            ? bytes[0].ToString(CultureInfo.InvariantCulture)
+            : null;
+
+        var lines = VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation));
+        Assert.AreEqual(expectedLength, lines[0]);
+        if (expectedAsc is not null)
+        {
+            Assert.AreEqual(expectedAsc, lines[1]);
+        }
+
+        Assert.AreEqual("A", lines[2]);
     }
 
     [TestMethod]
@@ -77,14 +128,22 @@ public sealed class ScalarStringIntrinsicExecutionTests
                 Debug.Print Format$("AB", "!@@@")
                 Debug.Print Format$("AB", "&&&")
                 Debug.Print Format$("", "@@;empty")
+                Debug.Print Format$(True, "Yes/No")
+                Debug.Print Format$(0, "On/Off")
                 Debug.Print Format$(CDate(43832), "yyyy-mm-dd")
+                Debug.Print Format$(CDate(43832), "yy ddddd")
                 Debug.Print Format$(CDate(0.5), "hh:nn:ss")
+                Debug.Print Format$(CDate(0.5), "ttttt")
                 Debug.Print Format$(CDate(43835), "w ww q y", vbMonday, vbFirstFourDays)
             End Sub
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "5,459.40", "500.00%", "hello", "HELLO", "AB", "AB", "AB", "empty", "2020-01-02", "12:00:00", "7 1 1 5" },
+            new[]
+            {
+                "5,459.40", "500.00%", "hello", "HELLO", "AB", "AB", "AB", "empty",
+                "Yes", "Off", "2020-01-02", "20 2020-01-02", "12:00:00", "12:00:00", "7 1 1 5"
+            },
             VB6TestProgram.SplitLines(output),
             output);
     }

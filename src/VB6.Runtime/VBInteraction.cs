@@ -625,6 +625,19 @@ public static class VBInteraction
         }
     }
 
+    /// <summary>Clears the active VB6 drawing surface through the optional UI host.</summary>
+    public static void Cls()
+    {
+        if (Host is { } host)
+        {
+            host.GraphicsClear(null);
+        }
+        else
+        {
+            ClsSink?.Invoke();
+        }
+    }
+
     /// <summary>Optional host callback for unqualified control Print calls.</summary>
     public static Action<object?>? PrintSink { get; set; }
 
@@ -633,6 +646,9 @@ public static class VBInteraction
 
     /// <summary>Optional host callback for the supported PaintPicture argument set.</summary>
     public static Action<VBPaintPicture>? PaintPictureSink { get; set; }
+
+    /// <summary>Optional headless callback for an unqualified <c>Cls</c> operation.</summary>
+    public static Action? ClsSink { get; set; }
 
     /// <summary>Optional host-independent clipboard text source for headless execution.</summary>
     public static Func<string?>? ClipboardTextSink { get; set; }

@@ -826,6 +826,67 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Lower_ControlArrayLoadAndUnloadStoreTheRuntimeReplacement()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ControlArrayLowering.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Main"
+                Form=Main.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.frm"), """
+                VERSION 5.00
+                Begin VB.Form Main
+                   Begin VB.CommandButton Buttons
+                      Index = 0
+                   End
+                End
+                Attribute VB_Name = "Main"
+                Attribute VB_PredeclaredId = True
+
+                Private Sub Form_Load()
+                    Load Buttons(1)
+                    Unload Buttons(1)
+                End Sub
+                """);
+
+            var lowering = VBProjectCompilation.Create(projectPath).Lower();
+            Assert.IsTrue(lowering.Success, FormatDiagnostics(lowering.Analysis));
+            var formLoad = lowering.Program!.ClassDefinitions
+                .Single(type => type.Name.Equals("Main", StringComparison.OrdinalIgnoreCase))
+                .Methods
+                .Single(method => method.Name.Equals("__vb6_Form_Load", StringComparison.OrdinalIgnoreCase));
+            var stores = formLoad.Blocks
+                .SelectMany(block => block.Instructions)
+                .OfType<IrStoreInstruction>()
+                .Select(store => store.Value)
+                .OfType<IrRuntimeCallExpression>()
+                .Where(call => call.Method is
+                    IrRuntimeMethod.InteractionLoadControlArrayElement or
+                    IrRuntimeMethod.InteractionUnloadControlArrayElement)
+                .ToArray();
+
+            CollectionAssert.AreEquivalent(
+                new[]
+                {
+                    IrRuntimeMethod.InteractionLoadControlArrayElement,
+                    IrRuntimeMethod.InteractionUnloadControlArrayElement
+                },
+                stores.Select(call => call.Method).ToArray());
+            Assert.IsTrue(stores.All(call => call.Arguments[0].Expression is IrLoadExpression));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_EmitsFormStartupProject()
     {
         var directory = CreateTemporaryDirectory();

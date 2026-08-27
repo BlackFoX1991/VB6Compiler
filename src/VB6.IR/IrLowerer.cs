@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using VB6.Runtime;
 using VB6.Semantics;
 using VB6.Syntax;
 
@@ -10,7 +11,8 @@ public static class IrLowerer
 {
     public static IrProgram Lower(
         IEnumerable<IrModuleInput> modules,
-        IEnumerable<BoundModuleVariable>? additionalGlobals = null)
+        IEnumerable<BoundModuleVariable>? additionalGlobals = null,
+        VBCompatibilityProfile compatibilityProfile = VBCompatibilityProfile.Deterministic)
     {
         ArgumentNullException.ThrowIfNull(modules);
         var inputs = modules.ToImmutableArray();
@@ -19,10 +21,14 @@ public static class IrLowerer
             return new IrProgram(
                 ImmutableArray<IrModule>.Empty,
                 ImmutableArray<IrTypeDefinition>.Empty,
-                null);
+                null,
+                CompatibilityProfile: compatibilityProfile);
         }
 
-        var state = new ProgramLoweringState(inputs, additionalGlobals ?? Array.Empty<BoundModuleVariable>());
+        var state = new ProgramLoweringState(
+            inputs,
+            additionalGlobals ?? Array.Empty<BoundModuleVariable>(),
+            compatibilityProfile);
         return state.Lower();
     }
 
@@ -30,6 +36,7 @@ public static class IrLowerer
     {
         private readonly ImmutableArray<IrModuleInput> _inputs;
         private readonly ImmutableArray<BoundModuleVariable> _additionalGlobals;
+        private readonly VBCompatibilityProfile _compatibilityProfile;
         private readonly Dictionary<ModuleVariableSymbol, IrGlobal> _globals =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ModuleVariableSymbol, BoundExpression> _constantValues =
@@ -53,10 +60,12 @@ public static class IrLowerer
 
         public ProgramLoweringState(
             ImmutableArray<IrModuleInput> inputs,
-            IEnumerable<BoundModuleVariable> additionalGlobals)
+            IEnumerable<BoundModuleVariable> additionalGlobals,
+            VBCompatibilityProfile compatibilityProfile)
         {
             _inputs = inputs;
             _additionalGlobals = additionalGlobals.ToImmutableArray();
+            _compatibilityProfile = compatibilityProfile;
         }
 
         public IrProgram Lower()
@@ -206,7 +215,8 @@ public static class IrLowerer
                 modules.ToImmutable(),
                 _types.Values.ToImmutableArray(),
                 entryPoint,
-                classes.ToImmutable());
+                classes.ToImmutable(),
+                _compatibilityProfile);
         }
 
         public IrGlobal GetGlobal(ModuleVariableSymbol symbol) =>
@@ -2338,6 +2348,22 @@ public static class IrLowerer
             var labelBlock = _blocks[_labels[statement.Name]];
             GotoIfOpen(labelBlock.Id);
             _current = labelBlock;
+
+            // VB6's Erl is based on numeric line labels, not on the physical source line. Keep
+            // the value in the runtime immediately when control enters such a label; named labels
+            // remain ordinary branch targets and must not alter the error context.
+            if (int.TryParse(
+                    statement.Name,
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var lineNumber) &&
+                lineNumber > 0)
+            {
+                Emit(new IrEvaluateInstruction(Runtime(
+                    IrRuntimeMethod.ErrorSetLineNumber,
+                    TypeSymbol.Error,
+                    new IrConstantExpression(lineNumber, TypeSymbol.Long))));
+            }
         }
 
         private IrExpression LowerExpression(BoundExpression expression)
@@ -3854,6 +3880,19 @@ public static class IrLowerer
             "VBMath.Cos" => IrRuntimeMethod.MathCos,
             "VBMath.Tan" => IrRuntimeMethod.MathTan,
             "VBMath.Atn" => IrRuntimeMethod.MathAtn,
+            "VBFinancial.FV" => IrRuntimeMethod.FinancialFv,
+            "VBFinancial.PV" => IrRuntimeMethod.FinancialPv,
+            "VBFinancial.PMT" => IrRuntimeMethod.FinancialPmt,
+            "VBFinancial.IPMT" => IrRuntimeMethod.FinancialIpmt,
+            "VBFinancial.PPMT" => IrRuntimeMethod.FinancialPpmt,
+            "VBFinancial.NPER" => IrRuntimeMethod.FinancialNper,
+            "VBFinancial.RATE" => IrRuntimeMethod.FinancialRate,
+            "VBFinancial.NPV" => IrRuntimeMethod.FinancialNpv,
+            "VBFinancial.IRR" => IrRuntimeMethod.FinancialIrr,
+            "VBFinancial.MIRR" => IrRuntimeMethod.FinancialMirr,
+            "VBFinancial.SLN" => IrRuntimeMethod.FinancialSln,
+            "VBFinancial.SYD" => IrRuntimeMethod.FinancialSyd,
+            "VBFinancial.DDB" => IrRuntimeMethod.FinancialDdb,
             "VBMath.Rnd" => IrRuntimeMethod.MathRnd,
             "VBMath.Randomize" => IrRuntimeMethod.MathRandomize,
             "VBVariants.EmptyValue" => IrRuntimeMethod.VariantEmpty,
@@ -3908,6 +3947,7 @@ public static class IrLowerer
             "VBInteraction.TextHeight" => IrRuntimeMethod.InteractionTextHeight,
             "VBInteraction.Print" => IrRuntimeMethod.InteractionPrint,
             "VBInteraction.PaintPicture" => IrRuntimeMethod.InteractionPaintPicture,
+            "VBInteraction.Cls" => IrRuntimeMethod.InteractionCls,
             "VBMemory.VarPtr" => IrRuntimeMethod.MemoryVarPtr,
             "VBMemory.ObjPtr" => IrRuntimeMethod.MemoryObjPtr,
             "VBMemory.StrPtr" => IrRuntimeMethod.MemoryStrPtr,
@@ -3939,6 +3979,7 @@ public static class IrLowerer
             "VBErrors.HelpContextValue" => IrRuntimeMethod.ErrorHelpContext,
             "VBErrors.LastDllErrorValue" => IrRuntimeMethod.ErrorLastDllError,
             "VBErrors.LineNumber" => IrRuntimeMethod.ErrorLineNumber,
+            "VBErrors.SetLineNumber" => IrRuntimeMethod.ErrorSetLineNumber,
             "VBErrors.Clear" => IrRuntimeMethod.ErrorClear,
             "VBErrors.Raise" => IrRuntimeMethod.ErrorRaise,
             "VBFunctions.TypeName" => IrRuntimeMethod.FunctionTypeName,

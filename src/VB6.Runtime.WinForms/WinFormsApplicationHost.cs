@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows.Forms;
 using VB6.Runtime;
 
@@ -30,7 +31,11 @@ public static class WinFormsApplicationHost
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         _previousHost = VBInteraction.Host;
-        _activeHost = new WinFormsHost(preferNativeActiveX: true);
+        var compatibilityProfile = VBCompatibilityProfileAttribute.FromAssembly(
+            Assembly.GetEntryAssembly());
+        _activeHost = new WinFormsHost(
+            preferNativeActiveX: true,
+            compatibilityProfile: compatibilityProfile);
         _ownsHost = true;
         VBInteraction.Host = _activeHost;
     }

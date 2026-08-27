@@ -46,6 +46,38 @@ public sealed class MathIntrinsicExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesCoreFinancialIntrinsics()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print Round(PMT(0.1 / 12, 36, 10000), 2)
+                Debug.Print Round(IPMT(0.1 / 12, 1, 36, 10000), 2)
+                Debug.Print Round(PPMT(0.1 / 12, 1, 36, 10000), 2)
+                Debug.Print Round(NPER(0, -100, 1000), 2)
+                Debug.Print Round(RATE(36, PMT(0.1 / 12, 36, 10000), 10000) * 1200, 4)
+                Debug.Print Round(PV(0, 3, 100, 600), 2)
+                Debug.Print Round(FV(0, 3, 100, 300), 2)
+                Debug.Print Round(NPV(0.1, 100, 100), 2)
+                Dim cashFlows As Variant
+                cashFlows = Array(-100, 60, 60)
+                Debug.Print Round(IRR(cashFlows) * 100, 4)
+                Debug.Print Round(MIRR(cashFlows, 0.1, 0.12) * 100, 4)
+                Debug.Print SLN(1000, 100, 5)
+                Debug.Print SYD(1000, 100, 5, 1)
+                Debug.Print DDB(1000, 100, 5, 1)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "-322.67", "-83.33", "-239.34", "10", "10", "-900", "-600", "173.55",
+                "13.0662", "12.783", "180", "300", "400"
+            },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesNullAndEmptyMathSemantics()
     {
         var output = VB6TestProgram.RunLines("""
@@ -85,6 +117,31 @@ public sealed class MathIntrinsicExecutionTests
             """);
 
         CollectionAssert.AreEqual(new[] { "True", "0", "43832", "448" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesCurrencyAndDateMathSubtypes()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = CCur(-1.75)
+                Debug.Print TypeName(Fix(value))
+                Debug.Print Fix(value)
+                Debug.Print TypeName(Int(value))
+                Debug.Print Int(value)
+
+                value = CDate(43832.75)
+                Debug.Print TypeName(Fix(value))
+                Debug.Print CDbl(Fix(value))
+                Debug.Print TypeName(Int(value))
+                Debug.Print CDbl(Int(value))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "Currency", "-1", "Currency", "-2", "Date", "43832", "Date", "43832" },
+            output);
     }
 
     [TestMethod]

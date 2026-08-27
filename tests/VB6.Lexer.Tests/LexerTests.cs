@@ -109,4 +109,18 @@ public sealed class LexerTests
             },
             result.Tokens.Select(token => token.Kind).ToArray());
     }
+
+    [TestMethod]
+    [DataRow("VB6L0002", "\"unterminated")]
+    [DataRow("VB6L0003", "999999999999999999999999")]
+    [DataRow("VB6L0004", "1e9999")]
+    [DataRow("VB6L0007", "40000%")]
+    public void Lex_ReportsMalformedNumericAndStringLiterals(string code, string source)
+    {
+        var result = new LexerType(SourceText.From(source, "test.bas")).Lex();
+
+        Assert.IsTrue(
+            result.Diagnostics.Any(diagnostic => diagnostic.Code == code),
+            $"Expected {code}, got: {string.Join(", ", result.Diagnostics.Select(diagnostic => diagnostic.Code))}; tokens: {string.Join(", ", result.Tokens.Select(token => $"{token.Kind}:{token.Text}"))}");
+    }
 }

@@ -6,23 +6,24 @@ wann implementiert und gemessen wurde — steht in `CHANGELOG.md` und gehört ni
 ## Produktziel
 
 Das Hauptprodukt ist ein moderner, hochkompatibler VB6-Compiler, nicht die VISIA-Portierung und
-nicht zuerst die IDE. Der Compiler soll die vollständige VB6-Sprache und Standardbibliothek mit
-einem eigenen Runtime-/Objektmodell abbilden, COM/ActiveX konsumieren und emittieren, sowie
-native Windows-Ziele (x86 und x64 über LLVM) und .NET bedienen. `.vbp`/`.vbg` plus MSBuild SDK sind die
-Projektverträge. Visual Studio wird später über LSP angebunden; Forms- und WinForms-Designer
-folgen erst nach dem Compiler-Kern.
+nicht zuerst die IDE. Der aktive Abschlussplan vervollständigt den Managed/.NET-Pfad mit eigenem
+Runtime-/Objektmodell, vollständigem VB6-SP6-Sprach- und Standardbibliotheksvertrag,
+COM-/ActiveX-Konsum und -Emission, Forms sowie `.vbp`/`.vbg` und einem headless-fähigen MSBuild SDK.
+LLVM, LSP, IDE und visueller Designer bleiben ausdrücklich außerhalb dieses Abschlussplans.
 
-Der historische Plan wird auf das eigentliche Produktziel eingeordnet: ein moderner, hochkompatibler
-VB6-Compiler mit eigenem Runtime-/Objektmodell, COM/ActiveX-Kompatibilität, .NET- und nativen
-Windows-Backends. VISIA ist Regressionstestkorpus; Visual Studio/LSP, IDE und Designer folgen später.
+Der historische Plan bleibt als langfristiges Produktbild erhalten: LLVM kann später wieder als
+nativer Windows-Backendpfad aufgenommen werden, und Visual Studio/LSP, IDE und Designer können als
+eigene Produkte folgen. Sie blockieren den hier festgelegten Managed-Abschluss nicht. VISIA ist
+Regressionstestkorpus, nicht Portierungsziel.
 
-Die aktuelle Priorisierung ist bewusst **.NET-first**: Der Managed-Emitter, die Runtime, Variant-/Object-
-Semantik, COM-/ActiveX-Konsum und die Visual-Studio-/MSBuild-Buildverträge werden zuerst bis zu einem
-stabilen Kompatibilitätsziel geführt. LLVM bleibt als optionaler nativer x86/x64-Backendpfad im Projekt,
-wird aber bis zum Abschluss dieses Managed-Ziels nicht als Blocker behandelt.
+Die aktuelle Priorisierung ist bewusst **.NET-only bis zum Abschluss**: Managed-Emitter, Runtime,
+Variant-/Object-Semantik, Standardbibliothek, Win32-/COM-x86-ABI, Forms/ActiveX und die headless
+MSBuild-Verträge werden geschlossen. Visual-Studio-spezifisches CPS-/Projektmodell gehört zur
+ausgeschlossenen IDE-Schicht.
 
-Die Reihenfolge stammt aus einer Konstrukt-Frequenzanalyse über echten VB6-Code, nicht aus einer
-generischen VB6-Feature-Liste.
+Die Reihenfolge nutzt weiterhin die Konstrukt-Frequenzanalyse über echten VB6-Code. Der Umfang wird
+aber nicht mehr vom Korpus begrenzt: Maßgeblich ist eine vollständige, dokumentationsbasierte
+VB6-SP6-Kompatibilitätsmatrix.
 
 ## Gemessener Ist-Stand
 
@@ -40,8 +41,8 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `dotnet test VB6Compiler.sln -c Release`: **1122 Tests, alle grün**
-(Stand 2026-08-25).
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1195 Tests, alle grün** in 13
+Testprojekten (Stand 2026-08-27); der Lauf testet projektweise seriell.
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
 `TypeOf`, Variant-Arrays, Standard-`Collection`, late-bound Object-/Control-Mitglieder sowie
@@ -50,8 +51,9 @@ Konstruktor-/Terminator-Lifecycle, Property-Dispatch, `RaiseEvent`/`WithEvents`-
 echte Referenzidentität; `Implements` wird als CLR-Interface emittiert und über `callvirt`
 inklusive Property-Accessors dispatcht.
 
-Offen sind die Blöcke, die die Meilensteine unten führen: vollständige COM-/IDispatch-Identität,
-OCX-Komposition, Forms-Vollständigkeit sowie native ABI-Emission.
+Offen sind die Blöcke, die die Meilensteine unten führen: vollständige Variant-/Object- und
+Runtime-Semantik, COM-/IDispatch- und ActiveX-Verträge, Forms-Vollständigkeit sowie die externe
+Win32-/COM-x86-ABI. Die native LLVM-Codegenerierung ist damit nicht gemeint.
 
 VISIA ist dabei Regressionstest- und Messkorpus, nicht das fachliche Portierungsziel.
 
@@ -86,8 +88,10 @@ Drei Schlüsse, die die Reihenfolge in M8 und M9 bestimmen:
 2. **`Paint` war das einzige verbreitete Event, das der Host nicht verdrahtet hat** — zusammen mit
    12× `AutoRedraw` die größte belegte Lücke im Forms-Vertrag. Inzwischen geschlossen; das
    Eventmodell der intrinsischen Controls ist damit vollständig.
-3. **MDI und `DrawMode` kommen im Korpus nicht ein einziges Mal vor.** Beide stehen in M9 als
-   offene Punkte und werden deshalb zurückgestellt, nicht gebaut.
+3. **MDI und `DrawMode` kommen im Korpus nicht ein einziges Mal vor.** Ein bereits vorhandener
+   Managed-MDI-Grundvertrag hostet Container und Child-Forms. Beide Flächen werden im neuen
+   VB6-SP6-Abschlussplan dennoch vervollständigt; die fehlende Korpusevidenz verschiebt nur ihre
+   Reihenfolge hinter die belegten Forms-Verträge.
 
 Zur `DrawMode`-Zeile: Sie stand zunächst mit 3 in dieser Tabelle. Die Nachmessung beim Umsetzen
 zeigte, dass alle drei Treffer keine VB6-Eigenschaft waren — ein gleichnamiges Enum, ein Kommentar
@@ -110,7 +114,8 @@ Business-Programm:
 
 Kommt **nicht** vor: `Format$` 0, `Date` 0, ADO 0, `#If` 0. `Resume`, `Resume Next` und
 `Resume <Label>` sind inzwischen syntaktisch gebunden; `Resume Next` besitzt im Managed-Backend
-einen fehlerstellenspezifischen Fortsetzungsdispatcher. Der native Resume-/ABI-Vertrag bleibt offen.
+einen fehlerstellenspezifischen Fortsetzungsdispatcher. Vollständige Managed-Handlerzustände gehören
+zum Abschlussplan; der native LLVM-Resume-/ABI-Vertrag bleibt ausgeschlossen.
 
 ## Entschiedene Weichenstellungen
 
@@ -124,22 +129,25 @@ einen fehlerstellenspezifischen Fortsetzungsdispatcher. Der native Resume-/ABI-V
   opt-in. Einzelne Quelldateien ohne Projektkontext bleiben AnyCpu, und `ManagedEmitOptions`
   behält AnyCpu als API-Default — die Entscheidung gehört an die Projektgrenze, nicht in den
   Emitter. Beachten: x86 impliziert `TargetIs64Bit: false` und damit `#If Win64`.
-- **Zahlkonvertierung ist invariant, nicht locale-abhängig.** `VB6.Runtime` konvertiert zwischen
-  Strings und Zahlen ausschließlich mit `CultureInfo.InvariantCulture`. Klassisches VB6 wertete
-  `CDbl("2.5")` gegen die aktive Locale aus, sodass derselbe Quelltext je nach Maschine 2,5 oder
-  25 ergab. Für einen Compiler wiegt Determinismus schwerer als diese Treue: das Kompilat soll
-  überall dasselbe tun. Echte locale-abhängige Ausgabe gehört später zu `Format$`, wo die Locale
-  ein expliziter Parameter ist statt ambienter Thread-Zustand. Dies ist eine der wenigen
-  Stellen, an denen bewusst von VB6 abgewichen wird.
-- **`vbUseSystem` ist die eine erlaubte Ausnahme davon.** Wo VB6 den Wert 0 als „frag das System"
-  definiert — `FirstDayOfWeek` und `FirstWeekOfYear` in `Weekday`, `WeekdayName`, `Format` und den
-  Datumsfunktionen — löst die Runtime bewusst über `CultureInfo.CurrentCulture` auf. Das ist keine
-  versehentliche Locale-Abhängigkeit, sondern genau der angeforderte Wert: Der Aufrufer verlangt
-  ausdrücklich die Systemeinstellung, und ihn auf Sonntag festzunageln wäre die Abweichung. Die
-  Ausnahme gilt eng für diesen einen Parameterwert; mit explizitem `vbSunday`/`vbMonday` ist das
-  Ergebnis kulturunabhängig. Ein Test hält beide Seiten fest. Ebenfalls bewusst kulturabhängig:
-  die LCID des COM-Dispatch. Jede weitere `CurrentCulture`-Verwendung in `VB6.Runtime` ist ein
-  Fehler, kein Präzedenzfall.
+- **Zwei explizite Kompatibilitätsprofile.** `Deterministic` bleibt der rückwärtskompatible Default:
+  Zahl-/String-Konvertierungen sind invariant und verwenden den bisherigen deterministischen
+  Windows-1252-Vertrag. Das additive Profil `VB6Sp6` bildet die dokumentierte klassische Semantik
+  mit System-LCID, ANSI-Codepage und x86-Prozessmodell ab. `VB6Sp6` wählt x86 automatisch und lehnt
+  x64/AnyCpu sowie compiler-eigene Erweiterungen außerhalb VB6 SP6 diagnostisch ab.
+- **Profilzustand ist kompiliert, nicht global.** Das gewählte Profil reist von
+  `VBCompilationOptions` über Bindung und IR in Assembly-Metadaten und profilbewusste Runtime-
+  Aufrufe. Forms- und COM-Hosts erhalten es instanzbezogen. Ein Prozess kann daher Assemblies mit
+  verschiedenen Profilen laden, ohne einen globalen Runtime-Schalter umzulegen.
+- **`vbUseSystem` bleibt in beiden Profilen ausdrücklich systemabhängig.** Wo VB6 den Wert 0 als
+  „frag das System" definiert — etwa `FirstDayOfWeek` und `FirstWeekOfYear` — wird weiterhin
+  `CultureInfo.CurrentCulture` verwendet. Im `VB6Sp6`-Profil gilt die System-Locale darüber hinaus
+  an allen von VB6 dokumentierten Konvertierungs- und Formatierungsgrenzen; Format verwendet
+  dabei lokale Dezimal-/Tausendertrennzeichen sowie lokalisierte Datumsnamen.
+- **Kein installiertes VB6-Orakel.** Auf der Entwicklungsmaschine ist kein VB6-Compiler vorhanden,
+  und dieser Plan setzt keinen externen lizenzierten Runner voraus. `VB6Sp6` bedeutet deshalb
+  zunächst dokumentationsbasierte Kompatibilität. Die Matrix unterscheidet `implemented`,
+  `documented-verified` und ein später optionales `oracle-verified`; letzteres ist keine
+  Abschlussvoraussetzung dieses Plans.
 - **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
   Es liegt versioniert unter `conformance/VISIA/` und wird von `ConformanceCorpusTests` in CI
   mitgemessen. Herkunft und Zweck: `conformance/README.md`.
@@ -161,6 +169,164 @@ einen fehlerstellenspezifischen Fortsetzungsdispatcher. Der native Resume-/ABI-V
 - **Syntaxbarrieren, die viele Dateien blockieren, kommen vor der vollständigen Semantik.** Sie
   sind einzeln klein, verhindern aber die Messung von allem Übrigen. Konstrukt syntaktisch
   aufnehmen und mit Diagnose stoppen ist erlaubt; die Semantik folgt im zuständigen Meilenstein.
+
+## Abgeschlossener Stabilisierungsschritt
+
+Bevor die nächste Kompatibilitätsfläche wächst, wird der vorhandene Stand reproduzierbarer und
+lokaler abgesichert. Dieser Block ändert keine VB6-Semantik:
+
+- [x] Ein kanonisches `build.ps1` führt Restore, seriellen Release-Build, alle 13 Testprojekte und
+      den VISIA-Report aus; die CI verwendet denselben Pfad. Der echte native OCX-Lauf bleibt über
+      `VB6_REQUIRE_NATIVE_OCX=1` und einen x86-Testhost explizit zuschaltbar.
+- [x] Das MSBuild SDK erhält `VB6TargetPlatform` mit x86 als Default sowie validiertem x64-/AnyCpu-
+      Opt-in für `.vbp` und `.vbg`; die Auswahl wird als expliziter CLI-Schalter weitergereicht.
+- [x] Jeder aktuell im Produktionscode vorhandene Diagnosecode erhält eine explizite Testreferenz
+      und einen auslösenden Fall. Für den internen PDB-Fehlerkanal `VB6E0002` wird ausschließlich
+      eine testbare interne Fehlerinjektionsgrenze ergänzt; öffentliche Compiler-APIs bleiben gleich.
+- [x] Gezielte IR-/Emittertests sichern die Elision von `Debug.Assert`, Control-Array-`Load`/`Unload`
+      samt Write-back, x86-/x64-PE-Header und SAFEARRAY-Rückgabe-Metadaten unterhalb der E2E-Ebene.
+
+## Verbindlicher Managed-Abschlussplan
+
+Der folgende Plan schließt alle offenen Managed-Verträge. Ausgenommen bleiben ausschließlich
+LLVM, LSP, IDE, visueller Designer und Visual-Studio-CPS. Persistierte Designer- und
+Enterprise-Artefakte gehören dagegen zum Compilerumfang und müssen geladen, emittiert und
+ausgeführt werden können.
+
+### Öffentlicher Profilvertrag
+
+- [x] `VB6.Runtime` erhält `VBCompatibilityProfile` mit `Deterministic` und `VB6Sp6`;
+      `VBCompilationOptions` erhält das additive Feld `CompatibilityProfile` mit
+      `Deterministic` als Default.
+- [x] Die CLI akzeptiert `--compatibility deterministic|vb6-sp6` für Analyse, IR-Dump und
+      Managed-Emission. `vb6-sp6` wählt x86; explizites x64/AnyCpu wird abgelehnt.
+- [x] Das MSBuild SDK erhält `VB6CompatibilityProfile` und reicht die Auswahl an die CLI weiter.
+- [~] Das Profil wird in IR und Assembly-Metadaten festgehalten. `VBStrings.StrConv` ist als erste
+      profilabhängige Runtime-Überladung verdrahtet; `LenB`, `Asc` und `Chr` verwenden im
+      `VB6Sp6`-Profil zusätzlich die aktive ANSI-Codepage. Weitere APIs werden additiv ergänzt,
+      während vorhandene Signaturen ihr deterministisches Verhalten behalten.
+- [~] `WinFormsHost` erhält das Profil instanzbezogen; generierte WinForms-Programme lesen die
+      Auswahl aus ihren Assembly-Metadaten. COM- und ActiveX-Adapter müssen die Kontextübergabe
+      noch in ihre Semantik und ABI-Pfade durchreichen. Generierte Programme verwenden weiterhin
+      die eigene Runtime und delegieren keine Sprachsemantik an `msvbvm60.dll`.
+
+### Etappe A — Kompatibilitätsmatrix und messbarer Umfang
+
+- [~] Die initiale maschinenlesbare Matrix liegt unter
+      `docs/vb6-sp6-compatibility-matrix.json` und inventarisiert die zentralen Vertragsflächen
+      von Sprache, Runtime, Projekten, COM/ActiveX, Forms und Build. Die noch ausstehende
+      Feingranularität einzelner Intrinsics und Stock-Controls bleibt in dieser Etappe sichtbar.
+- [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
+      Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
+      danach VISIA und weitere Legacy-Projekte.
+- [x] Erwartungsdaten werden portabel gespeichert, sodass ein später verfügbarer VB6-SP6-Runner
+      dieselben Fälle optional auf `oracle-verified` anheben kann. Ohne Originalcompiler bleibt
+      `documented-verified` der verbindliche Abschlussstatus.
+
+### Etappe B — Sprache, Variant, Klassen und Fehlerbehandlung
+
+- [ ] Lexer, Parser und Binder gegen die Matrix auf vollständige VB6-SP6-Syntax, Deklarationen,
+      Statements, Named Arguments, Auswertungsreihenfolge und Kontextregeln schließen.
+- [ ] Eine zentrale Variant-Subtyp-, Konvertierungs- und Promotionstabelle deckt `Empty`, `Null`,
+      `Nothing`, `Missing`, `Error`, `Decimal`, `Date`, `Currency`, Strings, Objekte und Arrays für
+      alle Operatoren, Überläufe, Rundungen und Type-Mismatch-Fälle ab.
+- [ ] `Let`/`Set`, Default-Member, `DISPID_VALUE`, Collection-Randfälle, `As New`, `Implements`,
+      Events und `WithEvents` erhalten den vollständigen Objektvertrag. Im `VB6Sp6`-Profil wird
+      die Initialize-/Terminate-Lebensdauer explizit geführt und nicht dem GC überlassen.
+- [~] Der Managed-IR-Fehlerautomat bildet die aktiven/inaktiven `On Error`-/`Resume`-Zustände
+      im getesteten Managed-Pfad ab: `Err`, Fehlernummern, `Erl` für numerische Zeilenlabels,
+      Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
+      implementiert. Weitere verschachtelte Aufruf-/Resume-Matrixfälle bleiben offen.
+- [ ] Adressierbare x86-Speicherzellen schließen `VarPtr`, `StrPtr`, `ObjPtr`, `AddressOf`, `LSet`
+      und native ByRef-Übergaben, ohne alle Variablen pauschal zu pinnen.
+
+### Etappe C — Runtime, Standardbibliothek, Datei-I/O und Projekte
+
+- [ ] Alle dokumentierten String-, Math-, Financial-, Datum/Zeit-, `Format`-, Array-,
+      Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-, Screen-,
+      Printer- und Clipboard-Verträge implementieren.
+- [~] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv`, `LenB`, `Asc`, `Chr` sowie
+      `Format` decken die profilbewusste Locale-Schicht bereits ab. Locale-/DBCS-Tests decken
+      mindestens
+      `en-US`, `de-DE` und `ja-JP` einschließlich `LenB`, `Asc`, `Chr`, Datum und Zahlen ab.
+- [ ] Datei-I/O für Binary, Random, Input, Output und Append einschließlich `Get`/`Put`,
+      `Input #`, `Line Input`, `Write #`, `Print #`, `Lock`/`Unlock`, `Reset`, `EOF`, `Loc`, `LOF`,
+      `Seek` und vollständiger UDT-/String-/Array-/Variant-Record-Layouts schließen.
+- [ ] `.vbp`/`.vbg` einschließlich Projektarten, Version/Binary Compatibility, Ressourcen,
+      Referenzen, Komponenten und Abhängigkeiten vollständig auswerten; `.frm`, `.frx`, `.ctl`,
+      `.ctx`, `.pag`, `.dob`, `.dsr` und `.res` verlustfrei laden.
+
+### Etappe D — COM-, ActiveX- und Win32-x86-ABI
+
+- [ ] TypeLib-Import auf duale und VTable-Interfaces, Aliase, Records, verschachtelte UDTs,
+      Pointer, C-Arrays, vollständige Automationtypen und ByRef-Write-back erweitern.
+- [ ] `IDispatch` vollständig mit LCID, Named Arguments, `DISPID_VALUE`, `DISPID_PROPERTYPUT`,
+      `EXCEPINFO`, optionalen Parametern und Default-Properties abbilden.
+- [ ] `Declare` und `AddressOf` für die dokumentierten x86-Signatur-, Callback-, String-, Pointer-,
+      UDT- und Arrayformen schließen.
+- [ ] COM-Server erhalten vollständige Interfaces/Coclasses, `IUnknown`/`IDispatch`, Connection
+      Points, Event-Source-Interfaces sowie Instancing-, Threading- und Binary-Compatibility-
+      Verträge.
+- [ ] Typbibliotheken über `ICreateTypeLib2` als `.tlb` erzeugen und in Registrierung sowie
+      registry-free Manifest führen. ActiveX-DLLs verwenden den x86-`comhost`; ActiveX-EXEs
+      erhalten einen Local Server mit `/Embedding`, `/Automation`, `CoRegisterClassObject`,
+      Message Pump und sauberem Shutdown.
+
+### Etappe E — Forms, Zeichnen, MDI und intrinsische Controls
+
+- [ ] Form-/Control-Lifecycle, Fokus, Tab-Reihenfolge, Z-Order, Modalität, Defaultinstanzen, Menüs,
+      Timer, Events und die vollständige intrinsische Control-Oberfläche schließen.
+- [ ] Control-Arrays um Form-, Menü- und UserControl-Arrays sowie vollständiges dynamisches
+      `Load`/`Unload` ergänzen.
+- [ ] Der `VB6Sp6`-Zeichenpfad verwendet GDI-basierte DC-/DIB-Flächen für `PSet`, `Point`, `Line`,
+      `Circle`, `PaintPicture`, `Cls`, Zeichen-/Füllattribute, `Scale*`, `AutoRedraw` und alle
+      16 `DrawMode`-/ROP2-Werte.
+- [ ] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
+      WindowList-Menüs, Menüübernahme, Fokus und persistente Fensterzustände ergänzen.
+
+### Etappe F — Stock-OCX, UserControls und Enterprise-Artefakte
+
+- [ ] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
+      Controls laufen nativ; fehlende Controls werden über ABI-Testkomponenten geprüft und sichtbar
+      als nicht nativ verifiziert markiert.
+- [ ] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
+      OLE-In-Place-Aktivierung, Ambient Properties, Property Pages, Persistence und Connection
+      Points; undokumentiertes controlspezifisches Verhalten bleibt außerhalb des Vertrags.
+- [ ] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
+      PropertyBag-/Stream-Persistenz, Ambient Properties, Events, Property Pages und vollständigen
+      Lifecycle.
+- [ ] DataEnvironment, DataReport, UserDocument und PropertyPage werden aus ihren persistierten
+      Artefakten kompiliert und ausgeführt. ADO/OLE DB wird über COM konsumiert; Datenbank-Provider
+      werden nicht neu implementiert.
+
+### Etappe G — Headless MSBuild SDK
+
+- [~] Eine gepackte Resolver-Task ermittelt aus `.vbp`/`.vbg` die exakten Quellen, Ressourcen,
+      Projektverweise, COM-Referenzen und Ausgaben und ersetzt die bisherigen rekursiven Globs.
+      Der CLI-Resolver schreibt bereits deklarationsbasierte SHA-256-Input-Manifeste; eine
+      eigenständige gepackte ProjectSystem-Task bleibt offen.
+- [~] Stabile Targets `ResolveVB6Project`, `GetVB6ProjectOutputs`, `CompileVB6Project` und
+      `CompileVB6ProjectGroup` sind für deklarationsbasierte Inputs, inkrementellen No-op,
+      TargetPath, PDB, Runtime, Runtimeconfig, Manifest und COM-Host vorhanden. Clean/Rebuild-
+      Orchestrierung und vollständige TypeLib-/Outputauflösung bleiben offen.
+- [x] `DesignTimeBuild=true` führt Validierung und deklarationsbasierte Auflösung aus; die
+      Compile-Targets werden übersprungen. Visual-Studio-CPS, Projektbaum und IDE-Kommandos bleiben
+      ausgeschlossen.
+
+### Etappe H — Abschlussgate und Dokumentationsstatus
+
+- [ ] Jeder Matrixeintrag besitzt mindestens Parser-/Binder-, Runtime- oder Emitter- und Managed-
+      End-to-End-Abdeckung; beobachtbare Profilunterschiede erhalten tabellengetriebene Tests.
+- [ ] Raw-COM-Probes prüfen VTables, DISPIDs, VARIANT-/SAFEARRAY-Layouts, Referenzzählung,
+      ByRef-Write-back, Events, Registrierung und registry-free Aktivierung in beide Richtungen
+      mit kontrollierten Testkomponenten.
+- [ ] Forms-Tests prüfen Lifecycle-/Eventtraces, MDI und Control-Arrays; GDI-Zeichenoperationen
+      erhalten Pixeltests bei festem DPI und Theme.
+- [ ] Der kanonische Build, alle vorhandenen Regressionen und VISIA 40/40 bleiben grün. Das
+      deterministische Profil darf sich in keinem bestehenden Snapshot verändern.
+- [ ] Der Managed-Abschluss ist erreicht, wenn außerhalb der ausdrücklich ausgeschlossenen
+      LLVM-/LSP-/IDE-Flächen keine Implementierungszeile mehr `[~]` oder `[ ]` ist. Fehlende echte
+      VB6-Gegenprüfung bleibt als Validierungsstatus sichtbar, blockiert diesen Abschluss aber nicht.
 
 ---
 
@@ -251,8 +417,8 @@ Zwei Nachträge:
       Native `VT_VARIANT`-SAFEARRAYs bewahren dabei `Empty`, `Null`, `Nothing`, `Missing`,
       `Error`, `Date` und `Currency` ueber den Managed-Declare-/COM-ByRef-Roundtrip. Vollstaendige
       Objekt-/Array-Promotion sowie UDT-/Pointer-/nicht kompatible SAFEARRAY-Faelle bleiben offen
-- [ ] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` inklusive `Null & Null` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
-- [ ] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
+- [~] Vollständige Variant-Arithmetik mit VB6-Promotionsregeln und impliziter Konvertierung. Numerische `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logische Operatoren, Vergleiche, `&` und die String/Variant-Sonderregeln von `+` sind für die aktuelle Scalar-Variantmenge implementiert; `CDec` sowie Decimal-aware `+`, `-`, `*`, `/`, `Mod`, `\`, `^`, logische Operatoren, unäres `-` und Vergleiche sind ergänzt. Empty-Operanden, Null-Vergleiche, Null-Arithmetik, Null-If-Verzweigungen, Null bei `&` inklusive `Null & Null` sowie Currency-/Single-Vergleichspromotionen sind regressionsgesichert. Offen bleiben weitere `Null`/`Missing`-Sonderfälle, Objekt- und Array-Varianten sowie die abschließende Prüfung aller VB6-Promotionstabellen.
+- [~] Erstklassiges `Decimal` als additive Erweiterung. `CDec` liefert den Variant-Subtype 14, die zentralen skalaren Rechenpfade erhalten Decimal-Werte und die aktuelle Operator-/Konvertierungsmenge ist abgedeckt; offen bleiben die vollständige Promotionstabelle und noch nicht unterstützte Variant-Subtypen.
 
 ## Meilenstein 5 — Prozeduren und Klassen
 
@@ -264,7 +430,7 @@ Zwei Nachträge:
 - [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-RCW-Identität wird über `IUnknown` verglichen, die übrige COM-Interop bleibt offen
 - [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; numerische Variant-Objektindizes fallen auf das Managed-Default-`Item` zurück; vollständige benannte Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
-- [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; vollständige Fehlercodes und COM-Collection-Dispatch bleiben offen
+- [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; ungültige Indizes/Keys sowie `Before`/`After` melden Fehler 5, doppelte Keys Fehler 457. Weitere VB6-Randfälle und COM-Collection-Dispatch bleiben offen
 - [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; COM-Defaultzugriff über `DISPID_VALUE`, COM-RCW-Identität über `IUnknown` und TypeInfo-gesteuertes typisiertes COM-ByRef-Marshalling für unterstützte Automation-Typen sind ergänzt, vollständige COM-/IDispatch-Auflösung, UDT-/Pointer-/Event-ABI und Host-ABI bleiben offen
 - [~] `Event`/`RaiseEvent`, `WithEvents`: einfacher Managed-Raise-/Sink-Vertrag mit Umverdrahtung bei Reassignment steht; TypeLib-Coclass-Source-Interfaces liefern importierte Event-Signaturen, der vollständige Host-/COM-Connection-Point-Lifecycle bleibt offen
 - [x] `.cls` als Projektquelle lesen und analysieren (hebt die Item-Abdeckung von 27 auf 30)
@@ -284,20 +450,25 @@ Blockstruktur, nicht mehr des Textgenerators.
 - [x] Syntax, Bindung und Lowering für `GoTo`, Labels, `On Error GoTo`/`GoTo 0`, `Resume`, `Resume Next` und `Resume <Label>`
 - [x] `GoTo` und Labels vollständig: gebunden, gelowert und E2E ausgeführt
 - [x] Numerische und benannte Labels, `On ... GoTo`, `GoSub`/`Return` und `On ... GoSub` im Basic-Block-IR und Managed-Backend
-- [x] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt und fehlerstellenspezifischer
-      `Resume Next`-Dispatcher im Managed-Backend; native ABI- und vollständige Handlerzustände offen
+- [~] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt und
+      fehlerstellenspezifischer `Resume Next`-Dispatcher stehen im Managed-Backend. Numerische
+      Labels aktualisieren `Erl`; ein Fehler aus einem aktiven Handler wird nicht rekursiv in
+      denselben Handler geleitet, sondern an den Aufrufer weitergereicht. Offen bleiben weitere
+      verschachtelte Aufruf-/Resume-Matrixfälle und die abschließende dokumentationsbasierte
+      VB6-SP6-Matrix. Die native LLVM-ABI ist ausgeschlossen.
 - [x] Quellpositionen: der Binder hängt `SourceLocation` referenziell an jede gebundene Anweisung,
       `IrLowerer` stempelt sie auf die entstehenden Instruktionen, der Emitter merkt sich die
       IL-Offsets und `PortablePdbEmitter` schreibt daraus Sequenzpunkte. Die PDB trägt damit
       Dokumente, Locals, Anweisungsgrenzen und procedure-wide Scopes mit Start/Length. Die
-      verbleibende native Debug-ABI ist offen.
+      verbleibende native Debug-ABI gehört zum ausgeschlossenen LLVM-Pfad.
 
 ## Meilenstein 7 — Standardbibliothek
 
-Nach Korpusbedarf priorisiert:
+Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6-SP6-Matrix bestimmt:
 
 1. String-Funktionen — `Left`/`Right`/`Mid`/`Len`/`InStr`/`Replace`/`Trim`/`UCase`/`Chr`/`Asc`/`Val`/`Hex`/`String`.
-    `Len`/`LenB`, dreiargumentiges `Mid` und ASCII-`Chr` existieren. `ProcedureSymbol.IntrinsicKind`
+    `Len`/`LenB`, dreiargumentiges `Mid` und ASCII-`Chr` existieren; `LenB`/`Asc`/`Chr` tragen
+    im `VB6Sp6`-Profil die aktive ANSI-Codepage. `ProcedureSymbol.IntrinsicKind`
    trägt die backendunabhängige Identität, der Binder behandelt Intrinsics wie normale
    Prozeduren, und `IrRuntimeMethod` benennt die Runtime-Operation. Damit sind weitere
    Bibliotheksfunktionen reine Tabelleneinträge — das gilt auch für `DoEvents`, `Kill`, `Dir`,
@@ -315,8 +486,9 @@ Nach Korpusbedarf priorisiert:
     `PaintPicture` — ✅ als headless-fähige Runtime-Verträge;
     echte UI-/Registry-Hostadapter folgen in M8/M9.
 1e. `LSet` — die kontextuelle `LSet target = source`-Syntax sowie Managed-Ausführung für feste
-    String-Ziele und gleichartige UDT-Werte sind ✅; unterschiedliche UDT-Layouts benötigen
-    weiterhin den nativen ABI-/Padding-Vertrag.
+    String-Ziele, gleichartige UDT-Werte und unterschiedliche rohe UDT-Layouts mit skalaren,
+    Boolean- und `LongPtr`-Feldern sind ✅. Dynamische Strings, Arrays, Variants und weitere nicht
+    sicher abbildbare ABI-Layouts bleiben diagnostisch gesperrt.
 1f. Dateisystem-Pfad-Intrinsics — `FileCopy`, `MkDir`, `RmDir`, `ChDir`, `CurDir`, `GetAttr`,
     `SetAttr` und `FileDateTime` sind ✅ über Symboltabelle, IR, Managed-Emitter und Runtime
     verdrahtet und durch direkte Runtime- sowie generierte Programmtests abgesichert.
@@ -338,15 +510,21 @@ Nach Korpusbedarf priorisiert:
    Weitere zusammengesetzte Random-Record-Layouts bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
-4. Math: `Abs`, `Sgn`, `Fix`, `Round`, `Sqr`, `Exp`, `Log`, `Sin`, `Cos`, `Tan` und `Atn` sind als
-   Scalar-Slice ergänzt, einschließlich `Null`-/`Empty`-Semantik für `Abs`, `Fix` und `Round`; `LongPtr`
-   ist als native-width Integer inklusive Pointerarithmetik und `CLngPtr` ergänzt; weitere
-   Funktionen und vollständige Variant-Promotion bleiben offen. `Like`/`Option Compare` sind
-   für den aktuellen String-/Variant-Subset implementiert.
-5. [~] `Format$` — deterministische numerische Masken, Standardnamen, gängige Datums-/Zeit-Token
-   und `<`/`>`-Stringmasken sind ergänzt; `w`/`ww`/`q` berücksichtigen nun die übergebenen
-   `FirstDayOfWeek`-/`FirstWeekOfYear`-Regeln. Locale-Auswahl, weitere String-Platzhalter und
-   Finanzfunktionen bleiben offen und sind im Korpus unbenutzt
+4. [x] Math — `Abs`, `Sgn`, `Fix`, `Int`, `Round`, `Sqr`, `Exp`, `Log`, `Sin`, `Cos`, `Tan`, `Atn`,
+   `Rnd` und `Randomize` sind als Managed-Intrinsics umgesetzt. `Null`/`Empty`, Banker's Rounding,
+   Definitionsbereichs-/Überlauffehler, die VB6-Zufallsfolge sowie der Untertyperhalt von `Int`,
+   `Fix` und `Abs` einschließlich `Currency` und `Date` sind durch Runtime- und Managed-E2E-Tests
+   abgesichert. Die vollständige Variant-Promotion bleibt getrennt in Etappe B offen;
+   `Like`/`Option Compare` sind für den aktuellen String-/Variant-Subset implementiert.
+5. [x] `Format$` — benannte numerische, Boolean-, Datums- und Zeitformate, ein- bis vierteilige
+   numerische Masken, vollständige `@`/`&`/`<`/`>`/`!`-Stringmasken mit Literalen/Escapes sowie
+   die dokumentierten Datums-/Zeit-Token einschließlich `c`, `ddddd`, `dddddd`, `ttttt`, `AMPM`,
+   `w`/`ww`/`q` und `FirstDayOfWeek`-/`FirstWeekOfYear` sind umgesetzt. `VB6Sp6` verwendet aktive
+   Währungs-, Datums-/Zeittrennzeichen, Muster und Namen; `Deterministic` bleibt invariant.
+6. [x] Finanzfunktionen — `FV`, `PV`, `PMT`, `IPmt`, `PPmt`, `NPer`, `Rate`, `NPV`, `IRR`,
+   `MIRR`, `SLN`, `SYD` und `DDB` sind vollständig als Double-basierte Managed-Intrinsics mit
+   Nullzins-, End-/Anfangsperioden-, Zahlungsaufteilungs-, Perioden-/Zinsiterations-, Cashflow-,
+   Abschreibungs- und Argumentfehler-Verträgen umgesetzt.
 
 ## Meilenstein 8 — Interop
 
@@ -387,14 +565,16 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       `VARIANT`-/`VARIANT_BOOL`-/`BSTR`-Eventparameter werden über dedizierte Automation-Delegaten
       geführt; typisierte SAFEARRAY-Eventparameter werden über `System.Array`-Delegaten mit Bounds-
       und `VBArray<T>`-Konvertierung geführt; vollständiger Connection-Point-Event-ABI für UDTs,
-      rohe Pointer und nicht unterstützte SAFEARRAY-Elemente sowie der native LLVM-Pfad bleiben offen.
-      Diese drei ABI-Lücken bleiben bewusst als Diagnose stehen, solange kein Korpusbeleg sie
-      fordert — die Arbeit geht zuerst in die fünf tatsächlich verwendeten Controltypen (siehe M9).
+      rohe Pointer und nicht unterstützte SAFEARRAY-Elemente bleibt offen und gehört zum
+      VB6-SP6-Abschlussplan. Der native LLVM-Pfad bleibt davon getrennt und ausgeschlossen.
+      Die fünf tatsächlich verwendeten Controltypen (siehe M9) behalten innerhalb dieser Fläche
+      Priorität; fehlende Korpusevidenz ist aber kein Grund mehr, einen dokumentierten ABI-Vertrag
+      dauerhaft offen zu lassen.
       Wenn eine historische `Reference=`-/`Object=`-Zeile nur den Dateinamen trägt, versucht der
       Managed-Importer zusätzlich die registrierten `HKCR\TypeLib`-/`HKCR\CLSID`-Pfade in der
       passenden Version, LCID und Prozessbitness aufzulösen.
       Der Managed/.NET-Konsum wird vor dem nativen LLVM-Backend vervollständigt
-- [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. Reg-Free-Manifest-/Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
+- [~] eigener COM-Server-/ClassFactory-/IUnknown-Vertrag für emittierte VB6-Klassen — `--com-host` versieht emittierte Klassen mit stabilen CLSIDs, `ProgID`, `ComVisible` und Automation-Metadaten und erzeugt für Bibliotheken einen nativen .NET-`comhost.dll`. `DllGetClassObject`/`IClassFactory`/`IDispatch`-Aktivierung ist regressionsgesichert; die CLI kann den erzeugten Host über `--register-com`/`--unregister-com` mit dem passenden x86/x64-`regsvr32` installieren oder entfernen. `--com-manifest` und das MSBuild SDK emittieren zusätzlich ein Side-by-Side-Manifest für registry-free Aktivierung. Typbibliotheks-Emission und der vollständige eigene Raw-`IUnknown`-/`IDispatch`-Vertrag bleiben offen
 - [~] .NET-Backend als primären kompatiblen Zielpfad stabilisieren; Variant-/Object-/COM-Randfälle und
       vollständige Runtime-/Projektverträge bleiben offen
 - [~] LLVM-natives Windows-Backend für x86 und x64 — **auf Eis gelegt, wird nicht weitergetrieben.**
@@ -408,8 +588,14 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       erzeugten LLVM-IR abgesichert — nichts wird assembliert, gelinkt oder ausgeführt. Die grünen
       Tests belegen die Textform, nicht die Lauffähigkeit. Erste Aufgabe beim Wiederaufnehmen ist
       ein echter nativer End-to-End-Test.
-- [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath` und `CompileVB6Project`-Target; NuGet-Packaging und inkrementelle Input-/Output-Verfolgung sind mit `VB6.Compiler.Sdk.1.0.0.nupkg` verifiziert
-- [~] MSBuild-SDK für VB6-Projektgruppen — `VB6ProjectGroup` verfolgt `.vbg`-, `.vbp`-, Quell- und Designerinputs, ruft die vorhandene CLI-Gruppenemission auf und verwendet einen eigenen inkrementellen Compile-Stempel; `.vbg`-Analysen diagnostizieren jetzt auch projektbezogene `Reference=`-Einträge, die nicht als `Project=` deklariert sind (`VB6VBG0008`), bevor unvollständige Artefakte entstehen; vollständige Visual-Studio-Projektmodellintegration und Design-Time-Build-Verträge bleiben offen
+- [x] MSBuild SDK-Grundvertrag — `VB6Project`, `VB6CompilerPath`, `VB6TargetPlatform` und `CompileVB6Project`-Target; NuGet-Packaging und inkrementelle Input-/Output-Verfolgung sind mit `VB6.Compiler.Sdk.1.0.0.nupkg` verifiziert. Ohne Plattformargument folgt das SDK dem x86-Projektdefault der CLI; `x64` und `AnyCpu` werden validiert und als expliziter CLI-Schalter weitergereicht
+- [~] MSBuild-SDK für VB6-Projektgruppen — `VB6ProjectGroup` verfolgt `.vbg`-, `.vbp`-, deklarierte
+      Quell-, Designer-, Ressourcen- und Referenzinputs über ein CLI-generiertes SHA-256-Manifest,
+      ruft die vorhandene CLI-Gruppenemission auf und verwendet einen eigenen inkrementellen
+      Compile-Stempel; `ResolveVB6ProjectGroup`, `GetVB6ProjectGroupOutputs` und der headless
+      `DesignTimeBuild`-Pfad sind ergänzt. Offen bleiben eine eigenständige gepackte ProjectSystem-
+      Task sowie vollständige Clean/Rebuild-/TypeLib-Orchestrierung. Visual-Studio-CPS und
+      Projektmodell gehören zur ausgeschlossenen IDE-Schicht
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
 - [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
@@ -426,14 +612,16 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
 
 Größter Einzelblock. Die Reihenfolge folgt den gemessenen Korpusgewichten oben, nicht der
 Vollständigkeit der VB6-Oberfläche: intrinsische Controls und ihr Eventmodell zuerst, ActiveX
-danach, unbelegte Konstrukte gar nicht.
+danach, unbelegte Konstrukte zuletzt. Der verbindliche Abschlussumfang umfasst dennoch die
+dokumentierte Forms-Oberfläche einschließlich `DrawMode` und MDI.
 
 - [x] **`Paint`-Event und `AutoRedraw`-Semantik** — `Paint` ist für Designer-Controls
       (einschließlich Control-Array-Index), Forms und UserControls verdrahtet und wird wie in VB6
       nur bei abgeschaltetem `AutoRedraw` ausgelöst. `BeginDrawing` entscheidet pro
       Zeichenoperation über das Ziel: innerhalb eines `Paint`-Handlers dessen Zeichenkontext, bei
       `AutoRedraw` die persistente Fläche, sonst direkt die sichtbare Fläche. Das Abschalten von
-      `AutoRedraw` verwirft die Bitmap. Offen bleibt `Cls` als eigene Operation.
+      `AutoRedraw` verwirft die Bitmap. `Cls` leert die aktive beziehungsweise persistente
+      Zeichenfläche über denselben Host-Vertrag.
 - [~] `.frm`/`.frx` parsen; die Designer-Hülle wird mit verschachtelten Controls, Eigenschaften,
       `BeginProperty`-Blöcken und hexadezimalen `.frx`-Ressourcenoffsets erfasst. Intrinsische
       Designer-Controltypen (u. a. `CommandButton`, `TextBox`, `Frame`, `PictureBox`, `Image`,
@@ -441,13 +629,15 @@ danach, unbelegte Konstrukte gar nicht.
       skalare Designerwerte für Controls und das Root-Form (einschließlich Fensterrahmen,
       ControlBox, Min-/Max-Button, Taskbar, Startposition und WindowState) werden nach der
       Erzeugung über den Host gesetzt; `TextRTF`
-      kann seine Nutzdaten aus `.frx` beziehen. Vollständige Ressourcendekodierung und WinForms-
-      Erzeugung bleiben offen.
+      kann seine Nutzdaten aus `.frx` beziehen; `Picture`- und `Icon`-Payloads werden ebenfalls
+      extrahiert. Vollständige Ressourcendekodierung sowie die vollständige Designer-Eigenschafts-
+      und Control-Oberfläche bleiben offen.
 - [~] Forms-Runtime auf WinForms: Der portable `IVB6Host`-Vertrag deckt Message-Pump, Form-Lifecycle,
       dynamischen Member-/Control-Dispatch, Control-Erzeugung und Enumeration ab; `VB6.Runtime.WinForms`
       mappt Standardcontrols, Twips, OLE-Farben und Fonts und regressionstestet `Load`/`Unload`/`Show`.
-      Automatische Designer-Registrierung, vollständiges Event-Mapping und die vollständige OCX-
-      Komposition bleiben offen; der geprüfte native OCX-Pfad ist separat regressiongesichert.
+      Generierte Form-Konstruktoren registrieren die Designer-Controls automatisch. Die vollständige
+      Eigenschaften-/Event-Oberfläche und OCX-Komposition bleiben offen; der geprüfte native
+      OCX-Pfad ist separat regressiongesichert.
 - [~] **Control-Arrays** — Designer-`Index`-Eigenschaften und wiederholte Controlnamen werden
       als typisierte VB6-Arrays gebunden und im generierten Form-Konstruktor als Host-Controls
       initialisiert. `Load name(index)` und `Unload name(index)` laufen zur Laufzeit: Der Binder
@@ -465,13 +655,17 @@ danach, unbelegte Konstrukte gar nicht.
       Einheit. `User` (0) bleibt Twips, bis ein eigener Maßstab über `ScaleWidth`/`ScaleHeight`
       existiert; ein Wert außerhalb 0–7 meldet wie in VB6 Fehler 380. `AutoRedraw` gehört zum
       `Paint`-Punkt oben.
-- [ ] **`DrawMode` — zurückgestellt, mangels Korpusbeleg.** Die Rasteroperationen (`Xor Pen`,
-      `Invert` und die übrigen 14) kommen in den 40 Quellen nicht vor; die drei früheren Treffer
-      der Messung waren ein gleichnamiges Enum, ein Kommentar und ein `SetROP2`-P/Invoke-Parameter.
-      Wie MDI erst bauen, wenn ein Korpusprojekt es fordert.
-- [ ] **MDI — zurückgestellt, mangels Korpusbeleg.** Weder `MDIForm` noch `MDIChild` kommt in den
-      40 VISIA-Quellen vor. Der Punkt bleibt für die VB6-Vollständigkeit stehen, wird aber erst
-      angefasst, wenn ein Korpusprojekt ihn fordert.
+- [ ] **`DrawMode` — im Abschlussplan, nach den belegten Forms-Verträgen.** Die Rasteroperationen
+      (`Xor Pen`, `Invert` und die übrigen 14) kommen in den 40 Quellen nicht vor; die drei früheren
+      Treffer der Messung waren ein gleichnamiges Enum, ein Kommentar und ein `SetROP2`-P/Invoke-
+      Parameter. Der `VB6Sp6`-Pfad bildet trotzdem alle 16 Modi über GDI-ROP2 auf einer
+      persistierbaren DC-/DIB-Zeichenfläche ab und sichert sie mit Pixeltests.
+- [~] **MDI — Grundvertrag vorhanden, vollständiger Ausbau eingeplant.** `VB.MDIForm`-Wurzeln werden
+      als MDI-Container initialisiert; `MDIChild=True` ordnet Child-Forms im WinForms-Host dem
+      registrierten Container zu und bleibt über den Host-Dispatch lesbar. Weder `MDIForm` noch
+      `MDIChild` kommt in den 40 VISIA-Quellen vor; offen sind dennoch vollständige Fensterbefehle,
+      `ActiveForm`, Cascade/Tile/Arrange, WindowList-/MDI-Menüs, Fokus und persistente
+      Window-Management-Regeln.
 - [~] `UserControl` (ActiveX) — generierte parameterlose `.ctl`-Klassen werden aus der Projektassembly
       instanziiert und als eingebettete borderlose WinForms-Hostflächen in Designer-Controls
       aufgenommen; `UserControl_Initialize`/`UserControl_Terminate` sowie die konventionellen
@@ -486,12 +680,15 @@ danach, unbelegte Konstrukte gar nicht.
       Connection-Point-Events werden für den RichTextBox-`Change`-Vertrag über `IProvideClassInfo`
       beziehungsweise die registrierte TypeLib aufgelöst; vollständige Event-Signaturen, alle
       Bitness-/Designer-Sonderfälle und der vollständige native ABI-Vertrag bleiben offen.
-      **Priorität sind die fünf im Korpus tatsächlich verwendeten Typen**: `MSComDlg.CommonDialog`
+      **Erste Priorität sind die fünf im Korpus tatsächlich verwendeten Typen**: `MSComDlg.CommonDialog`
       (4 Instanzen), `MSComctlLib.ImageList` (3), `RichTextLib.RichTextBox` (2),
       `MSComctlLib.TreeView` (2), `MSComctlLib.ImageCombo` (2) — alle fünf haben bereits einen
       managed Late-Binding-Vertrag. Die im Korpus belegten Event-Signaturen stehen: `NodeClick`
       (TreeView, mit typisiertem `Node`), `SelChange` (RichTextBox) und `Dropdown` (ImageCombo),
-      dazu der intrinsische Satz.
+      dazu der intrinsische Satz. Der Abschlussumfang endet dort nicht: Alle Microsoft-
+      redistributablen VB6-Stock-Controls werden in der Kompatibilitätsmatrix geführt; installierte
+      Controls laufen nativ, fehlende erhalten ABI-Testkomponenten und einen sichtbaren
+      Verifikationsstatus.
 
       **Ein VB6-Event auf einem ActiveX-Control kann aus zwei Quellen kommen**, und der Host muss
       beide bedienen, sonst liefern nativer und managed Pfad nicht dieselbe Signatur:
@@ -516,14 +713,16 @@ danach, unbelegte Konstrukte gar nicht.
       überspringen die Fälle. Ohne Registrierung, etwa auf einem CI-Runner, muss der managed Pfad
       grün bleiben. Offen bleiben die nicht belegten Event-Signaturen der übrigen OCX-Oberfläche.
 
-## Meilenstein 10 — IDE
+## Meilenstein 10 — LSP und IDE (ausgeschlossen)
 
 **Auf Eis gelegt, wird nicht weitergetrieben** — bewusst nach dem Compiler-Kern eingeordnet.
 
 Der erste LSP-Slice für Visual Studio steht: JSON-RPC, Initialize, Dokument-Synchronisation,
-Lexer-/Parser-/Semantik-Diagnosen und leere Completion-/Symbol-/Definition-Antworten. Als Nächstes
-folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Danach eigenständige IDE-/WinForms-Designer-Funktionen mit verlustfreiem
-`.frm`-Roundtrip und Debugger. Diese Schicht ist bewusst nach dem Compiler-Kern eingeordnet.
+Lexer-/Parser-/Semantik-Diagnosen, dokumentlokale Completion aus Deklarationen und Intrinsics,
+Go-to-definition sowie Dokumentsymbole. Offen bleiben projekt- und workspaceweite Symbolsuche,
+kontextabhängige Completion und Buildintegration. Danach folgen eigenständige IDE-/WinForms-
+Designer-Funktionen mit verlustfreiem `.frm`-Roundtrip und Debugger. Diese Schicht ist bewusst nach
+dem Compiler-Kern eingeordnet.
 
 ---
 
@@ -532,12 +731,14 @@ folgen echte Symbolsuche, Completion, Go-to-definition und Buildintegration. Dan
 1. [x] `Debug.Print` auf VB6-nahe Formatierung (führendes Vorzeichen-Leerzeichen, 15
    signifikante Stellen für Gleitkomma-/Currencywerte und vollständige Decimal-Präzision);
    die E2E-Helfer trimmen weiterhin bewusst Plattform-/Spaltenformat
-2. Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
-   Binder hat beide Seiten bereits angeglichen
-3. `Currency + Double` folgt nun der VB6-Promotionsreihenfolge und liefert `Double`, während
+2. [ ] Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
+   Binder hat beide Seiten bereits angeglichen; gehört zur Variant-/Operator-Matrix in Etappe B
+3. [x] `Currency + Double` folgt nun der VB6-Promotionsreihenfolge und liefert `Double`, während
    `Currency * Double` die separate Multiplikationsreihenfolge beibehält und `Currency` liefert;
    Vergleichspromotionen behalten weiterhin die separate Currency-Präzisionsregel
-4. `Debug.Print` formatiert Zahlen invariant und mit VB6-nahem Vorzeichen-/Signifikanzformat
-   unverändert unter Punkt 1
+4. [~] `Debug.Print` formatiert Zahlen im deterministischen Profil invariant und mit VB6-nahem
+   Vorzeichen-/Signifikanzformat; `Format` folgt im `VB6Sp6`-Profil bereits dem
+   System-LCID-/ANSI-Vertrag aus Etappe C. Die vollständige profilbewusste Debug-/Financial-
+   Formatierung bleibt offen.
 5. [x] `Debug.Assert` wird als kompiliertes VB6-Statement akzeptiert und im Managed-Emit
    vollständig elidiert.

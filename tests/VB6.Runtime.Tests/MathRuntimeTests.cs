@@ -39,12 +39,53 @@ public sealed class MathRuntimeTests
         var array = new VBArray<object>(new VBArrayBound(0, 0));
 
         Assert.IsTrue(VBVariants.IsNull(VBConversions.Int(nullValue)));
-        Assert.AreEqual(0d, VBConversions.Int(null));
-        Assert.AreEqual(1d, VBConversions.Int(VBConversions.CCur(1.75m)));
-        Assert.AreEqual(43832d, VBConversions.Int(new VBDateValue(43832.75d)));
+        Assert.AreEqual((short)0, VBConversions.Int(null));
+
+        var currency = VBConversions.Int(VBConversions.CCur(1.75m));
+        Assert.IsInstanceOfType<VBCurrency>(currency);
+        Assert.AreEqual(1m, ((VBCurrency)currency).ToDecimal());
+
+        var date = VBConversions.Int(new VBDateValue(43832.75d));
+        Assert.IsInstanceOfType<VBDateValue>(date);
+        Assert.AreEqual(43832d, ((VBDateValue)date).OADate);
         Assert.ThrowsException<VB6MissingArgumentException>(
             () => VBConversions.Int(VBVariants.MissingValue()));
         Assert.ThrowsException<VB6TypeMismatchException>(() => VBConversions.Int(array));
+    }
+
+    [TestMethod]
+    public void IntFixAndAbs_PreserveNumericVariantSubtypes()
+    {
+        var negativeCurrency = VBConversions.CCur(-1.75m);
+        var fixedCurrency = VBMath.Fix(negativeCurrency);
+        var flooredCurrency = VBConversions.Int(negativeCurrency);
+        var date = new VBDateValue(43832.75d);
+        var negativeDate = new VBDateValue(-1.75d);
+
+        Assert.IsInstanceOfType<VBCurrency>(fixedCurrency);
+        Assert.AreEqual(-1m, ((VBCurrency)fixedCurrency).ToDecimal());
+        Assert.IsInstanceOfType<VBCurrency>(flooredCurrency);
+        Assert.AreEqual(-2m, ((VBCurrency)flooredCurrency).ToDecimal());
+
+        Assert.AreEqual(new VBDateValue(43832d), VBMath.Fix(date));
+        Assert.AreEqual(new VBDateValue(43832d), VBConversions.Int(date));
+        Assert.AreEqual(new VBDateValue(1.75d), VBMath.Abs(negativeDate));
+
+        Assert.IsInstanceOfType<float>(VBMath.Fix(-1.75f));
+        Assert.IsInstanceOfType<float>(VBConversions.Int(-1.75f));
+        Assert.IsInstanceOfType<decimal>(VBMath.Fix(-1.75m));
+        Assert.IsInstanceOfType<decimal>(VBConversions.Int(-1.75m));
+    }
+
+    [TestMethod]
+    public void MathIntrinsics_UseBankersRoundingAndDomainErrors()
+    {
+        Assert.AreEqual(0.1234m, VBMath.Round(0.12345m, 4));
+        Assert.AreEqual(0.1236m, VBMath.Round(0.12355m, 4));
+        Assert.AreEqual(-1.8m, VBMath.Round(VBConversions.CCur(-1.75m), 1));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBMath.Sqr(-1d));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBMath.Log(0d));
+        Assert.ThrowsException<OverflowException>(() => VBMath.Exp(1000d));
     }
 
     [TestMethod]

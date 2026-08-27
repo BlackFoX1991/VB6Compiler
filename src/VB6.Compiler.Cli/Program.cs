@@ -3,17 +3,22 @@ using VB6.Emit.Managed;
 using VB6.Emit.Llvm;
 using VB6.IR;
 using VB6.ProjectSystem;
+using VB6.Runtime;
+using System.Security.Cryptography;
+using System.Text;
 
 const string usage =
-    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] [--com-host] [--com-manifest] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file]]\n" +
+    "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] [--compatibility deterministic|vb6-sp6] [--com-host] [--com-manifest] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file] [--compatibility deterministic|vb6-sp6]]\n" +
+    "       vb6c <source-file> --compatibility deterministic|vb6-sp6\n" +
     "       vb6c <project.vbp> --report\n" +
     "       vb6c <project.vbg> --report\n" +
-    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu] [--com-host] [--com-manifest]\n" +
+    "       vb6c <project.vbp|project.vbg> --write-input-manifest <output-file>\n" +
+    "       vb6c <project.vbg> --emit-assembly <output-directory> [--x86|--x64|--anycpu] [--compatibility deterministic|vb6-sp6] [--com-host] [--com-manifest]\n" +
     "       vb6c <comhost.dll> --register-com|--unregister-com [--x86|--x64|--anycpu]\n" +
     "\n" +
     "Architecture defaults to x86 for .vbp and .vbg projects, because legacy VB6 projects are\n" +
     "32-bit and their ActiveX controls cannot load into a 64-bit process. Single source files\n" +
-    "default to AnyCpu. The chosen architecture also drives #If Win64.";
+    "default to AnyCpu. VB6Sp6 selects x86 and rejects other architectures. The chosen architecture also drives #If Win64.";
 
 if (args.Length == 0)
 {
@@ -34,6 +39,12 @@ if (args.Length >= 2 &&
      string.Equals(args[1], "--unregister-com", StringComparison.OrdinalIgnoreCase)))
 {
     return HandleComRegistration(path, args);
+}
+
+if (args.Length == 3 &&
+    string.Equals(args[1], "--write-input-manifest", StringComparison.OrdinalIgnoreCase))
+{
+    return HandleInputManifest(path, args[2]);
 }
 
 if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnoreCase))
@@ -78,21 +89,39 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
     var projectPlatform = ManagedPlatform.X86;
     var projectComHost = false;
     var projectComManifest = false;
+    var projectCompatibilityProfile = VBCompatibilityProfile.Deterministic;
     VBCompilationOptions? projectCompilationOptions = null;
-    if (args.Length is >= 3 and <= 6 &&
+    if (args.Length is >= 3 and <= 8 &&
         string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedArguments(args, projectPlatform, out projectPlatform, out projectComHost, out projectComManifest))
+        if (!TryParseManagedArguments(
+                args,
+                projectPlatform,
+                out projectPlatform,
+                out projectComHost,
+                out projectComManifest,
+                out projectCompatibilityProfile))
         {
             return 1;
         }
 
-        projectCompilationOptions = CreateCompilationOptions(projectPlatform);
+        projectCompilationOptions = CreateCompilationOptions(projectPlatform, projectCompatibilityProfile);
+    }
+    else if (args.Length >= 2 &&
+             (string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase)))
+    {
+        if (!TryParseCompatibilityArguments(args, 2, out projectCompatibilityProfile))
+        {
+            return 1;
+        }
+
+        projectCompilationOptions = CreateCompilationOptions(projectPlatform, projectCompatibilityProfile);
     }
 
     var projectCompilation = VBProjectCompilation.Create(path, projectCompilationOptions);
 
-    if (args.Length == 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
+    if (args.Length >= 2 && string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase))
     {
         var projectAnalysis = projectCompilation.AnalyzeForEmission();
         var report = VBProjectParityReport.Create(projectAnalysis);
@@ -101,7 +130,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return projectAnalysis.Success ? 0 : 1;
     }
 
-    if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
+    if (args.Length >= 2 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
     {
         var lowering = projectCompilation.Lower();
         PrintProjectDiagnostics(lowering.Analysis);
@@ -111,7 +140,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
             return 1;
         }
 
-        return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
+        return WriteIr(IrDumper.Dump(lowering.Program), GetOptionalIrOutputPath(args, 2));
     }
 
     if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringComparison.OrdinalIgnoreCase))
@@ -127,7 +156,7 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
     }
 
-    if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is >= 3 and <= 8 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
         var outputPath = ResolveSingleProjectOutputPath(path, args[2]);
         var emitOptions = CreateManagedEmitOptions(
@@ -172,16 +201,41 @@ if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnor
 var sourcePlatform = ManagedPlatform.AnyCpu;
 var sourceComHost = false;
 var sourceComManifest = false;
+var sourceCompatibilityProfile = VBCompatibilityProfile.Deterministic;
 VBCompilationOptions? sourceCompilationOptions = null;
-if (args.Length is >= 3 and <= 6 &&
+if (args.Length is >= 3 and <= 8 &&
     string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
-    if (!TryParseManagedArguments(args, sourcePlatform, out sourcePlatform, out sourceComHost, out sourceComManifest))
+    if (!TryParseManagedArguments(
+            args,
+            sourcePlatform,
+            out sourcePlatform,
+            out sourceComHost,
+            out sourceComManifest,
+            out sourceCompatibilityProfile))
     {
         return 1;
     }
 
-    sourceCompilationOptions = CreateCompilationOptions(sourcePlatform);
+    sourceCompilationOptions = CreateCompilationOptions(sourcePlatform, sourceCompatibilityProfile);
+}
+else if (args.Length >= 2 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
+{
+    if (!TryParseCompatibilityArguments(args, 2, out sourceCompatibilityProfile))
+    {
+        return 1;
+    }
+
+    sourceCompilationOptions = CreateCompilationOptions(sourcePlatform, sourceCompatibilityProfile);
+}
+else if (args.Length >= 2 && string.Equals(args[1], "--compatibility", StringComparison.OrdinalIgnoreCase))
+{
+    if (!TryParseCompatibilityArguments(args, 1, out sourceCompatibilityProfile))
+    {
+        return 1;
+    }
+
+    sourceCompilationOptions = CreateCompilationOptions(sourcePlatform, sourceCompatibilityProfile);
 }
 
 var compilation = VBCompilation.Create(
@@ -189,7 +243,7 @@ var compilation = VBCompilation.Create(
     path,
     sourceCompilationOptions);
 
-if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
+if (args.Length >= 2 && string.Equals(args[1], "--dump-ir", StringComparison.OrdinalIgnoreCase))
 {
     var lowering = compilation.Lower();
     foreach (var diagnostic in lowering.Diagnostics)
@@ -202,7 +256,7 @@ if (args.Length is 2 or 3 && string.Equals(args[1], "--dump-ir", StringCompariso
         return 1;
     }
 
-    return WriteIr(IrDumper.Dump(lowering.Program), args.Length == 3 ? args[2] : null);
+    return WriteIr(IrDumper.Dump(lowering.Program), GetOptionalIrOutputPath(args, 2));
 }
 
 if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringComparison.OrdinalIgnoreCase))
@@ -221,7 +275,7 @@ if (args.Length is 3 or 4 && string.Equals(args[1], "--emit-llvm", StringCompari
     return EmitLlvm(lowering.Program, args[2], args.Length == 4 ? args[3] : null);
 }
 
-if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+if (args.Length is >= 3 and <= 8 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
 {
     var emitOptions = CreateManagedEmitOptions(args[2], sourcePlatform, sourceComHost, sourceComManifest);
     var emitResult = compilation.EmitManagedApplication(args[2], emitOptions);
@@ -252,7 +306,8 @@ if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", St
     return 0;
 }
 
-if (args.Length != 1)
+if (args.Length != 1 &&
+    !(args.Length >= 3 && string.Equals(args[1], "--compatibility", StringComparison.OrdinalIgnoreCase)))
 {
     Console.Error.WriteLine(usage);
     return 1;
@@ -292,16 +347,33 @@ static int HandleProjectGroup(string path, string[] args)
     var groupPlatform = ManagedPlatform.X86;
     var groupComHost = false;
     var groupComManifest = false;
+    var groupCompatibilityProfile = VBCompatibilityProfile.Deterministic;
     VBCompilationOptions? groupCompilationOptions = null;
-    if (args.Length is >= 3 and <= 6 &&
+    if (args.Length is >= 3 and <= 8 &&
         string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
-        if (!TryParseManagedArguments(args, groupPlatform, out groupPlatform, out groupComHost, out groupComManifest))
+        if (!TryParseManagedArguments(
+                args,
+                groupPlatform,
+                out groupPlatform,
+                out groupComHost,
+                out groupComManifest,
+                out groupCompatibilityProfile))
         {
             return 1;
         }
 
-        groupCompilationOptions = CreateCompilationOptions(groupPlatform);
+        groupCompilationOptions = CreateCompilationOptions(groupPlatform, groupCompatibilityProfile);
+    }
+    else if (args.Length >= 2 &&
+             (string.Equals(args[1], "--report", StringComparison.OrdinalIgnoreCase)))
+    {
+        if (!TryParseCompatibilityArguments(args, 2, out groupCompatibilityProfile))
+        {
+            return 1;
+        }
+
+        groupCompilationOptions = CreateCompilationOptions(groupPlatform, groupCompatibilityProfile);
     }
 
     var compilation = VBProjectGroupCompilation.Create(path, groupCompilationOptions);
@@ -327,7 +399,7 @@ static int HandleProjectGroup(string path, string[] args)
         return analysis.Success ? 0 : 1;
     }
 
-    if (args.Length is >= 3 and <= 6 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
+    if (args.Length is >= 3 and <= 8 && string.Equals(args[1], "--emit-assembly", StringComparison.OrdinalIgnoreCase))
     {
         var emitOptions = CreateManagedEmitOptions(
             args[2],
@@ -364,6 +436,133 @@ static int HandleProjectGroup(string path, string[] args)
 
     Console.Error.WriteLine(usage);
     return 1;
+}
+
+static int HandleInputManifest(string path, string outputPath)
+{
+    var fullOutputPath = Path.GetFullPath(outputPath);
+    var inputs = new List<string> { Path.GetFullPath(path) };
+    var success = true;
+
+    if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnoreCase))
+    {
+        var result = new VBProjectLoader().Load(path);
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
+        }
+
+        success = result.Success;
+        inputs.AddRange(CollectProjectInputs(result.Project));
+    }
+    else if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnoreCase))
+    {
+        var groupResult = new VBProjectGroupLoader().Load(path);
+        foreach (var diagnostic in groupResult.Diagnostics)
+        {
+            Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
+        }
+
+        success = groupResult.Success;
+        foreach (var project in groupResult.Group.Projects)
+        {
+            var projectPath = project.GetFullPath(groupResult.Group.ProjectDirectory);
+            inputs.Add(projectPath);
+            var projectResult = new VBProjectLoader().Load(projectPath);
+            foreach (var diagnostic in projectResult.Diagnostics)
+            {
+                Console.Error.WriteLine(
+                    $"{projectPath}: {diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
+            }
+
+            success &= projectResult.Success;
+            inputs.AddRange(CollectProjectInputs(projectResult.Project));
+        }
+    }
+    else
+    {
+        Console.Error.WriteLine("Input manifest generation requires a .vbp or .vbg file.");
+        return 1;
+    }
+
+    if (!success)
+    {
+        return 1;
+    }
+
+    var lines = inputs
+        .Where(pathValue => !string.Equals(pathValue, fullOutputPath, StringComparison.OrdinalIgnoreCase))
+        .Select(pathValue => Path.GetFullPath(pathValue))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(pathValue => pathValue, StringComparer.OrdinalIgnoreCase)
+        .Select(CreateInputManifestLine)
+        .ToArray();
+    Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? Directory.GetCurrentDirectory());
+    if (!File.Exists(fullOutputPath) ||
+        !lines.SequenceEqual(File.ReadAllLines(fullOutputPath), StringComparer.Ordinal))
+    {
+        File.WriteAllLines(fullOutputPath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    Console.WriteLine($"Generated exact VB6 input manifest: {fullOutputPath}");
+    Console.WriteLine($"Inputs: {lines.Length}");
+    return 0;
+}
+
+static IEnumerable<string> CollectProjectInputs(VBProject project)
+{
+    foreach (var item in project.Items)
+    {
+        var itemPath = item.GetFullPath(project.ProjectDirectory);
+        yield return itemPath;
+
+        if (item.Kind is VBProjectItemKind.Form or
+            VBProjectItemKind.UserControl or
+            VBProjectItemKind.PropertyPage or
+            VBProjectItemKind.UserDocument)
+        {
+            yield return Path.ChangeExtension(itemPath, ".frx");
+        }
+    }
+
+    foreach (var reference in project.References)
+    {
+        if (reference.Metadata.GetFullPath(project.ProjectDirectory) is { } referencePath)
+        {
+            yield return referencePath;
+        }
+    }
+
+    foreach (var component in project.Objects)
+    {
+        if (component.Metadata.GetFullPath(project.ProjectDirectory) is { } componentPath)
+        {
+            yield return componentPath;
+        }
+    }
+
+    foreach (var property in project.Properties)
+    {
+        if (property.Name.StartsWith("RESFILE", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(property.Value))
+        {
+            yield return Path.GetFullPath(Path.Combine(
+                project.ProjectDirectory,
+                property.Value.Trim().Trim('"')));
+        }
+    }
+}
+
+static string CreateInputManifestLine(string path)
+{
+    var normalized = path.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
+    if (!File.Exists(path))
+    {
+        return $"{normalized}\tMISSING";
+    }
+
+    var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+    return $"{normalized}\t{hash}";
 }
 
 static int HandleComRegistration(string path, string[] args)
@@ -479,17 +678,31 @@ static bool TryParseManagedArguments(
     ManagedPlatform defaultPlatform,
     out ManagedPlatform platform,
     out bool enableComHosting,
-    out bool enableComManifest)
+    out bool enableComManifest,
+    out VBCompatibilityProfile compatibilityProfile)
 {
     platform = defaultPlatform;
     enableComHosting = false;
     enableComManifest = false;
+    compatibilityProfile = VBCompatibilityProfile.Deterministic;
     ManagedPlatform? selectedPlatform = null;
-    foreach (var argument in arguments.Skip(3))
+    for (var index = 3; index < arguments.Length; index++)
     {
+        var argument = arguments[index];
         if (string.Equals(argument, "--com-host", StringComparison.OrdinalIgnoreCase))
         {
             enableComHosting = true;
+            continue;
+        }
+
+        if (string.Equals(argument, "--compatibility", StringComparison.OrdinalIgnoreCase))
+        {
+            if (index + 1 >= arguments.Length ||
+                !TryParseCompatibilityProfile(arguments[++index], out compatibilityProfile))
+            {
+                return false;
+            }
+
             continue;
         }
 
@@ -519,11 +732,88 @@ static bool TryParseManagedArguments(
         }
 
         Console.Error.WriteLine(
-            $"Unknown managed option '{argument}'. Use --x86, --x64, --anycpu, --com-host or --com-manifest.");
+            $"Unknown managed option '{argument}'. Use --x86, --x64, --anycpu, --compatibility, --com-host or --com-manifest.");
         return false;
     }
 
+    if (compatibilityProfile == VBCompatibilityProfile.VB6Sp6)
+    {
+        if (selectedPlatform is null)
+        {
+            platform = ManagedPlatform.X86;
+        }
+
+        if (platform != ManagedPlatform.X86)
+        {
+            Console.Error.WriteLine("The vb6-sp6 compatibility profile supports x86 targets only.");
+            return false;
+        }
+    }
+
     return true;
+}
+
+static bool TryParseCompatibilityArguments(
+    string[] arguments,
+    int startIndex,
+    out VBCompatibilityProfile compatibilityProfile)
+{
+    compatibilityProfile = VBCompatibilityProfile.Deterministic;
+    for (var index = startIndex; index < arguments.Length; index++)
+    {
+        var argument = arguments[index];
+        if (!string.Equals(argument, "--compatibility", StringComparison.OrdinalIgnoreCase))
+        {
+            if (argument.StartsWith("--", StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine(
+                    $"Unknown compatibility option '{argument}'. Use --compatibility deterministic|vb6-sp6.");
+                return false;
+            }
+
+            // --dump-ir may use the first trailing non-option argument as its output path.
+            continue;
+        }
+
+        if (index + 1 >= arguments.Length ||
+            !TryParseCompatibilityProfile(arguments[++index], out compatibilityProfile))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool TryParseCompatibilityProfile(
+    string? value,
+    out VBCompatibilityProfile compatibilityProfile)
+{
+    compatibilityProfile = value?.ToLowerInvariant() switch
+    {
+        "deterministic" => VBCompatibilityProfile.Deterministic,
+        "vb6-sp6" => VBCompatibilityProfile.VB6Sp6,
+        _ => (VBCompatibilityProfile)(-1)
+    };
+
+    if ((int)compatibilityProfile >= 0)
+    {
+        return true;
+    }
+
+    Console.Error.WriteLine(
+        $"Unknown compatibility profile '{value}'. Use deterministic or vb6-sp6.");
+    return false;
+}
+
+static string? GetOptionalIrOutputPath(string[] arguments, int startIndex)
+{
+    if (arguments.Length <= startIndex || arguments[startIndex].StartsWith("--", StringComparison.Ordinal))
+    {
+        return null;
+    }
+
+    return arguments[startIndex];
 }
 
 static bool TryParseManagedPlatform(string? argument, out ManagedPlatform platform)
@@ -598,12 +888,21 @@ static bool IsLibraryProjectType(string? projectType) =>
         "ACTIVEX EXE" or
         "ACTIVEX CONTROL";
 
-static VBCompilationOptions? CreateCompilationOptions(ManagedPlatform platform) => platform switch
+static VBCompilationOptions? CreateCompilationOptions(
+    ManagedPlatform platform,
+    VBCompatibilityProfile compatibilityProfile = VBCompatibilityProfile.Deterministic)
 {
-    ManagedPlatform.X86 => new VBCompilationOptions(TargetIs64Bit: false),
-    ManagedPlatform.X64 => new VBCompilationOptions(TargetIs64Bit: true),
-    _ => null
-};
+    if (platform == ManagedPlatform.AnyCpu &&
+        compatibilityProfile == VBCompatibilityProfile.Deterministic)
+    {
+        return null;
+    }
+
+    return new VBCompilationOptions(TargetIs64Bit: platform == ManagedPlatform.X64)
+    {
+        CompatibilityProfile = compatibilityProfile
+    };
+}
 
 static void PrintDebugInformation(string? pdbPath)
 {

@@ -20,6 +20,20 @@ public static class VBStrings
             DecoderFallback.ExceptionFallback);
     }
 
+    private static Encoding GetAnsiEncoding(VBCompatibilityProfile profile)
+    {
+        if (profile != VBCompatibilityProfile.VB6Sp6)
+        {
+            return WindowsAnsiEncoding;
+        }
+
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(
+            0,
+            EncoderFallback.ExceptionFallback,
+            DecoderFallback.ExceptionFallback);
+    }
+
     private static bool IsUndefinedWindowsAnsiByte(byte value) =>
         value is 0x81 or 0x8D or 0x8F or 0x90 or 0x9D;
 
@@ -75,6 +89,10 @@ public static class VBStrings
     /// managed layout, including padding between fields.
     /// </summary>
     public static object LenB(object? value)
+        => LenB(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware LenB using the active Windows ANSI code page for VB6Sp6.</summary>
+    public static object LenB(object? value, VBCompatibilityProfile profile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
@@ -87,7 +105,9 @@ public static class VBStrings
         return value switch
         {
             null => 0,
-            string text => checked(text.Length * sizeof(char)),
+            string text => profile == VBCompatibilityProfile.Deterministic
+                ? checked(text.Length * sizeof(char))
+                : GetAnsiEncoding(profile).GetByteCount(text),
             byte => 1,
             short => 2,
             int => 4,
@@ -214,6 +234,10 @@ public static class VBStrings
 
     /// <summary>Returns the first character's Windows-1252 byte value for the VB6 Asc intrinsic.</summary>
     public static int Asc(string value)
+        => Asc(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware Asc using the active Windows ANSI code page for VB6Sp6.</summary>
+    public static int Asc(string value, VBCompatibilityProfile profile)
     {
         ArgumentNullException.ThrowIfNull(value);
         if (value.Length == 0)
@@ -221,6 +245,7 @@ public static class VBStrings
             throw new ArgumentException("VB6 Asc requires a non-empty string.", nameof(value));
         }
 
+        var encoding = GetAnsiEncoding(profile);
         var character = value[0];
         if (character <= 127)
         {
@@ -229,19 +254,19 @@ public static class VBStrings
 
         try
         {
-            var bytes = WindowsAnsiEncoding.GetBytes(new[] { character });
+            var bytes = encoding.GetBytes(new[] { character });
             if (bytes.Length == 1 && !IsUndefinedWindowsAnsiByte(bytes[0]))
             {
                 return bytes[0];
             }
 
             throw new NotSupportedException(
-                $"VB6 Asc cannot represent U+{(int)character:X4} in Windows-1252.");
+                $"VB6 Asc cannot represent U+{(int)character:X4} in the active ANSI code page.");
         }
         catch (EncoderFallbackException exception)
         {
             throw new NotSupportedException(
-                $"VB6 Asc cannot represent U+{(int)character:X4} in Windows-1252.",
+                $"VB6 Asc cannot represent U+{(int)character:X4} in the active ANSI code page.",
                 exception);
         }
     }
@@ -412,19 +437,40 @@ public static class VBStrings
     }
 
     /// <summary>
-    /// Implements the deterministic numeric and string subset of VB6 Format/Format$.
-    /// Numeric masks use the invariant culture and the .NET custom numeric grammar for the
-    /// compatible VB6 placeholders <c>0</c>, <c>#</c>, grouping, decimals, percent and sections.
-    /// Date/time masks outside the explicitly supported token subset and locale-dependent named
-    /// formats remain intentionally unsupported.
+    /// Implements the numeric and string subset of VB6 Format/Format$. The compatibility-free
+    /// overload uses invariant culture; the profile-aware overload applies the active culture
+    /// for VB6Sp6 numeric separators and localized date names.
     /// </summary>
     public static string FormatValue(
         object? expression,
         string format,
         int firstDayOfWeek,
-        int firstWeekOfYear)
+        int firstWeekOfYear) =>
+        FormatValue(
+            expression,
+            format,
+            firstDayOfWeek,
+            firstWeekOfYear,
+            VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Profile-aware implementation of VB6 Format/Format$. The SP6 profile uses the active
+    /// process culture for numeric separators and localized date names; deterministic callers
+    /// retain the invariant behavior of the legacy four-argument overload.
+    /// </summary>
+    public static string FormatValue(
+        object? expression,
+        string format,
+        int firstDayOfWeek,
+        int firstWeekOfYear,
+        VBCompatibilityProfile profile)
     {
         ArgumentNullException.ThrowIfNull(format);
+        if (format.Length > 257)
+        {
+            format = format[..257];
+        }
+
         _ = firstDayOfWeek;
         _ = firstWeekOfYear;
         expression = VBVariantObject.ResolveDefaultValue(expression);
@@ -436,21 +482,56 @@ public static class VBStrings
 
         if (VBVariants.IsNull(expression))
         {
-            return FormatString(string.Empty, format, isNull: true);
+            var sections = SplitFormatSections(format, 4);
+            return sections.Count == 4
+                ? FormatString(string.Empty, sections[3], isNull: true)
+                : FormatString(string.Empty, format, isNull: true);
+        }
+
+        if (expression is null)
+        {
+            if (format.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            if (IsNumericFormat(format))
+            {
+                return FormatNumber((short)0, (short)0, format, profile);
+            }
+
+            if (IsDateFormat(format))
+            {
+                return FormatDate(new VBDateValue(0d), format, firstDayOfWeek, firstWeekOfYear, profile);
+            }
+
+            return FormatString(string.Empty, format);
         }
 
         if (expression is VBDateValue date)
         {
-            return FormatDate(date, format, firstDayOfWeek, firstWeekOfYear);
+            if (IsNumericFormat(format))
+            {
+                return FormatNumber(date.OADate, date.OADate, format, profile);
+            }
+
+            return FormatDate(date, format, firstDayOfWeek, firstWeekOfYear, profile);
         }
 
         if (expression is DateTime dateTime)
         {
+            var oaDate = dateTime.ToOADate();
+            if (IsNumericFormat(format))
+            {
+                return FormatNumber(oaDate, oaDate, format, profile);
+            }
+
             return FormatDate(
-                new VBDateValue(dateTime.ToOADate()),
+                new VBDateValue(oaDate),
                 format,
                 firstDayOfWeek,
-                firstWeekOfYear);
+                firstWeekOfYear,
+                profile);
         }
 
         if (!TryGetFormatNumber(expression, out var number))
@@ -459,25 +540,52 @@ public static class VBStrings
                 $"CLR value of type '{expression?.GetType().FullName ?? "null"}' is not supported by the VB6 Format intrinsic.");
         }
 
+        return FormatNumber(number, expression, format, profile);
+    }
+
+    private static string FormatNumber(
+        IFormattable number,
+        object? originalValue,
+        string format,
+        VBCompatibilityProfile profile)
+    {
         if (format.Length == 0)
         {
-            return number.ToString("G29", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            if (originalValue is bool boolean)
+            {
+                return boolean ? "True" : "False";
+            }
+
+            return number.ToString("G29", FormatCulture(profile)) ?? string.Empty;
         }
 
-        var numericFormat = format switch
+        var normalizedFormat = format.ToUpperInvariant();
+        if (normalizedFormat is "YES/NO" or "TRUE/FALSE" or "ON/OFF")
         {
-            "General Number" => "G29",
-            "Currency" => "$#,##0.00;($#,##0.00)",
-            "Fixed" => "0.00",
-            "Standard" => "#,##0.00",
-            "Percent" => "0.00%",
-            "Scientific" => "0.00E+00",
-            _ => format
+            var nonZero = VBConversions.CDbl(originalValue) != 0d;
+            return normalizedFormat switch
+            {
+                "YES/NO" => nonZero ? "Yes" : "No",
+                "TRUE/FALSE" => nonZero ? "True" : "False",
+                _ => nonZero ? "On" : "Off"
+            };
+        }
+
+        var numericFormat = normalizedFormat switch
+        {
+            "GENERAL NUMBER" => "G29",
+            "CURRENCY" when profile == VBCompatibilityProfile.VB6Sp6 => "C2",
+            "CURRENCY" => "$#,##0.00;($#,##0.00)",
+            "FIXED" => "0.00",
+            "STANDARD" => "#,##0.00",
+            "PERCENT" => "0.00%",
+            "SCIENTIFIC" => "0.00E+00",
+            _ => NormalizeNumericSections(format)
         };
 
         try
         {
-            return number.ToString(numericFormat, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            return number.ToString(numericFormat, FormatCulture(profile)) ?? string.Empty;
         }
         catch (FormatException exception)
         {
@@ -491,7 +599,8 @@ public static class VBStrings
         VBDateValue value,
         string format,
         int firstDayOfWeek,
-        int firstWeekOfYear)
+        int firstWeekOfYear,
+        VBCompatibilityProfile profile)
     {
         DateTime date;
         try
@@ -508,33 +617,79 @@ public static class VBStrings
 
         if (format.Length == 0)
         {
-            return date.ToString("G", System.Globalization.CultureInfo.InvariantCulture);
+            return date.ToString("G", FormatCulture(profile));
         }
 
-        var namedFormat = format.ToUpperInvariant() switch
+        var namedFormat = format.ToUpperInvariant();
+        return namedFormat switch
         {
-            "GENERAL DATE" => "yyyy-mm-dd hh:nn:ss",
-            "SHORT DATE" => "yyyy-mm-dd",
-            "LONG DATE" => "dddd, dd mmmm yyyy",
-            "SHORT TIME" => "hh:nn",
-            "LONG TIME" => "hh:nn:ss",
-            _ => null
+            "GENERAL DATE" => FormatGeneralDate(date, value.OADate, profile),
+            "LONG DATE" => FormatNamedDate(date, "long-date", profile),
+            "MEDIUM DATE" => FormatNamedDate(date, "medium-date", profile),
+            "SHORT DATE" => FormatNamedDate(date, "short-date", profile),
+            "LONG TIME" => FormatNamedDate(date, "long-time", profile),
+            "MEDIUM TIME" => FormatNamedDate(date, "medium-time", profile),
+            "SHORT TIME" => FormatNamedDate(date, "short-time", profile),
+            _ => FormatDateTokens(date, format, firstDayOfWeek, firstWeekOfYear, profile)
         };
-        return FormatDateTokens(date, namedFormat ?? format, firstDayOfWeek, firstWeekOfYear);
+    }
+
+    private static string FormatGeneralDate(
+        DateTime value,
+        double oaDate,
+        VBCompatibilityProfile profile)
+    {
+        var hasDate = Math.Truncate(oaDate) != 0d;
+        var hasTime = oaDate != Math.Truncate(oaDate);
+        if (!hasDate)
+        {
+            return FormatNamedDate(value, "long-time", profile);
+        }
+
+        if (!hasTime)
+        {
+            return FormatNamedDate(value, "short-date", profile);
+        }
+
+        return FormatNamedDate(value, "short-date", profile) + " " +
+               FormatNamedDate(value, "long-time", profile);
+    }
+
+    private static string FormatNamedDate(
+        DateTime value,
+        string namedFormat,
+        VBCompatibilityProfile profile)
+    {
+        var culture = FormatCulture(profile);
+        var pattern = namedFormat switch
+        {
+            "long-date" when profile == VBCompatibilityProfile.VB6Sp6 => culture.DateTimeFormat.LongDatePattern,
+            "long-date" => "dddd, dd MMMM yyyy",
+            "medium-date" => "dd-MMM-yy",
+            "short-date" when profile == VBCompatibilityProfile.VB6Sp6 => culture.DateTimeFormat.ShortDatePattern,
+            "short-date" => "yyyy-MM-dd",
+            "long-time" when profile == VBCompatibilityProfile.VB6Sp6 => culture.DateTimeFormat.LongTimePattern,
+            "long-time" => "HH:mm:ss",
+            "medium-time" => "h:mm tt",
+            "short-time" => "HH:mm",
+            _ => throw new ArgumentOutOfRangeException(nameof(namedFormat), namedFormat, "Unknown named VB6 date format.")
+        };
+        return value.ToString(pattern, culture);
     }
 
     private static string FormatDateTokens(
         DateTime value,
         string format,
         int firstDayOfWeek,
-        int firstWeekOfYear)
+        int firstWeekOfYear,
+        VBCompatibilityProfile profile)
     {
         var weekStart = ToFirstDayOfWeek(firstDayOfWeek);
         var weekRule = ToCalendarWeekRule(firstWeekOfYear);
+        var culture = FormatCulture(profile);
         var result = new System.Text.StringBuilder();
-        var hasAmPm = format.Contains("AM/PM", StringComparison.OrdinalIgnoreCase) ||
-                      format.Contains("A/P", StringComparison.OrdinalIgnoreCase);
-        var inTime = false;
+        var hasAmPm = ContainsAmPmToken(format);
+        var previousToken = '\0';
 
         for (var index = 0; index < format.Length;)
         {
@@ -550,6 +705,18 @@ public static class VBStrings
 
                 result.Append(format, index + 1, end - index - 1);
                 index = end + 1;
+                continue;
+            }
+
+            if (character == '\\')
+            {
+                if (index + 1 >= format.Length)
+                {
+                    throw new NotSupportedException($"Date Format mask '{format}' ends with an escape character.");
+                }
+
+                result.Append(format[index + 1]);
+                index += 2;
                 continue;
             }
 
@@ -569,8 +736,31 @@ public static class VBStrings
                 continue;
             }
 
+            if (format.AsSpan(index).StartsWith("AMPM", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Append(value.Hour < 12
+                    ? culture.DateTimeFormat.AMDesignator
+                    : culture.DateTimeFormat.PMDesignator);
+                index += "AMPM".Length;
+                continue;
+            }
+
+            if (character == ':')
+            {
+                result.Append(culture.DateTimeFormat.TimeSeparator);
+                index++;
+                continue;
+            }
+
+            if (character == '/')
+            {
+                result.Append(culture.DateTimeFormat.DateSeparator);
+                index++;
+                continue;
+            }
+
             var token = char.ToLowerInvariant(character);
-            if (token is not ('y' or 'm' or 'd' or 'h' or 'n' or 's' or 'w' or 'q'))
+            if (token is not ('c' or 'y' or 'm' or 'd' or 'h' or 'n' or 's' or 'w' or 'q' or 't'))
             {
                 if (char.IsLetter(character))
                 {
@@ -586,77 +776,118 @@ public static class VBStrings
             var count = CountToken(format, index, character);
             switch (token)
             {
-                case 'y':
-                    result.Append(count >= 4
-                        ? value.Year.ToString("D4", System.Globalization.CultureInfo.InvariantCulture)
-                        : count == 2
-                            ? value.Year.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)
-                            : value.DayOfYear.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                case 'c' when count == 1:
+                    result.Append(FormatGeneralDate(value, value.ToOADate(), profile));
                     break;
+                case 'c':
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported general-date token length.");
+                case 'y' when count == 1:
+                    result.Append(value.DayOfYear.ToString(culture));
+                    break;
+                case 'y' when count == 2:
+                    result.Append((value.Year % 100).ToString("D2", culture));
+                    break;
+                case 'y' when count == 4:
+                    result.Append(value.Year.ToString("D4", culture));
+                    break;
+                case 'y':
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported year token length.");
                 case 'w' when count == 1:
-                    result.Append(Weekday(value, weekStart).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    result.Append(Weekday(value, weekStart).ToString(culture));
                     break;
                 case 'w' when count == 2:
                     result.Append(
-                        System.Globalization.CultureInfo.InvariantCulture.Calendar
+                        culture.Calendar
                             .GetWeekOfYear(value, weekRule, weekStart)
-                            .ToString(System.Globalization.CultureInfo.InvariantCulture));
+                            .ToString(culture));
                     break;
                 case 'w':
                     throw new NotSupportedException(
                         $"Date Format mask '{format}' uses an unsupported weekday token length.");
                 case 'q' when count == 1:
-                    result.Append(((value.Month - 1) / 3 + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    result.Append(((value.Month - 1) / 3 + 1).ToString(culture));
                     break;
                 case 'q':
                     throw new NotSupportedException(
                         $"Date Format mask '{format}' uses an unsupported quarter token length.");
-                case 'm' when inTime && count <= 2:
-                    result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                case 'm' when previousToken == 'h' && count <= 2:
+                    result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", culture));
                     break;
-                case 'm' when count >= 4:
-                    result.Append(value.ToString("MMMM", System.Globalization.CultureInfo.InvariantCulture));
+                case 'm' when count == 4:
+                    result.Append(value.ToString("MMMM", culture));
                     break;
                 case 'm' when count == 3:
-                    result.Append(value.ToString("MMM", System.Globalization.CultureInfo.InvariantCulture));
+                    result.Append(value.ToString("MMM", culture));
+                    break;
+                case 'm' when count is 1 or 2:
+                    result.Append(value.Month.ToString(count == 2 ? "D2" : "D", culture));
                     break;
                 case 'm':
-                    result.Append(value.Month.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported month token length.");
+                case 'd' when count == 6:
+                    result.Append(FormatNamedDate(value, "long-date", profile));
                     break;
-                case 'd' when count >= 4:
-                    result.Append(value.ToString("dddd", System.Globalization.CultureInfo.InvariantCulture));
+                case 'd' when count == 5:
+                    result.Append(FormatNamedDate(value, "short-date", profile));
+                    break;
+                case 'd' when count == 4:
+                    result.Append(value.ToString("dddd", culture));
                     break;
                 case 'd' when count == 3:
-                    result.Append(value.ToString("ddd", System.Globalization.CultureInfo.InvariantCulture));
+                    result.Append(value.ToString("ddd", culture));
+                    break;
+                case 'd' when count is 1 or 2:
+                    result.Append(value.Day.ToString(count == 2 ? "D2" : "D", culture));
                     break;
                 case 'd':
-                    result.Append(value.Day.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
-                    break;
-                case 'h':
-                    inTime = true;
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported day token length.");
+                case 'h' when count is 1 or 2:
                     var hour = hasAmPm ? value.Hour % 12 : value.Hour;
                     if (hasAmPm && hour == 0)
                     {
                         hour = 12;
                     }
 
-                    result.Append(hour.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    result.Append(hour.ToString(count == 2 ? "D2" : "D", culture));
+                    break;
+                case 'h':
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported hour token length.");
+                case 'n' when count is 1 or 2:
+                    result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", culture));
                     break;
                 case 'n':
-                    inTime = true;
-                    result.Append(value.Minute.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported minute token length.");
+                case 's' when count is 1 or 2:
+                    result.Append(value.Second.ToString(count == 2 ? "D2" : "D", culture));
                     break;
                 case 's':
-                    inTime = true;
-                    result.Append(value.Second.ToString(count == 2 ? "D2" : "D", System.Globalization.CultureInfo.InvariantCulture));
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported second token length.");
+                case 't' when count == 5:
+                    result.Append(FormatNamedDate(value, "long-time", profile));
                     break;
+                case 't':
+                    throw new NotSupportedException(
+                        $"Date Format mask '{format}' uses an unsupported complete-time token length.");
             }
 
+            previousToken = token;
             index += count;
         }
 
         return result.ToString();
     }
+
+    private static System.Globalization.CultureInfo FormatCulture(VBCompatibilityProfile profile) =>
+        profile == VBCompatibilityProfile.VB6Sp6
+            ? System.Globalization.CultureInfo.CurrentCulture
+            : System.Globalization.CultureInfo.InvariantCulture;
 
     private static int Weekday(DateTime value, DayOfWeek firstDayOfWeek) =>
         ((int)value.DayOfWeek - (int)firstDayOfWeek + 7) % 7 + 1;
@@ -711,6 +942,173 @@ public static class VBStrings
         return count;
     }
 
+    private static bool ContainsAmPmToken(string format)
+    {
+        for (var index = 0; index < format.Length; index++)
+        {
+            if (format[index] is '\'' or '"')
+            {
+                var end = format.IndexOf(format[index], index + 1);
+                if (end < 0)
+                {
+                    return false;
+                }
+
+                index = end;
+                continue;
+            }
+
+            if (format[index] == '\\')
+            {
+                index++;
+                continue;
+            }
+
+            if (format.AsSpan(index).StartsWith("AM/PM", StringComparison.OrdinalIgnoreCase) ||
+                format.AsSpan(index).StartsWith("A/P", StringComparison.OrdinalIgnoreCase) ||
+                format.AsSpan(index).StartsWith("AMPM", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsNumericFormat(string format)
+    {
+        if (IsNamedNumericFormat(format))
+        {
+            return true;
+        }
+
+        for (var index = 0; index < format.Length; index++)
+        {
+            if (format[index] is '\'' or '"')
+            {
+                var end = format.IndexOf(format[index], index + 1);
+                if (end < 0)
+                {
+                    return false;
+                }
+
+                index = end;
+                continue;
+            }
+
+            if (format[index] == '\\')
+            {
+                index++;
+                continue;
+            }
+
+            if (format[index] is '0' or '#' or '%')
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsDateFormat(string format)
+    {
+        if (format.ToUpperInvariant() is
+            "GENERAL DATE" or "LONG DATE" or "MEDIUM DATE" or "SHORT DATE" or
+            "LONG TIME" or "MEDIUM TIME" or "SHORT TIME")
+        {
+            return true;
+        }
+
+        var hasDateToken = false;
+        for (var index = 0; index < format.Length; index++)
+        {
+            if (format[index] is '\'' or '"')
+            {
+                var end = format.IndexOf(format[index], index + 1);
+                if (end < 0)
+                {
+                    return false;
+                }
+
+                index = end;
+                continue;
+            }
+
+            if (format[index] == '\\')
+            {
+                index++;
+                continue;
+            }
+
+            if (format[index] is '@' or '&' or '<' or '>' or '!')
+            {
+                return false;
+            }
+
+            hasDateToken |= char.ToLowerInvariant(format[index]) is
+                'c' or 'd' or 'h' or 'm' or 'n' or 'q' or 's' or 't' or 'w' or 'y';
+        }
+
+        return hasDateToken;
+    }
+
+    private static bool IsNamedNumericFormat(string format) => format.ToUpperInvariant() is
+        "GENERAL NUMBER" or "CURRENCY" or "FIXED" or "STANDARD" or "PERCENT" or "SCIENTIFIC" or
+        "YES/NO" or "TRUE/FALSE" or "ON/OFF";
+
+    private static string NormalizeNumericSections(string format)
+    {
+        var sections = SplitFormatSections(format, 4);
+        return sections.Count == 4
+            ? string.Join(';', sections.Take(3))
+            : format;
+    }
+
+    private static IReadOnlyList<string> SplitFormatSections(string format, int maximumSections)
+    {
+        var sections = new List<string>();
+        var section = new StringBuilder();
+        var quote = '\0';
+        for (var index = 0; index < format.Length; index++)
+        {
+            var character = format[index];
+            if (character == '\\' && index + 1 < format.Length)
+            {
+                section.Append(character);
+                section.Append(format[++index]);
+                continue;
+            }
+
+            if (character is '\'' or '"')
+            {
+                if (quote == '\0')
+                {
+                    quote = character;
+                }
+                else if (quote == character)
+                {
+                    quote = '\0';
+                }
+
+                section.Append(character);
+                continue;
+            }
+
+            if (character == ';' && quote == '\0' && sections.Count < maximumSections - 1)
+            {
+                sections.Add(section.ToString());
+                section.Clear();
+                continue;
+            }
+
+            section.Append(character);
+        }
+
+        sections.Add(section.ToString());
+        return sections;
+    }
+
     private static string FormatString(string value, string format, bool isNull = false)
     {
         if (format.Length == 0)
@@ -718,41 +1116,80 @@ public static class VBStrings
             return isNull ? "Null" : value;
         }
 
-        var sections = format.Split(';', 2, StringSplitOptions.None);
+        var sections = SplitFormatSections(format, 2);
         var selectedFormat = value.Length == 0 || isNull
-            ? sections.Length == 2 ? sections[1] : sections[0]
+            ? sections.Count == 2 ? sections[1] : sections[0]
             : sections[0];
-        var forceLower = selectedFormat.Contains('<');
-        var forceUpper = selectedFormat.Contains('>');
-        var leftToRight = selectedFormat.Contains('!');
-        var pattern = selectedFormat
-            .Replace("<", string.Empty, StringComparison.Ordinal)
-            .Replace(">", string.Empty, StringComparison.Ordinal)
-            .Replace("!", string.Empty, StringComparison.Ordinal);
-        var placeholderCount = pattern.Count(character => character is '@' or '&');
+        var caseMode = 0;
+        var leftToRight = false;
+        var tokens = new List<(char Character, char Placeholder)>();
+        for (var index = 0; index < selectedFormat.Length; index++)
+        {
+            var character = selectedFormat[index];
+            if (character is '\'' or '"')
+            {
+                var end = selectedFormat.IndexOf(character, index + 1);
+                if (end < 0)
+                {
+                    throw new NotSupportedException($"String Format mask '{format}' has an unterminated literal.");
+                }
 
+                for (var literalIndex = index + 1; literalIndex < end; literalIndex++)
+                {
+                    tokens.Add((selectedFormat[literalIndex], '\0'));
+                }
+
+                index = end;
+                continue;
+            }
+
+            if (character == '\\')
+            {
+                if (index + 1 >= selectedFormat.Length)
+                {
+                    throw new NotSupportedException($"String Format mask '{format}' ends with an escape character.");
+                }
+
+                tokens.Add((selectedFormat[++index], '\0'));
+                continue;
+            }
+
+            switch (character)
+            {
+                case '<':
+                    caseMode = -1;
+                    break;
+                case '>':
+                    caseMode = 1;
+                    break;
+                case '!':
+                    leftToRight = true;
+                    break;
+                case '@':
+                case '&':
+                    tokens.Add(('\0', character));
+                    break;
+                default:
+                    tokens.Add((character, '\0'));
+                    break;
+            }
+        }
+
+        var placeholderCount = tokens.Count(token => token.Placeholder != '\0');
         if (placeholderCount == 0)
         {
-            if (pattern.Length == 0 && (forceLower || forceUpper))
-            {
-                return forceLower ? value.ToLowerInvariant() : value.ToUpperInvariant();
-            }
-
-            if (sections.Length == 2 && (value.Length == 0 || isNull))
-            {
-                return ApplyStringCase(pattern, forceLower, forceUpper);
-            }
-
-            throw new NotSupportedException(
-                $"String Format mask '{format}' is outside the current string placeholder subset.");
+            var literal = tokens.Count == 0
+                ? value
+                : new string(tokens.Select(token => token.Character).ToArray());
+            return ApplyStringCase(literal, caseMode < 0, caseMode > 0);
         }
 
         var characters = value.ToCharArray();
         var nextCharacter = leftToRight ? 0 : characters.Length - 1;
         var step = leftToRight ? 1 : -1;
-        var placeholderPositions = pattern
-            .Select((character, index) => (character, index))
-            .Where(entry => entry.character is '@' or '&')
+        var placeholderPositions = tokens
+            .Select((token, index) => (token, index))
+            .Where(entry => entry.token.Placeholder != '\0')
             .Select(entry => entry.index)
             .ToArray();
         var replacements = new Dictionary<int, char?>();
@@ -765,20 +1202,20 @@ public static class VBStrings
                 : nextCharacter >= 0;
             replacements[position] = hasCharacter
                 ? characters[nextCharacter]
-                : pattern[position] == '@' ? ' ' : null;
+                : tokens[position].Placeholder == '@' ? ' ' : null;
             if (hasCharacter)
             {
                 nextCharacter += step;
             }
         }
 
-        var result = new StringBuilder(pattern.Length);
-        for (var position = 0; position < pattern.Length; position++)
+        var result = new StringBuilder(tokens.Count);
+        for (var position = 0; position < tokens.Count; position++)
         {
-            var character = pattern[position];
-            if (character is not ('@' or '&'))
+            var token = tokens[position];
+            if (token.Placeholder == '\0')
             {
-                result.Append(character);
+                result.Append(token.Character);
                 continue;
             }
 
@@ -788,7 +1225,7 @@ public static class VBStrings
             }
         }
 
-        return ApplyStringCase(result.ToString(), forceLower, forceUpper);
+        return ApplyStringCase(result.ToString(), caseMode < 0, caseMode > 0);
     }
 
     private static string ApplyStringCase(string value, bool forceLower, bool forceUpper) =>
@@ -802,6 +1239,9 @@ public static class VBStrings
     {
         switch (value)
         {
+            case bool booleanValue:
+                number = booleanValue ? (short)-1 : (short)0;
+                return true;
             case byte numberValue:
                 number = numberValue;
                 return true;
@@ -1188,17 +1628,33 @@ public static class VBStrings
     }
 
     /// <summary>
-    /// Implements the portable StrConv subset used by VB6 source. LCID is accepted for signature
-    /// compatibility; the compiler runtime deliberately uses invariant casing.
+    /// Implements the portable StrConv subset used by VB6 source. The existing overload keeps
+    /// deterministic invariant casing for callers that do not select a compatibility profile.
     /// </summary>
     public static string StrConv(string value, int conversion, int lcid)
+        => StrConv(value, conversion, lcid, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Implements the profile-aware StrConv subset. VB6Sp6 follows the active system culture for
+    /// casing; unsupported width conversions remain explicit no-ops until their DBCS contract is
+    /// implemented.
+    /// </summary>
+    public static string StrConv(
+        string value,
+        int conversion,
+        int lcid,
+        VBCompatibilityProfile compatibilityProfile)
     {
         ArgumentNullException.ThrowIfNull(value);
+        _ = lcid;
+        var culture = compatibilityProfile == VBCompatibilityProfile.VB6Sp6
+            ? System.Globalization.CultureInfo.CurrentCulture
+            : System.Globalization.CultureInfo.InvariantCulture;
         return conversion switch
         {
-            1 => value.ToUpperInvariant(),
-            2 => value.ToLowerInvariant(),
-            3 => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(value.ToLowerInvariant()),
+            1 => value.ToUpper(culture),
+            2 => value.ToLower(culture),
+            3 => culture.TextInfo.ToTitleCase(value.ToLower(culture)),
             64 or 128 => value,
             _ => throw new NotSupportedException($"VB6 StrConv conversion '{conversion}' is not supported by the portable runtime.")
         };
@@ -1217,6 +1673,10 @@ public static class VBStrings
 
     /// <summary>Returns the Windows-1252 character represented by a VB6 Chr code.</summary>
     public static string Chr(int charCode)
+        => Chr(charCode, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware Chr using the active Windows ANSI code page for VB6Sp6.</summary>
+    public static string Chr(int charCode, VBCompatibilityProfile profile)
     {
         if (charCode is < 0 or > 255)
         {
@@ -1238,7 +1698,7 @@ public static class VBStrings
                     $"VB6 Chr cannot map byte {charCode} in Windows-1252.");
             }
 
-            return WindowsAnsiEncoding.GetString(new[] { byteValue });
+            return GetAnsiEncoding(profile).GetString(new[] { byteValue });
         }
         catch (DecoderFallbackException exception)
         {

@@ -105,8 +105,8 @@ public sealed class ManagedEmitter
 
         public ManagedEmitResult Emit()
         {
-            AddAssemblyAndModuleMetadata();
             AddAssemblyReferences();
+            AddAssemblyAndModuleMetadata();
             BuildPlansAndAssignHandles();
             EmitFieldDefinitions();
             var parameterStarts = EmitParameters();
@@ -166,13 +166,17 @@ public sealed class ManagedEmitter
                 _metadata.GetOrAddGuid(mvid),
                 default,
                 default);
-            _metadata.AddAssembly(
+            var assembly = _metadata.AddAssembly(
                 _metadata.GetOrAddString(_options.AssemblyName),
                 new Version(1, 0, 0, 0),
                 default,
                 default,
                 AssemblyFlags.None,
                 AssemblyHashAlgorithm.Sha256);
+            _metadata.AddCustomAttribute(
+                assembly,
+                GetAttributeConstructor(typeof(VBCompatibilityProfileAttribute), typeof(string)),
+                EncodeStringAttribute(_program.CompatibilityProfile.ToString()));
         }
 
         private void AddAssemblyReferences()
@@ -544,10 +548,13 @@ public sealed class ManagedEmitter
                             ?? procedure.Blocks.FirstOrDefault();
                 if (entry is null)
                 {
+                    encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.EnterProcedure))));
+                    encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.ExitProcedure))));
                     encoder.OpCode(ILOpCode.Ret);
                 }
                 else
                 {
+                    encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.EnterProcedure))));
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
                         nameof(VBGoSub.Enter))));
@@ -631,11 +638,13 @@ public sealed class ManagedEmitter
             var handlerStart = encoder.DefineLabel();
             encoder.MarkLabel(handlerStart);
             encoder.LoadConstantI4(boundary.Index);
+            encoder.LoadConstantI4(boundary.HandlerTarget is not null ? 1 : 0);
             encoder.Call(GetRuntimeMethodReference(Static(
                 typeof(VBErrors),
                 nameof(VBErrors.Set),
                 typeof(Exception),
-                typeof(int))));
+                typeof(int),
+                typeof(bool))));
             encoder.Branch(ILOpCode.Leave, boundary.HandlerTarget ?? boundary.Continuation);
             var handlerEnd = encoder.DefineLabel();
             encoder.MarkLabel(handlerEnd);
@@ -651,7 +660,7 @@ public sealed class ManagedEmitter
             IReadOnlyList<ErrorBoundary> errorBoundaries)
         {
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.ResumeIndexValue))));
-            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Clear))));
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Resume))));
             var targets = errorBoundaries
                 .Select(boundary => resume.Kind == IrResumeKind.Next
                     ? boundary.Continuation
@@ -847,6 +856,9 @@ public sealed class ManagedEmitter
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
                         nameof(VBGoSub.Leave))));
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBErrors),
+                        nameof(VBErrors.ExitProcedure))));
                     encoder.OpCode(ILOpCode.Ret);
                     break;
                 default:
@@ -1307,6 +1319,17 @@ public sealed class ManagedEmitter
                     encoder.OpCode(ILOpCode.Box);
                     encoder.Token(GetTypeEntityHandle(argument.Expression.Type));
                 }
+            }
+            if (call.Method == IrRuntimeMethod.StringStrConv)
+            {
+                encoder.LoadConstantI4((int)_program.CompatibilityProfile);
+            }
+            else if (call.Method is IrRuntimeMethod.StringLenB or
+                     IrRuntimeMethod.StringAsc or
+                     IrRuntimeMethod.StringChr or
+                     IrRuntimeMethod.StringFormat)
+            {
+                encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
             encoder.Call(GetRuntimeMethodReference(info));
             if (dynamicArrayResult && call.ResultType is ArrayTypeSymbol arrayResult)
@@ -3769,6 +3792,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionTextHeight) return Static(typeof(VBInteraction), nameof(VBInteraction.TextHeight), typeof(string));
             if (m == IrRuntimeMethod.InteractionPrint) return Static(typeof(VBInteraction), nameof(VBInteraction.Print), typeof(object));
             if (m == IrRuntimeMethod.InteractionPaintPicture) return Static(typeof(VBInteraction), nameof(VBInteraction.PaintPicture), typeof(object), typeof(float), typeof(float), typeof(float), typeof(float));
+            if (m == IrRuntimeMethod.InteractionCls) return Static(typeof(VBInteraction), nameof(VBInteraction.Cls));
             if (m == IrRuntimeMethod.MemoryVarPtr) return Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryStrPtr) return Static(typeof(VBMemory), nameof(VBMemory.StrPtr), typeof(string));
@@ -3816,6 +3840,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ErrorHelpContext) return Static(typeof(VBErrors), nameof(VBErrors.HelpContextValue));
             if (m == IrRuntimeMethod.ErrorLastDllError) return Static(typeof(VBErrors), nameof(VBErrors.LastDllErrorValue));
             if (m == IrRuntimeMethod.ErrorLineNumber) return Static(typeof(VBErrors), nameof(VBErrors.LineNumberValue));
+            if (m == IrRuntimeMethod.ErrorSetLineNumber) return Static(typeof(VBErrors), nameof(VBErrors.SetLineNumber), typeof(int));
             if (m == IrRuntimeMethod.ErrorClear) return Static(typeof(VBErrors), nameof(VBErrors.Clear));
             if (m == IrRuntimeMethod.ErrorRaise) return Static(typeof(VBErrors), nameof(VBErrors.Raise), typeof(int), typeof(string), typeof(string), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.FunctionTypeName) return Static(typeof(VBFunctions), nameof(VBFunctions.TypeName), typeof(object));
@@ -3867,21 +3892,22 @@ public sealed class ManagedEmitter
             {
                 var name = m.ToString()["String".Length..];
                 if (name == "Len") return Static(typeof(VBStrings), "Len", typeof(object));
-                if (name == "LenB") return Static(typeof(VBStrings), "LenB", typeof(object));
+                if (name == "LenB") return Static(typeof(VBStrings), "LenB", typeof(object), typeof(VBCompatibilityProfile));
                 if (name == "Mid") return call.Arguments.Length == 2
                     ? Static(typeof(VBStrings), "Mid", typeof(string), typeof(int))
                     : Static(typeof(VBStrings), "Mid", typeof(string), typeof(int), typeof(int));
-                if (name == "Chr") return Static(typeof(VBStrings), "Chr", typeof(int));
+                if (name == "Chr") return Static(typeof(VBStrings), "Chr", typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "ChrW") return Static(typeof(VBStrings), "ChrW", typeof(int));
                 if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(string), typeof(int));
-                if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim" or "Asc") return Static(typeof(VBStrings), name, typeof(string));
+                if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim") return Static(typeof(VBStrings), name, typeof(string));
+                if (name == "Asc") return Static(typeof(VBStrings), name, typeof(string), typeof(VBCompatibilityProfile));
                 if (name == "AscW") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Oct") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Str") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
-                if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int));
+                if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "InStr") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int));
                 if (name == "InStrRev") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
@@ -3890,7 +3916,7 @@ public sealed class ManagedEmitter
                 if (name == "Split") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
                 if (name == "Join") return Static(typeof(VBStrings), name, typeof(VBArray<string>), typeof(string));
                 if (name == "Filter") return Static(typeof(VBStrings), name, typeof(VBArray<string>), typeof(string), typeof(bool), typeof(int));
-                if (name == "StrConv") return Static(typeof(VBStrings), name, typeof(string), typeof(int), typeof(int));
+                if (name == "StrConv") return Static(typeof(VBStrings), name, typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
             }
 
             if (m == IrRuntimeMethod.ConversionInt) return Static(typeof(VBConversions), "Int", typeof(object));
@@ -3905,6 +3931,19 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.MathCos) return Static(typeof(VBMath), "Cos", typeof(double));
             if (m == IrRuntimeMethod.MathTan) return Static(typeof(VBMath), "Tan", typeof(double));
             if (m == IrRuntimeMethod.MathAtn) return Static(typeof(VBMath), "Atn", typeof(double));
+            if (m == IrRuntimeMethod.FinancialFv) return Static(typeof(VBFinancial), nameof(VBFinancial.FV), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialPv) return Static(typeof(VBFinancial), nameof(VBFinancial.PV), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialPmt) return Static(typeof(VBFinancial), nameof(VBFinancial.PMT), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialIpmt) return Static(typeof(VBFinancial), nameof(VBFinancial.IPMT), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialPpmt) return Static(typeof(VBFinancial), nameof(VBFinancial.PPMT), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialNper) return Static(typeof(VBFinancial), nameof(VBFinancial.NPER), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialRate) return Static(typeof(VBFinancial), nameof(VBFinancial.RATE), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialNpv) return Static(typeof(VBFinancial), nameof(VBFinancial.NPV), typeof(double), typeof(VBArray<object>));
+            if (m == IrRuntimeMethod.FinancialIrr) return Static(typeof(VBFinancial), nameof(VBFinancial.IRR), typeof(VBArray<object>), typeof(double));
+            if (m == IrRuntimeMethod.FinancialMirr) return Static(typeof(VBFinancial), nameof(VBFinancial.MIRR), typeof(VBArray<object>), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialSln) return Static(typeof(VBFinancial), nameof(VBFinancial.SLN), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialSyd) return Static(typeof(VBFinancial), nameof(VBFinancial.SYD), typeof(double), typeof(double), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialDdb) return Static(typeof(VBFinancial), nameof(VBFinancial.DDB), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.MathRnd) return Static(typeof(VBMath), nameof(VBMath.Rnd));
             if (m == IrRuntimeMethod.MathRndWithNumber) return Static(typeof(VBMath), nameof(VBMath.Rnd), typeof(float));
             if (m == IrRuntimeMethod.MathRandomize) return Static(typeof(VBMath), nameof(VBMath.Randomize), typeof(object));

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace VB6.Runtime.Tests;
 
@@ -21,6 +22,82 @@ public sealed class CultureIndependenceTests
             Assert.AreEqual(2.5d, VBConversions.CDbl("2.5"));
             Assert.AreEqual(2.5f, VBConversions.CSng("2.5"));
             Assert.AreEqual("2.5", VBConversions.CStr(2.5d));
+        });
+    }
+
+    [TestMethod]
+    public void StrConv_UsesAmbientCultureOnlyForExplicitVb6Profile()
+    {
+        UnderCulture("tr-TR", () =>
+        {
+            Assert.AreEqual(
+                "I",
+                VBStrings.StrConv("i", 1, 0),
+                "The compatibility-free overload remains invariant.");
+            Assert.AreEqual(
+                "İ",
+                VBStrings.StrConv("i", 1, 0, VBCompatibilityProfile.VB6Sp6),
+                "VB6Sp6 follows the active system culture for casing.");
+        });
+    }
+
+    [TestMethod]
+    public void StringByteIntrinsics_UseTheSelectedAnsiProfile()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var systemAnsi = Encoding.GetEncoding(
+            0,
+            EncoderFallback.ExceptionFallback,
+            DecoderFallback.ExceptionFallback);
+        var sample = "ä";
+        var expectedLength = systemAnsi.GetByteCount(sample);
+
+        Assert.AreEqual(
+            expectedLength,
+            Convert.ToInt32(VBStrings.LenB(sample, VBCompatibilityProfile.VB6Sp6), CultureInfo.InvariantCulture));
+
+        var bytes = systemAnsi.GetBytes(sample);
+        if (bytes.Length == 1)
+        {
+            Assert.AreEqual(bytes[0], VBStrings.Asc(sample, VBCompatibilityProfile.VB6Sp6));
+        }
+
+        Assert.AreEqual("A", VBStrings.Chr(65, VBCompatibilityProfile.VB6Sp6));
+    }
+
+    [TestMethod]
+    public void Format_UsesAmbientLocaleOnlyForExplicitVb6Profile()
+    {
+        UnderCulture("de-DE", () =>
+        {
+            Assert.AreEqual(
+                "1,234.50",
+                VBStrings.FormatValue(1234.5d, "Standard", 1, 1),
+                "The compatibility-free overload remains invariant.");
+            Assert.AreEqual(
+                "1.234,50",
+                VBStrings.FormatValue(1234.5d, "Standard", 1, 1, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                "January",
+                VBStrings.FormatValue(new DateTime(2020, 1, 2), "mmmm", 1, 1),
+                "Deterministic date names remain invariant.");
+            Assert.AreEqual(
+                "Januar",
+                VBStrings.FormatValue(new DateTime(2020, 1, 2), "mmmm", 1, 1, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                "1.234,50 €",
+                VBStrings.FormatValue(1234.5d, "Currency", 1, 1, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                "02.01.2020",
+                VBStrings.FormatValue(new DateTime(2020, 1, 2), "Short Date", 1, 1, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                "02.01.2020 17:04:23",
+                VBStrings.FormatValue(
+                    new DateTime(2020, 1, 2, 17, 4, 23),
+                    "dd/mm/yyyy hh:nn:ss",
+                    1,
+                    1,
+                    VBCompatibilityProfile.VB6Sp6));
         });
     }
 

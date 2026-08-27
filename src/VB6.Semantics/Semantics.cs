@@ -319,6 +319,19 @@ public enum VBIntrinsicKind
     Cos,
     Tan,
     Atn,
+    FV,
+    PV,
+    PMT,
+    IPMT,
+    PPMT,
+    NPER,
+    RATE,
+    NPV,
+    IRR,
+    MIRR,
+    SLN,
+    SYD,
+    DDB,
     Rnd,
     Randomize,
     IIf,
@@ -334,7 +347,8 @@ public enum VBIntrinsicKind
     TextWidth,
     TextHeight,
     Print,
-    PaintPicture
+    PaintPicture,
+    Cls
 }
 
 public sealed record ProcedureSymbol(

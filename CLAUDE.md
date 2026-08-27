@@ -35,12 +35,10 @@ Aktuelle Arbeitsfront, in dieser Reihenfolge:
 - **IDE und LSP** (`VB6.LanguageServer`, M10). Ein erster Slice steht (Diagnosen, Completion,
   Definition, Dokumentsymbole); bewusst nach dem Compiler-Kern eingeordnet.
 
-**Offene Entscheidung, die die aktuelle Arbeitsfront direkt betrifft:** Die Roadmap hat „x86 als
-Default-Ausgabe, x64 opt-in" entschieden — begründet damit, dass der Korpus an 32-Bit-OCX hängt,
-die kein 64-Bit-Prozess in-process lädt — und vermerkt, das müsse *vor* M8 endgültig geklärt sein.
-Implementiert ist es nicht: CLI, SDK und `ManagedEmitOptions` defaulten durchgängig auf `AnyCpu`,
-während der Emitter `AnyCpu` für architekturabhängige Array-Verträge diagnostisch ablehnt. M8
-läuft bereits. Diese Lücke schließen, bevor weiterer Marshalling-Code darauf aufsetzt.
+Die Plattformentscheidung ist umgesetzt: Legacy-`.vbp`/`.vbg`-Projekte defaulten in CLI und
+MSBuild-SDK auf x86; `--x64`/`--anycpu` beziehungsweise `VB6TargetPlatform` sind validierte
+Opt-ins. Einzelne Quelldateien und die öffentliche `ManagedEmitOptions`-API behalten AnyCPU als
+Default, damit die Projektgrenze die Legacy-Kompatibilität bestimmt.
 
 ## Roadmap und Historie
 
@@ -156,9 +154,11 @@ Wo eine Übersetzungsentscheidung geprüft werden soll statt der Ausgabe, wird g
 ## Build und Test
 
 ```
-dotnet build VB6Compiler.sln -c Release
-dotnet test VB6Compiler.sln -c Release
+.\build.ps1 -Configuration Release
 ```
+
+Der Skriptpfad baut seriell und testet die 13 Projekte einzeln; ein solutionweiter `dotnet test`
+startet die E2E-Projekte parallel und ist deshalb kein kanonischer Messlauf.
 
 **Wenn Tests mit `FileLoadException` scheitern, ist es kein Testfehler.** Meldungen wie
 `Could not load file or assembly ... Zugriff verweigert` oder `... Falscher Parameter
@@ -203,7 +203,9 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung (2026-08-25): **1122 Tests in 13 Testprojekten, alle grün.**
+Stand der letzten Prüfung (2026-08-26): Der kanonische `build.ps1`-Lauf prüft alle 13 Testprojekte
+seriell; die genaue Testzahl steht im Roadmap-/README-Messwert und muss bei jeder Änderung neu
+erfasst werden.
 
 Zweite Messung neben der Suite ist die Korpusparität — sie fängt Regressionen, die kein
 Unittest sieht:
@@ -215,15 +217,14 @@ dotnet run --project src/VB6.Compiler.Cli -c Release -- conformance/VISIA/4.8.7.
 Stand: **40 von 40 Projektitems, 0 Fehler**; das Gesamtprojekt emittiert auch durch
 (`--emit-assembly`). Der Wert darf nicht steigen. VISIA ist Testkorpus, nicht Portierungsziel.
 
-Die Testpyramide steht derzeit auf dem Kopf: die Absicherung liegt fast vollständig in
-`VB6.Compiler.Tests` (391 E2E-Tests), während `VB6.IR.Tests` (5) und `VB6.Emit.Managed.Tests`
-(10) dünn sind. Folge: ein Lowering- oder Emit-Defekt zeigt sich als falsche Programmausgabe
-statt als lokalisierter Fehler. Beim Ergänzen von Tests bevorzugt die untere Ebene bedienen —
-`VB6TestIr` für Übersetzungsentscheidungen, E2E zusätzlich, nicht ersatzweise.
+Die Absicherung lag lange fast vollständig in `VB6.Compiler.Tests`; der kanonische Lauf ergänzt
+jetzt gezielte IR-/Emitter-, Plattform- und Diagnoseabdeckungen. Beim Ergänzen von Tests weiterhin
+die untere Ebene bedienen — `VB6TestIr` für Übersetzungsentscheidungen, E2E zusätzlich, nicht
+ersatzweise.
 
-CI ist Windows-only (`.github/workflows/build.yml`), .NET 10, Restore/Build/Test auf `main` und
-`agent/**`, plus VISIA-Paritätsreport als Artefakt bei jedem Lauf. Die Tests laufen dort
-projektweise, nicht solutionweit.
+CI ist Windows-only (`.github/workflows/build.yml`), .NET 10, und ruft für Restore, seriellen
+Build, projektweise Tests und VISIA-Paritätsreport ausschließlich `build.ps1` auf. Die Tests
+laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein expliziter x86-Opt-in.
 
 ## Fallen
 

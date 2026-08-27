@@ -1,0 +1,466 @@
+{
+  "schemaVersion": "1.0",
+  "profile": "VB6Sp6",
+  "scope": {
+    "target": "managed-dotnet",
+    "architecture": "x86",
+    "localePolicy": "system-lcid-and-ansi-code-page",
+    "oracleAvailable": false,
+    "oraclePolicy": "documented-verified-until-vb6-runner-is-available"
+  },
+  "statusModel": {
+    "implementation": ["planned", "partial", "implemented"],
+    "verification": ["not-yet-verified", "documented-verified", "oracle-verified"]
+  },
+  "sourcePrecedence": [
+    "official-vb6-documentation",
+    "published-windows-ole-com-specification",
+    "observable-installed-binary",
+    "visia-and-legacy-corpus"
+  ],
+  "sources": {
+    "vb6-docs": "https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-basic-6/visual-basic-6.0-documentation",
+    "vb6-support": "https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-basic-6/visual-basic-6-support-policy",
+    "automation-api": "https://learn.microsoft.com/en-us/windows/win32/api/_automat/",
+    "idispatch": "https://learn.microsoft.com/en-us/previous-versions/windows/desktop/automat/accessing-members-through-idispatch",
+    "safearray": "https://learn.microsoft.com/en-us/windows/win32/api/oaidl/ns-oaidl-safearray",
+    "automation-types": "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oaut/7b5fa59b-d8f6-4a47-9695-630d3c10363e",
+    "windows-controls": "https://learn.microsoft.com/en-us/windows/win32/controls/",
+    "windows-code-pages": "https://learn.microsoft.com/en-us/windows/win32/intl/code-pages",
+    "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi"
+  },
+  "expectationSchema": {
+    "required": ["id", "matrixEntry", "input", "expected", "verification"],
+    "verificationValues": ["not-yet-verified", "documented-verified", "oracle-verified"],
+    "oracleComparable": true
+  },
+  "expectations": [
+    {
+      "id": "profile.default",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "VBCompilation.Create(source).Lower()",
+      "expected": {
+        "profile": "Deterministic",
+        "target": "caller-default"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/CompilationTests.cs"]
+    },
+    {
+      "id": "profile.vb6sp6-x86",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "vb6c source.bas --emit-assembly out\\source.dll --compatibility vb6-sp6",
+      "expected": {
+        "profile": "VB6Sp6",
+        "target": "x86",
+        "assemblyMetadata": "VBCompatibilityProfileAttribute(Profile=VB6Sp6)"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"]
+    },
+    {
+      "id": "profile.vb6sp6-x64-rejected",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "vb6c source.bas --emit-assembly out\\source.dll --x64 --compatibility vb6-sp6",
+      "expected": {
+        "success": false,
+        "diagnostic": "VB6C0001",
+        "reason": "x86-only profile"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+    },
+    {
+      "id": "profile.strconv-locale",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "VBStrings.StrConv(\"i\", vbUpperCase, 0, profile) under tr-TR",
+      "expected": {
+        "deterministic": "I",
+        "vb6Sp6": "İ"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "profile.ansi-string-intrinsics",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "LenB/Asc/Chr with profile=VB6Sp6",
+      "expected": {
+        "byteCount": "active Windows ANSI code page",
+        "asc": "first ANSI byte",
+        "chr": "ANSI byte decoding"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "profile.format-locale",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "Format(1234.5, \"Standard\") and Format(#2020-01-02#, \"mmmm\") under de-DE",
+      "expected": {
+        "deterministic": "1,234.50 / January",
+        "vb6Sp6": "1.234,50 / Januar"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs"]
+    },
+    {
+      "id": "format.complete-surface",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Format/Format$ with named formats, four numeric sections, string placeholders and documented date/time tokens",
+      "expected": {
+        "named": "numeric, Boolean, date and time names are case-insensitive",
+        "numericSections": "positive, negative, zero and Null sections",
+        "stringMasks": "@, &, <, > and ! with quoted and escaped literals",
+        "dateTokens": "c, d through dddddd, w, ww, m through mmmm, q, y, yy, yyyy, h, n, s, ttttt and AM/PM variants",
+        "locale": "VB6Sp6 uses active separators, patterns, names and currency; Deterministic is invariant"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "math.complete-surface",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Abs/Sgn/Fix/Int/Round/Sqr/Exp/Log/Sin/Cos/Tan/Atn/Rnd/Randomize with scalar and Variant values",
+      "expected": {
+        "variantState": "Null propagates and Empty is numeric zero",
+        "numericSubtypes": "Abs, Fix and Int preserve numeric Variant subtypes including Currency and Date",
+        "negativeFractions": "Fix truncates toward zero while Int rounds toward negative infinity",
+        "rounding": "Round uses banker's rounding",
+        "domains": "Sqr, Log and Exp enforce documented domain and overflow contracts",
+        "random": "Rnd and Randomize use the repeatable VB6 24-bit sequence"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/MathRuntimeTests.cs", "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "financial.core-annuity",
+      "matrixEntry": "runtime-standard-library",
+      "input": "FV/PV/PMT/IPmt/PPmt/NPer/Rate/NPV/IRR/MIRR/SLN/SYD/DDB with annuities, cash flows and depreciation schedules",
+      "expected": {
+        "zeroRate": "ordinary annuity arithmetic",
+        "periodicRate": "end- and beginning-of-period annuity formulas",
+        "paymentBreakdown": "IPmt plus PPmt equals Pmt for each supported period",
+        "periodAndRate": "NPer and Rate round-trip an annuity",
+        "invalidArguments": "diagnostic for zero NPer, unsupported Type, invalid period or invalid cash-flow rates",
+        "irr": "IRR and MIRR solve explicit Variant-array cash-flow contracts",
+        "depreciation": "SLN, SYD and DDB schedule formulas"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs", "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "msbuild.exact-input-manifest",
+      "matrixEntry": "msbuild-headless-sdk",
+      "input": "vb6c project.vbp --write-input-manifest obj\\VB6Compile.stamp.inputs",
+      "expected": {
+        "declaredProjectItems": true,
+        "frxSidecars": true,
+        "resourcesReferencesAndObjects": true,
+        "contentFingerprint": "SHA-256",
+        "undeclaredFiles": "ignored",
+        "designTimeBuild": "resolves-and-validates-without-emission"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+    },
+    {
+      "id": "arrays.lower-bound-preservation",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "Dim values(5 To 7) As Long; values(5) = 42",
+      "expected": {
+        "lowerBound": 5,
+        "upperBound": 7,
+        "valueAt5": 42
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"]
+    },
+    {
+      "id": "safearray.variant-type-preservation",
+      "matrixEntry": "com-automation-types",
+      "input": "Declare callback with SAFEARRAY(Date) and SAFEARRAY(Currency)",
+      "expected": {
+        "dateVartype": "VT_DATE",
+        "currencyVartype": "VT_CY",
+        "boundsPreserved": true
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"]
+    }
+  ],
+  "entries": [
+    {
+      "id": "language-declarations-and-statements",
+      "domain": "language",
+      "surface": "declarations, procedures, attributes, modifiers, literals and statement grammar",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "VB6 source is parsed and bound with VB6 declaration, scope and statement rules",
+        "runtime": "not applicable",
+        "locale": "invariant",
+        "bitness": "agnostic",
+        "com": "none"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Parser.Tests"],
+      "gap": "The full documented grammar and all context restrictions remain open."
+    },
+    {
+      "id": "language-arrays-and-udts",
+      "domain": "language",
+      "surface": "fixed/dynamic arrays, ReDim, For Each and Type blocks",
+      "sourceRefs": ["vb6-docs", "automation-types"],
+      "contract": {
+        "compile": "lower bounds, rank, UDT fields and ByRef array shape are preserved",
+        "runtime": "array errors and value-copy/write-back follow VB6 rules",
+        "locale": "invariant",
+        "bitness": "x86 for native pointer fields",
+        "com": "SAFEARRAY-compatible where exposed"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/*Array*Tests.cs", "tests/VB6.Compiler.Tests/*Udt*Tests.cs"],
+      "gap": "Remaining Variant-array, UDT-layout and unsupported-shape cases are tracked in Etappen B-D."
+    },
+    {
+      "id": "language-control-flow-and-errors",
+      "domain": "language",
+      "surface": "If, Select, loops, GoTo, On Error, Resume and Err",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "control-flow graph and handler state are explicit in managed IR",
+        "runtime": "active handler, Resume target, Err and Erl state are deterministic",
+        "locale": "invariant",
+        "bitness": "agnostic",
+        "com": "errors may carry COM HRESULT/EXCEPINFO"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs", "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"],
+      "gap": "Nested handler and complete Resume state coverage remain open."
+    },
+    {
+      "id": "runtime-variant-and-conversions",
+      "domain": "runtime",
+      "surface": "Variant subtypes, Empty/Null/Missing/Error, conversion and promotion",
+      "sourceRefs": ["vb6-docs", "automation-types"],
+      "contract": {
+        "compile": "typed and Variant expressions retain the selected promotion path",
+        "runtime": "subtype, overflow, rounding and Type Mismatch behavior are observable",
+        "locale": "date/number formatting follows profile locale policy",
+        "bitness": "agnostic except LongPtr",
+        "com": "Automation VARTYPE mapping is preserved"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/Variant*Tests.cs", "tests/VB6.Runtime.Tests"],
+      "gap": "The complete promotion table, object variants and all array variants remain open."
+    },
+    {
+      "id": "runtime-standard-library",
+      "domain": "runtime",
+      "surface": "String, Math, Financial, Date/Time, Format, Array, Interaction, App and Environment APIs",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "documented intrinsic names, arity and return types bind",
+        "runtime": "documented return values, error numbers and side effects",
+        "locale": "system LCID and ANSI code page in VB6Sp6",
+        "bitness": "agnostic unless API exposes native handles",
+        "com": "Clipboard/Printer/host services use explicit adapters"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/*Intrinsic*Tests.cs", "tests/VB6.Runtime.Tests"],
+      "gap": "The remaining documented intrinsic surface is Etappe C."
+    },
+    {
+      "id": "runtime-file-io",
+      "domain": "runtime",
+      "surface": "Open, Get/Put, Input/Line Input, Print/Write, Lock/Unlock, EOF/Loc/LOF/Seek",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "file statements bind with VB6 channel and record-layout rules",
+        "runtime": "Binary, Random, Input, Output and Append modes preserve record semantics",
+        "locale": "text modes use profile code page",
+        "bitness": "agnostic",
+        "com": "none"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/File*Tests.cs"],
+      "gap": "Complete UDT/array/Variant record layouts and all file modes remain open."
+    },
+    {
+      "id": "project-vbp-vbg",
+      "domain": "project",
+      "surface": ".vbp/.vbg project types, references, components, startup and dependencies",
+      "sourceRefs": ["vb6-docs", "vb6-support"],
+      "contract": {
+        "compile": "project metadata selects sources, project kind, startup and output",
+        "runtime": "referenced projects and generated support files are deployable",
+        "locale": "project text follows source-file encoding rules",
+        "bitness": "legacy project default is x86",
+        "com": "Reference/Object entries retain COM identity and paths"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/ProjectCompilationTests.cs", "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs", "tests/VB6.ProjectSystem.Tests"],
+      "gap": "Binary compatibility, complete project kinds and dependency closure remain open."
+    },
+    {
+      "id": "project-persisted-designer-artifacts",
+      "domain": "project",
+      "surface": ".frm/.frx/.ctl/.ctx/.pag/.dob/.dsr/.res persistence",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "persisted metadata is loaded without losing source offsets or properties",
+        "runtime": "forms, controls and enterprise artifacts can be emitted and hosted",
+        "locale": "resource text follows project encoding",
+        "bitness": "host controls follow x86 policy",
+        "com": "ActiveX persistence and references remain addressable"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "gap": "Full persistence and executable DataEnvironment/DataReport/UserDocument/PropertyPage behavior remain open."
+    },
+    {
+      "id": "com-automation-types",
+      "domain": "com",
+      "surface": "VARIANT, BSTR, SAFEARRAY, IUnknown and IDispatch Automation types",
+      "sourceRefs": ["automation-api", "safearray", "automation-types"],
+      "contract": {
+        "compile": "Declare and TypeLib signatures map to Automation-compatible managed signatures",
+        "runtime": "ownership, bounds, subtype and ByRef write-back are preserved",
+        "locale": "LCID is passed to Automation dispatch",
+        "bitness": "x86 ABI is normative for VB6Sp6",
+        "com": "IUnknown/IDispatch identity and reference counting are explicit"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs", "tests/VB6.Runtime.Tests", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"],
+      "gap": "Raw ABI, complete TypeLib import and all dispatch edge cases remain open."
+    },
+    {
+      "id": "com-server-and-typelib-emission",
+      "domain": "com",
+      "surface": "COM server activation, class factories, manifests and TypeLib emission",
+      "sourceRefs": ["automation-api", "idispatch", "vb6-support"],
+      "contract": {
+        "compile": "public classes receive stable identities and Automation metadata",
+        "runtime": "activation, registration-free manifests and clean shutdown work",
+        "locale": "dispatch LCID follows caller",
+        "bitness": "x86 comhost for ActiveX-DLL-compatible output",
+        "com": "IUnknown/IDispatch, connection points and instancing are explicit"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "gap": "TypeLib generation and the full raw class-factory/ActiveX-EXE contract remain open."
+    },
+    {
+      "id": "forms-lifecycle-and-intrinsic-controls",
+      "domain": "forms",
+      "surface": "Form/UserControl lifecycle, events, menus, timers and intrinsic controls",
+      "sourceRefs": ["vb6-docs", "windows-controls"],
+      "contract": {
+        "compile": "designer declarations and event procedures bind to generated host types",
+        "runtime": "Load/Initialize/Activate/Terminate and focus/event ordering are observable",
+        "locale": "text and formatting follow active profile locale",
+        "bitness": "WinForms/OCX host is x86 for VB6Sp6",
+        "com": "ActiveX controls use explicit connection points"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Runtime.WinForms.Tests", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "gap": "Full control surface, focus/z-order and stock-OCX coverage remain open."
+    },
+    {
+      "id": "forms-drawing-and-mdi",
+      "domain": "forms",
+      "surface": "GDI drawing, Scale*, AutoRedraw, DrawMode/ROP2 and MDI",
+      "sourceRefs": ["vb6-docs", "windows-gdi"],
+      "contract": {
+        "compile": "drawing statements bind with VB6 coordinate and attribute rules",
+        "runtime": "pixel output, clipping, persistent surfaces and MDI activation are deterministic",
+        "locale": "not applicable",
+        "bitness": "x86 host window contract",
+        "com": "control surfaces may be ActiveX-backed"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Runtime.WinForms.Tests", "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs"],
+      "gap": "GDI/DIB pixel coverage, all DrawMode values and complete MDI state remain open."
+    },
+    {
+      "id": "activex-stock-and-generic-host",
+      "domain": "activex",
+      "surface": "Microsoft redistributable stock controls and generic TypeLib-described ActiveX controls",
+      "sourceRefs": ["vb6-docs", "windows-controls", "automation-api"],
+      "contract": {
+        "compile": "control references and persisted properties remain loadable",
+        "runtime": "in-place activation, ambient properties, persistence and events work where TypeLib describes them",
+        "locale": "control locale follows host",
+        "bitness": "native controls require x86",
+        "com": "OLE in-place and connection-point ABI is explicit"
+      },
+      "implementation": "planned",
+      "verification": "not-yet-verified",
+      "tests": [],
+      "gap": "VB6 is not installed; missing controls require ABI fixtures and must remain visibly non-native."
+    },
+    {
+      "id": "abi-declare-addressof",
+      "domain": "abi",
+      "surface": "Declare, AddressOf, VarPtr/StrPtr/ObjPtr, native ByRef and callback layouts",
+      "sourceRefs": ["vb6-docs", "automation-types"],
+      "contract": {
+        "compile": "documented x86 signatures map to callable managed/native stubs",
+        "runtime": "pointer width, strings, UDTs, arrays and callback write-back are preserved",
+        "locale": "ANSI string boundaries follow profile code page",
+        "bitness": "x86 only for VB6Sp6",
+        "com": "Automation callbacks use VARIANT/SAFEARRAY ownership rules"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs", "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs"],
+      "gap": "Complete pointer, UDT, callback and native host ABI coverage remains open."
+    },
+    {
+      "id": "profile-selection-and-provenance",
+      "domain": "profile",
+      "surface": "VBCompatibilityProfile, CLI/SDK selection, x86 validation and output provenance",
+      "sourceRefs": ["vb6-docs", "vb6-support"],
+      "contract": {
+        "compile": "Deterministic is the default; VB6Sp6 selects the documented x86 contract",
+        "runtime": "generated programs carry the selected profile without a global runtime switch",
+        "locale": "profile selects locale policy",
+        "bitness": "VB6Sp6 rejects x64 and AnyCpu",
+        "com": "hosts receive profile context additively"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"],
+      "gap": "Additional profile-aware runtime APIs and COM/ActiveX semantic and ABI propagation remain open."
+    },
+    {
+      "id": "msbuild-headless-sdk",
+      "domain": "build",
+      "surface": "headless MSBuild resolution, DesignTimeBuild, incremental inputs and outputs",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "ResolveVB6Project and output targets operate without Visual Studio CPS",
+        "runtime": "clean/rebuild and generated runtime/COM artifacts are reproducible",
+        "locale": "MSBuild metadata is invariant",
+        "bitness": "VB6TargetPlatform and VB6Sp6 validation are explicit",
+        "com": "references and COM-host outputs are tracked"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "gap": "A separately packaged ProjectSystem resolver task plus complete Clean/Rebuild and TypeLib output orchestration remain open."
+    }
+  ]
+}

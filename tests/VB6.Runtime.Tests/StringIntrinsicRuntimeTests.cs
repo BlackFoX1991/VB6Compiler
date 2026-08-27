@@ -218,11 +218,38 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void FormatValue_SupportsNamedBooleanAndFourSectionNumericFormats()
+    {
+        Assert.AreEqual("Yes", VBStrings.FormatValue(true, "yes/no", 0, 0));
+        Assert.AreEqual("No", VBStrings.FormatValue(false, "Yes/No", 0, 0));
+        Assert.AreEqual("True", VBStrings.FormatValue(2, "True/False", 0, 0));
+        Assert.AreEqual("Off", VBStrings.FormatValue(0, "On/Off", 0, 0));
+        Assert.AreEqual("1,234.50", VBStrings.FormatValue(1234.5d, "standard", 0, 0));
+        Assert.AreEqual("0", VBStrings.FormatValue(VBVariants.EmptyValue(), "0", 0, 0));
+
+        const string sectioned = "0.0;\"negative \"0.0;\"zero\";\"null\"";
+        Assert.AreEqual("12.3", VBStrings.FormatValue(12.3d, sectioned, 0, 0));
+        Assert.AreEqual("negative 12.3", VBStrings.FormatValue(-12.3d, sectioned, 0, 0));
+        Assert.AreEqual("zero", VBStrings.FormatValue(0d, sectioned, 0, 0));
+        Assert.AreEqual("null", VBStrings.FormatValue(VBVariants.NullValue(), sectioned, 0, 0));
+    }
+
+    [TestMethod]
     public void FormatValue_FormatsSupportedStringCases()
     {
         Assert.AreEqual("hello", VBStrings.FormatValue("HELLO", "<", 0, 0));
         Assert.AreEqual("HELLO", VBStrings.FormatValue("hello", ">", 0, 0));
         Assert.AreEqual("unchanged", VBStrings.FormatValue("unchanged", string.Empty, 0, 0));
+    }
+
+    [TestMethod]
+    public void FormatValue_HonorsStringLiteralsEscapesAndQuotedSectionSeparators()
+    {
+        Assert.AreEqual("@AB", VBStrings.FormatValue("AB", "\"@\"@@", 0, 0));
+        Assert.AreEqual("@AB", VBStrings.FormatValue("AB", "\\@@@", 0, 0));
+        Assert.AreEqual("empty;value", VBStrings.FormatValue(string.Empty, "@@;\"empty;value\"", 0, 0));
+        Assert.AreEqual("empty", VBStrings.FormatValue(VBVariants.EmptyValue(), "@@;empty", 0, 0));
+        Assert.AreEqual("AB-X", VBStrings.FormatValue("ab", ">!@@\"-x\"", 0, 0));
     }
 
     [TestMethod]
@@ -235,6 +262,26 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.AreEqual("12:00:00", VBStrings.FormatValue(new VBDateValue(0.5), "hh:nn:ss", 0, 0));
         Assert.AreEqual("Thursday, 02 January 2020", VBStrings.FormatValue(new VBDateValue(43832), "dddd, dd mmmm yyyy", 0, 0));
         Assert.AreEqual("12:00 PM", VBStrings.FormatValue(new VBDateValue(0.5), "h:nn AM/PM", 0, 0));
+    }
+
+    [TestMethod]
+    public void FormatValue_FormatsCompleteNamedAndUserDefinedDateTokens()
+    {
+        var value = new VBDateValue(new DateTime(2020, 1, 2, 17, 4, 23).ToOADate());
+
+        Assert.AreEqual("20", VBStrings.FormatValue(value, "yy", 0, 0));
+        Assert.AreEqual("2020-01-02", VBStrings.FormatValue(value, "ddddd", 0, 0));
+        Assert.AreEqual("Thursday, 02 January 2020", VBStrings.FormatValue(value, "dddddd", 0, 0));
+        Assert.AreEqual("17:04:23", VBStrings.FormatValue(value, "ttttt", 0, 0));
+        Assert.AreEqual("2020-01-02 17:04:23", VBStrings.FormatValue(value, "c", 0, 0));
+        Assert.AreEqual("05:04:23 pm", VBStrings.FormatValue(value, "hh:mm:ss am/pm", 0, 0));
+        Assert.AreEqual("5:04 PM", VBStrings.FormatValue(value, "h:nn AMPM", 0, 0));
+        Assert.AreEqual("02-Jan-20", VBStrings.FormatValue(value, "Medium Date", 0, 0));
+        Assert.AreEqual("5:04 PM", VBStrings.FormatValue(value, "Medium Time", 0, 0));
+        Assert.AreEqual("2020-01-02", VBStrings.FormatValue(new VBDateValue(43832d), "General Date", 0, 0));
+        Assert.AreEqual("12:00:00", VBStrings.FormatValue(new VBDateValue(0.5d), "General Date", 0, 0));
+        Assert.AreEqual("1899-12-30", VBStrings.FormatValue(VBVariants.EmptyValue(), "Short Date", 0, 0));
+        Assert.AreEqual("43832.00", VBStrings.FormatValue(new VBDateValue(43832d), "0.00", 0, 0));
     }
 
     [TestMethod]

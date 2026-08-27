@@ -2,5 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../VB6.Semantics/VB6.Semantics.csproj" />
     <ProjectReference Include="../VB6.Syntax/VB6.Syntax.csproj" />
+    <ProjectReference Include="../VB6.Runtime/VB6.Runtime.csproj" />
   </ItemGroup>
 </Project>

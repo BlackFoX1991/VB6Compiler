@@ -1,4 +1,5 @@
 using System.Globalization;
+using VB6.Runtime;
 
 namespace VB6.Compiler.Tests;
 
@@ -161,6 +162,28 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ErlTracksTheLastNumericLineLabel()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error Resume Next
+                GoTo Failure
+            100
+                Debug.Print "not reached"
+            Failure:
+            200
+                Err.Raise 5, "unit", "message"
+                Debug.Print Erl
+                Err.Clear
+                Debug.Print Erl
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "200", "0" },
+            output.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesErrSourceRuntimeContract()
     {
         var output = VB6TestProgram.Run("""
@@ -226,6 +249,20 @@ public sealed class StandardLibraryHostContractExecutionTests
             VB6TestIr.RuntimeCalls(program)
                 .Where(method => method == VB6.IR.IrRuntimeMethod.GraphicsLineOnTarget)
                 .ToArray());
+    }
+
+    [TestMethod]
+    public void Lower_UsesClsHostContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Cls
+            End Sub
+            """);
+
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionCls);
     }
 
     [TestMethod]

@@ -87,6 +87,7 @@ public static class VBMath
             double number => Math.Abs(number),
             decimal number => Math.Abs(number),
             VBCurrency currency => VBCurrency.FromScaled(Math.Abs(currency.ScaledValue)),
+            VBDateValue date => new VBDateValue(Math.Abs(date.OADate)),
             _ => throw Unsupported(value, nameof(Abs))
         };
     }
@@ -133,7 +134,9 @@ public static class VBMath
             float number => MathF.Truncate(number),
             double number => Math.Truncate(number),
             decimal number => decimal.Truncate(number),
-            VBCurrency currency => currency,
+            VBCurrency currency => VBCurrency.FromScaled(
+                currency.ScaledValue / VBCurrency.Scale * VBCurrency.Scale),
+            VBDateValue date => new VBDateValue(Math.Truncate(date.OADate)),
             _ => throw Unsupported(value, nameof(Fix))
         };
     }
@@ -153,7 +156,7 @@ public static class VBMath
             return (short)0;
         }
 
-        var number = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+        var number = Convert.ToDecimal(VBConversions.CDec(value), CultureInfo.InvariantCulture);
         return decimal.Round(number, digits, MidpointRounding.ToEven);
     }
 

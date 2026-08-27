@@ -153,4 +153,29 @@ public sealed class ControlFlowGuardTests
 
         Assert.AreEqual("continued", output.Trim());
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_DoesNotReenterAnActiveErrorHandler()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error GoTo Failed
+                Inner
+                Exit Sub
+            Failed:
+                Debug.Print Err.Number
+            End Sub
+
+            Sub Inner()
+                On Error GoTo Failed
+                Err.Raise 5, "inner", "first"
+                Exit Sub
+            Failed:
+                Err.Clear
+                Err.Raise 6, "inner", "second"
+            End Sub
+            """);
+
+        Assert.AreEqual("6", output.Trim());
+    }
 }

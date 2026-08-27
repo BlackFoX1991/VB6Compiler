@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using VB6.Runtime;
 using VB6.Semantics;
 using VB6.Syntax.Text;
 
@@ -20,7 +21,8 @@ public sealed record IrProgram(
     ImmutableArray<IrModule> Modules,
     ImmutableArray<IrTypeDefinition> TypeDefinitions,
     IrProcedure? EntryPoint,
-    ImmutableArray<IrClassDefinition> ClassDefinitions = default) : IrNode;
+    ImmutableArray<IrClassDefinition> ClassDefinitions = default,
+    VBCompatibilityProfile CompatibilityProfile = VBCompatibilityProfile.Deterministic) : IrNode;
 
 public sealed record IrModule(
     string Name,
@@ -538,6 +540,19 @@ public enum IrRuntimeMethod
     MathCos,
     MathTan,
     MathAtn,
+    FinancialFv,
+    FinancialPv,
+    FinancialPmt,
+    FinancialIpmt,
+    FinancialPpmt,
+    FinancialNper,
+    FinancialRate,
+    FinancialNpv,
+    FinancialIrr,
+    FinancialMirr,
+    FinancialSln,
+    FinancialSyd,
+    FinancialDdb,
     MathRnd,
     MathRndWithNumber,
     MathRandomize,
@@ -675,6 +690,7 @@ public enum IrRuntimeMethod
     ErrorHelpContext,
     ErrorLastDllError,
     ErrorLineNumber,
+    ErrorSetLineNumber,
     ErrorClear,
     ErrorRaise,
     FunctionTypeName,
@@ -701,6 +717,7 @@ public enum IrRuntimeMethod
     InteractionTextHeight,
     InteractionPrint,
     InteractionPaintPicture,
+    InteractionCls,
 
     ArrayClear,
     ArrayLBound,
