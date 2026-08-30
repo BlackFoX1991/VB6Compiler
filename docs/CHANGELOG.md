@@ -3405,3 +3405,20 @@ Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die M
 `documented-verified` gehobene `planned`-Erwartung bricht `build.ps1` mit der erwarteten Meldung
 ab. Ein nativer VB6-SP6-Compiler ist weiterhin nicht installiert; `oracle-verified` wurde nicht
 gesetzt.
+
+## Nativer OCX-Pfad nachgemessen (30.08.2026)
+
+Die README-Zeile zum nativen OCX-Pfad stand auf **48/48** und war seit mehreren Slices nicht mehr
+nachgemessen. Der Lauf ist jetzt gemacht: `MSCOMCTL.OCX` (6.01.9834), `RICHTX32.OCX`,
+`COMDLG32.OCX` und `MSCOMCT2.OCX` (je 6.01.9782) liegen in `SysWOW64` und sind registriert; eine
+Installation war nicht nötig.
+
+```
+$env:VB6_REQUIRE_NATIVE_OCX = '1'
+dotnet test tests/VB6.Runtime.WinForms.Tests -c Release -- RunConfiguration.TargetPlatform=x86
+```
+
+Ergebnis: **50/50** bestanden, **0** übersprungen. Die in `CLAUDE.md` geforderte Gegenprobe mit
+`TargetPlatform=x64` schlägt mit **7** Fehlern fehl — fünf RichTextBox-, ein TreeView- und ein
+Standard-OCX-Fall melden „requires a registered 32-bit control“. Der x86-Lauf ist damit eine echte
+Messung und kein stillschweigend übersprungener. Das README nennt beide Zahlen.
