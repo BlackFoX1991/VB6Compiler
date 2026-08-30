@@ -860,4 +860,116 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_AssignsObjectsToPublicClassFieldsWithSet()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerFieldSetTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "FieldSet.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="FieldSet"
+                Class=Src; Src.cls
+                Class=Node; Node.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Src.cls"), """
+                Option Explicit
+
+                Public Event Fired()
+
+                Public Sub Go()
+                    RaiseEvent Fired
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Node.cls"), """
+                Option Explicit
+
+                Public NextNode As Node
+                Public Bag As Object
+                Public Payload As Variant
+                Public Tag As String
+
+                Private WithEvents watched As Src
+
+                Public Sub Link()
+                    Set Me.NextNode = New Node
+                    Me.NextNode.Tag = "verlinkt"
+                End Sub
+
+                Public Sub Watch()
+                    Set watched = New Src
+                    watched.Go
+                End Sub
+
+                Private Sub watched_Fired()
+                    Debug.Print "gehoert"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim head As Node
+
+                    Set head = New Node
+
+                    Set head.NextNode = New Node
+                    head.NextNode.Tag = "zwei"
+                    Debug.Print head.NextNode.Tag
+                    Debug.Print (head.NextNode Is Nothing)
+
+                    Set head.Bag = New Collection
+                    head.Bag.Add "x"
+                    Debug.Print head.Bag.Count
+
+                    Set head.Payload = New Collection
+                    Debug.Print TypeName(head.Payload)
+
+                    Set head.NextNode = Nothing
+                    Debug.Print (head.NextNode Is Nothing)
+
+                    head.Link
+                    Debug.Print head.NextNode.Tag
+
+                    head.Watch
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            // Ein Feld, das eine Objektreferenz tragen kann, wird in VB6 mit Set zugewiesen.
+            // Vorher meldete der Binder VB6S0064, weil die synthetisierte Property nur Get
+            // und Let besass -- obwohl echter Speicher dahinterliegt.
+            //
+            // Die letzte Zeile ist die Gegenprobe: Eine WithEvents-Variable bekommt bewusst
+            // KEINEN Set-Accessor. Sonst bindet schon "Set watched = New Src" innerhalb der
+            // Klasse an die Property und umgeht die Verdrahtung der Ereignishandler -- der
+            // Handler feuerte dann nicht mehr.
+            CollectionAssert.AreEqual(
+                new[] { "zwei", "False", "1", "Collection", "True", "verlinkt", "gehoert" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

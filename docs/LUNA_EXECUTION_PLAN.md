@@ -12,7 +12,7 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1321/1321 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1322/1322 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
@@ -410,7 +410,7 @@ auf ein `IrFieldPlace` ab — alles andere fällt durch.
 | # | Symptom | Gemessen | VB6 | Schwere |
 |---|---|---|---|---|
 | A1 | `Bump c.N` mit `ByRef`-Parameter | ~~5~~ → **6** | 6 | **behoben am 30.08.2026** |
-| A2 | `Set c.ObjFeld = New Collection` | `VB6S0064` | funktioniert | meldet |
+| A2 | `Set c.ObjFeld = New Collection` | ~~`VB6S0064`~~ → läuft | funktioniert | **behoben am 30.08.2026** |
 | A3 | `c.Nums(1)` bei `Public Nums() As Long` | `VB6S0006` | funktioniert | meldet |
 | A4 | `Public S As String * 5` in `.cls` | `VB6P0001` (Parser) | funktioniert | meldet |
 
@@ -429,9 +429,27 @@ von innen über `Me.N`.
 Gegenproben nach §13: Ein echtes `Property Get`/`Let` behält den Temp (5), ein UDT-Member
 schreibt weiter zurück (6), und `Me.N` von innen schreibt ebenfalls zurück (6).
 
-**A2–A4 bleiben offen** und behalten dieselbe Ursache: `AddReadWriteProperty` erzeugt nur ein
-Get/Let-Paar ohne `Set`-Accessor (A2) und ohne Parameter (A3), und der Parser nimmt
-`String * n` als Klassenmember nicht an (A4).
+**A2 ist behoben.** `AddReadWriteProperty` legt für ein Feld, das eine Objektreferenz tragen
+kann (`ClassTypeSymbol` oder `Variant`), zusätzlich einen `Set`-Accessor an. Der Lowerer
+brauchte auch hier keine Änderung.
+
+**Ausnahme mit Grund: `WithEvents`.** Der erste Anlauf gab jedem Feld den Set-Accessor und riss
+`EmitManagedApplication_ExecutesClassFieldsMethodsPropertiesAndInitialize`. Die isolierende
+Probe zeigte warum: **ohne** `WithEvents` läuft ein unqualifiziertes `Set held = New Src`
+weiterhin, **mit** `WithEvents` band es plötzlich an die Property und umging die Verdrahtung —
+der Handler feuerte nicht mehr. Eine `WithEvents`-Variable ist kein einfacher Speicher; sie
+bekommt deshalb bewusst keinen Set-Accessor. `Set Me.held = …` meldet seitdem `VB6S0064`,
+statt die Verdrahtung still zu umgehen.
+
+**A3 und A4 bleiben offen** mit derselben Ursache: `AddReadWriteProperty` erzeugt Properties
+ohne Parameter (A3), und der Parser nimmt `String * n` als Klassenmember nicht an (A4).
+
+**Weiterer Befund aus der Gegenprobe (Grenze 4, Deklarationsform):** Eine Klasse mit **beiden**
+Accessoren `Property Get` und `Property Set` gleichen Namens liefert aus dem `Get` **Empty**.
+Isoliert: Das `Set` speichert nachweislich korrekt (innen gelesen kommt der Wert an), und ein
+`Get` **ohne** zugehöriges `Set` liefert korrekt. Nur die Kombination bricht — und das ist die
+Normalform jeder VB6-Objekt-Property. Der Befund ist vorbestehend, gehört **nicht** zu `S1` und
+braucht eine eigene Karte.
 
 **Neuer Befund aus der Grenzmessung (§13, Grenze 1):** Ein **spät gebundener** Zugriff auf ein
 öffentliches Klassenfeld findet es überhaupt nicht — `Dim o As Object : o.N = 5` meldet
