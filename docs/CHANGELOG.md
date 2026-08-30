@@ -3796,3 +3796,26 @@ Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX
 **1322/1322** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
 Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrixzahlen
 bleiben unverändert.
+
+## Roadmap traegt die Befunde (30.08.2026)
+
+Die Rollenteilung aus §4 sagt: Roadmap ist Ist-Stand **und Offenes**. Die elf gemessenen
+Defekte des Breitendurchgangs standen aber nur im Ausführungsplan — die Roadmap führte die
+betroffenen Flächen zwar allgemein („alle dokumentierten String-, Math-, … Verträge
+implementieren"), nannte aber keinen der konkreten Befunde. Wer nur die Roadmap liest, hätte
+sie nicht gefunden.
+
+Etappe B trägt jetzt fünf Zeilen: `Public`-Felder als echter Speicher (`byref` und `set`
+erledigt, `array`, `String * n` und der spät gebundene Zugriff offen), die Kombination
+`Property Get` **und** `Property Set`, den fehlenden Binder-Guard für private Klassenfelder,
+`As New`/`Class_Terminate` samt der offenen Architekturfrage, und Fehlernummer **91**.
+
+Etappe C trägt drei: die acht nicht deklarierten Standardfunktionen, die Dateifehlernummer
+**53** samt des ohne Orakel unentschiedenen `Collection`-Index, und die acht String-Intrinsics,
+die `Null` nicht weiterreichen.
+
+Der gemessene Ist-Stand verweist zusätzlich auf das Befundregister im Ausführungsplan, damit
+die Messwerte nur an einer Stelle stehen und nicht auseinanderlaufen können.
+
+Reine Dokumentationsarbeit; `src/` und `tests/` bleiben unberührt. Der kanonische Lauf bleibt
+bei **1322/1322** Tests, VISIA **40/40**.

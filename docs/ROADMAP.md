@@ -56,6 +56,11 @@ neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 **118 Erwartungen**, davon **68 implemented**, **9 partial** und **41 planned**;
 **77/118 documented-verified** (Stand 2026-08-30).
 
+Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah. Das
+vollständige Befundregister mit Ist- und Sollwerten steht in
+[`LUNA_EXECUTION_PLAN.md`](LUNA_EXECUTION_PLAN.md); die noch offenen Punkte daraus sind unten
+in den Etappen B und C als eigene Zeilen geführt.
+
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
 `TypeOf`, Variant-Arrays, Standard-`Collection`, late-bound Object-/Control-Mitglieder sowie
 `On Error` mit `Err` und `Resume Next`. Managed-Klasseninstanzen haben eigenen Feldspeicher,
@@ -272,6 +277,20 @@ Rückgabematrix bleibt in Etappe B/C offen.
       im getesteten Managed-Pfad ab: `Err`, Fehlernummern, `Erl` für numerische Zeilenlabels,
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
       implementiert. Weitere verschachtelte Aufruf-/Resume-Matrixfälle bleiben offen.
+- [~] Ein `Public`-Feld einer Klasse ist echter Speicher, kein `Property Get`. `ByRef`-Rück-
+      schreiben und `Set` auf Objekt-/Variant-Felder sind implementiert (`S1`); ein
+      array-typisiertes Feld ist noch nicht indizierbar, `String * n` als Klassenmember wird
+      vom Parser nicht angenommen, und ein **spät gebundener** Zugriff auf ein solches Feld
+      findet es gar nicht (`VBDynamicDispatch` sucht Methoden und Properties, keine Felder).
+- [ ] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liefert aus dem
+      `Get` `Empty`. Das `Set` speichert nachweislich korrekt, ein `Get` ohne `Set` liefert
+      korrekt — nur die Kombination bricht, und sie ist die Normalform jeder Objekt-Property.
+- [ ] Der Binder meldet den Zugriff auf ein **privates** Klassenfeld von aussen nicht; nur die
+      CLR-Sichtbarkeit verhindert ihn zur Laufzeit.
+- [ ] `Dim x As New C` erzeugt eifrig statt bei der ersten Verwendung, und `Class_Terminate`
+      feuert nie — weder bei `Set o = Nothing` noch beim Verlassen des Gültigkeitsbereichs.
+      Deterministische Lebensdauer auf einer GC-Laufzeit ist eine offene Architekturfrage.
+- [ ] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **5** statt **91**.
 - [ ] Adressierbare x86-Speicherzellen schließen `VarPtr`, `StrPtr`, `ObjPtr`, `AddressOf`, `LSet`
       und native ByRef-Übergaben, ohne alle Variablen pauschal zu pinnen.
 
@@ -281,6 +300,15 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-, Screen-,
       Printer- und Clipboard-Verträge implementieren. Die Vollständigkeits-Erwartungen für
       `Format` und `Math` bleiben bis zur Schließung dieser Roadmap-Fläche `partial`.
+- [ ] Acht Standardfunktionen sind überhaupt nicht deklariert und melden `VB6S0005`:
+      `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
+      `Partition`, `CallByName`, `QBColor`.
+- [ ] `Open` und `FileLen` auf eine fehlende Datei melden **5** statt **53**; ein
+      `Collection`-Index ausserhalb des gültigen Bereichs meldet **5**, der Sollwert ist ohne
+      Orakel nicht entschieden.
+- [ ] `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase` und `LCase` reichen `Null`
+      nicht weiter, sondern melden **94**; sie sind als `String -> String` deklariert statt als
+      `Variant -> Variant`.
 - [~] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv` (einschließlich
       locale-gesteuertem `vbWide`/`vbNarrow` und japanischem Kana), `LenB`, `Asc`, `Chr`,
       `Format`, `DateValue`/`TimeValue`, `WeekdayName`/`MonthName` sowie `IsDate`/`IsNumeric`
