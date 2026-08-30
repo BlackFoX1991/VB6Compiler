@@ -16,6 +16,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -52,6 +53,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -87,6 +89,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -122,6 +125,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -157,6 +161,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -188,6 +193,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -231,6 +237,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -274,6 +281,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -317,6 +325,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -357,6 +366,8 @@ public static class VBConversions
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
 
+        // CDec liefert einen Variant mit Decimal-Subtyp und kann Null darum tragen --
+        // anders als CInt/CStr, deren Zieltyp Null nicht darstellen kann.
         if (VBVariants.IsNull(value))
         {
             return VBVariants.NullValue();
@@ -420,6 +431,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
 
         if (VBVariants.IsMissing(value))
         {
@@ -446,6 +458,7 @@ public static class VBConversions
     public static double CDbl(object? value) => VBVariantObject.ResolveDefaultValue(value) switch
     {
         _ when VBVariants.IsArray(value) => throw new VB6TypeMismatchException("Array Variant values cannot be converted to Double."),
+        _ when VBVariants.IsNull(value) => throw new VB6RuntimeErrorException(94, "Invalid use of Null."),
         VBErrorValue error => error.Code,
         _ when VBVariants.IsMissing(value) => VBVariants.MissingErrorNumber,
         IntPtr pointer => pointer.ToInt64(),
@@ -464,6 +477,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
         VBVariants.ThrowIfMissing(value);
 
         if (value is VBErrorValue error)
@@ -497,6 +511,7 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
         VBVariants.ThrowIfMissing(value);
         return value switch
         {
@@ -513,12 +528,8 @@ public static class VBConversions
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
         VBVariants.ThrowIfMissing(value);
-
-        if (VBVariants.IsNull(value))
-        {
-            throw new InvalidCastException("VB6 CStr cannot convert Null to String.");
-        }
 
         return value switch
         {

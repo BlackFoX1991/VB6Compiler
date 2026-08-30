@@ -118,6 +118,7 @@ public static class VBErrors
                 VB6RuntimeErrorException runtimeError => runtimeError.Number,
                 OverflowException => 6,
                 DivideByZeroException => 11,
+                FormatException or InvalidCastException => 13,
                 _ => 5
             },
             Source: exception.GetType().Name,

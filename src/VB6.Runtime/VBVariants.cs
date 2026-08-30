@@ -47,6 +47,19 @@ public static class VBVariants
         }
     }
 
+    /// <summary>
+    /// Rejects a Null Variant in a conversion to a fixed type. VB6 reports error 94
+    /// ("Invalid use of Null") here instead of propagating Null, because the target
+    /// subtype cannot represent it. Operators keep propagating Null and must not call this.
+    /// </summary>
+    public static void ThrowIfNull(object? value)
+    {
+        if (IsNull(value))
+        {
+            throw new VB6RuntimeErrorException(94, "Invalid use of Null.");
+        }
+    }
+
     public static void ThrowIfArray(object? value)
     {
         if (IsArray(value))

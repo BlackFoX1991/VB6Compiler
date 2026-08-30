@@ -803,7 +803,7 @@
     },
     {
       "id": "l1-02-f-variant-state-conversions",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "runtime-variant-and-conversions",
       "input": "Variant values carrying Empty, Null, Missing, Error, Date, Currency, Decimal and information-type states through conversions",
       "expected": {
@@ -811,7 +811,7 @@
         "null": "Null propagation and invalid Null conversions follow VB6 semantics",
         "numeric": "Date/Currency/Decimal conversions preserve documented rounding and overflow behavior"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": ["tests/VB6.Runtime.Tests/VariantStateTests.cs", "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs", "tests/VB6.Compiler.Tests/VariantTypePredicateExecutionTests.cs"]
     },
     {

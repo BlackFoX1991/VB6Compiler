@@ -3422,3 +3422,44 @@ Ergebnis: **50/50** bestanden, **0** übersprungen. Die in `CLAUDE.md` gefordert
 `TargetPlatform=x64` schlägt mit **7** Fehlern fehl — fünf RichTextBox-, ein TreeView- und ein
 Standard-OCX-Fall melden „requires a registered 32-bit control“. Der x86-Lauf ist damit eine echte
 Messung und kein stillschweigend übersprungener. Das README nennt beide Zahlen.
+
+## L1-02-F Variant-Zustand und Null-Konvertierungen (30.08.2026)
+
+Die breite Erwartung `l1-02-f-variant-state-conversions` ist **begonnen, nicht geschlossen**.
+
+Der Kern der Karte: Eine ungültige Null-Konvertierung meldete **5** („Invalid procedure call"),
+VB6 meldet **94** („Invalid use of Null"). Der neue Guard `VBVariants.ThrowIfNull` sitzt im
+Prolog der Basiskonvertierungen `CByte`, `CInt`, `CLng`, `CLngLng`, `CLngPtr`, `CUShort`,
+`CUInt`, `CULng`, `CCur`, `CSng`, `CDbl`, `CDate`, `CBool` und `CStr`. Damit gilt er für den
+ausdrücklichen Aufruf (`VBConversions.CInt`) **und** den impliziten Pfad (`ConvertCInt` über
+`RejectImplicitError`), weil beide durch dieselbe Funktion laufen.
+
+**`CDec` ist bewusst ausgenommen.** Ein erster Versuch hat den Guard auch dort gesetzt und den
+bestehenden Test `CDec_ProducesVariantDecimalAndPreservesNull` zum Fallen gebracht. Der Test hat
+recht: `CDec` liefert einen Variant mit Decimal-Subtyp und kann Null tragen, anders als `CInt`
+oder `CStr`, deren Zieltyp Null nicht darstellen kann. Ohne installiertes Orakel wiegt eine
+benannte, bestehende Vertragszusage schwerer als eine Herleitung; der Guard wurde dort
+zurückgenommen und die Begründung steht als Kommentar an der Stelle.
+
+Zweiter Befund aus derselben Messung: `CDate("kein Datum")` und `CInt("keine Zahl")` meldeten
+**5** statt **13** („Type mismatch"). `VBErrors.Set` bildet `FormatException` und
+`InvalidCastException` jetzt auf 13 ab — dieselbe zentrale Stelle wie die Überlauf- und
+Divisionskontrakte der Vorkarte.
+
+Nachgewiesen sind damit die Klauseln `state` (Subtyp-Tags überleben Zuweisung und Rückweg) und
+`numeric` (Banker's Rounding in `CLng` und `CCur`, Überlauf 6, Type Mismatch 13), dazu die
+Konvertierungshälfte von `null`. **Offen und genau vermessen** bleibt die Null-Weitergabe durch
+`Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase` und `LCase`: In VB6 liefern sie bei
+Null selbst Null, hier sind sie `String -> String` deklariert und melden seit dieser Karte 94.
+Das ist keine Verschlechterung — vorher entkam dort eine nackte `InvalidCastException`, die als
+5 ankam —, aber auch nicht das VB6-Verhalten. Die Umstellung auf `Variant -> Variant` verschiebt
+den statischen Typ sehr häufiger Ausdrücke und bekommt deshalb eine eigene Karte. `Len`, `Abs`,
+`Sgn`, `Int`, `Fix` und `CDec` reichen Null bereits korrekt weiter; `IsNumeric` und `TypeName`
+tun es korrekterweise nicht.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1311/1311** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **5 partial**, **42 planned** von **115** sowie **73/115**
+`documented-verified`. Ein nativer VB6-SP6-Compiler ist weiterhin nicht installiert;
+`oracle-verified` wurde nicht gesetzt.

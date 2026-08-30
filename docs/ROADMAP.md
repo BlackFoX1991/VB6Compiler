@@ -46,15 +46,15 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1296 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1311 Tests, alle grün** in 13
 Testprojekten (Stand 2026-08-30); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1296 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1311 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**115 Erwartungen**, davon **68 implemented**, **4 partial** und **43 planned**;
-**72/115 documented-verified** (Stand 2026-08-30).
+**115 Erwartungen**, davon **68 implemented**, **5 partial** und **42 planned**;
+**73/115 documented-verified** (Stand 2026-08-30).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
 `TypeOf`, Variant-Arrays, Standard-`Collection`, late-bound Object-/Control-Mitglieder sowie
@@ -249,8 +249,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
       Diagnosen ebenfalls geschlossen. Als nächste offene Implementierungskarte folgt
       `l1-02-e-operator-dispatch`. Die derzeit 115 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (68 `implemented`, 4 `partial`, 43 `planned`;
-      72 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
+      maschinenprüfbare Statusachsen (68 `implemented`, 5 `partial`, 42 `planned`;
+      73 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
       danach VISIA und weitere Legacy-Projekte.
