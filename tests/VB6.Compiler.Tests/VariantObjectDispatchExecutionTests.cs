@@ -699,4 +699,169 @@ public sealed class VariantObjectDispatchExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesVariantObjectIdentityAndNothingNullDistinction()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                Dim n As Variant
+
+                Set a = New Collection
+                Set b = a
+                Debug.Print (a Is b)
+                Set b = New Collection
+                Debug.Print (a Is b)
+                Debug.Print VarType(a)
+                Debug.Print TypeName(a)
+
+                Set a = Nothing
+                n = Null
+                Debug.Print (a Is Nothing)
+                Debug.Print IsObject(a)
+                Debug.Print IsNull(a)
+                Debug.Print IsObject(n)
+                Debug.Print IsNull(n)
+                Debug.Print TypeName(a)
+                Debug.Print TypeName(n)
+            End Sub
+            """);
+
+        // TypeName nennt das Standardobjekt "Collection", nicht den CLR-Typnamen der
+        // Runtime. Nothing bleibt ein Objektwert (IsObject True, IsNull False) und ist
+        // damit von Null unterschieden, das genau umgekehrt antwortet.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "True", "False", "9", "Collection",
+                "True", "True", "False", "False", "True", "Nothing", "Null"
+            },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ResolvesLateBoundCollectionMembersAndDefaultMember()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim c As Variant
+                Dim o As Object
+
+                Set c = New Collection
+                c.Add "erst"
+                c.Add "zweit", "k2"
+                Debug.Print c.Count
+                Debug.Print c(1)
+                Debug.Print c("k2")
+                Debug.Print c.Item(2)
+
+                Set o = New Collection
+                o.Add "nur eins"
+                Debug.Print o.Count
+
+                c.Add "dritt"
+                Debug.Print c(2.6)
+                Debug.Print c(2.5)
+                Debug.Print c(CCur(2))
+
+                On Error Resume Next
+                Debug.Print c("fehlt")
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Der Index wird gerundet wie ueberall sonst -- 2.6 auf 3, 2.5 auf 2 (Banker's
+        // Rounding) -- und Currency konvertiert; ein String bleibt dagegen ein Key und
+        // fuehrt bei "fehlt" zu 5.
+        //
+        // Add hat in VB6 drei optionale Parameter. Der spaet gebundene Pfad muss den
+        // Aufruf mit einem und mit zwei Argumenten annehmen -- ohne [Optional] lehnte er
+        // ihn ab, waehrend der typisierte Pfad immer alle vier uebergibt.
+        CollectionAssert.AreEqual(
+            new[] { "2", "erst", "zweit", "zweit", "1", "dritt", "zweit", "zweit", "5" },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_KeepsVariantArrayBoundsAndElementSubtypes()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Fill(ByRef target As Variant)
+                target(1) = CCur(9.5)
+            End Sub
+
+            Sub Main()
+                Dim v As Variant
+                Dim r() As Variant
+
+                v = Array(CInt(1), "zwei", CDbl(3.5))
+                Debug.Print LBound(v)
+                Debug.Print UBound(v)
+                Debug.Print VarType(v)
+                Debug.Print IsArray(v)
+                Debug.Print TypeName(v)
+                Debug.Print VarType(v(0))
+                Debug.Print VarType(v(1))
+                Debug.Print VarType(v(2))
+
+                v = Array(CInt(1), CInt(2))
+                Fill v
+                Debug.Print v(1)
+                Debug.Print VarType(v(1))
+
+                ReDim r(1 To 3)
+                r(1) = "a"
+                r(3) = CInt(7)
+                ReDim Preserve r(1 To 5)
+                Debug.Print LBound(r)
+                Debug.Print UBound(r)
+                Debug.Print r(1)
+                Debug.Print VarType(r(3))
+                Debug.Print VarType(r(5))
+            End Sub
+            """);
+
+        // 8204 ist vbArray + vbVariant. Der Subtyp jedes Elements ueberlebt sowohl den
+        // ByRef-Rueckweg (Currency, 6) als auch ReDim Preserve (Integer, 2); neue Plaetze
+        // sind Empty (0).
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "0", "2", "8204", "True", "Variant()", "2", "8", "5",
+                "9.5", "6",
+                "1", "5", "a", "2", "0"
+            },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_FailsExplicitlyOnUnsupportedVariantShapes()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim v As Variant
+                Dim c As Variant
+
+                v = Array(1, 2)
+                Set c = New Collection
+
+                On Error Resume Next
+                Debug.Print v(5)
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print c.GibtEsNicht
+                Debug.Print Err.Number
+                Err.Clear
+                c.AuchNichtAlsMethode 1
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Ein Zugriff ausserhalb der Grenzen meldet 9 (Subscript out of range), ein nicht
+        // vorhandenes Mitglied 438 -- nicht das pauschale 5, unter dem beide vorher
+        // ununterscheidbar waren.
+        CollectionAssert.AreEqual(new[] { "9", "438", "438" }, output);
+    }
 }

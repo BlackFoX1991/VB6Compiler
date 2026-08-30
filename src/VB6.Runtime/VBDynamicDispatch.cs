@@ -416,6 +416,14 @@ public static class VBDynamicDispatch
         var targetType = parameter.ParameterType.IsByRef
             ? parameter.ParameterType.GetElementType()!
             : parameter.ParameterType;
+
+        // Ein ausgelassenes optionales Variant-Argument ist in VB6 Missing, nicht Empty.
+        // Nur so beantwortet IsMissing im Ziel die Frage "wurde das Argument uebergeben".
+        if (targetType == typeof(object))
+        {
+            return VBVariants.MissingValue();
+        }
+
         return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
     }
 
