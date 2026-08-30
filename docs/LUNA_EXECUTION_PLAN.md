@@ -12,14 +12,14 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1314/1314 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1318/1318 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **6 partial** und
-  **41 planned**; **74** sind `documented-verified`. Die nächste offene Implementierungskarte
-  ist `l1-02-h-variant-object-array-dispatch`; `l1-02-a-language-grammar-context` bleibt als breiter
+- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **7 partial** und
+  **40 planned**; **75** sind `documented-verified`. Die nächste offene Implementierungskarte
+  ist `l1-02-i-object-members-lifecycle`; `l1-02-a-language-grammar-context` bleibt als breiter
   Familienstatus bewusst `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
@@ -262,6 +262,32 @@ verwechselt werden.
 einer `Collection`: `o + 1` meldet korrekt **13**, `o & "x"` meldet dagegen **0** und `o = 1`
 meldet **5**. Ob 13 hier überhaupt der Sollwert ist, hängt an der Default-Property der
 `Collection` und ist ohne Orakel nicht zu entscheiden — deshalb wurde nichts geändert.
+
+Die breite Karte `l1-02-h-variant-object-array-dispatch` ist **begonnen, nicht geschlossen**.
+Die Vorabmessung nach §11 umfasste 8 Programme mit rund 40 beobachteten Werten; drei Lücken
+kamen dabei heraus, der Rest war korrekt.
+
+Gebaut und nachgewiesen:
+
+- `identity`: `Is`, `Nothing`, `VarType` 9 und die Unterscheidung Nothing/Null waren korrekt.
+  Neu ist `TypeName` — es meldete den CLR-Typnamen **`VBCollection`** statt **`Collection`**.
+- `member`: `VBCollection.Add` deklarierte seine drei in VB6 optionalen Parameter als
+  **erforderlich**. Der typisierte Pfad übergibt immer alle vier und lief; der spät gebundene
+  Pfad (`Dim c As Variant` oder `As Object`) scheiterte an `CanAcceptArgumentCount` mit
+  `MissingMemberException`. `[Optional]` an den drei Parametern behebt das ohne Änderung am
+  Dispatcher. Ergänzend liefert `OptionalValue` für ausgelassene `object`-Parameter jetzt den
+  **Missing-Marker** statt `null` — nur so beantwortet `IsMissing` im Ziel die Frage, ob das
+  Argument übergeben wurde. Die Argument-Coercion war bereits korrekt: Index 2.6 rundet auf 3,
+  2.5 auf 2 (Banker's Rounding), `Currency` konvertiert, ein String bleibt Key.
+- `array`: Grenzen, `VarType` 8204, Elementsubtypen, ByRef-Rückschreiben und `ReDim Preserve`
+  waren durchgehend korrekt und sind jetzt festgeschrieben.
+- `unsupported` (Teil): Ein Zugriff ausserhalb der Grenzen meldete **5**, VB6 meldet **9**; ein
+  nicht vorhandenes Mitglied meldete **5**, VB6 meldet **438**. Beide laufen jetzt über
+  `VBErrors.Set`. Bewusst **nicht** gemappt wurde `ArgumentOutOfRangeException` — die deckt auch
+  Fälle wie `Space(-1)` ab, für die VB6 weiterhin 5 meldet.
+
+**Offen** bleibt in `unsupported` die ausdrücklich genannte **SAFEARRAY**-Hälfte. Sie liegt am
+COM-/TypeLib-Rand und wurde nicht angefasst; die Karte bleibt deshalb `partial`.
 
 ## Erfahrungsbefund aus den L1-02-Karten
 

@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace VB6.Runtime;
 
 /// <summary>Managed storage for the VB6 standard Collection object.</summary>
@@ -29,7 +31,16 @@ public sealed class VBCollection
         return _items[position].Value;
     }
 
-    public void Add(object? item, object? key, object? before, object? after)
+    /// <summary>
+    /// VB6 deklariert Key, Before und After als optional. Ohne [Optional] lehnt der
+    /// spaet gebundene Pfad einen Aufruf mit weniger als vier Argumenten ab, waehrend der
+    /// typisierte Pfad ueber AddValue weiterhin alle vier uebergibt.
+    /// </summary>
+    public void Add(
+        object? item,
+        [Optional] object? key,
+        [Optional] object? before,
+        [Optional] object? after)
     {
         if (!VBVariants.IsMissing(before) && !VBVariants.IsMissing(after))
         {

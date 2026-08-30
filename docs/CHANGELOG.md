@@ -3531,3 +3531,44 @@ Regeln 7 und 8 sowie als neues Pflichtfeld `Vorabmessung` im Arbeitskartenvertra
 nimmt beide als Fallen auf, weil sie nicht nur für Luna gelten.
 
 Reine Dokumentationsänderung; `src/` und `tests/` bleiben unberührt.
+
+## L1-02-H Variant-Objekt- und Array-Dispatch (30.08.2026)
+
+Erste Karte nach der neuen §11-Regel. Die Vorabmessung umfasste **8 Programme mit rund 40
+beobachteten Werten**; **drei Lücken** kamen heraus, der Rest war bereits korrekt.
+
+**`TypeName` gab den CLR-Typnamen preis.** Ein `Collection`-Objekt meldete `VBCollection`
+statt `Collection`. Ein Zeichen — aber es macht den Namen des Runtime-Typs zu beobachtbarem
+Programmverhalten.
+
+**Der spät gebundene Pfad konnte `Collection.Add` nicht aufrufen.** `VBCollection.Add`
+deklarierte `Key`, `Before` und `After` als erforderlich, obwohl VB6 sie als optional führt.
+Der typisierte Pfad lief, weil der Binder über `AddValue` immer alle vier Argumente übergibt;
+`Dim c As Variant` und `Dim c As Object` scheiterten dagegen schon an
+`CanAcceptArgumentCount` mit `MissingMemberException`. `[Optional]` an den drei Parametern
+behebt das, ohne den Dispatcher anzufassen — dessen Optional-Behandlung war bereits da.
+
+Dabei fiel ein zweiter Punkt auf: `OptionalValue` lieferte für ein ausgelassenes
+`object`-Argument `null`. In VB6 ist ein ausgelassenes optionales Variant-Argument aber
+**Missing**, nicht Empty — und nur dann beantwortet `IsMissing` im Ziel die Frage, ob das
+Argument übergeben wurde. `Add "x"` hätte sonst `Before` als angegeben behandelt.
+
+**Fehlerzuordnung.** Ein Zugriff ausserhalb der Arraygrenzen meldete **5**, VB6 meldet **9**
+(„Subscript out of range"); ein nicht vorhandenes Mitglied meldete **5**, VB6 meldet **438**.
+Beide laufen jetzt über `VBErrors.Set`. Bewusst **nicht** gemappt wurde
+`ArgumentOutOfRangeException`: Sie deckt auch Fälle wie `Space(-1)` ab, für die VB6 weiterhin 5
+meldet — eine pauschale Zuordnung hätte dort eine korrekte Nummer kaputtgemacht.
+
+Bereits korrekt und jetzt festgeschrieben: Objektidentität über `Is`, die Unterscheidung
+Nothing/Null in `IsObject`/`IsNull`/`TypeName`, Arraygrenzen, `VarType` 8204, Elementsubtypen
+über ByRef-Rückschreiben und `ReDim Preserve` hinweg, sowie die Argument-Coercion beim
+indizierten Zugriff (2.6 auf 3, 2.5 auf 2, `Currency`-Konvertierung, String bleibt Key).
+
+**Offen** bleibt in der `unsupported`-Klausel die ausdrücklich genannte SAFEARRAY-Hälfte; sie
+liegt am COM-/TypeLib-Rand. Die Karte steht deshalb auf `partial`.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1318/1318** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **7 partial**, **40 planned** von **115** sowie **75/115**
+`documented-verified`.

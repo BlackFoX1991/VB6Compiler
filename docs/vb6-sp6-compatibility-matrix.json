@@ -829,7 +829,7 @@
     },
     {
       "id": "l1-02-h-variant-object-array-dispatch",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "runtime-variant-and-conversions",
       "input": "Variant values containing objects, arrays and Automation dispatch members, including indexed and ByRef access",
       "expected": {
@@ -838,7 +838,7 @@
         "array": "Variant array bounds and element subtype survive access and write-back",
         "unsupported": "unsupported SAFEARRAY/object shapes fail explicitly"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": ["tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs", "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs", "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"]
     },
     {

@@ -49,6 +49,9 @@ public static class VBFunctions
             VBDateValue or DateTime => "Date",
             VBErrorValue => "Error",
             string => "String",
+            // VB6 nennt das Standardobjekt "Collection"; der CLR-Typname der Runtime
+            // waere hier nach aussen sichtbar.
+            VBCollection => "Collection",
             IVBArray array => VBVariants.ArrayTypeName(array),
             Array array => VBVariants.ArrayTypeName(array),
             _ => value.GetType().Name

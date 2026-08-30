@@ -119,6 +119,10 @@ public static class VBErrors
                 OverflowException => 6,
                 DivideByZeroException => 11,
                 FormatException or InvalidCastException => 13,
+                // Nur IndexOutOfRange, nicht ArgumentOutOfRange: Letztere deckt auch
+                // Faelle wie Space(-1) ab, fuer die VB6 weiterhin 5 meldet.
+                IndexOutOfRangeException => 9,
+                MissingMemberException => 438,
                 _ => 5
             },
             Source: exception.GetType().Name,
