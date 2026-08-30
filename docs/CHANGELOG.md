@@ -3463,3 +3463,42 @@ Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die M
 **68 implemented**, **5 partial**, **42 planned** von **115** sowie **73/115**
 `documented-verified`. Ein nativer VB6-SP6-Compiler ist weiterhin nicht installiert;
 `oracle-verified` wurde nicht gesetzt.
+
+## L1-02-G Variant-Promotionstabelle festgeschrieben (30.08.2026)
+
+Diese Karte hat nichts repariert, sondern etwas abgesichert. Die Promotionstabelle wurde über
+**49 Operandenpaare** nachgemessen — Arithmetik, Division, `Mod`, `^`, Verkettung, Logik und
+Vergleich — und war **durchgehend korrekt**. Sie war nur fast ungetestet, also jederzeit
+still kaputtzumachen. Jetzt liegen 24 Promotionszeilen mit Subtyp *und* Wert als Test vor,
+dazu Vergleich, Logik und Verkettung sowie die Ablehnungsfälle.
+
+Der lehrreiche Fehlschlag dabei: Die erste Testfassung schrieb die Operanden inline und lief
+in einen echten Überlauf. Bei **Variant**-Operanden geht Integer nach Long, Long nach Double
+und Byte nach Integer; bei **statisch typisierten** Ausdrücken gilt die Projektinvariante und
+`CInt(32767) + CInt(1)` überläuft. Beide Regeln sind richtig, gelten aber für verschiedene
+Dinge. Der Test führt seine Operanden deshalb über `Variant`-Variablen und sagt im Kommentar,
+warum.
+
+**Zwei Änderungen wurden begonnen und wieder zurückgenommen.** Die explizite Konvertierung
+eines Error-Variants (`CInt(CVErr(5))`) liefert dessen Code, während der implizite Pfad
+korrekt **13** meldet; VB6 meldet nach Dokumentationslage auch beim expliziten Aufruf 13. Der
+Versuch, das anzugleichen, riss `ErrorVariantConversions_DistinguishExplicitAndImplicitPaths` —
+einen Test, der diese Unterscheidung im Namen führt — und hängt über `CInt(Missing) = 448` an
+der Missing-Argument-Mechanik. Ein benannter, bestehender und mit anderer Funktionalität
+verkoppelter Vertrag wiegt ohne Orakel schwerer als eine Herleitung; die Änderung wurde
+vollständig zurückgenommen, `src/` ist gegenüber dem Vorstand bytegleich.
+
+**Offen** bleibt in der `errors`-Klausel „incompatible object operands": Gemessen an einer
+`Collection` meldet `o + 1` korrekt **13**, `o & "x"` dagegen **0** und `o = 1` **5**. Ob 13
+der Sollwert ist, hängt an der Default-Property der `Collection`; ohne Orakel wurde nichts
+geändert. Ebenfalls notiert, aber ausserhalb dieser Karte: `Debug.Print` und `CStr` geben ein
+Date-Variant als OADate-Seriennummer aus (`46024`) statt als Datum. Das berührt den in
+`CLAUDE.md` als offen geführten Zielkonflikt zwischen VB6-Locale-Treue und
+Invariant-Determinismus und wird nicht einseitig aufgelöst.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1314/1314** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **6 partial**, **41 planned** von **115** sowie **74/115**
+`documented-verified`. `l1-02-g-variant-promotion-table` steht auf `partial`: `promotion` und
+`empty` sind nachgewiesen, `errors` nur für Null-, String- und Error-Operanden.

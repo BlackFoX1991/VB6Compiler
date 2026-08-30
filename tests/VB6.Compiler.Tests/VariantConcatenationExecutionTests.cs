@@ -169,4 +169,251 @@ public sealed class VariantConcatenationExecutionTests
         CollectionAssert.AreEqual(new[] { "True", "Null" }, output);
     }
 
+
+    [TestMethod]
+    public void EmitManagedApplication_SelectsTheDocumentedVariantPromotionSubtype()
+    {
+        // Die Promotionstabelle aus der VB6-Dokumentation, Zeile fuer Zeile: erst der
+        // gewaehlte Subtyp (VarType), dann der Wert.
+        //
+        // Die Operanden laufen bewusst ueber Variant-Variablen. Inline geschrieben waere
+        // "CInt(32767) + CInt(1)" ein statisch typisierter Integer-Ausdruck und muesste
+        // nach der Projektinvariante ueberlaufen; die Promotionsstufen -- Integer nach
+        // Long, Long nach Double, Byte nach Integer -- gelten nur fuer Variant-Operanden.
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                Dim c As Variant
+
+                a = Empty
+                b = Empty
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = Empty
+                b = CInt(3)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = Empty
+                b = "ab"
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(32767)
+                b = CInt(1)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CLng(2147483647)
+                b = CLng(1)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CByte(200)
+                b = CByte(100)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(-32768)
+                b = CInt(1)
+                c = a - b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(300)
+                b = CInt(300)
+                c = a * b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(2)
+                b = CLng(3)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(2)
+                b = CSng(1.5)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(2)
+                b = CDbl(1.5)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CCur(2)
+                b = CLng(3)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CCur(2)
+                b = CDbl(1.5)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CDec("2")
+                b = CInt(3)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = "5"
+                b = CInt(3)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(3)
+                b = "5"
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(7)
+                b = CInt(2)
+                c = a / b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CCur(7)
+                b = CCur(2)
+                c = a / b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(7)
+                b = CInt(2)
+                c = a \ b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CDbl(7.6)
+                b = CDbl(2.2)
+                c = a \ b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(7)
+                b = CInt(2)
+                c = a Mod b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(2)
+                b = CInt(10)
+                c = a ^ b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = True
+                b = True
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = True
+                b = CInt(3)
+                c = a + b
+                Debug.Print VarType(c)
+                Debug.Print c
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "2", "0", "2", "3", "8", "ab",
+                "3", "32768", "5", "2147483648", "2", "300",
+                "3", "-32769", "3", "90000", "3", "5",
+                "4", "3.5", "5", "3.5", "6", "5",
+                "5", "3.5", "14", "5", "5", "8",
+                "5", "8", "4", "3.5", "5", "3.5",
+                "2", "3", "3", "4", "2", "1",
+                "5", "1024", "2", "-2", "2", "2"
+            },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_KeepsVariantComparisonLogicalAndConcatContracts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                Dim c As Variant
+
+                a = CInt(3)
+                b = CInt(5)
+                c = a & b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = Empty
+                b = Empty
+                c = a & b
+                Debug.Print VarType(c)
+                a = True
+                b = False
+                c = a And b
+                Debug.Print VarType(c)
+                Debug.Print c
+                a = CInt(6)
+                b = CInt(3)
+                c = a And b
+                Debug.Print VarType(c)
+                Debug.Print c
+                Debug.Print (a Or b)
+                Debug.Print (a Xor b)
+                Debug.Print (a Eqv b)
+                Debug.Print (a Imp b)
+                a = CInt(3)
+                b = "3"
+                Debug.Print (a = b)
+                a = Empty
+                b = CInt(0)
+                Debug.Print (a = b)
+                b = ""
+                Debug.Print (a = b)
+            End Sub
+            """);
+
+        // "&" liefert immer String, Boolean And Boolean bleibt Boolean (11), waehrend
+        // Integer And Integer bitweise auf Integer (2) rechnet.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "8", "35", "8", "11", "False", "2", "2",
+                "7", "5", "-6", "-5",
+                "True", "True", "True"
+            },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RejectsIncompatibleVariantOperands()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                Dim c As Variant
+
+                On Error Resume Next
+                a = "abc"
+                b = CInt(3)
+                c = a + b
+                Debug.Print Err.Number
+                Err.Clear
+                c = a * b
+                Debug.Print Err.Number
+                Err.Clear
+                a = CVErr(5)
+                c = a + b
+                Debug.Print Err.Number
+                Err.Clear
+                c = a & "x"
+                Debug.Print Err.Number
+                Err.Clear
+                a = Null
+                Debug.Print IsNull(a + b)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Ein nicht numerischer String und ein Error-Variant melden 13; Null bleibt
+        // dagegen ein Wert und wird weitergereicht, statt einen Fehler auszuloesen.
+        CollectionAssert.AreEqual(
+            new[] { "13", "13", "13", "13", "True", "0" },
+            output);
+    }
 }
