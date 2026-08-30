@@ -230,7 +230,10 @@ public sealed class StringIntrinsicRuntimeTests
     public void CStr_FormatsErrorVariantsAndRejectsNull()
     {
         Assert.AreEqual("Error 11", VBConversions.CStr(new VBErrorValue(11)));
-        Assert.ThrowsException<InvalidCastException>(() => VBConversions.CStr(VBVariants.NullValue()));
+        var error = Assert.ThrowsExactly<VB6RuntimeErrorException>(
+            () => VBConversions.CStr(VBVariants.NullValue()));
+
+        Assert.AreEqual(94, error.Number);
     }
 
     [TestMethod]

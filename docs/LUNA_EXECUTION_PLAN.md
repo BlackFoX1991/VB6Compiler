@@ -12,14 +12,14 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1296/1296 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1311/1311 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **4 partial** und
-  **43 planned**; **72** sind `documented-verified`. Die nächste offene Implementierungskarte
-  ist `l1-02-f-variant-state-conversions`; `l1-02-a-language-grammar-context` bleibt als breiter
+- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **5 partial** und
+  **42 planned**; **73** sind `documented-verified`. Die nächste offene Implementierungskarte
+  ist `l1-02-g-variant-promotion-table`; `l1-02-a-language-grammar-context` bleibt als breiter
   Familienstatus bewusst `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
@@ -224,6 +224,26 @@ kombinationen wie `Array(1, 2) + 1` bleiben bei **13**. Die Zuordnung liegt in `
 damit sie für jeden Operator gilt statt pro Aufrufstelle. Die Klauseln `dispatch` und `compare`
 sind **nicht** nachgemessen; die Erwartung steht deshalb auf `partial`/`documented-verified` und
 bleibt als offener Familienstatus sichtbar.
+
+Die breite Karte `l1-02-f-variant-state-conversions` ist ebenfalls **begonnen, nicht
+geschlossen**. Nachgewiesen sind zwei ihrer drei Klauseln:
+
+- `state`: Die Subtyp-Tags überleben Zuweisung und Rückweg — `vbEmpty`, `vbNull`, `vbDate`,
+  `vbCurrency`, `vbDecimal`, `vbError`.
+- `numeric`: `CLng` rundet zur geraden Zahl, `CCur` ebenso auf vier Nachkommastellen;
+  Currency- und Integer-Überlauf melden **6**, ein nicht interpretierbares Datum oder eine
+  nicht interpretierbare Zahl **13**.
+- `null`: Ungültige Konvertierungen melden jetzt **94** („Invalid use of Null") statt **5**;
+  Operatoren reichen Null unverändert weiter.
+
+**Offen und genau vermessen** bleibt die Null-Weitergabe durch die String-Intrinsics. In VB6
+liefern `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase` und `LCase` bei einem
+Null-Argument selbst Null; hier sind sie als `String -> String` deklariert, konvertieren das
+Argument also und melden seit dieser Karte **94** statt Null zurückzugeben. `Len`, `Abs`,
+`Sgn`, `Int`, `Fix` und `CDec` reichen Null bereits korrekt weiter, `IsNumeric` und `TypeName`
+tun es korrekterweise nicht. Die Umstellung der acht Funktionen auf `Variant -> Variant`
+verschiebt den statischen Typ sehr häufiger Ausdrücke und gehört deshalb in eine eigene Karte,
+nicht in diese.
 
 ## Arbeitskartenvertrag
 

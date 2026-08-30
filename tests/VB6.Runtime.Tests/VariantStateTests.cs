@@ -133,4 +133,44 @@ public sealed class VariantStateTests
         Assert.AreEqual(0, values.LBound());
         Assert.AreEqual(2, values.UBound());
     }
+
+    [TestMethod]
+    [DataRow("CByte")]
+    [DataRow("CInt")]
+    [DataRow("CLng")]
+    [DataRow("CLngLng")]
+    [DataRow("CCur")]
+    [DataRow("CSng")]
+    [DataRow("CDbl")]
+    [DataRow("CDate")]
+    [DataRow("CBool")]
+    [DataRow("CStr")]
+    public void Conversions_RejectNullWithInvalidUseOfNull(string conversion)
+    {
+        var method = typeof(VBConversions).GetMethod(
+            conversion,
+            BindingFlags.Public | BindingFlags.Static,
+            [typeof(object)])!;
+
+        var error = Assert.ThrowsExactly<TargetInvocationException>(
+            () => method.Invoke(null, [VBVariants.NullValue()]));
+
+        // VB6 meldet hier 94 "Invalid use of Null", statt Null durchzureichen:
+        // das Zielsubtyp kann Null nicht darstellen.
+        var inner = (VB6RuntimeErrorException)error.InnerException!;
+        Assert.AreEqual(94, inner.Number);
+    }
+
+    [TestMethod]
+    public void NullPropagatingIntrinsics_KeepReturningNull()
+    {
+        // Gegenstueck zur Regel oben: Diese Funktionen sind Variant-wertig und
+        // reichen Null weiter, statt 94 zu melden.
+        var nullValue = VBVariants.NullValue();
+
+        Assert.IsTrue(VBVariants.IsNull(VBConversions.Int(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBConversions.CVar(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Len(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBConversions.CDec(nullValue)));
+    }
 }
