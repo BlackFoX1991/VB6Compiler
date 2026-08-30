@@ -425,6 +425,13 @@ public sealed record PropertySymbol(
 {
     /// <summary>True when the property is resolved by the runtime object dispatch contract.</summary>
     public bool IsLateBound { get; init; }
+
+    /// <summary>
+    /// True when this property is the synthesized Get/Let pair of a class module variable
+    /// rather than a declared Property Get. Only such a property denotes real storage, so
+    /// only it can receive a ByRef write-back.
+    /// </summary>
+    public bool IsFieldBacked { get; init; }
 }
 
 public sealed record EventSymbol(

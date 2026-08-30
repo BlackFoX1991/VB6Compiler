@@ -3953,7 +3953,11 @@ public sealed class Binder
                          expression is not BoundArrayAccessExpression &&
                          expression is not BoundElementAccessExpression &&
                          expression is not BoundVariantArrayAccessExpression &&
-                         expression is not BoundMemberAccessExpression)
+                         expression is not BoundMemberAccessExpression &&
+                         expression is not BoundPropertyAccessExpression
+                         {
+                             Property: { IsFieldBacked: true, IsLateBound: false }
+                         })
                 {
                     // Not an error: VB6 accepts a literal, an expression, or a function result for
                     // a ByRef parameter by passing a temporary of the parameter type and throwing

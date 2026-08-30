@@ -12,13 +12,13 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1320/1320 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1321/1321 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **118 Erwartungen**: **68 implemented**, **8 partial** und
-  **42 planned**; **76** sind `documented-verified`.
+- Die Matrix umfasst aktuell **118 Erwartungen**: **68 implemented**, **9 partial** und
+  **41 planned**; **77** sind `documented-verified`.
 - **Die nächste Karte ist `S1` (`s1-class-public-field-storage`), nicht `l1-02-j`.** Der
   Breitendurchgang vom 30.08.2026 hat dort einen Befund gefunden, der ein falsches Ergebnis
   ohne jede Diagnose liefert; nach §13 hat „still falsch" Vorrang. Die Reihenfolge lautet
@@ -409,7 +409,7 @@ auf ein `IrFieldPlace` ab — alles andere fällt durch.
 
 | # | Symptom | Gemessen | VB6 | Schwere |
 |---|---|---|---|---|
-| A1 | `Bump c.N` mit `ByRef`-Parameter | **5** (kein Rückschreiben) | 6 | **still falsch, keine Meldung** |
+| A1 | `Bump c.N` mit `ByRef`-Parameter | ~~5~~ → **6** | 6 | **behoben am 30.08.2026** |
 | A2 | `Set c.ObjFeld = New Collection` | `VB6S0064` | funktioniert | meldet |
 | A3 | `c.Nums(1)` bei `Public Nums() As Long` | `VB6S0006` | funktioniert | meldet |
 | A4 | `Public S As String * 5` in `.cls` | `VB6P0001` (Parser) | funktioniert | meldet |
@@ -419,9 +419,29 @@ Gegenprobe: ByRef-Rückschreiben funktioniert für lokale Variablen, `Global`-Va
 UDT-Member und Array-Elemente (alle **6**) — **nur** für Klassenfelder nicht, von aussen wie
 von innen über `Me.N`.
 
-Der Weg ist damit vorgezeichnet: `PropertySymbol` braucht einen `IsFieldBacked`-Marker (oder
-das Feld einen eigenen Bound-Knoten), und die ByRef-Positivliste in `Binder.cs` sowie die
-`Set`-/Array-/Fixed-String-Pfade müssen ihn auswerten.
+**A1 ist behoben.** `PropertySymbol` trägt jetzt `IsFieldBacked`; `AddReadWriteProperty` in
+`VBProjectCompilation.cs` setzt es für die synthetisierten Get/Let-Paare von Klassenvariablen
+(nicht für Designer-Controls, die `IsLateBound` sind), und die ByRef-Positivliste in
+`Binder.cs` akzeptiert eine `BoundPropertyAccessExpression` mit
+`{ IsFieldBacked: true, IsLateBound: false }`. Der Lowerer konnte den Feldplatz über
+`TryGetClassFieldPlace` schon vorher — der Binder legte nur vorher einen Temp an.
+
+Gegenproben nach §13: Ein echtes `Property Get`/`Let` behält den Temp (5), ein UDT-Member
+schreibt weiter zurück (6), und `Me.N` von innen schreibt ebenfalls zurück (6).
+
+**A2–A4 bleiben offen** und behalten dieselbe Ursache: `AddReadWriteProperty` erzeugt nur ein
+Get/Let-Paar ohne `Set`-Accessor (A2) und ohne Parameter (A3), und der Parser nimmt
+`String * n` als Klassenmember nicht an (A4).
+
+**Neuer Befund aus der Grenzmessung (§13, Grenze 1):** Ein **spät gebundener** Zugriff auf ein
+öffentliches Klassenfeld findet es überhaupt nicht — `Dim o As Object : o.N = 5` meldet
+`MissingMemberException`. `VBDynamicDispatch` sucht Methoden und Properties, aber keine Felder.
+Der Befund ist vorbestehend, nicht durch diese Karte entstanden, und gehört zu `S1`; er ist in
+deren `expected` bislang nicht genannt und braucht dort eine Ergänzung oder eine eigene Karte.
+
+**Nebenbefund, bestätigt:** `AddReadWriteProperty` unterscheidet nicht zwischen `Public` und
+`Private`. Deshalb bindet `b.hidden` von aussen fehlerfrei; nur die CLR-Sichtbarkeit verhindert
+den Zugriff zur Laufzeit. Das ist dieselbe Stelle und dieselbe Karte wert.
 
 ### B — Fehlende VB6-Fehlernummern
 

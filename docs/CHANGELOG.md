@@ -3724,3 +3724,41 @@ kann.
 Reine Planungsarbeit; `src/` und `tests/` bleiben unberührt. Der kanonische Lauf misst
 **1320/1320** Tests, VISIA **40/40**, und das Matrix-Gate akzeptiert die drei neuen
 Erwartungen.
+
+## S1 (Teil A1): ByRef-Rückschreiben über ein Public-Feld (30.08.2026)
+
+Der gefährlichste Befund des Breitendurchgangs ist behoben: `Bump c.N` mit einem
+`ByRef`-Parameter verwarf das Rückschreiben **still** und lieferte 5 statt 6 — kein Fehler,
+keine Diagnose, falscher Wert.
+
+Die Ursache lag im Binder. `AddReadWriteProperty` in `VBProjectCompilation.cs` macht aus jeder
+Klassenvariablen ein synthetisiertes Get/Let-Property-Paar, und `PropertySymbol` hatte keinen
+Marker, der so etwas von einem echten `Property Get` unterscheidet. Die ByRef-Positivliste in
+`Binder.cs` lehnt Property-Zugriffe zu Recht ab — ein `Property Get` besitzt keinen
+Speicherplatz, an den zurückgeschrieben werden könnte — und traf damit auch die Felder.
+
+`PropertySymbol.IsFieldBacked` schliesst die Lücke. Gesetzt wird es nur für die synthetisierten
+Paare echter Klassenvariablen, ausdrücklich **nicht** für Designer-Controls, die `IsLateBound`
+sind. Der Lowerer brauchte keine Änderung: `LowerPropertyPlace` bildet einen solchen Zugriff
+über `TryGetClassFieldPlace` längst auf ein `IrFieldPlace` ab — der Binder legte nur vorher
+einen Temp an, der nie dorthin kam.
+
+Die Messung folgte den vier Grenzen aus §13. Rückgeschrieben wird jetzt von aussen, über `Me`
+von innen und für ein `Variant`-Feld (je **6**). Die Gegenproben halten: Ein echtes
+`Property Get`/`Let` behält den Temp (**5**), ein UDT-Member schreibt wie bisher zurück (**6**).
+Beide stehen als Assertion im Test, damit die Unterscheidung nicht später verloren geht.
+
+**Die Grenzmessung hat dabei einen neuen Befund geliefert** (Grenze 1, Bindungsart): Ein spät
+gebundener Zugriff auf ein öffentliches Klassenfeld findet es überhaupt nicht —
+`Dim o As Object : o.N = 5` meldet `MissingMemberException`, weil `VBDynamicDispatch` Methoden
+und Properties sucht, aber keine Felder. Der Befund ist vorbestehend und wurde **nicht**
+nebenbei behoben; er steht im Register.
+
+`s1-class-public-field-storage` steht damit auf `partial`: Die `byref`-Klausel ist gebaut und
+nachgewiesen, `set`, `array` und `fixed-string` bleiben offen.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1321/1321** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **9 partial**, **41 planned** von **118** sowie **77/118**
+`documented-verified`.
