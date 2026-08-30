@@ -1,0 +1,475 @@
+# Luna Execution Plan
+
+Dieser Plan ist die operative Arbeitswarteschlange zur
+[Roadmap](ROADMAP.md). Die Roadmap beschreibt Produktziel, Ist-Stand und Meilensteine;
+diese Datei beschreibt, wie ein einzelner Luna-Lauf die offenen Verträge schnell,
+reproduzierbar und ohne neue Architekturentscheidungen abarbeitet.
+Die verbindlichen Leitplanken stehen in [`LUNA_GUARDRAILS.md`](LUNA_GUARDRAILS.md) und gehen
+bei Widersprüchen diesem Ausführungsplan vor.
+
+Stand: 2026-08-30  
+Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
+
+## Aktueller Einstieg
+
+- Der letzte kanonische Nachweis ist **1296/1296 Tests**, Release ohne Warnungen/Fehler
+  und VISIA **40/40**.
+- Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
+  Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
+- `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
+- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **4 partial** und
+  **43 planned**; **72** sind `documented-verified`. Die nächste offene Implementierungskarte
+  ist `l1-02-f-variant-state-conversions`; `l1-02-a-language-grammar-context` bleibt als breiter
+  Familienstatus bewusst `partial`.
+- Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
+  `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
+  (`Public`/`Global` versus `Private`/`Dim`) implementiert und steht deshalb auf `partial`;
+  der Parser akzeptiert zusätzlich module-level `Dim WithEvents`-Deklarationen, die
+  module-level-Direktive `Option Private Module`, statische Prozedurdeklarationen und
+  module-level-`DefType`-Direktiven; die verbleibenden Grammatik-/Kontextregeln dieser Karte
+  bleiben als offener Teil des breiten Familienstatus sichtbar.
+
+Die Atomikkarte `l1-02-a-deftype-directive-syntax` ist nach dem gezielten Lauf und dem
+kanonischen Gate geschlossen. Sie deckt ausschließlich die Parser-Syntax und den
+Module-level-Kontext ab; die tatsächliche Anwendung der Defaulttypen auf implizite Variablen,
+Parameter und Function-/Property-Get-Rückgaben bleibt eine separate Semantik-Karte.
+
+Die Folgkarte `l1-02-a-deftype-default-semantics` ist ebenfalls geschlossen: Der Managed-
+Lowerer materialisiert den geltenden Defaulttyp in untypisierten Deklarationen, Parametern und
+Function-/Property-Get-Rückgaben; explizite `As`-Typen und Bezeichner-Suffixe haben Vorrang.
+
+Die Anschlusskarte `l1-02-a-deftype-implicit-variables` ist geschlossen: Der Binder verwendet
+denselben Defaulttyp auch für Variablen, die bei Zuweisungen oder in Ausdrücken implizit entstehen;
+`Option Explicit` bleibt davon unberührt.
+
+Die Anschlusskarte `l1-02-a-static-procedure-semantics` ist geschlossen: `Dim`-Variablen in
+`Static`-Prozeduren werden als persistente Speicherplätze gebunden und bleiben über Aufrufe
+erhalten; gewöhnliche Prozeduren behalten ihre lokale Lebensdauer.
+
+Die Anschlusskarte `l1-02-a-procedure-visibility` ist geschlossen: `Public`/`Global`-Prozeduren
+werden projektweit geteilt, `Private`-Prozeduren bleiben auf ihr deklarierendes Modul begrenzt,
+und `ProcedureSymbol.IsPublic` trägt diesen Vertrag bis zur Auflösung.
+
+Die Anschlusskarte `l1-02-a-option-private-module-semantics` ist geschlossen: `Option Private
+Module` wird im `SemanticModel` als externe Exportpolitik geführt, ohne die Auflösung öffentlicher
+Mitglieder innerhalb desselben Projekts zu beschneiden. Ein externer Standardmodul-Importpfad ist
+weiterhin nicht behauptet und bleibt eine spätere Projekt-/Assembly-Karte.
+
+Die Anschlusskarte `l1-02-a-global-module-variable-resolution` ist geschlossen: Eine `Global`-
+Modulvariable wird unter `Option Explicit` aus einem anderen Standardmodul aufgelöst und als
+öffentliche `ModuleVariableSymbol`-Instanz geführt. Der gezielte Projektlauf besteht mit **1/1**
+Test; der kanonische Lauf misst **1275/1275** Tests, VISIA **40/40** und 0 Fehler.
+
+Die atomare Anschlusskarte `l1-02-b-named-arguments-side-effect-order` ist ebenfalls geschlossen:
+Benannte Argumente werden genau einmal an ihre Parameter gebunden, in deklarierter Reihenfolge
+ausgewertet und liefern trotz umgekehrter Schreibreihenfolge die erwarteten Werte. Der gezielte
+Compilerlauf besteht mit **1/1** Test; der kanonische Lauf misst **1275/1275** Tests, VISIA
+**40/40** und 0 Fehler.
+
+Die atomare Karte `l1-02-b-named-arguments-invalid-shapes` ist geschlossen: Doppelte benannte
+Argumente sowie Positionsargumente nach einem benannten Argument melden jeweils deterministisch
+`VB6S0069`, ohne eine Parameterbindung stillschweigend zu überschreiben. Der gezielte
+Semantiklauf besteht mit **1/1** Test; der kanonische Lauf misst **1275/1275** Tests, VISIA
+**40/40** und 0 Fehler.
+
+Die atomare Karte `l1-02-c-nested-udt-array-storage` ist geschlossen: verschachtelte UDT-
+Arrayfelder bewahren explizite Unter- und Obergrenzen sowie ihren Elementtyp, exponieren die
+VB6-Skalaranfangswerte für uninitialisierte Elemente und schreiben Änderungen an einem ByRef-
+Feld in den Aufrufer zurück. Der gezielte Compilerlauf besteht mit **1/1** Test; der kanonische
+Lauf misst **1276/1276** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+Die atomare Karte `l1-02-c-redim-preserve-multidimensional` ist geschlossen: `ReDim Preserve`
+bewahrt bei einer mehrdimensionalen dynamischen Managed-Arraystruktur Rang, frühere Grenzen und
+die Untergrenze der letzten Dimension, erhält bestehende Werte an ihren Indizes und initialisiert
+neue Slots mit den VB6-Skalardefaults. Der gezielte Compilerlauf besteht mit **1/1** Test; der
+kanonische Lauf misst **1277/1277** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+Die atomare Karte `l1-02-c-udt-array-rank-diagnostics` ist geschlossen: Der Binder meldet bei
+einem UDT-Arrayfeldzugriff mit weniger Indizes als dem deklarierten Rang den stabilen Diagnosecode
+`VB6S0027`. Der gezielte Semantiklauf besteht mit **1/1** Test; der kanonische Lauf misst
+**1277/1277** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung `L1-02-C` bleibt für
+weitere Array-/UDT-Regeln offen.
+
+Die atomare Karte `l1-02-c-redim-element-type-diagnostic` ist geschlossen: Ein `ReDim`, das für
+eine dynamische Arrayvariable einen abweichenden Elementtyp restatiert, wird im Binder mit
+`VB6S0031` abgewiesen. Der gezielte Semantiklauf besteht mit **1/1** Test; der kanonische Lauf
+misst **1277/1277** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung `L1-02-C` bleibt
+für weitere Array-/UDT-Regeln offen.
+
+Die atomare Karte `l1-02-c-redim-paramarray-diagnostic` ist geschlossen: Der Binder weist ein
+`ReDim` auf einem `ParamArray` deterministisch mit `VB6S0066` zurück. Der gezielte Semantiklauf
+besteht mit **1/1** Test; der kanonische Lauf misst **1277/1277** Tests, VISIA **40/40** und 0
+Fehler. Die breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+Die atomare Karte `l1-02-c-foreach-udt-array-diagnostic` ist geschlossen: Der Analyzer weist
+`For Each` über ein Array eines Standardmodul-UDT mit `VB6S0056` zurück, statt das UDT implizit in
+eine Variant-Steuervariable zu zwingen. Der gezielte Compilerlauf besteht mit **1/1** Test; der
+kanonische Lauf misst **1277/1277** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+Die atomare Karte `l1-02-c-array-parameter-diagnostics` ist geschlossen: Der Binder meldet
+`VB6S0028` für `ByVal`-Arrayparameter und `VB6S0032` für unzulässige feste Parametergrenzen. Der
+gezielte Semantiklauf besteht mit **1/1** Test; der kanonische Lauf misst **1277/1277** Tests,
+VISIA **40/40** und 0 Fehler. Die breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln
+offen.
+
+Die atomare Karte `l1-02-c-dynamic-udt-array-member` ist geschlossen: Ein dynamisches UDT-
+Arrayfeld wird über seinen Empfänger mit `ReDim` angelegt, behält die expliziten Unter- und
+Obergrenzen und bewahrt den deklarierten Elementtyp sowie beschreibbare verschachtelte Felder.
+Der gezielte Compilerlauf besteht mit **1/1** Test; der kanonische Lauf misst **1277/1277** Tests,
+VISIA **40/40** und 0 Fehler. Die breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln
+offen.
+
+Die atomare Karte `l1-02-a-module-declaration-context-guard` ist geschlossen: `Public`, `Private`
+und `Global`-Variablendeklarationen werden innerhalb einer Prozedur oder eines verschachtelten
+Statement-Blocks als ungültige Moduldeklarationen diagnostiziert und zeilenweise übersprungen;
+eine lokale `Dim`-Deklaration
+bleibt dabei eine gültige `DimStatementSyntax`. Der gezielte Parserlauf besteht mit **1/1** Test;
+der kanonische Lauf misst **1278/1278** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-constant-declaration-context-guard` ist geschlossen: `Public`, `Private`
+und `Global Const`-Deklarationen werden innerhalb einer Prozedur oder eines verschachtelten
+Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen; eine lokale `Const`
+bleibt dabei eine gültige `ConstStatementSyntax`. Der gezielte Parserlauf besteht mit **1/1** Test;
+der kanonische Lauf misst **1279/1279** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-procedure-declaration-context-guard` ist geschlossen: `Public`, `Private`
+und `Global`-Sub-/Function-Deklarationen werden innerhalb einer Prozedur oder eines verschachtelten
+Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen; eine module-level
+Sichtbarkeitsdeklaration bleibt gültig. Der gezielte Parserlauf besteht mit **1/1** Test; der
+kanonische Lauf misst **1280/1280** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-enum-type-declaration-context-guard` ist geschlossen: `Public`, `Private`
+und `Global` vor `Enum`-/`Type`-Deklarationen werden innerhalb einer Prozedur oder eines verschachtelten
+Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen; module-level-
+Sichtbarkeitsdeklarationen bleiben gültig. Der gezielte Parserlauf besteht mit **1/1** Test; der
+kanonische Lauf misst **1281/1281** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-declare-declaration-context-guard` ist geschlossen: `Public`, `Private`
+und `Global` vor `Declare`-Deklarationen werden innerhalb einer Prozedur oder eines verschachtelten
+Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen; module-level-
+Sichtbarkeitsdeklarationen bleiben gültig. Der gezielte Parserlauf besteht mit **1/1** Test; der
+kanonische Lauf misst **1282/1282** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-property-event-declaration-context-guard` ist geschlossen: `Public`,
+`Private` und `Global` vor `Property`-/`Event`-Deklarationen werden innerhalb einer Prozedur oder
+eines verschachtelten Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen;
+module-level-Sichtbarkeitsdeklarationen bleiben gültig. Der gezielte Parserlauf besteht mit **1/1**
+Test; der kanonische Lauf misst **1283/1283** Tests, VISIA **40/40** und 0 Fehler. Die breite
+Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-withevents-declaration-context-guard` ist geschlossen: `Dim`, `Public`,
+`Private` und `Global` vor `WithEvents`-Deklarationen werden innerhalb einer Prozedur oder eines
+verschachtelten Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen;
+module-level-Sichtbarkeitsdeklarationen bleiben gültig. Der gezielte Parserlauf besteht mit **1/1**
+Test; der kanonische Lauf misst **1284/1284** Tests, VISIA **40/40** und 0 Fehler. Die breite
+Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-implements-declaration-context-guard` ist geschlossen: `Implements`-
+Deklarationen innerhalb einer Prozedur oder eines verschachtelten Statement-Blocks werden mit
+`VB6P0001` diagnostiziert und zeilenweise übersprungen; eine module-level-`Implements`-Deklaration
+bleibt gültig. Der gezielte Parserlauf besteht mit **1/1** Test; der kanonische Lauf misst
+**1285/1285** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung `L1-02-A` bleibt für weitere
+Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-option-directive-context-guard` ist geschlossen: `Option Explicit`,
+`Option Base`, `Option Compare` und `Option Private Module` werden innerhalb einer Prozedur oder
+eines verschachtelten Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen;
+module-level-Direktiven bleiben gültig. Der gezielte Parserlauf besteht mit **1/1** Test; der
+kanonische Lauf misst **1286/1286** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung
+`L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die atomare Karte `l1-02-a-attribute-context-guard` ist geschlossen: `Attribute`-Metadatenzeilen
+werden innerhalb einer Prozedur oder eines verschachtelten Statement-Blocks mit `VB6P0001`
+diagnostiziert und zeilenweise übersprungen; module-level-Attribute bleiben gültig. Der gezielte
+Parserlauf besteht mit **1/1** Test; der kanonische Lauf misst **1287/1287** Tests, VISIA **40/40**
+und 0 Fehler. Die breite Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf
+`partial`.
+
+Die atomare Karte `l1-02-a-dim-module-variable-resolution` ist geschlossen: Eine module-level-
+`Dim`-Variable kann aus ihrem deklarierenden Modul gelesen und geschrieben werden, bleibt
+aber für ein anderes `Option Explicit`-Modul mit `VB6S0001` verborgen; `ModuleVariableSymbol.IsPublic`
+bleibt `false`. Der gezielte Compilerlauf besteht mit **1/1** Test; der kanonische Lauf misst
+**1288/1288** Tests, VISIA **40/40** und 0 Fehler. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+Die breite Karte `l1-02-c-array-udt-shape` ist geschlossen: Der Managed-Pfad bewahrt Rang,
+explizite Unter-/Obergrenzen und Elementtypen auch über IR-Lowering und ByRef-Write-back; feste
+und verschachtelte UDT-Arrayfelder behalten ihre deterministischen Defaultwerte und Bounds. Ungültige
+Bounds, Rangänderungen und nicht darstellbare UDT-Layouts werden mit den bestehenden
+VB6-kompatiblen Laufzeit-/Semantikdiagnosen abgewiesen. Der gezielte Nachweis umfasst **26
+Compiler-Tests**, **22 Semantiktests** und **21 Runtime-Arraytests**; der anschließende kanonische
+Lauf misst **1290/1290** Tests, VISIA **40/40** und 0 Fehler. Die Matrix-Erwartung
+`l1-02-c-array-udt-shape` steht damit auf `implemented`/`documented-verified`.
+
+Die breite Karte `l1-02-d-control-flow-error-state` ist geschlossen: If/Select-, Schleifen- und
+GoTo-Kanten werden als explizite Managed-CFG-Blöcke gelowert; aktive `On Error`-Handler,
+Resume-Ziele sowie `Err`-/`Erl`-Zustände bleiben auch über Prozeduraufrufe erhalten. Illegale
+Kontrollfluss-/Fehlerbehandlungskonstrukte liefern stabile Diagnosen. Der gezielte Nachweis
+umfasst **13 Compiler-Tests**, **11 Parser-Tests** und **1 Managed-Diagnostic-Test**; der
+kanonische Lauf misst **1293/1293** Tests, VISIA **40/40** und 0 Fehler. Die Matrix-Erwartung
+`l1-02-d-control-flow-error-state` steht damit auf `implemented`/`documented-verified`.
+
+Die breite Karte `l1-02-e-operator-dispatch` ist **begonnen, nicht geschlossen**. Gebaut und
+nachgewiesen ist bislang ausschließlich die `overflow`-Klausel: Ein `checked`-Überlauf meldet
+`Err.Number` **6**, eine Division durch Null **11** und `0 / 0` **6**; ungültige Operanden-
+kombinationen wie `Array(1, 2) + 1` bleiben bei **13**. Die Zuordnung liegt in `VBErrors.Set`,
+damit sie für jeden Operator gilt statt pro Aufrufstelle. Die Klauseln `dispatch` und `compare`
+sind **nicht** nachgemessen; die Erwartung steht deshalb auf `partial`/`documented-verified` und
+bleibt als offener Familienstatus sichtbar.
+
+## Arbeitskartenvertrag
+
+Jede Karte muss vor dem Start folgende Felder enthalten:
+
+| Feld | Vorgabe |
+|---|---|
+| ID/Status | `L0-01`-Format; `ready`, `active`, `verified` oder `blocked` |
+| Matrix | Genau eine Erwartungs-ID; unabhängige Ergebnisse werden vorher geteilt; ein Kartenabschluss schreibt beide Achsen fort: `planned` → `implemented` und `not-yet-verified` → `documented-verified` |
+| Abhängigkeiten | IDs, die vorher `verified` sein müssen |
+| Einstieg | Konkrete Produktions- und Testdateien, keine Repository-Gesamtsuche |
+| Umfang | Eine Verhaltensänderung und eine betroffene Pipeline-Schicht |
+| Prüfung | Exakter Build- und `vstest`-Filter |
+| Abnahme | Positivfall, Fehlerfall, Profil-/Bitness-Fall und Rückwärtskompatibilität |
+| Dokumentation | Matrixstatus, Roadmap-Hinweis und Changelog-Eintrag nach erfolgreicher Prüfung |
+
+Regeln:
+
+1. Luna liest nur die aktive Karte, den referenzierten Matrixeintrag und die genannten Dateien.
+2. Bestehende öffentliche APIs werden additiv erweitert; keine Umbenennung oder Entfernung.
+3. Kein Code außerhalb des Kartenumfangs. Ein neu entdeckter Querbereich wird als neue Karte
+   angelegt, nicht nebenbei mitimplementiert.
+4. Eine Karte bleibt höchstens vier eng verwandte Tests groß; sonst wird sie vor dem Coding
+   geteilt.
+5. Bei einem echten Blocker werden Ursache, reproduzierbarer Befehl und benötigte Entscheidung
+   in der Karte dokumentiert; Luna arbeitet nicht spekulativ weiter.
+6. Keine Resets, keine pauschalen Prozessabbrüche und keine automatischen Commits.
+
+## Reihenfolge der Wellen
+
+Die Matrix enthält jetzt 115 Erwartungen: 67 implementierte Nachweise, 3 partielle Erwartungen,
+45 geplante Erwartungen und 70 `documented-verified`. Danach arbeitet Luna die Karten in dieser
+Reihenfolge ab; innerhalb
+einer Familie gilt Abhängigkeit vor alphabetischer ID.
+
+### L0 — Pausenstand und Baseline ✅
+
+- [x] `L0-01`: Byte-Intrinsics mit Grenzwerten, leerem Match, `Option Compare`, ANSI/DBCS und
+  deterministischem Profil prüfen; bestehende gezielte Tests wiederholen.
+- [x] `L0-02`: vollständigen seriellen Release-Lauf ausführen, reale TRX-Zahl ermitteln und
+  Roadmap/README/Changelog synchronisieren.
+- [x] `L0-03`: Matrix-JSON und `git diff --check` validieren; keine Produktstatusänderung ohne
+  grünen Vollauf.
+
+### L1 — Ausführungsqueue und Matrix
+
+- [x] `L1-01`: diese Datei mit der Roadmap verknüpfen und den aktuellen P0-Stand eintragen.
+- [x] `L1-02`: Sprache/Variant/Runtime in einzelne dokumentierte Kartenfamilien zerlegen.
+- [x] `L1-03`: Projekte, Datei-I/O, COM/ABI in einzelne Kartenfamilien zerlegen.
+- [x] `L1-04`: Forms, ActiveX, Enterprise und MSBuild in einzelne Kartenfamilien zerlegen.
+- [x] `L1-05`: Matrix-Schema um den Implementierungsstatus pro Erwartung erweitern; der Build prüft
+  eindeutige IDs, Statuswerte, Matrixreferenzen und Testreferenzen.
+- [x] `L1-05R`: die 34 atomaren Erwartungen für `L1-03-A` bis `L1-04-Q` in der Matrix
+  materialisieren; alle bleiben bis zu echten Assertions `planned`/`not-yet-verified`.
+
+#### L1-02-Ausgabe: atomare Kartenfamilien
+
+Die folgenden Karten sind die verbindliche Zerlegung. Vor jeder Implementierung wird aus der
+gewählten Kartenfamilie eine eigene Matrix-Erwartung mit eindeutiger ID materialisiert; bis dahin
+bleiben die bestehenden breiten Matrixeinträge die Zuordnungsebene.
+
+| Karte | Matrixeintrag | Abnahmefokus und Einstieg |
+|---|---|---|
+| `L1-02-A` | `language-declarations-and-statements` | Grammatik, Deklaratoren, Sichtbarkeit und Kontextwörter; `tests/VB6.Parser.Tests`, `tests/VB6.Semantics.Tests` |
+| `L1-02-B` | `language-declarations-and-statements` | Named Arguments, optionale Defaults und Auswertungsreihenfolge; `NamedArgumentParserTests`, `OptionalParameterParserTests`, Compiler-E2E |
+| `L1-02-C` | `language-arrays-and-udts` | Rang, Untergrenzen, `ReDim`, `Erase`, UDT-Felder und ByRef-Arrayform; `*Array*Tests`, `*Udt*Tests` |
+| `L1-02-D` | `language-control-flow-and-errors` | verschachtelte Basic Blocks, `On Error`, `Resume`, `Err` und `Erl`; `ErrorHandlingParserTests`, `ControlFlowGuardTests` |
+| `L1-02-E` | `language-operators-and-variants` | typisierte Operatoren, `Option Compare`, logische Operatoren und Überläufe; `VariantEqualityExecutionTests`, `LikeAndObjectIdentityExecutionTests` |
+| `L1-02-F` | `runtime-variant-and-conversions` | `Empty`, `Null`, `Missing`, `Error`, `Date`, `Currency`, `Decimal` und Informationstypen; `VariantStateTests`, `VariantFoundationExecutionTests` |
+| `L1-02-G` | `runtime-variant-and-conversions` | vollständige Promotionen für arithmetische, logische, Vergleichs- und Verkettungsoperatoren; `VariantArithmeticTests`, `VariantMultiplyTests`, `VariantConcatenationExecutionTests` |
+| `L1-02-H` | `runtime-variant-and-conversions` | Objekt-/Arrayvarianten, Default-Member, Indexzugriff und ByRef-Ersatz; `VariantObjectDispatchExecutionTests`, `VariantStateExecutionTests` |
+| `L1-02-I` | `language-operators-and-variants` | `Let`/`Set`, `As New`, Collection, `Implements`, Events und `WithEvents`; `CollectionExecutionTests`, `ClassMemberBinderTests`, `VariantObjectDispatchExecutionTests` |
+| `L1-02-J` | `language-control-flow-and-errors` | aktive Handler, verschachtelte Aufrufe, Weitergabe und jede `Resume`-Zielart; `ControlFlowGuardTests`, `ManagedDiagnosticTests` |
+| `L1-02-K` | `runtime-standard-library` | verbleibende String-, Konvertierungs-, Array- und Information-Intrinsics einschließlich Fehlernummern; `StringFunctionTests`, `StringIntrinsicRuntimeTests`, `*IntrinsicExecutionTests` |
+| `L1-02-L` | `runtime-standard-library` | Date/Time, Format, Math und Financial gegen die vollständige dokumentierte Oberfläche auditieren; `DateTimeRuntimeTests`, `MathRuntimeTests`, `MathIntrinsicExecutionTests`, `FinancialIntrinsicTests` |
+| `L1-02-M` | `runtime-standard-library` | Interaction, Environment, Registry, App, Screen, Printer und Clipboard mit expliziten Headless-Hosts; `InteractionRuntimeTests`, `StandardLibraryIntrinsicExecutionTests` |
+| `L1-02-N` | `runtime-file-io` | Text-/Binary-/Random-/Sequential-Grundregeln, Codepage, Variant-Zustände und zusammengesetzte Layouts; `FileRuntimeTests`, `FileStringIoExecutionTests`, `FileIoExecutionTests` |
+
+Jede spätere Implementierungskarte referenziert genau eine dieser Familien, eine neue atomare
+Erwartungs-ID und maximal vier gezielte Tests. Die Reihenfolge innerhalb der Familien ist
+`A → B → C → D → E → F → G → H → I → J → K → L → M → N`.
+
+Die erste Materialisierungswelle ist abgeschlossen: `L1-02-A` bis `L1-02-N` verweisen auf die
+Matrix-IDs `l1-02-a-language-grammar-context`, `l1-02-b-named-arguments-evaluation-order`,
+`l1-02-c-array-udt-shape`, `l1-02-d-control-flow-error-state`, `l1-02-e-operator-dispatch`,
+`l1-02-f-variant-state-conversions`, `l1-02-g-variant-promotion-table`,
+`l1-02-h-variant-object-array-dispatch`, `l1-02-i-object-members-lifecycle`,
+`l1-02-j-nested-error-resume`, `l1-02-k-standard-library-remaining`,
+`l1-02-l-locale-datetime-math-financial`, `l1-02-m-headless-host-services` und
+`l1-02-n-file-io-remaining`. Die noch nicht abgeschlossenen Familienerwartungen stehen bewusst
+auf `planned`, bis die jeweilige Implementierung mit ihren gezielten Tests verifiziert ist;
+`L1-02-A` steht für den bereits verifizierten Modul-Sichtbarkeits-Slice auf `partial`. Die breite
+`L1-02-B`-Erwartung ist nach dem Nachweis von Zuordnung, Defaults, Auswertungsreihenfolge und
+deterministischen Fehlformen `implemented`/`documented-verified`. Die atomare
+Erwartung `l1-02-a-dim-withevents-declaration` ist für den module-level-Kontextfall bereits
+`implemented`/`documented-verified`; auch `l1-02-a-option-private-module-syntax`,
+`l1-02-a-static-procedure-syntax`, `l1-02-a-deftype-directive-syntax`,
+`l1-02-a-deftype-default-semantics`, `l1-02-a-deftype-implicit-variables`,
+`l1-02-a-deftype-range-conflicts`, `l1-02-a-static-procedure-semantics`,
+`l1-02-a-procedure-visibility` und `l1-02-a-option-private-module-semantics` sind als
+`implemented`/`documented-verified` geschlossen; `l1-02-a-global-module-variable-resolution` ist
+ebenfalls `implemented`/`documented-verified`. Die atomare Karte
+`l1-02-b-named-arguments-side-effect-order` ist als `implemented`/`documented-verified`
+geschlossen. Die atomare Karte `l1-02-b-named-arguments-invalid-shapes` ist ebenfalls als
+`implemented`/`documented-verified` geschlossen; gemeinsam bilden sie den Nachweis für die
+breite Erwartung `l1-02-b-named-arguments-evaluation-order`.
+Die Bereichskarte prüft überlappende DefType-Buchstaben mit `VB6S0070`; direkt angrenzende,
+nicht überlappende Bereiche bleiben gültig.
+Die breite Familienerwartung bleibt wegen der offenen Grammatik- und Kontextregeln `partial`.
+
+#### L1-03-Ausgabe: Projekte, Datei-I/O und COM/ABI
+
+| Karte | Matrixeintrag | Abnahmefokus und Einstieg |
+|---|---|---|
+| `L1-03-A` | `project-vbp-vbg` | Projektarten, Startup, Output und Target-Bitness; `ProjectCompilationTests`, CLI-Prozesstests |
+| `L1-03-B` | `project-vbp-vbg` | `.vbg`-Abhängigkeiten, Referenzen und deterministische Emissionsreihenfolge; `VBProjectGroupCompilationTests`, `VBProjectGroupLoaderTests` |
+| `L1-03-C` | `project-vbp-vbg` | Version/Binary Compatibility, Ressourcen, Components und vollständige Inputauflösung; `VBProjectLoaderTests`, `ProjectDiagnosticCoverageTests` |
+| `L1-03-D` | `runtime-file-io` | `Open`-Modi, Access/Sharing, Default-Random und Kanalfehler; `FileStatementParserTests`, `FileRuntimeTests` |
+| `L1-03-E` | `runtime-file-io` | `Seek`, `EOF`, `LOF` und mode-aware `Loc` inklusive 1-basierter Einheiten; `FileRuntimeTests`, `FileIoExecutionTests` |
+| `L1-03-F` | `runtime-file-io` | `Print #`, `Write #`, `Input #`, `Line Input` und Codepage-/Separatorregeln; `FileStringIoExecutionTests`, `FileIoExecutionTests` |
+| `L1-03-G` | `runtime-file-io` | Binary-/Random-Scalar-, UDT- und Fixed-String-Records; `FileIoExecutionTests`, `FixedLengthStringUdtExecutionTests` |
+| `L1-03-H` | `runtime-file-io` | eigenständige String-/numerische/UDT-Arrays mit Descriptor- und Bounds-Erhalt; `FileIoExecutionTests`, Array-E2E-Tests |
+| `L1-03-I` | `runtime-file-io` | Variant-Arrays, Objektvarianten und zusammengesetzte Recordlayouts; `FileRuntimeTests`, `VariantStateExecutionTests` |
+| `L1-03-J` | `com-automation-types` | TypeLib-Aliase, Records, verschachtelte UDTs, Pointer und C-Arrays; `RegisteredInteropProjectTests`, `ManagedComRegistrationTests` |
+| `L1-03-K` | `com-automation-types` | VARIANT/BSTR/SAFEARRAY-Besitz, Bounds, Subtypen und ByRef-Write-back; `ComDispatchRuntimeTests`, `ManagedEmitterTests` |
+| `L1-03-L` | `com-automation-types` | `IDispatch` mit LCID, Named Arguments, Default-Member, PropertyPut und `EXCEPINFO`; `ComDispatchRuntimeTests`, `VariantObjectDispatchExecutionTests` |
+| `L1-03-M` | `abi-declare-addressof` | `Declare`-Signaturen für x86-Skalare, Strings, Pointer und UDTs; `DeclarePInvokeExecutionTests`, `DeclareParserTests` |
+| `L1-03-N` | `abi-declare-addressof` | `AddressOf`, Delegate-Lebensdauer, Callback-Parameter und native ByRef-Rückgabe; `AddressOfExecutionTests`, `AddressOfParserTests` |
+| `L1-03-O` | `abi-declare-addressof` | SAFEARRAY-Callbacks für Variant-, String-, Object- und LongPtr-Elemente; `AddressOfExecutionTests`, `DeclarePInvokeExecutionTests` |
+| `L1-03-P` | `com-server-and-typelib-emission` | emittierte COM-Klassen, CLSID/ProgID, ClassFactory, `IUnknown`/`IDispatch` und Aktivierung; `ManagedComRegistrationTests`, `ComActivationProbe` |
+| `L1-03-Q` | `com-server-and-typelib-emission` | `.tlb`, Registrierung, registry-free Manifest und ActiveX-EXE-Local-Server; `CliProcessTests`, `ManagedComRegistrationTests` |
+
+Die Karten `A → C`, `D → I` und `J → Q` bilden drei unabhängige Teilketten. Eine COM-Karte darf
+erst starten, wenn die zugehörige Profil-/Bitness-Karte und die betroffenen Automation-Tests grün
+sind; native OCX-Registrierung ist dafür nicht vorausgesetzt.
+
+#### L1-04-Ausgabe: Forms, ActiveX, Enterprise und MSBuild
+
+| Karte | Matrixeintrag | Abnahmefokus und Einstieg |
+|---|---|---|
+| `L1-04-A` | `project-persisted-designer-artifacts` | `.frm`/`.frx`-Hülle, `BeginProperty`, Offsets und Encoding verlustfrei laden; `VBDesignerParserTests` |
+| `L1-04-B` | `project-persisted-designer-artifacts` | `.ctl`, `.ctx`, `.pag`, `.dob`, `.dsr`, `.res` und Ressourcenpayloads binden; `VBDesignerParserTests`, `CliProcessTests` |
+| `L1-04-C` | `forms-lifecycle-and-intrinsic-controls` | Form-/Control-Lifecycle, Defaultinstanzen, Modalität, Fokus, Tab und Z-Order; `FormHostRuntimeTests`, `WinFormsHostTests` |
+| `L1-04-D` | `forms-lifecycle-and-intrinsic-controls` | intrinsische Controls, Eigenschaften, Events, Menüs und Timer; `WinFormsHostTests`, `DirectManagedProjectExecutionTests` |
+| `L1-04-E` | `forms-lifecycle-and-intrinsic-controls` | Control-Arrays sowie dynamisches `Load`/`Unload` für Controls, Forms und Menüs; `WinFormsHostTests`, `ProjectCompilationTests` |
+| `L1-04-F` | `forms-drawing-and-mdi` | `Scale*`, Koordinaten, Zeichenattribute und persistente AutoRedraw-Flächen; `InteractionRuntimeTests`, `WinFormsHostTests` |
+| `L1-04-G` | `forms-drawing-and-mdi` | sichtbare/Paint-Kontexte, PSet/Point/Line/Circle/PaintPicture/Cls und GDI-/DIB-Clipping; `GraphicsLineParserTests`, `WinFormsHostTests` |
+| `L1-04-H` | `forms-drawing-and-mdi` | alle 16 DrawMode-/ROP2-Werte in aktiven und persistenten Flächen; `WinFormsHostTests`, Pixelregressionen |
+| `L1-04-I` | `forms-drawing-and-mdi` | MDI-Parent/Child, `ActiveForm`, Cascade/Tile/Arrange, WindowList und Fokus; `FormHostRuntimeTests`, `ProjectCompilationTests` |
+| `L1-04-J` | `activex-stock-and-generic-host` | vollständiges Microsoft-Stock-Control-Inventar und sichtbarer Verifikationsstatus; Matrix-/Fixture-Tests |
+| `L1-04-K` | `activex-stock-and-generic-host` | generisches TypeLib-ActiveX mit In-Place-Aktivierung und Ambient Properties; `RegisteredInteropProjectTests`, `WinFormsHostTests` |
+| `L1-04-L` | `activex-stock-and-generic-host` | Persistenz, Property Pages und Connection Points für generische Controls; `ComDispatchRuntimeTests`, `WinFormsHostTests` |
+| `L1-04-M` | `activex-stock-and-generic-host` | UserControl-OLE-View/In-Place, PropertyBag, Events und Lifecycle; `UserControlHostIntrinsicAnalysisTests`, `WinFormsHostTests` |
+| `L1-04-N` | `project-persisted-designer-artifacts` | DataEnvironment, DataReport, UserDocument und PropertyPage aus Artefakten ausführen; `CliProcessTests`, `ProjectCompilationTests` |
+| `L1-04-O` | `msbuild-headless-sdk` | gepackte Resolver-Task für exakte Quellen, Ressourcen, Referenzen und Outputs; `CliProcessTests`, SDK-Consumer-Smoke-Test |
+| `L1-04-P` | `msbuild-headless-sdk` | stabile Einzel-/Gruppen-Targets, inkrementelle Manifeste, Clean/Rebuild und TypeLib-Outputs; `CliProcessTests`, `VBProjectGroupCompilationTests` |
+| `L1-04-Q` | `msbuild-headless-sdk` | `DesignTimeBuild`, NuGet-Paketierung und deklarative Validierung ohne Visual-Studio-CPS; `CliProcessTests`, SDK-README |
+
+Die Karten `A → I` teilen Persistenz, Host und Zeichnen; `J → N` teilen generische ActiveX-
+Verträge und Enterprise-Artefakte; `O → Q` bleiben headless und setzen keine IDE voraus. Jede
+Karte erhält vor der Implementierung eine eigene Matrix-Erwartungs-ID und höchstens vier
+gezielte Tests.
+
+Die Materialisierung verwendet die IDs `l1-03-a` bis `l1-03-q` sowie `l1-04-a` bis
+`l1-04-q`; jede ID ist genau einer Karte zugeordnet und bleibt bis zur Abnahme
+`planned`/`not-yet-verified`.
+
+### L2 — Sprache, Variant und Fehlerautomat
+
+In dieser Reihenfolge entstehen Karten für Grammatik/Kontextregeln, Named Arguments und
+Auswertungsreihenfolge, die zentrale Variant-Promotionstabelle, Null/Empty/Missing/Error/
+Decimal-Sonderfälle, Objekt-/Arrayvarianten, `Let`/`Set`/Default-Member/`As New`, Collection,
+`Implements`/Events/`WithEvents`, verschachteltes `On Error`/`Resume` sowie `VarPtr`/`StrPtr`/
+`ObjPtr`/`LSet`/native ByRef.
+
+### L3 — Runtime, Datei-I/O und Projektartefakte
+
+Kartenfamilien: verbleibende String-/Array-/Konvertierungs-/Information-Intrinsics, locale-
+bewusste Date/Time-/Format-Fälle, Interaction/Environment/Registry/App, Screen/Printer/
+Clipboard-Adapter, Textdatei- und Codepagefälle, Variant-Arrays/Objekte in Binary/Random,
+komplexe UDT-/String-/Array-Records, vollständige `.vbp`/`.vbg`-Metadaten sowie `.frm`/`.frx`/
+`.ctl`/`.ctx`/`.pag`/`.dob`/`.dsr`/`.res`-Persistenz.
+
+### L4 — Win32-, TypeLib- und COM-ABI
+
+Kartenfamilien: TypeLib-Aliase/Records/Pointer/C-Arrays, `IDispatch` mit LCID/Named Arguments/
+`DISPID_VALUE`/`PROPERTYPUT`/`EXCEPINFO`, `Declare`-Signaturen, `AddressOf`-Callbacks,
+VARIANT/BSTR/SAFEARRAY-Besitz und ByRef-Write-back, eigene COM-Server/ClassFactories/
+Connection Points, `.tlb`-Emission, Registrierung/Manifest und ActiveX-EXE-Local-Server.
+
+### L5 — Forms, Zeichnen und MDI
+
+Kartenfamilien: Lifecycle/Defaultinstanzen/Modalität/Fokus/Tab/Z-Order, intrinsische Controls/
+Menüs/Timer/Eventreihenfolge, Form-/Menü-/UserControl-Arrays, sichtbare und persistente
+GDI-/DIB-Zeichenkontexte mit Clipping, sowie vollständiger MDI-Zustand.
+
+### L6 — ActiveX, UserControls und Enterprise
+
+Kartenfamilien: Stock-Control-Inventar und ABI-Fixtures, generisches TypeLib-ActiveX-Hosting,
+Ambient Properties/Persistenz/Property Pages/Connection Points, echte UserControl-OLE-Verträge
+und ausführbare DataEnvironment/DataReport/UserDocument/PropertyPage-Artefakte.
+
+### L7 — SDK und Abschlussgate
+
+Kartenfamilien: gepackte Resolver-Task, TypeLib-/COM-Output-Orchestrierung, NuGet-Consumer-
+Smoke-Test, Raw-COM-Probes, Forms-Traces/Pixeltests und abschließende Matrix-/Dokumentations-
+Synchronisation.
+
+## Testtakt
+
+Pro implementierter Karte:
+
+```powershell
+dotnet build <betroffenes-testprojekt> --configuration Release --no-restore -m:1
+dotnet vstest <betroffene-test-dll> --TestCaseFilter:"FullyQualifiedName~<kartenfilter>"
+git diff --check
+```
+
+Nach jeweils vier verifizierten Karten oder am Ende einer Kartenfamilie, je nachdem was zuerst
+eintritt:
+
+```powershell
+.\build.ps1 -NoRestore -Configuration Release
+```
+
+Der Wellen-Gate ist nur grün, wenn Release-Build, alle Testprojekte, VISIA 40/40, der Matrix-
+Readout aus `build.ps1` und das Deterministic-Verhalten unverändert grün sind. Native OCX-Tests
+bleiben optional und werden nur mit einem expliziten x86-Testhost ausgeführt.
+
+## Schnittstellen- und Kompatibilitätsregeln
+
+- `VBCompatibilityProfile` bleibt assembly-/instanzgebunden; kein globaler Runtime-Schalter.
+- Neue profilbewusste Runtime-Funktionen sind additive Overloads; der Deterministic-Default bleibt
+  unverändert.
+- Erweiterungen des Hostvertrags erfolgen über additive Capability-Interfaces oder kompatible
+  Defaultimplementierungen.
+- COM-/Automation-Layouts folgen den dokumentierten x86-Regeln; unsichere Pointer-/C-Array-Fälle
+  bleiben diagnostisch sichtbar, bis eine eigene ABI-Karte sie abdeckt.
+- Ohne installierten VB6-Compiler ist `documented-verified` der verbindliche Abschlussstatus;
+  `oracle-verified` bleibt optional.
+- LLVM, LSP, IDE, visueller Designer und Visual-Studio-CPS bleiben außerhalb dieses Abschlussplans.
+
+## Abschlusskriterien
+
+Der Managed-Abschluss gilt erst als erreicht, wenn alle Matrixerwartungen `implemented` und
+`documented-verified` sind,
+keine offene Karte außerhalb der ausdrücklich ausgeschlossenen Bereiche existiert, der kanonische
+Build grün bleibt, VISIA 40/40 meldet und die Roadmap keine `[ ]`/`[~]`-Markierung außerhalb dieser
+Ausnahmen mehr enthält.

@@ -14,15 +14,12 @@ VB6-kompatibler Compiler in C#, der bestehende VB6-Projekte nach .NET 10 überse
 Die Priorisierung ist **.NET-first**. Der Managed-Pfad ist der Zielpfad, an dem Kompatibilität
 entschieden wird; alles andere ordnet sich unter.
 
-Aktuelle Arbeitsfront, in dieser Reihenfolge:
-
-1. **COM/ActiveX-Konsum und OCX-Hosting** (M8/M9). `MSComctlLib`, `RichTextLib`, `MSComDlg`
-   über den nativen `AxHost`-Pfad, Connection-Point-Events, TypeLib-Import, typisiertes
-   ByRef-Marshalling.
-2. **Forms/UserControls auf WinForms** (M9). Designer-Werte, Control-Arrays, Event-Mapping,
-   Zeichenoperationen.
-3. **Managed-Kern nachziehen**, wo COM/Forms es verlangen — Variant-Promotion,
-   Default-Property-Regeln, Event-Lifecycle.
+Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H),
+abgearbeitet über die Karten in `docs/LUNA_EXECUTION_PLAN.md` und die Qualitätsqueue
+`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 115 Erwartungen (68 `implemented`,
+4 `partial`, 43 `planned`; 72 `documented-verified`); die nächste offene
+Implementierungskarte ist `l1-02-f-variant-state-conversions`. `L1-02-A` bleibt als breiter
+Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
 
@@ -44,17 +41,31 @@ Default, damit die Projektgrenze die Legacy-Kompatibilität bestimmt.
 
 Zwei getrennte Dokumente — die Trennung bitte halten:
 
-- **`docs/ROADMAP.md`** (~430 Zeilen) ist **Ist-Stand und Offenes**: Produktziel, die beiden
-  aktuellen Messwerte, Korpus-Frequenzen, „Entschiedene Weichenstellungen" und die Meilensteine
-  0–10 mit `[x]`/`[~]`/`[ ]`-Listen. `[~]` heißt „begonnen, teilweise ausgabefähig" — der
-  häufigste Zustand. Hier steht, was zu tun ist.
-- **`docs/CHANGELOG.md`** (~2400 Zeilen) ist das **chronologische Arbeitsjournal**, älteste
-  Einträge zuerst. Hier steht, was getan wurde.
+- **`docs/ROADMAP.md`** (825 Zeilen) ist **Ist-Stand und Offenes**: Produktziel, die drei
+ aktuellen Messwerte, Korpus-Frequenzen, „Entschiedene Weichenstellungen" und die Meilensteine
+ 0–10 mit `[x]`/`[~]`/`[ ]`-Listen. `[~]` heißt „begonnen, teilweise ausgabefähig" — der
+ häufigste Zustand. Hier steht, was zu tun ist.
+- **`docs/CHANGELOG.md`** (3345 Zeilen) ist das **chronologische Arbeitsjournal**, älteste
+ Einträge zuerst. Hier steht, was getan wurde.
 
 Nach einem abgeschlossenen Feature: den Meilensteinstatus in der Roadmap fortschreiben und den
 Arbeitsschritt **ans Ende** des Changelogs hängen. Keine Verlaufsprosa in die Roadmap
 zurückschreiben — genau daran ist sie vorher auf 2800 Zeilen angewachsen, in denen 130
 Abschnitte gleichzeitig „Aktueller …-Nachtrag" hießen.
+
+Dazu kommen drei operative Dokumente:
+
+- **`docs/LUNA_GUARDRAILS.md`** — **verbindliche Arbeitsregeln**, die über dem operativen Ablauf
+  stehen. Statuswahrheit der Kompatibilitätsmatrix, Definition of Done, Herkunft von Messwerten,
+  Dokumentenrollen, Verhalten im Parallelbetrieb, Abbruchgründe. **Vor jedem Agentenlauf lesen.**
+- **`docs/LUNA_EXECUTION_PLAN.md`** — die operative Warteschlange: Karten, Wellen, Testtakt.
+- **`docs/LUNA_WORKORDER_Q.md`** — der laufende Qualitäts- und Konsistenzdurchgang (`Q`-Karten).
+
+Die Kompatibilitätsmatrix `docs/vb6-sp6-compatibility-matrix.json` hat **zwei unabhängige
+Statusachsen** — `implementation` (`planned`/`partial`/`implemented`) und `verification`
+(`not-yet-verified`/`documented-verified`/`oracle-verified`). Sie werden nie vermischt und nie
+optimistisch gefüllt; die Regeln dazu stehen in §1 der Leitplanken. Steht eine Achse auf 100 %,
+während die Roadmap offene Punkte führt, ist das ein Fehler und kein Erfolg.
 
 ## Die eine Regel, die alles andere schlägt
 
@@ -236,6 +247,6 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **Typnamen im IR sind eindeutig, Symbole sind es nicht.** Ein `Private Type` verdeckt ein gleichnamiges `Public Type`; beide sind verschiedene Symbole und brauchen verschiedene Speichernamen (`__vb6_udt_Point`, `__vb6_udt_Point_2`), sonst lehnt die Runtime die Assembly wegen doppelten Typs ab.
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
-- **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Ohne Test bleiben nur noch fünf Codes: `VB6L0002/3/4` (eingefrorener LLVM-Emitter), `VB6E0002` (interner PDB-Fehlerkanal, bräuchte Fehlerinjektion) und `VB6S0068` (verlangt einen Interface-Vertrag aus einem Klassenprojekt). Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
+- **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Die aktuelle Abdeckungsmessung findet keinen in `src/` definierten Diagnose-Code ohne Referenz in `tests/`; neue Codes müssen trotzdem mit einer Positivassertion in die zuständige Testsuite aufgenommen werden. Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
 - **Ein VB6-Event auf einem ActiveX-Control hat zwei mögliche Quellen.** Die Events des OCX kommen über den COM-Connection-Point und verlangen den **VB6-Namen** — ein WinForms-Name wie `TextChanged` sagt einem OCX nichts, und die Übersetzung in `FindEvent` gilt nur dem managed Adapter. Fokus-Events dagegen sind in VB6 **Extender-Events**: Sie stammen vom Container, fehlen im Event-Interface des Controls und kommen nur über das `AxHost`-Wrapper-Event. Wer nur einen der beiden Wege bedient, bekommt einen Pfad, der stillschweigend nie feuert. Beim Ergänzen von Events immer beide durchdenken und nativ nachmessen, nicht herleiten — für `GotFocus` war die Namensregel schlicht die falsche Erklärung.
-- **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 6`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.
+- **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 8`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.

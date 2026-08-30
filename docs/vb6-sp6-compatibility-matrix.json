@@ -30,13 +30,15 @@
     "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi"
   },
   "expectationSchema": {
-    "required": ["id", "matrixEntry", "input", "expected", "verification"],
+    "required": ["id", "matrixEntry", "implementation", "input", "expected", "verification", "testRefs"],
+    "implementationValues": ["planned", "partial", "implemented"],
     "verificationValues": ["not-yet-verified", "documented-verified", "oracle-verified"],
     "oracleComparable": true
   },
   "expectations": [
     {
       "id": "profile.default",
+      "implementation": "implemented",
       "matrixEntry": "profile-selection-and-provenance",
       "input": "VBCompilation.Create(source).Lower()",
       "expected": {
@@ -48,6 +50,7 @@
     },
     {
       "id": "profile.vb6sp6-x86",
+      "implementation": "implemented",
       "matrixEntry": "profile-selection-and-provenance",
       "input": "vb6c source.bas --emit-assembly out\\source.dll --compatibility vb6-sp6",
       "expected": {
@@ -60,6 +63,7 @@
     },
     {
       "id": "profile.vb6sp6-x64-rejected",
+      "implementation": "implemented",
       "matrixEntry": "profile-selection-and-provenance",
       "input": "vb6c source.bas --emit-assembly out\\source.dll --x64 --compatibility vb6-sp6",
       "expected": {
@@ -72,6 +76,7 @@
     },
     {
       "id": "profile.strconv-locale",
+      "implementation": "implemented",
       "matrixEntry": "profile-selection-and-provenance",
       "input": "VBStrings.StrConv(\"i\", vbUpperCase, 0, profile) under tr-TR",
       "expected": {
@@ -82,7 +87,33 @@
       "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
     },
     {
+      "id": "profile.strconv-width-kana",
+      "implementation": "implemented",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "VBStrings.StrConv(\"ABC 123\", vbWide) and StrConv(\"カタカナ\", vbHiragana) under ja-JP",
+      "expected": {
+        "wide": "ＡＢＣ　１２３",
+        "hiragana": "かたかな",
+        "invalidLocale": "vbWide/vbNarrow require East-Asian locale; vbKatakana/vbHiragana require Japanese locale"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "profile.strconv-explicit-lcid",
+      "implementation": "implemented",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "VBStrings.StrConv(\"i\", vbUpperCase, 1055, VB6Sp6)",
+      "expected": {
+        "vb6Sp6": "LCID 1055 (tr-TR) determines casing even when process culture differs",
+        "deterministic": "explicit LCID does not change invariant behavior"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs"]
+    },
+    {
       "id": "profile.ansi-string-intrinsics",
+      "implementation": "implemented",
       "matrixEntry": "profile-selection-and-provenance",
       "input": "LenB/Asc/Chr with profile=VB6Sp6",
       "expected": {
@@ -94,7 +125,88 @@
       "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
     },
     {
+      "id": "operators.typed-scalar-comparison-emission",
+      "implementation": "implemented",
+      "matrixEntry": "language-operators-and-variants",
+      "input": "Long, UInteger, Currency and String comparisons in a generated managed program",
+      "expected": {
+        "emission": "typed VBOperators.Compare* helper; no Equal(object, object) fallback",
+        "result": "VB6 comparison semantics are preserved"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"]
+    },
+    {
+      "id": "operators.option-compare-text-relations",
+      "implementation": "implemented",
+      "matrixEntry": "language-operators-and-variants",
+      "input": "Option Compare Text with String =, <>, and Select Case comparisons",
+      "expected": {
+        "text": "case-insensitive string relation and case-clause matching",
+        "binary": "Option Compare Binary remains ordinal and case-sensitive"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs"]
+    },
+    {
+      "id": "strings.strcomp-comparison",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "StrComp(String1, String2, vbBinaryCompare/vbTextCompare)",
+      "expected": {
+        "binary": "ordinal comparison",
+        "text": "case-insensitive ordinal comparison",
+        "result": "normalized -1, 0 or 1",
+        "omittedCompare": "inherits Option Compare"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "strings.rset-fixed-string",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "RSet fixedString = source",
+      "expected": {
+        "shortSource": "left-padded with spaces to the declared width",
+        "longSource": "leftmost characters are retained when truncating",
+        "variableStringTarget": "source value is assigned without fixed-width padding",
+        "unsupportedLayouts": "non-string destinations remain explicitly guarded"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/LSetParserTests.cs", "tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"]
+    },
+    {
+      "id": "strings.mid-assignment",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Mid$(target, start, [length]) = replacement",
+      "expected": {
+        "oneBasedStart": "replacement begins at the one-based Start position",
+        "omittedLength": "all replacement characters are used without exceeding the target",
+        "explicitLength": "replacement and target bounds clip the number of characters written",
+        "fixedStringTarget": "declared String * n width is preserved"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/LSetParserTests.cs", "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Compiler.Tests/MidIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "strings.byte-oriented-intrinsics",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "LeftB/RightB/MidB/InStrB with byte data and optional textual comparison",
+      "expected": {
+        "positions": "one-based byte positions rather than UTF-16 character positions",
+        "clipping": "LeftB, RightB and MidB clip lengths at the encoded byte payload",
+        "search": "InStrB returns the one-based byte offset and honors binary/text comparison",
+        "profile": "VB6Sp6 uses the active ANSI code page; Deterministic uses its stable UTF-16 byte representation"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+    },
+    {
       "id": "profile.format-locale",
+      "implementation": "implemented",
       "matrixEntry": "profile-selection-and-provenance",
       "input": "Format(1234.5, \"Standard\") and Format(#2020-01-02#, \"mmmm\") under de-DE",
       "expected": {
@@ -105,7 +217,21 @@
       "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs"]
     },
     {
-      "id": "format.complete-surface",
+      "id": "profile.datetime-locale-and-rounding",
+      "implementation": "implemented",
+      "matrixEntry": "profile-selection-and-provenance",
+      "input": "DateValue/TimeValue, WeekdayName/MonthName, IsDate/IsNumeric and DateAdd under the selected profile",
+      "expected": {
+        "deterministic": "text parsing and names use invariant culture; DateAdd rounds Number through the VB Long conversion",
+        "vb6Sp6": "text parsing, names and numeric/date predicates use the active system locale; DateAdd applies the same rounded interval count",
+        "firstWeekOfYear": "vbUseSystem follows the active culture's CalendarWeekRule"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"]
+    },
+  {
+    "id": "format.complete-surface",
+    "implementation": "partial",
       "matrixEntry": "runtime-standard-library",
       "input": "Format/Format$ with named formats, four numeric sections, string placeholders and documented date/time tokens",
       "expected": {
@@ -118,8 +244,9 @@
       "verification": "documented-verified",
       "testRefs": ["tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
     },
-    {
-      "id": "math.complete-surface",
+  {
+    "id": "math.complete-surface",
+    "implementation": "partial",
       "matrixEntry": "runtime-standard-library",
       "input": "Abs/Sgn/Fix/Int/Round/Sqr/Exp/Log/Sin/Cos/Tan/Atn/Rnd/Randomize with scalar and Variant values",
       "expected": {
@@ -135,6 +262,7 @@
     },
     {
       "id": "financial.core-annuity",
+      "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
       "input": "FV/PV/PMT/IPmt/PPmt/NPer/Rate/NPV/IRR/MIRR/SLN/SYD/DDB with annuities, cash flows and depreciation schedules",
       "expected": {
@@ -151,6 +279,7 @@
     },
     {
       "id": "msbuild.exact-input-manifest",
+      "implementation": "implemented",
       "matrixEntry": "msbuild-headless-sdk",
       "input": "vb6c project.vbp --write-input-manifest obj\\VB6Compile.stamp.inputs",
       "expected": {
@@ -165,7 +294,21 @@
       "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
     },
     {
+      "id": "msbuild.clean-rebuild-output-manifest",
+      "implementation": "implemented",
+      "matrixEntry": "msbuild-headless-sdk",
+      "input": "dotnet msbuild legacy.csproj /t:Clean and /t:Rebuild",
+      "expected": {
+        "clean": "manifested Legacy outputs, compile stamps and input/output manifests are removed",
+        "rebuild": "the configured VB6 output is emitted again",
+        "scope": "unrelated files are not deleted"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+    },
+    {
       "id": "arrays.lower-bound-preservation",
+      "implementation": "implemented",
       "matrixEntry": "language-arrays-and-udts",
       "input": "Dim values(5 To 7) As Long; values(5) = 42",
       "expected": {
@@ -177,7 +320,21 @@
       "testRefs": ["tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"]
     },
     {
+      "id": "arrays.erase-byref-parameter-writeback",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "Sub Clear(ByRef values() As Long): Erase values: End Sub",
+      "expected": {
+        "parameterStorage": "array descriptor is passed ByRef",
+        "afterErase": "caller descriptor is Nothing/unallocated",
+        "afterReDim": "caller can allocate a new descriptor"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/ArrayLibraryBinderTests.cs", "tests/VB6.Compiler.Tests/ArrayLibraryExecutionTests.cs"]
+    },
+    {
       "id": "safearray.variant-type-preservation",
+      "implementation": "implemented",
       "matrixEntry": "com-automation-types",
       "input": "Declare callback with SAFEARRAY(Date) and SAFEARRAY(Currency)",
       "expected": {
@@ -187,6 +344,1265 @@
       },
       "verification": "documented-verified",
       "testRefs": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"]
+    },
+    {
+      "id": "forms.drawmode-rop2",
+      "implementation": "implemented",
+      "matrixEntry": "forms-drawing-and-mdi",
+      "input": "GraphicsLine/PaintPicture on an AutoRedraw surface with DrawMode 1..16",
+      "expected": {
+        "modes": "all sixteen VB6/GDI ROP2 truth tables",
+        "persistentSurface": "source pixels are merged with the existing AutoRedraw bitmap",
+        "invalidMode": "values outside 1..16 raise VB6 error 380"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "file-io.loc-mode-semantics",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Loc after Binary, Random and Sequential file transfers",
+      "expected": {
+        "binary": "byte position of the last operation",
+        "random": "current fixed-length record number",
+        "sequential": "current 128-byte block"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.reset-closes-channels",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Reset after opening multiple file channels",
+      "expected": {
+        "allChannelsClosed": true,
+        "nextFreeFile": 1
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.write-scalar-formatting",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Write # for multiple String, Boolean and Null scalar values",
+      "expected": {
+        "string": "quoted with embedded quotes doubled",
+        "boolean": "#TRUE#/#FALSE#",
+        "null": "#NULL#"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.lock-unlock-ranges",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Lock/Unlock for one-based Binary and Random ranges",
+      "expected": {
+        "binary": "byte ranges map to native file locks",
+        "random": "record ranges map using the declared record length",
+        "sequential": "the complete file is affected"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.open-sharing-modes",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Open with Shared, Lock Read, Lock Write and Lock Read Write",
+      "expected": {
+        "shared": "FileShare.ReadWrite",
+        "lockRead": "FileShare.Write",
+        "lockWrite": "FileShare.Read",
+        "lockReadWrite": "FileShare.None"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.open-access-modes",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Open with Access Read, Write and Read Write",
+      "expected": {
+        "read": "FileAccess.Read",
+        "write": "FileAccess.Write",
+        "readWrite": "FileAccess.ReadWrite"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.open-default-random-mode",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Open without an explicit For mode",
+      "expected": {
+        "mode": "Random",
+        "recordLength": 128
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.print-empty-output-list",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Print # with an omitted output list after the comma",
+      "expected": {
+        "lineTerminator": "CRLF",
+        "content": "empty line"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.print-output-list-separators",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Print # with semicolon and comma output-list separators, including a trailing semicolon",
+      "expected": {
+        "semicolon": "concatenate values without padding",
+        "comma": "advance to the next print zone",
+        "trailingSemicolon": "leave the record open for the next Print # statement"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.width-print-wrapping",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Width # (including qualified VBA.Width) with Print # continuation output",
+      "expected": {
+        "range": "0-255 characters",
+        "zero": "unlimited line length",
+        "default": 0,
+        "wrapping": "start a new CRLF line before the next value when the width is reached"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "file-io.input-variant-state",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-file-io",
+      "input": "Input # into Variant values written by Write #, including state markers and binary Variant UDT fields",
+      "expected": {
+        "text": "quoted fields become String Variants",
+        "numeric": "scalar numeric tags and payloads are restored",
+        "states": "Empty, Null, Boolean, Date and Error markers survive the roundtrip",
+        "binary": "scalar Variant Get/Put uses the VB6 type tag and payload layout; top-level supported scalar arrays, including variable String elements, transfer element-wise without an outer descriptor in Binary, while Random dynamic arrays carry the documented descriptor"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FileStatementGuardTests.cs"]
+    },
+    {
+      "id": "l1-02-a-language-grammar-context",
+      "implementation": "partial",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-level Public/Global, Private and Dim declarations referenced from the declaring and a different project module",
+      "expected": {
+        "public": "Public and Global variables resolve across project modules",
+        "private": "Private and Dim variables resolve only in the declaring module",
+        "diagnostic": "an Option Explicit reference to a private variable from another module reports VB6S0001",
+        "metadata": "bound ModuleVariableSymbol.IsPublic records the visibility contract"
+      },
+      "implementationNotes": "Module-level visibility is implemented and project-scoped; procedure/block context grammar remains in this family.",
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/ParserTests.cs", "tests/VB6.Semantics.Tests/BinderTests.cs", "tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-02-a-dim-withevents-declaration",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-level Dim WithEvents source As Counter",
+      "expected": {
+        "syntax": "Dim WithEvents is parsed as a module variable declaration",
+        "marker": "WithEvents is preserved on the declaration syntax node",
+        "declarator": "the variable identifier and declared type are preserved"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"]
+    },
+    {
+      "id": "l1-02-a-option-private-module-syntax",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Option Private Module at module level",
+      "expected": {
+        "syntax": "the directive is parsed as a module member",
+        "tokens": "Option, Private and Module tokens are preserved",
+        "context": "the directive is not accepted as a procedure statement"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs"]
+    },
+    {
+      "id": "l1-02-a-static-procedure-syntax",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Static Sub Count() and Private Static Function NextValue() As Long",
+      "expected": {
+        "sub": "Static is preserved as a procedure modifier",
+        "function": "Static is preserved together with an optional visibility modifier",
+        "order": "visibility precedes Static when both modifiers are present"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"]
+    },
+    {
+      "id": "l1-02-a-static-procedure-semantics",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Static Sub/Function with Dim locals invoked repeatedly",
+      "expected": {
+        "persistence": "Dim locals in a Static procedure retain their values across calls",
+        "isolation": "ordinary procedures keep per-call local storage",
+        "arrays": "static-procedure local array declarations retain their storage contract"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/StaticBinderTests.cs", "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+    },
+    {
+      "id": "l1-02-a-deftype-directive-syntax",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-level DefInt/DefStr directives with one or more letter ranges",
+      "expected": {
+        "syntax": "the supported DefType directive name and letter ranges are preserved",
+        "ranges": "single-letter and letter1-letter2 ranges may be comma-separated",
+        "context": "DefType directives are rejected inside procedure bodies"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs"]
+    },
+    {
+      "id": "l1-02-a-deftype-default-semantics",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "DefInt A-Z applied to untyped module/local declarations, parameters and Function/Property Get returns",
+      "expected": {
+        "module": "an untyped module variable whose name starts in the range binds as Integer",
+        "procedure": "an untyped local declaration and parameter use the module default type",
+        "returns": "an untyped Function and Property Get return type use the module default type",
+        "precedence": "an explicit As clause or identifier type suffix overrides the default"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+    },
+    {
+      "id": "l1-02-a-deftype-implicit-variables",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "DefType defaults for variables introduced implicitly by assignment or name expressions",
+      "expected": {
+        "assignment": "an undeclared assignment variable uses the module default type when Option Explicit is off",
+        "expression": "an undeclared name used in an expression uses the same module default type",
+        "precedence": "an identifier type suffix still overrides the DefType default"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+    },
+    {
+      "id": "l1-02-a-deftype-range-conflicts",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Multiple DefType directives with overlapping or adjacent letter ranges",
+      "expected": {
+        "overlap": "reusing a previously assigned letter reports a deterministic semantic diagnostic",
+        "adjacent": "non-overlapping adjacent ranges remain valid and retain their respective types"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+    },
+    {
+      "id": "l1-02-b-named-arguments-evaluation-order",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Calls combining positional, named and omitted optional arguments, including side-effecting argument expressions",
+      "expected": {
+        "binding": "named arguments map to the declared parameter exactly once",
+        "defaults": "omitted optional parameters receive their declared defaults",
+        "order": "argument expressions evaluate in the documented VB6 order",
+        "invalid": "duplicate, unknown or out-of-order arguments diagnose deterministically"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/NamedArgumentParserTests.cs", "tests/VB6.Parser.Tests/OptionalParameterParserTests.cs", "tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs", "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"]
+    },
+    {
+      "id": "l1-02-b-named-arguments-side-effect-order",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Named arguments call side-effecting functions in a non-declaration order",
+      "expected": {
+        "binding": "each named argument is bound to its declared parameter exactly once",
+        "order": "mapped argument expressions are evaluated in declaration order before invocation",
+        "result": "the callee observes values produced by that documented evaluation order"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-b-named-arguments-invalid-shapes",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Duplicate named arguments and positional arguments following a named argument",
+      "expected": {
+        "duplicate": "supplying the same parameter name more than once reports VB6S0069",
+        "ordering": "a positional argument after a named argument reports VB6S0069",
+        "determinism": "each invalid call produces a stable diagnostic without rebinding a parameter"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"]
+    },
+    {
+      "id": "l1-02-c-array-udt-shape",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "Fixed and dynamic arrays, ReDim/Preserve, Erase, For Each and nested Type fields passed by value and ByRef",
+      "expected": {
+        "shape": "rank, lower bounds and element type survive lowering and write-back",
+        "udt": "nested UDT field offsets and default values remain deterministic",
+        "errors": "invalid bounds, rank changes and unsupported shapes report VB6-compatible diagnostics"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayLibraryExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ArrayBinderGuardTests.cs",
+        "tests/VB6.Semantics.Tests/ArrayElementBinderTests.cs",
+        "tests/VB6.Runtime.Tests/VBArrayTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-c-nested-udt-array-storage",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "Nested UDT array fields with explicit non-zero bounds passed to a ByRef procedure",
+      "expected": {
+        "shape": "nested array fields preserve rank, lower and upper bounds, and element type",
+        "defaults": "uninitialized nested UDT elements expose VB6 scalar default values",
+        "byref": "a nested array element field can be passed ByRef and writes back to the caller"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-c-redim-preserve-multidimensional",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "A dynamic multidimensional array resized with ReDim Preserve along its final dimension",
+      "expected": {
+        "shape": "ReDim Preserve keeps rank, earlier bounds and the final dimension lower bound",
+        "values": "existing elements remain at the same multidimensional indexes after resizing",
+        "defaults": "new final-dimension slots expose VB6 scalar default values"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ReDimExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-c-udt-array-rank-diagnostics",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "An indexed access to a fixed UDT array member with fewer indexes than its declared rank",
+      "expected": {
+        "diagnostics": "the binder reports VB6S0027 for a UDT array member rank mismatch"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/UserDefinedTypeMemberArrayBindingTests.cs"]
+    },
+    {
+      "id": "l1-02-c-redim-element-type-diagnostic",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "A ReDim statement that restates a dynamic array with a different element type",
+      "expected": {
+        "diagnostics": "the binder reports VB6S0031 and rejects the element type change"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/ReDimBinderTests.cs"]
+    },
+    {
+      "id": "l1-02-c-redim-paramarray-diagnostic",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "A ReDim statement targeting a ParamArray parameter",
+      "expected": {
+        "diagnostics": "the binder reports VB6S0066 and rejects ReDim on ParamArray storage"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"]
+    },
+    {
+      "id": "l1-02-c-foreach-udt-array-diagnostic",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "For Each over a fixed array of a standard-module user-defined type",
+      "expected": {
+        "diagnostics": "the analyzer reports VB6S0056 instead of coercing the UDT element to Variant"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ForEachSyntaxGuardTests.cs"]
+    },
+    {
+      "id": "l1-02-c-array-parameter-diagnostics",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "Array parameters declared ByVal or with fixed bounds",
+      "expected": {
+        "byval": "the binder reports VB6S0028 because array parameters must be ByRef",
+        "bounds": "the binder reports VB6S0032 because parameter rank/bounds are caller-defined"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Semantics.Tests/ReDimBinderTests.cs"]
+    },
+    {
+      "id": "l1-02-c-dynamic-udt-array-member",
+      "implementation": "implemented",
+      "matrixEntry": "language-arrays-and-udts",
+      "input": "A dynamic array member of a UDT allocated with ReDim and accessed through its parent value",
+      "expected": {
+        "allocation": "ReDim allocates the dynamic UDT member against the receiver",
+        "bounds": "LBound and UBound retain the explicit member bounds",
+        "values": "nested UDT elements preserve their declared type and writable fields"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/DynamicUserDefinedTypeArrayExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-d-control-flow-error-state",
+      "implementation": "implemented",
+      "matrixEntry": "language-control-flow-and-errors",
+      "input": "If/Select/loop/GoTo control flow with On Error, Resume, Err and Erl state transitions",
+      "expected": {
+        "cfg": "all branch and loop edges lower to explicit managed control-flow blocks",
+        "handler": "active handlers and Resume targets are preserved across calls",
+        "diagnostics": "illegal control-flow/error constructs are rejected with stable IDs"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/ErrorHandlingParserTests.cs", "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs", "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"]
+    },
+    {
+      "id": "l1-02-e-operator-dispatch",
+      "implementation": "partial",
+      "matrixEntry": "language-operators-and-variants",
+      "input": "Typed and Variant arithmetic, logical, relational and concatenation operators under Option Compare Binary/Text",
+      "expected": {
+        "dispatch": "statically compatible operands use typed helpers; Variant/object operands use dynamic dispatch",
+        "compare": "Option Compare controls text relation and Select Case matching",
+        "overflow": "overflow and invalid operator combinations raise the documented VB6 errors"
+      },
+      "verification": "documented-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/VariantEqualityExecutionTests.cs", "tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs", "tests/VB6.Semantics.Tests/DeferredComparisonOperatorBinderTests.cs"]
+    },
+    {
+      "id": "l1-02-f-variant-state-conversions",
+      "implementation": "planned",
+      "matrixEntry": "runtime-variant-and-conversions",
+      "input": "Variant values carrying Empty, Null, Missing, Error, Date, Currency, Decimal and information-type states through conversions",
+      "expected": {
+        "state": "subtype tags and payloads survive assignment and round-trip conversion",
+        "null": "Null propagation and invalid Null conversions follow VB6 semantics",
+        "numeric": "Date/Currency/Decimal conversions preserve documented rounding and overflow behavior"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/VariantStateTests.cs", "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs", "tests/VB6.Compiler.Tests/VariantTypePredicateExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-g-variant-promotion-table",
+      "implementation": "planned",
+      "matrixEntry": "runtime-variant-and-conversions",
+      "input": "Every supported pair of Variant numeric, Boolean, String, Date and Empty operands across arithmetic, logical, comparison and concatenation operators",
+      "expected": {
+        "promotion": "the documented common subtype is selected symmetrically for each operator",
+        "empty": "Empty participates as numeric zero or empty string where documented",
+        "errors": "Null, Error and incompatible object operands retain their specified propagation/diagnostic"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/VariantArithmeticTests.cs", "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs", "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-h-variant-object-array-dispatch",
+      "implementation": "planned",
+      "matrixEntry": "runtime-variant-and-conversions",
+      "input": "Variant values containing objects, arrays and Automation dispatch members, including indexed and ByRef access",
+      "expected": {
+        "identity": "object identity and Nothing/Null distinctions are preserved",
+        "member": "default members and indexed dispatch resolve with documented argument coercion",
+        "array": "Variant array bounds and element subtype survive access and write-back",
+        "unsupported": "unsupported SAFEARRAY/object shapes fail explicitly"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs", "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs", "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"]
+    },
+    {
+      "id": "l1-02-i-object-members-lifecycle",
+      "implementation": "planned",
+      "matrixEntry": "language-operators-and-variants",
+      "input": "Let/Set assignment, As New activation, Collection members, Implements contracts, Events and WithEvents handlers",
+      "expected": {
+        "assignment": "Let and Set choose value versus object assignment and honor default members",
+        "lifecycle": "As New creates lazily and class initialization/termination order is deterministic",
+        "contracts": "Implements and WithEvents enforce declared members and event hookup"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/CollectionExecutionTests.cs", "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs", "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs", "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"]
+    },
+    {
+      "id": "l1-02-j-nested-error-resume",
+      "implementation": "planned",
+      "matrixEntry": "language-control-flow-and-errors",
+      "input": "Nested procedure calls with active On Error handlers, every Resume form and Err/Erl propagation",
+      "expected": {
+        "nesting": "inner handlers shadow and restore outer handlers at documented boundaries",
+        "resume": "Resume, Resume Next and Resume label re-enter the correct block",
+        "state": "Err.Number, Description, Source and Erl are cleared/retained exactly as specified"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs", "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"]
+    },
+    {
+      "id": "l1-02-k-standard-library-remaining",
+      "implementation": "planned",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Remaining documented String, conversion, array and information intrinsics with omitted/invalid arguments",
+      "expected": {
+        "binding": "intrinsic names, arity and return types bind in all documented forms",
+        "values": "return values and Null/Empty handling match the selected profile",
+        "errors": "invalid ranges, types and locale combinations expose stable VB6 error numbers"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-l-locale-datetime-math-financial",
+      "implementation": "planned",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Date/Time, Format, Math and Financial intrinsics under Deterministic and VB6Sp6 locale/profile policies",
+      "expected": {
+        "locale": "VB6Sp6 uses active LCID, separators, names and ANSI policy; Deterministic remains invariant",
+        "numeric": "rounding, domain, overflow and random-sequence contracts are deterministic",
+        "financial": "annuity, rate/period and depreciation formulas agree across supported input states"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs", "tests/VB6.Runtime.Tests/MathRuntimeTests.cs", "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs", "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-m-headless-host-services",
+      "implementation": "planned",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Interaction, Environment, Registry, App, Screen, Printer and Clipboard intrinsics with explicit headless host adapters",
+      "expected": {
+        "host": "host capabilities are injected explicitly and do not depend on an interactive desktop",
+        "fallback": "unsupported services return documented values or diagnostics instead of hanging",
+        "profile": "locale and code-page behavior follows the selected compatibility profile"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs", "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"]
+    },
+    {
+      "id": "l1-02-n-file-io-remaining",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Remaining Binary, Random, Sequential and text file cases, including code pages, Variant states and composite layouts",
+      "expected": {
+        "modes": "Open/Get/Put/Input/Print/Write/Lock semantics preserve mode-aware positions and sharing",
+        "encoding": "VB6Sp6 text transfers use the active ANSI code page; Deterministic is stable",
+        "layouts": "scalar, array, UDT and Variant records preserve documented descriptors, bounds and state tags",
+        "errors": "EOF, channel, record-length and type errors are deterministic"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-a-project-kinds-startup-bitness",
+      "implementation": "planned",
+      "matrixEntry": "project-vbp-vbg",
+      "input": "VBP projects with executable/library kinds, startup objects, configured outputs and target bitness",
+      "expected": {
+        "projectKind": "Exe, ActiveX DLL, ActiveX EXE and related documented project kinds are classified",
+        "startup": "Sub Main or startup form selection is preserved",
+        "output": "output path and assembly kind follow project metadata",
+        "bitness": "legacy VB6 target defaults and explicit x86 validation are deterministic"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ProjectCompilationTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+    },
+    {
+      "id": "l1-03-b-project-group-dependency-order",
+      "implementation": "planned",
+      "matrixEntry": "project-vbp-vbg",
+      "input": "VBG project groups with project references, shared references and multiple dependent VBP files",
+      "expected": {
+        "dependencies": "project references resolve to the declared VBP files",
+        "order": "dependency closure and emission order are deterministic",
+        "cycles": "reference cycles produce a stable project diagnostic"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs", "tests/VB6.ProjectSystem.Tests/VBProjectGroupLoaderTests.cs"]
+    },
+    {
+      "id": "l1-03-c-project-compatibility-resources-components",
+      "implementation": "planned",
+      "matrixEntry": "project-vbp-vbg",
+      "input": "VBP version, binary-compatibility, resource, component and complete declared-input metadata",
+      "expected": {
+        "compatibility": "version and binary-compatibility settings remain addressable",
+        "resources": "resource files and component entries participate in input resolution",
+        "closure": "only declared project inputs enter the deterministic source/output manifest"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.ProjectSystem.Tests/VBProjectLoaderTests.cs", "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs"]
+    },
+    {
+      "id": "l1-03-d-file-open-modes-access-sharing",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Open statements using Binary, Random, Sequential, Input, Output, Append, Access and Sharing clauses",
+      "expected": {
+        "mode": "each documented For mode maps to the correct channel semantics",
+        "access": "Read, Write and Read Write are enforced at the stream boundary",
+        "sharing": "Shared and Lock combinations map to explicit sharing policies",
+        "defaultRandom": "omitted For defaults to Random with record length 128"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"]
+    },
+    {
+      "id": "l1-03-e-file-position-functions",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Seek, EOF, LOF and mode-aware Loc after sequential, binary and random transfers",
+      "expected": {
+        "seek": "one-based positions and record units are preserved",
+        "eof": "EOF reflects the active channel position and mode",
+        "lof": "LOF reports the underlying file length",
+        "loc": "Loc uses byte, record or 128-byte block units according to mode"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-f-file-text-transfer-codepage",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Print #, Write #, Input # and Line Input with separators, quoted values, CRLF and profile code pages",
+      "expected": {
+        "print": "semicolon, comma, Width and continuation rules are preserved",
+        "write": "scalar values use VB6 quoting and state markers",
+        "input": "text fields and scalar Variant states round-trip",
+        "encoding": "VB6Sp6 uses the active ANSI code page while Deterministic remains stable"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-g-file-scalar-udt-record-layout",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Binary and Random Get/Put for scalar values, UDTs and fixed-length String records",
+      "expected": {
+        "scalar": "numeric, Boolean, Date and Currency payloads preserve type and value",
+        "udt": "declared field order and layout are deterministic",
+        "fixedString": "String * n fields retain width and padding",
+        "record": "Random record length controls the transfer boundary"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/FileIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-h-file-array-descriptor-bounds",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Standalone String, numeric and UDT arrays transferred through Binary and Random files",
+      "expected": {
+        "descriptor": "dynamic-array descriptors are present only where the VB6 mode requires them",
+        "bounds": "rank and lower/upper bounds survive the transfer",
+        "elements": "values and fixed-length element widths round-trip element-wise"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/FileIoExecutionTests.cs", "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-i-file-variant-object-composite-layout",
+      "implementation": "planned",
+      "matrixEntry": "runtime-file-io",
+      "input": "Variant arrays, object variants and composite Variant/UDT record layouts in file transfers",
+      "expected": {
+        "variantArray": "subtype, bounds and state markers are preserved where supported",
+        "objects": "unsupported object layouts fail explicitly rather than being flattened",
+        "composite": "nested record layout and ByRef write-back are deterministic"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-j-typelib-alias-record-pointer-import",
+      "implementation": "planned",
+      "matrixEntry": "com-automation-types",
+      "input": "TypeLib declarations containing aliases, records, nested UDTs, pointers and C-style arrays",
+      "expected": {
+        "aliases": "scalar TypeLib aliases resolve to their Automation-compatible managed type",
+        "records": "record fields and nesting retain declared order and types",
+        "pointers": "x86 pointer width and unsupported pointer shapes remain explicit",
+        "arrays": "C-array metadata is retained or diagnosed when it cannot be mapped"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs", "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"]
+    },
+    {
+      "id": "l1-03-k-automation-ownership-byref",
+      "implementation": "planned",
+      "matrixEntry": "com-automation-types",
+      "input": "VARIANT, BSTR and SAFEARRAY values crossing managed Declare/COM boundaries by value and ByRef",
+      "expected": {
+        "ownership": "Automation allocations and releases do not leak or double-free",
+        "bounds": "SAFEARRAY rank and bounds survive marshalling",
+        "subtypes": "VARTYPE tags map to the declared element and scalar types",
+        "writeback": "ByRef updates are visible to the VB6 caller"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"]
+    },
+    {
+      "id": "l1-03-l-idispatch-lcid-propertyput-excepinfo",
+      "implementation": "planned",
+      "matrixEntry": "com-automation-types",
+      "input": "IDispatch calls with LCID, named arguments, DISPID_VALUE/default members, PROPERTYPUT and EXCEPINFO",
+      "expected": {
+        "lcid": "caller LCID reaches dispatch and locale-sensitive coercion",
+        "named": "named argument DISPIDs map to the declared parameters",
+        "default": "DISPID_VALUE resolves the documented default member",
+        "errors": "PROPERTYPUT and EXCEPINFO preserve HRESULT and error details"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs", "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-m-declare-x86-signature-mapping",
+      "implementation": "planned",
+      "matrixEntry": "abi-declare-addressof",
+      "input": "Declare signatures for x86 scalars, ANSI/Unicode strings, pointers and UDT parameters",
+      "expected": {
+        "scalar": "VB6 Integer/Long/LongPtr widths map to the selected x86 ABI",
+        "strings": "String boundaries use the documented BSTR/ANSI contract",
+        "pointers": "pointer arguments retain width and ByVal/ByRef mode",
+        "udt": "UDT fields and packing are preserved or diagnosed explicitly"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs", "tests/VB6.Parser.Tests/DeclareParserTests.cs"]
+    },
+    {
+      "id": "l1-03-n-addressof-callback-lifetime",
+      "implementation": "planned",
+      "matrixEntry": "abi-declare-addressof",
+      "input": "AddressOf callbacks with delegate lifetime, callback parameters and native ByRef return values",
+      "expected": {
+        "addressOf": "the declared procedure address has the matching delegate signature",
+        "lifetime": "callbacks remain valid for the native call and release deterministically",
+        "parameters": "scalar, String, Variant and UDT callback parameters marshal correctly",
+        "writeback": "native ByRef changes reach the managed/VB6 caller"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs", "tests/VB6.Parser.Tests/AddressOfParserTests.cs"]
+    },
+    {
+      "id": "l1-03-o-safearray-callback-element-abi",
+      "implementation": "planned",
+      "matrixEntry": "abi-declare-addressof",
+      "input": "AddressOf/Declare callbacks with SAFEARRAY elements of Variant, String, Object and LongPtr",
+      "expected": {
+        "variant": "VT_VARIANT elements preserve state markers",
+        "string": "VT_BSTR element ownership and write-back are explicit",
+        "object": "VT_DISPATCH identity and reference lifetime are preserved",
+        "longPtr": "element width follows the x86 compatibility contract"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs", "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"]
+    },
+    {
+      "id": "l1-03-p-com-classfactory-activation",
+      "implementation": "planned",
+      "matrixEntry": "com-server-and-typelib-emission",
+      "input": "Managed COM classes emitted with CLSID/ProgID metadata, ClassFactory, IUnknown/IDispatch and activation",
+      "expected": {
+        "identity": "CLSID, ProgID and interface identity are stable",
+        "factory": "class-factory activation creates the requested class",
+        "dispatch": "IUnknown/IDispatch lifetime and member access are callable",
+        "shutdown": "activation and clean shutdown release the COM server deterministically"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs", "tests/VB6.ComActivationProbe"]
+    },
+    {
+      "id": "l1-03-q-typelib-registration-localserver",
+      "implementation": "planned",
+      "matrixEntry": "com-server-and-typelib-emission",
+      "input": "TypeLib output, registration-free manifests, registry metadata and ActiveX-EXE local-server artifacts",
+      "expected": {
+        "typelib": ".tlb metadata reflects emitted public Automation types",
+        "registration": "registration and registry-free activation paths are explicit",
+        "manifest": "manifest dependencies and bitness match the output",
+        "localServer": "ActiveX-EXE local-server lifecycle is represented or diagnosed"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"]
+    },
+    {
+      "id": "l1-04-a-designer-form-frx-persistence",
+      "implementation": "planned",
+      "matrixEntry": "project-persisted-designer-artifacts",
+      "input": ".frm/.frx designer files with BeginProperty blocks, binary offsets and source encodings",
+      "expected": {
+        "container": "form metadata and nested BeginProperty blocks load without loss",
+        "frx": "FRX offsets resolve to the declared binary payload",
+        "encoding": "source/resource encoding follows project metadata",
+        "spans": "source offsets remain addressable for diagnostics"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs"]
+    },
+    {
+      "id": "l1-04-b-designer-control-resource-artifacts",
+      "implementation": "planned",
+      "matrixEntry": "project-persisted-designer-artifacts",
+      "input": ".ctl/.ctx/.pag/.dob/.dsr/.res artifacts and their persisted resource payloads",
+      "expected": {
+        "artifacts": "all documented designer item kinds are classified and loaded",
+        "resources": "resource payloads remain linked to their owning item",
+        "binding": "control/property metadata reaches the semantic host model",
+        "errors": "malformed persistence produces stable diagnostics"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+    },
+    {
+      "id": "l1-04-c-form-control-lifecycle-focus",
+      "implementation": "planned",
+      "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
+      "input": "Form and control creation, default instances, modal display, focus, tab order and z-order",
+      "expected": {
+        "lifecycle": "Load/Initialize/Activate/Terminate ordering is deterministic",
+        "defaultInstance": "default form instances resolve to the owning host",
+        "focus": "focus, modal state and tab/z-order transitions are observable",
+        "headless": "the semantic/runtime contract can be tested without an interactive UI"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "l1-04-d-intrinsic-controls-events-menus-timers",
+      "implementation": "planned",
+      "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
+      "input": "Intrinsic controls with documented properties, events, menus and timer callbacks",
+      "expected": {
+        "properties": "control properties bind with their VB6 types and defaults",
+        "events": "event procedures fire in documented order",
+        "menus": "menu hierarchy and click dispatch are preserved",
+        "timers": "timer interval/enabled behavior is deterministic"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs"]
+    },
+    {
+      "id": "l1-04-e-control-array-dynamic-load-unload",
+      "implementation": "planned",
+      "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
+      "input": "Control arrays and dynamic Load/Unload for controls, forms and menus",
+      "expected": {
+        "indexing": "control-array indices preserve one-based VB6 identity",
+        "load": "Load creates the requested control/form instance and hooks events",
+        "unload": "Unload releases the instance and invalidates its references",
+        "errors": "duplicate, missing and invalid indices report documented errors"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-04-f-form-scale-autoredraw-attributes",
+      "implementation": "planned",
+      "matrixEntry": "forms-drawing-and-mdi",
+      "input": "Scale*, coordinate conversion, drawing attributes and persistent AutoRedraw surfaces",
+      "expected": {
+        "scale": "ScaleX/ScaleY and coordinate origins follow VB6 units",
+        "attributes": "current drawing color, width, mode and fill attributes are retained",
+        "autoredraw": "persistent surfaces survive repaint and activation",
+        "clipping": "drawing is clipped to the target surface"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "l1-04-g-visible-paint-gdi-drawing",
+      "implementation": "planned",
+      "matrixEntry": "forms-drawing-and-mdi",
+      "input": "Visible Paint contexts with PSet, Point, Line, Circle, PaintPicture, Cls and GDI/DIB clipping",
+      "expected": {
+        "context": "visible and persistent drawing contexts are distinguished",
+        "primitives": "each primitive uses VB6 coordinate and attribute semantics",
+        "bitmap": "PaintPicture composition preserves source and destination pixels",
+        "clipping": "GDI/DIB bounds prevent writes outside the target"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Parser.Tests/GraphicsLineParserTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "l1-04-h-drawmode-rop2-active-persistent",
+      "implementation": "planned",
+      "matrixEntry": "forms-drawing-and-mdi",
+      "input": "All sixteen DrawMode/ROP2 values on active Paint contexts and persistent AutoRedraw surfaces",
+      "expected": {
+        "truthTables": "each ROP2 mode merges source and destination pixels according to VB6/GDI",
+        "active": "visible drawing uses the active target context",
+        "persistent": "AutoRedraw stores the merged result",
+        "invalid": "values outside 1..16 report error 380"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"]
+    },
+    {
+      "id": "l1-04-i-mdi-parent-child-window-state",
+      "implementation": "planned",
+      "matrixEntry": "forms-drawing-and-mdi",
+      "input": "MDI parent/child forms with ActiveForm, Cascade, Tile, Arrange, WindowList and focus",
+      "expected": {
+        "ownership": "child forms attach to the correct MDI parent",
+        "active": "ActiveForm and focus follow activation order",
+        "layout": "Cascade/Tile/Arrange produce deterministic placement",
+        "windowList": "WindowList entries and selection remain synchronized"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-04-j-stock-control-inventory-status",
+      "implementation": "planned",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "input": "Microsoft redistributable stock-control inventory with explicit installed/native verification status",
+      "expected": {
+        "inventory": "each documented stock control is classified by capability",
+        "status": "native availability and fixture coverage are visible separately",
+        "fallback": "missing controls remain visibly non-native and diagnostic",
+        "host": "managed host behavior does not claim native OCX success without an x86 run"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-04-k-generic-activex-inplace-ambient",
+      "implementation": "planned",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "input": "Generic TypeLib-described ActiveX control with in-place activation and ambient host properties",
+      "expected": {
+        "typelib": "control members and properties resolve from TypeLib metadata",
+        "inplace": "in-place activation creates and sizes the control",
+        "ambient": "ambient properties flow from the host",
+        "events": "connection-point events reach the VB6 sink"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "l1-04-l-activex-persistence-propertypages",
+      "implementation": "planned",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "input": "Generic ActiveX persistence, Property Pages and connection points",
+      "expected": {
+        "persistence": "control state round-trips through the documented persistence interface",
+        "propertyPages": "property-page edits update the owning control",
+        "connections": "connection points attach, detach and dispatch events deterministically",
+        "errors": "unsupported persistence interfaces remain explicit"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "l1-04-m-usercontrol-ole-propertybag",
+      "implementation": "planned",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "input": "UserControl OLE view/in-place hosting with PropertyBag, events and lifecycle callbacks",
+      "expected": {
+        "oleView": "UserControl enters and leaves in-place/OLE view deterministically",
+        "propertyBag": "persisted properties round-trip through the PropertyBag",
+        "events": "events are raised to the attached container",
+        "lifecycle": "Initialize/ReadProperties/Resize/Terminate order is preserved"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+    },
+    {
+      "id": "l1-04-n-enterprise-designer-artifacts",
+      "implementation": "planned",
+      "matrixEntry": "project-persisted-designer-artifacts",
+      "input": "DataEnvironment, DataReport, UserDocument and PropertyPage artifacts loaded from a project",
+      "expected": {
+        "load": "enterprise artifacts are classified and their persisted metadata is retained",
+        "bind": "declared data/report members bind to generated host types",
+        "run": "supported artifacts execute through the managed host",
+        "unsupported": "missing native dependencies remain diagnostic and visible"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-04-o-msbuild-resolver-task",
+      "implementation": "planned",
+      "matrixEntry": "msbuild-headless-sdk",
+      "input": "Packaged headless resolver task for exact VB6 sources, resources, references and outputs",
+      "expected": {
+        "resolution": "declared project items resolve without Visual Studio CPS",
+        "inputs": "resources, references and COM objects enter the task input set",
+        "outputs": "configured managed/COM outputs are declared to MSBuild",
+        "headless": "DesignTimeBuild-compatible resolution does not emit unexpectedly"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-04-p-msbuild-incremental-clean-rebuild",
+      "implementation": "planned",
+      "matrixEntry": "msbuild-headless-sdk",
+      "input": "MSBuild single-project and project-group targets with incremental manifests, Clean/Rebuild and TypeLib outputs",
+      "expected": {
+        "incremental": "unchanged declared inputs skip redundant work",
+        "clean": "only manifested VB6 outputs and stamps are removed",
+        "rebuild": "all configured outputs are recreated deterministically",
+        "typelib": "TypeLib/COM outputs participate in the target graph"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs"]
+    },
+    {
+      "id": "l1-04-q-msbuild-designtime-package-validation",
+      "implementation": "planned",
+      "matrixEntry": "msbuild-headless-sdk",
+      "input": "DesignTimeBuild, NuGet packaging and declarative SDK validation without Visual Studio CPS",
+      "expected": {
+        "designTime": "evaluation and validation complete without emission",
+        "package": "SDK assets and targets are consumable from a packaged project",
+        "declarative": "invalid metadata fails with actionable MSBuild diagnostics",
+        "cps": "no Visual-Studio-CPS dependency is required"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+    },
+    {
+      "id": "l1-02-a-procedure-visibility",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-level Public/Global, Private and implicit Sub/Function declarations referenced from declaring and different project modules",
+      "expected": {
+        "public": "Public and Global procedures resolve across standard modules",
+        "private": "Private procedures resolve only in their declaring module",
+        "default": "An omitted procedure visibility modifier follows the module procedure default and resolves project-wide",
+        "metadata": "ProcedureSymbol.IsPublic records whether the procedure is exported to the project scope"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Semantics.Tests/BinderTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-option-private-module-semantics",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Option Private Module with public members in a standard module",
+      "expected": {
+        "metadata": "the bound SemanticModel records that the module has private external export policy",
+        "internal": "public members remain resolvable by other modules in the same project",
+        "boundary": "no external-project export is claimed until a referenced standard-module import path exists"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/BinderTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-global-module-variable-resolution",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Global module variable referenced from a different standard module under Option Explicit",
+      "expected": {
+        "binding": "a Global module variable resolves in another standard module",
+        "metadata": "the bound ModuleVariableSymbol.IsPublic flag is true"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-module-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only visibility modifiers encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Public, Private and Global variable declarations in procedure context produce a parser diagnostic",
+        "recovery": "the parser consumes the invalid declaration line and continues at the next statement",
+        "dim": "a procedure-level Dim declaration remains a valid DimStatement"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-constant-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only visibility modifiers on Const declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Public, Private and Global Const declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid declaration line and continues at the next statement",
+        "const": "a procedure-level Const declaration remains a valid ConstStatementSyntax"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-procedure-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only visibility modifiers on Sub and Function declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Public, Private and Global procedure declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid declaration line and continues at the next statement",
+        "procedure": "a module-level visibility modifier remains valid on a Sub or Function declaration"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-enum-type-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only visibility modifiers on Enum and Type declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Public, Private and Global Enum/Type declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid declaration line and continues at the next statement",
+        "module": "a module-level visibility modifier remains valid on an Enum or Type declaration"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+    "id": "l1-02-a-declare-declaration-context-guard",
+    "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only visibility modifiers on Declare declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Public, Private and Global Declare declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid declaration line and continues at the next statement",
+        "module": "a module-level visibility modifier remains valid on a Declare declaration"
+      },
+    "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+    "id": "l1-02-a-property-event-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only visibility modifiers on Property and Event declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Public, Private and Global Property/Event declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid declaration line and continues at the next statement",
+        "module": "a module-level visibility modifier remains valid on a Property or Event declaration"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-withevents-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only WithEvents variable declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Dim, Public, Private and Global WithEvents declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid WithEvents declaration line and continues at the next statement",
+        "module": "a module-level Dim or visibility-prefixed WithEvents declaration remains valid"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-implements-declaration-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only Implements declarations encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Implements declarations in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid Implements declaration line and continues at the next statement",
+        "module": "a module-level Implements declaration remains valid"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-option-directive-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only Option Explicit, Option Base, Option Compare and Option Private Module directives inside procedures or nested blocks",
+      "expected": {
+        "diagnostic": "Option directives in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid directive line and continues at the next statement",
+        "module": "module-level Option directives remain valid"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-attribute-context-guard",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-only Attribute metadata lines encountered inside a procedure or nested statement block",
+      "expected": {
+        "diagnostic": "Attribute lines in procedure context produce parser diagnostics",
+        "recovery": "the parser consumes each invalid Attribute line and continues at the next statement",
+        "module": "a module-level Attribute line remains valid"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
+    },
+    {
+      "id": "l1-02-a-dim-module-variable-resolution",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Module-level Dim variable referenced from its declaring module and from a different project module",
+      "expected": {
+        "declaringModule": "the declaring module can read and write its Dim variable",
+        "otherModule": "an Option Explicit reference from another module reports VB6S0001",
+        "metadata": "the bound ModuleVariableSymbol.IsPublic flag is false for Dim"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     }
   ],
   "entries": [
@@ -242,6 +1658,23 @@
       "gap": "Nested handler and complete Resume state coverage remain open."
     },
     {
+      "id": "language-operators-and-variants",
+      "domain": "language",
+      "surface": "scalar comparisons and operator dispatch",
+      "sourceRefs": ["vb6-docs"],
+      "contract": {
+        "compile": "semantically aligned scalar operands use a typed managed comparison path",
+        "runtime": "comparison ordering follows the selected scalar type; Variant/object values retain dynamic dispatch",
+        "locale": "invariant",
+        "bitness": "agnostic except LongPtr",
+        "com": "none"
+      },
+      "implementation": "partial",
+      "verification": "documented-verified",
+      "tests": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"],
+      "gap": "Variant/object promotion and the remaining operator matrix are tracked in Etappe B."
+    },
+    {
       "id": "runtime-variant-and-conversions",
       "domain": "runtime",
       "surface": "Variant subtypes, Empty/Null/Missing/Error, conversion and promotion",
@@ -290,7 +1723,7 @@
       "implementation": "partial",
       "verification": "documented-verified",
       "tests": ["tests/VB6.Compiler.Tests/File*Tests.cs"],
-      "gap": "Complete UDT/array/Variant record layouts and all file modes remain open."
+      "gap": "Loc now preserves Binary/Random/Sequential mode units, Reset closes all channels, Write # covers multi-value scalar formatting, Print # accepts an empty output list, Lock/Unlock maps Binary/Random ranges plus Sequential whole-file locks, and Open Access/sharing clauses map to explicit FileAccess/FileShare policies; omitted For defaults to Random with length 128. Input # restores scalar Variant state markers and binary Get/Put supports scalar Variant type tags, while Variant arrays/objects, richer UDT layouts and remaining file modes remain open."
     },
     {
       "id": "project-vbp-vbg",
@@ -391,8 +1824,8 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Runtime.WinForms.Tests", "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs"],
-      "gap": "GDI/DIB pixel coverage, all DrawMode values and complete MDI state remain open."
+      "tests": ["tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests", "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"],
+      "gap": "Fixed ScaleX/ScaleY conversions and all sixteen DrawMode ROP2 merges are implemented for persistent managed surfaces; direct visible-surface/Paint-context composition, GDI/DIB clipping and complete MDI state remain open."
     },
     {
       "id": "activex-stock-and-generic-host",

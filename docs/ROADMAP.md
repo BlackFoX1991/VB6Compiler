@@ -25,9 +25,14 @@ Die Reihenfolge nutzt weiterhin die Konstrukt-Frequenzanalyse über echten VB6-C
 aber nicht mehr vom Korpus begrenzt: Maßgeblich ist eine vollständige, dokumentationsbasierte
 VB6-SP6-Kompatibilitätsmatrix.
 
+Die operative Abarbeitung für Luna steht in [`LUNA_EXECUTION_PLAN.md`](LUNA_EXECUTION_PLAN.md).
+Sie zerlegt die Matrix in atomare Karten mit festen Einstiegspunkten, gezielten Tests und einem
+kanonischen Gate nach jeder Welle. Die Roadmap bleibt dabei die fachliche Quelle für Ziel,
+Abgrenzung und Meilensteinstatus; die Queue ist die Quelle für die nächste konkrete Änderung.
+
 ## Gemessener Ist-Stand
 
-Zwei Messungen definieren den Stand. Beide sind reproduzierbar und dürfen sich nicht
+Drei Messungen definieren den Stand. Alle sind reproduzierbar und dürfen sich nicht
 verschlechtern.
 
 **Korpusparität** — `vb6c conformance/VISIA/4.8.7.1/prjVisia.vbp --report`:
@@ -41,8 +46,15 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1195 Tests, alle grün** in 13
-Testprojekten (Stand 2026-08-27); der Lauf testet projektweise seriell.
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1296 Tests, alle grün** in 13
+Testprojekten (Stand 2026-08-30); der Lauf testet projektweise seriell.
+Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1296 Tests; die
+neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
+
+**Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
+**115 Erwartungen**, davon **68 implemented**, **4 partial** und **43 planned**;
+**72/115 documented-verified** (Stand 2026-08-30).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
 `TypeOf`, Variant-Arrays, Standard-`Collection`, late-bound Object-/Control-Mitglieder sowie
@@ -145,8 +157,10 @@ zum Abschlussplan; der native LLVM-Resume-/ABI-Vertrag bleibt ausgeschlossen.
   dabei lokale Dezimal-/Tausendertrennzeichen sowie lokalisierte Datumsnamen.
 - **Kein installiertes VB6-Orakel.** Auf der Entwicklungsmaschine ist kein VB6-Compiler vorhanden,
   und dieser Plan setzt keinen externen lizenzierten Runner voraus. `VB6Sp6` bedeutet deshalb
-  zunächst dokumentationsbasierte Kompatibilität. Die Matrix unterscheidet `implemented`,
-  `documented-verified` und ein später optionales `oracle-verified`; letzteres ist keine
+  zunächst dokumentationsbasierte Kompatibilität. Die Matrix führt zwei unabhängige Achsen:
+  `implementation` (`planned`, `partial`, `implemented`) beschreibt den gebauten Umfang;
+  `verification` (`not-yet-verified`, `documented-verified`, `oracle-verified`) beschreibt den
+  Nachweis. Ohne Originalcompiler bleibt `oracle-verified` unerreichbar und ist keine
   Abschlussvoraussetzung dieses Plans.
 - **VISIA ist Testkorpus, nicht Portierungsziel.** Die IDE entsteht später eigenständig in C#.
   Es liegt versioniert unter `conformance/VISIA/` und wird von `ConformanceCorpusTests` in CI
@@ -193,6 +207,11 @@ LLVM, LSP, IDE, visueller Designer und Visual-Studio-CPS. Persistierte Designer-
 Enterprise-Artefakte gehören dagegen zum Compilerumfang und müssen geladen, emittiert und
 ausgeführt werden können.
 
+Die Umsetzung erfolgt seriell über die operative Luna-Queue. Pro Karte werden nur die
+referenzierten Dateien und Tests gelesen; nach vier verifizierten Karten oder am Ende einer
+Kartenfamilie läuft `build.ps1 -NoRestore -Configuration Release`. Der pausierte Einstieg und
+die genaue Kartenreihenfolge stehen in [`LUNA_EXECUTION_PLAN.md`](LUNA_EXECUTION_PLAN.md).
+
 ### Öffentlicher Profilvertrag
 
 - [x] `VB6.Runtime` erhält `VBCompatibilityProfile` mit `Deterministic` und `VB6Sp6`;
@@ -201,8 +220,11 @@ ausgeführt werden können.
 - [x] Die CLI akzeptiert `--compatibility deterministic|vb6-sp6` für Analyse, IR-Dump und
       Managed-Emission. `vb6-sp6` wählt x86; explizites x64/AnyCpu wird abgelehnt.
 - [x] Das MSBuild SDK erhält `VB6CompatibilityProfile` und reicht die Auswahl an die CLI weiter.
-- [~] Das Profil wird in IR und Assembly-Metadaten festgehalten. `VBStrings.StrConv` ist als erste
-      profilabhängige Runtime-Überladung verdrahtet; `LenB`, `Asc` und `Chr` verwenden im
+- [~] Das Profil wird in IR und Assembly-Metadaten festgehalten. `VBStrings.StrConv` ist als
+      profilabhängige Runtime-Überladung verdrahtet; Casing sowie die kombinierten `vbWide` /
+      `vbNarrow`- und japanischen `vbKatakana`/`vbHiragana`-Konversionen folgen der aktiven
+      Locale; ein expliziter `StrConv`-LCID überschreibt dabei die Prozesskultur. Nicht anwendbare
+      Regionen werden zurückgewiesen. `LenB`, `Asc` und `Chr` verwenden im
       `VB6Sp6`-Profil zusätzlich die aktive ANSI-Codepage. Weitere APIs werden additiv ergänzt,
       während vorhandene Signaturen ihr deterministisches Verhalten behalten.
 - [~] `WinFormsHost` erhält das Profil instanzbezogen; generierte WinForms-Programme lesen die
@@ -212,10 +234,23 @@ ausgeführt werden können.
 
 ### Etappe A — Kompatibilitätsmatrix und messbarer Umfang
 
-- [~] Die initiale maschinenlesbare Matrix liegt unter
-      `docs/vb6-sp6-compatibility-matrix.json` und inventarisiert die zentralen Vertragsflächen
-      von Sprache, Runtime, Projekten, COM/ActiveX, Forms und Build. Die noch ausstehende
-      Feingranularität einzelner Intrinsics und Stock-Controls bleibt in dieser Etappe sichtbar.
+Der Date-/Time-Teilvertrag ist inzwischen profilbewusst: `DateValue`/`TimeValue` parsen im
+`VB6Sp6`-Profil nach der aktiven Locale, `WeekdayName`/`MonthName` liefern lokalisierte Namen,
+`DateAdd` rundet die Intervallzahl über den gemeinsamen VB-Long-Vertrag und `DatePart` folgt bei
+`vbUseSystem` der Kalenderwochenregel der aktiven Kultur. Die vollständige Variant-
+Rückgabematrix bleibt in Etappe B/C offen.
+
+- [~] Die maschinenlesbare Matrix liegt unter `docs/vb6-sp6-compatibility-matrix.json` und
+      inventarisiert die zentralen Vertragsflächen von Sprache, Runtime, Projekten, COM/ActiveX,
+      Forms und Build. Die atomare Zerlegung für L1-02 bis L1-04 ist vollständig materialisiert;
+      die Implementierung der offenen Intrinsics, Stock-Controls und übrigen Vertragsflächen bleibt
+      in dieser Etappe sichtbar. Der Array-/UDT-Shape-Vertrag ist mit Rang-/Bounds-Erhalt,
+      deterministischen UDT-Defaults und Shape-Diagnosen jetzt geschlossen; der Control-Flow- und
+      Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
+      Diagnosen ebenfalls geschlossen. Als nächste offene Implementierungskarte folgt
+      `l1-02-e-operator-dispatch`. Die derzeit 115 Erwartungen tragen getrennte,
+      maschinenprüfbare Statusachsen (68 `implemented`, 4 `partial`, 43 `planned`;
+      72 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
       danach VISIA und weitere Legacy-Projekte.
@@ -244,14 +279,36 @@ ausgeführt werden können.
 
 - [ ] Alle dokumentierten String-, Math-, Financial-, Datum/Zeit-, `Format`-, Array-,
       Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-, Screen-,
-      Printer- und Clipboard-Verträge implementieren.
-- [~] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv`, `LenB`, `Asc`, `Chr` sowie
-      `Format` decken die profilbewusste Locale-Schicht bereits ab. Locale-/DBCS-Tests decken
+      Printer- und Clipboard-Verträge implementieren. Die Vollständigkeits-Erwartungen für
+      `Format` und `Math` bleiben bis zur Schließung dieser Roadmap-Fläche `partial`.
+- [~] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv` (einschließlich
+      locale-gesteuertem `vbWide`/`vbNarrow` und japanischem Kana), `LenB`, `Asc`, `Chr`,
+      `Format`, `DateValue`/`TimeValue`, `WeekdayName`/`MonthName` sowie `IsDate`/`IsNumeric`
+      decken die profilbewusste Locale-Schicht bereits ab. Locale-/DBCS-Tests decken
       mindestens
       `en-US`, `de-DE` und `ja-JP` einschließlich `LenB`, `Asc`, `Chr`, Datum und Zahlen ab.
-- [ ] Datei-I/O für Binary, Random, Input, Output und Append einschließlich `Get`/`Put`,
+- [~] Datei-I/O für Binary, Random, Input, Output und Append einschließlich `Get`/`Put`,
       `Input #`, `Line Input`, `Write #`, `Print #`, `Lock`/`Unlock`, `Reset`, `EOF`, `Loc`, `LOF`,
-      `Seek` und vollständiger UDT-/String-/Array-/Variant-Record-Layouts schließen.
+      `Seek` und vollständiger UDT-/String-/Array-/Variant-Record-Layouts schließen. `Loc` ist
+      jetzt compilerseitig gebunden und meldet die dokumentierten Einheiten für Binary (Byte),
+      Random (Datensatz) und Sequential (128-Byte-Block); `Reset` schließt alle offenen Kanäle und
+      `Write #` serialisiert mehrere String-/Boolean-/Null-Werte im dokumentierten Format und
+      `Lock`/`Unlock` sperren 1-basierte Binary-/Random-Bereiche sowie bei Sequential die gesamte
+      Datei. `Open ... Shared` sowie `Lock Read`/`Lock Write`/`Lock Read Write` werden auf
+      explizite FileShare-Regeln abgebildet; `Access Read`/`Write`/`Read Write` setzen die
+      entsprechenden `FileAccess`-Rechte. Variant-Arrays als Variant-Wert/Objekt-Layouts, komplexere
+      UDT-Formen und die restlichen Dateiverträge bleiben offen; ohne `For` wird jetzt der
+      dokumentierte Random-Modus mit Standardlänge 128 verwendet. `Print #` akzeptiert außerdem
+      die leere Outputliste und
+      schreibt eine reine CRLF-Zeile. Mehrere Print-Ausdrücke mit Semikolon (direkte Verkettung),
+      Komma (nächste Ausgabezone) und abschließendem Semikolon (Fortsetzung im nächsten Print)
+      werden ebenfalls geparst, gebunden und emittiert.
+      `Width #` begrenzt fortgesetzte Print-Zeilen auf 0 bis 255 Zeichen (0 = unbegrenzt) und
+      erzeugt bei Erreichen der Breite ein CRLF vor dem nächsten Wert. `Input #` stellt für
+      Variant-Ziele die von `Write #` erzeugten Empty-/Null-/Boolean-/Date-/Error-Marker sowie
+      skalare Zahlen wieder her; binäre `Get`-/`Put`-Transfers führen für skalare Variant-Felder
+      das VB6-Typ-Tag samt Payload. Variant-Arrays/Objekte, komplexere UDT-Layouts und weitere
+      Dateiformate bleiben offen.
 - [ ] `.vbp`/`.vbg` einschließlich Projektarten, Version/Binary Compatibility, Ressourcen,
       Referenzen, Komponenten und Abhängigkeiten vollständig auswerten; `.frm`, `.frx`, `.ctl`,
       `.ctx`, `.pag`, `.dob`, `.dsr` und `.res` verlustfrei laden.
@@ -308,7 +365,8 @@ ausgeführt werden können.
 - [~] Stabile Targets `ResolveVB6Project`, `GetVB6ProjectOutputs`, `CompileVB6Project` und
       `CompileVB6ProjectGroup` sind für deklarationsbasierte Inputs, inkrementellen No-op,
       TargetPath, PDB, Runtime, Runtimeconfig, Manifest und COM-Host vorhanden. Clean/Rebuild-
-      Orchestrierung und vollständige TypeLib-/Outputauflösung bleiben offen.
+      Orchestrierung löscht die manifestierten Legacy-Ausgaben deterministisch; vollständige
+      TypeLib-/Outputauflösung bleibt offen.
 - [x] `DesignTimeBuild=true` führt Validierung und deklarationsbasierte Auflösung aus; die
       Compile-Targets werden übersprungen. Visual-Studio-CPS, Projektbaum und IDE-Kommandos bleiben
       ausgeschlossen.
@@ -344,7 +402,13 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 
 - [x] `Attribute`-Zeilen auf Modulebene
 - [x] Deklarationen auf Modulebene: `Public`/`Private`/`Global`/`Dim`
+- [x] Projektweite Sichtbarkeit: `Public`/`Global`-Modulvariablen werden in andere Module
+      importiert, `Private`/`Dim`-Variablen bleiben auf das deklarierende Modul begrenzt;
+      Fremdzugriff unter `Option Explicit` meldet `VB6S0001`
 - [x] `Public`/`Private`/`Friend`-Modifizierer an `Sub` und `Function`
+- [x] `Option Private Module` wird als externe Exportpolitik im Semantikmodell gebunden; öffentliche
+      Mitglieder bleiben für Schwester-Module desselben Projekts sichtbar. Ein externer
+      Standardmodul-Importpfad ist damit ausdrücklich noch nicht behauptet.
 - [x] Bezeichner-Typsuffixe `$ % & ! # @`
 - [x] Zeilenfortsetzung mit `_`
 - [x] `Const`, typisiert und aus dem Wert abgeleitet
@@ -352,7 +416,9 @@ die nach betroffenen Dateien sortierten Lücken. Siehe Ist-Stand oben.
 - [x] `Declare`-Syntax mit `Lib`, optionalem `Alias` und `As Any`; Binding/PInvoke bleibt M8
 - [x] `Enum ... End Enum` mit optionaler Sichtbarkeit sowie expliziten/impliziten Memberwerten; inzwischen auch als Long-basierte Konstanten gebunden
 - [x] `Optional`-Parametersyntax mit `ByVal`/`ByRef` und optionalem Default-Ausdruck; ausgelassene Argumente/Defaults sind umgesetzt
-- [x] `Option Base 0/1`, `Option Compare Text/Binary`; Auswertung bleibt bei Arrays bzw. Stringvergleichen
+- [x] `Option Base 0/1`, `Option Compare Text/Binary`; Stringrelationen und `Select Case` führen
+      `Option Compare Text` bis zum Managed-Emitter, Array- und weitere Locale-Sonderfälle bleiben
+      in Etappe B/C sichtbar
 - [x] `:` als Anweisungstrenner für den aktuellen Statement-Subset, inklusive Single-Line-`If` und `Case`; Labels bleiben M6
 - [x] Mehrfachdeklaratoren wie `Dim a As Integer, b As Long`; `As Type` gilt pro Deklarator, implizites Variant bleibt M4
 - [x] `Static`-Local-Syntax und persistente Lebensdauer ueber Modul-Storage
@@ -372,6 +438,8 @@ Zusammen, weil Win32-Strukturen beides brauchen.
 - [x] Arrayvariablen/-parameter binden; feste Arrays initialisieren; Arrayelemente lesen/schreiben/emittieren; `Option Base` auf implizite Untergrenzen anwenden; Arrayelemente ByRef weiterreichen
 - [x] `ReDim` / `ReDim Preserve` für explizit typisierte dynamische Arrays inklusive Bounds, Codegen, Runtime-Wertbewahrung und End-to-End-Ausführung
 - [x] `Erase`, `LBound` und `UBound` für typisierte Arrays inklusive Runtime-/Codegen-/End-to-End-Semantik
+- [x] `Erase` auf `ByRef`-Arrayparametern deallokiert den Descriptor mit Caller-Write-back; nachfolgende
+      `IsArray`-/`ReDim`-Aufrufe sehen den freigegebenen beziehungsweise neu angelegten Zustand
 - [x] `For Each` über feste, mehrdimensionale und dynamische Arrays inklusive implizitem Variant-Steuerelement
 - [x] `Type ... End Type`-Syntax mit Sichtbarkeit, skalaren/festen Arrayfeldern, verschachtelten Typnamen, Keyword-Feldnamen und `String * n`
 - [x] `UserDefinedTypeSymbol`, case-insensitive UDT-Member, Vorwärtsreferenzen, `String * n`-Typen sowie Public-/Private-Projekt- und Modul-Scope
@@ -423,6 +491,11 @@ Zwei Nachträge:
 ## Meilenstein 5 — Prozeduren und Klassen
 
 - [x] `Optional`-Aufrufsemantik/Defaults **vorgezogen**: ausgelassene Argumente erhalten den deklarierten Default oder den Typdefault
+- [x] Benannte Argumente werden per `name:=value` an die deklarierten Parameter gebunden; ihre
+      Ausdrücke werden bei umgekehrter Schreibreihenfolge in deklarierter Parameterreihenfolge
+      ausgewertet und sind durch einen Managed-E2E-Nachweis regressionsgesichert.
+- [x] Doppelte benannte Argumente und Positionsargumente nach einem `name:=value`-Argument werden
+      deterministisch mit `VB6S0069` abgewiesen; die Parameterbindung bleibt dabei unverändert.
 - [x] `ParamArray` als letztes `Variant`-Array-Argument mit leerem Aufruf und gemischten Werten
 - [x] `Static`-Local-Lebensdauer ueber compiler-generierten Modul-Storage inklusive String-/Array-Initialisierung
 - [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
@@ -479,16 +552,19 @@ Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6
 1c. `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` ✅ — jeweils gegen
     VB6-Verhalten geschrieben, nicht gegen das .NET-Gegenstück: `Left`/`Right` schneiden ab statt
     zu scheitern, `Trim` entfernt nur Leerzeichen, Casing und Zahlerkennung sind invariant.
-    `InStr`, `InStrRev` und zweiargumentiges `Mid` sind über die Intrinsic-Tabelle und
-    End-to-End-Tests verdrahtet.
+    `LeftB`, `RightB`, `MidB`, `InStrB`, `InStr`, `InStrRev`, `StrComp`, zweiargumentiges `Mid` und die kontextuelle `Mid(...) = ...`-
+    beziehungsweise `Mid$(...) = ...`-Zuweisung sind über die Intrinsic-Tabelle und End-to-End-
+    Tests verdrahtet.
 1d. Host- und Kontrollintrinsics — `IIf`/`RGB`, `GetSetting`/`SaveSetting`, `SendKeys`,
     `PopupMenu`, `LoadPicture`, `PropertyChanged`, `TextWidth`/`TextHeight`, `Print` und
     `PaintPicture` — ✅ als headless-fähige Runtime-Verträge;
     echte UI-/Registry-Hostadapter folgen in M8/M9.
-1e. `LSet` — die kontextuelle `LSet target = source`-Syntax sowie Managed-Ausführung für feste
-    String-Ziele, gleichartige UDT-Werte und unterschiedliche rohe UDT-Layouts mit skalaren,
-    Boolean- und `LongPtr`-Feldern sind ✅. Dynamische Strings, Arrays, Variants und weitere nicht
-    sicher abbildbare ABI-Layouts bleiben diagnostisch gesperrt.
+1e. `LSet`/`RSet` — die kontextuelle `LSet target = source`- und `RSet target = source`-Syntax
+    sowie Managed-Ausführung für feste String-Ziele, gleichartige UDT-Werte und unterschiedliche
+    rohe UDT-Layouts mit skalaren, Boolean- und `LongPtr`-Feldern sind ✅. `RSet` füllt kurze
+    Quellen links mit Leerzeichen auf und behält beim Kürzen die linken Zeichen; ein
+    variabler String bleibt ein normaler Zuweisungsspeicher. Dynamische Strings, Arrays, Variants
+    und weitere nicht sicher abbildbare ABI-Layouts bleiben diagnostisch gesperrt.
 1f. Dateisystem-Pfad-Intrinsics — `FileCopy`, `MkDir`, `RmDir`, `ChDir`, `CurDir`, `GetAttr`,
     `SetAttr` und `FileDateTime` sind ✅ über Symboltabelle, IR, Managed-Emitter und Runtime
     verdrahtet und durch direkte Runtime- sowie generierte Programmtests abgesichert.
@@ -497,7 +573,7 @@ Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6
 1h. `Dir`-Attribute — die Fortsetzungsabfrage berücksichtigt ✅ `vbDirectory`, `vbHidden`,
     `vbSystem` und `vbVolume` (ohne portable Volume-Labels) und liefert Dateien sowie
     Verzeichnisse passend zum angeforderten Filter.
-2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Input`, `Seek`, `LOF`,
+2. Datei-I/O — `Open For Binary/Input/Output/Append`, `Get`, `Put`, `Print`, `Width`, `Input`, `Seek`, `LOF`,
    `FreeFile`, `Close` ✅ für die numerischen Binärformen, skalare UDT-Records sowie skalare und feste
    String-Arrayfelder mit `String * n` und grundlegende
    Textzeilen: Lexer, Syntax, Parser, Runtime, Bindung und Emission stehen, und E2E-Tests schreiben
@@ -507,7 +583,15 @@ Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6
    ihren Descriptor und werden elementweise übertragen, eigenständige Arrays unterstützter UDT-
    Elemente übertragen ihre Payload ohne äußeren Descriptor, variable Stringfelder tragen ihr
    2-Byte-Längenpräfix, und Date-Ziele werden bei `Input #` in OLE-Automation-Doubles konvertiert.
-   Weitere zusammengesetzte Random-Record-Layouts bleiben offen.
+   `Width #` ist für fortgesetzte `Print #`-Zeilen mit 0–255 Zeichen (0 = unbegrenzt) ergänzt;
+   `Input #` stellt die von `Write #` erzeugten skalaren Variant-Zustände wieder her und binäre
+   `Get`/`Put`-Transfers tragen für skalare Variant-Felder das VB6-Typ-Tag samt Payload;
+   eigenständige unterstützte skalare Arrays einschließlich variabler `String`-Elemente werden in
+   Binary elementweise ohne äußeren Descriptor übertragen; dynamische Top-Level-Arrays führen in
+   Random zusätzlich den dokumentierten Descriptor und
+   schreiben die rekonstruierte Form beim `Get` in die Zielvariable zurück;
+   Variant-Arrays als Variant-Wert/Objekte sowie weitere zusammengesetzte Random-Record-Layouts
+   bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
    `InputBox` im headless Runtime-Profil den Defaultwert
 4. [x] Math — `Abs`, `Sgn`, `Fix`, `Int`, `Round`, `Sqr`, `Exp`, `Log`, `Sin`, `Cos`, `Tan`, `Atn`,
@@ -593,9 +677,9 @@ beginnbar, da weitgehend unabhängig vom Sprachkern.
       Quell-, Designer-, Ressourcen- und Referenzinputs über ein CLI-generiertes SHA-256-Manifest,
       ruft die vorhandene CLI-Gruppenemission auf und verwendet einen eigenen inkrementellen
       Compile-Stempel; `ResolveVB6ProjectGroup`, `GetVB6ProjectGroupOutputs` und der headless
-      `DesignTimeBuild`-Pfad sind ergänzt. Offen bleiben eine eigenständige gepackte ProjectSystem-
-      Task sowie vollständige Clean/Rebuild-/TypeLib-Orchestrierung. Visual-Studio-CPS und
-      Projektmodell gehören zur ausgeschlossenen IDE-Schicht
+      `DesignTimeBuild`-Pfad sowie manifestbasierte `Clean`-/`Rebuild`-Orchestrierung sind ergänzt.
+      Offen bleiben eine eigenständige gepackte ProjectSystem-Task und vollständige TypeLib-
+      Orchestrierung. Visual-Studio-CPS und Projektmodell gehören zur ausgeschlossenen IDE-Schicht
 - [x] `LongPtr`/`CLngPtr` — native-width `System.IntPtr`-Typverträge, checked Integer-/Bitwise-Operatoren,
       `For`-Zähler, Variant-Konvertierungen und `Declare`-P/Invoke-Signaturen
 - [x] vorzeichenlose Ganzzahltypen — `UShort`/`UInt16`, `UInteger`/`UInt32` und `ULong`/`UInt64`
@@ -655,11 +739,11 @@ dokumentierte Forms-Oberfläche einschließlich `DrawMode` und MDI.
       Einheit. `User` (0) bleibt Twips, bis ein eigener Maßstab über `ScaleWidth`/`ScaleHeight`
       existiert; ein Wert außerhalb 0–7 meldet wie in VB6 Fehler 380. `AutoRedraw` gehört zum
       `Paint`-Punkt oben.
-- [ ] **`DrawMode` — im Abschlussplan, nach den belegten Forms-Verträgen.** Die Rasteroperationen
-      (`Xor Pen`, `Invert` und die übrigen 14) kommen in den 40 Quellen nicht vor; die drei früheren
-      Treffer der Messung waren ein gleichnamiges Enum, ein Kommentar und ein `SetROP2`-P/Invoke-
-      Parameter. Der `VB6Sp6`-Pfad bildet trotzdem alle 16 Modi über GDI-ROP2 auf einer
-      persistierbaren DC-/DIB-Zeichenfläche ab und sichert sie mit Pixeltests.
+- [~] **`DrawMode` — im Abschlussplan, nach den belegten Forms-Verträgen.** Alle 16 VB6-/GDI-
+      ROP2-Wahrheitstabellen sind für persistente Managed-`AutoRedraw`-Flächen umgesetzt und mit
+      Pixeltests gesichert; `GraphicsLine` und `PaintPicture` führen die Quell-/Zielmerges über
+      dieselbe Rasteroperation aus. Offen bleiben direkte sichtbare Zeichenkontexte, der
+      `Paint`-Kontext, GDI/DIB-Clipping und die native DC-Integration.
 - [~] **MDI — Grundvertrag vorhanden, vollständiger Ausbau eingeplant.** `VB.MDIForm`-Wurzeln werden
       als MDI-Container initialisiert; `MDIChild=True` ordnet Child-Forms im WinForms-Host dem
       registrierten Container zu und bleibt über den Host-Dispatch lesbar. Weder `MDIForm` noch
@@ -731,8 +815,9 @@ dem Compiler-Kern eingeordnet.
 1. [x] `Debug.Print` auf VB6-nahe Formatierung (führendes Vorzeichen-Leerzeichen, 15
    signifikante Stellen für Gleitkomma-/Currencywerte und vollständige Decimal-Präzision);
    die E2E-Helfer trimmen weiterhin bewusst Plattform-/Spaltenformat
-2. [ ] Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
-   Binder hat beide Seiten bereits angeglichen; gehört zur Variant-/Operator-Matrix in Etappe B
+2. [x] Typisierte Vergleiche direkt emittieren statt `VBOperators.Equal(object?, object?)` — der
+   Binder hat beide Seiten bereits angeglichen; der Managed-Emitter ruft für skalare gemeinsame
+   Typen typisierte Vergleichshelfer auf und lässt Variant-/Objektpfade unverändert
 3. [x] `Currency + Double` folgt nun der VB6-Promotionsreihenfolge und liefert `Double`, während
    `Currency * Double` die separate Multiplikationsreihenfolge beibehält und `Currency` liefert;
    Vergleichspromotionen behalten weiterhin die separate Currency-Präzisionsregel

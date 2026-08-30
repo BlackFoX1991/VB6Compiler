@@ -3,6 +3,7 @@
 [Oo]bj/
 [Ll]og/
 artifacts/
+build_diag.txt
 
 # Visual Studio / Rider / VS Code
 .vs/
