@@ -30,6 +30,25 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private const int ScaleModeMillimeter = 6;
     private const int ScaleModeCentimeter = 7;
 
+    // VB6 DrawMode values are the GDI ROP2 values plus one-based names. Keeping the numeric
+    // contract here makes the managed raster fallback independent of a native HDC.
+    private const int DrawModeBlackness = 1;
+    private const int DrawModeNotMergePen = 2;
+    private const int DrawModeMaskNotPen = 3;
+    private const int DrawModeNotCopyPen = 4;
+    private const int DrawModeMaskPenNot = 5;
+    private const int DrawModeNot = 6;
+    private const int DrawModeXorPen = 7;
+    private const int DrawModeNotMaskPen = 8;
+    private const int DrawModeMaskPen = 9;
+    private const int DrawModeNotXorPen = 10;
+    private const int DrawModeNop = 11;
+    private const int DrawModeMergeNotPen = 12;
+    private const int DrawModeCopyPen = 13;
+    private const int DrawModeMergePenNot = 14;
+    private const int DrawModeMergePen = 15;
+    private const int DrawModeWhiteness = 16;
+
     private readonly bool _preferNativeActiveX;
 
     private readonly Dictionary<object, FormBinding> _bindings =
@@ -212,17 +231,46 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
 
+        if (state.DrawMode != DrawModeCopyPen &&
+            state.AutoRedraw &&
+            state.ActivePaintGraphics is null)
+        {
+            var surface = GetDrawingSurface(target);
+            using var source = new Bitmap(surface.Width, surface.Height);
+            using (var sourceGraphics = Graphics.FromImage(source))
+            {
+                ConfigureRasterGraphics(sourceGraphics);
+                DrawGraphicsLine(sourceGraphics, startX, startY, endX, endY, color, line.DrawBox, line.Fill);
+            }
+
+            ApplyRasterOperation(surface, source, state.DrawMode);
+            target.Invalidate();
+            return;
+        }
+
         using var drawing = BeginDrawing(target);
-        var graphics = drawing.Graphics;
+        DrawGraphicsLine(drawing.Graphics, startX, startY, endX, endY, color, line.DrawBox, line.Fill);
+    }
+
+    private static void DrawGraphicsLine(
+        Graphics graphics,
+        float startX,
+        float startY,
+        float endX,
+        float endY,
+        Color color,
+        bool drawBox,
+        bool fill)
+    {
         using var pen = new Pen(color, 1f);
-        if (line.DrawBox)
+        if (drawBox)
         {
             var rectangle = RectangleF.FromLTRB(
                 Math.Min(startX, endX),
                 Math.Min(startY, endY),
                 Math.Max(startX, endX),
                 Math.Max(startY, endY));
-            if (line.Fill)
+            if (fill)
             {
                 using var brush = new SolidBrush(color);
                 graphics.FillRectangle(brush, rectangle);
@@ -297,6 +345,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             var y = picture.Y * scale.Y;
             var width = picture.Width == 0 ? source!.Width : picture.Width * scale.X;
             var height = picture.Height == 0 ? source!.Height : picture.Height * scale.Y;
+
+            if (state.DrawMode != DrawModeCopyPen &&
+                state.AutoRedraw &&
+                state.ActivePaintGraphics is null)
+            {
+                var surface = GetDrawingSurface(target);
+                using var sourceLayer = new Bitmap(surface.Width, surface.Height);
+                using (var sourceGraphics = Graphics.FromImage(sourceLayer))
+                {
+                    ConfigureRasterGraphics(sourceGraphics);
+                    sourceGraphics.DrawImage(source!, new RectangleF(x, y, width, height));
+                }
+
+                ApplyRasterOperation(surface, sourceLayer, state.DrawMode);
+                target.Invalidate();
+                return true;
+            }
 
             using var drawing = BeginDrawing(target);
             drawing.Graphics.DrawImage(source!, new RectangleF(x, y, width, height));
@@ -1439,6 +1504,23 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return scaleMode;
     }
 
+    /// <summary>Validates the sixteen GDI ROP2 modes exposed by VB6 DrawMode.</summary>
+    private static int ValidateDrawMode(object? value)
+    {
+        var drawMode = VBConversions.CLng(value);
+        if (drawMode is < DrawModeBlackness or > DrawModeWhiteness)
+        {
+            VBErrors.Raise(
+                380,
+                "DrawMode",
+                "Invalid property value",
+                string.Empty,
+                0);
+        }
+
+        return drawMode;
+    }
+
     private static (float X, float Y) GetScaleFactors(Control target, DesignerControlState state)
     {
         var dpi = target.DeviceDpi;
@@ -1480,6 +1562,72 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return new DrawingScope(target.CreateGraphics(), ownsGraphics: true, invalidate: null);
+    }
+
+    private static void ConfigureRasterGraphics(Graphics graphics)
+    {
+        graphics.Clear(Color.Transparent);
+        graphics.CompositingMode = CompositingMode.SourceCopy;
+        graphics.SmoothingMode = SmoothingMode.None;
+        graphics.PixelOffsetMode = PixelOffsetMode.Half;
+        graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+    }
+
+    /// <summary>
+    /// Applies the VB6/GDI ROP2 operation to the opaque pixels of a source layer. GDI+ does not
+    /// expose ROP2 directly, so persistent AutoRedraw surfaces use a small source/destination
+    /// raster merge. This keeps all sixteen DrawMode values deterministic and also works for
+    /// PaintPicture without depending on a native screen DC.
+    /// </summary>
+    private static void ApplyRasterOperation(Bitmap destination, Bitmap source, int drawMode)
+    {
+        if (drawMode == DrawModeNop)
+        {
+            return;
+        }
+
+        for (var y = 0; y < destination.Height; y++)
+        {
+            for (var x = 0; x < destination.Width; x++)
+            {
+                var sourcePixel = source.GetPixel(x, y);
+                if (sourcePixel.A == 0)
+                {
+                    continue;
+                }
+
+                var destinationPixel = destination.GetPixel(x, y);
+                var sourceRgb = (uint)(sourcePixel.ToArgb() & 0x00FF_FFFF);
+                var destinationRgb = (uint)(destinationPixel.ToArgb() & 0x00FF_FFFF);
+                var result = ApplyRop2(drawMode, sourceRgb, destinationRgb);
+                destination.SetPixel(x, y, Color.FromArgb(unchecked((int)(0xFF00_0000 | result))));
+            }
+        }
+    }
+
+    private static uint ApplyRop2(int drawMode, uint pen, uint destination)
+    {
+        const uint mask = 0x00FF_FFFF;
+        return drawMode switch
+        {
+            DrawModeBlackness => 0,
+            DrawModeNotMergePen => ~(pen | destination) & mask,
+            DrawModeMaskNotPen => destination & ~pen & mask,
+            DrawModeNotCopyPen => ~pen & mask,
+            DrawModeMaskPenNot => pen & ~destination & mask,
+            DrawModeNot => ~destination & mask,
+            DrawModeXorPen => pen ^ destination,
+            DrawModeNotMaskPen => ~(pen & destination) & mask,
+            DrawModeMaskPen => pen & destination,
+            DrawModeNotXorPen => ~(pen ^ destination) & mask,
+            DrawModeNop => destination,
+            DrawModeMergeNotPen => (~pen | destination) & mask,
+            DrawModeCopyPen => pen,
+            DrawModeMergePenNot => (pen | ~destination) & mask,
+            DrawModeMergePen => pen | destination,
+            DrawModeWhiteness => mask,
+            _ => throw new ArgumentOutOfRangeException(nameof(drawMode))
+        };
     }
 
     /// <summary>
@@ -3070,6 +3218,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) value = state.FillStyle;
         else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) value = state.MousePointer;
         else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) value = state.ScaleMode;
+        else if (string.Equals(memberName, "DrawMode", StringComparison.OrdinalIgnoreCase)) value = state.DrawMode;
         else
         {
             value = null;
@@ -3175,6 +3324,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) state.FillStyle = VBConversions.CLng(value);
         else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) state.MousePointer = VBConversions.CLng(value);
         else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = ValidateScaleMode(value);
+        else if (string.Equals(memberName, "DrawMode", StringComparison.OrdinalIgnoreCase)) state.DrawMode = ValidateDrawMode(value);
         else return false;
 
         return true;
@@ -4211,6 +4361,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public int MousePointer { get; set; }
 
         public int ScaleMode { get; set; } = 1;
+
+        public int DrawMode { get; set; } = DrawModeCopyPen;
 
         public Bitmap? DrawingSurface { get; set; }
 

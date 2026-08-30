@@ -60,6 +60,39 @@ public sealed class FixedUdtArrayExecutionTests
             lines);
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_PreservesNestedUdtArrayBoundsDefaultsAndByRefWriteBack()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type Child
+                Amount As Long
+            End Type
+
+            Type Container
+                Entries(2 To 3, -1 To 0) As Child
+            End Type
+
+            Sub SetAmount(ByRef amount As Long)
+                amount = 42
+            End Sub
+
+            Sub Main()
+                Dim value As Container
+
+                Debug.Print value.Entries(2, -1).Amount
+                Debug.Print LBound(value.Entries, 1)
+                Debug.Print UBound(value.Entries, 1)
+                Debug.Print LBound(value.Entries, 2)
+                Debug.Print UBound(value.Entries, 2)
+
+                SetAmount value.Entries(3, 0).Amount
+                Debug.Print value.Entries(3, 0).Amount
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "0", "2", "3", "-1", "0", "42" }, output);
+    }
+
     /// <summary>
     /// Every place VB6 copies a user-defined type by value has to produce an independent value:
     /// assignment, an array element, a member of another type, a ByVal argument and a function

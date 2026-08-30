@@ -48,6 +48,35 @@ public sealed record OptionCompareSyntax(
     SyntaxToken ModeToken) : MemberSyntax(SyntaxKind.OptionCompareStatement);
 
 /// <summary>
+/// A module-level <c>Option Private Module</c> directive. The parser preserves the directive
+/// tokens; project-level visibility semantics are applied by a later binding card.
+/// </summary>
+public sealed record OptionPrivateModuleSyntax(
+    SyntaxToken OptionKeyword,
+    SyntaxToken PrivateKeyword,
+    SyntaxToken ModuleKeyword) : MemberSyntax(SyntaxKind.OptionPrivateModuleStatement);
+
+/// <summary>
+/// One letter range in a VB6 implicit default-type directive, such as <c>A-Z</c> or <c>M</c>.
+/// The optional comma belongs to the range so the source can be round-tripped without inventing
+/// separators.
+/// </summary>
+public sealed record DefaultTypeRangeSyntax(
+    SyntaxToken FirstLetter,
+    SyntaxToken? HyphenToken,
+    SyntaxToken? LastLetter,
+    SyntaxToken? CommaToken) : SyntaxNode(SyntaxKind.DefaultTypeRange);
+
+/// <summary>
+/// A module-level VB6 implicit default-type directive such as <c>DefInt A-Z</c>. The directive
+/// changes default typing semantics in a later binding card; this parser node only preserves its
+/// syntax and module-level context.
+/// </summary>
+public sealed record DefaultTypeStatementSyntax(
+    SyntaxToken DirectiveToken,
+    ImmutableArray<DefaultTypeRangeSyntax> Ranges) : MemberSyntax(SyntaxKind.DefaultTypeStatement);
+
+/// <summary>
 /// A VB6 <c>Attribute</c> line such as <c>Attribute VB_Name = "modMain"</c>. These carry IDE
 /// metadata, not program semantics, so the tokens are kept for round-tripping and ignored
 /// by the binder.
@@ -196,7 +225,8 @@ public sealed record SubDeclarationSyntax(
     ImmutableArray<StatementSyntax> Statements,
     SyntaxToken EndKeyword,
     SyntaxToken EndSubKeyword,
-    SyntaxToken? VisibilityKeyword = null) : MemberSyntax(SyntaxKind.SubDeclaration);
+    SyntaxToken? VisibilityKeyword = null,
+    SyntaxToken? StaticKeyword = null) : MemberSyntax(SyntaxKind.SubDeclaration);
 
 public sealed record FunctionDeclarationSyntax(
     SyntaxToken FunctionKeyword,
@@ -214,7 +244,8 @@ public sealed record FunctionDeclarationSyntax(
     SyntaxToken? VisibilityKeyword = null,
     TypeNameSyntax? ReturnTypeName = null,
     SyntaxToken? ReturnOpenParenthesisToken = null,
-    SyntaxToken? ReturnCloseParenthesisToken = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
+    SyntaxToken? ReturnCloseParenthesisToken = null,
+    SyntaxToken? StaticKeyword = null) : MemberSyntax(SyntaxKind.FunctionDeclaration);
 
 /// <summary>
 /// A VB6 class property procedure. The accessor remains a token because <c>Get</c>, <c>Let</c>
@@ -404,14 +435,37 @@ public sealed record DebugAssertStatementSyntax(
 public sealed record FilePrintStatementSyntax(
     SyntaxToken PrintKeyword,
     FileNumberSyntax FileNumber,
-    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.FilePrintStatement);
+    ExpressionSyntax? Expression,
+    ImmutableArray<ExpressionSyntax> Expressions = default,
+    ImmutableArray<SyntaxToken> Separators = default) : StatementSyntax(SyntaxKind.FilePrintStatement);
+
+public sealed record FileWriteStatementSyntax(
+    SyntaxToken WriteKeyword,
+    FileNumberSyntax FileNumber,
+    ImmutableArray<ExpressionSyntax> Expressions) : StatementSyntax(SyntaxKind.FileWriteStatement);
+
+public sealed record LockStatementSyntax(
+    SyntaxToken LockKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax? Start,
+    ExpressionSyntax? End) : StatementSyntax(SyntaxKind.LockStatement);
+
+public sealed record UnlockStatementSyntax(
+    SyntaxToken UnlockKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax? Start,
+    ExpressionSyntax? End) : StatementSyntax(SyntaxKind.UnlockStatement);
 
 public sealed record InvocationStatementSyntax(
     SyntaxToken? CallKeyword,
     SyntaxToken Identifier,
     SyntaxToken? OpenParenthesisToken,
     ImmutableArray<ExpressionSyntax> Arguments,
-    SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement);
+    SyntaxToken? CloseParenthesisToken) : StatementSyntax(SyntaxKind.InvocationStatement)
+{
+    /// <summary>True for contextual statements such as <c>Mid(target, start) = value</c>.</summary>
+    public bool IsAssignmentSyntax { get; init; }
+}
 
 public sealed record SkippedStatementSyntax(SyntaxToken Token) : StatementSyntax(SyntaxKind.SkippedStatement);
 
@@ -487,13 +541,15 @@ public sealed record FileNumberSyntax(
 public sealed record OpenStatementSyntax(
     SyntaxToken OpenKeyword,
     ExpressionSyntax PathExpression,
-    SyntaxToken ForKeyword,
-    SyntaxToken ModeToken,
+    SyntaxToken? ForKeyword,
+    SyntaxToken? ModeToken,
     SyntaxToken AsKeyword,
     FileNumberSyntax FileNumber,
+    ImmutableArray<SyntaxToken> SharingTokens = default,
     SyntaxToken? LenKeyword = null,
     SyntaxToken? LenEqualsToken = null,
-    ExpressionSyntax? RecordLength = null) : StatementSyntax(SyntaxKind.OpenStatement);
+    ExpressionSyntax? RecordLength = null,
+    ImmutableArray<SyntaxToken> AccessTokens = default) : StatementSyntax(SyntaxKind.OpenStatement);
 
 public sealed record NameStatementSyntax(
     SyntaxToken NameKeyword,
@@ -537,6 +593,11 @@ public sealed record FileInputStatementSyntax(
     SyntaxToken InputKeyword,
     FileNumberSyntax FileNumber,
     ImmutableArray<ExpressionSyntax> Targets) : StatementSyntax(SyntaxKind.FileInputStatement);
+
+public sealed record WidthStatementSyntax(
+    SyntaxToken WidthKeyword,
+    FileNumberSyntax FileNumber,
+    ExpressionSyntax Width) : StatementSyntax(SyntaxKind.WidthStatement);
 
 /// <summary>A coordinate pair in a graphics <c>Line</c> statement.</summary>
 public sealed record LinePointSyntax(

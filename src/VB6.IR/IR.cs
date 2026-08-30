@@ -228,7 +228,11 @@ public sealed record IrRuntimeCallExpression(
     IrRuntimeMethod Method,
     ImmutableArray<IrCallArgument> Arguments,
     TypeSymbol ResultType)
-    : IrExpression(ResultType);
+    : IrExpression(ResultType)
+{
+    /// <summary>Propagates module-level <c>Option Compare Text</c> to string comparisons.</summary>
+    public bool UseTextCompare { get; init; }
+}
 
 public sealed record IrProcedureCallExpression(
     ProcedureSymbol Procedure,
@@ -501,10 +505,14 @@ public enum IrRuntimeMethod
     StringLen,
     StringLenB,
     StringMid,
+    StringMidB,
+    StringMidAssign,
     StringChr,
     StringChrW,
     StringLeft,
+    StringLeftB,
     StringRight,
+    StringRightB,
     StringUCase,
     StringLCase,
     StringTrim,
@@ -521,7 +529,9 @@ public enum IrRuntimeMethod
     StringIsNumeric,
     StringLike,
     StringInStr,
+    StringInStrB,
     StringInStrRev,
+    StringStrComp,
     StringReplace,
     StringSpace,
     StringSplit,
@@ -575,9 +585,15 @@ public enum IrRuntimeMethod
     FileOpenOutput,
     FileOpenAppend,
     FileOpenRandom,
+    FileReset,
     FileRecordStart,
     FileRecordEnd,
     FilePrint,
+    FilePrintValue,
+    FileWrite,
+    FileWidth,
+    FileLock,
+    FileUnlock,
     FileClose,
     FileCloseAll,
     FileSeek,
@@ -600,18 +616,26 @@ public enum IrRuntimeMethod
     FileGetRawBoolean,
     FileGetRawString,
     FileGetRawFixedString,
+    FileGetVariant,
+    FileGetRawVariant,
     FileGetDynamicArray,
+    FileGetDynamicArrayIfRandom,
     FilePut,
     FilePutRaw,
+    FilePutVariant,
+    FilePutRawVariant,
     FilePutRawFixedString,
     FilePutDynamicArrayDescriptor,
+    FilePutDynamicArrayDescriptorIfRandom,
     FileLineInput,
     FileInputField,
+    FileInputValue,
     FileInput,
     FileFreeFile,
     FileLength,
     FileEndOfFile,
     FilePosition,
+    FileLocation,
     FileKill,
     FileDir,
     FileCopy,
@@ -656,6 +680,7 @@ public enum IrRuntimeMethod
     MemoryObjPtr,
     MemoryStrPtr,
     MemoryLSet,
+    MemoryRSet,
     CollectionCreate,
     CollectionEnumerateValues,
     ControlEnumerateValues,
@@ -727,5 +752,6 @@ public enum IrRuntimeMethod
     ArrayEnumerateValues,
 
     FixedStringRead,
-    FixedStringWrite
+    FixedStringWrite,
+    FixedStringRightAlign
 }

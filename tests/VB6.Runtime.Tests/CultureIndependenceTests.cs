@@ -180,6 +180,59 @@ public sealed class CultureIndependenceTests
         }
     }
 
+    [TestMethod]
+    public void DateTimeNamesAndParsing_UseAmbientLocaleOnlyForVb6Profile()
+    {
+        UnderCulture("de-DE", () =>
+        {
+            Assert.AreEqual("Thursday", VBDateTime.WeekdayName(4, false, 2));
+            Assert.AreEqual("January", VBDateTime.MonthName(1));
+            Assert.AreEqual("Donnerstag", VBDateTime.WeekdayName(4, false, 2, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("Do", VBDateTime.WeekdayName(4, true, 2, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("Januar", VBDateTime.MonthName(1, false, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("Jan", VBDateTime.MonthName(1, true, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                43832d,
+                VBDateTime.DateValue("02.01.2020", VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                0.75d,
+                VBDateTime.TimeValue("18:00:00", VBCompatibilityProfile.VB6Sp6));
+        });
+    }
+
+    [TestMethod]
+    public void VariantPredicates_UseAmbientLocaleOnlyForVb6Profile()
+    {
+        UnderCulture("de-DE", () =>
+        {
+            Assert.IsFalse(VBStrings.IsNumeric("1.234,5"));
+            Assert.IsTrue(VBStrings.IsNumeric("1.234,5", VBCompatibilityProfile.VB6Sp6));
+            Assert.IsTrue(VBVariants.IsDate("02.01.2020", VBCompatibilityProfile.VB6Sp6));
+        });
+    }
+
+    [TestMethod]
+    public void DatePart_UsesSystemWeekRuleOnlyForUseSystem()
+    {
+        const double newYear = 44197d; // Friday, 1 January 2021.
+
+        var unitedStates = UnderCulture(
+            "en-US",
+            () => VBDateTime.DatePart("ww", newYear, 0, 0));
+        var germany = UnderCulture(
+            "de-DE",
+            () => VBDateTime.DatePart("ww", newYear, 0, 0));
+        Assert.AreNotEqual(unitedStates, germany);
+
+        var explicitUnitedStates = UnderCulture(
+            "en-US",
+            () => VBDateTime.DatePart("ww", newYear, 1, 1));
+        var explicitGermany = UnderCulture(
+            "de-DE",
+            () => VBDateTime.DatePart("ww", newYear, 1, 1));
+        Assert.AreEqual(explicitUnitedStates, explicitGermany);
+    }
+
     /// <summary>
     /// Format's week token uses the same contract, through VBStrings rather than VBDateTime.
     /// Both resolvers must agree about what vbUseSystem means.

@@ -115,6 +115,7 @@ public sealed class Lexer
             '(' => SyntaxKind.OpenParenthesisToken,
             ')' => SyntaxKind.CloseParenthesisToken,
             ',' => SyntaxKind.CommaToken,
+            ';' => SyntaxKind.SemicolonToken,
             '.' => SyntaxKind.DotToken,
             ':' => SyntaxKind.ColonToken,
             // A '#' that reaches here is not an identifier type suffix - those are consumed with

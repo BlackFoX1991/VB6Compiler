@@ -81,5 +81,6 @@ public static class UserDefinedTypeFileLayout
         type == TypeSymbol.Currency ||
         type == TypeSymbol.Boolean ||
         type == TypeSymbol.String ||
+        type == TypeSymbol.Variant ||
         type is FixedLengthStringTypeSymbol;
 }

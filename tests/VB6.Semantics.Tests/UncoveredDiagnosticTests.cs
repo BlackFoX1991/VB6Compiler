@@ -199,6 +199,32 @@ public sealed class UncoveredDiagnosticTests
             """);
     }
 
+    [TestMethod]
+    public void Bind_ReportsDuplicateAndOutOfOrderNamedArguments()
+    {
+        const string source = """
+            Sub Target(ByVal first As Long, Optional ByVal second As Long)
+            End Sub
+
+            Sub Main()
+                Target first:=1, first:=2
+                Target first:=1, 2
+            End Sub
+            """;
+
+        var text = SourceText.From(source, "test.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+        var model = new Binder(text).BindCompilationUnit(parseResult.Root);
+        var diagnostics = parseResult.Diagnostics
+            .Concat(model.Diagnostics)
+            .Where(diagnostic => diagnostic.Code == "VB6S0069")
+            .ToArray();
+
+        Assert.AreEqual(2, diagnostics.Length, string.Join(", ", diagnostics.Select(diagnostic => diagnostic.Message)));
+        StringAssert.Contains(diagnostics[0].Message, "supplied more than once");
+        StringAssert.Contains(diagnostics[1].Message, "positional argument cannot follow a named argument");
+    }
+
     /// <summary>
     /// User-defined type declarations are bound by their own pass, before the procedure binder
     /// runs, so their diagnostics have to be collected there.

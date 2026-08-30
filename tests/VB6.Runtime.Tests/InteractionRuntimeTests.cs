@@ -232,6 +232,13 @@ public sealed class InteractionRuntimeTests
     {
         Assert.AreEqual(12f, VBInteraction.ScaleX(12f, 0, 0));
         Assert.AreEqual(8f, VBInteraction.ScaleY(8f, 0, 0));
+        Assert.AreEqual(1f, VBInteraction.ScaleX(1440f, 1, 5));
+        Assert.AreEqual(1f, VBInteraction.ScaleY(1440f, 1, 5));
+        Assert.AreEqual(1f, VBInteraction.ScaleX(1440f, 0, 5));
+        Assert.AreEqual(1f, VBInteraction.ScaleY(1440f, 0, 5));
+        Assert.AreEqual(96f, VBInteraction.ScaleX(1440f, 1, 3));
+        Assert.AreEqual(96f, VBInteraction.ScaleY(1440f, 1, 3));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBInteraction.ScaleX(1f, 8, 1));
         Assert.AreEqual(5f, VBInteraction.TextWidth("hello"));
         Assert.AreEqual(1f, VBInteraction.TextHeight("hello"));
         Assert.AreEqual(0f, VBInteraction.TextHeight(string.Empty));

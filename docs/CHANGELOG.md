@@ -181,7 +181,7 @@ UDT-Felder werden ohne Descriptor mit exakt ihrer Bytebreite geschrieben; feste 
 skalaren oder verschachtelten nicht-rekursiven Elementen sowie skalare Random-Records respektieren
 `Len`, Recordgrenzen und die Defaultlänge 128. Der Managed-Fixed-String-Pfad verwendet aktuell eine
 deterministische Latin-1-Abbildung; hostabhängige ANSI-Codepages und nicht unterstützte
-zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten UDT-Elementen
+zusammengesetzte Layouts bleiben offen. Eigenständige Arrays von unterstützten skalaren oder UDT-Elementen
 übertragen außerhalb eines UDT nur ihre elementweise Payload ohne äußeren Descriptor. Dynamische
 UDT-Arraymember mit unterstützten nicht-rekursiven Elementtypen laufen sowohl im Managed-Wertepfad
 als auch in UDT-Dateirecords über den `2 + 8 * Dimensionen`-Descriptor und elementweise Payload.
@@ -2742,8 +2742,666 @@ auch Currency über die zentrale Decimal-Konvertierung. Runtime-Regressionen sic
 Banker's Rounding sowie Definitionsbereichs- und Überlauffehler; ein Managed-E2E-Test prüft die
 Untertypen im generierten Programm. Meilenstein 7 führt den Math-Slice damit als abgeschlossen.
 
+## Standardbibliothek: profilbewusste Date-/Time-Grenzen
+
+`DateValue` und `TimeValue` akzeptieren im `VB6Sp6`-Profil die aktive System-Locale für
+Textwerte; der bestehende parameterlose Vertrag bleibt invariant. `WeekdayName` und `MonthName`
+reichen das Profil ebenfalls bis zur Runtime durch. `DateAdd` rundet nicht-ganzzahlige Angaben
+jetzt über den gemeinsamen VB-`Long`-Konversionsvertrag (einschließlich Banker's Rounding),
+und `DatePart(..., vbUseSystem, vbUseSystem)` verwendet die Kalenderwochenregel der aktiven
+Kultur. `IsDate` und `IsNumeric` verwenden für Textwerte ebenfalls den ausgewählten Vertrag.
+Runtime- und Managed-End-to-End-Regressionen sowie der Matrixeintrag
+`profile.datetime-locale-and-rounding` sichern den dokumentationsbasierten Vertrag.
+
 ## Kanonischer Release-Nachweis (27.08.2026)
 
 Der serielle `build.ps1`-Lauf ist mit **1195/1195** Tests, 0 Warnungen/Fehlern im Release-Build
 und **40/40** fehlerfrei analysierten VISIA-Projekt-Items grün. LLVM-, LSP- und IDE-Flächen bleiben
 wie beschlossen außerhalb des Ausbauumfangs.
+
+## Forms-Grundvertrag: deterministische `ScaleX`-/`ScaleY`-Einheiten
+
+Die headless Runtime rechnet `ScaleX` und `ScaleY` fuer alle festen VB6-Modi (Twips, Points,
+Pixels, Characters, Inch, Millimeter und Zentimeter) ueber Einheiten pro Zoll um. Der
+`vbUser`-Fallback verwendet ohne control-spezifische `ScaleWidth`/`ScaleHeight` Twips; ungueltige
+Modi werden mit einem Argumentfehler abgewiesen. Der headless Pixelpfad nutzt 96 DPI; der
+WinForms-Host behaelt seine Device-DPI-Umrechnung fuer Control-Koordinaten. Runtime- und
+emittierte Form-E2E-Regressionen decken beide Achsen und ungueltige Modi ab.
+
+`DrawMode` fuehrt auf persistenten `AutoRedraw`-Flaechen jetzt alle 16 GDI-ROP2-Wahrheitstabellen
+aus. `GraphicsLine` und `PaintPicture` verwenden dafuer einen gemeinsamen Quell-/Ziel-Rastermerge;
+ungueltige Werte werden mit VB6-Fehler 380 abgewiesen. Direkte sichtbare und aktive Paint-Kontexte
+bleiben als naechster Forms-Ausbau offen.
+
+`StrConv` verarbeitet nun kombinierte Casing-, Breiten- und japanische Kana-Flags. `vbWide` und
+`vbNarrow` mappen den ASCII-/Leerzeichenbereich in die jeweilige Voll-/Halbbreite, während
+`vbKatakana` und `vbHiragana` die Unicode-Kana-Bereiche umsetzen; nicht anwendbare Locale werden
+explizit abgewiesen. Ein gesetzter LCID überschreibt im `VB6Sp6`-Profil die Prozesskultur, während
+das deterministische Profil invariant bleibt.
+
+## Kanonischer Release-Nachweis (28.08.2026)
+
+Der serielle `build.ps1 -NoRestore -Configuration Release`-Lauf ist mit **1247/1247** Tests,
+0 Warnungen/Fehlern im Release-Build und **40/40** fehlerfrei analysierten VISIA-Projekt-Items
+grün. Der Lauf enthält die neuen Date-/Time- und Locale-Regressionen; LLVM-, LSP- und IDE-Flächen
+bleiben wie beschlossen außerhalb des Ausbauumfangs.
+
+`Erase` auf `ByRef`-Arrayparametern schreibt die Deallokation jetzt in den Caller zurück. Ein
+anschließendes `ReDim` sieht den freigegebenen Zustand und erzeugt wieder einen gültigen Descriptor;
+Semantik- und Managed-End-to-End-Tests sichern den Vertrag.
+
+Skalare Vergleiche werden im Managed-Emitter nicht mehr über `VBOperators.Equal(object?, object?)`
+ausgeführt. Gemeinsame Integer-, Floating-Point-, Currency-, Date-, Boolean-, String- und
+LongPtr-Typen verwenden typisierte Vergleichshelfer; Variant-/Objektvergleiche behalten ihren
+kompatiblen Runtime-Pfad. Ein Emit-Metadaten-Test und ein generiertes E2E-Programm sichern beide
+Pfade.
+
+`Option Compare Text` gilt nun auch für skalare Stringrelationen (`=`, `<>`, `<`, `<=`, `>` und `>=`)
+und für `Select Case`. Binder und IR übertragen den Modulmodus bis zum typisierten Managed-
+Vergleich; `Option Compare Binary` bleibt ordinal und case-sensitiv.
+
+`StrComp` ist nun als vollständiges String-Intrinsic verdrahtet. Die drei Argumentformen liefern
+die normalisierten VB6-Ergebnisse `-1`, `0` oder `1`; `vbBinaryCompare` verwendet ordinalen
+Vergleich, `vbTextCompare` ordinalen Vergleich ohne Beachtung der Groß-/Kleinschreibung. Symbol,
+IR, Managed-Emitter und Runtime sind durch direkte und generierte Regressionen abgedeckt. Wird der
+optionale Vergleichsmodus bei `InStr`, `InStrRev`, `Replace`, `Split`, `Filter` oder `StrComp`
+weggelassen, übernimmt der Binder nun `Option Compare Text` beziehungsweise `Option Compare Binary`.
+
+`RSet target = source` ist nun als kontextuelle Zuweisungssyntax verdrahtet. Feste String-Ziele
+werden im Managed-Backend rechtsbündig mit VB6-konformem Links-Padding und Behalten der linken
+Zeichen beim Kürzen geschrieben; variable String-Ziele behalten normale Zuweisungssemantik.
+Parser-, Runtime- und generierte Managed-Regressionen decken die Kurz- und Langquellen sowie den
+expliziten Guard für nicht abbildbare Layouts ab.
+
+Die kontextuelle `Mid(target, start[, length]) = replacement`- beziehungsweise `Mid$`-Syntax ist
+nun ebenfalls umgesetzt. Der Managed-String-Helper schreibt 1-basiert in place, begrenzt die
+Ersetzung an Ersatztext- und Ziellänge und erhält die Breite fester Strings. Parser-, Runtime-
+und Managed-E2E-Tests sichern die dokumentierten Beispiele einschließlich der gekürzten langen
+Ersatztexte.
+
+Die byteorientierten String-Intrinsics `LeftB`, `RightB`, `MidB` und `InStrB` sind ebenfalls
+verdrahtet. Längen und Suchpositionen zählen nun die Bytes der ausgewählten Stringkodierung;
+`VB6Sp6` verwendet die aktive ANSI-Codepage, während das deterministische Profil seine stabile
+UTF-16-Darstellung beibehält. Kürzung, 1-basierte Positionen sowie binäre und textuelle Suche
+sind durch Runtime- und generierte Managed-Regressionen abgedeckt.
+
+Das MSBuild-SDK räumt bei `Clean` nun die über das Output-Manifest bekannten Einzelprojekt- und
+Projektgruppenartefakte inklusive Compile-Stempeln und Input-/Output-Manifesten auf. Der Standard-
+`Rebuild`-Pfad erzeugt die konfigurierten VB6-Ausgaben danach wieder; nicht deklarierte Dateien
+bleiben unangetastet.
+
+## Mode-aware `Loc`-Semantik für Datei-I/O
+
+`Loc` ist jetzt als Compiler-Intrinsic und Managed-Runtime-Aufruf verfügbar. Binary-Dateien liefern
+die aktuelle Byteposition, Random-Dateien die feste Datensatznummer und Sequential-Dateien den
+aktuellen 128-Byte-Block. Runtime- und Compiler-E2E-Tests sichern alle drei Einheiten; UDT-/Array-/
+Variant-Layouts bleiben als nächste Datei-I/O-Schritte offen.
+
+`Reset` ist zusätzlich als Datei-I/O-Intrinsic verdrahtet und schließt alle offenen Kanäle; Runtime-
+und Compiler-Regressionen prüfen, dass der nächste `FreeFile`-Kanal wieder bei 1 beginnt.
+
+`Write #` serialisiert mehrere Werte jetzt in der VB6-Maschinendarstellung: Strings werden zitiert
+(eingebettete Anführungszeichen verdoppelt), Boolean-Werte als `#TRUE#`/`#FALSE#` und `Null` als
+`#NULL#`, mit Kommatrennung und CRLF-Abschluss. Komplexe Record-Layouts bleiben bewusst der
+nächsten Datei-I/O-Etappe vorbehalten.
+
+`Input #` rekonstruiert für Variant-Ziele die von `Write #` erzeugten Empty-, Null-, Boolean-,
+Date- und Error-Marker sowie skalare Zahlen. Binäre Variant-Werte tragen ihr VB6-Typ-Tag und
+Payload; eigenständige unterstützte skalare Arrays einschließlich variabler String-Elemente werden
+in Binary elementweise und dynamische
+Top-Level-Arrays in Random mit Descriptor und Ziel-Write-back übertragen. Variant-Arrays als
+Variant-Wert, Objekte und komplexere zusammengesetzte Layouts bleiben offen.
+
+`Lock`/`Unlock` sind als Datei-I/O-Statements durchgängig verdrahtet. Binary-Bytebereiche und
+Random-Datensatzbereiche werden 1-basiert auf native Dateisperren abgebildet; bei Sequential wird
+unabhängig vom Bereich die gesamte Datei gesperrt bzw. freigegeben. Die Syntax-, Runtime- und
+Compiler-Regressionen sichern Einzelbereiche, Ganzdateisperren und das Random-Record-Mapping.
+
+Die optionale `Access`-Klausel von `Open` (`Read`, `Write`, `Read Write`) wird nun separat geparst,
+gebunden und bis zur Runtime als .NET-`FileAccess` weitergereicht. Die verwalteten Dateikanäle
+verweigern damit nicht erlaubte Lese-/Schreiboperationen bereits an der Stream-Grenze; Parser-,
+Runtime- und Managed-E2E-Regressionen decken alle drei Rechte sowie ungültige Werte ab.
+
+`Open` akzeptiert nun auch die dokumentierte Kurzform ohne `For`-Klausel. Sie wird als `Random`
+mit der Standard-Recordlänge 128 gebunden; Parser- und Managed-E2E-Tests sichern die Default-
+Semantik über `Put` und `Loc`.
+
+`Print #` akzeptiert außerdem eine leere Outputliste (`Print #n,`) und schreibt dafür eine reine
+CRLF-Zeile. Der Fall ist im Parser und über einen vollständigen Managed-Datei-I/O-Test abgesichert.
+
+`Print #`-Outputlisten unterstützen jetzt mehrere Ausdrücke mit den dokumentierten Semikolon- und
+Kommatrennern. Semikolon verkettet Werte direkt, Komma wechselt in die nächste Ausgabezone, und ein
+abschließendes Semikolon lässt die Zeile für den nächsten `Print #`-Aufruf offen. Parser- und
+Managed-E2E-Regressionen sichern die Separatoren sowie die Fortsetzungssemantik ab.
+
+`Width #` ist als Datei-I/O-Statement durchgängig implementiert. Die Runtime hält pro Kanal die
+aktuelle Zeilenbreite und beginnt bei fortgesetzten `Print #`-Werten vor dem nächsten Wert eine neue
+CRLF-Zeile, sobald 1 bis 255 Zeichen erreicht sind; Breite 0 bleibt unbegrenzt. Parser-, Runtime-
+und Managed-E2E-Regressionen decken Default, Grenzwerte und das automatische Wrapping ab.
+
+`Input #` stellt für Variant-Ziele jetzt die maschinenlesbaren `Write #`-Marker für Empty, Null,
+Boolean, Date und Error sowie skalare Zahlen wieder her. Binäre `Get`-/`Put`-Transfers tragen für
+skalare Variant-Felder das VB6-Typ-Tag und die zugehörige Payload; eigenständige unterstützte
+skalare Arrays einschließlich variabler String-Elemente werden elementweise übertragen, und dynamische Top-Level-Arrays tragen in Random
+ihren Descriptor mit Write-back der gelesenen Form. Runtime-, Compiler- und UDT-Regressionen
+sichern die Subtypen und die Wertkopie. Variant-Arrays als Variant-Wert und Objektvarianten bleiben
+für eine spätere SAFEARRAY-/COM-Etappe abgegrenzt.
+
+Die Sharing-Klauseln von `Open` (`Shared`, `Lock Read`, `Lock Write`, `Lock Read Write`) werden
+jetzt profilunabhängig auf explizite .NET-`FileShare`-Regeln abgebildet; ungültige Modi werden vor
+dem Öffnen mit einem Argumentfehler abgewiesen.
+
+## Kanonischer Release-Nachweis (29.08.2026)
+
+Der serielle `build.ps1 -NoRestore -Configuration Release`-Lauf ist mit **1250/1250** Tests,
+0 Warnungen/Fehlern im Release-Build und **40/40** fehlerfrei analysierten VISIA-Projekt-Items
+grün. Der Lauf bestätigt den Byte-String-Slice (`LeftB`, `RightB`, `MidB`, `InStrB`) und den
+Luna-Einstiegsgate. Die Matrix enthält nun 49 atomare Erwartungen (35 `implemented`, 14
+`planned` beziehungsweise `partial`); die nächste offene Implementierungskarte ist
+`L1-02-A` für Grammatik-/Kontextregeln. `build.ps1` prüft Pflichtfelder, eindeutige IDs,
+Referenzen und Testpfade.
+
+## Modul-Sichtbarkeit (29.08.2026)
+
+`Public` und `Global` deklarierte Modulvariablen werden jetzt projektweit in andere Standardmodule
+importiert. `Private` und `Dim` bleiben auf das deklarierende Modul begrenzt; ein Fremdzugriff unter
+`Option Explicit` liefert `VB6S0001`. `ModuleVariableSymbol.IsPublic` hält die Sichtbarkeit bis in
+die Bindung fest. Zwei Projektanalyse-Regressionen sichern den gültigen Cross-Module-Fall und den
+abgewiesenen Private-Fall.
+
+## Matrix-Wahrheit und Queue-Abgleich (29.08.2026)
+
+Die Queue-Karten Q-01 und Q-02 trennen und sichern die beiden Matrixachsen mechanisch: `planned`
+bleibt `not-yet-verified`, und `oracle-verified` ist ohne einen implementierten Nachweis verboten.
+L1-05R materialisiert die 34 fehlenden Erwartungen aus L1-03 und L1-04; sie bleiben bewusst geplant.
+Q-03 stuft die überklagten Vollständigkeitsflächen für `Format` und `Math` auf `partial` zurück,
+Q-04 gibt den Matrixstand im kanonischen Lauf aus, und Q-05 ignoriert `build_diag.txt`, entfernt
+zwei tote Diagnoseassertions und löscht die nicht mehr verwendeten C#-Backend-Verzeichnisse.
+
+Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf ist mit **1252/1252** Tests,
+0 Warnungen/Fehlern im Release-Build und **40/40** fehlerfrei analysierten VISIA-Projekt-Items grün.
+Die TRX-Dateien des Laufs messen aktuell **33 implemented**, **3 partial**, **47 planned** und
+**36/83 documented-verified**; die nächste offene Implementierungskarte bleibt `L1-02-A`.
+
+## L1-02-A Parser-Kontext (29.08.2026)
+
+Der Parser akzeptiert nun auch module-level `Dim WithEvents`-Deklarationen und bewahrt den
+`WithEvents`-Marker im bestehenden Syntaxknoten. Der gezielte Parserlauf besteht mit 6/6 Tests;
+der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1253/1253** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die neue atomare Erwartung `l1-02-a-dim-withevents-declaration` ist als `implemented`/
+`documented-verified` materialisiert. Die Matrix steht damit bei **34 implemented**, **3 partial**,
+**47 planned** und **37/84 documented-verified**; die breite Erwartung für `L1-02-A` bleibt wegen
+der offenen Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Option Private Module (29.08.2026)
+
+`Option Private Module` wird auf Modulebene als eigene Syntaxdirektive erkannt; innerhalb einer
+Prozedur bleibt die Direktive ein Parserfehler. Der gezielte Option-Lauf besteht mit 5/5 Tests;
+der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1255/1255** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die atomare Erwartung `l1-02-a-option-private-module-syntax` ist
+`implemented`/`documented-verified`; die Matrix steht bei **35 implemented**, **3 partial**,
+**47 planned** und **38/85 documented-verified**. Die breite Familienerwartung `L1-02-A` bleibt
+wegen der noch offenen Grammatik-/Kontextregeln `partial`.
+
+## L1-02-A Static-Prozeduren (29.08.2026)
+
+Der Parser akzeptiert nun `Static Sub` sowie Sichtbarkeitsmodifizierer vor `Static Function` und
+bewahrt die Modifier im Syntaxbaum. Die gezielte Parserkarte besteht mit 8/8 Tests; der
+kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1257/1257** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die atomare Erwartung `l1-02-a-static-procedure-syntax` ist
+`implemented`/`documented-verified`; die Matrix steht bei **36 implemented**, **3 partial**,
+**47 planned** und **39/86 documented-verified**. Die Laufzeit-Persistenz der lokalen Variablen
+in statischen Prozeduren bleibt eine separate Semantik-Karte; `L1-02-A` bleibt insgesamt `partial`.
+
+## L1-02-A DefType-Direktiven (29.08.2026)
+
+Der Parser akzeptiert nun die module-level-DefType-Direktiven (`DefInt`, `DefStr` und die übrigen
+VB6-Standardnamen) mit einzelnen, gebundenen und kommaseparierten Buchstabenbereichen. Innerhalb
+einer Prozedur werden diese Direktiven als ungültiger Kontext diagnostiziert; fehlerhafte Bereiche
+wie `A-1` bleiben ebenfalls sichtbar. Der gezielte Option-/DefType-Lauf besteht mit **8/8** Tests;
+der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1260/1260** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die atomare Erwartung `l1-02-a-deftype-directive-syntax` ist
+`implemented`/`documented-verified`; die Matrix steht bei **37 implemented**, **3 partial**,
+**47 planned** und **40/87 documented-verified**. Die Anwendung der Defaulttypen auf Binder und
+Semantik bleibt eine separate Karte; `L1-02-A` bleibt insgesamt `partial`.
+
+## L1-02-A DefType-Defaulttypen (29.08.2026)
+
+Die module-level-`DefType`-Bereiche werden jetzt im Managed-Lowerer aufgelöst: untypisierte
+Modul-/Lokaldeklarationen, Parameter sowie Function- und Property-Get-Rückgaben erhalten den
+Defaulttyp des ersten Buchstabens. Explizite `As`-Typen und Bezeichner-Typsuffixe überschreiben
+den Default weiterhin. Der gezielte Binder-/Lowerer-Lauf besteht mit **5/5** Tests; der
+kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1262/1262** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die atomare Erwartung `l1-02-a-deftype-default-semantics` ist
+`implemented`/`documented-verified`; die Matrix steht bei **38 implemented**, **3 partial**,
+**47 planned** und **41/88 documented-verified**. Implizite Variablen, die erst durch eine
+Zuweisung entstehen, sowie überlappende DefType-Bereiche bleiben für eine separate Karte sichtbar;
+`L1-02-A` bleibt insgesamt `partial`.
+
+## L1-02-A DefType-implizite Variablen (29.08.2026)
+
+Der Binder verwendet die module-level-DefType-Tabelle nun auch für Variablen, die ohne Deklaration
+bei einer Zuweisung oder in einem Ausdruck entstehen. `Option Explicit` bleibt unverändert; ein
+Bezeichner-Typsuffix überschreibt den Default. Der gezielte Binderlauf besteht mit **6/6** Tests;
+der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1263/1263** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die atomare Erwartung `l1-02-a-deftype-implicit-variables` ist
+`implemented`/`documented-verified`; die Matrix steht bei **39 implemented**, **3 partial**,
+**47 planned** und **42/89 documented-verified**. Die Validierung überlappender DefType-Bereiche
+bleibt als separate Karte offen; `L1-02-A` bleibt insgesamt `partial`.
+
+## L1-02-A DefType-Bereichskonflikte (29.08.2026)
+
+Überlappende module-level-`DefType`-Buchstabenbereiche werden im Binder jetzt mit dem
+deterministischen Semantikdiagnosecode `VB6S0070` abgewiesen; direkt angrenzende, nicht
+überlappende Bereiche bleiben gültig und behalten ihre jeweiligen Defaulttypen. Der gezielte
+Binderlauf besteht mit **8/8** Tests; der kanonische `build.ps1 -NoRestore -Configuration Release`-
+Lauf misst **1265/1265** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-deftype-range-conflicts` ist
+`implemented`/`documented-verified`; die Matrix steht bei **40 implemented**, **3 partial**,
+**47 planned** und **43/90 documented-verified**. Die breite Erwartung `L1-02-A` bleibt wegen
+offener Grammatik-/Kontextregeln `partial`.
+
+## L1-02-A Statische Prozedursemantik (29.08.2026)
+
+`Dim`-Variablen in `Static Sub`- und `Static Function`-Prozeduren werden im Binder als
+persistent gespeicherte Modul-Slots geführt. Ihre Werte bleiben über Aufrufe erhalten, während
+gewöhnliche Prozeduren weiterhin pro Aufruf lokale Speicherplätze verwenden; Array-Deklarationen
+behalten dabei ihren statischen Speichervertrag. Der gezielte Binder-/Managed-Lauf besteht mit
+**11/11** Tests; der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1268/1268** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-static-procedure-semantics` ist
+`implemented`/`documented-verified`; die Matrix steht bei **41 implemented**, **3 partial**,
+**47 planned** und **44/91 documented-verified**. Die breite Erwartung `L1-02-A` bleibt wegen
+offener Grammatik-/Kontextregeln `partial`.
+
+## L1-02-A Prozedur-Sichtbarkeit (29.08.2026)
+
+`Public`- und `Global`-Prozeduren werden in Standardmodulen projektweit aufgelöst, während
+`Private`-Prozeduren nur im deklarierenden Modul sichtbar bleiben. Der Symbolvertrag führt diese
+Entscheidung als `ProcedureSymbol.IsPublic`; die gemeinsame Symbolinstanz für öffentliche
+Standardmodul-Prozeduren bleibt dabei erhalten. Die gezielten Sichtbarkeits-/Metadatenläufe
+bestehen mit **1/1** und **1/1** Tests; der kanonische `build.ps1 -NoRestore -Configuration Release`-
+Lauf misst **1270/1270** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-procedure-visibility` ist
+`implemented`/`documented-verified`; die Matrix steht bei **42 implemented**, **3 partial**,
+**47 planned** und **45/92 documented-verified**. Die breite Erwartung `L1-02-A` bleibt wegen
+offener Grammatik-/Kontextregeln `partial`.
+
+## L1-02-A Option-Private-Module-Semantik (29.08.2026)
+
+`Option Private Module` wird jetzt im `SemanticModel` als externe Exportpolitik markiert; öffentliche
+Mitglieder bleiben innerhalb desselben Projekts für Schwester-Module sichtbar. Ein externer
+Standardmodul-Importpfad wird bewusst nicht behauptet. Der gezielte Binder-/Projektlauf besteht
+mit **1/1** und **1/1** Tests; der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf
+misst **1272/1272** Tests, 0 Warnungen/Fehlern im Release-Build und **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-option-private-module-semantics`
+ist `implemented`/`documented-verified`; die Matrix steht bei **43 implemented**, **3 partial**,
+**47 planned** und **46/93 documented-verified**. Die breite Erwartung `L1-02-A` bleibt wegen
+offener Grammatik-/Kontextregeln `partial`.
+
+## Q-09 Dokumentationsabgleich (29.08.2026)
+
+Der Qualitätsdurchgang hält die Matrixzerlegung und ihre Messehrlichkeit jetzt auch in den
+Arbeitsdokumenten fest: Q-01 setzt die `verification`-Achse für geplante Erwartungen auf
+`not-yet-verified`, Q-02 erzwingt diese Zuordnung sowie das Oracle-Verbot im `build.ps1`, und
+L1-05R materialisiert die 34 fehlenden Erwartungen aus L1-03/L1-04. Q-03 stuft die überklagten
+Vollständigkeitsflächen für `Format` und `Math` auf `partial` zurück; Q-04 gibt den Matrixstand im
+kanonischen Lauf aus; Q-05 bereinigt die belegten Altlasten. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1272/1272** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**93 Erwartungen**, davon **43 implemented**, **3 partial**, **47 planned** und **46/93
+documented-verified**. Q-06 bis Q-08 sind in Roadmap, README und Ausführungsplan gespiegelt;
+Q-09 aktualisiert die dauerhaften Projektregeln, ohne die Changelog-Historie umzuschreiben.
+
+## L1-02-A Global-Modulvariablen (30.08.2026)
+
+Der projektweite Binder-Nachweis für `Global`-Modulvariablen ist ergänzt: Unter `Option Explicit`
+wird die Variable aus einem anderen Standardmodul aufgelöst und als öffentliche
+`ModuleVariableSymbol`-Instanz erkannt. Der gezielte Projektlauf besteht mit **1/1** Test. Der
+kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1273/1273** Tests, 0
+Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+Erwartung `l1-02-a-global-module-variable-resolution` ist `implemented`/`documented-verified`;
+die Matrix umfasst **94 Erwartungen**, davon **44 implemented**, **3 partial**, **47 planned** und
+**47/94 documented-verified**.
+
+## L1-02-B Benannte Argumente und Auswertungsreihenfolge (30.08.2026)
+
+Der Managed-E2E-Nachweis für benannte Argumente mit Seiteneffekten ist ergänzt: Bei
+`second:=NextValue(), first:=NextValue()` werden die Ausdrücke genau einmal in deklarierter
+Parameterreihenfolge ausgewertet und vom Callee als `1:2` beobachtet. Der gezielte Lauf besteht mit
+**1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1274/1274** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die Erwartung `l1-02-b-named-arguments-side-effect-order` ist
+`implemented`/`documented-verified`; die Matrix umfasst **95 Erwartungen**, davon **45 implemented**,
+**3 partial**, **47 planned** und **48/95 documented-verified**.
+
+## L1-02-B Fehlformen benannter Argumente (30.08.2026)
+
+Die deterministischen Fehlformen der benannten Argumentübergabe sind regressionsgesichert:
+Doppelte Parameternamen und Positionsargumente nach einem `name:=value`-Argument melden jeweils
+`VB6S0069`, ohne eine vorhandene Parameterbindung zu überschreiben. Der gezielte Semantiklauf
+besteht mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1275/1275** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die Erwartung `l1-02-b-named-arguments-invalid-shapes` ist
+`implemented`/`documented-verified`; die Matrix umfasst **96 Erwartungen**, davon **46 implemented**,
+**3 partial**, **47 planned** und **49/96 documented-verified**.
+
+## L1-02-B Vollständige Named-Argument-Familie (30.08.2026)
+
+Die breite Erwartung `l1-02-b-named-arguments-evaluation-order` ist geschlossen. Parser-,
+Optional-, Compiler- und Semantiktests belegen die Zuordnung per `name:=value`, optionale Defaults,
+die deklarierte Auswertungsreihenfolge sowie deterministische `VB6S0069`-Diagnosen für unbekannte,
+doppelte und falsch angeordnete Argumente. Der gezielte Nachweis besteht mit **27/27** Tests. Der
+kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1275/1275** Tests, 0
+Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+Matrix umfasst **96 Erwartungen**, davon **47 implemented**, **3 partial**, **46 planned** und
+**50/96 documented-verified**.
+
+## L1-02-C Verschachtelte UDT-Arrayfelder (30.08.2026)
+
+Verschachtelte UDT-Arrayfelder mit expliziten, nicht bei null beginnenden Grenzen bewahren Rang,
+Unter- und Obergrenzen sowie ihren Elementtyp. Uninitialisierte Elemente liefern die VB6-
+Skalaranfangswerte; ein Feld eines verschachtelten Arrayelements kann an eine `ByRef`-Prozedur
+übergeben werden, deren Änderung in den Aufrufer zurückgeschrieben wird. Der gezielte Compiler-
+lauf besteht mit **1/1** Test; der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf
+misst **1276/1276** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items. Die atomare Erwartung `l1-02-c-nested-udt-array-storage` ist
+`implemented`/`documented-verified`; die Matrix steht bei **48 implemented**, **3 partial**,
+**46 planned** und **51/97 documented-verified**. Die breite Erwartung `L1-02-C` bleibt für
+weitere Array-/UDT-Regeln offen.
+
+## L1-02-C Array-Parameterdiagnosen (30.08.2026)
+
+Der Binder weist `ByVal`-Arrayparameter mit `VB6S0028` zurück und meldet `VB6S0032`, wenn ein
+Arrayparameter feste Rang- oder Bounds-Angaben trägt. Der gezielte Semantiklauf besteht mit **1/1**
+Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1277/1277** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+atomare Erwartung `l1-02-c-array-parameter-diagnostics` ist `implemented`/`documented-verified`;
+die Matrix steht bei **54 implemented**, **3 partial**, **46 planned** und **57/103
+documented-verified**. Die breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+## L1-02-C Mehrdimensionale ReDim-Preserve-Struktur (30.08.2026)
+
+Eine dynamische mehrdimensionale Managed-Arraystruktur bewahrt bei `ReDim Preserve` Rang,
+frühere Grenzen und die Untergrenze der letzten Dimension. Bestehende Werte bleiben an ihren
+mehrdimensionalen Indizes erhalten; neu hinzugekommene Slots liefern die VB6-Skalardefaults.
+Der gezielte Compilerlauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1277/1277** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-c-redim-preserve-multidimensional` ist `implemented`/`documented-verified`; die Matrix
+steht bei **49 implemented**, **3 partial**, **46 planned** und **52/98 documented-verified**.
+Die breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+## L1-02-C UDT-Array-Rangdiagnose (30.08.2026)
+
+Der Binder weist einen Zugriff auf ein festes UDT-Arrayfeld mit zu wenigen Indizes deterministisch
+mit `VB6S0027` zurück. Der gezielte Semantiklauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1277/1277** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-c-udt-array-rank-diagnostics` ist `implemented`/`documented-verified`; die Matrix steht
+bei **50 implemented**, **3 partial**, **46 planned** und **53/99 documented-verified**. Die
+breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+## L1-02-C For-Each-UDT-Arraydiagnose (30.08.2026)
+
+Der Analyzer weist `For Each` über ein Array eines Standardmodul-UDT deterministisch mit
+`VB6S0056` zurück. Damit wird der dokumentierte VB6-Vertrag abgebildet, nach dem ein solches UDT
+nicht implizit in die erforderliche Variant-Steuervariable coerct wird. Der gezielte Compilerlauf
+besteht mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1277/1277** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die atomare Erwartung `l1-02-c-foreach-udt-array-diagnostic` ist
+`implemented`/`documented-verified`; die Matrix steht bei **53 implemented**, **3 partial**,
+**46 planned** und **56/102 documented-verified**. Die breite Erwartung `L1-02-C` bleibt für
+weitere Array-/UDT-Regeln offen.
+
+## L1-02-C ReDim-Elementtypdiagnose (30.08.2026)
+
+Der Binder weist ein `ReDim` mit einem gegenüber der dynamischen Arraydeklaration abweichenden
+Elementtyp deterministisch mit `VB6S0031` zurück. Der gezielte Semantiklauf besteht mit **1/1**
+Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1277/1277** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+atomare Erwartung `l1-02-c-redim-element-type-diagnostic` ist `implemented`/`documented-verified`;
+die Matrix steht bei **51 implemented**, **3 partial**, **46 planned** und **54/100
+documented-verified**. Die breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+## L1-02-C ReDim auf ParamArray (30.08.2026)
+
+Der Binder weist ein `ReDim` auf einem `ParamArray` deterministisch mit `VB6S0066` zurück. Der
+gezielte Semantiklauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1277/1277** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-c-redim-paramarray-diagnostic` ist `implemented`/`documented-verified`; die Matrix steht
+bei **52 implemented**, **3 partial**, **46 planned** und **55/101 documented-verified**. Die
+breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+## L1-02-C Dynamische UDT-Arrayfelder (30.08.2026)
+
+Ein dynamisches UDT-Arrayfeld wird über seinen Empfänger mit `ReDim` angelegt, behält die
+expliziten Unter- und Obergrenzen und bewahrt den deklarierten Elementtyp sowie beschreibbare
+verschachtelte Felder. Der gezielte Compilerlauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1277/1277** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-c-dynamic-udt-array-member` ist `implemented`/`documented-verified`; die Matrix steht
+bei **55 implemented**, **3 partial**, **46 planned** und **58/104 documented-verified**. Die
+breite Erwartung `L1-02-C` bleibt für weitere Array-/UDT-Regeln offen.
+
+## L1-02-A Modul-Deklarationskontext (30.08.2026)
+
+`Public`, `Private` und `Global`-Variablendeklarationen innerhalb einer Prozedur oder eines
+verschachtelten Statement-Blocks werden als ungültige Moduldeklarationen mit `VB6P0001`
+diagnostiziert und zeilenweise übersprungen. Eine
+lokale `Dim`-Deklaration bleibt dabei eine gültige `DimStatementSyntax`; nachfolgende Statements
+werden weiter geparst. Der gezielte Parserlauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1278/1278** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-a-module-declaration-context-guard` ist `implemented`/`documented-verified`; die Matrix
+steht bei **56 implemented**, **3 partial**, **46 planned** und **59/105 documented-verified**.
+Die breite Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Const-Deklarationskontext (30.08.2026)
+
+`Public`, `Private` und `Global Const`-Deklarationen innerhalb einer Prozedur oder eines
+verschachtelten Statement-Blocks werden mit `VB6P0001` diagnostiziert und zeilenweise
+übersprungen; eine lokale `Const`-Deklaration bleibt gültig. Der gezielte Parserlauf besteht
+mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1279/1279** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-constant-declaration-context-guard` ist
+`implemented`/`documented-verified`; die Matrix steht bei **57 implemented**, **3 partial**,
+**46 planned** und **60/106 documented-verified**. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Enum-/Type-Deklarationskontext (30.08.2026)
+
+`Public`, `Private` und `Global`-Sichtbarkeitspräfixe vor `Enum`-/`Type`-Deklarationen innerhalb
+einer Prozedur oder eines verschachtelten Statement-Blocks werden mit `VB6P0001` diagnostiziert
+und zeilenweise übersprungen; module-level-Sichtbarkeitsdeklarationen bleiben gültig. Der gezielte
+Parserlauf besteht mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-
+Lauf misst **1281/1281** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-enum-type-declaration-context-guard`
+ist `implemented`/`documented-verified`; die Matrix steht bei **59 implemented**, **3 partial**,
+**46 planned** und **62/108 documented-verified**. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Prozedurdeklarationskontext (30.08.2026)
+
+`Public`, `Private` und `Global`-Sub-/Function-Deklarationen innerhalb einer Prozedur oder
+eines verschachtelten Statement-Blocks werden mit `VB6P0001` diagnostiziert und zeilenweise
+übersprungen; eine module-level-Sichtbarkeitsdeklaration bleibt gültig. Der gezielte Parserlauf
+besteht mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1280/1280** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-procedure-declaration-context-guard` ist
+`implemented`/`documented-verified`; die Matrix steht bei **58 implemented**, **3 partial**,
+**46 planned** und **61/107 documented-verified**. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Declare-Deklarationenkontext (30.08.2026)
+
+`Public`, `Private` und `Global`-Sichtbarkeitspräfixe vor `Declare`-Deklarationen innerhalb einer
+Prozedur oder eines verschachtelten Statement-Blocks werden mit `VB6P0001` diagnostiziert und
+zeilenweise übersprungen; module-level-Sichtbarkeitsdeklarationen bleiben gültig. Der gezielte
+Parserlauf besteht mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-
+Lauf misst **1282/1282** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-declare-declaration-context-guard`
+ist `implemented`/`documented-verified`; die Matrix steht bei **60 implemented**, **3 partial**,
+**46 planned** und **63/109 documented-verified**. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Property-/Event-Deklarationskontext (30.08.2026)
+
+`Public`, `Private` und `Global`-Sichtbarkeitspräfixe vor `Property`-/`Event`-Deklarationen
+innerhalb einer Prozedur oder eines verschachtelten Statement-Blocks werden mit `VB6P0001`
+diagnostiziert und zeilenweise übersprungen; module-level-Sichtbarkeitsdeklarationen bleiben
+gültig. Der gezielte Parserlauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1283/1283** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-a-property-event-declaration-context-guard` ist `implemented`/`documented-verified`; die
+Matrix steht bei **61 implemented**, **3 partial**, **46 planned** und **64/110
+documented-verified**. Die breite Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln
+auf `partial`.
+
+## L1-02-A WithEvents-Deklarationskontext (30.08.2026)
+
+`Dim`, `Public`, `Private` und `Global`-Sichtbarkeitspräfixe vor `WithEvents`-Deklarationen
+innerhalb einer Prozedur oder eines verschachtelten Statement-Blocks werden mit `VB6P0001`
+diagnostiziert und zeilenweise übersprungen; module-level-Sichtbarkeitsdeklarationen bleiben
+gültig. Der gezielte Parserlauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1284/1284** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-a-withevents-declaration-context-guard` ist `implemented`/`documented-verified`; die
+Matrix steht bei **62 implemented**, **3 partial**, **46 planned** und **65/111
+documented-verified**. Die breite Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln
+auf `partial`.
+
+## L1-02-A Implements-Deklarationskontext (30.08.2026)
+
+`Implements`-Deklarationen innerhalb einer Prozedur oder eines verschachtelten Statement-Blocks
+werden mit `VB6P0001` diagnostiziert und zeilenweise übersprungen; eine module-level-
+`Implements`-Deklaration bleibt gültig. Der gezielte Parserlauf besteht mit **1/1** Test. Der
+kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1285/1285** Tests,
+0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
+Die atomare Erwartung `l1-02-a-implements-declaration-context-guard` ist
+`implemented`/`documented-verified`; die Matrix steht bei **63 implemented**, **3 partial**,
+**46 planned** und **66/112 documented-verified**. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Option-Direktivenkontext (30.08.2026)
+
+`Option Explicit`, `Option Base`, `Option Compare` und `Option Private Module` werden innerhalb
+einer Prozedur oder eines verschachtelten Statement-Blocks mit `VB6P0001` diagnostiziert und
+zeilenweise übersprungen; module-level-Direktiven bleiben gültig. Der gezielte Parserlauf besteht
+mit **1/1** Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst
+**1286/1286** Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte
+VISIA-Projekt-Items. Die atomare Erwartung `l1-02-a-option-directive-context-guard` ist
+`implemented`/`documented-verified`; die Matrix steht bei **64 implemented**, **3 partial**,
+**46 planned** und **67/113 documented-verified**. Die breite Erwartung `L1-02-A` bleibt für
+weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Attribute-Kontext (30.08.2026)
+
+`Attribute`-Metadatenzeilen werden innerhalb einer Prozedur oder eines verschachtelten
+Statement-Blocks mit `VB6P0001` diagnostiziert und zeilenweise übersprungen; module-level-
+Attribute bleiben gültig. Der gezielte Parserlauf besteht mit **1/1** Test. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Lauf misst **1287/1287** Tests, 0 Warnungen/Fehler
+im Release-Build und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die atomare Erwartung
+`l1-02-a-attribute-context-guard` ist `implemented`/`documented-verified`; die Matrix steht bei
+**65 implemented**, **3 partial**, **46 planned** und **68/114 documented-verified**. Die breite
+Erwartung `L1-02-A` bleibt für weitere Grammatik-/Kontextregeln auf `partial`.
+
+## L1-02-A Dim-Modulvariablen-Sichtbarkeit (30.08.2026)
+
+Eine module-level-`Dim`-Variable kann aus ihrem deklarierenden Modul gelesen und geschrieben
+werden, bleibt aber für ein anderes `Option Explicit`-Modul mit `VB6S0001` verborgen;
+`ModuleVariableSymbol.IsPublic` bleibt `false`. Der gezielte Compilerlauf besteht mit **1/1**
+Test. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst **1288/1288**
+Tests, 0 Warnungen/Fehler im Release-Build und **40/40** fehlerfrei analysierte VISIA-
+Projekt-Items. Die atomare Erwartung `l1-02-a-dim-module-variable-resolution` ist
+`implemented`/`documented-verified`; die Matrix steht bei **66 implemented**, **3 partial**,
+**46 planned** und **69/115 documented-verified**. Die breite Erwartung `L1-02-A` bleibt
+für weitere Grammatik-/Kontextregeln auf `partial`.
+
+## Qualitätslauf Q-01 bis Q-09 (30.08.2026)
+
+Die Kompatibilitätsmatrix führt nach der atomaren Zerlegung nun **115 Erwartungen** mit zwei
+unabhängigen Achsen: **66 `implemented`**, **3 `partial`** und **46 `planned`** auf der
+Implementierungsachse sowie **69 `documented-verified`** und **46 `not-yet-verified`** auf der
+Verifikationsachse. Die 34 Erwartungen aus L1-03/L1-04 sind als geplante, noch nicht verifizierte
+Einträge materialisiert; `L1-02-A` bleibt für den noch offenen Grammatik-/Kontextumfang auf
+`partial`. Die Vollständigkeitsansprüche `format.complete-surface` und `math.complete-surface`
+stehen nach dem Konsistenzcheck ebenfalls ehrlich auf `partial`.
+
+`build.ps1` prüft die Statusachsen und die Gegenprobe mechanisch; ein Statuslauf mit falscher
+100-%-Achse wird abgewiesen. Roadmap, README und Ausführungsplan führen denselben aktuellen
+Readout und verweisen auf die verbindlichen Leitplanken. Der kanonische
+`build.ps1 -NoRestore -Configuration Release`-Nachweis misst aus 13 frischen TRX-Dateien
+**1288/1288** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu **40/40** fehlerfrei
+analysierte VISIA-Projekt-Items und den Matrix-Readout **66 implemented, 3 partial, 46 planned
+von 115 | 69/115 documented-verified**. `git diff --check` bleibt ohne echte Whitespace-Fehler;
+ein installierter nativer VB6-Compiler wird weiterhin nicht vorausgesetzt.
+
+## L1-02-C Array-/UDT-Shape abgeschlossen (30.08.2026)
+
+Die breite Erwartung `l1-02-c-array-udt-shape` ist geschlossen. Der Managed-Pfad bewahrt Rang,
+explizite Unter-/Obergrenzen und Elementtypen durch IR-Lowering und ByRef-Write-back; feste und
+verschachtelte UDT-Arrayfelder behalten deterministische Defaultwerte und Bounds. Ungültige Bounds,
+Rangänderungen und nicht darstellbare UDT-Layouts werden durch die bestehenden
+VB6-kompatiblen Laufzeit-/Semantikdiagnosen abgewiesen. Ein IR-Test prüft die typisierte
+mehrdimensionale ReDim-Form, ein Semantiktest den `VB6S0046`-Guard; die bestehenden E2E- und
+Runtime-Tests decken Write-back, UDT-Defaults sowie Bounds-/ReDim-Fehler ab.
+
+Die gezielten Läufe bestanden mit **26 Compiler-Tests**, **22 Semantiktests** und **21 Runtime-
+Arraytests**. Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst aus 13
+frischen TRX-Dateien **1290/1290** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu
+einen Release-Build ohne Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-
+Items. Die Matrix steht bei **67 implemented**, **3 partial**, **45 planned** von **115** sowie
+**70/115 documented-verified**. Ein nativer VB6-SP6-Compiler ist weiterhin nicht installiert;
+`oracle-verified` wurde nicht gesetzt.
+
+## L1-02-D Control-Flow-/Error-State abgeschlossen (30.08.2026)
+
+Die breite Erwartung `l1-02-d-control-flow-error-state` ist geschlossen: If/Select-, Schleifen-
+und GoTo-Kanten werden als explizite Managed-CFG-Blöcke gelowert; aktive `On Error`-Handler,
+Resume-Ziele sowie `Err`-/`Erl`-Zustände bleiben auch über Prozeduraufrufe erhalten. Illegale
+Kontrollfluss-/Fehlerbehandlungskonstrukte liefern stabile Diagnosen. Die gezielten Läufe
+bestanden mit **13 Compiler-Tests**, **11 Parser-Tests** und **1 Managed-Diagnostic-Test**.
+Der kanonische `build.ps1 -NoRestore -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1293/1293** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **3 partial**, **44 planned** von **115** sowie **71/115
+documented-verified**. Ein nativer VB6-SP6-Compiler ist weiterhin nicht installiert;
+`oracle-verified` wurde nicht gesetzt.
+
+
+## Operator-Fehlerkontrakte, Doku-Abgleich und Hausputz (30.08.2026)
+
+Die breite Erwartung `l1-02-e-operator-dispatch` ist **begonnen, nicht geschlossen**. Gebaut ist
+ihre `overflow`-Klausel: `VBErrors.Set` bildet `OverflowException` auf VB6-Fehler **6** und
+`DivideByZeroException` auf **11** ab, statt beide wie bisher auf **5** („Invalid procedure call“)
+zusammenfallen zu lassen. Die Zuordnung sitzt zentral im Err-Zustand und gilt damit für jeden
+Operator statt pro Aufrufstelle; die bereits vorhandene Unterscheidung in `DivideDouble`/
+`DivideSingle` — `x / 0` ist Division durch Null, `0 / 0` ist Überlauf — wird dadurch erstmals bis
+zu `Err.Number` sichtbar. Zwei End-to-End-Tests in `VariantEqualityExecutionTests` decken das ab:
+`Long`-Überlauf und ungültige Variant-Array-Arithmetik (**6**/**13**) sowie die Divisionsfälle
+(**11**/**6**/**11**). Die Klauseln `dispatch` und `compare` sind nicht nachgemessen; die
+Erwartung steht deshalb auf `partial`/`documented-verified` und bleibt als offener
+Familienstatus sichtbar.
+
+Dazu der Abschluss des Qualitätsdurchgangs `Q`: `build_diag.txt` (1,7 MB, in `8fb3feb`
+versehentlich mitcommittet) verlässt das Tracking und steht in `.gitignore`. Im README fallen
+zwei historische CI-Absätze (**258** und **243** Tests) und eine veraltete Testzahl im
+LLVM-Abschnitt (**1036**) weg — Changelog-Prosa im README, die dem aktuellen Messwert
+widersprach; die Verifikationshistorie steht in dieser Datei.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1296/1296** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **4 partial**, **43 planned** von **115** sowie **72/115**
+`documented-verified`. Die Statusregel aus `Q-02` wurde gegengeprüft: Eine testweise auf
+`documented-verified` gehobene `planned`-Erwartung bricht `build.ps1` mit der erwarteten Meldung
+ab. Ein nativer VB6-SP6-Compiler ist weiterhin nicht installiert; `oracle-verified` wurde nicht
+gesetzt.

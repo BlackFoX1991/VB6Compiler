@@ -23,7 +23,6 @@ public sealed class ForEachSyntaxGuardTests
             analysis.Success,
             string.Join(Environment.NewLine, analysis.Diagnostics.Select(diagnostic => diagnostic.ToString())));
         Assert.IsFalse(analysis.ParseResult.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6P0001"));
-        Assert.IsFalse(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0052"));
     }
 
     [TestMethod]

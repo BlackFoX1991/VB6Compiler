@@ -67,6 +67,46 @@ public sealed class StringIntrinsicRuntimeTests
     }
 
     [TestMethod]
+    public void ByteStringIntrinsics_UseOneBasedBytePositionsAndClipLength()
+    {
+        const VBCompatibilityProfile profile = VBCompatibilityProfile.VB6Sp6;
+
+        Assert.AreEqual("abc", VBStrings.LeftB("abcdef", 3, profile));
+        Assert.AreEqual("def", VBStrings.RightB("abcdef", 3, profile));
+        Assert.AreEqual("bcd", VBStrings.MidB("abcdef", 2, 3, profile));
+        Assert.AreEqual("ef", VBStrings.MidB("abcdef", 5, profile));
+        Assert.AreEqual(3, VBStrings.InStrB(1, "XXpXXp", "P", 1, profile));
+        Assert.AreEqual(0, VBStrings.InStrB(1, "XXpXXp", "P", 0, profile));
+    }
+
+    [TestMethod]
+    public void ByteStringIntrinsics_RejectNegativeLengthsAndInvalidStarts()
+    {
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.LeftB("abc", -1));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.RightB("abc", -1));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.MidB("abc", 0, 1));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.MidB("abc", 1, -2));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.InStrB(0, "abc", "a", 0, VBCompatibilityProfile.VB6Sp6));
+    }
+
+    [TestMethod]
+    public void MidAssign_ReplacesInPlaceAndClipsToTargetAndReplacement()
+    {
+        Assert.AreEqual("The fox jumps", VBStrings.MidAssign("The dog jumps", 5, "fox", 3));
+        Assert.AreEqual("The cow jumps", VBStrings.MidAssign("The fox jumps", 5, "cow", -1));
+        Assert.AreEqual("The duc jumpe", VBStrings.MidAssign("The cow jumpe", 5, "duck", 3));
+        Assert.AreEqual("abcdef", VBStrings.MidAssign("abcdef", 99, "x", 1));
+        Assert.AreEqual("abcdef", VBStrings.MidAssign("abcdef", 2, string.Empty, -1));
+    }
+
+    [TestMethod]
+    public void MidAssign_RejectsInvalidStartOrLength()
+    {
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.MidAssign("abc", 0, "x", -1));
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBStrings.MidAssign("abc", 1, "x", -2));
+    }
+
+    [TestMethod]
     public void Chr_ReturnsReachableAsciiCharacters()
     {
         Assert.AreEqual("\0", VBStrings.Chr(0));

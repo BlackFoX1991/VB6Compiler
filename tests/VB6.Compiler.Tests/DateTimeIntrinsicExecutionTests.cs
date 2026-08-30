@@ -1,5 +1,7 @@
 namespace VB6.Compiler.Tests;
 
+using VB6.Runtime;
+
 [TestClass]
 public sealed class DateTimeIntrinsicExecutionTests
 {
@@ -92,5 +94,32 @@ public sealed class DateTimeIntrinsicExecutionTests
             """);
 
         CollectionAssert.AreEqual(new[] { "7", "7", "True", "True", "7", "2" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PassesSelectedProfileToDateTimeIntrinsics()
+    {
+        var compilation = VBCompilation.Create(
+            """
+            Sub Main()
+                Debug.Print Format$(DateValue("2020-01-02"), "yyyy-mm-dd")
+                Debug.Print Format$(TimeValue("18:00:00"), "hh:nn:ss")
+                Debug.Print DateAdd("d", 1.6, CDate(43832))
+                Debug.Print WeekdayName(4, False, vbMonday)
+                Debug.Print MonthName(1)
+            End Sub
+            """,
+            "Module1.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        var output = VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation));
+
+        Assert.AreEqual(5, output.Length, string.Join(" | ", output));
+        CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00", "43834" }, output[..3]);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(output[3]));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(output[4]));
     }
 }

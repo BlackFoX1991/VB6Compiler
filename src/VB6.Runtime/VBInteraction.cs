@@ -562,11 +562,54 @@ public static class VBInteraction
         Host?.PopupMenu(menu, flags, x, y);
     }
 
-    /// <summary>Headless controls use identity scaling; a UI host can supply its scale modes.</summary>
-    public static float ScaleX(float value, int fromScale, int toScale) => value;
+    /// <summary>
+    /// Converts a horizontal VB6 coordinate between explicit scale modes. A headless process has
+    /// no control-specific <c>ScaleWidth</c>/<c>ScaleHeight</c>, so <c>vbUser</c> follows the
+    /// documented twips fallback; all fixed modes use their documented units-per-inch values.
+    /// </summary>
+    public static float ScaleX(float value, int fromScale, int toScale) =>
+        Scale(value, fromScale, toScale, vertical: false);
 
-    /// <summary>Headless controls use identity scaling; a UI host can supply its scale modes.</summary>
-    public static float ScaleY(float value, int fromScale, int toScale) => value;
+    /// <summary>Vertical counterpart of <see cref="ScaleX"/> (character mode is six units/inch).</summary>
+    public static float ScaleY(float value, int fromScale, int toScale) =>
+        Scale(value, fromScale, toScale, vertical: true);
+
+    private static float Scale(float value, int fromScale, int toScale, bool vertical)
+    {
+        ValidateScaleMode(fromScale);
+        ValidateScaleMode(toScale);
+        if (fromScale == toScale)
+        {
+            return value;
+        }
+
+        var fromUnits = ScaleUnitsPerInch(fromScale, vertical);
+        var toUnits = ScaleUnitsPerInch(toScale, vertical);
+        return value / fromUnits * toUnits;
+    }
+
+    private static void ValidateScaleMode(int scaleMode)
+    {
+        if (scaleMode is < 0 or > 7)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(scaleMode),
+                "VB6 scale modes must be between vbUser (0) and vbCentimeter (7).");
+        }
+    }
+
+    private static float ScaleUnitsPerInch(int scaleMode, bool vertical) => scaleMode switch
+    {
+        1 => 1440f, // vbTwips
+        2 => 72f,   // vbPoints
+        3 => 96f,   // vbPixels at the deterministic 96-DPI headless baseline
+        4 => vertical ? 6f : 12f, // vbCharacters
+        5 => 1f,    // vbInches
+        6 => 25.4f, // vbMillimeters
+        7 => 2.54f, // vbCentimeters
+        0 => 1440f, // vbUser falls back to twips without a control-specific scale
+        _ => 1f
+    };
 
     /// <summary>Returns a deterministic character-width approximation for headless control code.</summary>
     public static float TextWidth(string text) => text.Length;

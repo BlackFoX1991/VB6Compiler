@@ -32,8 +32,10 @@ public sealed class Binder
     private int _nextLoopId;
     private int _nextSelectId;
     private int _nextWithId;
+    private bool _activeStaticProcedure;
     private int _optionBase;
     private bool _optionCompareText;
+    private readonly TypeSymbol?[] _defaultTypes = new TypeSymbol?[26];
 
     public Binder(
         SourceText text,
@@ -47,7 +49,10 @@ public sealed class Binder
     public static ProcedureSymbol CreateProcedureSymbol(SubDeclarationSyntax declaration)
     {
         ArgumentNullException.ThrowIfNull(declaration);
-        return new ProcedureSymbol(declaration.Identifier.Text, CreateParameterSymbols(declaration.Parameters));
+        return new ProcedureSymbol(declaration.Identifier.Text, CreateParameterSymbols(declaration.Parameters))
+        {
+            IsPublic = IsPublicProcedureDeclaration(declaration.VisibilityKeyword)
+        };
     }
 
     public static ProcedureSymbol CreateProcedureSymbol(FunctionDeclarationSyntax declaration)
@@ -62,7 +67,10 @@ public sealed class Binder
                 declaration.ReturnTypeToken,
                 declaration.ReturnTypeName,
                 declaration.ReturnOpenParenthesisToken is not null,
-                declaration.Identifier));
+                declaration.Identifier))
+        {
+            IsPublic = IsPublicProcedureDeclaration(declaration.VisibilityKeyword)
+        };
     }
 
     public static ImmutableArray<ModuleVariableSymbol> CreateModuleVariableSymbols(
@@ -126,7 +134,8 @@ public sealed class Binder
                         null,
                         symbol,
                         availableProcedures,
-                        moduleVariables));
+                        moduleVariables,
+                        declaration.StaticKeyword is not null));
                     break;
                 }
 
@@ -148,7 +157,8 @@ public sealed class Binder
                         declaration.ReturnTypeToken,
                         symbol,
                         availableProcedures,
-                        moduleVariables));
+                        moduleVariables,
+                        declaration.StaticKeyword is not null));
                     break;
                 }
 
@@ -172,7 +182,8 @@ public sealed class Binder
                         declaration.ReturnTypeToken,
                         propertyProcedure,
                         availableProcedures,
-                        moduleVariables));
+                        moduleVariables,
+                        false));
                     break;
                 }
 
@@ -192,6 +203,7 @@ public sealed class Binder
 
         return new SemanticModel(procedures.ToImmutable(), _diagnostics.ToImmutable())
         {
+            IsPrivateModule = root.Members.OfType<OptionPrivateModuleSyntax>().Any(),
             ExternalProcedures = externalProcedures,
             Properties = properties.ToImmutable(),
             Events = events.ToImmutable(),
@@ -209,6 +221,7 @@ public sealed class Binder
         _optionBase = 0;
         _optionExplicit = root.Members.OfType<OptionExplicitSyntax>().Any();
         _optionCompareText = false;
+        Array.Clear(_defaultTypes);
         foreach (var member in root.Members)
         {
             if (member is OptionBaseSyntax optionBase)
@@ -222,8 +235,77 @@ public sealed class Binder
                     "Text",
                     StringComparison.OrdinalIgnoreCase);
             }
+            else if (member is DefaultTypeStatementSyntax defaultType)
+            {
+                var type = GetDefaultType(defaultType.DirectiveToken);
+                foreach (var range in defaultType.Ranges)
+                {
+                    var first = GetLetterIndex(range.FirstLetter);
+                    var last = range.LastLetter is null
+                        ? first
+                        : GetLetterIndex(range.LastLetter);
+                    if (first is null || last is null)
+                    {
+                        continue;
+                    }
+
+                    var lower = Math.Min(first.Value, last.Value);
+                    var upper = Math.Max(first.Value, last.Value);
+                    var overlapReported = false;
+                    for (var index = lower; index <= upper; index++)
+                    {
+                        if (_defaultTypes[index] is not null)
+                        {
+                            if (!overlapReported)
+                            {
+                                Report(
+                                    "VB6S0070",
+                                    $"DefType range for '{range.FirstLetter.Text}' overlaps a previously defined letter range.",
+                                    range.FirstLetter.Span);
+                                overlapReported = true;
+                            }
+
+                            continue;
+                        }
+
+                        _defaultTypes[index] = type;
+                    }
+                }
+            }
         }
     }
+
+    private static TypeSymbol GetDefaultType(SyntaxToken directiveToken) =>
+        directiveToken.Text.ToUpperInvariant() switch
+        {
+            "DEFBOOL" => TypeSymbol.Boolean,
+            "DEFBYTE" => TypeSymbol.Byte,
+            "DEFCUR" => TypeSymbol.Currency,
+            "DEFDATE" => TypeSymbol.Date,
+            "DEFDBL" => TypeSymbol.Double,
+            "DEFINT" => TypeSymbol.Integer,
+            "DEFLNG" => TypeSymbol.Long,
+            "DEFOBJ" => VBStandardTypes.Object,
+            "DEFSNG" => TypeSymbol.Single,
+            "DEFSTR" => TypeSymbol.String,
+            "DEFVAR" => TypeSymbol.Variant,
+            _ => TypeSymbol.Variant
+        };
+
+    private static int? GetLetterIndex(SyntaxToken token) =>
+        token.Text.Length == 1 ? GetLetterIndex(token.Text[0]) : null;
+
+    private static int? GetLetterIndex(char value)
+    {
+        var upper = char.ToUpperInvariant(value);
+        return upper is >= 'A' and <= 'Z' ? upper - 'A' : null;
+    }
+
+    private TypeSymbol GetImplicitType(SyntaxToken identifier) =>
+        GetIdentifierType(identifier) ??
+        (identifier.Text.Length == 0 || GetLetterIndex(identifier.Text[0]) is not int index
+            ? TypeSymbol.Variant
+            : _defaultTypes[index] ?? TypeSymbol.Variant);
 
     private static ImmutableArray<ParameterSymbol> CreateParameterSymbols(ImmutableArray<ParameterSyntax> parameters) =>
         parameters
@@ -365,7 +447,8 @@ public sealed class Binder
         {
             IsExternal = true,
             ExternalLibrary = declaration.LibraryName.Value as string ?? declaration.LibraryName.Text,
-            ExternalAlias = declaration.AliasName?.Value as string ?? declaration.AliasName?.Text
+            ExternalAlias = declaration.AliasName?.Value as string ?? declaration.AliasName?.Text,
+            IsPublic = IsPublicProcedureDeclaration(declaration.VisibilityKeyword)
         };
     }
 
@@ -513,12 +596,15 @@ public sealed class Binder
         var bound = ImmutableArray.CreateBuilder<BoundModuleVariable>();
         var noProcedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        ModuleVariableSymbol Declare(string name, TypeSymbol type) =>
+        ModuleVariableSymbol Declare(string name, TypeSymbol type, bool isPublic) =>
             existingSymbols is not null &&
             existingSymbols.TryGetValue(name, out var existing) &&
             existing.Type == type
                 ? existing
-                : new ModuleVariableSymbol(name, type);
+                : new ModuleVariableSymbol(name, type)
+                {
+                    IsPublic = isPublic
+                };
 
         foreach (var member in root.Members)
         {
@@ -531,7 +617,10 @@ public sealed class Binder
                         var visible = CreateVisibleModuleScope();
                         var type = ResolveVariableDeclaratorType(declarator);
                         var dimensions = BindArrayDimensions(declarator, visible, noProcedures);
-                        var symbol = Declare(declarator.Identifier.Text, type);
+                        var symbol = Declare(
+                            declarator.Identifier.Text,
+                            type,
+                            IsPublicModuleDeclaration(declaration.VisibilityKeyword));
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
                             availableScope[symbol.Name] = symbol;
@@ -556,7 +645,10 @@ public sealed class Binder
                     var type = declaration.TypeToken is null
                         ? GetIdentifierType(declaration.Identifier) ?? value.Type
                         : ResolveDeclaredType(declaration.TypeToken, declaration.TypeName);
-                    var symbol = Declare(declaration.Identifier.Text, type) with
+                    var symbol = Declare(
+                        declaration.Identifier.Text,
+                        type,
+                        IsPublicModuleDeclaration(declaration.VisibilityKeyword)) with
                     {
                         IsConstant = true
                     };
@@ -625,6 +717,14 @@ public sealed class Binder
             : new ArrayTypeSymbol(elementType, declarator.Dimensions.Length);
         return ValidateImplicitObjectType(declarator, type);
     }
+
+    private static bool IsPublicModuleDeclaration(SyntaxToken? visibilityKeyword) =>
+        visibilityKeyword is not null &&
+        (string.Equals(visibilityKeyword.Text, "Public", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(visibilityKeyword.Text, "Global", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsPublicProcedureDeclaration(SyntaxToken? visibilityKeyword) =>
+        !string.Equals(visibilityKeyword?.Text, "Private", StringComparison.OrdinalIgnoreCase);
 
     private TypeSymbol ValidateImplicitObjectType(VariableDeclaratorSyntax declarator, TypeSymbol type)
     {
@@ -759,8 +859,11 @@ public sealed class Binder
         SyntaxToken? returnTypeSyntax,
         ProcedureSymbol symbol,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures,
-        IReadOnlyDictionary<string, ModuleVariableSymbol> moduleVariables)
+        IReadOnlyDictionary<string, ModuleVariableSymbol> moduleVariables,
+        bool isStaticProcedure)
     {
+        var previousStaticProcedure = _activeStaticProcedure;
+        _activeStaticProcedure = isStaticProcedure;
         var variables = new Dictionary<string, VariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var moduleVariable in moduleVariables)
@@ -865,25 +968,32 @@ public sealed class Binder
             }
         }
 
-        _activeConstantInitializers = new Dictionary<string, BoundExpression>(StringComparer.OrdinalIgnoreCase);
-        PredeclareLocals(statements, locals, variables, procedures, identifier.Text);
-
-        _procedureLabels.Clear();
-        CollectProcedureLabels(statements);
-
-        _activeLocals = locals;
-        BoundBlockStatement body;
         try
         {
-            body = BindStatements(statements, variables, procedures);
+            _activeConstantInitializers = new Dictionary<string, BoundExpression>(StringComparer.OrdinalIgnoreCase);
+            PredeclareLocals(statements, locals, variables, procedures, identifier.Text);
+
+            _procedureLabels.Clear();
+            CollectProcedureLabels(statements);
+
+            _activeLocals = locals;
+            BoundBlockStatement body;
+            try
+            {
+                body = BindStatements(statements, variables, procedures);
+            }
+            finally
+            {
+                _activeLocals = null;
+                _activeConstantInitializers = null;
+            }
+
+            return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
         }
         finally
         {
-            _activeLocals = null;
-            _activeConstantInitializers = null;
+            _activeStaticProcedure = previousStaticProcedure;
         }
-
-        return new BoundProcedure(symbol, locals.Values.ToImmutableArray(), body);
     }
 
     private void CollectProcedureLabels(ImmutableArray<StatementSyntax> statements)
@@ -941,7 +1051,14 @@ public sealed class Binder
             switch (statement)
             {
                 case DimStatementSyntax dim:
-                    PredeclareLocalDeclarators(dim.Declarators, locals, variables);
+                    if (_activeStaticProcedure)
+                    {
+                        PredeclareStaticDeclarators(dim.Declarators, procedureName, variables);
+                    }
+                    else
+                    {
+                        PredeclareLocalDeclarators(dim.Declarators, locals, variables);
+                    }
                     break;
                 case ConstStatementSyntax constant:
                     PredeclareLocalConstant(constant, locals, variables, procedures);
@@ -1096,6 +1213,14 @@ public sealed class Binder
             {
                 foreach (var declarator in dim.Declarators)
                 {
+                    if (_activeStaticProcedure &&
+                        variables.TryGetValue(declarator.Identifier.Text, out var staticVariable) &&
+                        staticVariable is ModuleVariableSymbol)
+                    {
+                        UpdateStaticDeclarator(declarator, variables, procedures);
+                        continue;
+                    }
+
                     bound.Add(WithLocation(
                         BindVariableDeclaration(declarator, variables, procedures),
                         statement));
@@ -1164,23 +1289,7 @@ public sealed class Binder
             {
                 foreach (var declarator in ((StaticStatementSyntax)statement).Declarators)
                 {
-                    if (!variables.TryGetValue(declarator.Identifier.Text, out var variable) ||
-                        variable is not ModuleVariableSymbol staticVariable)
-                    {
-                        continue;
-                    }
-
-                    for (var index = 0; index < _staticVariables.Count; index++)
-                    {
-                        if (ReferenceEquals(_staticVariables[index].Symbol, staticVariable))
-                        {
-                            _staticVariables[index] = _staticVariables[index] with
-                            {
-                                ArrayDimensions = BindArrayDimensions(declarator, variables, procedures)
-                            };
-                            break;
-                        }
-                    }
+                    UpdateStaticDeclarator(declarator, variables, procedures);
                 }
 
                 continue;
@@ -1194,6 +1303,30 @@ public sealed class Binder
         }
 
         return new BoundBlockStatement(bound.ToImmutable());
+    }
+
+    private void UpdateStaticDeclarator(
+        VariableDeclaratorSyntax declarator,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (!variables.TryGetValue(declarator.Identifier.Text, out var variable) ||
+            variable is not ModuleVariableSymbol staticVariable)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _staticVariables.Count; index++)
+        {
+            if (ReferenceEquals(_staticVariables[index].Symbol, staticVariable))
+            {
+                _staticVariables[index] = _staticVariables[index] with
+                {
+                    ArrayDimensions = BindArrayDimensions(declarator, variables, procedures)
+                };
+                break;
+            }
+        }
     }
 
     /// <summary>
@@ -1253,9 +1386,24 @@ public sealed class Binder
                     BindExpression(debugAssert.Expression, variables, procedures),
                     TypeSymbol.Boolean)),
             LineStatementSyntax line => BindGraphicsLine(line, variables, procedures),
-            FilePrintStatementSyntax filePrint => new BoundFilePrintStatement(
-                BindFileNumber(filePrint.FileNumber, variables, procedures),
-                BindExpression(filePrint.Expression, variables, procedures)),
+            FilePrintStatementSyntax filePrint => BindFilePrint(filePrint, variables, procedures),
+            FileWriteStatementSyntax fileWrite => new BoundFileWriteStatement(
+                BindFileNumber(fileWrite.FileNumber, variables, procedures),
+                fileWrite.Expressions
+                    .Select(expression => BindExpression(expression, variables, procedures))
+                    .ToImmutableArray()),
+            LockStatementSyntax lockStatement => BindFileLock(
+                lockStatement.FileNumber,
+                lockStatement.Start,
+                lockStatement.End,
+                variables,
+                procedures),
+            UnlockStatementSyntax unlockStatement => BindFileUnlock(
+                unlockStatement.FileNumber,
+                unlockStatement.Start,
+                unlockStatement.End,
+                variables,
+                procedures),
             InvocationStatementSyntax invocation => BindInvocation(invocation, variables, procedures),
             OpenStatementSyntax open => BindOpen(open, variables, procedures),
             NameStatementSyntax name => BindName(name, variables, procedures),
@@ -1267,6 +1415,7 @@ public sealed class Binder
             SeekStatementSyntax seek => BindSeek(seek, variables, procedures),
             LineInputStatementSyntax lineInput => BindLineInput(lineInput, variables, procedures),
             FileInputStatementSyntax fileInput => BindFileInput(fileInput, variables, procedures),
+            WidthStatementSyntax width => BindWidth(width, variables, procedures),
             EndStatementSyntax => new BoundEndStatement(),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
@@ -1442,8 +1591,9 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var mode = syntax.ModeToken.Text.ToUpperInvariant() switch
+        var mode = syntax.ModeToken?.Text.ToUpperInvariant() switch
         {
+            null => BoundFileOpenMode.Random,
             "BINARY" => BoundFileOpenMode.Binary,
             "INPUT" => BoundFileOpenMode.Input,
             "OUTPUT" => BoundFileOpenMode.Output,
@@ -1455,8 +1605,20 @@ public sealed class Binder
         {
             Report(
                 "VB6S0057",
-                $"Open mode '{syntax.ModeToken.Text}' is not implemented yet; use For Binary, Input, Output, Append, or Random.",
-                syntax.ModeToken.Span);
+                $"Open mode '{syntax.ModeToken?.Text}' is not implemented yet; use For Binary, Input, Output, Append, or Random.",
+                syntax.ModeToken?.Span ?? syntax.OpenKeyword.Span);
+            return null;
+        }
+
+        var access = BindFileAccess(syntax.AccessTokens, syntax.ModeToken?.Span ?? syntax.OpenKeyword.Span);
+        if (access is null)
+        {
+            return null;
+        }
+
+        var sharing = BindFileSharing(syntax.SharingTokens, syntax.ModeToken?.Span ?? syntax.OpenKeyword.Span);
+        if (sharing is null)
+        {
             return null;
         }
 
@@ -1486,7 +1648,93 @@ public sealed class Binder
             BindFileNumber(syntax.FileNumber, variables, procedures),
             path,
             mode.Value,
-            recordLength);
+            recordLength,
+            sharing.Value,
+            access.Value);
+    }
+
+    private BoundStatement BindFilePrint(
+        FilePrintStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var expressions = syntax.Expressions.IsDefaultOrEmpty
+            ? syntax.Expression is null
+                ? ImmutableArray<BoundExpression>.Empty
+                : ImmutableArray.Create(BindExpression(syntax.Expression, variables, procedures))
+            : syntax.Expressions
+                .Select(expression => BindExpression(expression, variables, procedures))
+                .ToImmutableArray();
+        var separators = syntax.Separators.IsDefaultOrEmpty
+            ? ImmutableArray<BoundFilePrintSeparator>.Empty
+            : syntax.Separators
+                .Select(separator => separator.Kind == SyntaxKind.SemicolonToken
+                    ? BoundFilePrintSeparator.Semicolon
+                    : BoundFilePrintSeparator.Comma)
+                .ToImmutableArray();
+
+        return new BoundFilePrintStatement(
+            BindFileNumber(syntax.FileNumber, variables, procedures),
+            expressions.IsDefaultOrEmpty || expressions.Length == 0 ? null : expressions[0],
+            expressions,
+            separators);
+    }
+
+    private BoundFileAccessMode? BindFileAccess(
+        ImmutableArray<SyntaxToken> tokens,
+        TextSpan fallbackSpan)
+    {
+        if (tokens.IsDefaultOrEmpty)
+        {
+            return BoundFileAccessMode.Default;
+        }
+
+        var words = tokens.Select(token => token.Text.ToUpperInvariant()).ToArray();
+        var value = string.Join(" ", words) switch
+        {
+            "READ" => BoundFileAccessMode.Read,
+            "WRITE" => BoundFileAccessMode.Write,
+            "READ WRITE" => BoundFileAccessMode.ReadWrite,
+            _ => (BoundFileAccessMode?)null
+        };
+        if (value is null)
+        {
+            Report(
+                "VB6S0057",
+                $"Open access mode '{string.Join(" ", tokens.Select(token => token.Text))}' is not implemented; use Read, Write, or Read Write.",
+                tokens[0].Span == default ? fallbackSpan : tokens[0].Span);
+        }
+
+        return value;
+    }
+
+    private BoundFileSharingMode? BindFileSharing(
+        ImmutableArray<SyntaxToken> tokens,
+        TextSpan fallbackSpan)
+    {
+        if (tokens.IsDefaultOrEmpty)
+        {
+            return BoundFileSharingMode.Shared;
+        }
+
+        var words = tokens.Select(token => token.Text.ToUpperInvariant()).ToArray();
+        var value = string.Join(" ", words) switch
+        {
+            "SHARED" => BoundFileSharingMode.Shared,
+            "LOCK READ" => BoundFileSharingMode.LockRead,
+            "LOCK WRITE" => BoundFileSharingMode.LockWrite,
+            "LOCK READ WRITE" => BoundFileSharingMode.LockReadWrite,
+            _ => (BoundFileSharingMode?)null
+        };
+        if (value is null)
+        {
+            Report(
+                "VB6S0057",
+                $"Open sharing mode '{string.Join(" ", tokens.Select(token => token.Text))}' is not implemented; use Shared, Lock Read, Lock Write, or Lock Read Write.",
+                tokens[0].Span == default ? fallbackSpan : tokens[0].Span);
+        }
+
+        return value;
     }
 
     private BoundStatement BindName(
@@ -1512,6 +1760,28 @@ public sealed class Binder
         new BoundSeekStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
             BindConversion(BindExpression(syntax.Position, variables, procedures), TypeSymbol.LongLong));
+
+    private BoundStatement BindFileLock(
+        FileNumberSyntax fileNumber,
+        ExpressionSyntax? start,
+        ExpressionSyntax? end,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures) =>
+        new BoundFileLockStatement(
+            BindFileNumber(fileNumber, variables, procedures),
+            start is null ? null : BindConversion(BindExpression(start, variables, procedures), TypeSymbol.LongLong),
+            end is null ? null : BindConversion(BindExpression(end, variables, procedures), TypeSymbol.LongLong));
+
+    private BoundStatement BindFileUnlock(
+        FileNumberSyntax fileNumber,
+        ExpressionSyntax? start,
+        ExpressionSyntax? end,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures) =>
+        new BoundFileUnlockStatement(
+            BindFileNumber(fileNumber, variables, procedures),
+            start is null ? null : BindConversion(BindExpression(start, variables, procedures), TypeSymbol.LongLong),
+            end is null ? null : BindConversion(BindExpression(end, variables, procedures), TypeSymbol.LongLong));
 
     private BoundStatement? BindLineInput(
         LineInputStatementSyntax syntax,
@@ -1651,7 +1921,7 @@ public sealed class Binder
         {
             Report(
                 "VB6S0062",
-                "Input # requires String, numeric, Boolean, or Currency variables, array elements, or user-defined type members.",
+                "Input # requires String, Variant, numeric, Boolean, or Currency variables, array elements, or user-defined type members.",
                 syntax.InputKeyword.Span);
             return null;
         }
@@ -1671,7 +1941,20 @@ public sealed class Binder
         type == TypeSymbol.Date ||
         type == TypeSymbol.Double ||
         type == TypeSymbol.Boolean ||
-        type == TypeSymbol.Currency;
+        type == TypeSymbol.Currency ||
+        type == TypeSymbol.Variant;
+
+    private BoundStatement BindWidth(
+        WidthStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        return new BoundWidthStatement(
+            BindFileNumber(syntax.FileNumber, variables, procedures),
+            BindConversion(
+                BindExpression(syntax.Width, variables, procedures),
+                TypeSymbol.Long));
+    }
 
     /// <summary>
     /// Get and Put share their shape. Fixed-size scalar values, supported typed arrays, and
@@ -1702,7 +1985,7 @@ public sealed class Binder
             Report(
                 "VB6S0058",
                 $"{keyword.Text} of type '{target.Type.Name}' is not implemented yet; " +
-                "fixed-size numeric types, Strings, and supported UDT record layouts are transferable.",
+                "scalar values, arrays with supported elements, Strings, and supported UDT record layouts are transferable.",
                 keyword.Span);
             return null;
         }
@@ -1796,8 +2079,9 @@ public sealed class Binder
         type == TypeSymbol.Currency ||
         type == TypeSymbol.Boolean ||
         type == TypeSymbol.String ||
-        type is ArrayTypeSymbol { ElementType: UserDefinedTypeSymbol elementType } &&
-        UserDefinedTypeFileLayout.IsBinaryTransferableElement(elementType) ||
+        type == TypeSymbol.Variant ||
+            type is ArrayTypeSymbol arrayType &&
+                UserDefinedTypeFileLayout.IsBinaryTransferableElement(arrayType.ElementType) ||
         type is UserDefinedTypeSymbol userDefinedType &&
         UserDefinedTypeFileLayout.IsBinaryTransferable(userDefinedType);
 
@@ -1989,15 +2273,6 @@ public sealed class Binder
             return new BoundEraseStatement(target, Deallocate: false);
         }
 
-        if (target is BoundVariableExpression { Variable: ParameterSymbol parameterVariable })
-        {
-            Report(
-                "VB6S0036",
-                $"Erase on array parameter '{parameterVariable.Name}' requires caller allocation semantics, which are not implemented yet.",
-                anchor.Span);
-            return new BoundEraseStatement(target, Deallocate: false);
-        }
-
         return new BoundEraseStatement(target, Deallocate: !arrayType.HasKnownRank);
     }
 
@@ -2025,7 +2300,7 @@ public sealed class Binder
             {
                 var implicitLocal = new LocalVariableSymbol(
                     syntax.Identifier.Text,
-                    GetIdentifierType(syntax.Identifier) ?? TypeSymbol.Variant);
+                    GetImplicitType(syntax.Identifier));
                 variable = implicitLocal;
                 variables[variable.Name] = variable;
                 _activeLocals[implicitLocal.Name] = implicitLocal;
@@ -2309,7 +2584,7 @@ public sealed class Binder
             {
                 var implicitControlVariable = new LocalVariableSymbol(
                     syntax.Identifier.Text,
-                    GetIdentifierType(syntax.Identifier) ?? TypeSymbol.Variant);
+                    GetImplicitType(syntax.Identifier));
                 controlVariable = implicitControlVariable;
                 variables[implicitControlVariable.Name] = implicitControlVariable;
                 _activeLocals[implicitControlVariable.Name] = implicitControlVariable;
@@ -2574,7 +2849,10 @@ public sealed class Binder
                 BindStatements(syntaxCase.Statements, variables, procedures)));
         }
 
-        return new BoundSelectCaseStatement(_nextSelectId++, expression, cases.ToImmutable());
+        return new BoundSelectCaseStatement(_nextSelectId++, expression, cases.ToImmutable())
+        {
+            UseTextCompare = _optionCompareText && IsStringComparisonType(expression.Type)
+        };
     }
 
     private BoundStatement? BindInvocation(
@@ -2582,6 +2860,12 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        if (syntax.IsAssignmentSyntax &&
+            string.Equals(syntax.Identifier.Text, "Mid", StringComparison.OrdinalIgnoreCase))
+        {
+            return BindMidAssignment(syntax, variables, procedures);
+        }
+
         if (string.Equals(syntax.Identifier.Text, "RaiseEvent", StringComparison.OrdinalIgnoreCase))
         {
             return BindRaiseEvent(syntax, variables, procedures);
@@ -2608,6 +2892,49 @@ public sealed class Binder
         return new BoundInvocationStatement(
             procedure,
             BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
+    }
+
+    private BoundStatement? BindMidAssignment(
+        InvocationStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (syntax.Arguments.Length is not (3 or 4))
+        {
+            Report(
+                "VB6S0006",
+                $"Mid assignment expects 3 or 4 argument(s), but {syntax.Arguments.Length} were supplied.",
+                syntax.Identifier.Span);
+            return null;
+        }
+
+        var target = BindExpression(syntax.Arguments[0], variables, procedures);
+        if (target.Type != TypeSymbol.String && target.Type is not FixedLengthStringTypeSymbol ||
+            target is not (BoundVariableExpression or
+                BoundArrayAccessExpression or
+                BoundElementAccessExpression or
+                BoundMemberAccessExpression))
+        {
+            Report(
+                "VB6S0060",
+                "Mid assignment requires a String variable, array element, or user-defined type member.",
+                syntax.Identifier.Span);
+            return null;
+        }
+
+        var start = BindConversion(
+            BindExpression(syntax.Arguments[1], variables, procedures),
+            TypeSymbol.Long);
+        var length = syntax.Arguments.Length == 4
+            ? BindConversion(
+                BindExpression(syntax.Arguments[2], variables, procedures),
+                TypeSymbol.Long)
+            : null;
+        var replacement = BindConversion(
+            BindExpression(syntax.Arguments[^1], variables, procedures),
+            TypeSymbol.String);
+
+        return new BoundMidAssignmentStatement(target, start, length, replacement);
     }
 
     /// <summary>
@@ -3523,7 +3850,7 @@ public sealed class Binder
         // signature: two arguments mean (string1, string2), while three and four arguments mean
         // (start, string1, string2[, compare]). Normalize the two-argument form here so every
         // backend receives the same four values.
-        if (procedure.IntrinsicKind == VBIntrinsicKind.InStr &&
+        if (procedure.IntrinsicKind is (VBIntrinsicKind.InStr or VBIntrinsicKind.InStrB) &&
             argumentSyntaxes.Length == 2 &&
             argumentSyntaxes.All(argument => argument is not OmittedArgumentExpressionSyntax))
         {
@@ -3535,13 +3862,13 @@ public sealed class Binder
                 new BoundArgument(
                     procedure.Parameters[2],
                     BindConversion(BindExpression(argumentSyntaxes[1], variables, procedures), TypeSymbol.String)),
-                new BoundArgument(procedure.Parameters[3], CreateDefaultArgument(procedure.Parameters[3])));
+                new BoundArgument(procedure.Parameters[3], CreateDefaultArgument(procedure, procedure.Parameters[3])));
         }
 
         // LSet is declared through the generic Variant intrinsic table, but its operands are
         // layout-bearing values. Preserve their declared types so managed lowering can handle
         // fixed-length Strings and same-type UDT values without losing the target place.
-        if (procedure.IntrinsicKind == VBIntrinsicKind.LSet)
+        if (procedure.IntrinsicKind is VBIntrinsicKind.LSet or VBIntrinsicKind.RSet)
         {
             return BindLSetArguments(invocationIdentifier, argumentSyntaxes, procedure, variables, procedures);
         }
@@ -3584,13 +3911,13 @@ public sealed class Binder
             if (argumentSyntaxes[index] is OmittedArgumentExpressionSyntax &&
                 parameter is not null &&
                 (parameter.IsOptional ||
-                 procedure.IntrinsicKind == VBIntrinsicKind.InStr && index == 0))
+                 procedure.IntrinsicKind is (VBIntrinsicKind.InStr or VBIntrinsicKind.InStrB) && index == 0))
             {
                 arguments.Add(new BoundArgument(
                     parameter,
-                    procedure.IntrinsicKind == VBIntrinsicKind.InStr && index == 0
+                    procedure.IntrinsicKind is (VBIntrinsicKind.InStr or VBIntrinsicKind.InStrB) && index == 0
                         ? new BoundLiteralExpression(1L, TypeSymbol.Long)
-                        : CreateDefaultArgument(parameter))
+                        : CreateDefaultArgument(procedure, parameter))
                 {
                     IsOmitted = true
                 });
@@ -3708,7 +4035,7 @@ public sealed class Binder
                 break;
             }
 
-            arguments.Add(new BoundArgument(parameter, CreateDefaultArgument(parameter))
+            arguments.Add(new BoundArgument(parameter, CreateDefaultArgument(procedure, parameter))
             {
                 RequiresByRefTemporary = parameter.PassingMode == ParameterPassingMode.ByRef,
                 IsOmitted = true
@@ -3849,8 +4176,16 @@ public sealed class Binder
     /// The value an omitted Optional argument carries: the declared default, or the default of the
     /// parameter type when the declaration gave none.
     /// </summary>
-    private BoundExpression CreateDefaultArgument(ParameterSymbol parameter)
+    private BoundExpression CreateDefaultArgument(ProcedureSymbol? procedure, ParameterSymbol parameter)
     {
+        if (_optionCompareText &&
+            procedure?.IntrinsicKind is (VBIntrinsicKind.InStr or VBIntrinsicKind.InStrB or VBIntrinsicKind.InStrRev or
+                VBIntrinsicKind.StrComp or VBIntrinsicKind.Replace or VBIntrinsicKind.Split or VBIntrinsicKind.Filter) &&
+            string.Equals(parameter.Name, "Compare", StringComparison.OrdinalIgnoreCase))
+        {
+            return new BoundLiteralExpression(1L, TypeSymbol.Long);
+        }
+
         if (parameter.DefaultValue is not null)
         {
             return BindConversion(
@@ -3992,7 +4327,7 @@ public sealed class Binder
         {
             var implicitLocal = new LocalVariableSymbol(
                 syntax.IdentifierToken.Text,
-                GetIdentifierType(syntax.IdentifierToken) ?? TypeSymbol.Variant);
+                GetImplicitType(syntax.IdentifierToken));
             variables[implicitLocal.Name] = implicitLocal;
             _activeLocals[implicitLocal.Name] = implicitLocal;
             return new BoundVariableExpression(implicitLocal);
@@ -4208,7 +4543,12 @@ public sealed class Binder
                     right,
                     left.Type == TypeSymbol.Variant || right.Type == TypeSymbol.Variant
                         ? TypeSymbol.Variant
-                        : TypeSymbol.Boolean);
+                        : TypeSymbol.Boolean)
+                {
+                    UseTextCompare = _optionCompareText &&
+                        IsStringComparisonType(left.Type) &&
+                        IsStringComparisonType(right.Type)
+                };
 
             case SyntaxKind.AndKeyword:
             case SyntaxKind.OrKeyword:
@@ -4367,6 +4707,9 @@ public sealed class Binder
         type == TypeSymbol.LongLong || type == TypeSymbol.LongPtr || type == TypeSymbol.UShort ||
         type == TypeSymbol.UInteger || type == TypeSymbol.ULong || type == TypeSymbol.Single || type == TypeSymbol.Double ||
         type == TypeSymbol.Currency;
+
+    private static bool IsStringComparisonType(TypeSymbol type) =>
+        type == TypeSymbol.String || type is FixedLengthStringTypeSymbol;
 
     private static bool IsFloatingOrFixedPointType(TypeSymbol type) =>
         type == TypeSymbol.Single || type == TypeSymbol.Double || type == TypeSymbol.Currency;

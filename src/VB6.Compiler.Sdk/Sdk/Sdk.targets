@@ -221,4 +221,40 @@
       Encoding="UTF-8" />
     <Touch Files="$(VB6CompilerGroupStamp)" AlwaysCreate="true" />
   </Target>
+
+  <Target
+    Name="CleanVB6ProjectOutputs"
+    BeforeTargets="Clean"
+    Condition="'$(VB6ProjectGroup)' == '' and '$(VB6Project)' != ''">
+    <ReadLinesFromFile
+      File="$(VB6CompilerManifest)"
+      Condition="Exists('$(VB6CompilerManifest)')">
+      <Output TaskParameter="Lines" ItemName="_VB6CompilerCleanOutput" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_VB6CompilerCleanOutput Include="$(VB6CompilerOutputFullPath)" Condition="'$(VB6CompilerOutputFullPath)' != ''" />
+      <_VB6CompilerCleanOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'pdb'))" Condition="'$(VB6CompilerOutputFullPath)' != ''" />
+      <_VB6CompilerCleanOutput Include="$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'runtimeconfig.json'))" Condition="'$(VB6CompilerOutputFullPath)' != ''" />
+      <_VB6CompilerCleanOutput Include="$(VB6CompilerRuntimeOutput)" Condition="'$(VB6CompilerRuntimeOutput)' != ''" />
+      <_VB6CompilerCleanOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
+      <_VB6CompilerCleanOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
+    </ItemGroup>
+    <Delete
+      Files="@(_VB6CompilerCleanOutput);$(VB6CompilerStamp);$(VB6CompilerManifest);$(VB6CompilerInputManifest)"
+      Condition="'@(_VB6CompilerCleanOutput)' != '' or '$(VB6CompilerStamp)' != '' or '$(VB6CompilerManifest)' != '' or '$(VB6CompilerInputManifest)' != ''" />
+  </Target>
+
+  <Target
+    Name="CleanVB6ProjectGroupOutputs"
+    BeforeTargets="Clean"
+    Condition="'$(VB6ProjectGroup)' != ''">
+    <ReadLinesFromFile
+      File="$(VB6CompilerGroupManifest)"
+      Condition="Exists('$(VB6CompilerGroupManifest)')">
+      <Output TaskParameter="Lines" ItemName="_VB6CompilerGroupCleanOutput" />
+    </ReadLinesFromFile>
+    <Delete
+      Files="@(_VB6CompilerGroupCleanOutput);$(VB6CompilerGroupStamp);$(VB6CompilerGroupManifest);$(VB6CompilerGroupInputManifest)"
+      Condition="'@(_VB6CompilerGroupCleanOutput)' != '' or '$(VB6CompilerGroupStamp)' != '' or '$(VB6CompilerGroupManifest)' != '' or '$(VB6CompilerGroupInputManifest)' != ''" />
+  </Target>
 </Project>

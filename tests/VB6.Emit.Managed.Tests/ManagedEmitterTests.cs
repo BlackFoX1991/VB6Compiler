@@ -85,6 +85,48 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    public void Emit_UsesTypedComparisonHelperForScalarOperands()
+    {
+        var program = Lower("""
+            Sub Main()
+                Dim left As Long
+                Dim right As Long
+                left = 40
+                right = 42
+                If left < right Then
+                    Debug.Print 1
+                End If
+            End Sub
+            """);
+
+        var result = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "TypedComparison",
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        using var stream = new MemoryStream(result.PeImage!);
+        using var pe = new PEReader(stream);
+        var metadata = pe.GetMetadataReader();
+        var runtimeMethods = metadata.MemberReferences
+            .Select(handle =>
+            {
+                var reference = metadata.GetMemberReference(handle);
+                var parent = reference.Parent.Kind == HandleKind.TypeReference
+                    ? metadata.GetString(metadata.GetTypeReference((TypeReferenceHandle)reference.Parent).Name)
+                    : string.Empty;
+                return (Parent: parent, Name: metadata.GetString(reference.Name));
+            })
+            .ToArray();
+
+        Assert.IsTrue(
+            runtimeMethods.Any(method => method.Parent == nameof(VBOperators) && method.Name == nameof(VBOperators.CompareInt32)),
+            "Scalar comparisons must use the typed CompareInt32 helper.");
+        Assert.IsFalse(
+            runtimeMethods.Any(method => method.Parent == nameof(VBOperators) && method.Name == nameof(VBOperators.Equal)),
+            "Scalar comparisons must not fall back to Equal(object, object).");
+    }
+
+    [TestMethod]
     public void Emit_AnnotatesAssemblyWithCompatibilityProfile()
     {
         var analysis = VBCompilation.Create(

@@ -33,6 +33,9 @@ copy timestamps do not force a rebuild and deleted generated artifacts are repai
 `GetVB6ProjectOutputs` exposes the stable single-project output set (TargetPath, PDB, runtime,
 runtimeconfig and optional COM-host/manifest files); `GetVB6ProjectGroupOutputs` exposes the
 previously emitted group manifest when one exists.
+The SDK also hooks `Clean` for single projects and project groups: it reads the last output
+manifest, deletes every generated artifact plus the input/output manifests and compile stamp, and
+therefore makes the standard `Rebuild` target deterministic without deleting unrelated files.
 
 Legacy projects default to the x86 target because classic ActiveX controls are commonly 32-bit.
 Set `VB6TargetPlatform` to `x64` or `anycpu` to opt into another managed target; values other than

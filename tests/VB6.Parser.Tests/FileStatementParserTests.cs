@@ -1,4 +1,5 @@
 using VB6.Syntax.Nodes;
+using VB6.Syntax;
 using VB6.Syntax.Text;
 using ParserType = VB6.Parser.Parser;
 
@@ -19,7 +20,7 @@ public sealed class FileStatementParserTests
             """);
 
         var open = (OpenStatementSyntax)statement;
-        Assert.AreEqual("Binary", open.ModeToken.Text);
+        Assert.AreEqual("Binary", open.ModeToken!.Text);
         Assert.IsNotNull(open.FileNumber.HashToken);
         Assert.IsInstanceOfType<NameExpressionSyntax>(open.FileNumber.Expression);
         Assert.IsNull(open.RecordLength);
@@ -37,14 +38,71 @@ public sealed class FileStatementParserTests
     }
 
     [TestMethod]
+    public void Parse_OpenPreservesAccessAndSharingClauses()
+    {
+        var open = (OpenStatementSyntax)ParseSingleStatement("""
+            Open sFile For Binary Access Read Write Lock Read As #1
+            """);
+
+        Assert.AreEqual("Read Write", string.Join(" ", open.AccessTokens.Select(token => token.Text)));
+        Assert.AreEqual("Lock Read", string.Join(" ", open.SharingTokens.Select(token => token.Text)));
+    }
+
+    [TestMethod]
+    public void Parse_OpenAllowsOmittedMode()
+    {
+        var open = (OpenStatementSyntax)ParseSingleStatement("Open sFile As #1");
+
+        Assert.IsNull(open.ForKeyword);
+        Assert.IsNull(open.ModeToken);
+    }
+
+    [TestMethod]
     public void Parse_TextOpenModesAndFilePrint()
     {
         var open = (OpenStatementSyntax)ParseSingleStatement("Open sFile For Append As #1");
-        Assert.AreEqual("Append", open.ModeToken.Text);
+        Assert.AreEqual("Append", open.ModeToken!.Text);
 
         var print = (FilePrintStatementSyntax)ParseSingleStatement("Print #1, value");
         Assert.IsNotNull(print.FileNumber.HashToken);
         Assert.IsInstanceOfType<NameExpressionSyntax>(print.Expression);
+    }
+
+    [TestMethod]
+    public void Parse_FilePrintAllowsAnEmptyOutputList()
+    {
+        var print = (FilePrintStatementSyntax)ParseSingleStatement("Print #1,");
+
+        Assert.IsNull(print.Expression);
+    }
+
+    [TestMethod]
+    public void Parse_FilePrintPreservesOutputListSeparators()
+    {
+        var print = (FilePrintStatementSyntax)ParseSingleStatement("Print #1, first; second, third;");
+
+        Assert.AreEqual(3, print.Expressions.Length);
+        Assert.AreEqual(SyntaxKind.SemicolonToken, print.Separators[0].Kind);
+        Assert.AreEqual(SyntaxKind.CommaToken, print.Separators[1].Kind);
+        Assert.AreEqual(SyntaxKind.SemicolonToken, print.Separators[2].Kind);
+    }
+
+    [TestMethod]
+    public void Parse_WidthStatementPreservesFileNumberAndExpression()
+    {
+        var width = (WidthStatementSyntax)ParseSingleStatement("Width #1, 80");
+
+        Assert.IsNotNull(width.FileNumber.HashToken);
+        Assert.IsInstanceOfType<LiteralExpressionSyntax>(width.Width);
+    }
+
+    [TestMethod]
+    public void Parse_QualifiedWidthStatementPreservesWidthKeyword()
+    {
+        var width = (WidthStatementSyntax)ParseSingleStatement("VBA.Width 1, 80");
+
+        Assert.AreEqual("Width", width.WidthKeyword.Text);
+        Assert.IsInstanceOfType<LiteralExpressionSyntax>(width.Width);
     }
 
     [TestMethod]

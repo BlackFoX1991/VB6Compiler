@@ -22,6 +22,14 @@ internal static class VBIntrinsicSymbols
             Parameter("Expression", TypeSymbol.String),
             Parameter("Start", TypeSymbol.Long),
             Parameter("Length", TypeSymbol.Long)) with { IntrinsicMinimumArguments = 2 },
+        Function(
+            "MidB",
+            VBIntrinsicKind.MidB,
+            "VBStrings.MidB",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Start", TypeSymbol.Long),
+            Parameter("Length", TypeSymbol.Long)) with { IntrinsicMinimumArguments = 2 },
         Function("Chr", VBIntrinsicKind.Chr, "VBStrings.Chr", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
         Function("ChrW", VBIntrinsicKind.ChrW, "VBStrings.ChrW", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
         Function(
@@ -32,9 +40,23 @@ internal static class VBIntrinsicSymbols
             Parameter("Expression", TypeSymbol.String),
             Parameter("Length", TypeSymbol.Long)),
         Function(
+            "LeftB",
+            VBIntrinsicKind.LeftB,
+            "VBStrings.LeftB",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Length", TypeSymbol.Long)),
+        Function(
             "Right",
             VBIntrinsicKind.Right,
             "VBStrings.Right",
+            TypeSymbol.String,
+            Parameter("Expression", TypeSymbol.String),
+            Parameter("Length", TypeSymbol.Long)),
+        Function(
+            "RightB",
+            VBIntrinsicKind.RightB,
+            "VBStrings.RightB",
             TypeSymbol.String,
             Parameter("Expression", TypeSymbol.String),
             Parameter("Length", TypeSymbol.Long)),
@@ -73,6 +95,15 @@ internal static class VBIntrinsicSymbols
             Parameter("String2", TypeSymbol.String),
             OptionalParameter("Compare", TypeSymbol.Long, 0L)) with { IntrinsicMinimumArguments = 2 },
         Function(
+            "InStrB",
+            VBIntrinsicKind.InStrB,
+            "VBStrings.InStrB",
+            TypeSymbol.Long,
+            Parameter("Start", TypeSymbol.Long),
+            Parameter("String1", TypeSymbol.String),
+            Parameter("String2", TypeSymbol.String),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)) with { IntrinsicMinimumArguments = 2 },
+        Function(
             "InStrRev",
             VBIntrinsicKind.InStrRev,
             "VBStrings.InStrRev",
@@ -80,6 +111,14 @@ internal static class VBIntrinsicSymbols
             Parameter("StringCheck", TypeSymbol.String),
             Parameter("StringMatch", TypeSymbol.String),
             OptionalParameter("Start", TypeSymbol.Long, -1L),
+            OptionalParameter("Compare", TypeSymbol.Long, 0L)),
+        Function(
+            "StrComp",
+            VBIntrinsicKind.StrComp,
+            "VBStrings.StrComp",
+            TypeSymbol.Integer,
+            Parameter("String1", TypeSymbol.String),
+            Parameter("String2", TypeSymbol.String),
             OptionalParameter("Compare", TypeSymbol.Long, 0L)),
         Function(
             "Replace",
@@ -457,6 +496,7 @@ internal static class VBIntrinsicSymbols
         Function("ObjPtr", VBIntrinsicKind.ObjPtr, "VBMemory.ObjPtr", TypeSymbol.LongPtr, Parameter("Object", TypeSymbol.Variant)),
         Function("StrPtr", VBIntrinsicKind.StrPtr, "VBMemory.StrPtr", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Sub("LSet", VBIntrinsicKind.LSet, "VBMemory.LSet", Parameter("Target", TypeSymbol.Variant), Parameter("Source", TypeSymbol.Variant)),
+        Sub("RSet", VBIntrinsicKind.RSet, "VBMemory.RSet", Parameter("Target", TypeSymbol.Variant), Parameter("Source", TypeSymbol.Variant)),
         Function(
             "CreateObject",
             VBIntrinsicKind.CreateObject,
@@ -517,9 +557,11 @@ internal static class VBIntrinsicSymbols
         Function("Nothing", VBIntrinsicKind.Nothing, "VBVariants.NothingValue", TypeSymbol.Variant),
         Function("Missing", VBIntrinsicKind.Missing, "VBVariants.MissingValue", TypeSymbol.Variant),
 
+        Sub("Reset", VBIntrinsicKind.Reset, "VBFiles.Reset"),
         Function("FreeFile", VBIntrinsicKind.FreeFile, "VBFiles.FreeFile", TypeSymbol.Long),
         Function("LOF", VBIntrinsicKind.LOF, "VBFiles.Length", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
         Function("EOF", VBIntrinsicKind.EOF, "VBFiles.EndOfFile", TypeSymbol.Boolean, Parameter("FileNumber", TypeSymbol.Long)),
+        Function("Loc", VBIntrinsicKind.Loc, "VBFiles.Location", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
         Function("Input", VBIntrinsicKind.Input, "VBFiles.Input", TypeSymbol.String, Parameter("NumberOfCharacters", TypeSymbol.LongLong), Parameter("FileNumber", TypeSymbol.Long)),
         Function("Seek", VBIntrinsicKind.Seek, "VBFiles.Position", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
 

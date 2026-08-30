@@ -436,6 +436,17 @@ public sealed class CliProcessTests
             Assert.AreEqual(0, removalBuild.ExitCode, removalBuild.StandardError + removalBuild.StandardOutput);
             Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
             Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
+
+            var clean = RunMsBuild(projectPath, target: "Clean", nugetPackages: packageCache);
+            Assert.AreEqual(0, clean.ExitCode, clean.StandardError + clean.StandardOutput);
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "VB6.Runtime.dll")));
+            Assert.IsFalse(File.Exists(stampPath));
+
+            var rebuild = RunMsBuild(projectPath, target: "Rebuild", nugetPackages: packageCache);
+            Assert.AreEqual(0, rebuild.ExitCode, rebuild.StandardError + rebuild.StandardOutput);
+            Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "FirstRenamed.exe")));
+            Assert.IsFalse(File.Exists(Path.Combine(outputDirectory, "Second.exe")));
         }
         finally
         {
@@ -681,6 +692,16 @@ public sealed class CliProcessTests
             Assert.IsFalse(File.Exists(outputPath));
             Assert.IsTrue(File.Exists(renamedOutputPath));
             Assert.IsTrue(File.GetLastWriteTimeUtc(stampPath) > recoveryStamp);
+
+            var clean = RunMsBuild(projectPath, target: "Clean", nugetPackages: packageCache);
+            Assert.AreEqual(0, clean.ExitCode, clean.StandardError + clean.StandardOutput);
+            Assert.IsFalse(File.Exists(renamedOutputPath));
+            Assert.IsFalse(File.Exists(stampPath));
+            Assert.IsFalse(File.Exists(Path.ChangeExtension(renamedOutputPath, ".pdb")));
+
+            var rebuild = RunMsBuild(projectPath, target: "Rebuild", nugetPackages: packageCache);
+            Assert.AreEqual(0, rebuild.ExitCode, rebuild.StandardError + rebuild.StandardOutput);
+            Assert.IsTrue(File.Exists(renamedOutputPath));
         }
         finally
         {
@@ -1468,6 +1489,7 @@ public sealed class CliProcessTests
         string projectPath,
         bool restore = false,
         string? nugetPackages = null,
+        string target = "Build",
         params string[] properties)
     {
         var startInfo = new ProcessStartInfo("dotnet")
@@ -1480,7 +1502,7 @@ public sealed class CliProcessTests
         };
         startInfo.ArgumentList.Add("msbuild");
         startInfo.ArgumentList.Add(projectPath);
-        startInfo.ArgumentList.Add("/t:Build");
+        startInfo.ArgumentList.Add("/t:" + target);
         startInfo.ArgumentList.Add("/p:Configuration=Release");
         startInfo.ArgumentList.Add("/v:minimal");
         startInfo.ArgumentList.Add("/nologo");

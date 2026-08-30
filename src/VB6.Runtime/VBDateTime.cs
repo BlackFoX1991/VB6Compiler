@@ -16,11 +16,22 @@ public static class VBDateTime
     public static double Now() => DateTime.Now.ToOADate();
 
     public static double DateValue(object? value) =>
-        FromOleDate(VBConversions.CDate(value)).Date.ToOADate();
+        DateValue(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Returns the date portion of a value.  The classic profile parses text with the active
+    /// Windows locale, while the default overload remains invariant and deterministic.
+    /// </summary>
+    public static double DateValue(object? value, VBCompatibilityProfile compatibilityProfile) =>
+        FromOleDate(DateNumericValue(value, compatibilityProfile)).Date.ToOADate();
 
     public static double TimeValue(object? value)
+        => TimeValue(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Returns the time portion using the selected text parsing profile.</summary>
+    public static double TimeValue(object? value, VBCompatibilityProfile compatibilityProfile)
     {
-        var time = FromOleDate(VBConversions.CDate(value)).TimeOfDay;
+        var time = FromOleDate(DateNumericValue(value, compatibilityProfile)).TimeOfDay;
         return new DateTime(1899, 12, 30).Add(time).ToOADate();
     }
 
@@ -138,6 +149,14 @@ public static class VBDateTime
     }
 
     public static string WeekdayName(int weekday, bool abbreviate = false, int firstDayOfWeek = 1)
+        => WeekdayName(weekday, abbreviate, firstDayOfWeek, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Returns a localized weekday name when the VB6Sp6 profile is selected.</summary>
+    public static string WeekdayName(
+        int weekday,
+        bool abbreviate,
+        int firstDayOfWeek,
+        VBCompatibilityProfile compatibilityProfile)
     {
         var firstDay = ResolveFirstDayOfWeek(firstDayOfWeek);
         if (weekday is < 1 or > 7)
@@ -147,11 +166,18 @@ public static class VBDateTime
 
         var day = (DayOfWeek)(((int)firstDay + weekday - 1) % 7);
         return abbreviate
-            ? CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedDayName(day)
-            : CultureInfo.InvariantCulture.DateTimeFormat.GetDayName(day);
+            ? DateTimeCulture(compatibilityProfile).DateTimeFormat.GetAbbreviatedDayName(day)
+            : DateTimeCulture(compatibilityProfile).DateTimeFormat.GetDayName(day);
     }
 
     public static string MonthName(int month, bool abbreviate = false)
+        => MonthName(month, abbreviate, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Returns a localized month name when the VB6Sp6 profile is selected.</summary>
+    public static string MonthName(
+        int month,
+        bool abbreviate,
+        VBCompatibilityProfile compatibilityProfile)
     {
         if (month is < 1 or > 12)
         {
@@ -159,14 +185,36 @@ public static class VBDateTime
         }
 
         return abbreviate
-            ? CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month)
-            : CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);
+            ? DateTimeCulture(compatibilityProfile).DateTimeFormat.GetAbbreviatedMonthName(month)
+            : DateTimeCulture(compatibilityProfile).DateTimeFormat.GetMonthName(month);
     }
 
     private static DateTime FromOleDate(double value) => DateTime.FromOADate(value);
 
     private static int WholeIntervalCount(double value) =>
-        checked((int)Math.Truncate(value));
+        // DateAdd rounds a non-Long Number before applying the interval.  CLng is the shared
+        // VB conversion and deliberately preserves VB's banker's rounding at .5 boundaries.
+        VBConversions.CLng(value);
+
+    private static double DateNumericValue(object? value, VBCompatibilityProfile compatibilityProfile)
+    {
+        value = VBVariantObject.ResolveDefaultValue(value);
+        if (value is string text && compatibilityProfile == VBCompatibilityProfile.VB6Sp6)
+        {
+            return DateTime.Parse(
+                    text,
+                    DateTimeCulture(compatibilityProfile),
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal)
+                .ToOADate();
+        }
+
+        return VBConversions.CDate(value);
+    }
+
+    private static CultureInfo DateTimeCulture(VBCompatibilityProfile compatibilityProfile) =>
+        compatibilityProfile == VBCompatibilityProfile.VB6Sp6
+            ? CultureInfo.CurrentCulture
+            : CultureInfo.InvariantCulture;
 
     private static string NormalizeInterval(string interval) => interval.Trim().ToLowerInvariant();
 
@@ -200,7 +248,8 @@ public static class VBDateTime
 
     private static CalendarWeekRule ResolveFirstWeekRule(int value) => value switch
     {
-        0 or 1 => CalendarWeekRule.FirstDay,
+        0 => CultureInfo.CurrentCulture.DateTimeFormat.CalendarWeekRule,
+        1 => CalendarWeekRule.FirstDay,
         2 => CalendarWeekRule.FirstFourDayWeek,
         3 => CalendarWeekRule.FirstFullWeek,
         _ => throw new ArgumentOutOfRangeException(nameof(value), "FirstWeekOfYear must be between 0 and 3.")

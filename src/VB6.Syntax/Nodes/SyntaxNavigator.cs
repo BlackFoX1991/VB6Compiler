@@ -39,6 +39,9 @@ public static class SyntaxNavigator
             DebugPrintStatementSyntax debugPrint => debugPrint.DebugKeyword,
             DebugAssertStatementSyntax debugAssert => debugAssert.DebugKeyword,
             FilePrintStatementSyntax filePrint => filePrint.PrintKeyword,
+            FileWriteStatementSyntax fileWrite => fileWrite.WriteKeyword,
+            LockStatementSyntax lockStatement => lockStatement.LockKeyword,
+            UnlockStatementSyntax unlockStatement => unlockStatement.UnlockKeyword,
             InvocationStatementSyntax invocation => invocation.CallKeyword ?? invocation.Identifier,
             QualifiedInvocationStatementSyntax invocation => GetFirstToken(invocation.Target),
             GoToStatementSyntax @goto => @goto.GoToKeyword,
@@ -57,6 +60,7 @@ public static class SyntaxNavigator
             SeekStatementSyntax seek => seek.SeekKeyword,
             LineInputStatementSyntax lineInput => lineInput.LineKeyword,
             FileInputStatementSyntax fileInput => fileInput.InputKeyword,
+            WidthStatementSyntax width => width.WidthKeyword,
             LineStatementSyntax line => line.Target is null
                 ? line.LineKeyword
                 : GetFirstToken(line.Target),

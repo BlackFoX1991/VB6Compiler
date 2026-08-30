@@ -45,6 +45,31 @@ public sealed class ArrayLibraryExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EraseOnArrayParameterWritesBackDeallocation()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub ClearValues(ByRef values() As Long)
+                Erase values
+                Debug.Print IsArray(values)
+            End Sub
+
+            Sub Main()
+                Dim values() As Long
+                ReDim values(1 To 2)
+                values(1) = 10
+                values(2) = 20
+                ClearValues values
+                Debug.Print IsArray(values)
+                ReDim values(0 To 0)
+                Debug.Print LBound(values)
+                Debug.Print UBound(values)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "False", "False", "0", "0" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UBoundAcceptsArrayNameWithEmptyParentheses()
     {
         const string source = """

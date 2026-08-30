@@ -26,7 +26,7 @@ public sealed class ArrayLibraryBinderTests
     }
 
     [TestMethod]
-    public void Bind_EraseRejectsScalarAndArrayParameter()
+    public void Bind_EraseRejectsScalarButAllowsArrayParameter()
     {
         var scalar = BindSource("""
             Sub Main()
@@ -43,9 +43,9 @@ public sealed class ArrayLibraryBinderTests
                 Erase values
             End Sub
             """);
-        CollectionAssert.AreEqual(
-            new[] { "VB6S0036" },
-            parameter.Diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+        Assert.AreEqual(0, parameter.Diagnostics.Length, FormatDiagnostics(parameter));
+        var erase = parameter.Procedures.Single().Body.Statements.OfType<BoundEraseStatement>().Single();
+        Assert.IsTrue(erase.Deallocate);
     }
 
     [TestMethod]

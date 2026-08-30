@@ -1259,20 +1259,34 @@ public sealed class ManagedEmitter
 
         private void EmitRuntimeCall(InstructionEncoder encoder, IrProcedure procedure, IrRuntimeCallExpression call)
         {
-            if (call.Method is IrRuntimeMethod.FileGetDynamicArray or IrRuntimeMethod.FilePutDynamicArrayDescriptor)
+            if (call.Method is IrRuntimeMethod.FileGetDynamicArray or
+                IrRuntimeMethod.FileGetDynamicArrayIfRandom or
+                IrRuntimeMethod.FilePutDynamicArrayDescriptor or
+                IrRuntimeMethod.FilePutDynamicArrayDescriptorIfRandom)
             {
                 foreach (var argument in call.Arguments)
                 {
                     EmitExpression(encoder, procedure, argument.Expression);
                 }
 
-                var arrayType = call.Method == IrRuntimeMethod.FileGetDynamicArray
+                var isGet = call.Method is IrRuntimeMethod.FileGetDynamicArray or
+                    IrRuntimeMethod.FileGetDynamicArrayIfRandom;
+                var arrayType = isGet
                     ? (ArrayTypeSymbol)call.ResultType
                     : (ArrayTypeSymbol)call.Arguments[1].Expression.Type;
-                var methodName = call.Method == IrRuntimeMethod.FileGetDynamicArray
-                    ? "GetDynamicArray"
-                    : "PutDynamicArrayDescriptor";
+                var methodName = call.Method switch
+                {
+                    IrRuntimeMethod.FileGetDynamicArray => "GetDynamicArray",
+                    IrRuntimeMethod.FileGetDynamicArrayIfRandom => "GetDynamicArrayIfRandom",
+                    IrRuntimeMethod.FilePutDynamicArrayDescriptor => "PutDynamicArrayDescriptor",
+                    _ => "PutDynamicArrayDescriptorIfRandom"
+                };
                 encoder.Call(GetFileDynamicArrayReference(methodName, arrayType.ElementType));
+                return;
+            }
+
+            if (TryEmitTypedComparison(encoder, procedure, call))
+            {
                 return;
             }
 
@@ -1326,8 +1340,18 @@ public sealed class ManagedEmitter
             }
             else if (call.Method is IrRuntimeMethod.StringLenB or
                      IrRuntimeMethod.StringAsc or
+                     IrRuntimeMethod.StringMidB or
+                     IrRuntimeMethod.StringLeftB or
+                     IrRuntimeMethod.StringRightB or
+                     IrRuntimeMethod.StringInStrB or
                      IrRuntimeMethod.StringChr or
-                     IrRuntimeMethod.StringFormat)
+                     IrRuntimeMethod.StringFormat or
+                     IrRuntimeMethod.StringIsNumeric or
+                     IrRuntimeMethod.DateTimeValue or
+                     IrRuntimeMethod.TimeDateValue or
+                     IrRuntimeMethod.DateTimeWeekdayName or
+                     IrRuntimeMethod.DateTimeMonthName or
+                     IrRuntimeMethod.VariantIsDate)
             {
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
@@ -1342,6 +1366,102 @@ public sealed class ManagedEmitter
 
                 encoder.Call(GetDynamicArrayConversionReference(arrayResult.ElementType, hasElementDescriptor));
             }
+        }
+
+        private bool TryEmitTypedComparison(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrRuntimeCallExpression call)
+        {
+            if (call.ResultType != TypeSymbol.Boolean ||
+                call.Arguments.Length != 2 ||
+                call.Method is not (IrRuntimeMethod.Equal or IrRuntimeMethod.NotEqual or
+                    IrRuntimeMethod.Less or IrRuntimeMethod.LessOrEqual or
+                    IrRuntimeMethod.Greater or IrRuntimeMethod.GreaterOrEqual))
+            {
+                return false;
+            }
+
+            var leftType = call.Arguments[0].Expression.Type;
+            var rightType = call.Arguments[1].Expression.Type;
+            if (leftType != rightType)
+            {
+                return false;
+            }
+
+            var isStringComparison = leftType == TypeSymbol.String || leftType is FixedLengthStringTypeSymbol;
+            var (methodName, parameterType) = leftType switch
+            {
+                TypeSymbol { } type when type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long
+                    => (nameof(VBOperators.CompareInt32), typeof(int)),
+                TypeSymbol { } type when type == TypeSymbol.UShort || type == TypeSymbol.UInteger
+                    => (nameof(VBOperators.CompareUInt32), typeof(uint)),
+                TypeSymbol { } type when type == TypeSymbol.LongLong
+                    => (nameof(VBOperators.CompareInt64), typeof(long)),
+                TypeSymbol { } type when type == TypeSymbol.ULong
+                    => (nameof(VBOperators.CompareUInt64), typeof(ulong)),
+                TypeSymbol { } type when type == TypeSymbol.LongPtr
+                    => (nameof(VBOperators.CompareIntPtr), typeof(IntPtr)),
+                TypeSymbol { } type when type == TypeSymbol.Single
+                    => (nameof(VBOperators.CompareSingle), typeof(float)),
+                TypeSymbol { } type when type == TypeSymbol.Date || type == TypeSymbol.Double
+                    => (nameof(VBOperators.CompareDouble), typeof(double)),
+                TypeSymbol { } type when type == TypeSymbol.Currency
+                    => (nameof(VBOperators.CompareCurrency), typeof(VBCurrency)),
+                TypeSymbol { } type when type == TypeSymbol.Boolean
+                    => (nameof(VBOperators.CompareBoolean), typeof(bool)),
+                TypeSymbol { } type when type == TypeSymbol.String || type is FixedLengthStringTypeSymbol
+                    => (nameof(VBOperators.CompareString), typeof(string)),
+                _ => (null, null)
+            };
+
+            if (methodName is null || parameterType is null)
+            {
+                return false;
+            }
+
+            EmitExpression(encoder, procedure, call.Arguments[0].Expression);
+            EmitExpression(encoder, procedure, call.Arguments[1].Expression);
+            if (isStringComparison)
+            {
+                encoder.LoadConstantI4(call.UseTextCompare ? 1 : 0);
+            }
+            var comparisonMethod = isStringComparison
+                ? Static(typeof(VBOperators), methodName, typeof(string), typeof(string), typeof(bool))
+                : Static(typeof(VBOperators), methodName, parameterType, parameterType);
+            encoder.Call(GetRuntimeMethodReference(comparisonMethod));
+            encoder.LoadConstantI4(0);
+            switch (call.Method)
+            {
+                case IrRuntimeMethod.Equal:
+                    encoder.OpCode(ILOpCode.Ceq);
+                    break;
+                case IrRuntimeMethod.NotEqual:
+                    encoder.OpCode(ILOpCode.Ceq);
+                    encoder.LoadConstantI4(0);
+                    encoder.OpCode(ILOpCode.Ceq);
+                    break;
+                case IrRuntimeMethod.Less:
+                    encoder.OpCode(ILOpCode.Clt);
+                    break;
+                case IrRuntimeMethod.LessOrEqual:
+                    encoder.OpCode(ILOpCode.Cgt);
+                    encoder.LoadConstantI4(0);
+                    encoder.OpCode(ILOpCode.Ceq);
+                    break;
+                case IrRuntimeMethod.Greater:
+                    encoder.OpCode(ILOpCode.Cgt);
+                    break;
+                case IrRuntimeMethod.GreaterOrEqual:
+                    encoder.OpCode(ILOpCode.Clt);
+                    encoder.LoadConstantI4(0);
+                    encoder.OpCode(ILOpCode.Ceq);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unexpected typed comparison '{call.Method}'.");
+            }
+
+            return true;
         }
 
         private void EmitProcedureCall(InstructionEncoder encoder, IrProcedure procedure, IrProcedureCallExpression call)
@@ -3272,7 +3392,7 @@ public sealed class ManagedEmitter
                         name == "GetDynamicArray" ? 1 : 2,
                         returnType =>
                         {
-                            if (name == "GetDynamicArray")
+                            if (name.StartsWith("GetDynamicArray", StringComparison.Ordinal))
                             {
                                 EncodeOpenVBArray(returnType.Type());
                             }
@@ -3797,6 +3917,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.MemoryObjPtr) return Static(typeof(VBMemory), nameof(VBMemory.ObjPtr), typeof(object));
             if (m == IrRuntimeMethod.MemoryStrPtr) return Static(typeof(VBMemory), nameof(VBMemory.StrPtr), typeof(string));
             if (m == IrRuntimeMethod.MemoryLSet) return Static(typeof(VBMemory), nameof(VBMemory.LSet), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.MemoryRSet) return Static(typeof(VBMemory), nameof(VBMemory.RSet), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.CollectionCreate) return Static(typeof(VBCollection), nameof(VBCollection.Create));
             if (m == IrRuntimeMethod.CollectionEnumerateValues) return Static(typeof(VBCollection), nameof(VBCollection.EnumerateValues), typeof(VBCollection));
             if (m == IrRuntimeMethod.ControlEnumerateValues) return Static(typeof(VBInteraction), nameof(VBInteraction.EnumerateControls), typeof(object));
@@ -3807,8 +3928,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.DateTimeDate) return Static(typeof(VBDateTime), "Date");
             if (m == IrRuntimeMethod.DateTimeTime) return Static(typeof(VBDateTime), "Time");
             if (m == IrRuntimeMethod.DateTimeNow) return Static(typeof(VBDateTime), "Now");
-            if (m == IrRuntimeMethod.DateTimeValue) return Static(typeof(VBDateTime), "DateValue", typeof(object));
-            if (m == IrRuntimeMethod.TimeDateValue) return Static(typeof(VBDateTime), "TimeValue", typeof(object));
+            if (m == IrRuntimeMethod.DateTimeValue) return Static(typeof(VBDateTime), "DateValue", typeof(object), typeof(VBCompatibilityProfile));
+            if (m == IrRuntimeMethod.TimeDateValue) return Static(typeof(VBDateTime), "TimeValue", typeof(object), typeof(VBCompatibilityProfile));
             if (m is IrRuntimeMethod.DateTimeYear or IrRuntimeMethod.DateTimeMonth or
                 IrRuntimeMethod.DateTimeDay or IrRuntimeMethod.DateTimeHour or
                 IrRuntimeMethod.DateTimeMinute or IrRuntimeMethod.DateTimeSecond)
@@ -3831,8 +3952,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.DateTimeDiff) return Static(typeof(VBDateTime), "DateDiff", typeof(string), typeof(double), typeof(double), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.DateTimePart) return Static(typeof(VBDateTime), "DatePart", typeof(string), typeof(double), typeof(int), typeof(int));
             if (m == IrRuntimeMethod.DateTimeWeekday) return Static(typeof(VBDateTime), "Weekday", typeof(double), typeof(int));
-            if (m == IrRuntimeMethod.DateTimeWeekdayName) return Static(typeof(VBDateTime), "WeekdayName", typeof(int), typeof(bool), typeof(int));
-            if (m == IrRuntimeMethod.DateTimeMonthName) return Static(typeof(VBDateTime), "MonthName", typeof(int), typeof(bool));
+            if (m == IrRuntimeMethod.DateTimeWeekdayName) return Static(typeof(VBDateTime), "WeekdayName", typeof(int), typeof(bool), typeof(int), typeof(VBCompatibilityProfile));
+            if (m == IrRuntimeMethod.DateTimeMonthName) return Static(typeof(VBDateTime), "MonthName", typeof(int), typeof(bool), typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.ErrorNumber) return Static(typeof(VBErrors), nameof(VBErrors.NumberValue));
             if (m == IrRuntimeMethod.ErrorDescription) return Static(typeof(VBErrors), nameof(VBErrors.DescriptionValue));
             if (m == IrRuntimeMethod.ErrorSource) return Static(typeof(VBErrors), nameof(VBErrors.SourceValue));
@@ -3887,6 +4008,8 @@ public sealed class ManagedEmitter
                 return Static(typeof(VBTypeStorage), "ReadFixedString", typeof(string), typeof(int));
             if (m == IrRuntimeMethod.FixedStringWrite)
                 return Static(typeof(VBTypeStorage), "WriteFixedString", typeof(string), typeof(int));
+            if (m == IrRuntimeMethod.FixedStringRightAlign)
+                return Static(typeof(VBTypeStorage), "RightAlignFixedString", typeof(string), typeof(int));
 
             if (m.ToString().StartsWith("String", StringComparison.Ordinal))
             {
@@ -3896,9 +4019,14 @@ public sealed class ManagedEmitter
                 if (name == "Mid") return call.Arguments.Length == 2
                     ? Static(typeof(VBStrings), "Mid", typeof(string), typeof(int))
                     : Static(typeof(VBStrings), "Mid", typeof(string), typeof(int), typeof(int));
+                if (name == "MidB") return call.Arguments.Length == 2
+                    ? Static(typeof(VBStrings), "MidB", typeof(string), typeof(int), typeof(VBCompatibilityProfile))
+                    : Static(typeof(VBStrings), "MidB", typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
+                if (name == "MidAssign") return Static(typeof(VBStrings), nameof(VBStrings.MidAssign), typeof(string), typeof(int), typeof(string), typeof(int));
                 if (name == "Chr") return Static(typeof(VBStrings), "Chr", typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "ChrW") return Static(typeof(VBStrings), "ChrW", typeof(int));
                 if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(string), typeof(int));
+                if (name is "LeftB" or "RightB") return Static(typeof(VBStrings), name, typeof(string), typeof(int), typeof(VBCompatibilityProfile));
                 if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Asc") return Static(typeof(VBStrings), name, typeof(string), typeof(VBCompatibilityProfile));
                 if (name == "AscW") return Static(typeof(VBStrings), name, typeof(string));
@@ -3908,9 +4036,11 @@ public sealed class ManagedEmitter
                 if (name == "Str") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
                 if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
-                if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object));
+                if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object), typeof(VBCompatibilityProfile));
                 if (name == "InStr") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int));
+                if (name == "InStrB") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "InStrRev") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
+                if (name == "StrComp") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int));
                 if (name == "Replace") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(string), typeof(int), typeof(int), typeof(int));
                 if (name == "Space") return Static(typeof(VBStrings), name, typeof(int));
                 if (name == "Split") return Static(typeof(VBStrings), name, typeof(string), typeof(string), typeof(int), typeof(int));
@@ -3977,7 +4107,9 @@ public sealed class ManagedEmitter
                     IrRuntimeMethod.VariantIsObject => "IsObject",
                     _ => "VarType"
                 };
-                return Static(typeof(VBVariants), name, typeof(object));
+                return m == IrRuntimeMethod.VariantIsDate
+                    ? Static(typeof(VBVariants), name, typeof(object), typeof(VBCompatibilityProfile))
+                    : Static(typeof(VBVariants), name, typeof(object));
             }
 
             if (m.ToString().StartsWith("File", StringComparison.Ordinal))
@@ -4000,14 +4132,20 @@ public sealed class ManagedEmitter
             skippedArgument = -1;
             return call.Method switch
             {
-                IrRuntimeMethod.FileOpenBinary => Static(typeof(VBFiles), "OpenBinary", typeof(int), typeof(string)),
-                IrRuntimeMethod.FileOpenInput => Static(typeof(VBFiles), "OpenInput", typeof(int), typeof(string)),
-                IrRuntimeMethod.FileOpenOutput => Static(typeof(VBFiles), "OpenOutput", typeof(int), typeof(string)),
-                IrRuntimeMethod.FileOpenAppend => Static(typeof(VBFiles), "OpenAppend", typeof(int), typeof(string)),
-                IrRuntimeMethod.FileOpenRandom => Static(typeof(VBFiles), "OpenRandom", typeof(int), typeof(string), typeof(int)),
+                IrRuntimeMethod.FileOpenBinary => Static(typeof(VBFiles), "OpenBinary", typeof(int), typeof(string), typeof(int), typeof(int)),
+                IrRuntimeMethod.FileOpenInput => Static(typeof(VBFiles), "OpenInput", typeof(int), typeof(string), typeof(int), typeof(int)),
+                IrRuntimeMethod.FileOpenOutput => Static(typeof(VBFiles), "OpenOutput", typeof(int), typeof(string), typeof(int), typeof(int)),
+                IrRuntimeMethod.FileOpenAppend => Static(typeof(VBFiles), "OpenAppend", typeof(int), typeof(string), typeof(int), typeof(int)),
+                IrRuntimeMethod.FileOpenRandom => Static(typeof(VBFiles), "OpenRandom", typeof(int), typeof(string), typeof(int), typeof(int), typeof(int)),
+                IrRuntimeMethod.FileReset => Static(typeof(VBFiles), nameof(VBFiles.Reset)),
                 IrRuntimeMethod.FileRecordStart => ResolveFileRecordStart(call, out skippedArgument),
                 IrRuntimeMethod.FileRecordEnd => Static(typeof(VBFiles), "EndRecord", typeof(int), typeof(bool)),
                 IrRuntimeMethod.FilePrint => Static(typeof(VBFiles), "Print", typeof(int), typeof(object)),
+                IrRuntimeMethod.FilePrintValue => Static(typeof(VBFiles), nameof(VBFiles.PrintValue), typeof(int), typeof(object), typeof(bool), typeof(int)),
+                IrRuntimeMethod.FileWrite => Static(typeof(VBFiles), nameof(VBFiles.WriteValue), typeof(int), typeof(object), typeof(bool)),
+                IrRuntimeMethod.FileWidth => Static(typeof(VBFiles), nameof(VBFiles.Width), typeof(int), typeof(int)),
+                IrRuntimeMethod.FileLock => Static(typeof(VBFiles), nameof(VBFiles.Lock), typeof(int), typeof(long), typeof(long)),
+                IrRuntimeMethod.FileUnlock => Static(typeof(VBFiles), nameof(VBFiles.Unlock), typeof(int), typeof(long), typeof(long)),
                 IrRuntimeMethod.FileClose => Static(typeof(VBFiles), "Close", typeof(int)),
                 IrRuntimeMethod.FileCloseAll => Static(typeof(VBFiles), "CloseAll"),
                 IrRuntimeMethod.FileSeek => Static(typeof(VBFiles), "Seek", typeof(int), typeof(long)),
@@ -4015,6 +4153,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileLength => Static(typeof(VBFiles), "Length", typeof(int)),
                 IrRuntimeMethod.FileEndOfFile => Static(typeof(VBFiles), "EndOfFile", typeof(int)),
                 IrRuntimeMethod.FilePosition => Static(typeof(VBFiles), "Position", typeof(int)),
+                IrRuntimeMethod.FileLocation => Static(typeof(VBFiles), "Location", typeof(int)),
                 IrRuntimeMethod.FileKill => Static(typeof(VBFiles), "Kill", typeof(string)),
                 IrRuntimeMethod.FileDir => Static(typeof(VBFiles), "Dir", typeof(string), typeof(int)),
                 IrRuntimeMethod.FileCopy => Static(typeof(VBFiles), nameof(VBFiles.FileCopy), typeof(string), typeof(string)),
@@ -4030,9 +4169,14 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FilePut => ResolveFilePut(call, out skippedArgument),
                 IrRuntimeMethod.FilePutRaw => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FilePutRawFixedString => ResolveFilePutRaw(call, out skippedArgument),
+                IrRuntimeMethod.FilePutVariant => ResolveFileVariantPut(call, out skippedArgument),
+                IrRuntimeMethod.FilePutRawVariant => Static(typeof(VBFiles), nameof(VBFiles.PutRawVariant), typeof(int), typeof(object)),
                 IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int)),
                 IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int)),
+                IrRuntimeMethod.FileInputValue => Static(typeof(VBFiles), nameof(VBFiles.InputValue), typeof(int)),
                 IrRuntimeMethod.FileInput => Static(typeof(VBFiles), "Input", typeof(long), typeof(int)),
+                IrRuntimeMethod.FileGetVariant => ResolveFileVariantGet(call, out skippedArgument),
+                IrRuntimeMethod.FileGetRawVariant => Static(typeof(VBFiles), nameof(VBFiles.GetRawVariant), typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
             };
         }
@@ -4084,6 +4228,24 @@ public sealed class ManagedEmitter
 
             var valueType = RuntimeScalarType(call.Arguments[1].Expression.Type);
             return Static(typeof(VBFiles), "PutRaw", typeof(int), valueType);
+        }
+
+        private MethodInfo ResolveFileVariantGet(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            var omitted = call.Arguments.Length > 1 && call.Arguments[1].Expression is IrNullExpression;
+            skippedArgument = omitted ? 1 : -1;
+            return omitted
+                ? Static(typeof(VBFiles), nameof(VBFiles.GetVariant), typeof(int))
+                : Static(typeof(VBFiles), nameof(VBFiles.GetVariant), typeof(int), typeof(long));
+        }
+
+        private MethodInfo ResolveFileVariantPut(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            var omitted = call.Arguments.Length > 1 && call.Arguments[1].Expression is IrNullExpression;
+            skippedArgument = omitted ? 1 : -1;
+            return omitted
+                ? Static(typeof(VBFiles), nameof(VBFiles.PutVariant), typeof(int), typeof(object))
+                : Static(typeof(VBFiles), nameof(VBFiles.PutVariant), typeof(int), typeof(long), typeof(object));
         }
 
         private static string RuntimeName(IrRuntimeMethod method) => method switch

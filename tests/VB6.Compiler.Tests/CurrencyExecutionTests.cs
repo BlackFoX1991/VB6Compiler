@@ -39,4 +39,31 @@ public sealed class CurrencyExecutionTests
 
         CollectionAssert.AreEqual(new[] { "1.2346", "6", "-1" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesTypedScalarComparisons()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim signed As Long
+                signed = 4
+                Debug.Print signed = 4
+                Debug.Print signed < 5
+
+                Dim unsigned As UInteger
+                unsigned = 7
+                Debug.Print unsigned > 6
+
+                Dim amount As Currency
+                amount = 1.25
+                Debug.Print amount >= 1.25
+
+                Dim text As String
+                text = "vb6"
+                Debug.Print text = "vb6"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "True", "True", "True" }, output);
+    }
 }
