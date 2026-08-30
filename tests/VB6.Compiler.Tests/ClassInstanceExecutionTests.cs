@@ -560,4 +560,91 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_SeparatesLetFromSetAndReportsTheVb6TypeName()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerClassLetSetTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "LetSet.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="LetSet"
+                Class=Box; Box.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Box.cls"), """
+                Option Explicit
+
+                Private stored As Long
+
+                Public Property Get Value() As Long
+                    Value = stored
+                End Property
+
+                Public Property Let Value(ByVal newValue As Long)
+                    stored = newValue
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim a As Box
+                    Dim b As Box
+                    Dim v As Variant
+
+                    Set a = New Box
+                    a.Value = 5
+                    Set b = a
+                    b.Value = 9
+
+                    Debug.Print a.Value
+                    Debug.Print (a Is b)
+
+                    Set v = a
+                    Debug.Print VarType(v)
+                    Debug.Print TypeName(v)
+                    Debug.Print TypeName(a)
+
+                    v = a.Value
+                    Debug.Print VarType(v)
+                    Debug.Print v
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            // Set teilt die Referenz -- die Schreibung ueber b ist durch a sichtbar und
+            // "Is" bestaetigt dieselbe Instanz. Let kopiert dagegen den Wert: v traegt
+            // danach Long (3), nicht mehr das Objekt (9).
+            //
+            // TypeName muss den VB6-Namen liefern. Der Emitter praefixt jeden erzeugten Typ
+            // (__vb6_class_Box), damit VB6-Namen nicht kollidieren; ohne Ruecknahme des
+            // Praefixes wird sein Namensschema zu beobachtbarem Programmverhalten.
+            CollectionAssert.AreEqual(
+                new[] { "9", "True", "9", "Box", "Box", "3", "9" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

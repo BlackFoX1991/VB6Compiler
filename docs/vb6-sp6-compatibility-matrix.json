@@ -843,7 +843,7 @@
     },
     {
       "id": "l1-02-i-object-members-lifecycle",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "language-operators-and-variants",
       "input": "Let/Set assignment, As New activation, Collection members, Implements contracts, Events and WithEvents handlers",
       "expected": {
@@ -851,7 +851,7 @@
         "lifecycle": "As New creates lazily and class initialization/termination order is deterministic",
         "contracts": "Implements and WithEvents enforce declared members and event hookup"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": ["tests/VB6.Compiler.Tests/CollectionExecutionTests.cs", "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs", "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs", "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"]
     },
     {
