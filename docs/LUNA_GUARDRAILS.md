@@ -272,6 +272,7 @@ Aus `CLAUDE.md`. Diese Regeln schlagen jede Bequemlichkeit:
 - eine Karte eine Architekturentscheidung verlangt, die nicht schon getroffen ist;
 - zwei Dokumente sich widersprechen und nicht offensichtlich ist, welches recht hat;
 - ein Status gesetzt werden müsste, für den der Nachweis fehlt (§1);
+- ein **bestehender, benannter Test** der geplanten Änderung widerspricht (§12);
 - eine Regel dieser Datei im Weg steht.
 
 Die Meldung enthält: **Ursache**, **reproduzierbaren Befehl**, **benötigte Entscheidung**.
@@ -302,6 +303,85 @@ Der Abschlussbericht eines Laufs nennt:
 2. geänderte Dateien,
 3. die **gemessenen** Zahlen (Tests aus TRX, VISIA, Matrixstand),
 4. offene Punkte und Blocker,
-5. was bewusst **nicht** getan wurde.
+5. was bewusst **nicht** getan wurde,
+6. die **Vorabmessung** nach §11: wie viele Fälle gemessen wurden und wie viele davon schon
+   korrekt waren,
+7. zurückgenommene Änderungen nach §12 samt der offen gebliebenen Frage.
 
 Zahlen ohne durchgeführte Messung gehören nicht in den Bericht.
+
+---
+
+## §11 Erst messen, dann bauen
+
+Eine Karte beginnt **nicht** mit einer Änderung, sondern mit einer Messung des Ist-Verhaltens
+über die **volle Breite ihres Vertrags**.
+
+- **MUSS**: Vor der ersten Zeile Produktionscode wird jedes Feld unter `expected` gegen das
+  laufende System gemessen — mit einem Wegwerfprogramm über `VB6TestProgram.RunLines`, das die
+  beobachtbaren Werte ausgibt (`VarType`, `Err.Number`, Ergebniswert), nicht mit Codelektüre.
+- **MUSS**: Die Messung deckt die Fläche ab, nicht ein Beispiel. Eine Promotionsregel wird über
+  Operandenpaare gemessen, eine Fehlerzuordnung über alle betroffenen Funktionen.
+- **DARF NICHT**: aus dem Quelltext hergeleitet werden, was das System tut. Der Emitter, der
+  Binder und die Runtime haben zusammen zu viele Pfade, als dass Lesen das ersetzt.
+- **MUSS**: Das Messergebnis geht in den Kartenbericht — auch und gerade die Fälle, die schon
+  korrekt waren.
+
+### Warum diese Regel existiert
+
+Bei `l1-02-f` und `l1-02-g` lautete der Befund zweimal hintereinander: **Das Verhalten war
+bereits richtig, nur ungetestet.** Bei `l1-02-g` waren alle 49 gemessenen Operandenpaare der
+Promotionstabelle korrekt. Wer dort ohne Messung „implementiert" hätte, hätte funktionierenden
+Code umgebaut und die eigentliche Lücke — die fehlende Absicherung — nicht einmal bemerkt.
+
+Umgekehrt fand dieselbe Messung die echten Lücken, die beim Lesen unsichtbar waren: `Err.Number`
+**5** statt **94** bei Null-Konvertierungen und **5** statt **13** bei `CDate("kein Datum")`.
+
+**Korrektes, aber ungetestetes Verhalten ist ein Kartenergebnis.** Es wird durch Tests
+festgeschrieben und die Erwartung wandert auf der verification-Achse nach oben — die
+implementation-Achse bleibt, wo sie war, wenn nichts gebaut wurde.
+
+### Prüfung
+
+Der Kartenbericht nennt die Zahl der gemessenen Fälle und, getrennt, wie viele davon schon
+korrekt waren. Fehlt diese Angabe, gilt die Karte als ohne Messung bearbeitet.
+
+---
+
+## §12 Bestandsschutz benannter Verträge
+
+Ein bestehender Test, dessen **Name eine Vertragszusage ausspricht**, ist eine getroffene
+Entscheidung — keine Altlast.
+
+- **MUSS**: Reißt eine Änderung einen solchen Test, wird **die Änderung** überprüft, nicht der
+  Test angepasst.
+- **DARF NICHT**: Ein benannter Test wird umgeschrieben oder gelöscht, weil eine Herleitung aus
+  der VB6-Dokumentation etwas anderes nahelegt. Ohne Orakel (§1, Regel 5) schlägt der
+  bestehende Vertrag die Herleitung.
+- **MUSS**: Die Änderung wird **vollständig** zurückgenommen — `git diff src/` gegen den
+  Vorstand ist danach leer — und die offene Frage wird mit den gemessenen Werten notiert.
+- **Ausnahme**: Der Test widerspricht einer Projektinvariante aus §7, oder es liegt ein
+  tatsächlicher Orakellauf vor. Beides wird im Bericht ausgewiesen.
+
+### Warum diese Regel existiert
+
+Zweimal wurde eine dokumentationsgestützte Änderung begonnen und musste zurück:
+
+- `CDec(Null)` sollte nach VB6-Doku 94 melden. `CDec_ProducesVariantDecimalAndPreservesNull`
+  sagte Null — und hatte recht: `CDec` liefert einen Variant mit Decimal-Subtyp und **kann**
+  Null tragen, anders als `CInt`, dessen Zieltyp das nicht kann.
+- `CInt(CVErr(5))` sollte 13 melden. `ErrorVariantConversions_DistinguishExplicitAndImplicitPaths`
+  führt die Unterscheidung im Namen und hängt über `CInt(Missing) = 448` an der
+  Missing-Argument-Mechanik. Eine Angleichung hätte zwei Verträge auf einmal verschoben.
+
+In beiden Fällen war die Herleitung plausibel und der bestehende Test der bessere Zeuge.
+
+### Prüfung
+
+```bash
+git diff --stat src/
+```
+
+Nach einer zurückgenommenen Änderung leer. Die offene Frage steht mit gemessenen Werten in
+`LUNA_EXECUTION_PLAN.md` und im Changelog.
+

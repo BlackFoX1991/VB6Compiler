@@ -3502,3 +3502,32 @@ Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die M
 **68 implemented**, **6 partial**, **41 planned** von **115** sowie **74/115**
 `documented-verified`. `l1-02-g-variant-promotion-table` steht auf `partial`: `promotion` und
 `empty` sind nachgewiesen, `errors` nur für Null-, String- und Error-Operanden.
+
+## Zwei Arbeitsregeln aus den L1-02-Karten festgehalten (30.08.2026)
+
+Über die bisher bearbeiteten Karten hinweg zeigte sich ein Muster, das jetzt als Regel steht
+statt als Erfahrung: **Die Umsetzung ist hier durchweg weiter als ihre Absicherung.** Bei
+`l1-02-f` und `l1-02-g` lautete der Befund zweimal hintereinander „das Verhalten war bereits
+richtig, nur ungetestet"; bei der Promotionstabelle waren alle 49 gemessenen Operandenpaare
+korrekt.
+
+Daraus zwei neue Leitplanken:
+
+- **§11 Erst messen, dann bauen.** Eine Karte beginnt mit einer Messung des Ist-Verhaltens über
+  die volle Breite ihres Vertrags — ein Wegwerfprogramm über `VB6TestProgram.RunLines`, das
+  `VarType`, `Err.Number` und Ergebniswert ausgibt, nicht Codelektüre. Die echten Lücken
+  (`Err.Number` 5 statt 94, 5 statt 13) waren beim Lesen unsichtbar. Korrektes, aber
+  ungetestetes Verhalten ist ein Kartenergebnis: Es wird festgeschrieben, die
+  verification-Achse wandert nach oben, die implementation-Achse bleibt stehen.
+- **§12 Bestandsschutz benannter Verträge.** Reißt eine Änderung einen Test, dessen Name eine
+  Vertragszusage ausspricht, wird die Änderung vollständig zurückgenommen — nicht der Test
+  angepasst. Ohne Orakel schlägt der bestehende Vertrag die Herleitung aus der
+  VB6-Dokumentation. Belegt an `CDec(Null)` und `CInt(CVErr(5))`, wo beide Male die
+  dokumentationsgestützte Herleitung plausibel und falsch war.
+
+§9 bekommt die passende Abbruchbedingung, der Abschlussbericht in §10 zwei zusätzliche Punkte
+(Fallzahl der Vorabmessung, zurückgenommene Änderungen). Der Ausführungsplan führt beides als
+Regeln 7 und 8 sowie als neues Pflichtfeld `Vorabmessung` im Arbeitskartenvertrag; `CLAUDE.md`
+nimmt beide als Fallen auf, weil sie nicht nur für Luna gelten.
+
+Reine Dokumentationsänderung; `src/` und `tests/` bleiben unberührt.
