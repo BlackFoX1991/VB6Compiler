@@ -12,14 +12,14 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1311/1311 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1314/1314 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **5 partial** und
-  **42 planned**; **73** sind `documented-verified`. Die nächste offene Implementierungskarte
-  ist `l1-02-g-variant-promotion-table`; `l1-02-a-language-grammar-context` bleibt als breiter
+- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **6 partial** und
+  **41 planned**; **74** sind `documented-verified`. Die nächste offene Implementierungskarte
+  ist `l1-02-h-variant-object-array-dispatch`; `l1-02-a-language-grammar-context` bleibt als breiter
   Familienstatus bewusst `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
@@ -244,6 +244,24 @@ Argument also und melden seit dieser Karte **94** statt Null zurückzugeben. `Le
 tun es korrekterweise nicht. Die Umstellung der acht Funktionen auf `Variant -> Variant`
 verschiebt den statischen Typ sehr häufiger Ausdrücke und gehört deshalb in eine eigene Karte,
 nicht in diese.
+
+Die breite Karte `l1-02-g-variant-promotion-table` ist **begonnen, nicht geschlossen**. Die
+Promotionstabelle selbst wurde über 49 Operandenpaare nachgemessen und war **durchgehend
+korrekt** — sie war nur fast ungetestet. Sie ist jetzt festgeschrieben: 24 Zeilen
+Arithmetik mit Subtyp und Wert, dazu Vergleich, Logik und Verkettung.
+
+Bemerkenswert daran sind die Überlaufstufen: Bei Variant-Operanden geht Integer nach Long,
+Long nach Double und Byte nach Integer, statt zu überlaufen. Das steht in direkter Spannung
+zur Projektinvariante „reine Integer-Ausdrücke werden nicht promoted" — die gilt für
+**statisch typisierte** Ausdrücke. Der Test führt seine Operanden deshalb bewusst über
+`Variant`-Variablen; inline geschrieben wäre `CInt(32767) + CInt(1)` ein typisierter Ausdruck
+und müsste überlaufen. Der Kommentar im Test hält das fest, damit die beiden Regeln nicht
+verwechselt werden.
+
+**Offen** bleibt in der `errors`-Klausel der Fall „incompatible object operands". Gemessen an
+einer `Collection`: `o + 1` meldet korrekt **13**, `o & "x"` meldet dagegen **0** und `o = 1`
+meldet **5**. Ob 13 hier überhaupt der Sollwert ist, hängt an der Default-Property der
+`Collection` und ist ohne Orakel nicht zu entscheiden — deshalb wurde nichts geändert.
 
 ## Arbeitskartenvertrag
 
