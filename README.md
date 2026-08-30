@@ -131,7 +131,7 @@ The canonical serial `build.ps1 -NoRestore -Configuration Release` run on 2026-0
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
 **115 expectations**: **68 implemented**, **4 partial**, **43 planned**, and **72/115
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
-With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **48/48 passed**.
+With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **50/50 passed**, **0 skipped**. The counter-check on an x64 test host fails 7 of those cases, so the x86 result is a real measurement rather than a silently skipped one.
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. `Erase` on a `ByRef` array parameter now deallocates the caller's descriptor and is covered by semantic and generated-program tests. `StrConv` additionally handles profile-aware combined casing, East-Asian width, and Japanese Kana flags with locale validation. What is still guarded is narrower: `For Each` over arrays of user-defined types (`VB6S0056`) and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
