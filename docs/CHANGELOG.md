@@ -3696,3 +3696,31 @@ davon aus falschen Ursachenvermutungen, die erst die nächste Probe widerlegt ha
 
 Reine Mess- und Dokumentationsarbeit; `src/` und `tests/` bleiben unberührt. Der kanonische
 Lauf bleibt bei **1320/1320** Tests, VISIA **40/40**.
+
+## Befunde kartenfähig gemacht (30.08.2026)
+
+Das Befundregister war eine Liste, keine Warteschlange. Nach dem Arbeitskartenvertrag braucht
+jede Karte **genau eine Erwartungs-ID**; ohne sie hätte Luna die Befunde nicht abschliessen
+können, weil §1 einen Statuswechsel ohne Erwartung verbietet. Drei neue Erwartungen schliessen
+die Lücke, alle `planned`/`not-yet-verified`:
+
+- `s1-class-public-field-storage` — ByRef-Rückschreiben, `Set` auf Objektfelder, Array-Felder
+  und `String * n` als Klassenmember (Befunde A1–A4).
+- `s2-documented-runtime-error-numbers` — 91 bei nicht gesetzter Objektvariablen, 53 bei
+  fehlender Datei, `Collection`-Index (B1–B3).
+- `s3-remaining-standard-intrinsics` — die acht nicht deklarierten Funktionen (C).
+
+Die Matrix steht damit bei **118 Erwartungen**. Das Register nennt jetzt zu jeder Karte die
+Erwartungs-ID **und** die Einstiegsdateien, damit keine Repository-Gesamtsuche nötig ist.
+
+**Zwei Widersprüche behoben**, die Luna in die falsche Richtung geschickt hätten. „Aktueller
+Einstieg" nannte `l1-02-j-nested-error-resume` als nächste Karte, während das Register `S1`
+vorzog; die Reihenfolge lautet jetzt ausdrücklich **S1 → S2 → S3 → `l1-02-j`**, mit der
+Begründung aus §13 („still falsch" hat Vorrang). Und der Abschnitt „Reihenfolge der Wellen"
+trug eine zweite, längst veraltete Zahlenangabe (115 Erwartungen, 67/3/45/70); sie ist durch
+einen Verweis auf den `build.ps1`-Readout ersetzt — eine Kopie weniger, die auseinanderlaufen
+kann.
+
+Reine Planungsarbeit; `src/` und `tests/` bleiben unberührt. Der kanonische Lauf misst
+**1320/1320** Tests, VISIA **40/40**, und das Matrix-Gate akzeptiert die drei neuen
+Erwartungen.
