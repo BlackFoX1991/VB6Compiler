@@ -1033,6 +1033,9 @@ public static class IrLowerer
                         LowerValueCopy(assignment.Expression)));
                     LowerWithEventsSubscriptions(assignment.Variable);
                     break;
+                case BoundMidAssignmentStatement midAssignment:
+                    LowerMidAssignment(midAssignment);
+                    break;
                 case BoundArrayElementAssignmentStatement assignment:
                     var arrayType = (ArrayTypeSymbol)assignment.Array.Type;
                     Emit(new IrStoreInstruction(
@@ -1236,14 +1239,92 @@ public static class IrLowerer
                         graphicsLineArguments)));
                     break;
                 case BoundFilePrintStatement print:
+                    var printExpressions = print.Expressions.IsDefaultOrEmpty
+                        ? print.Expression is null
+                            ? Array.Empty<BoundExpression>()
+                            : new[] { print.Expression }
+                        : print.Expressions.ToArray();
+                    if (printExpressions.Length == 0)
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FilePrint,
+                            TypeSymbol.Error,
+                            LowerExpression(print.FileNumber),
+                            new IrConstantExpression(null, TypeSymbol.Variant))));
+                        break;
+                    }
+
+                    if (printExpressions.Length == 1 && print.Separators.IsDefaultOrEmpty)
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FilePrint,
+                            TypeSymbol.Error,
+                            LowerExpression(print.FileNumber),
+                            LowerExpression(printExpressions[0]))));
+                        break;
+                    }
+
+                    for (var index = 0; index < printExpressions.Length; index++)
+                    {
+                        var separator = index == 0
+                            ? 0L
+                            : (long)print.Separators[index - 1] + 1L;
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FilePrintValue,
+                            TypeSymbol.Error,
+                            LowerExpression(print.FileNumber),
+                            LowerExpression(printExpressions[index]),
+                            new IrConstantExpression(index >= print.Separators.Length, TypeSymbol.Boolean),
+                            new IrConstantExpression(separator, TypeSymbol.Long))));
+                    }
+                    break;
+                case BoundFileWriteStatement write:
+                    for (var index = 0; index < write.Expressions.Length; index++)
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FileWrite,
+                            TypeSymbol.Error,
+                            LowerExpression(write.FileNumber),
+                            LowerExpression(write.Expressions[index]),
+                            new IrConstantExpression(index == write.Expressions.Length - 1, TypeSymbol.Boolean))));
+                    }
+                    break;
+                case BoundWidthStatement width:
                     Emit(new IrEvaluateInstruction(Runtime(
-                        IrRuntimeMethod.FilePrint,
+                        IrRuntimeMethod.FileWidth,
                         TypeSymbol.Error,
-                        LowerExpression(print.FileNumber),
-                        LowerExpression(print.Expression))));
+                        LowerExpression(width.FileNumber),
+                        LowerExpression(width.Width))));
+                    break;
+                case BoundFileLockStatement fileLock:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.FileLock,
+                        TypeSymbol.Error,
+                        LowerExpression(fileLock.FileNumber),
+                        fileLock.Start is null
+                            ? new IrConstantExpression(0L, TypeSymbol.LongLong)
+                            : LowerExpression(fileLock.Start),
+                        fileLock.End is null
+                            ? new IrConstantExpression(0L, TypeSymbol.LongLong)
+                            : LowerExpression(fileLock.End))));
+                    break;
+                case BoundFileUnlockStatement fileUnlock:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.FileUnlock,
+                        TypeSymbol.Error,
+                        LowerExpression(fileUnlock.FileNumber),
+                        fileUnlock.Start is null
+                            ? new IrConstantExpression(0L, TypeSymbol.LongLong)
+                            : LowerExpression(fileUnlock.Start),
+                        fileUnlock.End is null
+                            ? new IrConstantExpression(0L, TypeSymbol.LongLong)
+                            : LowerExpression(fileUnlock.End))));
                     break;
                 case BoundInvocationStatement invocation when invocation.Procedure.IntrinsicKind == VBIntrinsicKind.LSet:
                     LowerLSet(invocation);
+                    break;
+                case BoundInvocationStatement invocation when invocation.Procedure.IntrinsicKind == VBIntrinsicKind.RSet:
+                    LowerRSet(invocation);
                     break;
                 case BoundInvocationStatement invocation:
                     Emit(new IrEvaluateInstruction(LowerCall(invocation.Procedure, invocation.Arguments)));
@@ -1286,12 +1367,16 @@ public static class IrLowerer
                         {
                             LowerExpression(open.FileNumber),
                             LowerExpression(open.Path),
-                            LowerExpression(open.RecordLength!)
+                            LowerExpression(open.RecordLength!),
+                            new IrConstantExpression((long)open.Access, TypeSymbol.Long),
+                            new IrConstantExpression((long)open.Sharing, TypeSymbol.Long)
                         }
                         : new[]
                         {
                             LowerExpression(open.FileNumber),
-                            LowerExpression(open.Path)
+                            LowerExpression(open.Path),
+                            new IrConstantExpression((long)open.Access, TypeSymbol.Long),
+                            new IrConstantExpression((long)open.Sharing, TypeSymbol.Long)
                         };
                     Emit(new IrEvaluateInstruction(Runtime(
                         openMethod,
@@ -1330,13 +1415,23 @@ public static class IrLowerer
                     break;
                 case BoundGetStatement get:
                     if (get.Target.Type is ArrayTypeSymbol getArrayType &&
-                        getArrayType.ElementType is UserDefinedTypeSymbol)
+                        UserDefinedTypeFileLayout.IsBinaryTransferableElement(getArrayType.ElementType))
                     {
                         LowerBinaryArrayGet(get, getArrayType);
                     }
                     else if (get.Target.Type is UserDefinedTypeSymbol getType)
                     {
                         LowerBinaryRecordGet(get, getType);
+                    }
+                    else if (get.Target.Type == TypeSymbol.Variant)
+                    {
+                        Emit(new IrStoreInstruction(
+                            LowerPlace(get.Target),
+                            Runtime(
+                                IrRuntimeMethod.FileGetVariant,
+                                TypeSymbol.Variant,
+                                LowerExpression(get.FileNumber),
+                                get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position))));
                     }
                     else
                     {
@@ -1351,13 +1446,22 @@ public static class IrLowerer
                     break;
                 case BoundPutStatement put:
                     if (put.Value.Type is ArrayTypeSymbol putArrayType &&
-                        putArrayType.ElementType is UserDefinedTypeSymbol)
+                        UserDefinedTypeFileLayout.IsBinaryTransferableElement(putArrayType.ElementType))
                     {
                         LowerBinaryArrayPut(put, putArrayType);
                     }
                     else if (put.Value.Type is UserDefinedTypeSymbol putType)
                     {
                         LowerBinaryRecordPut(put, putType);
+                    }
+                    else if (put.Value.Type == TypeSymbol.Variant)
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FilePutVariant,
+                            TypeSymbol.Error,
+                            LowerExpression(put.FileNumber),
+                            put.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(put.Position),
+                            LowerExpression(put.Value))));
                     }
                     else
                     {
@@ -1385,12 +1489,18 @@ public static class IrLowerer
                     foreach (var inputTarget in fileInput.Targets)
                     {
                         var targetPlace = LowerPlace(inputTarget);
+                        var inputValueMethod = targetPlace.Type == TypeSymbol.Variant
+                            ? IrRuntimeMethod.FileInputValue
+                            : IrRuntimeMethod.FileInputField;
+                        var inputValueType = targetPlace.Type == TypeSymbol.Variant
+                            ? TypeSymbol.Variant
+                            : TypeSymbol.String;
                         Emit(new IrStoreInstruction(
                             targetPlace,
                             LowerFileInputValue(
                                 Runtime(
-                                    IrRuntimeMethod.FileInputField,
-                                    TypeSymbol.String,
+                                    inputValueMethod,
+                                    inputValueType,
                                     fileInputNumber),
                                 targetPlace.Type)));
                     }
@@ -1400,9 +1510,9 @@ public static class IrLowerer
 
         private void LowerBinaryArrayGet(BoundGetStatement get, ArrayTypeSymbol arrayType)
         {
-            var elementType = (UserDefinedTypeSymbol)arrayType.ElementType;
-            EnsureBinaryRecordLayout(elementType);
+            EnsureBinaryArrayElementLayout(arrayType.ElementType);
             var target = NewLocal("__file_get_array", arrayType, compilerGenerated: true);
+            var destination = arrayType.HasKnownRank ? null : LowerPlace(get.Target);
             Emit(new IrStoreInstruction(
                 new IrLocalPlace(target),
                 LowerExpression(get.Target)));
@@ -1415,6 +1525,19 @@ public static class IrLowerer
                 TypeSymbol.Error,
                 fileNumber,
                 position)));
+            if (!arrayType.HasKnownRank)
+            {
+                Emit(new IrStoreInstruction(
+                    new IrLocalPlace(target),
+                    Runtime(
+                        IrRuntimeMethod.FileGetDynamicArrayIfRandom,
+                        arrayType,
+                        fileNumber,
+                        new IrLoadExpression(new IrLocalPlace(target)))));
+                Emit(new IrStoreInstruction(
+                    destination!,
+                    new IrLoadExpression(new IrLocalPlace(target))));
+            }
             Emit(new IrEvaluateInstruction(Runtime(
                 IrRuntimeMethod.ArrayRequireAllocated,
                 TypeSymbol.Variant,
@@ -1429,8 +1552,7 @@ public static class IrLowerer
 
         private void LowerBinaryArrayPut(BoundPutStatement put, ArrayTypeSymbol arrayType)
         {
-            var elementType = (UserDefinedTypeSymbol)arrayType.ElementType;
-            EnsureBinaryRecordLayout(elementType);
+            EnsureBinaryArrayElementLayout(arrayType.ElementType);
             var source = NewLocal("__file_put_array", arrayType, compilerGenerated: true);
             Emit(new IrStoreInstruction(
                 new IrLocalPlace(source),
@@ -1444,6 +1566,14 @@ public static class IrLowerer
                 TypeSymbol.Error,
                 fileNumber,
                 position)));
+            if (!arrayType.HasKnownRank)
+            {
+                Emit(new IrEvaluateInstruction(Runtime(
+                    IrRuntimeMethod.FilePutDynamicArrayDescriptorIfRandom,
+                    TypeSymbol.Error,
+                    fileNumber,
+                    new IrLoadExpression(new IrLocalPlace(source)))));
+            }
             EmitDynamicArrayRecordElements(source, arrayType, fileNumber, forWrite: true);
             Emit(new IrEvaluateInstruction(Runtime(
                 IrRuntimeMethod.FileRecordEnd,
@@ -1567,6 +1697,17 @@ public static class IrLowerer
                 return;
             }
 
+            if (type == TypeSymbol.Variant)
+            {
+                Emit(new IrStoreInstruction(
+                    target,
+                    Runtime(
+                        IrRuntimeMethod.FileGetRawVariant,
+                        TypeSymbol.Variant,
+                        fileNumber)));
+                return;
+            }
+
             Emit(new IrStoreInstruction(
                 target,
                 Runtime(
@@ -1633,6 +1774,16 @@ public static class IrLowerer
                     fileNumber,
                     new IrLoadExpression(source),
                     new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))));
+                return;
+            }
+
+            if (type == TypeSymbol.Variant)
+            {
+                Emit(new IrEvaluateInstruction(Runtime(
+                    IrRuntimeMethod.FilePutRawVariant,
+                    TypeSymbol.Error,
+                    fileNumber,
+                    new IrLoadExpression(source))));
                 return;
             }
 
@@ -2272,7 +2423,7 @@ public static class IrLowerer
 
                 var body = NewBlock("select_case_body");
                 var miss = NewBlock("select_case_next");
-                LowerCaseClauseChain(caseBlock.Clauses, 0, value, body.Id, miss.Id);
+                LowerCaseClauseChain(caseBlock.Clauses, 0, value, body.Id, miss.Id, statement.UseTextCompare);
                 _current = body;
                 LowerBlock(caseBlock.Body);
                 GotoIfOpen(exit.Id);
@@ -2289,7 +2440,8 @@ public static class IrLowerer
             int index,
             IrLocal selected,
             int successBlock,
-            int failureBlock)
+            int failureBlock,
+            bool useTextCompare)
         {
             if (index >= clauses.Length)
             {
@@ -2298,28 +2450,42 @@ public static class IrLowerer
             }
 
             var next = index == clauses.Length - 1 ? failureBlock : NewBlock("select_clause_next").Id;
-            LowerCaseClauseTest(clauses[index], selected, successBlock, next);
+            LowerCaseClauseTest(clauses[index], selected, successBlock, next, useTextCompare);
             if (next != failureBlock)
             {
                 _current = _blocks[next];
-                LowerCaseClauseChain(clauses, index + 1, selected, successBlock, failureBlock);
+                LowerCaseClauseChain(clauses, index + 1, selected, successBlock, failureBlock, useTextCompare);
             }
         }
 
-        private void LowerCaseClauseTest(BoundCaseClause clause, IrLocal selected, int success, int failure)
+        private void LowerCaseClauseTest(
+            BoundCaseClause clause,
+            IrLocal selected,
+            int success,
+            int failure,
+            bool useTextCompare)
         {
             var selectedValue = new IrLoadExpression(new IrLocalPlace(selected));
+            static IrRuntimeCallExpression WithTextCompare(
+                IrRuntimeCallExpression comparison,
+                bool useTextCompare) =>
+                useTextCompare ? comparison with { UseTextCompare = true } : comparison;
+
             switch (clause)
             {
                 case BoundCaseValueClause value:
                     Terminate(new IrConditionalTerminator(
-                        Runtime(IrRuntimeMethod.Equal, TypeSymbol.Boolean, selectedValue, LowerExpression(value.Value)),
+                        WithTextCompare(
+                            Runtime(IrRuntimeMethod.Equal, TypeSymbol.Boolean, selectedValue, LowerExpression(value.Value)),
+                            useTextCompare),
                         success,
                         failure));
                     break;
                 case BoundCaseRelationalClause relational:
                     Terminate(new IrConditionalTerminator(
-                        Runtime(RelationalMethod(relational.OperatorKind), TypeSymbol.Boolean, selectedValue, LowerExpression(relational.Value)),
+                        WithTextCompare(
+                            Runtime(RelationalMethod(relational.OperatorKind), TypeSymbol.Boolean, selectedValue, LowerExpression(relational.Value)),
+                            useTextCompare),
                         success,
                         failure));
                     break;
@@ -2327,12 +2493,16 @@ public static class IrLowerer
                 {
                     var upperTest = NewBlock("select_range_upper");
                     Terminate(new IrConditionalTerminator(
-                        Runtime(IrRuntimeMethod.GreaterOrEqual, TypeSymbol.Boolean, selectedValue, LowerExpression(range.LowerBound)),
+                        WithTextCompare(
+                            Runtime(IrRuntimeMethod.GreaterOrEqual, TypeSymbol.Boolean, selectedValue, LowerExpression(range.LowerBound)),
+                            useTextCompare),
                         upperTest.Id,
                         failure));
                     _current = upperTest;
                     Terminate(new IrConditionalTerminator(
-                        Runtime(IrRuntimeMethod.LessOrEqual, TypeSymbol.Boolean, selectedValue, LowerExpression(range.UpperBound)),
+                        WithTextCompare(
+                            Runtime(IrRuntimeMethod.LessOrEqual, TypeSymbol.Boolean, selectedValue, LowerExpression(range.UpperBound)),
+                            useTextCompare),
                         success,
                         failure));
                     break;
@@ -2363,6 +2533,15 @@ public static class IrLowerer
                     IrRuntimeMethod.ErrorSetLineNumber,
                     TypeSymbol.Error,
                     new IrConstantExpression(lineNumber, TypeSymbol.Long))));
+            }
+        }
+
+        private static void EnsureBinaryArrayElementLayout(TypeSymbol type)
+        {
+            if (!UserDefinedTypeFileLayout.IsBinaryTransferableElement(type))
+            {
+                throw new NotSupportedException(
+                    $"Array element type '{type.Name}' does not have a supported binary file layout.");
             }
         }
 
@@ -3219,6 +3398,71 @@ public static class IrLowerer
                 LowerValueCopy(source))));
         }
 
+        private void LowerRSet(BoundInvocationStatement invocation)
+        {
+            if (invocation.Arguments.Length != 2)
+            {
+                Emit(new IrEvaluateInstruction(Runtime(IrRuntimeMethod.MemoryRSet, TypeSymbol.Error)));
+                return;
+            }
+
+            var target = invocation.Arguments[0].Expression;
+            var source = invocation.Arguments[1].Expression;
+
+            if (target.Type is FixedLengthStringTypeSymbol fixedString)
+            {
+                var targetPlace = LowerPlace(target);
+                var aligned = new IrRuntimeCallExpression(
+                    IrRuntimeMethod.FixedStringRightAlign,
+                    ImmutableArray.Create(
+                        new IrCallArgument(LowerRSetStringValue(source)),
+                        new IrCallArgument(new IrConstantExpression((long)fixedString.Length, TypeSymbol.Long))),
+                    TypeSymbol.String);
+                Emit(new IrStoreInstruction(
+                    targetPlace,
+                    LowerFixedStringWrite(target.Type, aligned)));
+                return;
+            }
+
+            if (target.Type == TypeSymbol.String)
+            {
+                Emit(new IrStoreInstruction(
+                    LowerPlace(target),
+                    LowerRSetStringValue(source)));
+                return;
+            }
+
+            // RSet is a string alignment statement. Keep unsupported UDT/Variant layouts on the
+            // explicit runtime guard instead of accidentally applying LSet's left-alignment rules.
+            Emit(new IrEvaluateInstruction(Runtime(
+                IrRuntimeMethod.MemoryRSet,
+                TypeSymbol.Error,
+                LowerValueCopy(target),
+                LowerValueCopy(source))));
+        }
+
+        private void LowerMidAssignment(BoundMidAssignmentStatement statement)
+        {
+            var targetPlace = LowerPlace(statement.Target);
+            var current = LowerFixedStringRead(
+                statement.Target.Type,
+                new IrLoadExpression(targetPlace));
+            var length = statement.Length is null
+                ? new IrConstantExpression(-1L, TypeSymbol.Long)
+                : LowerExpression(statement.Length);
+            var replacement = LowerExpression(statement.Replacement);
+            var value = Runtime(
+                IrRuntimeMethod.StringMidAssign,
+                TypeSymbol.String,
+                current,
+                LowerExpression(statement.Start),
+                replacement,
+                length);
+            Emit(new IrStoreInstruction(
+                targetPlace,
+                LowerFixedStringWrite(statement.Target.Type, value)));
+        }
+
         private static bool IsManagedLSetLayoutSupported(UserDefinedTypeSymbol type) =>
             TryGetManagedLSetLayout(
                 type,
@@ -3286,6 +3530,14 @@ public static class IrLowerer
             checked((offset + alignment - 1) / alignment * alignment);
 
         private IrExpression LowerLSetStringValue(BoundExpression source)
+        {
+            var value = LowerExpression(source);
+            return source.Type == TypeSymbol.String || source.Type is FixedLengthStringTypeSymbol
+                ? value
+                : Runtime(IrRuntimeMethod.ConvertCStr, TypeSymbol.String, value);
+        }
+
+        private IrExpression LowerRSetStringValue(BoundExpression source)
         {
             var value = LowerExpression(source);
             return source.Type == TypeSymbol.String || source.Type is FixedLengthStringTypeSymbol
@@ -3652,7 +3904,10 @@ public static class IrLowerer
                 default: throw new NotSupportedException($"IR lowering does not support binary operator '{binary.OperatorKind}'.");
             }
 
-            return Runtime(method, binary.ResultType, left, right);
+            var result = Runtime(method, binary.ResultType, left, right);
+            return binary.UseTextCompare
+                ? result with { UseTextCompare = true }
+                : result;
         }
 
         private static bool IsStringVariantComparison(BoundBinaryExpression binary) =>
@@ -3823,6 +4078,7 @@ public static class IrLowerer
             : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetCurrency
             : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetBoolean
             : type == TypeSymbol.String ? IrRuntimeMethod.FileGetString
+            : type == TypeSymbol.Variant ? IrRuntimeMethod.FileGetVariant
             : throw new NotSupportedException($"File Get type '{type.Name}' is not supported by IR lowering.");
 
         private static IrRuntimeMethod FileGetRawMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.FileGetRawByte
@@ -3835,6 +4091,7 @@ public static class IrLowerer
             : type == TypeSymbol.Currency ? IrRuntimeMethod.FileGetRawCurrency
             : type == TypeSymbol.Boolean ? IrRuntimeMethod.FileGetRawBoolean
             : type == TypeSymbol.String ? IrRuntimeMethod.FileGetRawString
+            : type == TypeSymbol.Variant ? IrRuntimeMethod.FileGetRawVariant
             : throw new NotSupportedException($"File Get type '{type.Name}' is not supported by IR lowering.");
 
         private static IrRuntimeMethod IntrinsicMethod(string target) => target switch
@@ -3842,10 +4099,14 @@ public static class IrLowerer
             "VBStrings.Len" => IrRuntimeMethod.StringLen,
             "VBStrings.LenB" => IrRuntimeMethod.StringLenB,
             "VBStrings.Mid" => IrRuntimeMethod.StringMid,
+            "VBStrings.MidB" => IrRuntimeMethod.StringMidB,
+            "VBStrings.MidAssign" => IrRuntimeMethod.StringMidAssign,
             "VBStrings.Chr" => IrRuntimeMethod.StringChr,
             "VBStrings.ChrW" => IrRuntimeMethod.StringChrW,
             "VBStrings.Left" => IrRuntimeMethod.StringLeft,
+            "VBStrings.LeftB" => IrRuntimeMethod.StringLeftB,
             "VBStrings.Right" => IrRuntimeMethod.StringRight,
+            "VBStrings.RightB" => IrRuntimeMethod.StringRightB,
             "VBStrings.UCase" => IrRuntimeMethod.StringUCase,
             "VBStrings.LCase" => IrRuntimeMethod.StringLCase,
             "VBStrings.Trim" => IrRuntimeMethod.StringTrim,
@@ -3861,7 +4122,9 @@ public static class IrLowerer
             "VBStrings.FormatValue" => IrRuntimeMethod.StringFormat,
             "VBStrings.IsNumeric" => IrRuntimeMethod.StringIsNumeric,
             "VBStrings.InStr" => IrRuntimeMethod.StringInStr,
+            "VBStrings.InStrB" => IrRuntimeMethod.StringInStrB,
             "VBStrings.InStrRev" => IrRuntimeMethod.StringInStrRev,
+            "VBStrings.StrComp" => IrRuntimeMethod.StringStrComp,
             "VBStrings.Replace" => IrRuntimeMethod.StringReplace,
             "VBStrings.Space" => IrRuntimeMethod.StringSpace,
             "VBStrings.Split" => IrRuntimeMethod.StringSplit,
@@ -3913,6 +4176,10 @@ public static class IrLowerer
             "VBFiles.EndOfFile" => IrRuntimeMethod.FileEndOfFile,
             "VBFiles.Input" => IrRuntimeMethod.FileInput,
             "VBFiles.Position" => IrRuntimeMethod.FilePosition,
+            "VBFiles.Location" => IrRuntimeMethod.FileLocation,
+            "VBFiles.Reset" => IrRuntimeMethod.FileReset,
+            "VBFiles.Lock" => IrRuntimeMethod.FileLock,
+            "VBFiles.Unlock" => IrRuntimeMethod.FileUnlock,
             "VBFiles.Kill" => IrRuntimeMethod.FileKill,
             "VBFiles.Dir" => IrRuntimeMethod.FileDir,
             "VBFiles.FileCopy" => IrRuntimeMethod.FileCopy,
@@ -3952,6 +4219,7 @@ public static class IrLowerer
             "VBMemory.ObjPtr" => IrRuntimeMethod.MemoryObjPtr,
             "VBMemory.StrPtr" => IrRuntimeMethod.MemoryStrPtr,
             "VBMemory.LSet" => IrRuntimeMethod.MemoryLSet,
+            "VBMemory.RSet" => IrRuntimeMethod.MemoryRSet,
             "VBDateTime.Date" => IrRuntimeMethod.DateTimeDate,
             "VBDateTime.Time" => IrRuntimeMethod.DateTimeTime,
             "VBDateTime.Now" => IrRuntimeMethod.DateTimeNow,

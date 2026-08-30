@@ -85,6 +85,225 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void Location_UsesTheVb6ModeSpecificUnits()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenBinary(1, path);
+            Assert.AreEqual(0L, VBFiles.Location(1));
+            VBFiles.Put(1, 1, (byte)10);
+            Assert.AreEqual(1L, VBFiles.Location(1));
+            VBFiles.Put(1, null, (byte)20);
+            Assert.AreEqual(2L, VBFiles.Location(1));
+            VBFiles.Close(1);
+
+            VBFiles.OpenRandom(1, path, 4);
+            Assert.AreEqual(0L, VBFiles.Location(1));
+            VBFiles.Put(1, 1, 10);
+            Assert.AreEqual(1L, VBFiles.Location(1));
+            VBFiles.Close(1);
+
+            File.WriteAllBytes(path, new byte[128]);
+            VBFiles.OpenInput(1, path);
+            Assert.AreEqual(0L, VBFiles.Location(1));
+            _ = VBFiles.Input(128, 1);
+            Assert.AreEqual(1L, VBFiles.Location(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void Reset_ClosesAllOpenFileChannels()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenOutput(1, path);
+            VBFiles.OpenOutput(2, path);
+            Assert.AreEqual(3, VBFiles.FreeFile());
+
+            VBFiles.Reset();
+
+            Assert.AreEqual(1, VBFiles.FreeFile());
+            VBFiles.OpenInput(1, path);
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void Write_UsesMachineReadableScalarFormatting()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Write(1, "a\"b");
+            VBFiles.Write(1, true);
+            VBFiles.Write(1, VBVariants.NullValue());
+            VBFiles.Close(1);
+
+            Assert.AreEqual("\"a\"\"b\"\r\n#TRUE#\r\n#NULL#\r\n", File.ReadAllText(path));
+        });
+    }
+
+    [TestMethod]
+    public void InputValue_RestoresWriteStateMarkersAndNumericValues()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Write(1, "hello");
+            VBFiles.Write(1, 42);
+            VBFiles.Write(1, 1.25d);
+            VBFiles.Write(1, true);
+            VBFiles.Write(1, VBVariants.NullValue());
+            VBFiles.Write(1, new VBDateValue(new DateTime(2020, 1, 2, 3, 4, 5).ToOADate()));
+            VBFiles.Write(1, new VBErrorValue(32767));
+            VBFiles.Close(1);
+
+            VBFiles.OpenInput(1, path);
+            Assert.AreEqual("hello", VBFiles.InputValue(1));
+            Assert.AreEqual((short)42, VBFiles.InputValue(1));
+            Assert.AreEqual(1.25d, VBFiles.InputValue(1));
+            Assert.AreEqual(true, VBFiles.InputValue(1));
+            Assert.IsTrue(VBVariants.IsNull(VBFiles.InputValue(1)));
+            Assert.AreEqual(new VBDateValue(new DateTime(2020, 1, 2, 3, 4, 5).ToOADate()), VBFiles.InputValue(1));
+            Assert.AreEqual(new VBErrorValue(32767), VBFiles.InputValue(1));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void BinaryVariantTransfers_PreserveScalarSubtypeAndPayload()
+    {
+        WithTemporaryFile(path =>
+        {
+            var date = new VBDateValue(new DateTime(2020, 1, 2, 3, 4, 5).ToOADate());
+            var values = new object?[]
+            {
+                VBVariants.EmptyValue(),
+                VBVariants.NullValue(),
+                (short)-12,
+                42,
+                1.25d,
+                VBConversions.CCur(2.5m),
+                date,
+                "hello",
+                false,
+                new VBErrorValue(32767),
+                VBConversions.CDec("123.45")
+            };
+
+            VBFiles.OpenBinary(1, path);
+            foreach (var value in values)
+            {
+                VBFiles.PutVariant(1, null, value);
+            }
+
+            VBFiles.Close(1);
+            VBFiles.OpenBinary(1, path);
+            foreach (var expected in values)
+            {
+                var actual = VBFiles.GetVariant(1, null);
+                if (expected is null || VBVariants.IsNull(expected))
+                {
+                    Assert.AreEqual(VBVariants.VarType(expected), VBVariants.VarType(actual));
+                }
+                else
+                {
+                    Assert.AreEqual(expected, actual);
+                }
+            }
+
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void Width_WrapsPrintContinuationAndValidatesRange()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Width(1, 5);
+            for (var value = 0; value < 10; value++)
+            {
+                VBFiles.PrintValue(1, value.ToString(), endRecord: false, separator: 0);
+            }
+
+            VBFiles.Close(1);
+
+            Assert.AreEqual("01234\r\n56789", File.ReadAllText(path));
+            VBFiles.OpenOutput(1, path);
+            VBFiles.PrintValue(1, "a", endRecord: false, separator: 0);
+            VBFiles.PrintValue(1, "b", endRecord: true, separator: 2);
+            VBFiles.Close(1);
+            Assert.AreEqual("a             b\r\n", File.ReadAllText(path));
+
+            VBFiles.OpenOutput(1, path);
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBFiles.Width(1, 256));
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void LockAndUnlock_ApplyOneBasedBinaryAndRandomRanges()
+    {
+        WithTemporaryFile(path =>
+        {
+            File.WriteAllBytes(path, Enumerable.Range(0, 32).Select(value => (byte)value).ToArray());
+
+            VBFiles.OpenBinary(1, path);
+            VBFiles.Lock(1, 2, 4);
+            VBFiles.Unlock(1, 2, 4);
+            VBFiles.Lock(1, 0, 0);
+            VBFiles.Unlock(1, 0, 0);
+            VBFiles.Close(1);
+
+            VBFiles.OpenRandom(1, path, 4);
+            VBFiles.Lock(1, 2, 3);
+            VBFiles.Unlock(1, 2, 3);
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
+    public void Open_ValidatesAndAppliesSharingModes()
+    {
+        WithTemporaryFile(path =>
+        {
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBFiles.OpenBinary(1, path, 99));
+
+            for (var sharingMode = 0; sharingMode <= 3; sharingMode++)
+            {
+                VBFiles.OpenBinary(1, path, sharingMode);
+                VBFiles.Close(1);
+            }
+        });
+    }
+
+    [TestMethod]
+    public void Open_AccessClauseRestrictsReadAndWriteOperations()
+    {
+        WithTemporaryFile(path =>
+        {
+            File.WriteAllBytes(path, [10]);
+
+            // Access Read permits reads but rejects writes at the managed file boundary.
+            VBFiles.OpenBinary(1, path, 1, 0);
+            Assert.AreEqual((byte)10, VBFiles.GetByte(1, 1));
+            Assert.ThrowsException<NotSupportedException>(() => VBFiles.Put(1, 1, (byte)11));
+            VBFiles.Close(1);
+
+            // Access Write is the inverse contract.
+            VBFiles.OpenBinary(1, path, 2, 0);
+            Assert.ThrowsException<NotSupportedException>(() => VBFiles.GetByte(1, 1));
+            VBFiles.Put(1, 1, (byte)12);
+            VBFiles.Close(1);
+
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBFiles.OpenBinary(1, path, 99, 0));
+        });
+    }
+
+    [TestMethod]
     public void FixedStringRawTransfersUseDeclaredByteWidth()
     {
         WithTemporaryFile(path =>

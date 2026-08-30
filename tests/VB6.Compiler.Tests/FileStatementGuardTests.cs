@@ -85,11 +85,11 @@ public sealed class FileStatementGuardTests
     }
 
     [TestMethod]
-    public void Lower_StopsRatherThanEmittingAProgramMissingAnUnsupportedTransfer()
+    public void Lower_StopsRatherThanEmittingAProgramMissingAnUnsupportedObjectTransfer()
     {
         var lowering = VBCompilation.Create("""
             Type Record
-                Value As Variant
+                Value As Object
             End Type
 
             Sub Main()

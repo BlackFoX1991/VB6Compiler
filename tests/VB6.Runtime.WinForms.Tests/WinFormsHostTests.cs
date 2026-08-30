@@ -1992,6 +1992,72 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void HostAppliesAllSixteenDrawModesToPersistentSurface()
+    {
+        const int sourceRgb = 0x00FF_0000; // red pen
+        const int destinationRgb = 0x0000_00FF; // blue destination
+
+        for (var drawMode = 1; drawMode <= 16; drawMode++)
+        {
+            using var host = new WinFormsHost();
+            var owner = new object();
+            host.Load(owner);
+            var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+            pictureBox.Size = new Size(32, 32);
+            Assert.IsTrue(host.TrySetMember(pictureBox, "AutoRedraw", Array.Empty<object?>(), true));
+
+            host.GraphicsLine(
+                pictureBox,
+                new VBGraphicsLine(
+                    0,
+                    0,
+                    480,
+                    480,
+                    ColorTranslator.ToOle(Color.Blue),
+                    false,
+                    DrawBox: true,
+                    Fill: true));
+            Assert.IsTrue(host.TrySetMember(pictureBox, "DrawMode", Array.Empty<object?>(), drawMode));
+            host.GraphicsLine(
+                pictureBox,
+                new VBGraphicsLine(
+                    0,
+                    0,
+                    480,
+                    480,
+                    ColorTranslator.ToOle(Color.Red),
+                    false,
+                    DrawBox: true,
+                    Fill: true));
+
+            Assert.IsNotNull(pictureBox.Image, $"DrawMode {drawMode}: no persistent surface.");
+            using var snapshot = new Bitmap(pictureBox.Image!);
+            var actual = snapshot.GetPixel(16, 16);
+            var expected = Rop2(drawMode, sourceRgb, destinationRgb);
+            Assert.AreEqual((expected >> 16) & 0xFF, actual.R, $"DrawMode {drawMode} red channel.");
+            Assert.AreEqual((expected >> 8) & 0xFF, actual.G, $"DrawMode {drawMode} green channel.");
+            Assert.AreEqual(expected & 0xFF, actual.B, $"DrawMode {drawMode} blue channel.");
+
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
+    public void HostRejectsInvalidDrawModeLikeVb6()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var pictureBox = (PictureBox)host.CreateControl(owner, "Picture1", "PictureBox")!;
+
+        var error = Assert.ThrowsException<VB6RaisedError>(() =>
+            host.TrySetMember(pictureBox, "DrawMode", Array.Empty<object?>(), 17));
+        Assert.AreEqual(380, error.Number, "VB6 reports Invalid property value for DrawMode 17.");
+
+        host.Unload(owner);
+    }
+
     private const int ScaleModeTwip = 1;
     private const int ScaleModePoint = 2;
     private const int ScaleModePixel = 3;
@@ -1999,6 +2065,27 @@ public sealed class WinFormsHostTests
     private const int ScaleModeInch = 5;
     private const int ScaleModeMillimetre = 6;
     private const int ScaleModeCentimetre = 7;
+
+    private static int Rop2(int drawMode, int pen, int destination) => drawMode switch
+    {
+        1 => 0,
+        2 => ~(pen | destination) & 0x00FF_FFFF,
+        3 => destination & ~pen & 0x00FF_FFFF,
+        4 => ~pen & 0x00FF_FFFF,
+        5 => pen & ~destination & 0x00FF_FFFF,
+        6 => ~destination & 0x00FF_FFFF,
+        7 => pen ^ destination,
+        8 => ~(pen & destination) & 0x00FF_FFFF,
+        9 => pen & destination,
+        10 => ~(pen ^ destination) & 0x00FF_FFFF,
+        11 => destination,
+        12 => (~pen | destination) & 0x00FF_FFFF,
+        13 => pen,
+        14 => (pen | ~destination) & 0x00FF_FFFF,
+        15 => pen | destination,
+        16 => 0x00FF_FFFF,
+        _ => throw new ArgumentOutOfRangeException(nameof(drawMode))
+    };
 
     /// <summary>
     /// Draws a filled box of the given size in the given scale mode and checks the pixel extent.

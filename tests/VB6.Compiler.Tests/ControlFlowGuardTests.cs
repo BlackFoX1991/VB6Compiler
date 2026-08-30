@@ -7,6 +7,32 @@ namespace VB6.Compiler.Tests;
 [TestClass]
 public sealed class ControlFlowGuardTests
 {
+    [TestMethod]
+    public void Lower_RepresentsBranchAndLoopEdgesAsExplicitBlocks()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim index As Long
+                If index = 0 Then
+                    index = 1
+                Else
+                    index = 2
+                End If
+                For index = 1 To 2
+                    If index = 2 Then Exit For
+                Next index
+            End Sub
+            """);
+
+        var terminators = VB6TestIr.Procedures(program)
+            .SelectMany(procedure => procedure.Blocks)
+            .Select(block => block.Terminator)
+            .ToArray();
+
+        Assert.IsTrue(terminators.OfType<VB6.IR.IrConditionalTerminator>().Count() >= 2);
+        Assert.IsTrue(terminators.OfType<VB6.IR.IrGotoTerminator>().Any());
+    }
+
     /// <summary>
     /// GoTo, labels and both supported On Error modes are accepted by semantic analysis.
     /// </summary>
@@ -177,5 +203,39 @@ public sealed class ControlFlowGuardTests
             """);
 
         Assert.AreEqual("6", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_PreservesHandlerAndErlAcrossProcedureCalls()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                On Error GoTo Failed
+            100
+                Inner
+                Exit Sub
+            Failed:
+                Debug.Print Err.Number
+                Debug.Print Erl
+            End Sub
+
+            Sub Inner()
+                Err.Raise 5, "inner", "failed"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "5", "100" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    [TestMethod]
+    public void Analyze_ReportsIllegalControlFlowWithStableDiagnosticId()
+    {
+        var analysis = VBCompilation.Create("""
+            Sub Main()
+                GoTo Missing
+            End Sub
+            """, "Module1.bas").Analyze();
+
+        Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0061"));
     }
 }

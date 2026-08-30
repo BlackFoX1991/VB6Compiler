@@ -31,6 +31,33 @@ public sealed class LSetParserTests
         Assert.IsInstanceOfType<MemberAccessExpressionSyntax>(invocation.Arguments[1]);
     }
 
+    [TestMethod]
+    public void Parse_RSetAssignmentAsTwoArguments()
+    {
+        var statement = ParseSingleStatement("RSet target = source");
+
+        var invocation = statement as InvocationStatementSyntax;
+        Assert.IsNotNull(invocation);
+        Assert.AreEqual("RSet", invocation.Identifier.Text);
+        Assert.AreEqual(2, invocation.Arguments.Length);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(invocation.Arguments[0]);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(invocation.Arguments[1]);
+    }
+
+    [TestMethod]
+    public void Parse_MidAssignmentKeepsReplacementOutsideArgumentList()
+    {
+        var statement = ParseSingleStatement("Mid$(target, 2, 3) = source");
+
+        var invocation = statement as InvocationStatementSyntax;
+        Assert.IsNotNull(invocation);
+        Assert.IsTrue(invocation.IsAssignmentSyntax);
+        Assert.AreEqual("Mid", invocation.Identifier.Text);
+        Assert.AreEqual(4, invocation.Arguments.Length);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(invocation.Arguments[0]);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(invocation.Arguments[3]);
+    }
+
     private static StatementSyntax ParseSingleStatement(string statement)
     {
         var source = $"Sub Main()\n    {statement}\nEnd Sub";

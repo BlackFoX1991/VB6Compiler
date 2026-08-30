@@ -1,3 +1,6 @@
+using VB6.IR;
+using VB6.Semantics;
+
 namespace VB6.Compiler.Tests;
 
 [TestClass]
@@ -96,6 +99,30 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void Lower_PreservesDynamicArrayRankBoundsAndElementType()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim values() As Long
+                ReDim values(-2 To 1, 3 To 4)
+            End Sub
+            """);
+
+        var allocation = VB6TestIr.Expressions(program)
+            .OfType<IrNewVBArrayExpression>()
+            .Single();
+
+        Assert.AreEqual(TypeSymbol.Long, allocation.ArrayType.ElementType);
+        Assert.AreEqual(2, allocation.Bounds.Length);
+        CollectionAssert.AreEqual(
+            new long[] { -2, 3 },
+            allocation.Bounds.Select(bound => GetLongConstant(bound.Lower)).ToArray());
+        CollectionAssert.AreEqual(
+            new long[] { 1, 4 },
+            allocation.Bounds.Select(bound => GetLongConstant(bound.Upper)).ToArray());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PassesVariantArrayElementByRef()
     {
         const string source = """
@@ -118,6 +145,18 @@ public sealed class ArrayExecutionTests
             standardOutput.Trim().Split(Environment.NewLine).Select(line => line.Trim()).ToArray(),
             standardOutput);
     }
+
+    private static long GetLongConstant(IrExpression expression) => expression switch
+    {
+        IrConstantExpression { Value: long value } => value,
+        IrRuntimeCallExpression
+        {
+            Method: IrRuntimeMethod.NegateInteger or IrRuntimeMethod.NegateLong,
+            Arguments.Length: 1
+        } call => -GetLongConstant(call.Arguments[0].Expression),
+        IrRuntimeCallExpression { Arguments.Length: 1 } call => GetLongConstant(call.Arguments[0].Expression),
+        _ => throw new AssertFailedException($"Expected a lowered Long constant, got {expression.GetType().Name}.")
+    };
 
     [TestMethod]
     public void EmitManagedApplication_PassesWholeVariantArrayByRef()

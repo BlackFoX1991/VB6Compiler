@@ -11,18 +11,24 @@ public sealed class ScalarStringIntrinsicExecutionTests
     public void EmitManagedApplication_ExecutesSearchReplacementAndConversionIntrinsics()
     {
         var output = VB6TestProgram.Run("""
+            Option Compare Text
+
             Sub Main()
-                Debug.Print InStr("abc", "b")
+                Debug.Print InStr("abc", "B")
                 Debug.Print InStr(1, "abc", "B", vbTextCompare)
                 Debug.Print InStrRev("abca", "A", -1, vbTextCompare)
-                Debug.Print Replace("a-b-b", "b", "x")
+                Debug.Print StrComp("abc", "ABC", vbBinaryCompare)
+                Debug.Print StrComp("abc", "ABC", vbTextCompare)
+                Debug.Print StrComp("b", "a")
+                Debug.Print StrComp("abc", "ABC")
+                Debug.Print Replace("a-b-b", "B", "x")
                 Debug.Print StrConv("aBc", vbUpperCase)
                 Debug.Print Int(-1.2)
                 Debug.Print UBound(Split("a,b,c", ","))
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "2", "2", "4", "a-x-x", "ABC", "-2", "2" }, VB6TestProgram.SplitLines(output), output);
+        CollectionAssert.AreEqual(new[] { "2", "2", "4", "1", "0", "1", "0", "a-x-x", "ABC", "-2", "2" }, VB6TestProgram.SplitLines(output), output);
     }
 
     [TestMethod]
@@ -70,6 +76,32 @@ public sealed class ScalarStringIntrinsicExecutionTests
         }
 
         Assert.AreEqual("A", lines[2]);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesByteStringIntrinsicsWithProfileAndCompareOption()
+    {
+        var compilation = VBCompilation.Create(
+            """
+            Option Compare Text
+
+            Sub Main()
+                Debug.Print LeftB("abcdef", 3)
+                Debug.Print RightB("abcdef", 3)
+                Debug.Print MidB("abcdef", 2, 3)
+                Debug.Print InStrB("XXpXXp", "P")
+                Debug.Print InStrB(1, "XXpXXp", "P", vbBinaryCompare)
+            End Sub
+            """,
+            "Module1.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        CollectionAssert.AreEqual(
+            new[] { "abc", "def", "bcd", "3", "0" },
+            VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation)));
     }
 
     [TestMethod]

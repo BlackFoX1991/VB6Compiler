@@ -203,4 +203,83 @@ public sealed class VariantEqualityExecutionTests
         CollectionAssert.AreEqual(new[] { "True", "False", "True" }, output);
     }
 
+    [TestMethod]
+    public void Lower_SelectsTypedAndVariantOperatorDispatchPaths()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim left As Long
+                Dim right As Long
+                Dim value As Variant
+
+                If left < right Then
+                    Debug.Print left + right
+                End If
+
+                Debug.Print value + right
+            End Sub
+            """);
+
+        CollectionAssert.IsSubsetOf(
+            new[]
+            {
+                IrRuntimeMethod.Less,
+                IrRuntimeMethod.AddLong,
+                IrRuntimeMethod.AddVariant
+            },
+            VB6TestIr.RuntimeCalls(program).ToArray());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_MapsOperatorOverflowAndInvalidVariantArrayToVbErrors()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim number As Long
+                Dim value As Variant
+
+                On Error Resume Next
+                number = 2147483647
+                Debug.Print number + 1
+                Debug.Print Err.Number
+                Err.Clear
+
+                value = Array(1, 2)
+                Debug.Print value + 1
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "6", "13" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_MapsOperatorDivisionFailuresToVbErrors()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim numerator As Double
+                Dim zero As Double
+                Dim divisor As Long
+                Dim quotient As Long
+
+                numerator = 1
+                zero = 0
+                divisor = 0
+
+                On Error Resume Next
+                Debug.Print numerator / zero
+                Debug.Print Err.Number
+                Err.Clear
+                Debug.Print zero / zero
+                Debug.Print Err.Number
+                Err.Clear
+                quotient = numerator \ divisor
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "11", "6", "11" }, output);
+    }
+
 }

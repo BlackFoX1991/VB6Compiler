@@ -168,6 +168,82 @@ public static class VBStrings
     }
 
     /// <summary>
+    /// Implements the byte-oriented MidB intrinsic. The requested positions and length are
+    /// measured in the active VB6 string encoding rather than UTF-16 characters.
+    /// </summary>
+    public static string MidB(string value, int start)
+        => MidB(value, start, -1, VBCompatibilityProfile.Deterministic);
+
+    public static string MidB(string value, int start, VBCompatibilityProfile profile)
+        => MidB(value, start, -1, profile);
+
+    public static string MidB(string value, int start, int length)
+        => MidB(value, start, length, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware MidB using the process ANSI code page for VB6Sp6.</summary>
+    public static string MidB(
+        string value,
+        int start,
+        int length,
+        VBCompatibilityProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (start < 1 || length < -1)
+        {
+            throw new ArgumentOutOfRangeException(
+                start < 1 ? nameof(start) : nameof(length),
+                "VB6 MidB requires a one-based start and a non-negative length.");
+        }
+
+        var bytes = EncodeByteString(value, profile);
+        if (start > bytes.Length || length == 0)
+        {
+            return string.Empty;
+        }
+
+        var offset = start - 1;
+        var count = length < 0 ? bytes.Length - offset : Math.Min(length, bytes.Length - offset);
+        return DecodeByteSlice(bytes, offset, Math.Max(0, count), profile);
+    }
+
+    /// <summary>
+    /// Implements the VB6 Mid statement. The target keeps its original length: replacement
+    /// characters are copied from the replacement string, never beyond the target or an explicit
+    /// length. A negative length is the internal marker for the omitted length form.
+    /// </summary>
+    public static string MidAssign(string target, int start, string replacement, int length)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (start < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "VB6 Mid assignment uses a one-based start position.");
+        }
+
+        if (length < -1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "VB6 Mid assignment requires a non-negative length.");
+        }
+
+        if (start > target.Length || replacement.Length == 0)
+        {
+            return target;
+        }
+
+        var available = target.Length - (start - 1);
+        var requested = length < 0 ? replacement.Length : Math.Min(length, replacement.Length);
+        var count = Math.Min(available, requested);
+        if (count == 0)
+        {
+            return target;
+        }
+
+        var result = target.ToCharArray();
+        replacement.AsSpan(0, count).CopyTo(result.AsSpan(start - 1, count));
+        return new string(result);
+    }
+
+    /// <summary>
     /// VB6 Left. A length beyond the end of the string returns the whole string rather than
     /// failing, which is why this cannot be a plain Substring.
     /// </summary>
@@ -192,6 +268,41 @@ public static class VBStrings
         }
 
         return length >= value.Length ? value : value[^length..];
+    }
+
+    /// <summary>Returns a byte-counted suffix, as documented for RightB.</summary>
+    public static string RightB(string value, int length)
+        => RightB(value, length, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware RightB using the active VB6 string encoding.</summary>
+    public static string RightB(string value, int length, VBCompatibilityProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (length < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "VB6 RightB requires a non-negative length.");
+        }
+
+        var bytes = EncodeByteString(value, profile);
+        var count = Math.Min(length, bytes.Length);
+        return DecodeByteSlice(bytes, bytes.Length - count, count, profile);
+    }
+
+    /// <summary>Returns a byte-counted prefix, as documented for LeftB.</summary>
+    public static string LeftB(string value, int length)
+        => LeftB(value, length, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware LeftB using the active VB6 string encoding.</summary>
+    public static string LeftB(string value, int length, VBCompatibilityProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (length < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "VB6 LeftB requires a non-negative length.");
+        }
+
+        var bytes = EncodeByteString(value, profile);
+        return DecodeByteSlice(bytes, 0, Math.Min(length, bytes.Length), profile);
     }
 
     /// <summary>
@@ -1276,7 +1387,11 @@ public static class VBStrings
     /// VB6 IsNumeric. It answers whether the value could be read as a number, which is true for
     /// numeric strings and for every numeric subtype, and false for Empty and for text.
     /// </summary>
-    public static bool IsNumeric(object? value)
+    public static bool IsNumeric(object? value) =>
+        IsNumeric(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware numeric predicate using the selected decimal/thousands separators.</summary>
+    public static bool IsNumeric(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         return value switch
@@ -1287,7 +1402,7 @@ public static class VBStrings
             string text => double.TryParse(
                 text.Trim(),
                 System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
-                System.Globalization.CultureInfo.InvariantCulture,
+                FormatCulture(compatibilityProfile),
                 out _),
             _ => false
         };
@@ -1454,6 +1569,54 @@ public static class VBStrings
         return index < 0 ? 0 : index + 1;
     }
 
+    /// <summary>
+    /// Implements InStrB. The returned position is one-based and counts encoded bytes; textual
+    /// comparisons still use the same ordinal, case-insensitive rule as InStr.
+    /// </summary>
+    public static int InStrB(
+        int start,
+        string string1,
+        string string2,
+        int compare,
+        VBCompatibilityProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(string1);
+        ArgumentNullException.ThrowIfNull(string2);
+        if (start < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "VB6 InStrB uses one-based byte positions.");
+        }
+
+        var source = EncodeByteString(string1, profile);
+        var match = EncodeByteString(string2, profile);
+        if (start > source.Length)
+        {
+            return 0;
+        }
+
+        if (match.Length == 0)
+        {
+            return start;
+        }
+
+        if (compare != 1)
+        {
+            var index = IndexOfBytes(source, match, start - 1);
+            return index < 0 ? 0 : index + 1;
+        }
+
+        // Text comparison is defined over characters, but the result remains a byte position.
+        // Decode the source and calculate the returned offset from the same profile encoding.
+        var sourceText = DecodeByteSlice(source, 0, source.Length, profile);
+        var matchText = DecodeByteSlice(match, 0, match.Length, profile);
+        var prefixText = DecodeByteSlice(source, 0, Math.Min(start - 1, source.Length), profile);
+        var charStart = prefixText.Length;
+        var charIndex = sourceText.IndexOf(matchText, charStart, StringComparison.OrdinalIgnoreCase);
+        return charIndex < 0
+            ? 0
+            : checked(EncodeByteString(sourceText[..charIndex], profile).Length + 1);
+    }
+
     /// <summary>Implements the two- to four-argument VB6 InStrRev form.</summary>
     public static int InStrRev(string stringCheck, string stringMatch, int start, int compare)
     {
@@ -1485,6 +1648,16 @@ public static class VBStrings
         }
 
         return 0;
+    }
+
+    /// <summary>Implements VB6 StrComp with binary or ordinal text comparison.</summary>
+    public static int StrComp(string string1, string string2, int compare)
+    {
+        ArgumentNullException.ThrowIfNull(string1);
+        ArgumentNullException.ThrowIfNull(string2);
+
+        var comparison = compare == 1 ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return Math.Sign(string.Compare(string1, string2, comparison));
     }
 
     /// <summary>Implements VB6 Replace with one-based start and optional replacement count.</summary>
@@ -1635,9 +1808,9 @@ public static class VBStrings
         => StrConv(value, conversion, lcid, VBCompatibilityProfile.Deterministic);
 
     /// <summary>
-    /// Implements the profile-aware StrConv subset. VB6Sp6 follows the active system culture for
-    /// casing; unsupported width conversions remain explicit no-ops until their DBCS contract is
-    /// implemented.
+    /// Implements the profile-aware StrConv contract for casing, East-Asian width and Japanese
+    /// kana conversions. The implementation stays Unicode-native: the active profile culture is
+    /// used for casing and also decides whether the locale-gated width/kana flags are valid.
     /// </summary>
     public static string StrConv(
         string value,
@@ -1646,18 +1819,260 @@ public static class VBStrings
         VBCompatibilityProfile compatibilityProfile)
     {
         ArgumentNullException.ThrowIfNull(value);
-        _ = lcid;
         var culture = compatibilityProfile == VBCompatibilityProfile.VB6Sp6
-            ? System.Globalization.CultureInfo.CurrentCulture
+            ? ResolveStrConvCulture(lcid)
             : System.Globalization.CultureInfo.InvariantCulture;
-        return conversion switch
+        const int upperCase = 1;
+        const int lowerCase = 2;
+        const int wide = 4;
+        const int narrow = 8;
+        const int katakana = 16;
+        const int hiragana = 32;
+        const int unicode = 64;
+        const int fromUnicode = 128;
+        const int supportedFlags = upperCase | lowerCase | wide | narrow | katakana | hiragana | unicode | fromUnicode;
+
+        if (conversion <= 0 || (conversion & ~supportedFlags) != 0)
         {
-            1 => value.ToUpper(culture),
-            2 => value.ToLower(culture),
-            3 => culture.TextInfo.ToTitleCase(value.ToLower(culture)),
-            64 or 128 => value,
-            _ => throw new NotSupportedException($"VB6 StrConv conversion '{conversion}' is not supported by the portable runtime.")
+            throw new ArgumentException($"VB6 StrConv conversion '{conversion}' is invalid.", nameof(conversion));
+        }
+
+        if ((conversion & wide) != 0 && (conversion & narrow) != 0)
+        {
+            throw new ArgumentException("VB6 StrConv cannot combine vbWide and vbNarrow.", nameof(conversion));
+        }
+
+        if ((conversion & katakana) != 0 && (conversion & hiragana) != 0)
+        {
+            throw new ArgumentException("VB6 StrConv cannot combine vbKatakana and vbHiragana.", nameof(conversion));
+        }
+
+        if ((conversion & unicode) != 0 && (conversion & fromUnicode) != 0)
+        {
+            throw new ArgumentException("VB6 StrConv cannot combine vbUnicode and vbFromUnicode.", nameof(conversion));
+        }
+
+        var casing = conversion & (upperCase | lowerCase);
+        var result = casing switch
+        {
+            upperCase => value.ToUpper(culture),
+            lowerCase => value.ToLower(culture),
+            upperCase | lowerCase => culture.TextInfo.ToTitleCase(value.ToLower(culture)),
+            _ => value
         };
+
+        var isEastAsian = culture.Name.StartsWith("ja", StringComparison.OrdinalIgnoreCase) ||
+            culture.Name.StartsWith("ko", StringComparison.OrdinalIgnoreCase) ||
+            culture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+        if ((conversion & (wide | narrow)) != 0 && !isEastAsian)
+        {
+            throw new InvalidOperationException(
+                "VB6 StrConv vbWide/vbNarrow requires an East-Asian compatibility locale.");
+        }
+
+        var isJapanese = culture.Name.StartsWith("ja", StringComparison.OrdinalIgnoreCase);
+        if ((conversion & (katakana | hiragana)) != 0 && !isJapanese)
+        {
+            throw new InvalidOperationException(
+                "VB6 StrConv vbKatakana/vbHiragana requires a Japanese compatibility locale.");
+        }
+
+        if ((conversion & wide) != 0)
+        {
+            result = ToWide(result);
+        }
+        else if ((conversion & narrow) != 0)
+        {
+            result = ToNarrow(result);
+        }
+
+        if ((conversion & katakana) != 0)
+        {
+            result = ToKatakana(result);
+        }
+        else if ((conversion & hiragana) != 0)
+        {
+            result = ToHiragana(result);
+        }
+
+        // vbUnicode/vbFromUnicode are byte-array conversions in the original runtime. The
+        // managed intrinsic has a String return type, so the Unicode text itself is preserved;
+        // the profile-aware ANSI byte contract is exposed by LenB/Asc/Chr instead.
+        return result;
+    }
+
+    private static System.Globalization.CultureInfo ResolveStrConvCulture(int lcid)
+    {
+        if (lcid == 0)
+        {
+            return System.Globalization.CultureInfo.CurrentCulture;
+        }
+
+        try
+        {
+            return System.Globalization.CultureInfo.GetCultureInfo(lcid);
+        }
+        catch (System.Globalization.CultureNotFoundException exception)
+        {
+            throw new ArgumentException($"VB6 StrConv LCID '{lcid}' is not installed.", nameof(lcid), exception);
+        }
+    }
+
+    private static string ToWide(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            if (character is >= '\u0021' and <= '\u007e')
+            {
+                builder.Append((char)(character + 0xfee0));
+            }
+            else if (character == '\u0020')
+            {
+                builder.Append('\u3000');
+            }
+            else if (character is >= '\uff61' and <= '\uff9f')
+            {
+                builder.Append(character.ToString().Normalize(System.Text.NormalizationForm.FormKC));
+            }
+            else
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString().Normalize(System.Text.NormalizationForm.FormC);
+    }
+
+    private static string ToNarrow(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            if (character is >= '\uff01' and <= '\uff5e')
+            {
+                builder.Append((char)(character - 0xfee0));
+            }
+            else if (character == '\u3000')
+            {
+                builder.Append(' ');
+            }
+            else if (FullWidthKatakana.TryGetValue(character, out var halfWidth))
+            {
+                builder.Append(halfWidth);
+            }
+            else
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static readonly IReadOnlyDictionary<char, string> FullWidthKatakana =
+        new Dictionary<char, string>
+        {
+            ['。'] = "｡", ['「'] = "｢", ['」'] = "｣", ['、'] = "､", ['・'] = "･",
+            ['ァ'] = "ｧ", ['ア'] = "ｱ", ['ィ'] = "ｨ", ['イ'] = "ｲ", ['ゥ'] = "ｩ",
+            ['ウ'] = "ｳ", ['ェ'] = "ｪ", ['エ'] = "ｴ", ['ォ'] = "ｫ", ['オ'] = "ｵ",
+            ['カ'] = "ｶ", ['ガ'] = "ｶﾞ", ['キ'] = "ｷ", ['ギ'] = "ｷﾞ", ['ク'] = "ｸ",
+            ['グ'] = "ｸﾞ", ['ケ'] = "ｹ", ['ゲ'] = "ｹﾞ", ['コ'] = "ｺ", ['ゴ'] = "ｺﾞ",
+            ['サ'] = "ｻ", ['ザ'] = "ｻﾞ", ['シ'] = "ｼ", ['ジ'] = "ｼﾞ", ['ス'] = "ｽ",
+            ['ズ'] = "ｽﾞ", ['セ'] = "ｾ", ['ゼ'] = "ｾﾞ", ['ソ'] = "ｿ", ['ゾ'] = "ｿﾞ",
+            ['タ'] = "ﾀ", ['ダ'] = "ﾀﾞ", ['チ'] = "ﾁ", ['ヂ'] = "ﾁﾞ", ['ッ'] = "ｯ",
+            ['ツ'] = "ﾂ", ['ヅ'] = "ﾂﾞ", ['テ'] = "ﾃ", ['デ'] = "ﾃﾞ", ['ト'] = "ﾄ",
+            ['ド'] = "ﾄﾞ", ['ナ'] = "ﾅ", ['ニ'] = "ﾆ", ['ヌ'] = "ﾇ", ['ネ'] = "ﾈ",
+            ['ノ'] = "ﾉ", ['ハ'] = "ﾊ", ['バ'] = "ﾊﾞ", ['パ'] = "ﾊﾟ", ['ヒ'] = "ﾋ",
+            ['ビ'] = "ﾋﾞ", ['ピ'] = "ﾋﾟ", ['フ'] = "ﾌ", ['ブ'] = "ﾌﾞ", ['プ'] = "ﾌﾟ",
+            ['ヘ'] = "ﾍ", ['ベ'] = "ﾍﾞ", ['ペ'] = "ﾍﾟ", ['ホ'] = "ﾎ", ['ボ'] = "ﾎﾞ",
+            ['ポ'] = "ﾎﾟ", ['マ'] = "ﾏ", ['ミ'] = "ﾐ", ['ム'] = "ﾑ", ['メ'] = "ﾒ",
+            ['モ'] = "ﾓ", ['ャ'] = "ｬ", ['ヤ'] = "ﾔ", ['ュ'] = "ｭ", ['ユ'] = "ﾕ",
+            ['ョ'] = "ｮ", ['ヨ'] = "ﾖ", ['ラ'] = "ﾗ", ['リ'] = "ﾘ", ['ル'] = "ﾙ",
+            ['レ'] = "ﾚ", ['ロ'] = "ﾛ", ['ヮ'] = "ﾜ", ['ワ'] = "ﾜ", ['ヰ'] = "ｲ",
+            ['ヱ'] = "ｴ", ['ヲ'] = "ｦ", ['ン'] = "ﾝ", ['ヴ'] = "ｳﾞ", ['ヵ'] = "ｶ",
+            ['ヶ'] = "ｹ", ['ー'] = "ｰ"
+        };
+
+    private static string ToKatakana(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            builder.Append(character is >= '\u3041' and <= '\u3096'
+                ? (char)(character + 0x60)
+                : character);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string ToHiragana(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            builder.Append(character is >= '\u30a1' and <= '\u30f6'
+                ? (char)(character - 0x60)
+                : character);
+        }
+
+        return builder.ToString();
+    }
+
+    private static byte[] EncodeByteString(string value, VBCompatibilityProfile profile) =>
+        (profile == VBCompatibilityProfile.Deterministic
+            ? Encoding.Unicode
+            : GetAnsiEncoding(profile)).GetBytes(value);
+
+    private static string DecodeByteSlice(
+        byte[] bytes,
+        int offset,
+        int count,
+        VBCompatibilityProfile profile)
+    {
+        if (count <= 0)
+        {
+            return string.Empty;
+        }
+
+        offset = Math.Clamp(offset, 0, bytes.Length);
+        count = Math.Min(count, bytes.Length - offset);
+        if (count <= 0)
+        {
+            return string.Empty;
+        }
+
+        if (profile == VBCompatibilityProfile.Deterministic)
+        {
+            // Deterministic strings are represented as UTF-16. A byte-oriented slice may end
+            // halfway through a code unit; preserving the low byte with a zero high byte keeps
+            // the operation byte-exact instead of silently dropping the requested byte.
+            var slice = new byte[count + (count & 1)];
+            Buffer.BlockCopy(bytes, offset, slice, 0, count);
+            return Encoding.Unicode.GetString(slice);
+        }
+
+        return GetAnsiEncoding(profile).GetString(bytes, offset, count);
+    }
+
+    private static int IndexOfBytes(byte[] source, byte[] match, int start)
+    {
+        if (match.Length == 0)
+        {
+            return Math.Clamp(start, 0, source.Length);
+        }
+
+        var last = source.Length - match.Length;
+        for (var index = Math.Max(0, start); index <= last; index++)
+        {
+            if (source.AsSpan(index, match.Length).SequenceEqual(match))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private static VBArray<string> CreateStringArray(IReadOnlyList<string> values)

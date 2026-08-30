@@ -19,6 +19,7 @@ namespace VB6.Runtime;
 /// </summary>
 public static class VBFiles
 {
+    private const int PrintZoneWidth = 14;
     private static IEnumerator<string>? _directoryEnumerator;
 
     /// <summary>Deletes one filesystem path using the VB6 Kill contract.</summary>
@@ -214,32 +215,114 @@ public static class VBFiles
     private const int MinimumFileNumber = 1;
     private const int MaximumFileNumber = 511;
 
+    private enum VBFileAccessMode
+    {
+        Binary,
+        Input,
+        Output,
+        Append,
+        Random
+    }
+
+    private enum VBFileSharingMode
+    {
+        Shared,
+        LockRead,
+        LockWrite,
+        LockReadWrite
+    }
+
+    private enum VBFileOpenAccess
+    {
+        Default,
+        Read,
+        Write,
+        ReadWrite
+    }
+
     private static readonly Dictionary<int, FileStream> OpenFiles = new();
     private static readonly Dictionary<int, int?> RecordLengths = new();
     private static readonly Dictionary<int, long> RecordStarts = new();
+    private static readonly Dictionary<int, VBFileAccessMode> AccessModes = new();
+    private static readonly Dictionary<int, int> PrintWidths = new();
+    private static readonly Dictionary<int, int> PrintLineLengths = new();
+    private static readonly HashSet<int> WriteChannels = new();
+    private readonly record struct FileLockRange(long Offset, long Length);
+    private static readonly Dictionary<int, List<FileLockRange>> FileLocks = new();
     private static readonly Encoding FixedStringEncoding = Encoding.Latin1;
 
     public static void OpenBinary(int fileNumber, string path)
+        => OpenBinary(fileNumber, path, (int)VBFileSharingMode.Shared);
+
+    public static void OpenBinary(int fileNumber, string path, int sharingMode)
     {
-        OpenFile(fileNumber, path, FileMode.OpenOrCreate, FileAccess.ReadWrite, recordLength: null);
+        OpenBinary(fileNumber, path, (int)VBFileOpenAccess.Default, sharingMode);
+    }
+
+    public static void OpenBinary(int fileNumber, string path, int accessMode, int sharingMode)
+    {
+        OpenFile(fileNumber, path, FileMode.OpenOrCreate, ResolveFileAccess(accessMode, FileAccess.ReadWrite), recordLength: null, VBFileAccessMode.Binary, ToFileShare(sharingMode));
     }
 
     public static void OpenInput(int fileNumber, string path)
+        => OpenInput(fileNumber, path, (int)VBFileSharingMode.Shared);
+
+    public static void OpenInput(int fileNumber, string path, int sharingMode)
     {
-        OpenFile(fileNumber, path, FileMode.Open, FileAccess.Read, recordLength: null);
+        OpenInput(fileNumber, path, (int)VBFileOpenAccess.Default, sharingMode);
+    }
+
+    public static void OpenInput(int fileNumber, string path, int accessMode, int sharingMode)
+    {
+        var access = ResolveFileAccess(accessMode, FileAccess.Read);
+        ValidateModeAccess(VBFileAccessMode.Input, access);
+        OpenFile(fileNumber, path, FileMode.Open, access, recordLength: null, VBFileAccessMode.Input, ToFileShare(sharingMode));
     }
 
     public static void OpenOutput(int fileNumber, string path)
+        => OpenOutput(fileNumber, path, (int)VBFileSharingMode.Shared);
+
+    public static void OpenOutput(int fileNumber, string path, int sharingMode)
     {
-        OpenFile(fileNumber, path, FileMode.Create, FileAccess.Write, recordLength: null);
+        OpenOutput(fileNumber, path, (int)VBFileOpenAccess.Default, sharingMode);
+    }
+
+    public static void OpenOutput(int fileNumber, string path, int accessMode, int sharingMode)
+    {
+        var access = ResolveFileAccess(accessMode, FileAccess.Write);
+        ValidateModeAccess(VBFileAccessMode.Output, access);
+        OpenFile(fileNumber, path, FileMode.Create, access, recordLength: null, VBFileAccessMode.Output, ToFileShare(sharingMode));
     }
 
     public static void OpenAppend(int fileNumber, string path)
+        => OpenAppend(fileNumber, path, (int)VBFileSharingMode.Shared);
+
+    public static void OpenAppend(int fileNumber, string path, int sharingMode)
     {
-        OpenFile(fileNumber, path, FileMode.Append, FileAccess.Write, recordLength: null);
+        OpenAppend(fileNumber, path, (int)VBFileOpenAccess.Default, sharingMode);
+    }
+
+    public static void OpenAppend(int fileNumber, string path, int accessMode, int sharingMode)
+    {
+        var access = ResolveFileAccess(accessMode, FileAccess.Write);
+        ValidateModeAccess(VBFileAccessMode.Append, access);
+        var mode = access == FileAccess.Write ? FileMode.Append : FileMode.OpenOrCreate;
+        OpenFile(fileNumber, path, mode, access, recordLength: null, VBFileAccessMode.Append, ToFileShare(sharingMode));
+        if (access != FileAccess.Write)
+        {
+            GetStream(fileNumber).Position = GetStream(fileNumber).Length;
+        }
     }
 
     public static void OpenRandom(int fileNumber, string path, int recordLength)
+        => OpenRandom(fileNumber, path, recordLength, (int)VBFileSharingMode.Shared);
+
+    public static void OpenRandom(int fileNumber, string path, int recordLength, int sharingMode)
+    {
+        OpenRandom(fileNumber, path, recordLength, (int)VBFileOpenAccess.Default, sharingMode);
+    }
+
+    public static void OpenRandom(int fileNumber, string path, int recordLength, int accessMode, int sharingMode)
     {
         if (recordLength is < 1 or > 32767)
         {
@@ -248,7 +331,26 @@ public static class VBFiles
                 "VB6 Random record lengths must be between 1 and 32767 bytes.");
         }
 
-        OpenFile(fileNumber, path, FileMode.OpenOrCreate, FileAccess.ReadWrite, recordLength);
+        OpenFile(fileNumber, path, FileMode.OpenOrCreate, ResolveFileAccess(accessMode, FileAccess.ReadWrite), recordLength, VBFileAccessMode.Random, ToFileShare(sharingMode));
+    }
+
+    /// <summary>Closes every open VB6 file channel, matching the <c>Reset</c> statement.</summary>
+    public static void Reset() => CloseAll();
+
+    /// <summary>
+    /// Sets the output line width for a file. Width zero disables automatic wrapping; other values
+    /// are the number of characters allowed before <c>Print #</c> starts a new line.
+    /// </summary>
+    public static void Width(int fileNumber, int width)
+    {
+        _ = GetStream(fileNumber);
+        if (width is < 0 or > 255)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "VB6 output widths must be between 0 and 255 characters.");
+        }
+
+        PrintWidths[fileNumber] = width;
+        PrintLineLengths[fileNumber] = 0;
     }
 
     public static void BeginRecord(int fileNumber, long? position)
@@ -266,11 +368,138 @@ public static class VBFiles
     public static void BeginRecord(int fileNumber, long position) => BeginRecord(fileNumber, (long?)position);
 
     public static void Print(int fileNumber, object? value)
+        => PrintValue(fileNumber, value, endRecord: true, separator: 0);
+
+    /// <summary>
+    /// Writes one value using the VB6 <c>Print #</c> output-list rules.
+    /// Separator 0 is the first value, 1 is a semicolon (no padding), and 2
+    /// is a comma (the next print zone). The caller controls whether the
+    /// record is terminated so a trailing semicolon can continue on the next
+    /// statement.
+    /// </summary>
+    public static void PrintValue(int fileNumber, object? value, bool endRecord, int separator)
+    {
+        if (separator is < 0 or > 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(separator), "VB6 Print # separators must be 0, 1 or 2.");
+        }
+
+        var stream = GetStream(fileNumber);
+        var width = PrintWidths.GetValueOrDefault(fileNumber);
+        var lineLength = PrintLineLengths.GetValueOrDefault(fileNumber);
+        if (separator == 2)
+        {
+            var zoneOffset = lineLength % PrintZoneWidth;
+            var spaces = PrintZoneWidth - zoneOffset;
+            WritePrintText(stream, new string(' ', spaces), width, ref lineLength);
+        }
+
+        WritePrintText(stream, VBDebug.Format(value), width, ref lineLength);
+        if (endRecord)
+        {
+            var terminator = Encoding.UTF8.GetBytes("\r\n");
+            stream.Write(terminator, 0, terminator.Length);
+            stream.Flush();
+            lineLength = 0;
+        }
+
+        PrintLineLengths[fileNumber] = lineLength;
+    }
+
+    private static void WritePrintText(FileStream stream, string text, int width, ref int lineLength)
+    {
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        if (width == 0)
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+            stream.Write(bytes, 0, bytes.Length);
+            lineLength += text.Length;
+            return;
+        }
+
+        var offset = 0;
+        while (offset < text.Length)
+        {
+            if (lineLength >= width)
+            {
+                WritePrintNewLine(stream);
+                lineLength = 0;
+            }
+
+            var count = Math.Min(width - lineLength, text.Length - offset);
+            var bytes = Encoding.UTF8.GetBytes(text.Substring(offset, count));
+            stream.Write(bytes, 0, bytes.Length);
+            offset += count;
+            lineLength += count;
+            if (offset < text.Length)
+            {
+                WritePrintNewLine(stream);
+                lineLength = 0;
+            }
+        }
+    }
+
+    private static void WritePrintNewLine(FileStream stream)
+    {
+        var terminator = Encoding.UTF8.GetBytes("\r\n");
+        stream.Write(terminator, 0, terminator.Length);
+    }
+
+    /// <summary>Writes one value using VB6's machine-readable <c>Write #</c> representation.</summary>
+    public static void Write(int fileNumber, object? value)
+        => WriteValue(fileNumber, value, endRecord: true);
+
+    /// <summary>Writes one value and optionally finishes the current <c>Write #</c> record.</summary>
+    public static void WriteValue(int fileNumber, object? value, bool endRecord)
     {
         var stream = GetStream(fileNumber);
-        var bytes = Encoding.UTF8.GetBytes(VBDebug.Format(value) + "\r\n");
+        if (!WriteChannels.Add(fileNumber))
+        {
+            var separator = Encoding.UTF8.GetBytes(",");
+            stream.Write(separator, 0, separator.Length);
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(FormatWriteValue(value));
         stream.Write(bytes, 0, bytes.Length);
-        stream.Flush();
+        if (endRecord)
+        {
+            var terminator = Encoding.UTF8.GetBytes("\r\n");
+            stream.Write(terminator, 0, terminator.Length);
+            stream.Flush();
+            WriteChannels.Remove(fileNumber);
+        }
+    }
+
+    private static string FormatWriteValue(object? value)
+    {
+        value = VBVariantObject.ResolveDefaultValue(value);
+        VBVariants.ThrowIfMissing(value);
+        VBVariants.ThrowIfArray(value);
+
+        if (VBVariants.IsNull(value))
+        {
+            return "#NULL#";
+        }
+
+        if (VBVariants.IsEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value switch
+        {
+            string text => $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"",
+            bool boolean => boolean ? "#TRUE#" : "#FALSE#",
+            VBDateValue date => $"#{DateTime.FromOADate(date.OADate).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}#",
+            DateTime date => $"#{date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}#",
+            VBErrorValue error => $"#ERROR {error.Code.ToString(CultureInfo.InvariantCulture)}#",
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
+            _ => VBConversions.CStr(value)
+        };
     }
 
     public static string LineInput(int fileNumber)
@@ -308,6 +537,98 @@ public static class VBFiles
     }
 
     public static string InputField(int fileNumber)
+    {
+        return ReadInputField(fileNumber);
+    }
+
+    /// <summary>
+    /// Reads one machine-readable <c>Input #</c> field.  Fields produced by <c>Write #</c>
+    /// retain their Variant state instead of being reduced to text: quoted values are Strings,
+    /// <c>#NULL#</c> is Null, Boolean markers remain Boolean, date markers become Date Variants,
+    /// and numeric fields use the narrowest VB-compatible scalar representation available.
+    /// Unrecognised fields remain Strings so ordinary text files keep the historical behavior.
+    /// </summary>
+    public static object? InputValue(int fileNumber)
+    {
+        var field = ReadInputField(fileNumber);
+        if (field.Length == 0)
+        {
+            return VBVariants.EmptyValue();
+        }
+
+        var token = field.Trim();
+
+        if (token.Equals("#NULL#", StringComparison.OrdinalIgnoreCase))
+        {
+            return VBVariants.NullValue();
+        }
+
+        if (token.Equals("#TRUE#", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (token.Equals("#FALSE#", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (token.StartsWith("#", StringComparison.Ordinal) &&
+            token.EndsWith("#", StringComparison.Ordinal) &&
+            token.Length > 2)
+        {
+            var dateText = token[1..^1].Trim();
+            if (dateText.StartsWith("ERROR ", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(dateText[6..].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var taggedErrorCode))
+            {
+                return new VBErrorValue(taggedErrorCode);
+            }
+
+            if (double.TryParse(dateText, NumberStyles.Float, CultureInfo.InvariantCulture, out var oaDate))
+            {
+                return new VBDateValue(oaDate);
+            }
+
+            if (DateTime.TryParse(
+                    dateText,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
+                    out var parsedDate))
+            {
+                return new VBDateValue(parsedDate.ToOADate());
+            }
+        }
+
+        if (token.StartsWith("Error ", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(token[6..].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var errorCode))
+        {
+            return new VBErrorValue(errorCode);
+        }
+
+        if (long.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integer))
+        {
+            if (integer >= short.MinValue && integer <= short.MaxValue)
+            {
+                return (short)integer;
+            }
+
+            if (integer >= int.MinValue && integer <= int.MaxValue)
+            {
+                return (int)integer;
+            }
+
+            return integer;
+        }
+
+        if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out var doubleValue))
+        {
+            return doubleValue;
+        }
+
+        return field;
+    }
+
+    private static string ReadInputField(int fileNumber)
     {
         var stream = GetStream(fileNumber);
         SkipUtf8Bom(stream);
@@ -440,7 +761,9 @@ public static class VBFiles
         string path,
         FileMode mode,
         FileAccess access,
-        int? recordLength)
+        int? recordLength,
+        VBFileAccessMode accessMode,
+        FileShare share)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ValidateFileNumber(fileNumber);
@@ -455,9 +778,43 @@ public static class VBFiles
             path,
             mode,
             access,
-            FileShare.ReadWrite));
+            share));
         RecordLengths.Add(fileNumber, recordLength);
+        AccessModes.Add(fileNumber, accessMode);
+        PrintWidths.Add(fileNumber, 0);
+        PrintLineLengths.Add(fileNumber, 0);
     }
+
+    private static FileAccess ResolveFileAccess(int accessMode, FileAccess defaultAccess) => accessMode switch
+    {
+        (int)VBFileOpenAccess.Default => defaultAccess,
+        (int)VBFileOpenAccess.Read => FileAccess.Read,
+        (int)VBFileOpenAccess.Write => FileAccess.Write,
+        (int)VBFileOpenAccess.ReadWrite => FileAccess.ReadWrite,
+        _ => throw new ArgumentOutOfRangeException(nameof(accessMode), "Invalid VB6 file access mode.")
+    };
+
+    private static void ValidateModeAccess(VBFileAccessMode mode, FileAccess access)
+    {
+        if (mode == VBFileAccessMode.Input && access == FileAccess.Write)
+        {
+            throw new ArgumentException("Input files must permit reading.", nameof(access));
+        }
+
+        if ((mode is VBFileAccessMode.Output or VBFileAccessMode.Append) && access == FileAccess.Read)
+        {
+            throw new ArgumentException("Output and Append files must permit writing.", nameof(access));
+        }
+    }
+
+    private static FileShare ToFileShare(int sharingMode) => sharingMode switch
+    {
+        (int)VBFileSharingMode.Shared => FileShare.ReadWrite,
+        (int)VBFileSharingMode.LockRead => FileShare.Write,
+        (int)VBFileSharingMode.LockWrite => FileShare.Read,
+        (int)VBFileSharingMode.LockReadWrite => FileShare.None,
+        _ => throw new ArgumentOutOfRangeException(nameof(sharingMode), "Invalid VB6 file sharing mode.")
+    };
 
     public static void Close(int fileNumber)
     {
@@ -470,6 +827,11 @@ public static class VBFiles
         stream.Dispose();
         RecordLengths.Remove(fileNumber);
         RecordStarts.Remove(fileNumber);
+        AccessModes.Remove(fileNumber);
+        PrintWidths.Remove(fileNumber);
+        PrintLineLengths.Remove(fileNumber);
+        WriteChannels.Remove(fileNumber);
+        FileLocks.Remove(fileNumber);
     }
 
     public static void CloseAll()
@@ -482,6 +844,11 @@ public static class VBFiles
         OpenFiles.Clear();
         RecordLengths.Clear();
         RecordStarts.Clear();
+        AccessModes.Clear();
+        PrintWidths.Clear();
+        PrintLineLengths.Clear();
+        WriteChannels.Clear();
+        FileLocks.Clear();
     }
 
     public static void EndRecord(int fileNumber, bool forWrite)
@@ -519,6 +886,129 @@ public static class VBFiles
         return GetRecordLength(fileNumber) is int recordLength
             ? checked(stream.Position / recordLength + 1)
             : stream.Position + 1;
+    }
+
+    /// <summary>
+    /// Returns the VB6 <c>Loc</c> value for the current file position. Random files report the
+    /// current record number; sequential files report the current 128-byte block; binary files
+    /// report the byte position of the last operation.
+    /// </summary>
+    public static long Location(int fileNumber)
+    {
+        var stream = GetStream(fileNumber);
+        return AccessModes[fileNumber] switch
+        {
+            VBFileAccessMode.Random when GetRecordLength(fileNumber) is int recordLength
+                => stream.Position / recordLength,
+            VBFileAccessMode.Input or VBFileAccessMode.Output or VBFileAccessMode.Append
+                => stream.Position / 128,
+            _ => stream.Position
+        };
+    }
+
+    /// <summary>
+    /// Locks a VB6 binary/random record range. Sequential channels always lock the complete file,
+    /// as specified by the VB6 Lock statement. Positions are one-based; zero/zero means whole file.
+    /// </summary>
+    public static void Lock(int fileNumber, long start, long end)
+        => ApplyFileLock(fileNumber, start, end, unlock: false);
+
+    /// <summary>Releases a range previously acquired through <see cref="Lock"/>.</summary>
+    public static void Unlock(int fileNumber, long start, long end)
+        => ApplyFileLock(fileNumber, start, end, unlock: true);
+
+    private static void ApplyFileLock(int fileNumber, long start, long end, bool unlock)
+    {
+        var stream = GetStream(fileNumber);
+        var range = ResolveFileLockRange(fileNumber, stream, start, end, unlock);
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
+        {
+            throw new PlatformNotSupportedException("VB6 file locking requires Windows or Linux file-lock support.");
+        }
+
+        if (unlock)
+        {
+#pragma warning disable CA1416 // guarded above; FileStream locks are supported on Windows/Linux.
+            stream.Unlock(range.Offset, range.Length);
+#pragma warning restore CA1416
+            if (FileLocks.TryGetValue(fileNumber, out var ranges))
+            {
+                ranges.Remove(range);
+                if (ranges.Count == 0)
+                {
+                    FileLocks.Remove(fileNumber);
+                }
+            }
+
+            return;
+        }
+
+#pragma warning disable CA1416 // guarded above; FileStream locks are supported on Windows/Linux.
+        stream.Lock(range.Offset, range.Length);
+#pragma warning restore CA1416
+        if (!FileLocks.TryGetValue(fileNumber, out var locks))
+        {
+            locks = new List<FileLockRange>();
+            FileLocks.Add(fileNumber, locks);
+        }
+
+        locks.Add(range);
+    }
+
+    private static FileLockRange ResolveFileLockRange(
+        int fileNumber,
+        FileStream stream,
+        long start,
+        long end,
+        bool unlock)
+    {
+        if (start < 0 || end < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "VB6 lock positions cannot be negative.");
+        }
+
+        var mode = AccessModes[fileNumber];
+        if (mode is VBFileAccessMode.Input or VBFileAccessMode.Output or VBFileAccessMode.Append)
+        {
+            if (unlock && FileLocks.TryGetValue(fileNumber, out var sequentialLocks) && sequentialLocks.Count > 0)
+            {
+                return sequentialLocks[^1];
+            }
+
+            return new FileLockRange(0, Math.Max(stream.Length, 1));
+        }
+
+        if (start == 0 && end == 0)
+        {
+            if (unlock && FileLocks.TryGetValue(fileNumber, out var wholeLocks) && wholeLocks.Count > 0)
+            {
+                return wholeLocks[^1];
+            }
+
+            return new FileLockRange(0, Math.Max(stream.Length, 1));
+        }
+
+        if (start == 0)
+        {
+            start = 1;
+        }
+
+        if (end == 0)
+        {
+            end = start;
+        }
+
+        if (start < 1 || end < start)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "VB6 lock ranges must be one-based and ordered.");
+        }
+
+        var unit = mode == VBFileAccessMode.Random
+            ? GetRecordLength(fileNumber) ?? throw new InvalidOperationException("Random file has no record length.")
+            : 1;
+        var offset = checked((start - 1) * (long)unit);
+        var length = checked((end - start + 1) * (long)unit);
+        return new FileLockRange(offset, length);
     }
 
     public static long Length(int fileNumber) => GetStream(fileNumber).Length;
@@ -582,6 +1072,43 @@ public static class VBFiles
         var bytes = ReadRaw(stream, byteCount);
         AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
         return Encoding.Unicode.GetString(bytes);
+    }
+
+    /// <summary>
+    /// Reads a scalar Variant from a binary file.  VB6 stores the Variant type tag before the
+    /// payload; preserving that tag is required for Empty/Null/Error/Date values and for fields
+    /// whose target is itself a Variant.
+    /// </summary>
+    public static object? GetVariant(int fileNumber, long? position)
+    {
+        var stream = Seek(fileNumber, position);
+        var recordStart = stream.Position;
+        byte[] ReadField(int count)
+        {
+            if (GetRecordLength(fileNumber) is int recordLength &&
+                checked(stream.Position - recordStart + count) > recordLength)
+            {
+                throw new InvalidOperationException(
+                    $"The Variant payload exceeds the Random record length of {recordLength.ToString(CultureInfo.InvariantCulture)} bytes.");
+            }
+
+            return ReadRaw(stream, count, fileNumber);
+        }
+
+        var variantType = BitConverter.ToUInt16(ReadField(sizeof(ushort)));
+        var value = ReadVariantPayload(variantType, ReadField);
+        AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
+        return value;
+    }
+
+    public static object? GetVariant(int fileNumber) => GetVariant(fileNumber, null);
+    public static object? GetVariant(int fileNumber, long position) => GetVariant(fileNumber, (long?)position);
+
+    /// <summary>Reads a Variant field while a UDT record walker owns the record boundary.</summary>
+    public static object? GetRawVariant(int fileNumber)
+    {
+        var variantType = BitConverter.ToUInt16(ReadRecordRaw(fileNumber, sizeof(ushort)));
+        return ReadVariantPayload(variantType, count => ReadRecordRaw(fileNumber, count));
     }
 
     // The direct managed backend uses ordinary CLI signatures rather than constructing Nullable<T>
@@ -663,6 +1190,14 @@ public static class VBFiles
         return new VBArray<T>(bounds);
     }
 
+    /// <summary>
+    /// Reads a top-level dynamic-array descriptor only for Random files. Binary Get transfers an
+    /// already allocated array's elements without a descriptor, while Random Get reconstructs the
+    /// array shape written by Put.
+    /// </summary>
+    public static VBArray<T>? GetDynamicArrayIfRandom<T>(int fileNumber, VBArray<T>? existing)
+        => GetRecordLength(fileNumber) is null ? existing : GetDynamicArray<T>(fileNumber);
+
     public static void Put(int fileNumber, long? position, byte value) =>
         Write(fileNumber, position, new[] { value });
 
@@ -701,6 +1236,24 @@ public static class VBFiles
         payload.CopyTo(bytes, sizeof(ushort));
         Write(fileNumber, position, bytes);
     }
+
+    /// <summary>
+    /// Writes a scalar Variant with its VB6/OLE Automation type tag and payload. Arrays and
+    /// object references deliberately remain outside the binary record contract until their
+    /// SAFEARRAY/COM ownership rules are available.
+    /// </summary>
+    public static void PutVariant(int fileNumber, long? position, object? value) =>
+        Write(fileNumber, position, EncodeVariant(value));
+
+    public static void PutVariant(int fileNumber, object? value) =>
+        PutVariant(fileNumber, null, value);
+
+    public static void PutVariant(int fileNumber, long position, object? value) =>
+        PutVariant(fileNumber, (long?)position, value);
+
+    /// <summary>Writes a Variant field while a UDT record walker owns the record boundary.</summary>
+    public static void PutRawVariant(int fileNumber, object? value) =>
+        WriteRecordRaw(fileNumber, EncodeVariant(value));
 
     public static void Put(int fileNumber, byte value) => Put(fileNumber, null, value);
     public static void Put(int fileNumber, long position, byte value) => Put(fileNumber, (long?)position, value);
@@ -780,6 +1333,15 @@ public static class VBFiles
         }
     }
 
+    /// <summary>Writes a top-level dynamic-array descriptor only for Random files.</summary>
+    public static void PutDynamicArrayDescriptorIfRandom<T>(int fileNumber, VBArray<T>? value)
+    {
+        if (GetRecordLength(fileNumber) is not null)
+        {
+            PutDynamicArrayDescriptor(fileNumber, value);
+        }
+    }
+
     private static byte[] Read(int fileNumber, long? position, int count)
     {
         var stream = Seek(fileNumber, position);
@@ -829,6 +1391,182 @@ public static class VBFiles
         }
 
         return buffer;
+    }
+
+    private static object? ReadVariantPayload(
+        ushort variantType,
+        Func<int, byte[]> readBytes)
+    {
+        if ((variantType & 0x2000) != 0)
+        {
+            throw new VB6TypeMismatchException("SAFEARRAY Variant records are not supported by the binary record contract yet.");
+        }
+
+        return variantType switch
+        {
+            0 => VBVariants.EmptyValue(),
+            1 => VBVariants.NullValue(),
+            2 => BitConverter.ToInt16(readBytes(sizeof(short))),
+            3 => BitConverter.ToInt32(readBytes(sizeof(int))),
+            4 => BitConverter.ToSingle(readBytes(sizeof(float))),
+            5 => BitConverter.ToDouble(readBytes(sizeof(double))),
+            6 => VBCurrency.FromScaled(BitConverter.ToInt64(readBytes(sizeof(long)))),
+            7 => new VBDateValue(BitConverter.ToDouble(readBytes(sizeof(double)))),
+            8 => ReadVariantString(readBytes),
+            9 => VBVariants.NothingValue(),
+            10 => new VBErrorValue(BitConverter.ToInt32(readBytes(sizeof(int)))),
+            11 => BitConverter.ToInt16(readBytes(sizeof(short))) != 0,
+            14 => ReadVariantDecimal(readBytes),
+            17 => readBytes(sizeof(byte))[0],
+            18 => BitConverter.ToUInt16(readBytes(sizeof(ushort))),
+            19 => BitConverter.ToUInt32(readBytes(sizeof(uint))),
+            20 => BitConverter.ToInt64(readBytes(sizeof(long))),
+            21 => BitConverter.ToUInt64(readBytes(sizeof(ulong))),
+            _ => throw new InvalidDataException(
+                $"Unsupported binary Variant type tag {variantType.ToString(CultureInfo.InvariantCulture)}.")
+        };
+    }
+
+    private static string ReadVariantString(Func<int, byte[]> readBytes)
+    {
+        var characterCount = BitConverter.ToUInt16(readBytes(sizeof(ushort)));
+        if (characterCount == 0)
+        {
+            return string.Empty;
+        }
+
+        return Encoding.Unicode.GetString(readBytes(checked(characterCount * sizeof(char))));
+    }
+
+    private static decimal ReadVariantDecimal(Func<int, byte[]> readBytes)
+    {
+        var payload = readBytes(16);
+        var scale = payload[2];
+        var sign = payload[3] == 0x80 ? int.MinValue : 0;
+        var hi = BitConverter.ToInt32(payload, 4);
+        var lo = BitConverter.ToInt32(payload, 8);
+        var mid = BitConverter.ToInt32(payload, 12);
+        return new decimal(lo, mid, hi, sign != 0, scale);
+    }
+
+    private static byte[] EncodeVariant(object? value)
+    {
+        value = VBVariantObject.ResolveDefaultValue(value);
+        VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfMissing(value);
+
+        var bytes = new List<byte>(16);
+        void AddType(ushort type) => bytes.AddRange(BitConverter.GetBytes(type));
+        void AddPayload(byte[] payload) => bytes.AddRange(payload);
+
+        switch (value)
+        {
+            case null:
+                AddType(0);
+                break;
+            case object when VBVariants.IsNull(value):
+                AddType(1);
+                break;
+            case object when VBVariants.IsNothing(value):
+                AddType(9);
+                break;
+            case VBErrorValue error:
+                AddType(10);
+                AddPayload(BitConverter.GetBytes(error.Code));
+                break;
+            case byte number:
+                AddType(17);
+                AddPayload(new[] { number });
+                break;
+            case short number:
+                AddType(2);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case int number:
+                AddType(3);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case long number:
+                AddType(20);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case ushort number:
+                AddType(18);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case uint number:
+                AddType(19);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case ulong number:
+                AddType(21);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case float number:
+                AddType(4);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case double number:
+                AddType(5);
+                AddPayload(BitConverter.GetBytes(number));
+                break;
+            case VBCurrency currency:
+                AddType(6);
+                AddPayload(BitConverter.GetBytes(currency.ScaledValue));
+                break;
+            case VBDateValue date:
+                AddType(7);
+                AddPayload(BitConverter.GetBytes(date.OADate));
+                break;
+            case DateTime date:
+                AddType(7);
+                AddPayload(BitConverter.GetBytes(date.ToOADate()));
+                break;
+            case decimal number:
+                AddType(14);
+                AddPayload(EncodeVariantDecimal(number));
+                break;
+            case bool boolean:
+                AddType(11);
+                AddPayload(BitConverter.GetBytes(boolean ? (short)-1 : (short)0));
+                break;
+            case string text:
+                if (text.Length > ushort.MaxValue)
+                {
+                    throw new OverflowException("VB6 Variant String transfers support at most 65535 characters.");
+                }
+
+                AddType(8);
+                AddPayload(BitConverter.GetBytes((ushort)text.Length));
+                AddPayload(Encoding.Unicode.GetBytes(text));
+                break;
+            case IntPtr pointer when IntPtr.Size == 8:
+                AddType(20);
+                AddPayload(BitConverter.GetBytes(pointer.ToInt64()));
+                break;
+            case IntPtr pointer:
+                AddType(3);
+                AddPayload(BitConverter.GetBytes(pointer.ToInt32()));
+                break;
+            default:
+                throw new VB6TypeMismatchException(
+                    $"Value of type '{value.GetType().Name}' cannot be stored in a binary Variant.");
+        }
+
+        return bytes.ToArray();
+    }
+
+    private static byte[] EncodeVariantDecimal(decimal value)
+    {
+        var bits = decimal.GetBits(value);
+        var payload = new byte[16];
+        // DECIMAL's first two bytes are reserved; scale/sign occupy the next two bytes.
+        payload[2] = (byte)((bits[3] >> 16) & 0x7F);
+        payload[3] = (bits[3] & int.MinValue) != 0 ? (byte)0x80 : (byte)0;
+        BitConverter.GetBytes(bits[2]).CopyTo(payload, 4);
+        BitConverter.GetBytes(bits[0]).CopyTo(payload, 8);
+        BitConverter.GetBytes(bits[1]).CopyTo(payload, 12);
+        return payload;
     }
 
     private static void ValidateFixedStringLength(int length)

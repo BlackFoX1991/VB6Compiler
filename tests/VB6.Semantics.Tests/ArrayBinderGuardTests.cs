@@ -60,6 +60,32 @@ public sealed class ArrayBinderGuardTests
         Assert.IsFalse(arrayType.HasKnownRank);
     }
 
+    [TestMethod]
+    public void Validate_ReportsUnsupportedUdtArrayElementLayout()
+    {
+        var text = SourceText.From("""
+            Type Record
+                Values() As Variant
+            End Type
+
+            Sub Main()
+                Dim value As Record
+            End Sub
+            """, "test.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+        Assert.AreEqual(
+            0,
+            parseResult.Diagnostics.Length,
+            string.Join(Environment.NewLine, parseResult.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+
+        var types = new UserDefinedTypeDeclarationBinder(text).Bind(parseResult.Root);
+        var diagnostics = UserDefinedTypeValueGuard.Validate(text, parseResult.Root, types.Types);
+
+        CollectionAssert.AreEqual(
+            new[] { "VB6S0046" },
+            diagnostics.Select(diagnostic => diagnostic.Code).ToArray());
+    }
+
     private static SemanticModel BindSource(string source)
     {
         var text = SourceText.From(source, "test.bas");

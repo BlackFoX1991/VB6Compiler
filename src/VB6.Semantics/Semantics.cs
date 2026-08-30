@@ -159,12 +159,16 @@ public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)
     : VariableSymbol(Name, Type);
 
 /// <summary>
-/// A variable declared at module level. VB6 <c>Public</c> module variables are visible across
-/// the whole project; <c>Private</c> ones are module-local. The binder currently makes both
-/// visible everywhere, which accepts more than VB6 does but never miscompiles valid code.
+/// A variable declared at module level. VB6 <c>Public</c>/<c>Global</c> module variables are
+/// visible across the whole project; <c>Private</c>/<c>Dim</c> ones are module-local. Generated
+/// symbols (built-in constants, enum members and host objects) keep the public default.
 /// </summary>
 public sealed record ModuleVariableSymbol(string Name, TypeSymbol Type)
-    : VariableSymbol(Name, Type);
+    : VariableSymbol(Name, Type)
+{
+    /// <summary>Whether this declaration may be imported into another project module.</summary>
+    public bool IsPublic { get; init; } = true;
+}
 
 /// <summary>Compile-time value used to initialize a Form/UserControl designer member.</summary>
 public sealed record DesignerPropertyInitializer(string Name, object Value);
@@ -189,10 +193,13 @@ public enum VBIntrinsicKind
     Len,
     LenB,
     Mid,
+    MidB,
     Chr,
     ChrW,
     Left,
+    LeftB,
     Right,
+    RightB,
     UCase,
     LCase,
     Trim,
@@ -211,7 +218,9 @@ public enum VBIntrinsicKind
     IsDate,
     IsObject,
     InStr,
+    InStrB,
     InStrRev,
+    StrComp,
     Replace,
     Space,
     Split,
@@ -260,6 +269,7 @@ public enum VBIntrinsicKind
     ObjPtr,
     StrPtr,
     LSet,
+    RSet,
     CreateObject,
     GetObject,
     Shell,
@@ -284,9 +294,11 @@ public enum VBIntrinsicKind
     Null,
     Nothing,
     Missing,
+    Reset,
     FreeFile,
     LOF,
     EOF,
+    Loc,
     Input,
     Seek,
     Date,
@@ -356,6 +368,9 @@ public sealed record ProcedureSymbol(
     ImmutableArray<ParameterSymbol> Parameters,
     TypeSymbol? ReturnType) : Symbol(Name)
 {
+    /// <summary>Whether this procedure is exported to the containing project scope.</summary>
+    public bool IsPublic { get; init; } = true;
+
     /// <summary>Backend-independent identity for a VB6 language intrinsic.</summary>
     public VBIntrinsicKind? IntrinsicKind { get; init; }
 
@@ -443,6 +458,7 @@ public enum BoundNodeKind
     ReDimStatement,
     EraseStatement,
     AssignmentStatement,
+    MidAssignmentStatement,
     NewExpression,
     ArrayElementAssignmentStatement,
     IfStatement,
@@ -457,6 +473,9 @@ public enum BoundNodeKind
     DebugAssertStatement,
     GraphicsLineStatement,
     FilePrintStatement,
+    FileWriteStatement,
+    FileLockStatement,
+    FileUnlockStatement,
     InvocationStatement,
     ControlArrayElementStatement,
     LabelStatement,
@@ -475,6 +494,7 @@ public enum BoundNodeKind
     PutStatement,
     LineInputStatement,
     FileInputStatement,
+    WidthStatement,
     LiteralExpression,
     VariableExpression,
     PropertyAccessExpression,
@@ -537,6 +557,13 @@ public sealed record BoundEraseStatement(
 
 public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
+
+public sealed record BoundMidAssignmentStatement(
+    BoundExpression Target,
+    BoundExpression Start,
+    BoundExpression? Length,
+    BoundExpression Replacement)
+    : BoundStatement(BoundNodeKind.MidAssignmentStatement);
 
 public sealed record BoundArrayElementAssignmentStatement(
     VariableSymbol Array,
@@ -610,7 +637,11 @@ public sealed record BoundSelectCaseStatement(
     int SelectId,
     BoundExpression Expression,
     ImmutableArray<BoundCaseBlock> Cases)
-    : BoundStatement(BoundNodeKind.SelectCaseStatement);
+    : BoundStatement(BoundNodeKind.SelectCaseStatement)
+{
+    /// <summary>True when string case clauses inherit <c>Option Compare Text</c>.</summary>
+    public bool UseTextCompare { get; init; }
+}
 
 public sealed record BoundDebugPrintStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
@@ -630,10 +661,35 @@ public sealed record BoundGraphicsLineStatement(
     BoundExpression? Target = null)
     : BoundStatement(BoundNodeKind.GraphicsLineStatement);
 
+public enum BoundFilePrintSeparator
+{
+    Semicolon,
+    Comma
+}
+
 public sealed record BoundFilePrintStatement(
     BoundExpression FileNumber,
-    BoundExpression Expression)
+    BoundExpression? Expression,
+    ImmutableArray<BoundExpression> Expressions = default,
+    ImmutableArray<BoundFilePrintSeparator> Separators = default)
     : BoundStatement(BoundNodeKind.FilePrintStatement);
+
+public sealed record BoundFileWriteStatement(
+    BoundExpression FileNumber,
+    ImmutableArray<BoundExpression> Expressions)
+    : BoundStatement(BoundNodeKind.FileWriteStatement);
+
+public sealed record BoundFileLockStatement(
+    BoundExpression FileNumber,
+    BoundExpression? Start,
+    BoundExpression? End)
+    : BoundStatement(BoundNodeKind.FileLockStatement);
+
+public sealed record BoundFileUnlockStatement(
+    BoundExpression FileNumber,
+    BoundExpression? Start,
+    BoundExpression? End)
+    : BoundStatement(BoundNodeKind.FileUnlockStatement);
 
 public sealed record BoundLabelStatement(string Name) : BoundStatement(BoundNodeKind.LabelStatement);
 
@@ -673,11 +729,29 @@ public enum BoundFileOpenMode
     Random
 }
 
+public enum BoundFileSharingMode
+{
+    Shared,
+    LockRead,
+    LockWrite,
+    LockReadWrite
+}
+
+public enum BoundFileAccessMode
+{
+    Default,
+    Read,
+    Write,
+    ReadWrite
+}
+
 public sealed record BoundOpenStatement(
     BoundExpression FileNumber,
     BoundExpression Path,
     BoundFileOpenMode Mode,
-    BoundExpression? RecordLength = null) : BoundStatement(BoundNodeKind.OpenStatement);
+    BoundExpression? RecordLength = null,
+    BoundFileSharingMode Sharing = BoundFileSharingMode.Shared,
+    BoundFileAccessMode Access = BoundFileAccessMode.Default) : BoundStatement(BoundNodeKind.OpenStatement);
 
 public sealed record BoundNameStatement(
     BoundExpression OldPath,
@@ -707,6 +781,10 @@ public sealed record BoundLineInputStatement(
 public sealed record BoundFileInputStatement(
     BoundExpression FileNumber,
     ImmutableArray<BoundExpression> Targets) : BoundStatement(BoundNodeKind.FileInputStatement);
+
+public sealed record BoundWidthStatement(
+    BoundExpression FileNumber,
+    BoundExpression Width) : BoundStatement(BoundNodeKind.WidthStatement);
 
 public sealed record BoundArgument(
     ParameterSymbol? Parameter,
@@ -795,7 +873,7 @@ public sealed record BoundBinaryExpression(
     TypeSymbol ResultType)
     : BoundExpression(BoundNodeKind.BinaryExpression, ResultType)
 {
-    /// <summary>True when a Like expression inherits <c>Option Compare Text</c>.</summary>
+    /// <summary>True when a string comparison inherits <c>Option Compare Text</c>.</summary>
     public bool UseTextCompare { get; init; }
 }
 
@@ -848,6 +926,13 @@ public sealed record SemanticModel(
     ImmutableArray<BoundProcedure> Procedures,
     ImmutableArray<Diagnostic> Diagnostics)
 {
+    /// <summary>
+    /// True when the source module declares <c>Option Private Module</c>. The flag describes the
+    /// module's external export policy; it does not hide public members from sibling modules in
+    /// the same VB6 project.
+    /// </summary>
+    public bool IsPrivateModule { get; init; }
+
     public ImmutableArray<ProcedureSymbol> ExternalProcedures { get; init; } =
         ImmutableArray<ProcedureSymbol>.Empty;
     public ImmutableArray<ClassTypeSymbol> ClassTypes { get; init; } =

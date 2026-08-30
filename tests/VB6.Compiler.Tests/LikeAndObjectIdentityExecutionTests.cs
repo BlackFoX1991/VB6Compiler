@@ -41,4 +41,26 @@ public sealed class LikeAndObjectIdentityExecutionTests
 
         CollectionAssert.AreEqual(new[] { "True", "True", "False", "True", "True" }, VB6TestProgram.SplitLines(output), output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesOptionCompareTextForStringRelations()
+    {
+        var output = VB6TestProgram.Run("""
+            Option Compare Text
+
+            Sub Main()
+                Debug.Print "ABC" = "abc"
+                Debug.Print "ABC" <> "abc"
+
+                Select Case "ABC"
+                    Case "abc"
+                        Debug.Print "matched"
+                    Case Else
+                        Debug.Print "missed"
+                End Select
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "False", "matched" }, VB6TestProgram.SplitLines(output), output);
+    }
 }

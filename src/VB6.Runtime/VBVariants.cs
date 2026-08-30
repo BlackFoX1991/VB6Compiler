@@ -75,7 +75,11 @@ public static class VBVariants
 
     public static bool IsArray(object? value) => value is IVBArray or Array;
 
-    public static bool IsDate(object? value)
+    public static bool IsDate(object? value) =>
+        IsDate(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware date predicate using the selected text parsing culture.</summary>
+    public static bool IsDate(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         if (value is VBDateValue or DateTime)
@@ -85,7 +89,9 @@ public static class VBVariants
 
         return value is string text && DateTime.TryParse(
             text,
-            System.Globalization.CultureInfo.InvariantCulture,
+            compatibilityProfile == VBCompatibilityProfile.VB6Sp6
+                ? System.Globalization.CultureInfo.CurrentCulture
+                : System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.AllowWhiteSpaces |
                 System.Globalization.DateTimeStyles.AssumeLocal,
             out _);

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace VB6.Runtime.Tests;
 
 /// <summary>
@@ -26,6 +28,14 @@ public sealed class StringFunctionTests
         Assert.AreEqual("abc", VBStrings.Left("abc", 10));
         Assert.AreEqual("abc", VBStrings.Right("abc", 10));
         Assert.AreEqual(string.Empty, VBStrings.Left("abc", 0));
+    }
+
+    [TestMethod]
+    public void RightAlignFixedString_PadsLeftAndKeepsLeftmostCharacters()
+    {
+        Assert.AreEqual("   Hi", VBTypeStorage.RightAlignFixedString("Hi", 5));
+        Assert.AreEqual("ABCDE", VBTypeStorage.RightAlignFixedString("ABCDEFGH", 5));
+        Assert.AreEqual(string.Empty, VBTypeStorage.RightAlignFixedString("value", 0));
     }
 
     /// <summary>VB6 Trim removes spaces only, so a tab survives it.</summary>
@@ -94,6 +104,15 @@ public sealed class StringFunctionTests
     }
 
     [TestMethod]
+    public void StrComp_ReturnsNormalizedOrderingForBinaryAndTextComparison()
+    {
+        Assert.AreEqual(1, VBStrings.StrComp("a", "B", 0));
+        Assert.AreEqual(0, VBStrings.StrComp("a", "A", 1));
+        Assert.AreEqual(1, VBStrings.StrComp("b", "A", 1));
+        Assert.AreEqual(0, VBStrings.StrComp("same", "same", 0));
+    }
+
+    [TestMethod]
     public void Replace_SupportsStartCountAndTextComparison()
     {
         Assert.AreEqual("a-x-x", VBStrings.Replace("a-b-b", "b", "x", 1, -1, 0));
@@ -108,6 +127,72 @@ public sealed class StringFunctionTests
         Assert.AreEqual("ABC", VBStrings.StrConv("aBc", 1, 0));
         Assert.AreEqual("abc", VBStrings.StrConv("aBc", 2, 0));
         Assert.AreEqual("Hello World", VBStrings.StrConv("hello world", 3, 0));
+    }
+
+    [TestMethod]
+    public void StrConv_SupportsJapaneseWidthAndKanaFlags()
+    {
+        var original = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
+
+            Assert.AreEqual("ＡＢＣ　１２３", VBStrings.StrConv("ABC 123", 4, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("ガ", VBStrings.StrConv("ｶﾞ", 4, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("ABC 123", VBStrings.StrConv("ＡＢＣ　１２３", 8, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("ｶﾀｶﾅ", VBStrings.StrConv("カタカナ", 8, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("カタカナ", VBStrings.StrConv("かたかな", 16, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("かたかな", VBStrings.StrConv("カタカナ", 32, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("ＡＢＣ", VBStrings.StrConv("abc", 1 | 4, 0, VBCompatibilityProfile.VB6Sp6));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    [TestMethod]
+    public void StrConv_RejectsLocaleGatedFlagsOutsideApplicableLocales()
+    {
+        var original = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                VBStrings.StrConv("ABC", 4, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                VBStrings.StrConv("かな", 16, 0, VBCompatibilityProfile.VB6Sp6));
+            Assert.ThrowsException<ArgumentException>(() => VBStrings.StrConv("ABC", 64 | 128, 0));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    [TestMethod]
+    public void StrConv_UsesExplicitLcidInVb6Profile()
+    {
+        var original = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+
+            Assert.AreEqual(
+                "İ",
+                VBStrings.StrConv("i", 1, 1055, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                "Ａ",
+                VBStrings.StrConv("A", 4, 1041, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(
+                "I",
+                VBStrings.StrConv("i", 1, 1055, VBCompatibilityProfile.Deterministic));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
     }
 
     [TestMethod]

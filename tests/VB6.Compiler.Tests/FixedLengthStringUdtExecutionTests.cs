@@ -61,6 +61,35 @@ public sealed class FixedLengthStringUdtExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesRSetForFixedLengthStrings()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type Strings
+                Target As String * 5
+            End Type
+
+            Sub Main()
+                Dim value As Strings
+                Dim source As String
+                Dim variable As String
+
+                source = "Hi"
+                RSet value.Target = source
+                Debug.Print "[" & value.Target & "]"
+
+                source = "ABCDEFGH"
+                RSet value.Target = source
+                Debug.Print "[" & value.Target & "]"
+
+                RSet variable = source
+                Debug.Print "[" & variable & "]"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "[   Hi]", "[ABCDE]", "[ABCDEFGH]" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesLSetForSameTypeUdts()
     {
         var compilation = VBCompilation.Create("""

@@ -1,4 +1,5 @@
 using VB6.Parser;
+using VB6.Syntax.Nodes;
 using VB6.Syntax.Text;
 using ParserType = VB6.Parser.Parser;
 
@@ -154,6 +155,54 @@ public sealed class BinderTests
 
         Assert.AreEqual(1, model.Diagnostics.Length);
         Assert.AreEqual("VB6S0005", model.Diagnostics[0].Code);
+    }
+
+    [TestMethod]
+    public void CreateProcedureSymbol_RecordsModuleVisibility()
+    {
+        var text = SourceText.From("""
+            Public Sub Exported()
+            End Sub
+
+            Global Function GlobalValue() As Long
+            End Function
+
+            Private Sub Hidden()
+            End Sub
+
+            Function DefaultValue() As Long
+            End Function
+            """, "visibility.bas");
+        var root = new ParserType(text).ParseCompilationUnit().Root;
+
+        var symbols = root.Members
+            .Select(member => member switch
+            {
+                SubDeclarationSyntax sub => Binder.CreateProcedureSymbol(sub),
+                FunctionDeclarationSyntax function => Binder.CreateProcedureSymbol(function),
+                _ => null
+            })
+            .Where(symbol => symbol is not null)
+            .Cast<ProcedureSymbol>()
+            .ToDictionary(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
+
+        Assert.IsTrue(symbols["Exported"].IsPublic);
+        Assert.IsTrue(symbols["GlobalValue"].IsPublic);
+        Assert.IsFalse(symbols["Hidden"].IsPublic);
+        Assert.IsTrue(symbols["DefaultValue"].IsPublic);
+    }
+
+    [TestMethod]
+    public void Bind_RecordsOptionPrivateModuleExportPolicy()
+    {
+        var model = BindSource("""
+            Option Private Module
+
+            Public Sub Main()
+            End Sub
+            """);
+
+        Assert.IsTrue(model.IsPrivateModule);
     }
 
     [TestMethod]

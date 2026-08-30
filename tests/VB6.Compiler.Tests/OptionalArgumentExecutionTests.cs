@@ -26,6 +26,28 @@ public sealed class OptionalArgumentExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_EvaluatesNamedArgumentsInParameterOrder()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Private Function NextValue() As Long
+                Static current As Long
+                current = current + 1
+                NextValue = current
+            End Function
+
+            Private Sub Capture(ByVal first As Long, ByVal second As Long)
+                Debug.Print first & ":" & second
+            End Sub
+
+            Public Sub Main()
+                Capture second:=NextValue(), first:=NextValue()
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "1:2" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesDeclaredDefaultsAndTypeDefaults()
     {
         Run("""

@@ -39,6 +39,9 @@ public sealed class DateTimeRuntimeTests
     {
         Assert.AreEqual(43832d, VBDateTime.DateSerial(2020, 1, 2));
         Assert.AreEqual(43863d, VBDateTime.DateAdd("m", 1, 43832));
+        Assert.AreEqual(43834d, VBDateTime.DateAdd("d", 1.6, 43832));
+        Assert.AreEqual(43834d, VBDateTime.DateAdd("d", 1.5, 43832));
+        Assert.AreEqual(43834d, VBDateTime.DateAdd("d", 2.5, 43832));
         Assert.AreEqual(43833d, VBDateTime.DateAdd("w", 1, 43832));
         Assert.AreEqual(43839d, VBDateTime.DateAdd("ww", 1, 43832));
         Assert.AreEqual(1, VBDateTime.DateDiff("d", 43832, 43833));

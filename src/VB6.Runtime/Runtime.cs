@@ -968,6 +968,36 @@ public static partial class VBOperators
 
     public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
 
+    // Comparison helpers keep scalar comparisons strongly typed at the managed call boundary.
+    // The object-based overloads below remain the compatibility path for Variant/object values;
+    // the emitter selects these helpers only after semantic binding has established one common
+    // scalar type for both operands.
+    public static int CompareInt32(int left, int right) => left.CompareTo(right);
+
+    public static int CompareUInt32(uint left, uint right) => left.CompareTo(right);
+
+    public static int CompareInt64(long left, long right) => left.CompareTo(right);
+
+    public static int CompareUInt64(ulong left, ulong right) => left.CompareTo(right);
+
+    public static int CompareIntPtr(IntPtr left, IntPtr right) => left.ToInt64().CompareTo(right.ToInt64());
+
+    public static int CompareSingle(float left, float right) => left.CompareTo(right);
+
+    public static int CompareDouble(double left, double right) => left.CompareTo(right);
+
+    public static int CompareCurrency(VBCurrency left, VBCurrency right) => left.CompareTo(right);
+
+    public static int CompareBoolean(bool left, bool right) => left.CompareTo(right);
+
+    public static int CompareString(string? left, string? right) => CompareString(left, right, textCompare: false);
+
+    public static int CompareString(string? left, string? right, bool textCompare) =>
+        string.Compare(
+            left,
+            right,
+            textCompare ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
     public static object? ConcatVariant(object? left, object? right)
     {
         left = VBVariantObject.ResolveDefaultValue(left);

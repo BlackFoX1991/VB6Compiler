@@ -18,6 +18,34 @@ public sealed class MidIntrinsicExecutionTests
         CollectionAssert.AreEqual(new[] { "bcd", "ef" }, VB6TestProgram.SplitLines(output), output);
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesMidAssignmentIncludingMidDollarAndFixedTargets()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type Record
+                Text As String * 8
+            End Type
+
+            Sub Main()
+                Dim value As String
+                Dim record As Record
+
+                value = "The dog jumps"
+                Mid(value, 5, 3) = "fox"
+                Mid$(value, 5) = "cow"
+                Mid(value, 5) = "cow jumped over"
+                Mid(value, 5, 3) = "duck"
+                Debug.Print value
+
+                record.Text = "12345678"
+                Mid(record.Text, 3, 2) = "XY"
+                Debug.Print record.Text
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "The duc jumpe", "12XY5678" }, output);
+    }
+
     /// <summary>A user-defined Mid shadows the intrinsic, exactly as in VB6.</summary>
     [TestMethod]
     public void EmitManagedApplication_PrefersAUserFunctionOverTheIntrinsicMid()

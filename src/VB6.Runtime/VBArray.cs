@@ -864,4 +864,20 @@ public static class VBTypeStorage
         var text = value ?? string.Empty;
         return text.Length >= length ? text[..length] : text.PadRight(length);
     }
+
+    /// <summary>
+    /// Right-aligns text for an RSet assignment into a fixed-length String. VB6 keeps the
+    /// leftmost characters when the source is longer than the declared destination width and
+    /// pads shorter values on the left.
+    /// </summary>
+    public static string RightAlignFixedString(string? value, int length)
+    {
+        if (length < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length));
+        }
+
+        var text = value ?? string.Empty;
+        return text.Length >= length ? text[..length] : text.PadLeft(length);
+    }
 }

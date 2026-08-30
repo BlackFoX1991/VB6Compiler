@@ -48,6 +48,353 @@ public sealed class ProjectCompilationTests
     }
 
     [TestMethod]
+    public void Analyze_ResolvesPublicModuleVariablesAcrossModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "PublicModuleVariable.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="PublicModuleVariable"
+                Module=Main; Main.bas
+                Module=Consumer; Consumer.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+                Public Counter As Long
+
+                Public Sub Main()
+                    Counter = 41
+                    Observe
+                    Debug.Print Counter
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.bas"), """
+                Option Explicit
+
+                Public Sub Observe()
+                    Counter = Counter + 1
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var consumer = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Consumer", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            var assignment = consumer.Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Observe", StringComparison.OrdinalIgnoreCase))
+                .Body
+                .Statements
+                .OfType<BoundAssignmentStatement>()
+                .Single();
+            Assert.IsTrue(assignment.Variable is ModuleVariableSymbol module && module.IsPublic);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_ResolvesGlobalModuleVariablesAcrossModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "GlobalModuleVariable.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="GlobalModuleVariable"
+                Module=Main; Main.bas
+                Module=Consumer; Consumer.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+                Global Counter As Long
+
+                Public Sub Main()
+                    Counter = 41
+                    Observe
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.bas"), """
+                Option Explicit
+
+                Public Sub Observe()
+                    Counter = Counter + 1
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var consumer = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Consumer", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            var assignment = consumer.Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Observe", StringComparison.OrdinalIgnoreCase))
+                .Body
+                .Statements
+                .OfType<BoundAssignmentStatement>()
+                .Single();
+            Assert.IsTrue(assignment.Variable is ModuleVariableSymbol module && module.IsPublic);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_OptionPrivateModuleKeepsPublicMembersInternalToProject()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "OptionPrivateModule.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="OptionPrivateModule"
+                Module=Main; Main.bas
+                Module=Consumer; Consumer.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Private Module
+                Option Explicit
+                Public Counter As Long
+
+                Public Sub Main()
+                    Counter = 41
+                    Observe
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.bas"), """
+                Option Explicit
+
+                Public Sub Observe()
+                    Counter = Counter + 1
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(analysis.Success, FormatDiagnostics(analysis));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            var consumer = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Consumer", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            Assert.IsTrue(main.IsPrivateModule);
+            var assignment = consumer.Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Observe", StringComparison.OrdinalIgnoreCase))
+                .Body
+                .Statements
+                .OfType<BoundAssignmentStatement>()
+                .Single();
+            Assert.IsTrue(assignment.Variable is ModuleVariableSymbol module && module.IsPublic);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_HidesPrivateModuleVariablesFromOtherModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "PrivateModuleVariable.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="PrivateModuleVariable"
+                Module=Main; Main.bas
+                Module=Consumer; Consumer.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+                Private Hidden As Long
+
+                Public Sub Main()
+                    Hidden = 1
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.bas"), """
+                Option Explicit
+
+                Public Sub Observe()
+                    Hidden = 2
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0001"));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            var hidden = main.ModuleVariables.Single(variable =>
+                string.Equals(variable.Symbol.Name, "Hidden", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(hidden.Symbol.IsPublic);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_HidesDimModuleVariablesFromOtherModules()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "DimModuleVariable.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="DimModuleVariable"
+                Module=Main; Main.bas
+                Module=Consumer; Consumer.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+                Dim Hidden As Long
+
+                Public Sub Main()
+                    Hidden = 1
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.bas"), """
+                Option Explicit
+
+                Public Sub Observe()
+                    Hidden = 2
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0001"));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            var hidden = main.ModuleVariables.Single(variable =>
+                string.Equals(variable.Symbol.Name, "Hidden", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(hidden.Symbol.IsPublic);
+            var assignment = main.Procedures
+                .Single(procedure => string.Equals(procedure.Symbol.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Body
+                .Statements
+                .OfType<BoundAssignmentStatement>()
+                .Single();
+            Assert.AreSame(hidden.Symbol, assignment.Variable);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_RestrictsPrivateProceduresToTheirDeclaringModule()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ProcedureVisibility.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ProcedureVisibility"
+                Module=Main; Main.bas
+                Module=Consumer; Consumer.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+
+                Private Sub Hidden()
+                End Sub
+
+                Public Sub Exported()
+                End Sub
+
+                Global Sub GlobalEntry()
+                End Sub
+
+                Sub Main()
+                    Hidden
+                    Exported
+                    GlobalEntry
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Consumer.bas"), """
+                Option Explicit
+
+                Public Sub Observe()
+                    Exported
+                    GlobalEntry
+                    Hidden
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0005"));
+            var main = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Main", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            var consumer = analysis.Units
+                .Single(unit => string.Equals(unit.Item.Name, "Consumer", StringComparison.OrdinalIgnoreCase))
+                .Analysis
+                .SemanticModel!;
+            Assert.IsFalse(main.Procedures.Single(procedure => procedure.Symbol.Name == "Hidden").Symbol.IsPublic);
+            Assert.IsTrue(main.Procedures.Single(procedure => procedure.Symbol.Name == "Exported").Symbol.IsPublic);
+            Assert.IsTrue(main.Procedures.Single(procedure => procedure.Symbol.Name == "GlobalEntry").Symbol.IsPublic);
+            var consumerCalls = consumer.Procedures.Single(procedure => procedure.Symbol.Name == "Observe").Body.Statements
+                .OfType<BoundInvocationStatement>()
+                .ToArray();
+            Assert.IsTrue(consumerCalls.Any(invocation => invocation.Procedure.Name == "Exported"));
+            Assert.IsTrue(consumerCalls.Any(invocation => invocation.Procedure.Name == "GlobalEntry"));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ReadsWindowsAnsiEncodedProjectSources()
     {
         var directory = CreateTemporaryDirectory();
@@ -1087,6 +1434,58 @@ public sealed class ProjectCompilationTests
             });
 
             Assert.AreEqual(string.Empty, output);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesScaleIntrinsicsFromFormCode()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ScaleForm.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="ScaleForm"
+                Name="ScaleForm"
+                Form=ScaleForm.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "ScaleForm.frm"), """
+                VERSION 5.00
+                Begin VB.Form ScaleForm
+                End
+                Attribute VB_Name = "ScaleForm"
+                Attribute VB_PredeclaredId = True
+
+                Private Sub Form_Load()
+                    Debug.Print ScaleX(1440, 1, 5)
+                    Debug.Print ScaleY(1440, 1, 5)
+                    Debug.Print ScaleX(1440, 0, 3)
+                    Debug.Print ScaleY(1440, 0, 3)
+                    Unload Me
+                End Sub
+                """);
+
+            var output = VB6TestProgram.RunEmitted(directoryPath =>
+            {
+                var result = VBProjectCompilation.Create(projectPath)
+                    .EmitManagedApplication(
+                        Path.Combine(directoryPath, "ScaleForm.dll"),
+                        new VB6.Emit.Managed.ManagedEmitOptions("ScaleForm")
+                        {
+                            EnableWinFormsHost = true
+                        });
+                Assert.IsTrue(result.Success, FormatDiagnostics(result.Lowering.Analysis));
+                return result.AssemblyPath!;
+            });
+
+            CollectionAssert.AreEqual(new[] { "1", "1", "96", "96" }, VB6TestProgram.SplitLines(output));
         }
         finally
         {

@@ -103,6 +103,10 @@ public static class VBMemory
         throw new PlatformNotSupportedException(
             "LSet requires a supported managed UDT destination or the native UDT layout backend.");
 
+    public static void RSet(object? target, object? source) =>
+        throw new PlatformNotSupportedException(
+            "RSet requires a fixed-length String destination or the native VB6 memory backend.");
+
     private static bool IsSupportedRawRecord(Type type) =>
         type.IsValueType &&
         type.IsLayoutSequential &&

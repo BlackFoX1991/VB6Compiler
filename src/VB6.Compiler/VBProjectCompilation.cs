@@ -809,7 +809,7 @@ public sealed class VBProjectCompilation
                 symbols = Binder.CreateModuleVariableSymbols(module.Text, module.SemanticRoot);
             }
 
-            foreach (var symbol in symbols)
+            foreach (var symbol in symbols.Where(symbol => symbol.IsPublic))
             {
                 if (moduleVariables.TryAdd(symbol.Name, symbol))
                 {
@@ -1134,6 +1134,14 @@ public sealed class VBProjectCompilation
                     continue;
                 }
 
+                // Private module procedures are declared in the module's own scope below. Only
+                // exported procedures participate in the project-wide lookup table; otherwise a
+                // Private helper in one standard module would be callable from every other one.
+                if (!symbol.IsPublic)
+                {
+                    continue;
+                }
+
                 if (procedures.TryAdd(symbol.Name, symbol))
                 {
                     origins.Add(symbol.Name, module.Item.RelativePath);
@@ -1161,31 +1169,36 @@ public sealed class VBProjectCompilation
         IReadOnlyDictionary<string, ProcedureSymbol> projectProcedures,
         IReadOnlyDictionary<string, UserDefinedTypeModuleResult> userDefinedTypesByPath)
     {
-            if (!IsClassModuleKind(module.Item.Kind))
-        {
-            return projectProcedures;
-        }
-
-        var procedures = new Dictionary<string, ProcedureSymbol>(
-            projectProcedures,
-            StringComparer.OrdinalIgnoreCase);
+        var procedures = projectProcedures
+            .Where(entry => entry.Value.IsPublic)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value,
+                StringComparer.OrdinalIgnoreCase);
         userDefinedTypesByPath.TryGetValue(module.FilePath, out var moduleUserDefinedTypes);
         using var typeScope = UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes));
         foreach (var member in module.SemanticRoot.Members)
         {
             var symbol = member switch
             {
-                    SubDeclarationSyntax sub => Binder.CreateProcedureSymbol(sub),
-                    FunctionDeclarationSyntax function => Binder.CreateProcedureSymbol(function),
-                    DeclareDeclarationSyntax declare => Binder.CreateDeclareProcedureSymbol(declare),
-                    _ => null
+                SubDeclarationSyntax sub => Binder.CreateProcedureSymbol(sub),
+                FunctionDeclarationSyntax function => Binder.CreateProcedureSymbol(function),
+                DeclareDeclarationSyntax declare => Binder.CreateDeclareProcedureSymbol(declare),
+                _ => null
             };
 
             if (symbol is not null)
             {
-                // A class/form member shadows a project-level declaration or intrinsic with the
-                // same name, just as it does in VB6 source lookup.
-                procedures[symbol.Name] = symbol;
+                // A module member shadows a project-level declaration or intrinsic with the same
+                // name. This also makes Private procedures visible only in their own module.
+                // Standard-module Public symbols are already shared through the project table;
+                // retaining that instance keeps bound call targets identical across modules.
+                if (!symbol.IsPublic ||
+                    IsClassModuleKind(module.Item.Kind) ||
+                    !procedures.ContainsKey(symbol.Name))
+                {
+                    procedures[symbol.Name] = symbol;
+                }
             }
         }
 

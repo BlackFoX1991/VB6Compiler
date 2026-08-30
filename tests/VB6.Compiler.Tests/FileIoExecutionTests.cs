@@ -126,6 +126,49 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InputVariantRestoresWriteMarkers()
+    {
+        Run("""
+            Sub Main()
+                Dim text As Variant
+                Dim number As Variant
+                Dim enabled As Variant
+                Dim emptyValue As Variant
+                Dim dateValue As Variant
+                Dim errorValue As Variant
+
+                Open "variant-input.txt" For Output As #1
+                Write #1, "hello"
+                Write #1, 42
+                Write #1, True
+                Write #1, Empty
+                Write #1, CVDate(43832)
+                Write #1, CVErr(7)
+                Close #1
+
+                Open "variant-input.txt" For Input As #1
+                Input #1, text, number, enabled, emptyValue, dateValue, errorValue
+                Close #1
+
+                Debug.Print TypeName(text)
+                Debug.Print TypeName(number)
+                Debug.Print TypeName(enabled)
+                Debug.Print IsEmpty(emptyValue)
+                Debug.Print TypeName(dateValue)
+                Debug.Print TypeName(errorValue)
+                Debug.Print IsError(errorValue)
+            End Sub
+            """,
+            "String",
+            "Integer",
+            "Boolean",
+            "True",
+            "Date",
+            "Error",
+            "True");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsScalarUdtRecords()
     {
         Run("""
@@ -279,6 +322,140 @@ public sealed class FileIoExecutionTests
             "40",
             "100",
             "200");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsTopLevelScalarArrays()
+    {
+        Run("""
+            Sub Main()
+                Dim writtenLongs(0 To 2) As Long
+                Dim readLongs(0 To 2) As Long
+                Dim writtenVariants(1 To 2) As Variant
+                Dim readVariants(1 To 2) As Variant
+
+                writtenLongs(0) = 10
+                writtenLongs(1) = 20
+                writtenLongs(2) = 30
+                writtenVariants(1) = CVErr(2001)
+                writtenVariants(2) = "ready"
+
+                Open "top-level-arrays.bin" For Binary As #1
+                Put #1, 1, writtenLongs
+                Put #1, , writtenVariants
+                Close #1
+
+                Open "top-level-arrays.bin" For Binary As #1
+                Get #1, 1, readLongs
+                Get #1, , readVariants
+                Close #1
+
+                Debug.Print readLongs(0)
+                Debug.Print readLongs(2)
+                Debug.Print IsError(readVariants(1))
+                Debug.Print readVariants(1)
+                Debug.Print readVariants(2)
+            End Sub
+            """,
+            "10",
+            "30",
+            "True",
+            "Error 2001",
+            "ready");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsTopLevelStringArrayInBinaryMode()
+    {
+        Run("""
+            Sub Main()
+                Dim written(1 To 2) As String
+                Dim readBack(1 To 2) As String
+
+                written(1) = "one"
+                written(2) = "two"
+
+                Open "top-level-strings.bin" For Binary As #1
+                Put #1, 1, written
+                Close #1
+
+                Open "top-level-strings.bin" For Binary As #1
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print readBack(1)
+                Debug.Print readBack(2)
+            End Sub
+            """,
+            "one",
+            "two");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsDynamicTopLevelStringArrayInRandomMode()
+    {
+        Run("""
+            Sub Main()
+                Dim written() As String
+                Dim readBack() As String
+
+                ReDim written(1 To 2)
+                written(1) = "first"
+                written(2) = "second"
+
+                Open "dynamic-top-level-strings.dat" For Random As #1 Len = 64
+                Put #1, 1, written
+                Close #1
+
+                Open "dynamic-top-level-strings.dat" For Random As #1 Len = 64
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print LBound(readBack)
+                Debug.Print UBound(readBack)
+                Debug.Print readBack(1)
+                Debug.Print readBack(2)
+            End Sub
+            """,
+            "1",
+            "2",
+            "first",
+            "second");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsDynamicTopLevelArrayInRandomMode()
+    {
+        Run("""
+            Sub Main()
+                Dim written() As Long
+                Dim readBack() As Long
+
+                ReDim written(1 To 3)
+                written(1) = 100
+                written(2) = 200
+                written(3) = 300
+
+                Open "dynamic-top-level-array.dat" For Random As #1 Len = 32
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "dynamic-top-level-array.dat" For Random As #1 Len = 32
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print LBound(readBack)
+                Debug.Print UBound(readBack)
+                Debug.Print readBack(1)
+                Debug.Print readBack(3)
+            End Sub
+            """,
+            "32",
+            "1",
+            "3",
+            "100",
+            "300");
     }
 
     [TestMethod]
@@ -637,6 +814,200 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesLocForBinaryAndRandomFiles()
+    {
+        Run("""
+            Public Sub Main()
+                Open "loc.bin" For Binary As #1
+                Put #1, 1, CByte(10)
+                Debug.Print Loc(1)
+                Put #1, , CByte(20)
+                Debug.Print Loc(1)
+                Close #1
+
+                Open "loc.bin" For Random As #1 Len = 4
+                Put #1, 1, 42
+                Debug.Print Loc(1)
+                Close #1
+            End Sub
+            """,
+            "1",
+            "2",
+            "1");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesResetToCloseAllFileChannels()
+    {
+        Run("""
+            Public Sub Main()
+                Open "reset.bin" For Output As #1
+                Print #1, "closed"
+                Reset
+                Debug.Print FreeFile
+            End Sub
+            """,
+            "1");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesWriteStatementFormatting()
+    {
+        Run("""
+            Public Sub Main()
+                Dim value As String
+
+                Open "write.txt" For Output As #1
+                Write #1, "a""b", True, Null
+                Close #1
+
+                Open "write.txt" For Input As #1
+                Line Input #1, value
+                Debug.Print value
+                Close #1
+            End Sub
+            """,
+            "\"a\"\"b\",#TRUE#,#NULL#");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesPrintEmptyOutputListAsBlankLine()
+    {
+        Run("""
+            Public Sub Main()
+                Dim value As String
+
+                Open "blank-print.txt" For Output As #1
+                Print #1,
+                Close #1
+
+                Open "blank-print.txt" For Input As #1
+                Line Input #1, value
+                Close #1
+
+                Debug.Print Len(value)
+            End Sub
+            """,
+            "0");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesPrintOutputListSeparatorsAndContinuation()
+    {
+        Run("""
+            Public Sub Main()
+                Dim value As String
+
+                Open "list-print.txt" For Output As #1
+                Print #1, "a"; "b", "c";
+                Print #1, "d"
+                Close #1
+
+                Open "list-print.txt" For Input As #1
+                Line Input #1, value
+                Close #1
+
+                Debug.Print value
+            End Sub
+            """,
+            "ab            cd");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesWidthForPrintContinuationLines()
+    {
+        Run("""
+            Public Sub Main()
+                Dim value As String
+
+                Open "width-print.txt" For Output As #1
+                Width #1, 5
+                Print #1, Chr(48 + 0);
+                Print #1, Chr(48 + 1);
+                Print #1, Chr(48 + 2);
+                Print #1, Chr(48 + 3);
+                Print #1, Chr(48 + 4);
+                Print #1, Chr(48 + 5);
+                Print #1, Chr(48 + 6);
+                Print #1, Chr(48 + 7);
+                Print #1, Chr(48 + 8);
+                Print #1, Chr(48 + 9)
+                Close #1
+
+                Open "width-print.txt" For Input As #1
+                Line Input #1, value
+                Debug.Print value
+                Line Input #1, value
+                Close #1
+
+                Debug.Print value
+            End Sub
+            """,
+            "01234",
+            "56789");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesLockAndUnlockRanges()
+    {
+        Run("""
+            Public Sub Main()
+                Dim value As Byte
+
+                Open "locked.bin" For Binary Lock Read As #1
+                Put #1, 1, CByte(10)
+                Put #1, 2, CByte(20)
+                Lock #1, 1 To 2
+                Get #1, 1, value
+                Unlock #1, 1 To 2
+                Close #1
+
+                Debug.Print value
+            End Sub
+            """,
+            "10");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_UsesOpenAccessClause()
+    {
+        Run("""
+            Public Sub Main()
+                Dim value As Byte
+
+                Open "access.bin" For Binary Access Write As #1
+                Put #1, 1, CByte(42)
+                Close #1
+
+                Open "access.bin" For Binary Access Read As #1
+                Get #1, 1, value
+                Close #1
+
+                Open "access.bin" For Binary Access Read Write As #1
+                Put #1, 1, CByte(43)
+                Close #1
+
+                Debug.Print value
+            End Sub
+            """,
+            "42");
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_DefaultsOpenToRandomMode()
+    {
+        Run("""
+            Public Sub Main()
+                Open "default-random.dat" As #1 Len = 4
+                Put #1, 1, 99
+                Debug.Print Loc(1)
+                Close #1
+            End Sub
+            """,
+            "1");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesFilesystemPathIntrinsics()
     {
         Run("""
@@ -681,7 +1052,7 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
-    public void Analyze_ReportsTransfersThatHaveNoLayoutRuleYet()
+    public void Analyze_AllowsScalarVariantFieldsInBinaryUdtRecords()
     {
         var analysis = VBCompilation.Create("""
             Type Record
@@ -696,9 +1067,43 @@ public sealed class FileIoExecutionTests
             End Sub
             """, "Module1.bas").Analyze();
 
-        Assert.IsFalse(analysis.Success);
-        var diagnostic = analysis.Diagnostics.Single(d => d.Code == "VB6S0058");
-        StringAssert.Contains(diagnostic.Message, "UDT");
+        Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RoundTripsScalarVariantAndUdtVariantField()
+    {
+        Run("""
+            Type Record
+                Value As Variant
+            End Type
+
+            Sub Main()
+                Dim value As Variant
+                Dim written As Record
+                Dim readBack As Record
+
+                value = CVErr(2001)
+                written.Value = value
+
+                Open "variant-record.bin" For Binary As #1
+                Put #1, 1, value
+                Put #1, , written
+                Close #1
+
+                Open "variant-record.bin" For Binary As #1
+                Get #1, 1, value
+                Get #1, , readBack
+                Close #1
+
+                Debug.Print TypeName(value)
+                Debug.Print IsError(readBack.Value)
+                Debug.Print readBack.Value
+            End Sub
+            """,
+            "Error",
+            "True",
+            "Error 2001");
     }
 
     [TestMethod]
