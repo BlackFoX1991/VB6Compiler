@@ -3620,3 +3620,44 @@ Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die M
 **68 implemented**, **8 partial**, **39 planned** von **115** sowie **76/115**
 `documented-verified`. `l1-02-i-object-members-lifecycle` steht auf `partial`: `assignment` und
 `contracts` sind nachgewiesen, `lifecycle` ist nicht gebaut.
+
+## Public-Felder von Klassen: der Empfänger war falsch (30.08.2026)
+
+Vorgezogen aus den offenen Befunden von `L1-02-I`, weil ein Basisfeature betroffen war: Ein
+`Public X As Long` in einer `.cls` war aus einem anderen Modul **überhaupt nicht benutzbar**.
+
+Die Ursache lag nicht dort, wo sie zuerst aussah. Die Sichtbarkeit war nur der Deckel: Jedes
+Klassenfeld wurde als `FieldAttributes.Private` emittiert, der Zugriff scheiterte mit
+`FieldAccessException`, und darunter lag der eigentliche Defekt. `EmitLoad`, `EmitStore` und
+`EmitAddress` riefen für ein `IrFieldPlace` einheitlich `EmitAddress` auf den Empfänger. Für
+ein UDT ist das richtig — ein Werttyp braucht die Adresse. Eine Klasse ist aber **bereits eine
+Referenz**: `ldfld`/`stfld` wollen dann das Objekt selbst, und die Adresse des lokalen Slots
+zu laden liest am falschen Offset. Sobald das Feld sichtbar war, endete der Zugriff in einer
+Zugriffsverletzung.
+
+Warum der Defekt so lange unsichtbar blieb, hat zwei Gründe. Innerhalb der Klasse ist der
+Empfänger `Me`, und `EmitAddress(IrThisPlace)` macht `LoadArgument(0)` — lädt also die
+Referenz, nicht ihre Adresse; der Pfad war dort zufällig richtig. Und von aussen verdeckte die
+private CLR-Sichtbarkeit den falschen Zugriff als plausibel aussehende
+`FieldAccessException`. Ein Fehler, der einen zweiten maskiert.
+
+Der neue Helfer `EmitFieldReceiver` unterscheidet über das bereits vorhandene
+`IsReferenceType`: Referenz laden, Werttyp adressieren. Dazu die Sichtbarkeit —
+`IrField.IsPublic`, gespeist aus `ModuleVariableSymbol.IsPublic`, und im Emitter
+`FieldAttributes.Assembly` statt `Private`. Erst beides zusammen macht `Public`-Felder
+benutzbar; einzeln bringt keines der beiden etwas.
+
+Der End-to-End-Test deckt beide Richtungen ab: `Long`- und `String`-Felder über die
+Modulgrenze, mehrere Klassen nebeneinander, eine Klasse mit `Implements` **und** Feld, sowie
+ein UDT-Feld als Gegenprobe für den Werttyp-Pfad. Ein `Private`-Feld bleibt von aussen
+unerreichbar.
+
+**Offen** bleibt der Nebenbefund aus derselben Messung: Der Binder meldet den Zugriff auf ein
+privates Klassenfeld weiterhin **nicht** — `analysis.Success` ist `true`, und nur die
+CLR-Sichtbarkeit verhindert ihn. Das gehört in eine Binder-Karte.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1320/1320** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrixzahlen
+bleiben unverändert: Der Fix schliesst keinen neuen Vertrag, sondern repariert einen Pfad,
+den `l1-02-i-object-members-lifecycle` bereits als `partial` führt.

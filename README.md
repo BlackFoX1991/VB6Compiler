@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1319 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 115 expectations (68 implemented, 8 partial, 39 planned) with 76/115 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the executable queue in `docs/LUNA_EXECUTION_PLAN.md`; the next open managed card is `l1-02-j-nested-error-resume`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1320 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 115 expectations (68 implemented, 8 partial, 39 planned) with 76/115 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the executable queue in `docs/LUNA_EXECUTION_PLAN.md`; the next open managed card is `l1-02-j-nested-error-resume`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -127,7 +127,7 @@ Implemented so far:
 ## Current verification
 
 The canonical serial `build.ps1 -NoRestore -Configuration Release` run on 2026-08-30 reports
-**1319 test cases**, **1319 passed**, **0 failed** across 13 test projects, with a warning-free
+**1320 test cases**, **1320 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
 **115 expectations**: **68 implemented**, **8 partial**, **39 planned**, and **76/115
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.

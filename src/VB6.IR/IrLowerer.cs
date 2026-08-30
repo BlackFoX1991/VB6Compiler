@@ -659,7 +659,8 @@ public static class IrLowerer
                 {
                     _classFields[variable.Symbol] = new IrField(
                         Mangle(variable.Symbol.Name),
-                        variable.Symbol.Type);
+                        variable.Symbol.Type,
+                        IsPublic: variable.Symbol.IsPublic);
 
                     if (variable.IsWithEvents && variable.Symbol.Type is ClassTypeSymbol sourceType)
                     {

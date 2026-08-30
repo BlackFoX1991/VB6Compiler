@@ -47,7 +47,13 @@ public sealed record IrField(
     string Name,
     TypeSymbol Type,
     bool IsStatic = false,
-    bool IsCompilerGenerated = false) : IrNode;
+    bool IsCompilerGenerated = false,
+    /// <summary>
+    /// Ob das Feld ausserhalb seines Typs sichtbar sein muss. Ein VB6 Public-Feld einer
+    /// Klasse wird sonst als privates CLR-Feld emittiert und der Zugriff aus einem anderen
+    /// Modul scheitert mit FieldAccessException.
+    /// </summary>
+    bool IsPublic = true) : IrNode;
 
 public sealed record IrGlobal(
     ModuleVariableSymbol Symbol,
