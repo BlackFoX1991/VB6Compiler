@@ -3661,3 +3661,38 @@ Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX
 Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrixzahlen
 bleiben unverändert: Der Fix schliesst keinen neuen Vertrag, sondern repariert einen Pfad,
 den `l1-02-i-object-members-lifecycle` bereits als `partial` führt.
+
+## Breitendurchgang: elf Defekte, ein Muster (30.08.2026)
+
+Vor der nächsten Karte ein gezielter Durchgang über Klassenmitglieder, Modulgrenzen,
+ByRef-Rückschreiben, Laufzeitfehlernummern und die Standardbibliothek. Das vollständige
+Register steht in `LUNA_EXECUTION_PLAN.md`; hier das Ergebnis und die Konsequenz.
+
+**Kein einziger Defekt lag im Normalfall.** Alle sassen an einer Grenze, und fast alle waren
+leise.
+
+Der schwerste Befund: Ein `Public`-Feld einer Klasse wird vom Binder als **Property**
+modelliert. `PropertySymbol` hat keinen Marker, der eine synthetisierte Feld-Property von einem
+echten `Property Get` unterscheidet; der Lowerer bildet nur den einfachen Lese-/Schreibfall
+wieder auf ein `IrFieldPlace` ab. Daraus folgen vier Symptome mit **einer** Ursache — verlorenes
+ByRef-Rückschreiben (**5 statt 6, ohne jede Diagnose**), abgelehntes `Set` auf ein Objektfeld,
+nicht indizierbare Array-Felder und ein Parserfehler bei `Public S As String * 5`. Die
+Gegenprobe zeigt, dass ByRef über Locals, `Global`-Variablen, UDT-Member und Array-Elemente
+korrekt zurückschreibt — nur über Klassenfelder nicht.
+
+Dazu drei fehlende Fehlernummern (**91** bei Zugriff auf eine nicht gesetzte Objektvariable,
+**53** bei nicht gefundener Datei, vermutlich **9** bei `Collection`-Index) und acht fehlende
+Standardfunktionen (`StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`,
+`FormatDateTime`, `Partition`, `CallByName`, `QBColor`) — letzteres deckt sich mit der bereits
+erfolgten Rückstufung von `format.complete-surface` und `math.complete-surface`.
+
+Die Konsequenz steht als **§13 der Leitplanken**: die vier Grenzen, an denen zu messen ist
+(Bindungsart, Modulgrenze, Wert gegen Referenz, Deklarationsform), die Regel dass Fehlernummer
+**5** ein Verdacht und kein Ergebnis ist, die Priorisierung „still falsch" vor „falscher Code"
+vor „meldet nicht", der Hinweis dass eine Reparatur mit schlechterem Fehlerbild auf einen
+**zweiten** Defekt darunter deutet, und das Verbot, aus einer einzelnen Probe auf die Ursache
+zu schliessen. Alle fünf Regeln stammen aus konkreten Fehlschlägen dieses Durchgangs, zwei
+davon aus falschen Ursachenvermutungen, die erst die nächste Probe widerlegt hat.
+
+Reine Mess- und Dokumentationsarbeit; `src/` und `tests/` bleiben unberührt. Der kanonische
+Lauf bleibt bei **1320/1320** Tests, VISIA **40/40**.
