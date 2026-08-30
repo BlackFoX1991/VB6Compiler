@@ -3572,3 +3572,51 @@ Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX
 Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
 **68 implemented**, **7 partial**, **40 planned** von **115** sowie **75/115**
 `documented-verified`.
+
+## L1-02-I Objektmitglieder und Lebenszyklus (30.08.2026)
+
+Die Vorabmessung nach §11 umfasste **12 Projektläufe** und hat **drei echte Defekte** gefunden.
+Behoben wurde nur einer — die anderen beiden sind zu gross fuer diese Karte, und der Versuch
+beim dritten wurde bewusst zurueckgenommen.
+
+**Behoben: `TypeName` gab den emittierten Typnamen preis.** Eine Klasse `Box` meldete
+`__vb6_class_Box`, sowohl typisiert als auch aus einem Variant. Damit war das Namensschema des
+Emitters beobachtbares Programmverhalten. `VBFunctions.TypeName` nimmt die Präfixe
+`__vb6_class_`, `__vb6_interface_`, `__vb6_udt_` und `__vb6_module_` jetzt zurück — dieselbe
+Klasse von Leck wie `VBCollection` in der Vorkarte, nur gravierender, weil hier die
+Namensmangelung selbst sichtbar wurde.
+
+**Zurueckgenommen: `Public`-Felder sichtbar machen.** `ManagedEmitter` emittiert *jedes*
+Klassenfeld als `FieldAttributes.Private`. Ein `Public X As Long` ist damit über Modulgrenzen
+unbenutzbar und scheitert mit `FieldAccessException` — schon im einfachsten Fall mit einer
+Klasse und einem Zugriff aus `Main`. Die Sichtbarkeit liegt in `ModuleVariableSymbol.IsPublic`
+bereits vor und wurde versuchsweise über ein neues `IrField.IsPublic` bis zum Emitter
+durchgereicht.
+
+Die Messung danach war eindeutig: Mit sichtbarem Feld läuft der Zugriff weiter und endet in
+einer **Zugriffsverletzung** (`0xC0000005`) statt in einer fangbaren Ausnahme. Der Feldzugriff
+selbst ist also defekt; die private CLR-Sichtbarkeit maskiert das bisher. Eine Änderung, die
+eine saubere Ausnahme in einen Prozessabsturz verwandelt, ist keine Verbesserung, auch wenn sie
+einen häufigeren Fall reparieren würde. Vollständig zurückgenommen; `src/` trägt davon nichts.
+
+Nebenbefund derselben Messung: Der Binder meldet den Zugriff auf ein **privates** Klassenfeld
+von aussen **nicht** — `analysis.Success` ist `true`, und nur die CLR-Sichtbarkeit verhindert
+ihn. Das ist ein zweites, eigenständiges Loch.
+
+**Nicht angefasst: der Lebenszyklus.** `Dim x As New C` ruft `Class_Initialize` sofort bei der
+Deklaration auf, auch wenn `x` nie benutzt wird; VB6 erzeugt die Instanz bei der ersten
+Verwendung. Und `Class_Terminate` feuert **nie** — weder bei `Set o = Nothing` noch beim
+Verlassen des Gültigkeitsbereichs. Letzteres ist der bekannte Zielkonflikt zwischen
+VB6-Referenzzählung und GC-Laufzeit und verlangt eine Architekturentscheidung, die nach §9 nicht
+nebenbei getroffen wird.
+
+Gemessen und bereits korrekt: `Set` teilt die Referenz und `Let` kopiert den Wert (jetzt
+festgeschrieben), `Implements` mit `TypeOf`-Prüfung und Dispatch über die Interface-Referenz,
+`WithEvents` mit Ereigniszustellung.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1319/1319** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
+**68 implemented**, **8 partial**, **39 planned** von **115** sowie **76/115**
+`documented-verified`. `l1-02-i-object-members-lifecycle` steht auf `partial`: `assignment` und
+`contracts` sind nachgewiesen, `lifecycle` ist nicht gebaut.

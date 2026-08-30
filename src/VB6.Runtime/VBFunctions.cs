@@ -54,11 +54,38 @@ public static class VBFunctions
             VBCollection => "Collection",
             IVBArray array => VBVariants.ArrayTypeName(array),
             Array array => VBVariants.ArrayTypeName(array),
-            _ => value.GetType().Name
+            _ => Vb6TypeName(value.GetType())
         };
     }
 
     /// <summary>Returns the supplied values as a zero-based Variant array.</summary>
+    /// <summary>
+    /// Der Emitter praefixt jeden erzeugten Typ ("__vb6_class_Box"), damit VB6-Namen im
+    /// gemeinsamen Namensraum nicht kollidieren. TypeName muss den VB6-Namen zurueckgeben,
+    /// sonst wird das Namensschema des Emitters zu beobachtbarem Programmverhalten.
+    /// </summary>
+    private static string Vb6TypeName(Type type)
+    {
+        var name = type.Name;
+        foreach (var prefix in EmittedTypePrefixes)
+        {
+            if (name.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return name[prefix.Length..];
+            }
+        }
+
+        return name;
+    }
+
+    private static readonly string[] EmittedTypePrefixes =
+    [
+        "__vb6_class_",
+        "__vb6_interface_",
+        "__vb6_udt_",
+        "__vb6_module_"
+    ];
+
     public static object Array(VBArray<object> arguments) => arguments;
 
     /// <summary>Evaluates condition/value pairs and returns the first matching value.</summary>

@@ -12,14 +12,14 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1318/1318 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1319/1319 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **7 partial** und
-  **40 planned**; **75** sind `documented-verified`. Die nächste offene Implementierungskarte
-  ist `l1-02-i-object-members-lifecycle`; `l1-02-a-language-grammar-context` bleibt als breiter
+- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **8 partial** und
+  **39 planned**; **76** sind `documented-verified`. Die nächste offene Implementierungskarte
+  ist `l1-02-j-nested-error-resume`; `l1-02-a-language-grammar-context` bleibt als breiter
   Familienstatus bewusst `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
@@ -288,6 +288,49 @@ Gebaut und nachgewiesen:
 
 **Offen** bleibt in `unsupported` die ausdrücklich genannte **SAFEARRAY**-Hälfte. Sie liegt am
 COM-/TypeLib-Rand und wurde nicht angefasst; die Karte bleibt deshalb `partial`.
+
+Die breite Karte `l1-02-i-object-members-lifecycle` ist **begonnen, nicht geschlossen**. Die
+Vorabmessung nach §11 umfasste 12 Projektläufe. Sie hat **drei echte Defekte** gefunden, von
+denen nur einer in dieser Karte behoben wurde.
+
+Gebaut und nachgewiesen (`assignment`):
+
+- `Set` teilt die Referenz, `Let` kopiert den Wert; `Is` und `VarType`/`TypeName` bestätigen das.
+- `TypeName` gab den **emittierten** Typnamen preis: `__vb6_class_Box` statt `Box`. Damit war
+  das Namensschema des Emitters beobachtbares Programmverhalten. `VBFunctions.TypeName` nimmt
+  die Präfixe `__vb6_class_`, `__vb6_interface_`, `__vb6_udt_` und `__vb6_module_` jetzt zurück.
+
+Gemessen und bereits korrekt (`contracts`): `Implements` mit `TypeOf`-Prüfung und Dispatch über
+die Interface-Referenz, `WithEvents` mit Ereigniszustellung an den Handler.
+
+### Offene Befunde aus dieser Karte
+
+**1. `Public`-Felder einer Klasse sind über Modulgrenzen unbenutzbar.** `ManagedEmitter`
+emittiert *jedes* Klassenfeld als `FieldAttributes.Private`; ein Zugriff aus einem anderen
+Modul scheitert zur Laufzeit mit `FieldAccessException`. Betroffen ist schon der einfachste
+Fall — eine Klasse, ein `Public X As Long`, ein Zugriff aus `Main`.
+
+Ein Versuch, die Sichtbarkeit über `IrField.IsPublic` bis zum Emitter durchzureichen, wurde
+**zurückgenommen**: Mit sichtbarem Feld läuft der Zugriff weiter und endet in einer
+**Zugriffsverletzung** (`0xC0000005`) statt in einer sauberen Ausnahme. Der Feldzugriff selbst
+ist also defekt, und die private CLR-Sichtbarkeit maskiert das bisher. Eine Änderung, die eine
+fangbare Ausnahme in einen Prozessabsturz verwandelt, ist keine Verbesserung — der eigentliche
+Emitter-Defekt braucht eine eigene Karte.
+
+Nebenbefund: Der Binder meldet den Zugriff auf ein **privates** Klassenfeld von aussen **nicht**
+— `analysis.Success` ist `true`. Die CLR-Sichtbarkeit ist dort derzeit das einzige Netz.
+
+**2. `As New` erzeugt eifrig statt faul.** `Dim x As New C` ruft `Class_Initialize` sofort bei
+der Deklaration auf, auch wenn `x` nie benutzt wird. VB6 erzeugt die Instanz bei der ersten
+Verwendung.
+
+**3. `Class_Terminate` feuert nie.** Weder bei `Set o = Nothing` noch beim Verlassen des
+Gültigkeitsbereichs. Das ist der bekannte Zielkonflikt zwischen VB6-Referenzzählung und
+GC-Laufzeit und verlangt eine Architekturentscheidung (Scope-basiertes Freigeben oder
+Referenzzählung im Lowering) — nach §9 nicht nebenbei zu treffen.
+
+Befunde 2 und 3 bilden zusammen die `lifecycle`-Klausel; sie ist damit **nicht** gebaut, und die
+Karte bleibt `partial`.
 
 ## Erfahrungsbefund aus den L1-02-Karten
 
