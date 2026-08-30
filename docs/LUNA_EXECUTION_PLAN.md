@@ -263,6 +263,26 @@ einer `Collection`: `o + 1` meldet korrekt **13**, `o & "x"` meldet dagegen **0*
 meldet **5**. Ob 13 hier überhaupt der Sollwert ist, hängt an der Default-Property der
 `Collection` und ist ohne Orakel nicht zu entscheiden — deshalb wurde nichts geändert.
 
+## Erfahrungsbefund aus den L1-02-Karten
+
+Über die bisher bearbeiteten Karten hinweg zeigt sich ein wiederkehrendes Muster: **Die
+Umsetzung ist durchweg weiter als ihre Absicherung.** Bei `l1-02-f` und `l1-02-g` lautete der
+Befund zweimal hintereinander „das Verhalten war bereits richtig, nur ungetestet"; bei
+`l1-02-g` waren alle 49 gemessenen Operandenpaare der Promotionstabelle korrekt.
+
+Daraus folgen zwei Dinge, die als Regeln 7 und 8 unten und als §11/§12 der Leitplanken
+verbindlich sind:
+
+1. Die echten Lücken waren beim Lesen des Quelltexts **nicht** sichtbar — sie fielen erst beim
+   flächigen Messen auf (`Err.Number` 5 statt 94, 5 statt 13). Wer ohne Messung baut, riskiert,
+   funktionierenden Code umzubauen und die eigentliche Lücke zu übersehen.
+2. Zweimal war eine dokumentationsgestützte Änderung falsch und ein bestehender, benannter Test
+   hatte recht. Ohne Orakel ist der Test der bessere Zeuge.
+
+Für die Statusachsen heißt das: Eine Karte, die nur Tests hinzufügt, hebt `verification`, nicht
+`implementation`. Das ist kein geringeres Ergebnis — ungetestetes korrektes Verhalten ist
+jederzeit still kaputtzumachen.
+
 ## Arbeitskartenvertrag
 
 Jede Karte muss vor dem Start folgende Felder enthalten:
@@ -273,6 +293,7 @@ Jede Karte muss vor dem Start folgende Felder enthalten:
 | Matrix | Genau eine Erwartungs-ID; unabhängige Ergebnisse werden vorher geteilt; ein Kartenabschluss schreibt beide Achsen fort: `planned` → `implemented` und `not-yet-verified` → `documented-verified` |
 | Abhängigkeiten | IDs, die vorher `verified` sein müssen |
 | Einstieg | Konkrete Produktions- und Testdateien, keine Repository-Gesamtsuche |
+| Vorabmessung | Ist-Verhalten **jedes** `expected`-Feldes gemessen, bevor Code entsteht (Leitplanken §11); Ergebnis mit Fallzahl in der Karte |
 | Umfang | Eine Verhaltensänderung und eine betroffene Pipeline-Schicht |
 | Prüfung | Exakter Build- und `vstest`-Filter |
 | Abnahme | Positivfall, Fehlerfall, Profil-/Bitness-Fall und Rückwärtskompatibilität |
@@ -289,6 +310,14 @@ Regeln:
 5. Bei einem echten Blocker werden Ursache, reproduzierbarer Befehl und benötigte Entscheidung
    in der Karte dokumentiert; Luna arbeitet nicht spekulativ weiter.
 6. Keine Resets, keine pauschalen Prozessabbrüche und keine automatischen Commits.
+7. **Erst messen, dann bauen** (Leitplanken §11). Eine Karte beginnt mit einem Wegwerfprogramm
+   über `VB6TestProgram.RunLines`, das die beobachtbaren Werte der ganzen Vertragsfläche
+   ausgibt. Was schon korrekt ist, wird durch Tests festgeschrieben statt umgebaut: Die
+   verification-Achse wandert dann nach oben, die implementation-Achse bleibt stehen.
+8. **Bestandsschutz benannter Verträge** (Leitplanken §12). Reißt eine Änderung einen Test,
+   dessen Name eine Vertragszusage ausspricht, wird die Änderung zurückgenommen — nicht der
+   Test angepasst. Ohne Orakel schlägt der bestehende Vertrag die Herleitung aus der
+   VB6-Dokumentation. Die offene Frage wird mit den gemessenen Werten notiert.
 
 ## Reihenfolge der Wellen
 

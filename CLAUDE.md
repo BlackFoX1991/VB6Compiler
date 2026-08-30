@@ -249,4 +249,20 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
 - **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Die aktuelle Abdeckungsmessung findet keinen in `src/` definierten Diagnose-Code ohne Referenz in `tests/`; neue Codes müssen trotzdem mit einer Positivassertion in die zuständige Testsuite aufgenommen werden. Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
 - **Ein VB6-Event auf einem ActiveX-Control hat zwei mögliche Quellen.** Die Events des OCX kommen über den COM-Connection-Point und verlangen den **VB6-Namen** — ein WinForms-Name wie `TextChanged` sagt einem OCX nichts, und die Übersetzung in `FindEvent` gilt nur dem managed Adapter. Fokus-Events dagegen sind in VB6 **Extender-Events**: Sie stammen vom Container, fehlen im Event-Interface des Controls und kommen nur über das `AxHost`-Wrapper-Event. Wer nur einen der beiden Wege bedient, bekommt einen Pfad, der stillschweigend nie feuert. Beim Ergänzen von Events immer beide durchdenken und nativ nachmessen, nicht herleiten — für `GotFocus` war die Namensregel schlicht die falsche Erklärung.
+- **Die Umsetzung ist hier meist weiter als ihre Absicherung — erst messen, dann bauen.** Bei
+  `l1-02-f` und `l1-02-g` lautete der Befund zweimal hintereinander „das Verhalten war bereits
+  richtig, nur ungetestet"; bei der Variant-Promotionstabelle waren alle 49 gemessenen
+  Operandenpaare korrekt. Die echten Lücken (`Err.Number` 5 statt 94 bei Null-Konvertierungen,
+  5 statt 13 bei `CDate("kein Datum")`) waren beim Lesen des Quelltexts **nicht** sichtbar —
+  Binder, Lowerer und Runtime haben zusammen zu viele Pfade. Ein Wegwerfprogramm über
+  `VB6TestProgram.RunLines`, das `VarType`, `Err.Number` und Ergebniswert über die ganze
+  Vertragsfläche ausgibt, kostet Minuten und verhindert, dass funktionierender Code umgebaut
+  wird. Verbindlich als §11 der Leitplanken.
+- **Ein bestehender Test, dessen Name eine Vertragszusage ausspricht, schlägt eine Herleitung
+  aus der VB6-Dokumentation.** Ohne installiertes Orakel ist er der bessere Zeuge. Zweimal
+  belegt: `CDec(Null)` soll laut Doku 94 melden, liefert aber korrekt Null, weil ein Variant mit
+  Decimal-Subtyp Null tragen kann; `CInt(CVErr(5))` soll laut Doku 13 melden, hängt aber über
+  `CInt(Missing) = 448` an der Missing-Argument-Mechanik. In beiden Fällen war die Herleitung
+  plausibel und falsch. Reißt eine Änderung so einen Test, wird die Änderung zurückgenommen und
+  die Frage notiert — nicht der Test angepasst. Verbindlich als §12 der Leitplanken.
 - **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 8`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.
