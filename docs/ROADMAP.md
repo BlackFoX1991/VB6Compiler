@@ -53,8 +53,8 @@ byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 132
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**115 Erwartungen**, davon **68 implemented**, **8 partial** und **39 planned**;
-**76/115 documented-verified** (Stand 2026-08-30).
+**118 Erwartungen**, davon **68 implemented**, **8 partial** und **42 planned**;
+**76/118 documented-verified** (Stand 2026-08-30).
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
 `TypeOf`, Variant-Arrays, Standard-`Collection`, late-bound Object-/Control-Mitglieder sowie
@@ -248,8 +248,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       deterministischen UDT-Defaults und Shape-Diagnosen jetzt geschlossen; der Control-Flow- und
       Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
       Diagnosen ebenfalls geschlossen. Als nächste offene Implementierungskarte folgt
-      `l1-02-e-operator-dispatch`. Die derzeit 115 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (68 `implemented`, 8 `partial`, 39 `planned`;
+      `s1-class-public-field-storage`. Die derzeit 118 Erwartungen tragen getrennte,
+      maschinenprüfbare Statusachsen (68 `implemented`, 8 `partial`, 42 `planned`;
       76 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,

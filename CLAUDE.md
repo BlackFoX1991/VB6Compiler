@@ -16,9 +16,9 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H),
 abgearbeitet über die Karten in `docs/LUNA_EXECUTION_PLAN.md` und die Qualitätsqueue
-`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 115 Erwartungen (68 `implemented`,
-8 `partial`, 39 `planned`; 76 `documented-verified`); die nächste offene
-Implementierungskarte ist `l1-02-j-nested-error-resume`. `L1-02-A` bleibt als breiter
+`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 118 Erwartungen (68 `implemented`,
+8 `partial`, 42 `planned`; 76 `documented-verified`); die nächste offene
+Implementierungskarte ist `s1-class-public-field-storage`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**

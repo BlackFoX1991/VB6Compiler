@@ -17,10 +17,13 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **115 Erwartungen**: **68 implemented**, **8 partial** und
-  **39 planned**; **76** sind `documented-verified`. Die nächste offene Implementierungskarte
-  ist `l1-02-j-nested-error-resume`; `l1-02-a-language-grammar-context` bleibt als breiter
-  Familienstatus bewusst `partial`.
+- Die Matrix umfasst aktuell **118 Erwartungen**: **68 implemented**, **8 partial** und
+  **42 planned**; **76** sind `documented-verified`.
+- **Die nächste Karte ist `S1` (`s1-class-public-field-storage`), nicht `l1-02-j`.** Der
+  Breitendurchgang vom 30.08.2026 hat dort einen Befund gefunden, der ein falsches Ergebnis
+  ohne jede Diagnose liefert; nach §13 hat „still falsch" Vorrang. Die Reihenfolge lautet
+  **S1 → S2 → S3 → `l1-02-j`**. Begründung und Messwerte im Befundregister weiter unten.
+  `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
   (`Public`/`Global` versus `Private`/`Dim`) implementiert und steht deshalb auf `partial`;
@@ -382,6 +385,20 @@ Ein gezielter Durchgang über Klassenmitglieder, Modulgrenzen, ByRef-Rückschrei
 Laufzeitfehlernummern und die Standardbibliothek. **Jeder Eintrag ist gemessen**, keiner
 hergeleitet. Sie sind nach Gefährlichkeit sortiert, nicht nach Aufwand.
 
+Jede Gruppe ist als Matrix-Erwartung materialisiert und damit kartenfähig. Die
+Einstiegspunkte sind genannt, damit keine Repository-Gesamtsuche nötig ist.
+
+| Karte | Erwartungs-ID | Deckt ab | Einstieg |
+|---|---|---|---|
+| `S1` | `s1-class-public-field-storage` | A1–A4 | `Binder.cs` (`TryGetProperty`-Zweig ~Z. 3273, ByRef-Positivliste ~Z. 3949), `Semantics.cs` (`PropertySymbol` Z. 420), `IrLowerer.cs` (`_classFields`), `Parser.cs` (Klassenmember) |
+| `S2` | `s2-documented-runtime-error-numbers` | B1–B3 | `VBErrors.cs` (`Set`-Zuordnung), `VBFiles.cs` (Open/FileLen), `VBCollection.cs` (`ResolveIndex`) |
+| `S3` | `s3-remaining-standard-intrinsics` | C | `VBIntrinsicSymbols.cs` (Deklaration), `VBStrings.cs` / `VBFunctions.cs` (Implementierung) |
+
+`S1` zuerst, weil A1 still falsch ist. `S2` danach, weil B1 in echtem VB6-Code häufig
+vorkommt. `S3` ist Fleissarbeit ohne Risiko und passt in jede Lücke. Die Befunde unter **D**
+haben bewusst **keine** eigene Karte: Sie hängen an Architekturentscheidungen oder an einer
+fremden Kartenfläche und werden nach §9 gemeldet, nicht nebenbei erledigt.
+
 ### A — Ein `Public`-Feld einer Klasse wird als Property modelliert
 
 Gemeinsame Ursache von vier Symptomen. `Binder.cs` löst `c.N` über
@@ -483,10 +500,11 @@ Regeln:
 
 ## Reihenfolge der Wellen
 
-Die Matrix enthält jetzt 115 Erwartungen: 67 implementierte Nachweise, 3 partielle Erwartungen,
-45 geplante Erwartungen und 70 `documented-verified`. Danach arbeitet Luna die Karten in dieser
-Reihenfolge ab; innerhalb
-einer Familie gilt Abhängigkeit vor alphabetischer ID.
+Der aktuelle Matrixstand steht im Readout von `build.ps1` und im Abschnitt „Aktueller
+Einstieg" — hier bewusst **keine** zweite Zahlenangabe, weil genau solche Kopien
+auseinanderlaufen. Luna arbeitet die Karten in dieser Reihenfolge ab; innerhalb einer Familie
+gilt Abhängigkeit vor alphabetischer ID. Die Befundkarten `S1` bis `S3` gehen der Welle
+voraus, siehe Befundregister.
 
 ### L0 — Pausenstand und Baseline ✅
 
