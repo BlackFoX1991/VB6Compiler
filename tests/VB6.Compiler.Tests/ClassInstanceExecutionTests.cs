@@ -749,4 +749,115 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_WritesBackByRefThroughAPublicClassField()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerFieldByRefTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ByRef.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ByRefFields"
+                Class=Box; Box.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Box.cls"), """
+                Option Explicit
+
+                Public N As Long
+                Public V As Variant
+
+                Private guarded As Long
+
+                Public Property Get Computed() As Long
+                    Computed = guarded
+                End Property
+
+                Public Property Let Computed(ByVal newValue As Long)
+                    guarded = newValue
+                End Property
+
+                Public Sub BumpMine()
+                    Bump Me.N
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Private Type Pt
+                    X As Long
+                End Type
+
+                Public Sub Bump(ByRef value As Long)
+                    value = value + 1
+                End Sub
+
+                Public Sub BumpVariant(ByRef value As Variant)
+                    value = value + 1
+                End Sub
+
+                Sub Main()
+                    Dim b As Box
+                    Dim p As Pt
+
+                    Set b = New Box
+
+                    b.N = 5
+                    Bump b.N
+                    Debug.Print b.N
+
+                    b.N = 5
+                    b.BumpMine
+                    Debug.Print b.N
+
+                    b.V = 5
+                    BumpVariant b.V
+                    Debug.Print b.V
+
+                    b.Computed = 5
+                    Bump b.Computed
+                    Debug.Print b.Computed
+
+                    p.X = 5
+                    Bump p.X
+                    Debug.Print p.X
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            // Ein Public-Feld einer Klasse ist echter Speicher und muss das
+            // ByRef-Rueckschreiben empfangen -- von aussen wie ueber Me. Vorher wurde es
+            // still verworfen, weil der Binder den Zugriff wie eine Property behandelte und
+            // einen Temp anlegte: das Ergebnis war 5 statt 6, ohne jede Diagnose.
+            //
+            // Die beiden letzten Zeilen sind die Gegenprobe: Ein echtes Property Get/Let
+            // besitzt keinen Speicherplatz und behaelt den Temp (5), ein UDT-Member
+            // schreibt wie bisher zurueck (6).
+            CollectionAssert.AreEqual(
+                new[] { "6", "6", "6", "5", "6" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

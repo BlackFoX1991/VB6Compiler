@@ -1606,7 +1606,7 @@
     },
     {
       "id": "s1-class-public-field-storage",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "language-declarations-and-statements",
       "input": "A Public field declared in a class module, used from another module and from Me",
       "expected": {
@@ -1615,7 +1615,7 @@
         "array": "an array-typed Public field is indexable and can be ReDim-ed",
         "fixed-string": "String * n is accepted as a class member declaration"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
         "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"

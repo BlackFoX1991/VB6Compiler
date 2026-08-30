@@ -914,7 +914,7 @@ public sealed class VBProjectCompilation
             // without coupling semantic analysis to the later forms host.
             foreach (var variable in Binder.CreateModuleVariableSymbols(module.Text, module.SemanticRoot))
             {
-                AddReadWriteProperty(properties, variable.Name, variable.Type);
+                AddReadWriteProperty(properties, variable.Name, variable.Type, isFieldBacked: true);
             }
 
             if (IsHostModuleKind(module.Item.Kind))
@@ -1061,7 +1061,8 @@ public sealed class VBProjectCompilation
             List<PropertySymbol> properties,
             string name,
             TypeSymbol type,
-            bool isLateBound = false)
+            bool isLateBound = false,
+            bool isFieldBacked = false)
         {
             if (properties.Any(property =>
                     string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) &&
@@ -1076,7 +1077,8 @@ public sealed class VBProjectCompilation
                 type,
                 ImmutableArray<ParameterSymbol>.Empty)
             {
-                IsLateBound = isLateBound
+                IsLateBound = isLateBound,
+                IsFieldBacked = isFieldBacked
             });
             properties.Add(new PropertySymbol(
                 name,
@@ -1084,7 +1086,8 @@ public sealed class VBProjectCompilation
                 type,
                 ImmutableArray<ParameterSymbol>.Empty)
             {
-                IsLateBound = isLateBound
+                IsLateBound = isLateBound,
+                IsFieldBacked = isFieldBacked
             });
         }
 
