@@ -376,6 +376,75 @@ Für die Statusachsen heißt das: Eine Karte, die nur Tests hinzufügt, hebt `ve
 `implementation`. Das ist kein geringeres Ergebnis — ungetestetes korrektes Verhalten ist
 jederzeit still kaputtzumachen.
 
+## Befundregister aus dem Breitendurchgang (30.08.2026)
+
+Ein gezielter Durchgang über Klassenmitglieder, Modulgrenzen, ByRef-Rückschreiben,
+Laufzeitfehlernummern und die Standardbibliothek. **Jeder Eintrag ist gemessen**, keiner
+hergeleitet. Sie sind nach Gefährlichkeit sortiert, nicht nach Aufwand.
+
+### A — Ein `Public`-Feld einer Klasse wird als Property modelliert
+
+Gemeinsame Ursache von vier Symptomen. `Binder.cs` löst `c.N` über
+`classType.TryGetProperty(...)` auf und liefert eine `BoundPropertyAccessExpression`;
+`PropertySymbol` hat **keinen** Marker, der eine synthetisierte Feld-Property von einem echten
+`Property Get` unterscheidet. Der Lowerer bildet den einfachen Lese-/Schreibfall danach wieder
+auf ein `IrFieldPlace` ab — alles andere fällt durch.
+
+| # | Symptom | Gemessen | VB6 | Schwere |
+|---|---|---|---|---|
+| A1 | `Bump c.N` mit `ByRef`-Parameter | **5** (kein Rückschreiben) | 6 | **still falsch, keine Meldung** |
+| A2 | `Set c.ObjFeld = New Collection` | `VB6S0064` | funktioniert | meldet |
+| A3 | `c.Nums(1)` bei `Public Nums() As Long` | `VB6S0006` | funktioniert | meldet |
+| A4 | `Public S As String * 5` in `.cls` | `VB6P0001` (Parser) | funktioniert | meldet |
+
+**A1 ist der gefährlichste Befund des ganzen Durchgangs**: falsches Ergebnis ohne Diagnose.
+Gegenprobe: ByRef-Rückschreiben funktioniert für lokale Variablen, `Global`-Variablen,
+UDT-Member und Array-Elemente (alle **6**) — **nur** für Klassenfelder nicht, von aussen wie
+von innen über `Me.N`.
+
+Der Weg ist damit vorgezeichnet: `PropertySymbol` braucht einen `IsFieldBacked`-Marker (oder
+das Feld einen eigenen Bound-Knoten), und die ByRef-Positivliste in `Binder.cs` sowie die
+`Set`-/Array-/Fixed-String-Pfade müssen ihn auswerten.
+
+### B — Fehlende VB6-Fehlernummern
+
+| # | Fall | Gemessen | VB6 |
+|---|---|---|---|
+| B1 | Mitgliedsaufruf auf nicht gesetzter Objektvariablen | **5** | **91** „Object variable not set" |
+| B2 | `Open` / `FileLen` auf nicht existierende Datei | **5** | **53** „File not found" |
+| B3 | `c(0)` und `c.Remove 5` auf einer `Collection` | **5** | vermutlich **9** — ohne Orakel nicht entschieden |
+
+B1 ist häufig in echtem VB6-Code und deshalb vorrangig. Bereits korrekt und nicht anzufassen:
+`Left(s, -1)`, `Mid(s, 0)`, `Sqr(-1)`, `Log(0)` melden **5**; `CByte(300)` und `CInt("99999")`
+melden **6**; ein doppelter `Collection`-Schlüssel meldet **457**.
+
+### C — Acht fehlende Standardfunktionen
+
+`StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
+`Partition`, `CallByName`, `QBColor` sind nicht deklariert (`VB6S0005`).
+
+Das deckt sich mit der Rückstufung von `format.complete-surface` und `math.complete-surface`
+auf `partial` — die Matrix sagt hier bereits die Wahrheit. Vorhanden und geprüft sind unter
+anderem `Split`, `Filter`, `Replace`, `InStrRev`, `MonthName`, `WeekdayName`, `Round`,
+`StrConv`, `Choose`, `Switch`, `IIf`, `DateAdd`, `DateDiff`, `DatePart`, `RGB`, `Hex`, `Oct`.
+
+### D — Bereits früher gemeldet, weiterhin offen
+
+- `Dim x As New C` erzeugt eifrig statt bei der ersten Verwendung.
+- `Class_Terminate` feuert nie — weder bei `Set o = Nothing` noch beim Verlassen des Bereichs.
+- Der Binder meldet den Zugriff auf ein **privates** Klassenfeld von aussen nicht; nur die
+  CLR-Sichtbarkeit verhindert ihn.
+- `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase`, `LCase` reichen `Null` nicht
+  weiter, sondern melden 94.
+- `Debug.Print`/`CStr` geben ein Date-Variant als OADate-Seriennummer aus.
+- Die SAFEARRAY-Hälfte von `l1-02-h` ist nicht abgedeckt.
+
+### Was der Durchgang **nicht** gefunden hat
+
+Sichtbarkeit über Modulgrenzen für `Public Const`, `Public Type` und `Public Enum` ist korrekt;
+Variant- und UDT-Felder einer Klasse funktionieren; die ByRef-Kette über Locals, Globals,
+UDT-Member und Array-Elemente stimmt.
+
 ## Arbeitskartenvertrag
 
 Jede Karte muss vor dem Start folgende Felder enthalten:

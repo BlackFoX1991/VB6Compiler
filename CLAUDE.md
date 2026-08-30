@@ -265,4 +265,16 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   `CInt(Missing) = 448` an der Missing-Argument-Mechanik. In beiden Fällen war die Herleitung
   plausibel und falsch. Reißt eine Änderung so einen Test, wird die Änderung zurückgenommen und
   die Frage notiert — nicht der Test angepasst. Verbindlich als §12 der Leitplanken.
+- **Ein `Public`-Feld einer Klasse ist keine Variable, sondern eine Property.** `Binder.cs`
+  löst `c.N` über `classType.TryGetProperty(...)` auf; `PropertySymbol` hat keinen Marker, der
+  eine synthetisierte Feld-Property von einem echten `Property Get` unterscheidet. Der Lowerer
+  bildet den einfachen Lese-/Schreibfall wieder auf ein `IrFieldPlace` ab — alles andere fällt
+  durch: `Bump c.N` mit `ByRef` verliert **still** das Rückschreiben (liefert 5 statt 6),
+  `Set c.ObjFeld = …` meldet `VB6S0064`, `c.Nums(1)` meldet `VB6S0006`, und
+  `Public S As String * 5` ist ein Parserfehler. Gegenprobe: ByRef funktioniert über Locals,
+  Globals, UDT-Member und Array-Elemente. Wer hier etwas anfasst, prüft alle vier Symptome.
+- **Fehlernummer 5 ist der Sammelwert für „nicht zugeordnet".** `VBErrors.Set` bildet jede
+  unbekannte Ausnahme darauf ab, deshalb sieht ein falsches 5 wie ein Ergebnis aus. Beim
+  Breitendurchgang waren fünf gemessene 5 falsch (richtig wären 6, 9, 13, 91, 94) und vier
+  richtig. Eine gemessene 5 ist ein Verdacht, bis sie gegen die Dokumentation geprüft ist.
 - **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 8`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.

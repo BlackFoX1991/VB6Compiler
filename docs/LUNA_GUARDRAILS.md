@@ -385,3 +385,74 @@ git diff --stat src/
 Nach einer zurückgenommenen Änderung leer. Die offene Frage steht mit gemessenen Werten in
 `LUNA_EXECUTION_PLAN.md` und im Changelog.
 
+
+---
+
+## §13 Wo die Fehler tatsächlich sitzen
+
+Ein Breitendurchgang am 30.08.2026 hat elf Defekte gefunden. Sie haben ein gemeinsames Muster,
+und dieses Muster bestimmt, wie eine Karte zu messen ist.
+
+**Kein einziger Defekt lag im Normalfall.** Alle sassen an einer Grenze, und fast alle waren
+leise: eine falsche Fehlernummer, ein verlorenes Rückschreiben, ein durchgesickerter interner
+Name. Ein lauter Absturz war die Ausnahme — und der wurde von einem zweiten Fehler verdeckt.
+
+### Die vier Grenzen, an denen zu messen ist
+
+1. **Bindungsart.** Dasselbe Konstrukt typisiert *und* spät gebunden (`As Variant`, `As
+   Object`). `Collection.Add` lief typisiert und scheiterte spät gebunden, weil der typisierte
+   Pfad immer alle Argumente übergibt.
+2. **Modulgrenze.** Dasselbe Konstrukt innerhalb des deklarierenden Moduls *und* aus einem
+   anderen. Der Feldzugriff war innerhalb der Klasse zufällig richtig (`Me` lädt die Referenz)
+   und von aussen kaputt.
+3. **Wert gegen Referenz.** Jede Stelle, die einen Empfänger oder ein Ziel behandelt, für einen
+   Werttyp (UDT) *und* einen Referenztyp (Klasse). Der Emitter lud einheitlich die Adresse.
+4. **Deklarationsform.** Ein Mitglied als Feld *und* als Property, ein Array *und* ein Skalar,
+   ein fester *und* ein dynamischer Typ. Die vorhandenen Tests prüften durchweg die bequeme
+   Form — `Property Get` statt `Public`-Feld — und deckten die andere nie auf.
+
+**MUSS**: Die Vorabmessung nach §11 deckt alle vier Grenzen ab, soweit die Karte sie berührt.
+**DARF NICHT**: Eine Karte gilt als abgedeckt, weil ihre bequeme Form getestet ist.
+
+### Fehlernummer 5 ist ein Verdacht, kein Ergebnis
+
+`VBErrors.Set` bildet jede unbekannte Ausnahme auf **5** ab. Damit ist 5 der Sammelwert für
+„nicht zugeordnet" und sieht wie ein Resultat aus. Von den gemessenen Fehlerfällen waren fünf
+fälschlich 5 (statt 6, 9, 13, 91, 94) und vier korrekt 5.
+
+**MUSS**: Jede gemessene 5 wird gegen die VB6-Dokumentation geprüft, bevor sie als richtig
+gilt. **MUSS**: Eine Erwartung, die eine Fehlernummer behauptet, prüft sie im Test **als Zahl**.
+
+### Ein stilles falsches Ergebnis wiegt schwerer als ein Absturz
+
+`Bump c.N` liefert 5 statt 6 — kein Fehler, keine Diagnose, falscher Wert. Das ist der
+schlimmste Befund des Durchgangs und war nur zu finden, weil dieselbe Operation über fünf
+verschiedene Speicherorte gemessen wurde.
+
+**MUSS**: Wer eine neue Speicherstelle (`IrPlace`) oder eine neue Zugriffsform ergänzt, misst
+das ByRef-Rückschreiben darüber ausdrücklich. **MUSS**: Bei der Priorisierung von Befunden gilt
+„still falsch" vor „meldet den falschen Code" vor „meldet gar nicht erst".
+
+### Ein Fehler kann einen zweiten verdecken
+
+Klassenfelder waren als `Private` emittiert *und* der Empfänger wurde falsch geladen. Wer nur
+die Sichtbarkeit reparierte, tauschte eine saubere `FieldAccessException` gegen eine
+Zugriffsverletzung — und hätte daraus schliessen können, die Reparatur sei falsch gewesen.
+
+**MUSS**: Wenn eine Reparatur das Fehlerbild *verschlechtert*, ist das ein Hinweis auf einen
+zweiten Defekt darunter, nicht auf einen Fehler der Reparatur. Weitermessen, bis die Ursache
+steht; nach §12 zurücknehmen, wenn sie unklar bleibt.
+
+### Aus einer Probe folgt keine Ursache
+
+Zweimal wurde in diesem Durchgang eine falsche Ursache vermutet: erst `Implements`, dann die
+Anzahl der Klassen. Beide Male hat die nächste Probe sie widerlegt.
+
+**MUSS**: Eine Ursachenbehauptung braucht eine Probe, die sie **isoliert** — ein Fall mit dem
+vermuteten Merkmal und einer ohne. **DARF NICHT**: Aus dem ersten reproduzierbaren Fall auf die
+Ursache geschlossen werden.
+
+### Prüfung
+
+Der Kartenbericht nennt, welche der vier Grenzen gemessen wurden und welche die Karte nicht
+berührt. Fehlt eine berührte Grenze, gilt die Karte als unvollständig gemessen.
