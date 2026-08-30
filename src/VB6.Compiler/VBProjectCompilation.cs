@@ -912,9 +912,25 @@ public sealed class VBProjectCompilation
             // and designer controls are predeclared fields in VB6. Keep both contracts in the
             // class type so callers can bind `frmMain.RunEnabled` and `frmMain.cmdOk.Caption`
             // without coupling semantic analysis to the later forms host.
+            // Eine WithEvents-Variable ist kein einfacher Speicher: Ihre Zuweisung verdrahtet
+            // die Ereignishandler neu. Sie bekommt deshalb keinen Set-Accessor -- sonst
+            // bindet schon "Set held = New Src" innerhalb der Klasse an die Property und
+            // umgeht die Verdrahtung.
+            var withEventsNames = module.SemanticRoot.Members
+                .OfType<ModuleVariableDeclarationSyntax>()
+                .Where(declaration => declaration.WithEventsKeyword is not null)
+                .SelectMany(declaration => declaration.Declarators)
+                .Select(declarator => declarator.Identifier.Text)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
             foreach (var variable in Binder.CreateModuleVariableSymbols(module.Text, module.SemanticRoot))
             {
-                AddReadWriteProperty(properties, variable.Name, variable.Type, isFieldBacked: true);
+                AddReadWriteProperty(
+                    properties,
+                    variable.Name,
+                    variable.Type,
+                    isFieldBacked: true,
+                    allowObjectAssignment: !withEventsNames.Contains(variable.Name));
             }
 
             if (IsHostModuleKind(module.Item.Kind))
@@ -1062,7 +1078,8 @@ public sealed class VBProjectCompilation
             string name,
             TypeSymbol type,
             bool isLateBound = false,
-            bool isFieldBacked = false)
+            bool isFieldBacked = false,
+            bool allowObjectAssignment = true)
         {
             if (properties.Any(property =>
                     string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) &&
@@ -1089,6 +1106,22 @@ public sealed class VBProjectCompilation
                 IsLateBound = isLateBound,
                 IsFieldBacked = isFieldBacked
             });
+
+            // Ein Feld, das eine Objektreferenz tragen kann, wird in VB6 mit Set zugewiesen.
+            // Ohne diesen Accessor meldet der Binder VB6S0064, obwohl echter Speicher da ist.
+            // Ein Variant zaehlt dazu: Set v = obj ist gueltig.
+            if (allowObjectAssignment && (type is ClassTypeSymbol || type == TypeSymbol.Variant))
+            {
+                properties.Add(new PropertySymbol(
+                    name,
+                    PropertyAccessorKind.Set,
+                    type,
+                    ImmutableArray<ParameterSymbol>.Empty)
+                {
+                    IsLateBound = isLateBound,
+                    IsFieldBacked = isFieldBacked
+                });
+            }
         }
 
         static void AddPropertyIfMissing(List<PropertySymbol> properties, PropertySymbol property)

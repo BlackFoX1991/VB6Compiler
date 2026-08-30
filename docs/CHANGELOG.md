@@ -3762,3 +3762,37 @@ Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX
 Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrix steht bei
 **68 implemented**, **9 partial**, **41 planned** von **118** sowie **77/118**
 `documented-verified`.
+
+## S1 (Teil A2): Set auf ein Public-Feld (30.08.2026)
+
+`Set c.ObjFeld = New Collection` meldete `VB6S0064` („no object-assignable property"), obwohl
+echter Speicher dahinterliegt. `AddReadWriteProperty` erzeugte nur ein Get/Let-Paar; ein
+`Set`-Accessor fehlte. Er wird jetzt für Felder angelegt, die eine Objektreferenz tragen können
+— `ClassTypeSymbol` oder `Variant`. Der Lowerer brauchte auch hier keine Änderung.
+
+**Der erste Anlauf war zu breit und hat einen bestehenden Test gerissen.** Mit einem
+Set-Accessor für *jedes* Feld fiel
+`EmitManagedApplication_ExecutesClassFieldsMethodsPropertiesAndInitialize`: Die letzten beiden
+Ausgabezeilen fehlten. Nach §13 wurde nicht geraten, sondern isoliert — **ohne** `WithEvents`
+läuft ein unqualifiziertes `Set held = New Src` weiterhin, **mit** `WithEvents` band es
+plötzlich an die neue Property und umging die Verdrahtung der Ereignishandler.
+
+Eine `WithEvents`-Variable ist kein einfacher Speicher: Ihre Zuweisung verdrahtet die Handler
+neu. Sie bekommt deshalb bewusst **keinen** Set-Accessor. Das ist keine Notlösung, sondern der
+Vertrag — `Set Me.held = …` meldet seitdem `VB6S0064`, statt die Verdrahtung still zu umgehen.
+Der Test hält beide Seiten fest: vier Feldformen mit `Set` und, als letzte Zeile, ein
+`WithEvents`-Handler, der weiterhin feuert.
+
+**Weiterer Befund aus der Gegenprobe** (Grenze 4, Deklarationsform): Eine Klasse mit **beiden**
+Accessoren `Property Get` und `Property Set` gleichen Namens liefert aus dem `Get` **Empty**.
+Isoliert nachgemessen: Das `Set` speichert korrekt — innen gelesen kommt der Wert an — und ein
+`Get` ohne zugehöriges `Set` liefert korrekt. Nur die Kombination bricht, und das ist die
+Normalform jeder VB6-Objekt-Property. Vorbestehend, gehört nicht zu `S1`, steht im Register.
+
+`s1-class-public-field-storage` bleibt `partial`: `byref` und `set` sind gebaut und
+nachgewiesen, `array` und `fixed-string` offen.
+
+Der kanonische `build.ps1 -Configuration Release`-Lauf misst aus 13 frischen TRX-Dateien
+**1322/1322** Tests, **0** Fehler und **0** nicht ausgeführte Tests, dazu einen Release-Build ohne
+Warnungen/Fehler und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die Matrixzahlen
+bleiben unverändert.
