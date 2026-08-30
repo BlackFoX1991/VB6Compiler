@@ -647,4 +647,106 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_ReadsAndWritesPublicClassFieldsAcrossModules()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerPublicFieldTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Fields.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Fields"
+                Class=IShape; IShape.cls
+                Class=Square; Square.cls
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "IShape.cls"), """
+                Option Explicit
+
+                Public Function Area() As Long
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Square.cls"), """
+                Option Explicit
+
+                Implements IShape
+
+                Public Side As Long
+
+                Private Function IShape_Area() As Long
+                    IShape_Area = Side * Side
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Public Label As String
+                Public Count As Long
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Private Type Point
+                    X As Long
+                    Y As Long
+                End Type
+
+                Sub Main()
+                    Dim s As Square
+                    Dim bag As Bag
+                    Dim shape As IShape
+                    Dim p As Point
+
+                    Set bag = New Bag
+                    bag.Label = "hallo"
+                    bag.Count = 3
+                    Debug.Print bag.Label
+                    Debug.Print bag.Count
+
+                    Set s = New Square
+                    s.Side = 4
+                    Set shape = s
+                    Debug.Print shape.Area
+                    Debug.Print s.Side
+
+                    p.X = 3
+                    p.Y = 4
+                    Debug.Print p.X + p.Y
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            // Ein Klassenempfaenger ist bereits eine Referenz: ldfld/stfld brauchen das
+            // Objekt selbst. Vorher lud der Emitter die Adresse des Slots und las am
+            // falschen Offset -- der Zugriff endete in einer Zugriffsverletzung, sobald das
+            // Feld ueberhaupt sichtbar war. Der UDT-Fall am Ende deckt die Gegenrichtung ab:
+            // ein Werttyp braucht weiterhin die Adresse.
+            CollectionAssert.AreEqual(
+                new[] { "hallo", "3", "16", "4", "7" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

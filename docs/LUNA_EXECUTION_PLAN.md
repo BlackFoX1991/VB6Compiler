@@ -12,7 +12,7 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1319/1319 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1320/1320 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
@@ -331,6 +331,30 @@ Referenzzählung im Lowering) — nach §9 nicht nebenbei zu treffen.
 
 Befunde 2 und 3 bilden zusammen die `lifecycle`-Klausel; sie ist damit **nicht** gebaut, und die
 Karte bleibt `partial`.
+
+### Nachtrag: der Emitter-Defekt aus Befund 1 ist behoben
+
+Die Ursache lag nicht bei der Sichtbarkeit, sondern beim **Empfänger** des Feldzugriffs.
+`EmitLoad`, `EmitStore` und `EmitAddress` riefen für ein `IrFieldPlace` einheitlich
+`EmitAddress` auf den Empfänger. Für ein UDT ist das richtig — ein Werttyp braucht die
+Adresse. Eine Klasse ist aber **bereits eine Referenz**: `ldfld`/`stfld` wollen dann das
+Objekt selbst, und die Adresse des lokalen Slots zu laden liest am falschen Offset. Das ist
+die Zugriffsverletzung.
+
+Warum es innerhalb der Klasse trotzdem lief: Dort ist der Empfänger `Me`, und
+`EmitAddress(IrThisPlace)` macht `LoadArgument(0)` — lädt also die Referenz, nicht ihre
+Adresse. Nur über eine lokale Variable in einem anderen Modul trat der Fehler auf, und dort
+verdeckte ihn die private CLR-Sichtbarkeit als `FieldAccessException`.
+
+Der neue Helfer `EmitFieldReceiver` unterscheidet über das bereits vorhandene
+`IsReferenceType`: Referenz laden, Werttyp adressieren. Dazu die Sichtbarkeit aus Befund 1 —
+`IrField.IsPublic` aus `ModuleVariableSymbol.IsPublic`, im Emitter `FieldAttributes.Assembly`
+statt `Private`. Erst beides zusammen macht `Public`-Felder benutzbar.
+
+Gegenproben: Ein `Private`-Feld bleibt von aussen unerreichbar, und der UDT-Pfad liefert
+unverändert die Adresse. **Offen bleibt** der Nebenbefund — der Binder meldet den Zugriff auf
+ein privates Klassenfeld weiterhin nicht; nur die CLR-Sichtbarkeit verhindert ihn. Das
+gehört in eine Binder-Karte, nicht in den Emitter.
 
 ## Erfahrungsbefund aus den L1-02-Karten
 

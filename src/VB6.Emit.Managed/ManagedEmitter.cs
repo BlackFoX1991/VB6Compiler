@@ -393,8 +393,10 @@ public sealed class ManagedEmitter
                 {
                     foreach (var field in plan.Class.Fields)
                     {
+                        // Assembly statt Public: Alles liegt in einer Assembly, und die
+                        // VB6-Sichtbarkeit endet an der Projektgrenze.
                         var actual = _metadata.AddFieldDefinition(
-                            FieldAttributes.Private,
+                            field.IsPublic ? FieldAttributes.Assembly : FieldAttributes.Private,
                             _metadata.GetOrAddString(field.Name),
                             EncodeFieldSignature(field.Type));
                         EnsureHandle(actual, _fieldHandles[field], "class field");
@@ -1022,6 +1024,24 @@ public sealed class ManagedEmitter
             encoder.LoadLocal(scratch);
         }
 
+        /// <summary>
+        /// Laedt den Empfaenger eines Feldzugriffs. Eine Klasse ist bereits eine Referenz --
+        /// ldfld/stfld wollen dann das Objekt selbst. Die Adresse des Slots zu laden liefert
+        /// einen Zeiger auf die lokale Variable und liest am falschen Offset. Nur ein UDT
+        /// (Werttyp) braucht die Adresse.
+        /// </summary>
+        private void EmitFieldReceiver(InstructionEncoder encoder, IrProcedure procedure, IrPlace receiver)
+        {
+            if (IsReferenceType(receiver.Type))
+            {
+                EmitLoad(encoder, procedure, receiver);
+            }
+            else
+            {
+                EmitAddress(encoder, procedure, receiver);
+            }
+        }
+
         private void EmitLoad(InstructionEncoder encoder, IrProcedure procedure, IrPlace place)
         {
             switch (place)
@@ -1044,7 +1064,7 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
-                    EmitAddress(encoder, procedure, field.Receiver);
+                    EmitFieldReceiver(encoder, procedure, field.Receiver);
                     encoder.OpCode(ILOpCode.Ldfld);
                     encoder.Token(_fieldHandles[field.Field]);
                     break;
@@ -1095,7 +1115,7 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
-                    EmitAddress(encoder, procedure, field.Receiver);
+                    EmitFieldReceiver(encoder, procedure, field.Receiver);
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, field.Type);
                     encoder.OpCode(ILOpCode.Stfld);
                     encoder.Token(_fieldHandles[field.Field]);
@@ -1153,7 +1173,7 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
-                    EmitAddress(encoder, procedure, field.Receiver);
+                    EmitFieldReceiver(encoder, procedure, field.Receiver);
                     encoder.OpCode(ILOpCode.Ldflda);
                     encoder.Token(_fieldHandles[field.Field]);
                     break;
