@@ -3981,3 +3981,45 @@ Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
 Lauf nur mit der Binder-Änderung, ohne die neuen Tests, blieb vorher bei **1332/1332** grün. Die
 Matrixzahlen bleiben bei **68 implemented, 9 partial, 41 planned von 118 | 77/118
 documented-verified**.
+
+## Spaet gebundener Zugriff auf oeffentliche Klassenfelder (31.08.2026)
+
+Karte `S1`, Teil A5 — der letzte offene Teil, damit ist `S1` als erste Karte des
+Breitendurchgangs vollstaendig und steht auf `implemented`.
+
+Ein spaet gebundenes `o.N` ueber `Dim o As Object` meldete 438, obwohl das oeffentliche
+Klassenfeld existierte. Die Ursache liegt an der Naht zwischen Uebersetzung und Laufzeit: Der
+Binder modelliert ein `Public`-Feld als Get/Let-Property, der Emitter bildet es aber wieder auf
+ein **CLR-Feld** ab. `VBDynamicDispatch` durchsuchte Methoden und Properties — also genau die
+beiden Formen, die das Feld zur Laufzeit nicht ist.
+
+Die VB6-Sichtbarkeit steckt dabei bereits im CLR-Attribut: Der Emitter gibt einem `Public`-Feld
+`FieldAttributes.Assembly` und einem `Private`-Feld `FieldAttributes.Private`. Die neue
+Feldsuche akzeptiert deshalb `!IsPrivate` — ein privates Feld bleibt von aussen unerreichbar,
+ohne dass eine zweite Sichtbarkeitsquelle entsteht. Ein Arrayfeld wird ueber `IVBArray`
+indiziert; ein falscher Index-Rang meldet Fehler 9, wie der frueh gebundene Pfad auch.
+
+**Ein zweiter Defekt lag darunter und wurde erst nach der ersten Reparatur sichtbar** — zum
+vierten Mal in Folge dasselbe Muster. `o.Nums(1) = 7` riss den **Compiler** ab: Der Binder
+erzeugte fuer ein indiziertes spaet gebundenes Zuweisungsziel die Aufrufgestalt einer Funktion
+(`BoundMemberInvocationExpression`), die als Zuweisungsziel keinen Platz hat, und `LowerPlace`
+warf eine `InvalidOperationException`, die als unbehandelte Ausnahme aus dem Emit herausfiel
+statt als Diagnose. Verantwortlich war die Bedingung `syntax.Indices.IsEmpty`, die die
+Indexform aus dem Property-Zweig ausschloss. Sie ist entfallen; die Indizes gehen jetzt als
+Argumente an den Dispatch, den der Lowerer ueber `LowerDynamicSet` bereits bedienen konnte. Der
+Defekt war **nicht** feldspezifisch — er traf jedes indizierte spaet gebundene Zuweisungsziel.
+
+Gemessen wurden 11 Faelle, alle korrekt: Lesen und Schreiben eines Long-Feldes, String-Feld,
+Objektfeld mit `Set`, indiziertes Arrayfeld, Zugriff ueber `Variant` statt `Object` und ueber
+einen `With`-Block.
+
+Gegenproben unveraendert: eine Methode liefert **42**, ein echtes `Property Get` **99**, ein
+privates Feld meldet weiterhin **438**, und ein gaenzlich unbekanntes Mitglied ebenfalls
+**438**.
+
+Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1337/1337** Tests, **0**
+Fehler, Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+Matrix bewegt sich erstmals seit dem Breitendurchgang nach oben: **69 implemented, 8 partial,
+41 planned von 118 | 77/118 documented-verified**.
+
+Naechste offene Karte ist `S2` (`s2-documented-runtime-error-numbers`).

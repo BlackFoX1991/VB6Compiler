@@ -192,6 +192,20 @@ public static class VBDynamicDispatch
             return property.GetValue(target, converted);
         }
 
+        if (FindPublicField(target, memberName) is { } field)
+        {
+            var stored = field.GetValue(target);
+            if (arguments.Length == 0)
+            {
+                return stored;
+            }
+
+            if (stored is IVBArray array)
+            {
+                return array.GetObjectValue(ToArrayIndices(memberName, array, arguments));
+            }
+        }
+
         if (TryInvokeComMember(target!, memberName, arguments, setProperty: false, out var comResult))
         {
             return comResult;
@@ -230,6 +244,23 @@ public static class VBDynamicDispatch
                 ConvertArgument(value, property.PropertyType),
                 ConvertPropertyArguments(property, arguments));
             return;
+        }
+
+        if (FindPublicField(target, memberName) is { } field)
+        {
+            if (arguments.Length == 0)
+            {
+                field.SetValue(target, ConvertArgument(value, field.FieldType));
+                return;
+            }
+
+            // Ein Arrayfeld ist eine Referenz: das Element wird im vorhandenen Speicher
+            // gesetzt, das Feld selbst bleibt unberuehrt.
+            if (field.GetValue(target) is IVBArray array)
+            {
+                array.SetObjectValue(ToArrayIndices(memberName, array, arguments), value);
+                return;
+            }
         }
 
         var comArguments = new object?[arguments.Length + 1];
@@ -433,6 +464,44 @@ public static class VBDynamicDispatch
         return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .FirstOrDefault(property =>
                 string.Equals(property.Name, memberName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Finds a VB6 <c>Public</c> field of a generated class. Such a field is real storage and is
+    /// emitted as a CLR field, so a member lookup that only walks methods and properties misses it
+    /// entirely - a late-bound <c>o.N</c> then reports 438 although the field is right there.
+    /// A <c>Private</c> field stays invisible: the emitter gives it CLR private visibility while a
+    /// Public one becomes assembly-visible, so the CLR attribute carries the VB6 contract.
+    /// </summary>
+    private static FieldInfo? FindPublicField(object? target, string memberName)
+    {
+        var type = RequireTarget(target).GetType();
+        return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(field =>
+                !field.IsPrivate &&
+                string.Equals(field.Name, memberName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Converts the index arguments of a late-bound array field access. A wrong index count is a
+    /// subscript error, the same one an early-bound access to the wrong rank produces.
+    /// </summary>
+    private static int[] ToArrayIndices(string memberName, IVBArray array, object?[] arguments)
+    {
+        if (arguments.Length != array.Rank)
+        {
+            throw new VB6RuntimeErrorException(
+                9,
+                $"Member '{memberName}' has rank {array.Rank}, but {arguments.Length} index(es) were supplied.");
+        }
+
+        var indices = new int[arguments.Length];
+        for (var index = 0; index < arguments.Length; index++)
+        {
+            indices[index] = VBConversions.CLng(arguments[index]);
+        }
+
+        return indices;
     }
 
     private static object?[] ConvertPropertyArguments(PropertyInfo property, object?[] arguments)

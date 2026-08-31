@@ -46,14 +46,14 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1336 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1337 Tests, alle grün** in 13
 Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1336 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1337 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **68 implemented**, **9 partial** und **41 planned**;
+**118 Erwartungen**, davon **69 implemented**, **8 partial** und **41 planned**;
 **77/118 documented-verified** (Stand 2026-08-31).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah. Das
@@ -253,8 +253,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       deterministischen UDT-Defaults und Shape-Diagnosen jetzt geschlossen; der Control-Flow- und
       Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
       Diagnosen ebenfalls geschlossen. Als nächste offene Implementierungskarte folgt
-      `s1-class-public-field-storage`. Die derzeit 118 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (68 `implemented`, 9 `partial`, 41 `planned`;
+      `s2-documented-runtime-error-numbers`. Die derzeit 118 Erwartungen tragen getrennte,
+      maschinenprüfbare Statusachsen (69 `implemented`, 8 `partial`, 41 `planned`;
       77 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
@@ -277,11 +277,12 @@ Rückgabematrix bleibt in Etappe B/C offen.
       im getesteten Managed-Pfad ab: `Err`, Fehlernummern, `Erl` für numerische Zeilenlabels,
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
       implementiert. Weitere verschachtelte Aufruf-/Resume-Matrixfälle bleiben offen.
-- [~] Ein `Public`-Feld einer Klasse ist echter Speicher, kein `Property Get`. `ByRef`-Rück-
-      schreiben, `Set` auf Objekt-/Variant-Felder, die Indizierung array-typisierter Felder und
-      `String * n` als Klassenmember sind implementiert (`S1`). Offen bleibt der **spät
-      gebundene** Zugriff auf ein solches Feld, der es gar nicht findet (`VBDynamicDispatch`
-      sucht Methoden und Properties, keine Felder).
+- [x] Ein `Public`-Feld einer Klasse ist echter Speicher, kein `Property Get` (`S1`, geschlossen).
+      `ByRef`-Rückschreiben, `Set` auf Objekt-/Variant-Felder, die Indizierung array-typisierter
+      Felder, `String * n` als Klassenmember und der spät gebundene Zugriff über `Object` oder
+      `Variant` sind implementiert. Ein `Private`-Feld bleibt dabei von aussen unerreichbar: der
+      Emitter gibt einem `Public`-Feld CLR-Assembly-Sichtbarkeit, einem privaten CLR-private, und
+      die Feldsuche des Dispatchs richtet sich danach.
 - [x] Arraygrenzen eines UDT-Members werden aus konstanten Ausdrücken gefaltet — benannte
       Konstanten unabhängig von der Deklarationsreihenfolge, `+ - * \` mit Überlaufprüfung. Was
       nicht faltet, meldet `VB6S0071`; eine Obergrenze unter der Untergrenze meldet `VB6S0072`.

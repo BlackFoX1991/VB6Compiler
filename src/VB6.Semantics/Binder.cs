@@ -3431,8 +3431,12 @@ public sealed class Binder
                             procedures));
                 }
 
+                // Ein spaet gebundenes Zuweisungsziel bleibt eine Property, auch mit Indizes:
+                // o.Nums(1) = 7 schickt den Index als Argument an den Dispatch. Ohne die
+                // Indexform entstand hier die Aufrufgestalt einer Funktion, die als
+                // Zuweisungsziel keinen Platz hat -- der Lowerer brach dann mit einer
+                // InvalidOperationException ab statt zu melden oder zu uebersetzen.
                 if (accessor is PropertyAccessorKind.Let or PropertyAccessorKind.Set &&
-                    syntax.Indices.IsEmpty &&
                     memberReceiver.Type is ClassTypeSymbol lateBoundMember &&
                     IsLateBoundObjectType(lateBoundMember))
                 {
@@ -3446,7 +3450,11 @@ public sealed class Binder
                         {
                             IsLateBound = true
                         },
-                        ImmutableArray<BoundArgument>.Empty);
+                        syntax.Indices
+                            .Select(index => new BoundArgument(
+                                null,
+                                BindExpression(index, variables, procedures)))
+                            .ToImmutableArray());
                 }
 
                 return BindClassMemberInvocation(
