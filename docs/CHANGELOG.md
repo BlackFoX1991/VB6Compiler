@@ -4130,3 +4130,39 @@ laesst den Compiler mit einer unbehandelten `ArgumentException` abstuerzen statt
 Kanonischer Nachweis: **1352/1352** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix bleibt unveraendert bei **71 implemented, 8 partial,
 39 planned von 118 | 79/118 documented-verified**.
+
+## Drei Sweep-Befunde: Print-Listen, Datumsliterale, mehrdeutige Namen (31.08.2026)
+
+Der Konstrukt-Sweep hat drei vorbestehende Luecken belegt, die weder die Suite noch der
+VISIA-Korpus sah. Alle drei sind geschlossen.
+
+**`Debug.Print` nahm nur einen einzigen Ausdruck.** `Debug.Print a; b`, `Debug.Print a, b` und
+selbst ein nachgestelltes `;` waren Parserfehler, obwohl die mehrteilige Form in Legacy-Code die
+Regel ist. `Debug.Print` traegt jetzt dieselbe Ausgabeliste wie `Print #`: beliebig viele
+Ausdruecke, `;` haengt an, `,` springt in die naechste 14-Spalten-Zone, ein nachgestellter
+Separator haelt die Zeile offen, und ein blankes `Debug.Print` gibt eine Leerzeile. Die
+Zahlenformatierung selbst bleibt unveraendert -- weiterhin nur das fuehrende
+Vorzeichen-Leerzeichen, kein nachgestelltes.
+
+**Datumsliterale `#1/2/2000#` wurden ueberhaupt nicht geparst.** Kein Test im Repo verwendete
+eins, und VISIA enthaelt keins. Der Lexer erkennt sie jetzt und loest sie zur Lexzeit in ein
+OLE-Automation-Datum auf; ab da ist es eine gewoehnliche Date-Konstante. Der `#` bleibt
+mehrdeutig, deshalb entscheidet der Lexer erst, wenn ein schliessendes `#` auf derselben Zeile
+steht und der Text dazwischen als Datum oder Zeit parst -- `Print #1, "a#b#c"` und `5# - 2#`
+bleiben unberuehrt. Gelesen wird invariant, weil VB6-Datumsliterale unabhaengig vom Gebietsschema
+in US-Reihenfolge stehen.
+
+**Eine `Function` oder `Property Get`, deren Name case-insensitiv mit einer Modulvariablen
+kollidiert, liess den Compiler abstuerzen** -- unbehandelte `ArgumentException` statt Diagnose,
+weil der Funktionsname als eigener Rueckgabespeicher in denselben Scope kommt. VB6 meldet hier
+"Ambiguous name detected"; der Binder meldet jetzt **VB6S0073**.
+
+Der Sweep laeuft danach mit **112 von 116** Faellen durch statt 86, bei 2 statt 28 Ablehnungen.
+
+Zwei weitere vorbestehende Defekte sind dabei sichtbar geworden und bleiben offen: `Date + Integer`
+bricht mit einer `OverflowException` ab statt Datumsarithmetik zu rechnen, und `Debug.Print` eines
+Date-Wertes gibt die rohe OADate-Zahl aus statt eines Datums.
+
+Kanonischer Nachweis: **1370/1370** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.
