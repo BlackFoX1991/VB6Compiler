@@ -16,9 +16,9 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H),
 abgearbeitet über die Karten in `docs/LUNA_EXECUTION_PLAN.md` und die Qualitätsqueue
-`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 118 Erwartungen (68 `implemented`,
-9 `partial`, 41 `planned`; 77 `documented-verified`); die nächste offene
-Implementierungskarte ist `s1-class-public-field-storage`. `L1-02-A` bleibt als breiter
+`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 118 Erwartungen (69 `implemented`,
+8 `partial`, 41 `planned`; 77 `documented-verified`); die nächste offene
+Implementierungskarte ist `s2-documented-runtime-error-numbers`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
@@ -273,10 +273,17 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Feld-Property jetzt von einem echten `Property Get`, und der Binder verzweigt darauf. **Der
   Marker ist die einzige Unterscheidung; die synthetisierte Property bleibt bewusst
   parameterlos.** Wer ihr Parameter gäbe, um Indizierung zu ermöglichen, macht sie von einer
-  echten indizierten Property ununterscheidbar. `Public S As String * 5` ist inzwischen
-  ebenfalls behoben; offen bleibt nur der spät gebundene Zugriff.
+  echten indizierten Property ununterscheidbar. Alle vier Symptome sind behoben.
   Gegenprobe: ByRef funktioniert über Locals, Globals, UDT-Member und Array-Elemente. Wer hier
   etwas anfasst, prüft alle vier Symptome.
+- **Zur Laufzeit ist dasselbe `Public`-Feld wieder ein Feld, keine Property.** Der Binder
+  modelliert es als Get/Let-Property, der Emitter bildet es auf ein **CLR-Feld** ab. Wer im
+  Laufzeitdispatch nach Mitgliedern sucht, muss deshalb Methoden, Properties **und** Felder
+  abdecken — `VBDynamicDispatch` tat Letzteres nicht, weshalb ein spät gebundenes `o.N` 438
+  meldete, obwohl das Feld direkt danebenlag. Die VB6-Sichtbarkeit steckt dabei im
+  CLR-Attribut: `Public` wird `FieldAttributes.Assembly`, `Private` wird `FieldAttributes.
+  Private`. Die Feldsuche prüft `!IsPrivate` — es gibt keine zweite Sichtbarkeitsquelle, und es
+  soll auch keine geben.
 - **Ein UDT-Member hat ein festes Layout — und der UDT-Binder hat seinen eigenen, schwächeren
   Konstantenfalter.** `UserDefinedTypeDeclarationBinder` faltet Arraygrenzen und `String * n`-
   Breiten selbst, weil der Speicher zur Übersetzungszeit feststehen muss; ein gewöhnliches `Dim`

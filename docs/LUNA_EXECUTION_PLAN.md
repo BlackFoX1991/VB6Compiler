@@ -12,22 +12,20 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1336/1336 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1337/1337 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **118 Erwartungen**: **68 implemented**, **9 partial** und
+- Die Matrix umfasst aktuell **118 Erwartungen**: **69 implemented**, **8 partial** und
   **41 planned**; **77** sind `documented-verified`.
-- **Die nächste Karte ist `S1` (`s1-class-public-field-storage`), nicht `l1-02-j`.** Der
-  Breitendurchgang vom 30.08.2026 hat dort einen Befund gefunden, der ein falsches Ergebnis
-  ohne jede Diagnose liefert; nach §13 hat „still falsch" Vorrang. Die Reihenfolge lautet
-  **S1 → S2 → S3 → `l1-02-j`**. Begründung und Messwerte im Befundregister weiter unten.
-  `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst `partial`.
-- **Innerhalb von `S1` sind `byref`, `set`, `array` und `fixed-string` erledigt.** Offen ist
-  nur noch `late-bound`: `VBDynamicDispatch` sucht Methoden und Properties, aber keine Felder,
-  deshalb findet `Dim o As Object : o.N = 5` ein öffentliches Klassenfeld gar nicht. `S1`
-  bleibt bis dahin `partial`.
+- **`S1` (`s1-class-public-field-storage`) ist geschlossen** und steht als erste Karte des
+  Breitendurchgangs auf `implemented`. Alle fünf Teile halten: `byref`, `set`, `array`,
+  `fixed-string` und `late-bound`.
+- **Die nächste Karte ist `S2` (`s2-documented-runtime-error-numbers`).** Die Reihenfolge
+  lautet unverändert **S2 → S3 → `l1-02-j`**. Begründung und Messwerte im Befundregister weiter
+  unten. `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst
+  `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
   (`Public`/`Global` versus `Private`/`Dim`) implementiert und steht deshalb auf `partial`;
@@ -394,11 +392,11 @@ Einstiegspunkte sind genannt, damit keine Repository-Gesamtsuche nötig ist.
 
 | Karte | Erwartungs-ID | Deckt ab | Einstieg |
 |---|---|---|---|
-| `S1` | `s1-class-public-field-storage` | A1–A4 | `Binder.cs` (`TryGetProperty`-Zweig ~Z. 3273, ByRef-Positivliste ~Z. 3949), `Semantics.cs` (`PropertySymbol` Z. 420), `IrLowerer.cs` (`_classFields`), `Parser.cs` (Klassenmember) |
+| `S1` | `s1-class-public-field-storage` | A1–A5, geschlossen | `Binder.cs` (`TryGetProperty`-Zweig ~Z. 3273, ByRef-Positivliste ~Z. 3949), `Semantics.cs` (`PropertySymbol` Z. 420), `IrLowerer.cs` (`_classFields`), `Parser.cs` (Klassenmember) |
 | `S2` | `s2-documented-runtime-error-numbers` | B1–B3 | `VBErrors.cs` (`Set`-Zuordnung), `VBFiles.cs` (Open/FileLen), `VBCollection.cs` (`ResolveIndex`) |
 | `S3` | `s3-remaining-standard-intrinsics` | C | `VBIntrinsicSymbols.cs` (Deklaration), `VBStrings.cs` / `VBFunctions.cs` (Implementierung) |
 
-`S1` zuerst, weil A1 still falsch ist. `S2` danach, weil B1 in echtem VB6-Code häufig
+`S1` kam zuerst, weil A1 still falsch war, und ist geschlossen. `S2` folgt, weil B1 in echtem VB6-Code häufig
 vorkommt. `S3` ist Fleissarbeit ohne Risiko und passt in jede Lücke. Die Befunde unter **D**
 haben bewusst **keine** eigene Karte: Sie hängen an Architekturentscheidungen oder an einer
 fremden Kartenfläche und werden nach §9 gemeldet, nicht nebenbei erledigt.
@@ -417,6 +415,7 @@ auf ein `IrFieldPlace` ab — alles andere fällt durch.
 | A2 | `Set c.ObjFeld = New Collection` | ~~`VB6S0064`~~ → läuft | funktioniert | **behoben am 30.08.2026** |
 | A3 | `c.Nums(1)` bei `Public Nums() As Long` | ~~`VB6S0006`~~ → läuft | funktioniert | **behoben am 31.08.2026** |
 | A4 | `Public S As String * 5` in `.cls` | ~~`VB6P0001`~~ → läuft | funktioniert | **behoben am 31.08.2026** |
+| A5 | `o.N` über `Dim o As Object` | ~~438~~ → läuft | funktioniert | **behoben am 31.08.2026** |
 
 **A1 ist der gefährlichste Befund des ganzen Durchgangs**: falsches Ergebnis ohne Diagnose.
 Gegenprobe: ByRef-Rückschreiben funktioniert für lokale Variablen, `Global`-Variablen,
@@ -505,8 +504,33 @@ Felder ebenfalls korrekt.
   Copy-in/Copy-out. Die Typstrenge bei ByRef ist aber eine ausdrücklich dokumentierte
   Entscheidung dieses Projekts — nach §12 wird sie nicht ohne Ansage aufgeweicht.
 
-**Damit bleibt von `S1` nur noch `late-bound`:** `VBDynamicDispatch` sucht Methoden und
-Properties, aber keine Felder.
+**A5 ist behoben — und `S1` damit geschlossen.** Der Grund für den Befund liegt genau an der
+Naht zwischen Übersetzung und Laufzeit: Der Binder modelliert ein `Public`-Feld als Property,
+der Emitter bildet es aber wieder auf ein **CLR-Feld** ab. `VBDynamicDispatch` durchsuchte
+Methoden und Properties — also genau die beiden Formen, die es zur Laufzeit nicht ist.
+
+Die VB6-Sichtbarkeit trägt dabei das CLR-Attribut: Der Emitter gibt einem `Public`-Feld
+`FieldAttributes.Assembly` und einem `Private`-Feld `FieldAttributes.Private`. Die Feldsuche
+akzeptiert deshalb `!IsPrivate` — ein privates Feld bleibt von aussen unerreichbar, ohne dass
+eine zweite Sichtbarkeitsquelle gepflegt werden müsste.
+
+**Ein zweiter Defekt lag darunter, wieder erst nach der ersten Reparatur sichtbar:**
+`o.Nums(1) = 7` riss den **Compiler** ab. Der Binder erzeugte für ein indiziertes spät
+gebundenes Zuweisungsziel die Aufrufgestalt einer Funktion
+(`BoundMemberInvocationExpression`), die als Zuweisungsziel keinen Platz hat; `LowerPlace` warf
+eine `InvalidOperationException`, die als unbehandelte Ausnahme aus dem Emit herausfiel statt
+als Diagnose. Die Bedingung `syntax.Indices.IsEmpty` schloss die Indexform aus dem
+Property-Zweig aus. Sie ist entfallen; die Indizes gehen jetzt als Argumente an den Dispatch,
+den der Lowerer über `LowerDynamicSet` bereits bedienen konnte. Der Befund war **nicht**
+feldspezifisch — er traf jedes indizierte spät gebundene Zuweisungsziel.
+
+Gemessen wurden 11 Fälle, alle korrekt: Lesen, Schreiben, String- und Objektfeld mit `Set`,
+indiziertes Arrayfeld, Zugriff über `Variant` statt `Object`, und über einen `With`-Block.
+Gegenproben unverändert: Methode (**42**) und echtes `Property Get` (**99**) laufen wie zuvor,
+ein privates Feld meldet weiterhin **438**, ein unbekanntes Mitglied ebenfalls **438**.
+
+**Damit ist `S1` vollständig** — `byref`, `set`, `array`, `fixed-string` und `late-bound` — und
+die Erwartung steht auf `implemented`.
 
 **Neuer Befund aus der Gegenprobe (Grenze 4, Deklarationsform):** Ein **echtes**
 `Property Get Nums() As Long()`, also eine deklarierte Property mit Array-Rückgabetyp, kann
