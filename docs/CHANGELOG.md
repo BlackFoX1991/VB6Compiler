@@ -3819,3 +3819,54 @@ die Messwerte nur an einer Stelle stehen und nicht auseinanderlaufen können.
 
 Reine Dokumentationsarbeit; `src/` und `tests/` bleiben unberührt. Der kanonische Lauf bleibt
 bei **1322/1322** Tests, VISIA **40/40**.
+
+## Array-typisierte Klassenfelder sind indizierbar (31.08.2026)
+
+Karte `S1`, Teil A3 aus dem Befundregister: `c.Nums(1)` bei `Public Nums(1 To 3) As Long`
+meldete `VB6S0006` — „Procedure 'Nums' expects 0 argument(s), but 1 were supplied".
+
+Die Vorabmessung nach §11 hat die vermutete Ursache widerlegt. Notiert war
+„`AddReadWriteProperty` erzeugt Properties ohne Parameter", die naheliegende Reparatur wäre
+gewesen, ihr welche zu geben. Das Wegwerfprogramm über 18 Fälle hat gezeigt, dass das falsch
+gewesen wäre: `c.Nums` **ohne** Index lieferte längst das echte Array. `LBound(c.Nums)`,
+`UBound(c.Nums)`, `For Each v In c.Nums` und `c.Nums = other` liefen von Anfang an. Kaputt war
+allein die indizierte Form, und zwar im Binder: `BindClassMemberInvocation` liest jede Property
+mit Argumenten als indizierte Property.
+
+Die synthetisierte Get/Let-Property bleibt deshalb bewusst parameterlos. Parameter hätten sie
+von einem echten `Property Get` ununterscheidbar gemacht und damit A1 und A2 wieder aufgerissen,
+die genau an dieser Unterscheidung hängen. Stattdessen erkennt der Binder eine Property mit
+`{ IsFieldBacked: true, IsLateBound: false }` und `ArrayTypeSymbol`-Typ und bindet `c.Nums(1)`
+als `BoundElementAccessExpression` über den Feldzugriff — denselben Knoten, den ein indiziertes
+UDT-Member erzeugt.
+
+Lowerer und Emitter brauchten keine Zeile. `LowerPlace` bildet `BoundElementAccessExpression`
+bereits auf `IrArrayElementPlace` ab, und weil ein VB6-Array eine Referenz ist, deckt diese eine
+Substitution Lesen, Schreiben und ByRef-Rückschreiben gleichzeitig ab. Die Änderung liegt
+vollständig in `Binder.cs`.
+
+Gemessen und danach als Test festgeschrieben: Lesen, Schreiben, `LBound`/`UBound`, `ReDim` von
+außen, `Me.Nums(i)` von innen, Zuweisung des ganzen Arrays, Variant-, String- und
+zweidimensionale Felder, `For Each` sowie ByRef-Rückschreiben in ein Element (**6**).
+
+Gegenproben nach §13, alle unverändert: eine echte indizierte `Property Get` bleibt ein Aufruf
+und liefert beim ByRef-Versuch **105** statt **6**, weil ihr Argument ein Temp ist; ein skalares
+Feld mit Index meldet weiterhin `VB6S0006`; ein falscher Rang meldet `VB6S0027` statt still eine
+Dimension zu verwerfen.
+
+**Neuer Befund, nach §9 gemeldet statt nebenbei erledigt:** Eine deklarierte
+`Property Get Nums() As Long()` — eine echte Property mit Array-Rückgabetyp — kann nicht
+indiziert werden; `c.Nums(1)` meldet `VB6S0006`. In VB6 wird die Property gerufen und ihr
+Ergebnis indiziert. Der Befund ist vorbestehend und wird von der Feld-Erkennung ausdrücklich
+nicht berührt, weil sie `IsFieldBacked` verlangt. Er steht jetzt in Roadmap-Etappe B und im
+Befundregister und braucht eine eigene Karte.
+
+Die Matrix-Erwartung `s1-class-public-field-storage` hat zusätzlich die bislang fehlende
+`expected`-Zeile `late-bound` bekommen — der spät gebundene Feldzugriff war im Register
+vermerkt, aber nicht in der Karte. `S1` bleibt `partial`: `fixed-string` (A4) und `late-bound`
+sind offen.
+
+Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1326/1326** Tests, **0** Fehler,
+Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+Matrixzahlen bleiben bei **68 implemented, 9 partial, 41 planned von 118 | 77/118
+documented-verified**.

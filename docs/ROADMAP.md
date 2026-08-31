@@ -46,15 +46,15 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1322 Tests, alle grün** in 13
-Testprojekten (Stand 2026-08-30); der Lauf testet projektweise seriell.
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1326 Tests, alle grün** in 13
+Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1322 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1326 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
 **118 Erwartungen**, davon **68 implemented**, **9 partial** und **41 planned**;
-**77/118 documented-verified** (Stand 2026-08-30).
+**77/118 documented-verified** (Stand 2026-08-31).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah. Das
 vollständige Befundregister mit Ist- und Sollwerten steht in
@@ -278,10 +278,14 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
       implementiert. Weitere verschachtelte Aufruf-/Resume-Matrixfälle bleiben offen.
 - [~] Ein `Public`-Feld einer Klasse ist echter Speicher, kein `Property Get`. `ByRef`-Rück-
-      schreiben und `Set` auf Objekt-/Variant-Felder sind implementiert (`S1`); ein
-      array-typisiertes Feld ist noch nicht indizierbar, `String * n` als Klassenmember wird
-      vom Parser nicht angenommen, und ein **spät gebundener** Zugriff auf ein solches Feld
-      findet es gar nicht (`VBDynamicDispatch` sucht Methoden und Properties, keine Felder).
+      schreiben, `Set` auf Objekt-/Variant-Felder und die Indizierung array-typisierter Felder
+      sind implementiert (`S1`) — Letzteres einschließlich `ReDim` von außen, `Me.Nums(i)` von
+      innen, mehrdimensionaler Felder und ByRef-Rückschreiben in ein Element. Offen bleiben
+      `String * n` als Klassenmember, das der Parser nicht annimmt, und ein **spät gebundener**
+      Zugriff auf ein solches Feld, der es gar nicht findet (`VBDynamicDispatch` sucht Methoden
+      und Properties, keine Felder).
+- [ ] Eine deklarierte `Property Get` mit Array-Rückgabetyp kann nicht indiziert werden;
+      `c.Nums(1)` meldet `VB6S0006`, statt die Property zu rufen und ihr Ergebnis zu indizieren.
 - [ ] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liefert aus dem
       `Get` `Empty`. Das `Set` speichert nachweislich korrekt, ein `Get` ohne `Set` liefert
       korrekt — nur die Kombination bricht, und sie ist die Normalform jeder Objekt-Property.

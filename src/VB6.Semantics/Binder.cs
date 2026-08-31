@@ -3576,6 +3576,37 @@ public sealed class Binder
             BindArguments(syntax.Identifier, syntax.Arguments, procedure, variables, procedures));
     }
 
+    /// <summary>
+    /// Binds <c>c.Nums(1)</c> for a public class field declared as an array. The receiver is the
+    /// field itself, so the result is an element place - the same node an indexed UDT member
+    /// produces - and reading, writing and ByRef write-back all follow from it.
+    /// </summary>
+    private BoundExpression BindClassFieldElementAccess(
+        BoundExpression receiver,
+        PropertySymbol property,
+        ArrayTypeSymbol arrayType,
+        SyntaxToken memberToken,
+        ImmutableArray<ExpressionSyntax> argumentSyntaxes,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        if (arrayType.Rank is int rank && argumentSyntaxes.Length != rank)
+        {
+            Report(
+                "VB6S0027",
+                $"Array expression has rank {rank}, but {argumentSyntaxes.Length} index(es) were supplied.",
+                memberToken.Span);
+        }
+
+        var indices = argumentSyntaxes
+            .Select(index => BindConversion(BindExpression(index, variables, procedures), TypeSymbol.Long))
+            .ToImmutableArray();
+        return new BoundElementAccessExpression(
+            new BoundPropertyAccessExpression(receiver, property),
+            indices,
+            arrayType.ElementType);
+    }
+
     private BoundExpression BindMemberInvocationExpression(
         MemberInvocationExpressionSyntax syntax,
         Dictionary<string, VariableSymbol> variables,
@@ -3625,6 +3656,24 @@ public sealed class Binder
         }
         else if (classType.TryGetProperty(target.MemberToken.Text, accessor, out var property))
         {
+            // Ein array-typisiertes Klassenfeld ist echter Speicher, keine indizierte Property.
+            // c.Nums(1) indiziert den Feldwert; die synthetisierte Get/Let-Property traegt
+            // bewusst keine Parameter, sonst waere sie von einem echten Property Get nicht mehr
+            // zu unterscheiden. Ein deklariertes Property Get mit Array-Rueckgabetyp bleibt
+            // deshalb ein Aufruf und faellt hier nicht hinein.
+            if (property is { IsFieldBacked: true, IsLateBound: false } &&
+                property.Type is ArrayTypeSymbol fieldArrayType)
+            {
+                return BindClassFieldElementAccess(
+                    receiver,
+                    property,
+                    fieldArrayType,
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    variables,
+                    procedures);
+            }
+
                 return new BoundPropertyInvocationExpression(
                 receiver,
                 property,

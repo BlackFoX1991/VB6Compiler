@@ -972,4 +972,229 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    /// <summary>
+    /// Ein <c>Public</c>-Feld einer Klasse, das als Array deklariert ist, wird indiziert wie
+    /// jedes andere Array. Vorher meldete der Binder VB6S0006 ("erwartet 0 Argumente"), weil die
+    /// synthetisierte Get/Let-Property bewusst keine Parameter traegt und ein Index deshalb wie
+    /// ein Argument einer indizierten Property aussah.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_IndexesPublicClassArrayFields()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerClassInstanceTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ArrayFields.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ArrayFields"
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Public Nums(1 To 3) As Long
+                Public Names(1 To 2) As String
+                Public Items(1 To 2) As Variant
+                Public Grid(1 To 2, 1 To 2) As Long
+                Public Rest() As Long
+
+                Public Function Poke() As Long
+                    Me.Nums(3) = 30
+                    Poke = Me.Nums(3)
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim c As Bag
+                    Dim v As Variant
+                    Dim total As Long
+                    Dim other(1 To 2) As Long
+                    Set c = New Bag
+
+                    Debug.Print c.Nums(1)
+
+                    c.Nums(2) = 42
+                    Debug.Print c.Nums(2)
+
+                    Debug.Print LBound(c.Nums) & "/" & UBound(c.Nums)
+
+                    c.Names(1) = "x"
+                    Debug.Print c.Names(1)
+
+                    c.Items(1) = "a"
+                    Debug.Print c.Items(1)
+
+                    c.Grid(2, 2) = 8
+                    Debug.Print c.Grid(2, 2)
+
+                    ReDim c.Rest(1 To 2)
+                    c.Rest(1) = 7
+                    Debug.Print c.Rest(1)
+
+                    other(1) = 9
+                    c.Rest = other
+                    Debug.Print c.Rest(1)
+
+                    Debug.Print c.Poke()
+
+                    For Each v In c.Nums
+                        total = total + v
+                    Next v
+                    Debug.Print total
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "0", "42", "1/3", "x", "a", "8", "7", "9", "30", "72" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ein Element eines array-typisierten Klassenfeldes ist echter Speicher und traegt deshalb
+    /// ein ByRef-Rueckschreiben. Die Gegenprobe steht daneben: eine echte indizierte Property
+    /// bleibt ein Aufruf, ihr ByRef-Argument ist ein Temp und schreibt nicht zurueck.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_WritesBackByRefThroughClassArrayFieldElements()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerClassInstanceTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ArrayByRef.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ArrayByRef"
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Public Nums(1 To 2) As Long
+                Private storage(1 To 2) As Long
+
+                Public Property Get At(ByVal index As Long) As Long
+                    At = storage(index) + 100
+                End Property
+
+                Public Property Let At(ByVal index As Long, ByVal value As Long)
+                    storage(index) = value
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Bump(ByRef value As Long)
+                    value = value + 1
+                End Sub
+
+                Sub Main()
+                    Dim c As Bag
+                    Set c = New Bag
+
+                    c.Nums(1) = 5
+                    Bump c.Nums(1)
+                    Debug.Print c.Nums(1)
+
+                    c.At(1) = 5
+                    Bump c.At(1)
+                    Debug.Print c.At(1)
+                End Sub
+                """);
+
+            // 6 fuer das Feldelement: das Rueckschreiben landet im Speicher.
+            // 105 fuer die echte Property: Bump erhaelt einen Temp, das Rueckschreiben
+            // verpufft -- genau wie in VB6, wo nur ein Ziel mit Speicher zurueckschreibt.
+            CollectionAssert.AreEqual(
+                new[] { "6", "105" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Die Indizierung gilt nur fuer array-typisierte Felder. Ein skalares Feld mit Index bleibt
+    /// VB6S0006, und ein falscher Rang meldet VB6S0027 statt still eine Dimension zu verwerfen.
+    /// </summary>
+    [TestMethod]
+    [DataRow("VB6S0006", "Public N As Long", "Debug.Print c.N(1)")]
+    [DataRow("VB6S0027", "Public Grid(1 To 2, 1 To 2) As Long", "Debug.Print c.Grid(1)")]
+    public void Analyze_RejectsInvalidIndexingOfClassFields(string code, string field, string use)
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerClassInstanceTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Invalid.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Invalid"
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(
+                Path.Combine(directory, "Bag.cls"),
+                "Option Explicit" + Environment.NewLine + Environment.NewLine + field + Environment.NewLine);
+            File.WriteAllText(
+                Path.Combine(directory, "MainModule.bas"),
+                string.Join(
+                    Environment.NewLine,
+                    "Option Explicit",
+                    string.Empty,
+                    "Sub Main()",
+                    "    Dim c As Bag",
+                    "    Set c = New Bag",
+                    "    " + use,
+                    "End Sub"));
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+
+            Assert.IsTrue(
+                analysis.Diagnostics.Any(diagnostic => diagnostic.Code == code),
+                $"Expected {code} in project analysis.");
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

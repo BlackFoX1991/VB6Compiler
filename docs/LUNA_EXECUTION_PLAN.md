@@ -7,12 +7,12 @@ reproduzierbar und ohne neue Architekturentscheidungen abarbeitet.
 Die verbindlichen Leitplanken stehen in [`LUNA_GUARDRAILS.md`](LUNA_GUARDRAILS.md) und gehen
 bei Widersprüchen diesem Ausführungsplan vor.
 
-Stand: 2026-08-30  
+Stand: 2026-08-31  
 Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1322/1322 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1326/1326 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
@@ -24,6 +24,10 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
   ohne jede Diagnose liefert; nach §13 hat „still falsch" Vorrang. Die Reihenfolge lautet
   **S1 → S2 → S3 → `l1-02-j`**. Begründung und Messwerte im Befundregister weiter unten.
   `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst `partial`.
+- **Innerhalb von `S1` sind `byref`, `set` und `array` erledigt.** Offen sind
+  `fixed-string` (A4, `Public S As String * 5` ist ein Parserfehler) und `late-bound`
+  (`VBDynamicDispatch` findet ein öffentliches Feld nicht). Beide Teile gehören zur selben
+  Karte, weil sie dieselbe Ursache teilen; `S1` bleibt bis dahin `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
   (`Public`/`Global` versus `Private`/`Dim`) implementiert und steht deshalb auf `partial`;
@@ -411,7 +415,7 @@ auf ein `IrFieldPlace` ab — alles andere fällt durch.
 |---|---|---|---|---|
 | A1 | `Bump c.N` mit `ByRef`-Parameter | ~~5~~ → **6** | 6 | **behoben am 30.08.2026** |
 | A2 | `Set c.ObjFeld = New Collection` | ~~`VB6S0064`~~ → läuft | funktioniert | **behoben am 30.08.2026** |
-| A3 | `c.Nums(1)` bei `Public Nums() As Long` | `VB6S0006` | funktioniert | meldet |
+| A3 | `c.Nums(1)` bei `Public Nums() As Long` | ~~`VB6S0006`~~ → läuft | funktioniert | **behoben am 31.08.2026** |
 | A4 | `Public S As String * 5` in `.cls` | `VB6P0001` (Parser) | funktioniert | meldet |
 
 **A1 ist der gefährlichste Befund des ganzen Durchgangs**: falsches Ergebnis ohne Diagnose.
@@ -441,8 +445,37 @@ der Handler feuerte nicht mehr. Eine `WithEvents`-Variable ist kein einfacher Sp
 bekommt deshalb bewusst keinen Set-Accessor. `Set Me.held = …` meldet seitdem `VB6S0064`,
 statt die Verdrahtung still zu umgehen.
 
-**A3 und A4 bleiben offen** mit derselben Ursache: `AddReadWriteProperty` erzeugt Properties
-ohne Parameter (A3), und der Parser nimmt `String * n` als Klassenmember nicht an (A4).
+**A3 ist behoben.** Die Vorabmessung über 18 Fälle hat die Ursache verschoben: Nicht
+`AddReadWriteProperty` war das Problem, sondern der Binder. `c.Nums` **ohne** Index lieferte
+bereits das echte Array — `LBound`/`UBound`, `For Each` und eine Zuweisung des ganzen Arrays
+liefen von Anfang an. Nur die *indizierte* Form fiel durch, weil `BindClassMemberInvocation`
+jede Property mit Argumenten als indizierte Property las und die synthetisierte Get/Let-Property
+bewusst keine Parameter trägt.
+
+Die Property bekommt deshalb **keine** Parameter — das würde sie von einem echten
+`Property Get` ununterscheidbar machen. Stattdessen erkennt der Binder eine Property mit
+`{ IsFieldBacked: true, IsLateBound: false }` und `ArrayTypeSymbol`-Typ und bindet
+`c.Nums(1)` als `BoundElementAccessExpression` über den Feldzugriff — denselben Knoten, den ein
+indiziertes UDT-Member erzeugt. Lowerer und Emitter brauchten keine Änderung: `LowerPlace`
+bildet den Knoten schon auf `IrArrayElementPlace` ab, und weil ein VB6-Array eine Referenz ist,
+decken Lesen, Schreiben und ByRef-Rückschreiben sich mit derselben Substitution ab.
+
+Gemessen wurden 18 Fälle, alle korrekt: Lesen, Schreiben, `LBound`/`UBound`, `ReDim` von außen,
+`Me.Nums(1)` von innen, ByRef-Rückschreiben in ein Element (**6**), Zuweisung des ganzen Arrays,
+Variant-, String- und zweidimensionale Felder sowie `For Each`.
+
+Gegenproben nach §13, alle unverändert: eine echte indizierte `Property Get` bleibt ein Aufruf
+(**105** statt **6** beim ByRef-Versuch — der Temp schreibt nicht zurück), ein skalares Feld mit
+Index meldet weiterhin `VB6S0006`, ein falscher Rang meldet `VB6S0027`, und das Feld von innen
+über eine Methode funktioniert weiter.
+
+**A4 bleibt offen:** Der Parser nimmt `String * n` als Klassenmember nicht an.
+
+**Neuer Befund aus der Gegenprobe (Grenze 4, Deklarationsform):** Ein **echtes**
+`Property Get Nums() As Long()`, also eine deklarierte Property mit Array-Rückgabetyp, kann
+nicht indiziert werden — `c.Nums(1)` meldet `VB6S0006`. In VB6 wird die Property gerufen und
+ihr Ergebnis indiziert. Der Befund ist vorbestehend, wird durch die Feld-Erkennung ausdrücklich
+**nicht** berührt (sie verlangt `IsFieldBacked`) und braucht eine eigene Karte.
 
 **Weiterer Befund aus der Gegenprobe (Grenze 4, Deklarationsform):** Eine Klasse mit **beiden**
 Accessoren `Property Get` und `Property Set` gleichen Namens liefert aus dem `Get` **Empty**.
