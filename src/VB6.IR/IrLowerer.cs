@@ -4102,7 +4102,10 @@ public static class IrLowerer
             : type == TypeSymbol.Long ? IrRuntimeMethod.SubtractLong
             : type == TypeSymbol.Currency ? IrRuntimeMethod.SubtractCurrency
             : type == TypeSymbol.Single ? IrRuntimeMethod.SubtractSingle
-            : type == TypeSymbol.Double ? IrRuntimeMethod.SubtractDouble
+            // A Date result carries Double operands, the same as the Add row above. Falling
+            // through to the Integer row instead asks the backend for a helper that takes two
+            // Doubles under an Integer name, which no runtime overload matches.
+            : type == TypeSymbol.Date || type == TypeSymbol.Double ? IrRuntimeMethod.SubtractDouble
             : IrRuntimeMethod.SubtractInteger;
 
         private static IrRuntimeMethod MultiplyMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.MultiplyByte

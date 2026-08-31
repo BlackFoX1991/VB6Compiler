@@ -4166,3 +4166,25 @@ Date-Wertes gibt die rohe OADate-Zahl aus statt eines Datums.
 Kanonischer Nachweis: **1370/1370** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Date-Arithmetik lief ueber den Integer-Ruecksprung (31.08.2026)
+
+`Date + 5` brach mit einer `OverflowException` ab. Der Binder behandelte `Date` nicht als
+arithmetischen Operanden, deshalb fiel das Operandenpaar in den Ruecksprung `TypeSymbol.Integer`
+und der OADate-Wert wurde nach `Integer` konvertiert -- fuer jedes reale Datum ein Ueberlauf.
+Bei kleineren Werten haette derselbe Pfad **still falsch** gerechnet statt abzustuerzen.
+
+`Date` nimmt jetzt an `+`, `-` und `*` teil; gerechnet wird auf dem Double. Der Ergebnis-Subtyp
+folgt dem Vertrag, den der Variant-Pfad in
+`EmitManagedApplication_PreservesDateSubtypeThroughVariantArithmetic` bereits festschreibt:
+Addieren und Subtrahieren einer Zahl behaelt `Date`, die Differenz zweier `Date` ist `Double`,
+und `*` ist `Double`. Der bestehende Variant-Test bleibt unveraendert gruen.
+
+Dabei kam eine zweite, bis dahin unerreichbare Inkonsistenz zum Vorschein: `AddMethod` im
+Lowerer fuehrte `Date` bereits auf `AddDouble`, `SubtractMethod` nicht -- der Date-Fall landete
+auf `SubtractInteger` und der Emitter suchte eine Ueberladung mit zwei Doubles unter einem
+Integer-Namen (`VB6E0003`). Die Zeile ist jetzt an `AddMethod` angeglichen.
+
+Kanonischer Nachweis: **1376/1376** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.

@@ -4811,6 +4811,31 @@ public sealed class Binder
                         TypeSymbol.Variant);
                 }
 
+                // A Date is an OLE automation double, so arithmetic runs on that value rather
+                // than on the Integer the numeric fallback below would pick - converting a Date
+                // to Integer overflows for every real date. The subtype of the result follows the
+                // rule the Variant path already fixes in
+                // EmitManagedApplication_PreservesDateSubtypeThroughVariantArithmetic: adding or
+                // subtracting keeps the Date, and the difference of two Dates is a Double.
+                if (IsDateArithmeticOperand(left.Type) &&
+                    IsDateArithmeticOperand(right.Type) &&
+                    (left.Type == TypeSymbol.Date || right.Type == TypeSymbol.Date))
+                {
+                    var dateResultType = syntax.OperatorToken.Kind switch
+                    {
+                        SyntaxKind.StarToken => TypeSymbol.Double,
+                        SyntaxKind.MinusToken when left.Type == TypeSymbol.Date && right.Type == TypeSymbol.Date =>
+                            TypeSymbol.Double,
+                        _ => TypeSymbol.Date
+                    };
+
+                    return new BoundBinaryExpression(
+                        BindConversion(left, TypeSymbol.Double),
+                        syntax.OperatorToken.Kind,
+                        BindConversion(right, TypeSymbol.Double),
+                        dateResultType);
+                }
+
                 var resultType = IsNumericType(left.Type) && IsNumericType(right.Type)
                     ? GetCommonNumericType(left.Type, right.Type)
                     : TypeSymbol.Integer;
@@ -4855,6 +4880,10 @@ public sealed class Binder
         type == TypeSymbol.LongLong || type == TypeSymbol.LongPtr || type == TypeSymbol.UShort ||
         type == TypeSymbol.UInteger || type == TypeSymbol.ULong || type == TypeSymbol.Single || type == TypeSymbol.Double ||
         type == TypeSymbol.Currency;
+
+    /// <summary>An operand that may take part in Date arithmetic: a Date itself, or a number.</summary>
+    private static bool IsDateArithmeticOperand(TypeSymbol type) =>
+        type == TypeSymbol.Date || IsNumericType(type);
 
     private static bool IsStringComparisonType(TypeSymbol type) =>
         type == TypeSymbol.String || type is FixedLengthStringTypeSymbol;
