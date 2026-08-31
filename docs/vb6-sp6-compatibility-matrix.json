@@ -1613,7 +1613,8 @@
         "byref": "a Public class field passed to a ByRef parameter receives the write-back",
         "set": "Set assigns to an object- or class-typed Public field",
         "array": "an array-typed Public field is indexable and can be ReDim-ed",
-        "fixed-string": "String * n is accepted as a class member declaration"
+        "fixed-string": "String * n is accepted as a class member declaration",
+        "late-bound": "a late-bound access through Object finds a Public field, not only methods and properties"
       },
       "verification": "documented-verified",
       "testRefs": [
