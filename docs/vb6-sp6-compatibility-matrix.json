@@ -1625,16 +1625,17 @@
     },
     {
       "id": "s2-documented-runtime-error-numbers",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "language-control-flow-and-errors",
       "input": "Runtime failures that VB6 reports with a specific Err.Number rather than the generic 5",
       "expected": {
         "unset-object": "a member access on an unset or Nothing object reference reports 91",
-        "missing-file": "Open and FileLen on a missing path report 53",
-        "collection-index": "a Collection index outside the valid range reports the documented number"
+        "missing-file": "Open, FileLen, Kill and FileDateTime on a missing path report 53",
+        "collection-index": "a Collection position outside the collection reports 9, while an unknown key stays 5"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
+        "tests/VB6.Compiler.Tests/DocumentedErrorNumberExecutionTests.cs",
         "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs",
         "tests/VB6.Runtime.Tests/RuntimeTests.cs"
       ]

@@ -46,15 +46,15 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1337 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1341 Tests, alle grün** in 13
 Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1337 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1341 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **69 implemented**, **8 partial** und **41 planned**;
-**77/118 documented-verified** (Stand 2026-08-31).
+**118 Erwartungen**, davon **70 implemented**, **8 partial** und **40 planned**;
+**78/118 documented-verified** (Stand 2026-08-31).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah. Das
 vollständige Befundregister mit Ist- und Sollwerten steht in
@@ -254,8 +254,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
       Diagnosen ebenfalls geschlossen. Als nächste offene Implementierungskarte folgt
       `s2-documented-runtime-error-numbers`. Die derzeit 118 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (69 `implemented`, 8 `partial`, 41 `planned`;
-      77 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
+      maschinenprüfbare Statusachsen (70 `implemented`, 8 `partial`, 40 `planned`;
+      78 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
       danach VISIA und weitere Legacy-Projekte.
@@ -307,7 +307,9 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [ ] `Dim x As New C` erzeugt eifrig statt bei der ersten Verwendung, und `Class_Terminate`
       feuert nie — weder bei `Set o = Nothing` noch beim Verlassen des Gültigkeitsbereichs.
       Deterministische Lebensdauer auf einer GC-Laufzeit ist eine offene Architekturfrage.
-- [ ] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **5** statt **91**.
+- [x] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **91**, früh wie
+      spät gebunden. Die Zuordnung ist bewusst breit: sie trifft jeden Null-Zugriff, weil VB6
+      an dieser Stelle 91 meldet und der vorherige Sammelwert 5 dasselbe verdeckte.
 - [ ] Adressierbare x86-Speicherzellen schließen `VarPtr`, `StrPtr`, `ObjPtr`, `AddressOf`, `LSet`
       und native ByRef-Übergaben, ohne alle Variablen pauschal zu pinnen.
 
@@ -320,9 +322,12 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [ ] Acht Standardfunktionen sind überhaupt nicht deklariert und melden `VB6S0005`:
       `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
       `Partition`, `CallByName`, `QBColor`.
-- [ ] `Open` und `FileLen` auf eine fehlende Datei melden **5** statt **53**; ein
-      `Collection`-Index ausserhalb des gültigen Bereichs meldet **5**, der Sollwert ist ohne
-      Orakel nicht entschieden.
+- [x] `Open`, `FileLen`, `Kill` und `FileDateTime` melden auf einem fehlenden Pfad **53**.
+      `Kill` lief vorher still durch und `FileDateTime` lieferte ein Datum, weil .NET an beiden
+      Stellen nicht wirft; die beiden brauchen deshalb eine eigene Existenzprüfung. Ein
+      `Collection`-Index ausserhalb der Sammlung meldet **9**, ein unbekannter Schlüssel
+      weiterhin **5**; die Position von `Add`s `Before`/`After` bleibt bewusst **5**, weil sie
+      dort ein ungültiges Argument ist und kein Subscript.
 - [ ] `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase` und `LCase` reichen `Null`
       nicht weiter, sondern melden **94**; sie sind als `String -> String` deklariert statt als
       `Variant -> Variant`.
