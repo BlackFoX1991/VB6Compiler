@@ -1119,7 +1119,51 @@ public static class VBDebug
         };
     }
 
-    public static void Print(object? value) => Console.WriteLine(Format(value));
+    /// <summary>The column width of one VB6 print zone, the step a comma separator advances to.</summary>
+    private const int PrintZoneWidth = 14;
+
+    private static int _lineLength;
+
+    public static void Print(object? value) => PrintValue(value, endLine: true, separator: 0);
+
+    /// <summary>
+    /// Writes one item of a Debug.Print output list. <paramref name="separator"/> is 0 for the
+    /// first item, 1 for a preceding semicolon and 2 for a preceding comma, which advances to the
+    /// next print zone. <paramref name="endLine"/> is false while a trailing separator holds the
+    /// line open, so the column state carries into the next statement.
+    /// </summary>
+    public static void PrintValue(object? value, bool endLine, int separator)
+    {
+        if (separator is < 0 or > 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(separator), "VB6 Print separators must be 0, 1 or 2.");
+        }
+
+        if (separator == 2)
+        {
+            Write(new string(' ', PrintZoneWidth - (_lineLength % PrintZoneWidth)));
+        }
+
+        Write(Format(value));
+        if (endLine)
+        {
+            Console.WriteLine();
+            _lineLength = 0;
+        }
+    }
+
+    /// <summary>Ends a Debug.Print statement that produced no output item of its own.</summary>
+    public static void PrintEmptyLine()
+    {
+        Console.WriteLine();
+        _lineLength = 0;
+    }
+
+    private static void Write(string text)
+    {
+        Console.Write(text);
+        _lineLength += text.Length;
+    }
 
     private static string FormatNumeric(string value) =>
         value.StartsWith("-", StringComparison.Ordinal) ? value : $" {value}";
