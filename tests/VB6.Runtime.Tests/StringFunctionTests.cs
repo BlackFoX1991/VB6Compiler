@@ -130,6 +130,40 @@ public sealed class StringFunctionTests
     }
 
     [TestMethod]
+    public void StrReverseAndFormatHelpers_RespectVb6ArgumentConventions()
+    {
+        Assert.AreEqual("cba", VBStrings.StrReverse("abc"));
+        Assert.AreEqual(
+            "1,234.50",
+            VBStrings.FormatNumber(1234.5d, -1, -2, -2, -2, VBCompatibilityProfile.Deterministic));
+        Assert.AreEqual(
+            ".50",
+            VBStrings.FormatNumber(0.5d, 2, 0, 0, 0, VBCompatibilityProfile.Deterministic));
+        Assert.AreEqual(
+            "(1,234.50)",
+            VBStrings.FormatNumber(-1234.5d, 2, -1, -1, -1, VBCompatibilityProfile.Deterministic));
+        Assert.AreEqual(
+            "$12.5",
+            VBStrings.FormatCurrency(12.5d, 1, -2, -2, -2, VBCompatibilityProfile.Deterministic));
+        Assert.AreEqual(
+            "12.5%",
+            VBStrings.FormatPercent(0.125d, 1, -2, -2, -2, VBCompatibilityProfile.Deterministic));
+        Assert.AreEqual(
+            "2020-01-02",
+            VBStrings.FormatDateTime(new DateTime(2020, 1, 2), 2, VBCompatibilityProfile.Deterministic));
+    }
+
+    [TestMethod]
+    public void Partition_ProducesFixedWidthRangesAndValidatesItsBounds()
+    {
+        Assert.AreEqual("10:19", VBStrings.Partition(17, 0, 99, 10));
+        Assert.AreEqual("  :-1", VBStrings.Partition(-1, 0, 99, 10));
+        Assert.AreEqual("100:  ", VBStrings.Partition(100, 0, 99, 10));
+        Assert.ThrowsException<VB6RuntimeErrorException>(() => VBStrings.Partition(1, -1, 9, 1));
+        Assert.ThrowsException<VB6RuntimeErrorException>(() => VBStrings.Partition(1, 0, 9, 0));
+    }
+
+    [TestMethod]
     public void StrConv_SupportsJapaneseWidthAndKanaFlags()
     {
         var original = CultureInfo.CurrentCulture;
