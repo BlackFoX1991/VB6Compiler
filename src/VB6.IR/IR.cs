@@ -509,6 +509,8 @@ public enum IrRuntimeMethod
     StringVariantGreaterOrEqual,
 
     DebugPrint,
+    DebugPrintValue,
+    DebugPrintEmptyLine,
     GraphicsLine,
     GraphicsLineOnTarget,
     EndProgram,

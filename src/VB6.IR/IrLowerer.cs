@@ -1228,10 +1228,46 @@ public static class IrLowerer
                     LowerSelect(select);
                     break;
                 case BoundDebugPrintStatement print:
-                    Emit(new IrEvaluateInstruction(Runtime(
-                        IrRuntimeMethod.DebugPrint,
-                        TypeSymbol.Error,
-                        LowerExpression(print.Expression))));
+                    var debugExpressions = print.Expressions.IsDefaultOrEmpty
+                        ? print.Expression is null
+                            ? Array.Empty<BoundExpression>()
+                            : new[] { print.Expression }
+                        : print.Expressions.ToArray();
+                    if (debugExpressions.Length == 0)
+                    {
+                        // A bare Debug.Print ends the current line; a lone trailing separator
+                        // leaves it open and produces nothing at all.
+                        if (print.Separators.IsDefaultOrEmpty)
+                        {
+                            Emit(new IrEvaluateInstruction(Runtime(
+                                IrRuntimeMethod.DebugPrintEmptyLine,
+                                TypeSymbol.Error)));
+                        }
+
+                        break;
+                    }
+
+                    if (debugExpressions.Length == 1 && print.Separators.IsDefaultOrEmpty)
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.DebugPrint,
+                            TypeSymbol.Error,
+                            LowerExpression(debugExpressions[0]))));
+                        break;
+                    }
+
+                    for (var index = 0; index < debugExpressions.Length; index++)
+                    {
+                        var debugSeparator = index == 0
+                            ? 0L
+                            : (long)print.Separators[index - 1] + 1L;
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.DebugPrintValue,
+                            TypeSymbol.Error,
+                            LowerExpression(debugExpressions[index]),
+                            new IrConstantExpression(index >= print.Separators.Length, TypeSymbol.Boolean),
+                            new IrConstantExpression(debugSeparator, TypeSymbol.Long))));
+                    }
                     break;
                 case BoundDebugAssertStatement:
                     // VB6 removes Debug.Assert calls from compiled executables. Keeping the
