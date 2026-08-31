@@ -46,15 +46,15 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1341 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1351 Tests, alle grün** in 13
 Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1341 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1351 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **70 implemented**, **8 partial** und **40 planned**;
-**78/118 documented-verified** (Stand 2026-08-31).
+**118 Erwartungen**, davon **71 implemented**, **8 partial** und **39 planned**;
+**79/118 documented-verified** (Stand 2026-08-31).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah. Das
 vollständige Befundregister mit Ist- und Sollwerten steht in
@@ -252,10 +252,11 @@ Rückgabematrix bleibt in Etappe B/C offen.
       in dieser Etappe sichtbar. Der Array-/UDT-Shape-Vertrag ist mit Rang-/Bounds-Erhalt,
       deterministischen UDT-Defaults und Shape-Diagnosen jetzt geschlossen; der Control-Flow- und
       Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
-      Diagnosen ebenfalls geschlossen. Als nächste offene Implementierungskarte folgt
-      `s2-documented-runtime-error-numbers`. Die derzeit 118 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (70 `implemented`, 8 `partial`, 40 `planned`;
-      78 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
+      Diagnosen ebenfalls geschlossen. Die acht zuvor fehlenden Standard-Intrinsics sind
+      ebenfalls implementiert; als nächste offene Implementierungskarte folgt
+      `l1-02-j-nested-error-resume`. Die derzeit 118 Erwartungen tragen getrennte,
+      maschinenprüfbare Statusachsen (71 `implemented`, 8 `partial`, 39 `planned`;
+      79 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
       danach VISIA und weitere Legacy-Projekte.
@@ -319,9 +320,9 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-, Screen-,
       Printer- und Clipboard-Verträge implementieren. Die Vollständigkeits-Erwartungen für
       `Format` und `Math` bleiben bis zur Schließung dieser Roadmap-Fläche `partial`.
-- [ ] Acht Standardfunktionen sind überhaupt nicht deklariert und melden `VB6S0005`:
-      `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
-      `Partition`, `CallByName`, `QBColor`.
+- [x] `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
+      `Partition`, `CallByName` und `QBColor` sind als Standard-Intrinsics deklariert und im
+      Managed-Pfad implementiert. `CallByName` verwendet den vorhandenen dynamischen Dispatch.
 - [x] `Open`, `FileLen`, `Kill` und `FileDateTime` melden auf einem fehlenden Pfad **53**.
       `Kill` lief vorher still durch und `FileDateTime` lieferte ein Datum, weil .NET an beiden
       Stellen nicht wirft; die beiden brauchen deshalb eine eigene Existenzprüfung. Ein
@@ -576,7 +577,9 @@ Blockstruktur, nicht mehr des Textgenerators.
 - [~] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt und
       fehlerstellenspezifischer `Resume Next`-Dispatcher stehen im Managed-Backend. Numerische
       Labels aktualisieren `Erl`; ein Fehler aus einem aktiven Handler wird nicht rekursiv in
-      denselben Handler geleitet, sondern an den Aufrufer weitergereicht. Offen bleiben weitere
+      denselben Handler geleitet, sondern an den Aufrufer weitergereicht. `Resume <Label>`
+      leert den aktiven Handlerzustand vor dem Sprung und meldet ohne aktiven Fehler 20.
+      Offen bleiben weitere
       verschachtelte Aufruf-/Resume-Matrixfälle und die abschließende dokumentationsbasierte
       VB6-SP6-Matrix. Die native LLVM-ABI ist ausgeschlossen.
 - [x] Quellpositionen: der Binder hängt `SourceLocation` referenziell an jede gebundene Anweisung,
