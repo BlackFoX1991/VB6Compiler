@@ -924,9 +924,17 @@ public sealed class Binder
 
         var locals = new Dictionary<string, LocalVariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        if (symbol.IsFunction)
+        // The function name is its own return storage, so it shares the scope with the module
+        // variables copied in above. A module variable of the same name is what VB6 reports as
+        // an ambiguous name; adding it blindly ends the compilation in an ArgumentException
+        // instead, which looks like a compiler defect rather than a source error.
+        if (symbol.IsFunction &&
+            !variables.TryAdd(symbol.Name, new ReturnValueSymbol(symbol.Name, symbol.ReturnType ?? TypeSymbol.Error)))
         {
-            variables.Add(symbol.Name, new ReturnValueSymbol(symbol.Name, symbol.ReturnType ?? TypeSymbol.Error));
+            Report(
+                "VB6S0073",
+                $"Name '{symbol.Name}' is ambiguous: a module-level variable of the same name is already declared.",
+                identifier.Span);
         }
 
         for (var index = 0; index < parameterSyntaxes.Length; index++)
@@ -1425,8 +1433,7 @@ public sealed class Binder
             WithStatementSyntax withStatement => BindWith(withStatement, variables, procedures),
             ExitStatementSyntax exitStatement => BindExit(exitStatement),
             SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
-            DebugPrintStatementSyntax debugPrint =>
-                new BoundDebugPrintStatement(BindExpression(debugPrint.Expression, variables, procedures)),
+            DebugPrintStatementSyntax debugPrint => BindDebugPrint(debugPrint, variables, procedures),
             DebugAssertStatementSyntax debugAssert =>
                 new BoundDebugAssertStatement(BindConversion(
                     BindExpression(debugAssert.Expression, variables, procedures),
@@ -1697,6 +1704,36 @@ public sealed class Binder
             recordLength,
             sharing.Value,
             access.Value);
+    }
+
+    /// <summary>
+    /// Debug.Print carries the same output list as Print #: any number of expressions joined by
+    /// <c>;</c> or <c>,</c>, with a trailing separator holding the line open.
+    /// </summary>
+    private BoundStatement BindDebugPrint(
+        DebugPrintStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var expressions = syntax.Expressions.IsDefaultOrEmpty
+            ? syntax.Expression is null
+                ? ImmutableArray<BoundExpression>.Empty
+                : ImmutableArray.Create(BindExpression(syntax.Expression, variables, procedures))
+            : syntax.Expressions
+                .Select(expression => BindExpression(expression, variables, procedures))
+                .ToImmutableArray();
+        var separators = syntax.Separators.IsDefaultOrEmpty
+            ? ImmutableArray<BoundFilePrintSeparator>.Empty
+            : syntax.Separators
+                .Select(separator => separator.Kind == SyntaxKind.SemicolonToken
+                    ? BoundFilePrintSeparator.Semicolon
+                    : BoundFilePrintSeparator.Comma)
+                .ToImmutableArray();
+
+        return new BoundDebugPrintStatement(
+            expressions.Length == 0 ? null : expressions[0],
+            expressions,
+            separators);
     }
 
     private BoundStatement BindFilePrint(
@@ -4365,6 +4402,10 @@ public sealed class Binder
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Double),
             SyntaxKind.StringLiteralToken =>
                 new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.String),
+            // The lexer already resolved the literal text to an OLE automation date, which is
+            // how a Date constant travels through lowering and emit.
+            SyntaxKind.DateLiteralToken =>
+                new BoundLiteralExpression(syntax.LiteralToken.Value, TypeSymbol.Date),
             SyntaxKind.TrueKeyword =>
                 new BoundLiteralExpression(true, TypeSymbol.Boolean),
             SyntaxKind.FalseKeyword =>

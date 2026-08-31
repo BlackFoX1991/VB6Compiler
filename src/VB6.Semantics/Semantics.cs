@@ -658,7 +658,10 @@ public sealed record BoundSelectCaseStatement(
     public bool UseTextCompare { get; init; }
 }
 
-public sealed record BoundDebugPrintStatement(BoundExpression Expression)
+public sealed record BoundDebugPrintStatement(
+    BoundExpression? Expression,
+    ImmutableArray<BoundExpression> Expressions = default,
+    ImmutableArray<BoundFilePrintSeparator> Separators = default)
     : BoundStatement(BoundNodeKind.DebugPrintStatement);
 
 public sealed record BoundDebugAssertStatement(BoundExpression Expression)
