@@ -1197,4 +1197,107 @@ public sealed class ClassInstanceExecutionTests
             }
         }
     }
+
+    /// <summary>
+    /// Ein <c>Public</c>-Feld ist echter Speicher und wird als CLR-Feld emittiert. Der
+    /// Laufzeitdispatch durchsuchte aber nur Methoden und Properties, also meldete ein spaet
+    /// gebundenes <c>o.N</c> den Fehler 438, obwohl das Feld direkt danebenliegt. Ein
+    /// <c>Private</c>-Feld bleibt unsichtbar: der Emitter gibt ihm CLR-private Sichtbarkeit,
+    /// waehrend ein Public-Feld assemblysichtbar wird -- das CLR-Attribut traegt den VB6-Vertrag.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_ResolvesPublicClassFieldsLateBound()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerClassInstanceTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "LateBound.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="LateBound"
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Public N As Long
+                Public S As String
+                Public Nums(1 To 3) As Long
+                Public Obj As Object
+                Private hidden As Long
+
+                Public Function Twice(ByVal value As Long) As Long
+                    Twice = value * 2
+                End Function
+
+                Public Property Get Real() As Long
+                    Real = 99
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim o As Object
+                    Dim c As Bag
+                    Dim v As Variant
+
+                    Set c = New Bag
+                    Set o = c
+
+                    o.N = 5
+                    Debug.Print o.N & "/" & c.N
+
+                    o.S = "hallo"
+                    Debug.Print o.S
+
+                    o.Nums(2) = 7
+                    Debug.Print o.Nums(2) & "/" & c.Nums(2)
+
+                    Set o.Obj = New Collection
+                    o.Obj.Add "x"
+                    Debug.Print o.Obj.Count
+
+                    With o
+                        .N = 8
+                        Debug.Print .N
+                    End With
+
+                    Set v = c
+                    v.N = 4
+                    Debug.Print v.N
+
+                    Debug.Print o.Twice(21)
+                    Debug.Print o.Real
+
+                    On Error Resume Next
+                    Debug.Print o.hidden
+                    Debug.Print Err.Number
+                    Err.Clear
+                    Debug.Print o.Fehlt
+                    Debug.Print Err.Number
+                End Sub
+                """);
+
+            // Die beiden 438 am Ende sind die Gegenproben: ein privates Feld bleibt von aussen
+            // unerreichbar, und ein gaenzlich unbekanntes Mitglied meldet unveraendert 438.
+            CollectionAssert.AreEqual(
+                new[] { "5/5", "hallo", "7/7", "1", "8", "4", "42", "99", "438", "438" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
