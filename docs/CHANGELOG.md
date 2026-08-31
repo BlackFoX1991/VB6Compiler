@@ -3870,3 +3870,58 @@ Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1326/1326** Tes
 Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
 Matrixzahlen bleiben bei **68 implemented, 9 partial, 41 planned von 118 | 77/118
 documented-verified**.
+
+## Fixed-length Strings in allen Deklarationsformen (31.08.2026)
+
+Karte `S1`, Teil A4 aus dem Befundregister. Im Register stand „`Public S As String * 5` in
+`.cls` ist ein Parserfehler" — also ein Klassenproblem. Die Vorabmessung nach §11 über 14 Fälle
+hat den Zuschnitt korrigiert: `String * n` wurde **überall** abgelehnt außer als UDT-Member.
+Auch `Dim S As String * 5` in einer Prozedur und `Public S As String * 5` in einer `.bas` waren
+Parserfehler, weil der Parser die Form nur in `ParseTypeDeclaration` kannte. Die Karte war keine
+Klassenkarte, sondern eine Deklarationskarte.
+
+Die Reparatur braucht je Schicht genau eine Stelle, weil `Dim`, `Static`, `ReDim` und jede
+Modulform durch `ParseVariableDeclarators` beziehungsweise `ResolveVariableDeclaratorType`
+laufen. `VariableDeclaratorSyntax` trägt jetzt `StarToken` und `FixedStringLength` in derselben
+Form wie `TypeMemberSyntax`. Die Längenprüfung im Binder ist bewusst identisch mit der des
+UDT-Members: `VB6S0042` für einen Nicht-String-Typ, `VB6S0043` für eine Länge außerhalb der
+Literal-Teilmenge, `VB6S0044` für eine Länge außerhalb von 1 bis 65526 — dieselben Codes auf
+dieselbe Eingabe, damit die beiden Deklarationswege nicht auseinanderlaufen.
+
+**Unter der Parser-Lücke saßen zwei weitere Defekte, die erst danach sichtbar wurden.** Genau
+das Muster aus §13: Ein besseres Fehlerbild legt ein schlechteres Verhalten frei, und wer nach
+der ersten Reparatur aufhört, hinterlässt „läuft durch, liefert falsch".
+
+1. **Kein Auffüllen bei einfacher Zuweisung.** `S = "ab"` bei `String * 5` ergab `[ab]` statt
+   `[ab   ]`. `BoundArrayElementAssignmentStatement` und `BoundMemberAssignmentStatement` liefen
+   längst über `LowerFixedStringWrite`, `BoundAssignmentStatement` nicht.
+2. **Falscher Anfangswert.** Ein `String * 4` ist in VB6 vier Leerzeichen. Nur das UDT-Member
+   war korrekt; `InitializeVariableDeclaration`, `EmitModuleInitializers` und
+   `LowerClassConstructor` prüften alle drei auf `TypeSymbol.String` und ließen den
+   Fixed-Length-Typ durchfallen. `NeedsModuleInitialization` schloss ihn ebenfalls aus, sodass
+   für eine Modulvariable gar kein Initialisierer entstand.
+
+Gemessene Endlage über 14 Fälle, alle korrekt: Anfangswert einheitlich vier Leerzeichen über
+Local, Modulvariable, Klassenfeld und UDT-Member; Abschneiden beim Überschreiten und Auffüllen
+beim Unterschreiten; Vergleich gegen den aufgefüllten Wert liefert `True`; Verkettung behält die
+Breite; Arrays von `String * n` und private Klassenfelder verhalten sich gleich.
+
+**Zwei Befunde nach §9 gemeldet statt nebenbei geändert:**
+
+- Eine **benannte Konstante als Länge** (`String * Breite`) meldet `VB6S0043`. Das ist dieselbe
+  Teilmengenbeschränkung, die das UDT-Member schon trug. Sie wurde bewusst gespiegelt statt
+  einseitig erweitert; beide Formen gemeinsam zu öffnen ist eine eigene Karte.
+- **`String * 4` an einen `ByRef s As String`** meldet `VB6S0008`. Echtes VB6 erlaubt die
+  Übergabe mit Copy-in/Copy-out. Die Typstrenge bei ByRef ist aber eine ausdrücklich
+  dokumentierte Entscheidung dieses Projekts, und nach §12 wird ein benannter Vertrag nicht
+  ohne Ansage aufgeweicht. Der Zielkonflikt steht jetzt in Roadmap-Etappe B.
+
+Von `S1` bleibt damit nur noch `late-bound`: `VBDynamicDispatch` sucht Methoden und Properties,
+aber keine Felder, deshalb findet `Dim o As Object : o.N = 5` ein öffentliches Klassenfeld gar
+nicht. Die Erwartung bleibt bis dahin `partial`.
+
+Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1332/1332** Tests, **0** Fehler,
+Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Ein separater
+Lauf ohne die neuen Tests, nur mit den `src/`-Änderungen, blieb vorher bei **1326/1326** grün —
+die vier Schichtänderungen erzeugen keine Regression. Die Matrixzahlen bleiben bei **68
+implemented, 9 partial, 41 planned von 118 | 77/118 documented-verified**.
