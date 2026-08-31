@@ -3925,3 +3925,59 @@ Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items.
 Lauf ohne die neuen Tests, nur mit den `src/`-Änderungen, blieb vorher bei **1326/1326** grün —
 die vier Schichtänderungen erzeugen keine Regression. Die Matrixzahlen bleiben bei **68
 implemented, 9 partial, 41 planned von 118 | 77/118 documented-verified**.
+
+## UDT-Arraygrenzen falten Konstanten und melden, was nicht faltet (31.08.2026)
+
+Kein Eintrag aus dem Breitendurchgang. Der Befund fiel bei der Vorabmessung zu einer ganz
+anderen Frage an — ob eine benannte Konstante als `String * n`-Länge zugelassen werden soll —
+und war deutlich schwerer als die Frage, die ihn ausgelöst hat.
+
+In einem `Type`-Block funktionierten als Arraygrenze **ausschließlich nackte Integer-Literale**.
+Jede andere Form stürzte zur Laufzeit ab, ohne dass der Compiler etwas meldete: konstante
+Arithmetik, eine benannte Konstante, eine Konstante als Untergrenze, eine mehrdimensionale
+Deklaration mit einem Ausdruck. Auch die beiden Formen, die garantiert Fehler sind — eine
+Variable als Grenze und eine Obergrenze unter der Untergrenze — kamen als Absturz statt als
+Diagnose heraus.
+
+Die Ursache war eine stille Rückgabe. Schlug `TryEvaluateIntegerConstant` fehl, lieferte
+`BindArrayBounds` eine **leere** Grenzenliste zurück, ohne zu melden. Das Member bekam keinen
+Speicher, das Array wurde nie angelegt, und der erste Zugriff riss das Programm mit einer
+`NullReferenceException` ab.
+
+Zur Abgrenzung gegen die Smart-App-Control-Falle in `CLAUDE.md`: Die gemessenen Exitcodes waren
+`-1073741819` (0xC0000005, `NullReferenceException`) beziehungsweise `-532462766` bei
+`a(5 To 1)`, jeweils mit ausgeschriebener Ausnahme in der Ausgabe des Kindprozesses. Echte
+Defekte, kein blockiertes Assembly.
+
+Warum der UDT-Binder überhaupt einen eigenen Falter hat: Ein UDT-Member hat ein festes Layout,
+seine Grenzen müssen zur Übersetzungszeit feststehen. Ein gewöhnliches `Dim a(1 To Breite * 2)`
+wertet seine Grenzen dagegen zur Laufzeit aus und kommt ohne Falter aus — deshalb lief es die
+ganze Zeit korrekt, während dieselbe Schreibweise im `Type` abstürzte.
+
+Zwei Verhaltensänderungen, beide in `UserDefinedTypeDeclarationBinder`:
+
+1. **Der Falter beherrscht, was VB6 an dieser Stelle erlaubt.** Benannte Konstanten unabhängig
+   von der Deklarationsreihenfolge — sie werden als Fixpunkt gesammelt, bevor ein Member
+   aufgelöst wird, sodass ein `Type` eine weiter unten stehende Konstante verwenden darf und
+   eine Konstante sich auf eine weiter unten stehende beziehen darf — sowie `+`, `-`, `*` und
+   `\`, verschachtelt und mit `checked`-Überlaufprüfung. Eine Konstante ohne `As`-Typ zählt mit.
+2. **Was nicht faltet, wird gemeldet.** Neu `VB6S0071` für eine nicht-konstante Grenze und
+   `VB6S0072` für eine Obergrenze unter der Untergrenze. Beide Codes tragen Positivassertions,
+   wie die Regel für neue Diagnose-Codes es verlangt.
+
+Gegenproben unverändert: Ein gewöhnliches `Dim` mit demselben Ausdruck läuft weiter, und ein
+verschachteltes UDT-Arrayfeld verhält sich wie zuvor.
+
+**Bewusst nicht mitgenommen:** Die Breite eines `String * n` hängt am selben Falter, hat aber
+ihre eigene Literal-only-Prüfung — und zwar in **zwei** Pfaden: `BindFixedStringLength` für das
+UDT-Member und `ResolveFixedLengthStringType` für den Deklarator. Nur die UDT-Seite zu öffnen
+hätte die beiden Deklarationsformen wieder auseinanderlaufen lassen, was beim Fixed-String-Schritt
+zuvor gerade bewusst vermieden wurde. `String * Breite` meldet deshalb weiterhin in beiden Formen
+`VB6S0043`; die Umstellung beider Stellen auf den Falter ist eine eigene Karte und jetzt
+vorbereitet.
+
+Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1336/1336** Tests, **0** Fehler,
+Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Ein separater
+Lauf nur mit der Binder-Änderung, ohne die neuen Tests, blieb vorher bei **1332/1332** grün. Die
+Matrixzahlen bleiben bei **68 implemented, 9 partial, 41 planned von 118 | 77/118
+documented-verified**.
