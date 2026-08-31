@@ -4107,3 +4107,26 @@ Matrix steht auf **71 implemented, 8 partial, 39 planned von 118 | 79/118
 documented-verified**.
 
 Naechste offene Karte ist `l1-02-j` (`l1-02-j-nested-error-resume`).
+
+## Bare Resume verliess eine geschuetzte Region (31.08.2026)
+
+Ein Konstrukt-Sweep ueber 116 generierte Programme hat einen Defekt aus dem S3-Block
+gefunden, den weder die Suite noch der VISIA-Korpus sah: Unter `On Error Resume Next`
+umschloss der Lowerer auch ein blankes `Resume` beziehungsweise `Resume Next` mit einer
+eigenen geschuetzten Region. Beide verlassen die Prozedur ueber den Resume-Dispatch-Switch,
+und ein Switch aus einer geschuetzten Region heraus ist kein gueltiges `leave` -- die
+emittierte Methode scheiterte an der Verifikation mit `InvalidProgramException` statt zu
+laufen. Nur `Resume <Label>` darf die Region tragen; dort endet sie vor dem Sprung.
+
+Die Suite war mit und ohne den Defekt gruen, weil kein Test ein blankes `Resume Next` unter
+`On Error Resume Next` ausfuehrte und VISIA die Form nicht enthaelt. `Lower_DoesNotWrap
+ABareResumeNextInAProtectedRegion` schliesst die Luecke auf IR-Ebene und ist ohne den Fix rot.
+
+Derselbe Sweep hat drei vorbestehende Luecken protokolliert, die noch offen sind:
+`Debug.Print` nimmt nur einen Ausdruck an (`;` und `,` sind Parserfehler), Datumsliterale
+`#1/2/2000#` werden nicht geparst, und ein `Property Get`/`Property Set`-Paar gleichen Namens
+laesst den Compiler mit einer unbehandelten `ArgumentException` abstuerzen statt zu melden.
+
+Kanonischer Nachweis: **1352/1352** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix bleibt unveraendert bei **71 implemented, 8 partial,
+39 planned von 118 | 79/118 documented-verified**.
