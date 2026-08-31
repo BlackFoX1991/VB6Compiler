@@ -21,7 +21,7 @@ public sealed class CurrencyLiteralBinderTests
         Assert.AreEqual(0, model.Diagnostics.Length);
 
         var print = (BoundDebugPrintStatement)model.Procedures.Single().Body.Statements.Single();
-        var literal = (BoundLiteralExpression)print.Expression;
+        var literal = (BoundLiteralExpression)print.Expression!;
         Assert.AreEqual(TypeSymbol.Currency, literal.Type);
         Assert.AreEqual(12.3456m, (decimal)literal.Value!);
     }

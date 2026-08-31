@@ -43,17 +43,17 @@ public sealed class CurrencyTypeBinderTests
         Assert.AreEqual(0, model.Diagnostics.Length);
         var statements = model.Procedures.Single().Body.Statements;
 
-        var add = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[2]).Expression;
+        var add = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[2]).Expression!;
         Assert.AreEqual(TypeSymbol.Currency, add.Type);
         Assert.AreEqual(TypeSymbol.Currency, add.Left.Type);
         Assert.AreEqual(TypeSymbol.Currency, add.Right.Type);
 
-        var divide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[3]).Expression;
+        var divide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[3]).Expression!;
         Assert.AreEqual(TypeSymbol.Double, divide.Type);
         Assert.AreEqual(TypeSymbol.Double, divide.Left.Type);
         Assert.AreEqual(TypeSymbol.Double, divide.Right.Type);
 
-        var integerDivide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[4]).Expression;
+        var integerDivide = (BoundBinaryExpression)((BoundDebugPrintStatement)statements[4]).Expression!;
         Assert.AreEqual(TypeSymbol.Long, integerDivide.Type);
         Assert.AreEqual(TypeSymbol.Long, integerDivide.Left.Type);
         Assert.AreEqual(TypeSymbol.Long, integerDivide.Right.Type);

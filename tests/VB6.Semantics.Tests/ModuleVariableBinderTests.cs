@@ -59,7 +59,7 @@ public sealed class ModuleVariableBinderTests
 
         Assert.AreEqual(0, model.Diagnostics.Length);
         var print = (BoundDebugPrintStatement)model.Procedures.Single().Body.Statements[0];
-        var variable = (BoundVariableExpression)print.Expression;
+        var variable = (BoundVariableExpression)print.Expression!;
         Assert.IsInstanceOfType<ParameterSymbol>(variable.Variable);
     }
 
