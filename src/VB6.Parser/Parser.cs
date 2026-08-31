@@ -476,6 +476,18 @@ public sealed class Parser
                 typeToken = typeName.FirstToken;
             }
 
+            // A fixed-length String carries its width after the type: Dim S As String * 5. The
+            // width is an expression because VB6 accepts a named constant there, not only a
+            // literal. Parsing it here covers Dim, Static and every module-level declaration,
+            // which all share this declarator list.
+            SyntaxToken? starToken = null;
+            ExpressionSyntax? fixedStringLength = null;
+            if (asKeyword is not null && Current.Kind == SyntaxKind.StarToken)
+            {
+                starToken = NextToken();
+                fixedStringLength = ParseExpression();
+            }
+
             SyntaxToken? commaToken = null;
             if (Current.Kind == SyntaxKind.CommaToken)
             {
@@ -491,7 +503,9 @@ public sealed class Parser
                 typeToken,
                 commaToken,
                 typeName,
-                newKeyword));
+                newKeyword,
+                starToken,
+                fixedStringLength));
             if (commaToken is null)
             {
                 break;

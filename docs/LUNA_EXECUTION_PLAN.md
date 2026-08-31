@@ -12,7 +12,7 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1326/1326 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1332/1332 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
@@ -24,10 +24,10 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
   ohne jede Diagnose liefert; nach §13 hat „still falsch" Vorrang. Die Reihenfolge lautet
   **S1 → S2 → S3 → `l1-02-j`**. Begründung und Messwerte im Befundregister weiter unten.
   `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst `partial`.
-- **Innerhalb von `S1` sind `byref`, `set` und `array` erledigt.** Offen sind
-  `fixed-string` (A4, `Public S As String * 5` ist ein Parserfehler) und `late-bound`
-  (`VBDynamicDispatch` findet ein öffentliches Feld nicht). Beide Teile gehören zur selben
-  Karte, weil sie dieselbe Ursache teilen; `S1` bleibt bis dahin `partial`.
+- **Innerhalb von `S1` sind `byref`, `set`, `array` und `fixed-string` erledigt.** Offen ist
+  nur noch `late-bound`: `VBDynamicDispatch` sucht Methoden und Properties, aber keine Felder,
+  deshalb findet `Dim o As Object : o.N = 5` ein öffentliches Klassenfeld gar nicht. `S1`
+  bleibt bis dahin `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
   `l1-02-n` materialisiert. Die erste Karte `L1-02-A` hat ihren Modul-Sichtbarkeits-Slice
   (`Public`/`Global` versus `Private`/`Dim`) implementiert und steht deshalb auf `partial`;
@@ -416,7 +416,7 @@ auf ein `IrFieldPlace` ab — alles andere fällt durch.
 | A1 | `Bump c.N` mit `ByRef`-Parameter | ~~5~~ → **6** | 6 | **behoben am 30.08.2026** |
 | A2 | `Set c.ObjFeld = New Collection` | ~~`VB6S0064`~~ → läuft | funktioniert | **behoben am 30.08.2026** |
 | A3 | `c.Nums(1)` bei `Public Nums() As Long` | ~~`VB6S0006`~~ → läuft | funktioniert | **behoben am 31.08.2026** |
-| A4 | `Public S As String * 5` in `.cls` | `VB6P0001` (Parser) | funktioniert | meldet |
+| A4 | `Public S As String * 5` in `.cls` | ~~`VB6P0001`~~ → läuft | funktioniert | **behoben am 31.08.2026** |
 
 **A1 ist der gefährlichste Befund des ganzen Durchgangs**: falsches Ergebnis ohne Diagnose.
 Gegenprobe: ByRef-Rückschreiben funktioniert für lokale Variablen, `Global`-Variablen,
@@ -469,7 +469,44 @@ Gegenproben nach §13, alle unverändert: eine echte indizierte `Property Get` b
 Index meldet weiterhin `VB6S0006`, ein falscher Rang meldet `VB6S0027`, und das Feld von innen
 über eine Methode funktioniert weiter.
 
-**A4 bleibt offen:** Der Parser nimmt `String * n` als Klassenmember nicht an.
+**A4 ist behoben — und war deutlich breiter als notiert.** Im Register stand „Klassenmember".
+Die Vorabmessung über 14 Fälle hat gezeigt: `String * n` wurde **überall** abgelehnt außer als
+UDT-Member. Auch `Dim S As String * 5` in einer Prozedur und `Public S As String * 5` in einer
+`.bas` waren Parserfehler; der Parser kannte die Form nur in `ParseTypeDeclaration`. Die Karte
+war damit keine Klassenkarte, sondern eine Deklarationskarte.
+
+Die Reparatur liegt an einer Stelle je Schicht, weil alle vier Deklarationsformen — `Dim`,
+`Static`, `ReDim` und jede Modulform — durch `ParseVariableDeclarators` beziehungsweise
+`ResolveVariableDeclaratorType` laufen. `VariableDeclaratorSyntax` trägt jetzt `StarToken` und
+`FixedStringLength` in derselben Form wie `TypeMemberSyntax`, und die Längenprüfung im Binder ist
+bewusst identisch mit der des UDT-Members: dieselben Codes `VB6S0042`/`VB6S0043`/`VB6S0044` auf
+dieselbe Eingabe.
+
+**Darunter saßen zwei weitere Defekte, die erst nach der Parser-Reparatur sichtbar wurden** —
+das Muster aus §13, dass ein besseres Fehlerbild ein schlechteres Verhalten freilegt:
+
+1. **Kein Auffüllen bei einfacher Zuweisung.** `S = "ab"` bei `String * 5` ergab `[ab]` statt
+   `[ab   ]`. Array-Elemente und UDT-Member liefen längst über `LowerFixedStringWrite`, die
+   Zuweisung an eine einfache Variable nicht.
+2. **Falscher Anfangswert.** Ein `String * 4` ist in VB6 vier Leerzeichen. Nur das UDT-Member
+   war korrekt; Local, Modulvariable und Klassenfeld lieferten alle Länge 0.
+
+Gemessene Endlage über 14 Fälle: Anfangswert einheitlich `[    ]` mit Länge 4 über Local,
+Modulvariable, Klassenfeld und UDT-Member; Abschneiden und Auffüllen korrekt; Vergleich gegen
+den aufgefüllten Wert `True`; Verkettung behält die Breite; Arrays von `String * n` und private
+Felder ebenfalls korrekt.
+
+**Zwei Befunde nach §9 gemeldet statt nebenbei geändert:**
+
+- Eine **benannte Konstante als Länge** (`String * Breite`) meldet `VB6S0043`. Das ist dieselbe
+  Teilmengenbeschränkung, die das UDT-Member schon trug; sie wurde bewusst gespiegelt statt
+  einseitig erweitert. Beide Formen gemeinsam zu öffnen ist eine eigene Karte.
+- **`String * 4` an einen `ByRef s As String`** meldet `VB6S0008`. Echtes VB6 erlaubt das mit
+  Copy-in/Copy-out. Die Typstrenge bei ByRef ist aber eine ausdrücklich dokumentierte
+  Entscheidung dieses Projekts — nach §12 wird sie nicht ohne Ansage aufgeweicht.
+
+**Damit bleibt von `S1` nur noch `late-bound`:** `VBDynamicDispatch` sucht Methoden und
+Properties, aber keine Felder.
 
 **Neuer Befund aus der Gegenprobe (Grenze 4, Deklarationsform):** Ein **echtes**
 `Property Get Nums() As Long()`, also eine deklarierte Property mit Array-Rückgabetyp, kann

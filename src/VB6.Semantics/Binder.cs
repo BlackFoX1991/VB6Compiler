@@ -710,12 +710,58 @@ public sealed class Binder
         }
 
         var elementType = ResolveDeclaredType(declarator.TypeToken, declarator.TypeName);
+        if (declarator.IsFixedLengthString && elementType != TypeSymbol.Error)
+        {
+            elementType = ResolveFixedLengthStringType(declarator, elementType);
+        }
+
         var type = !declarator.IsArray || elementType == TypeSymbol.Error
             ? elementType
             : declarator.Dimensions.IsDefaultOrEmpty
             ? new ArrayTypeSymbol(elementType)
             : new ArrayTypeSymbol(elementType, declarator.Dimensions.Length);
         return ValidateImplicitObjectType(declarator, type);
+    }
+
+    /// <summary>
+    /// Turns <c>As String * n</c> into a fixed-width String type. The accepted length is the same
+    /// subset a user-defined type member allows - an integer literal - so both declaration forms
+    /// report the identical diagnostics for the identical input.
+    /// </summary>
+    private TypeSymbol ResolveFixedLengthStringType(VariableDeclaratorSyntax declarator, TypeSymbol elementType)
+    {
+        if (elementType != TypeSymbol.String)
+        {
+            Report(
+                "VB6S0042",
+                $"Fixed-length declaration for member '{declarator.Identifier.Text}' requires String.",
+                declarator.TypeToken!.Span);
+            return TypeSymbol.Error;
+        }
+
+        if (declarator.FixedStringLength is not LiteralExpressionSyntax literal ||
+            literal.LiteralToken.Kind != SyntaxKind.IntegerLiteralToken)
+        {
+            Report(
+                "VB6S0043",
+                $"Fixed-length String member '{declarator.Identifier.Text}' requires an integer constant " +
+                "length in the current compiler subset.",
+                declarator.StarToken?.Span ?? declarator.Identifier.Span);
+            return TypeSymbol.Error;
+        }
+
+        var length = Convert.ToInt64(literal.LiteralToken.Value, CultureInfo.InvariantCulture);
+        if (length is < 1 or > 65526)
+        {
+            Report(
+                "VB6S0044",
+                $"Fixed-length String member '{declarator.Identifier.Text}' must contain between 1 and " +
+                "65526 characters.",
+                literal.LiteralToken.Span);
+            return TypeSymbol.Error;
+        }
+
+        return new FixedLengthStringTypeSymbol(checked((int)length));
     }
 
     private static bool IsPublicModuleDeclaration(SyntaxToken? visibilityKeyword) =>

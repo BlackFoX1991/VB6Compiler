@@ -211,4 +211,148 @@ public sealed class FixedLengthStringUdtExecutionTests
 
         CollectionAssert.AreEqual(new[] { "42", "99" }, output);
     }
+
+    /// <summary>
+    /// <c>String * n</c> war bisher nur als UDT-Member zugelassen; als lokale, Modul- oder
+    /// Klassenvariable war es ein Parserfehler. Jetzt tragen alle vier Deklarationsformen
+    /// dieselbe feste Breite: Anfangswert sind n Leerzeichen, ein zu langer Wert wird
+    /// abgeschnitten, ein zu kurzer aufgefuellt.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesFixedLengthStringVariables()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Public Modul As String * 4
+
+            Type Record
+                Feld As String * 4
+            End Type
+
+            Sub Main()
+                Dim lokal As String * 4
+                Dim satz As Record
+
+                Debug.Print "[" & lokal & "]" & Len(lokal)
+                Debug.Print "[" & Modul & "]" & Len(Modul)
+                Debug.Print "[" & satz.Feld & "]" & Len(satz.Feld)
+
+                lokal = "ab"
+                Modul = "ab"
+                Debug.Print "[" & lokal & "]" & Len(lokal)
+                Debug.Print "[" & Modul & "]" & Len(Modul)
+
+                lokal = "abcdefg"
+                Debug.Print "[" & lokal & "]" & Len(lokal)
+
+                Debug.Print (lokal = "abcd")
+                Debug.Print "[" & lokal & "x]"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "[    ]4", "[    ]4", "[    ]4",
+                "[ab  ]4", "[ab  ]4",
+                "[abcd]4",
+                "True",
+                "[abcdx]"
+            },
+            output);
+    }
+
+    /// <summary>
+    /// Dieselbe Breite gilt fuer ein Feld einer Klasse - gelesen und geschrieben von aussen wie
+    /// von innen - und fuer ein Array solcher Felder.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesFixedLengthStringClassFields()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerFixedStringTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "FixedStrings.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="FixedStrings"
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Public Tag As String * 4
+                Public Tags(1 To 2) As String * 4
+                Private hidden As String * 4
+
+                Public Function Poke() As String
+                    hidden = "z"
+                    Poke = "[" & hidden & "]" & Len(hidden)
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim c As Bag
+                    Set c = New Bag
+
+                    Debug.Print "[" & c.Tag & "]" & Len(c.Tag)
+
+                    c.Tag = "ab"
+                    Debug.Print "[" & c.Tag & "]" & Len(c.Tag)
+
+                    c.Tag = "abcdefg"
+                    Debug.Print "[" & c.Tag & "]" & Len(c.Tag)
+
+                    c.Tags(1) = "q"
+                    Debug.Print "[" & c.Tags(1) & "]" & Len(c.Tags(1))
+
+                    Debug.Print c.Poke()
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "[    ]4", "[ab  ]4", "[abcd]4", "[q   ]4", "[z   ]4" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Die Laengenpruefung ist dieselbe wie fuer ein UDT-Member, damit beide Deklarationsformen
+    /// auf dieselbe Eingabe dieselbe Diagnose melden. Eine benannte Konstante als Laenge bleibt
+    /// in beiden Formen ausserhalb der aktuellen Teilmenge.
+    /// </summary>
+    [TestMethod]
+    [DataRow("VB6S0042", "Dim value As Long * 5")]
+    [DataRow("VB6S0044", "Dim value As String * 0")]
+    [DataRow("VB6S0044", "Dim value As String * 70000")]
+    [DataRow("VB6S0043", "Const Breite As Long = 4" + "\n" + "    Dim value As String * Breite")]
+    public void Analyze_RejectsInvalidFixedLengthStringVariables(string code, string declaration)
+    {
+        var compilation = VBCompilation.Create(
+            string.Join(
+                Environment.NewLine,
+                "Sub Main()",
+                "    " + declaration.Replace("\n", Environment.NewLine, StringComparison.Ordinal),
+                "End Sub"),
+            "Module1.bas");
+
+        Assert.IsTrue(
+            compilation.Analyze().Diagnostics.Any(diagnostic => diagnostic.Code == code),
+            $"Expected {code}.");
+    }
 }

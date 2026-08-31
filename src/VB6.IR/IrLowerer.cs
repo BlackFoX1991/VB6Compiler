@@ -379,6 +379,12 @@ public static class IrLowerer
                                 variable.DesignerTypeName)));
                         AddDesignerInitializers(instructions, target, variable.DesignerInitializers);
                     }
+                    else if (variable.Symbol.Type is FixedLengthStringTypeSymbol fixedStringField)
+                    {
+                        instructions.Add(new IrStoreInstruction(
+                            target,
+                            ProcedureLowerer.FixedStringInitialValue(fixedStringField)));
+                    }
                     else if (variable.Symbol.Type == TypeSymbol.String)
                     {
                         instructions.Add(new IrStoreInstruction(
@@ -593,6 +599,7 @@ public static class IrLowerer
         private static bool NeedsModuleInitialization(BoundModuleVariable variable) =>
             !variable.IsConstant &&
             (variable.Symbol.Type == TypeSymbol.String ||
+             variable.Symbol.Type is FixedLengthStringTypeSymbol ||
              variable.Symbol.Type is ArrayTypeSymbol && !variable.ArrayDimensions.IsDefaultOrEmpty);
 
         /// <summary>The bound value of a module-level constant, which is substituted at each read.</summary>
@@ -1029,11 +1036,18 @@ public static class IrLowerer
                     // zero value is initialized once in the entry prologue, not at the Dim site.
                     break;
                 case BoundAssignmentStatement assignment:
+                {
+                    // Ein String * n behaelt seine Breite auch als einfache Variable: der
+                    // gespeicherte Wert wird abgeschnitten oder mit Leerzeichen aufgefuellt.
+                    // Array-Elemente und Member liefen schon darueber, Locals und
+                    // Modulvariablen bisher nicht.
+                    var variablePlace = LowerVariablePlace(assignment.Variable);
                     Emit(new IrStoreInstruction(
-                        LowerVariablePlace(assignment.Variable),
-                        LowerValueCopy(assignment.Expression)));
+                        variablePlace,
+                        LowerFixedStringWrite(variablePlace.Type, LowerValueCopy(assignment.Expression))));
                     LowerWithEventsSubscriptions(assignment.Variable);
                     break;
+                }
                 case BoundMidAssignmentStatement midAssignment:
                     LowerMidAssignment(midAssignment);
                     break;
@@ -1959,6 +1973,12 @@ public static class IrLowerer
                     continue;
                 }
 
+                if (variable.Symbol.Type is FixedLengthStringTypeSymbol fixedString)
+                {
+                    Emit(new IrStoreInstruction(target, FixedStringInitialValue(fixedString)));
+                    continue;
+                }
+
                 if (variable.Symbol.Type == TypeSymbol.String)
                 {
                     Emit(new IrStoreInstruction(
@@ -2078,11 +2098,24 @@ public static class IrLowerer
                 return;
             }
 
+            if (declaration.Variable.Type is FixedLengthStringTypeSymbol fixedString)
+            {
+                Emit(new IrStoreInstruction(target, FixedStringInitialValue(fixedString)));
+                return;
+            }
+
             if (declaration.Variable.Type == TypeSymbol.String)
             {
                 Emit(new IrStoreInstruction(target, new IrConstantExpression(string.Empty, TypeSymbol.String)));
             }
         }
+
+        /// <summary>
+        /// A <c>String * n</c> starts out as n spaces in VB6, not as the empty string. The width is
+        /// part of the type, so the storage is never narrower than it.
+        /// </summary>
+        internal static IrConstantExpression FixedStringInitialValue(FixedLengthStringTypeSymbol type) =>
+            new(new string(' ', type.Length), TypeSymbol.String);
 
         private void LowerReDim(BoundReDimStatement statement)
         {

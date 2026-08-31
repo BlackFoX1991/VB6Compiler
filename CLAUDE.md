@@ -273,9 +273,18 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Feld-Property jetzt von einem echten `Property Get`, und der Binder verzweigt darauf. **Der
   Marker ist die einzige Unterscheidung; die synthetisierte Property bleibt bewusst
   parameterlos.** Wer ihr Parameter gäbe, um Indizierung zu ermöglichen, macht sie von einer
-  echten indizierten Property ununterscheidbar. `Public S As String * 5` bleibt offen.
+  echten indizierten Property ununterscheidbar. `Public S As String * 5` ist inzwischen
+  ebenfalls behoben; offen bleibt nur der spät gebundene Zugriff.
   Gegenprobe: ByRef funktioniert über Locals, Globals, UDT-Member und Array-Elemente. Wer hier
   etwas anfasst, prüft alle vier Symptome.
+- **`String * n` hat vier Deklarationsformen und drei Stellen, die es tragen müssen.** Lokal,
+  Modulvariable, Klassenfeld und UDT-Member gehen durch `ParseVariableDeclarators` bzw.
+  `ResolveVariableDeclaratorType` — bis auf das UDT-Member, das seinen eigenen Pfad hat. Die
+  Breite ist erst vollständig, wenn **alle drei** Verhaltensweisen stimmen: Anfangswert *n*
+  Leerzeichen, Abschneiden beim Überschreiten, Auffüllen beim Unterschreiten. Genau daran ist
+  A4 zweimal hintereinander vorbeigelaufen: Nachdem der Parser die Deklaration annahm, fehlte
+  das Auffüllen bei einfacher Zuweisung, und danach fehlte noch der Anfangswert für alles außer
+  dem UDT-Member. Wer hier etwas anfasst, misst alle drei gegen das UDT-Member als Referenz.
 - **Fehlernummer 5 ist der Sammelwert für „nicht zugeordnet".** `VBErrors.Set` bildet jede
   unbekannte Ausnahme darauf ab, deshalb sieht ein falsches 5 wie ein Ergebnis aus. Beim
   Breitendurchgang waren fünf gemessene 5 falsch (richtig wären 6, 9, 13, 91, 94) und vier

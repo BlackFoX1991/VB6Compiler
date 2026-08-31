@@ -102,7 +102,9 @@ public sealed record ArrayDimensionSyntax(
 
 /// <summary>
 /// One variable inside a comma-separated declaration. VB6 applies <c>As Type</c> only to the
-/// declarator it follows. Array rank/bounds also belong to the individual declarator.
+/// declarator it follows. Array rank/bounds also belong to the individual declarator, and a
+/// <c>String * length</c> width is preserved separately from the declared String type - the same
+/// shape a user-defined type member uses.
 /// </summary>
 public sealed record VariableDeclaratorSyntax(
     SyntaxToken Identifier,
@@ -113,8 +115,12 @@ public sealed record VariableDeclaratorSyntax(
     SyntaxToken? TypeToken,
     SyntaxToken? CommaToken,
     TypeNameSyntax? TypeName = null,
-    SyntaxToken? NewKeyword = null) : SyntaxNode(SyntaxKind.VariableDeclarator)
+    SyntaxToken? NewKeyword = null,
+    SyntaxToken? StarToken = null,
+    ExpressionSyntax? FixedStringLength = null) : SyntaxNode(SyntaxKind.VariableDeclarator)
 {
+    public bool IsFixedLengthString => StarToken is not null;
+
     public VariableDeclaratorSyntax(
         SyntaxToken identifier,
         SyntaxToken? asKeyword,

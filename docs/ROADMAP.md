@@ -46,10 +46,10 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1326 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1332 Tests, alle grün** in 13
 Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1326 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1332 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
@@ -278,12 +278,16 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
       implementiert. Weitere verschachtelte Aufruf-/Resume-Matrixfälle bleiben offen.
 - [~] Ein `Public`-Feld einer Klasse ist echter Speicher, kein `Property Get`. `ByRef`-Rück-
-      schreiben, `Set` auf Objekt-/Variant-Felder und die Indizierung array-typisierter Felder
-      sind implementiert (`S1`) — Letzteres einschließlich `ReDim` von außen, `Me.Nums(i)` von
-      innen, mehrdimensionaler Felder und ByRef-Rückschreiben in ein Element. Offen bleiben
-      `String * n` als Klassenmember, das der Parser nicht annimmt, und ein **spät gebundener**
-      Zugriff auf ein solches Feld, der es gar nicht findet (`VBDynamicDispatch` sucht Methoden
-      und Properties, keine Felder).
+      schreiben, `Set` auf Objekt-/Variant-Felder, die Indizierung array-typisierter Felder und
+      `String * n` als Klassenmember sind implementiert (`S1`). Offen bleibt der **spät
+      gebundene** Zugriff auf ein solches Feld, der es gar nicht findet (`VBDynamicDispatch`
+      sucht Methoden und Properties, keine Felder).
+- [x] `String * n` gilt in allen vier Deklarationsformen — lokal, Modulvariable, Klassenfeld und
+      UDT-Member — mit einheitlicher Breite: *n* Leerzeichen als Anfangswert, Abschneiden beim
+      Überschreiten und Auffüllen beim Unterschreiten. Eine benannte Konstante als Länge bleibt
+      in allen Formen außerhalb der aktuellen Teilmenge (`VB6S0043`).
+- [ ] Ein `String * n` an einen `ByRef s As String` meldet `VB6S0008`; VB6 erlaubt die Übergabe
+      mit Copy-in/Copy-out. Der Zielkonflikt zur bewusst typstrengen ByRef-Regel ist offen.
 - [ ] Eine deklarierte `Property Get` mit Array-Rückgabetyp kann nicht indiziert werden;
       `c.Nums(1)` meldet `VB6S0006`, statt die Property zu rufen und ihr Ergebnis zu indizieren.
 - [ ] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liefert aus dem
