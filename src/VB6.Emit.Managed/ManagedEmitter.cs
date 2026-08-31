@@ -561,15 +561,29 @@ public sealed class ManagedEmitter
                         typeof(VBGoSub),
                         nameof(VBGoSub.Enter))));
                     encoder.Branch(ILOpCode.Br, blockLabels[entry.Id]);
-                    var errorBoundaries = procedure.Blocks
+                    var boundaryStarts = procedure.Blocks
                         .SelectMany(block => block.Instructions)
                         .OfType<IrErrorBoundaryStartInstruction>()
+                        .ToArray();
+                    var boundaryEnds = procedure.Blocks
+                        .SelectMany(block => block.Instructions)
+                        .OfType<IrErrorBoundaryEndInstruction>()
+                        .ToArray();
+                    if (boundaryStarts.Length != boundaryEnds.Length)
+                    {
+                        throw new InvalidOperationException("Error handling regions must have matching starts and ends.");
+                    }
+
+                    var errorBoundaries = boundaryStarts
                         .Select((boundary, index) => new ErrorBoundary(
                             index,
                             encoder.DefineLabel(),
                             encoder.DefineLabel(),
                             boundary.HandlerBlockId is int handlerBlockId
                                 ? blockLabels[handlerBlockId]
+                                : null,
+                            boundaryEnds[index].ErrorContinuationBlockId is int errorContinuationBlockId
+                                ? blockLabels[errorContinuationBlockId]
                                 : null))
                         .ToArray();
                     var boundaryIndex = 0;
@@ -647,7 +661,9 @@ public sealed class ManagedEmitter
                 typeof(Exception),
                 typeof(int),
                 typeof(bool))));
-            encoder.Branch(ILOpCode.Leave, boundary.HandlerTarget ?? boundary.Continuation);
+            encoder.Branch(
+                ILOpCode.Leave,
+                boundary.HandlerTarget ?? boundary.ErrorContinuation ?? boundary.Continuation);
             var handlerEnd = encoder.DefineLabel();
             encoder.MarkLabel(handlerEnd);
             encoder.MarkLabel(boundary.Continuation);
@@ -661,6 +677,12 @@ public sealed class ManagedEmitter
             IrResumeInstruction resume,
             IReadOnlyList<ErrorBoundary> errorBoundaries)
         {
+            if (resume.Kind == IrResumeKind.Label)
+            {
+                encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Resume))));
+                return;
+            }
+
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.ResumeIndexValue))));
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Resume))));
             var targets = errorBoundaries
@@ -683,7 +705,8 @@ public sealed class ManagedEmitter
             int Index,
             LabelHandle TryStart,
             LabelHandle Continuation,
-            LabelHandle? HandlerTarget);
+            LabelHandle? HandlerTarget,
+            LabelHandle? ErrorContinuation);
 
         /// <summary>
         /// Notes that the code about to be emitted starts a new statement. Consecutive
@@ -1366,6 +1389,10 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.StringInStrB or
                      IrRuntimeMethod.StringChr or
                      IrRuntimeMethod.StringFormat or
+                     IrRuntimeMethod.StringFormatNumber or
+                     IrRuntimeMethod.StringFormatCurrency or
+                     IrRuntimeMethod.StringFormatPercent or
+                     IrRuntimeMethod.StringFormatDateTime or
                      IrRuntimeMethod.StringIsNumeric or
                      IrRuntimeMethod.DateTimeValue or
                      IrRuntimeMethod.TimeDateValue or
@@ -3990,6 +4017,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.FunctionChoose) return Static(typeof(VBFunctions), nameof(VBFunctions.Choose), typeof(int), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.FunctionIIf) return Static(typeof(VBFunctions), nameof(VBFunctions.IIf), typeof(bool), typeof(object), typeof(object));
             if (m == IrRuntimeMethod.FunctionRGB) return Static(typeof(VBFunctions), nameof(VBFunctions.RGB), typeof(int), typeof(int), typeof(int));
+            if (m == IrRuntimeMethod.FunctionCallByName) return Static(typeof(VBFunctions), nameof(VBFunctions.CallByName), typeof(object), typeof(string), typeof(int), typeof(VBArray<object>));
+            if (m == IrRuntimeMethod.FunctionQBColor) return Static(typeof(VBFunctions), nameof(VBFunctions.QBColor), typeof(short));
             if (m == IrRuntimeMethod.ArrayIsAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.IsAllocated), typeof(object));
             if (m == IrRuntimeMethod.ArrayRequireAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.RequireAllocated), typeof(object));
 
@@ -4056,6 +4085,10 @@ public sealed class ManagedEmitter
                 if (name == "Str") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
                 if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
+                if (name == "StrReverse") return Static(typeof(VBStrings), name, typeof(string));
+                if (name is "FormatNumber" or "FormatCurrency" or "FormatPercent") return Static(typeof(VBStrings), name, typeof(object), typeof(int), typeof(int), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
+                if (name == "FormatDateTime") return Static(typeof(VBStrings), name, typeof(object), typeof(int), typeof(VBCompatibilityProfile));
+                if (name == "Partition") return Static(typeof(VBStrings), name, typeof(int), typeof(int), typeof(int), typeof(int));
                 if (name == "IsNumeric") return Static(typeof(VBStrings), name, typeof(object), typeof(VBCompatibilityProfile));
                 if (name == "InStr") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int));
                 if (name == "InStrB") return Static(typeof(VBStrings), name, typeof(int), typeof(string), typeof(string), typeof(int), typeof(VBCompatibilityProfile));

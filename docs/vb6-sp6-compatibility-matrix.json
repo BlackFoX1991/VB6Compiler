@@ -1642,17 +1642,19 @@
     },
     {
       "id": "s3-remaining-standard-intrinsics",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
       "input": "Standard VB6 intrinsics that are not declared at all: StrReverse, FormatNumber, FormatCurrency, FormatPercent, FormatDateTime, Partition, CallByName, QBColor",
       "expected": {
         "declared": "each intrinsic binds instead of reporting VB6S0005",
         "semantics": "each intrinsic follows its documented VB6 result and error behaviour"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
-        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs"
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"
       ]
     }
   ],

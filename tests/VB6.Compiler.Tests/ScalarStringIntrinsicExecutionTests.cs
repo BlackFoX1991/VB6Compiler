@@ -179,4 +179,25 @@ public sealed class ScalarStringIntrinsicExecutionTests
             VB6TestProgram.SplitLines(output),
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExecutesExtendedStringFormattingIntrinsics()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Debug.Print StrReverse("stressed")
+                Debug.Print FormatNumber(1234.5)
+                Debug.Print FormatNumber(0.5, 2, vbFalse, vbFalse, vbFalse)
+                Debug.Print FormatCurrency(12.5, 1)
+                Debug.Print FormatPercent(0.125, 1)
+                Debug.Print FormatDateTime(CDate(43832), vbShortDate)
+                Debug.Print "[" & Partition(17, 0, 99, 10) & "]"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "desserts", "1,234.50", ".50", "$12.5", "12.5%", "2020-01-02", "[10:19]" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
 }

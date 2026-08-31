@@ -4083,3 +4083,27 @@ separater Lauf nur mit den Runtime-Aenderungen, ohne die neuen Tests, blieb vorh
 78/118 documented-verified**.
 
 Naechste offene Karte ist `S3` (`s3-remaining-standard-intrinsics`).
+
+## Acht Standard-Intrinsics und Resume-Label-Zustand (31.08.2026)
+
+Karte `S3` (`s3-remaining-standard-intrinsics`) ist geschlossen. `StrReverse`,
+`FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`, `Partition`,
+`CallByName` und `QBColor` sind jetzt als Intrinsics deklariert, ueber den IR-/Managed-Pfad
+verbunden und in der Runtime implementiert. Die zugehoerigen VB-Konstanten fuer
+Formatoptionen, Datumsformate und `CallByName` sind Teil der eingebauten Sprachumgebung.
+
+`CallByName` verwendet den vorhandenen dynamischen Member-Dispatch fuer Methode, Lesen und
+Setzen; `QBColor` bildet die dokumentierte 16-Farben-OLE_COLOR-Tabelle ab. Die Formathelfer
+behandeln ihre optionalen Tri-State-Parameter und das ausgewaehlte Kompatibilitaetsprofil.
+
+`Resume <Label>` leert jetzt vor dem Sprung den aktiven Handlerzustand. Ohne aktiven Fehler
+meldet es unter `On Error Resume Next` die dokumentierte Fehlernummer **20** und setzt mit der
+naechsten Anweisung fort. Der breite Vertrag fuer verschachtelte Aufruf-/Resume-Faelle bleibt
+als Karte `l1-02-j` offen.
+
+Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1351/1351** Tests, **0**
+Fehler, Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Die
+Matrix steht auf **71 implemented, 8 partial, 39 planned von 118 | 79/118
+documented-verified**.
+
+Naechste offene Karte ist `l1-02-j` (`l1-02-j-nested-error-resume`).

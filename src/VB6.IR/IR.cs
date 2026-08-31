@@ -129,13 +129,18 @@ public sealed record IrSubscribeEventInstruction(
 /// <summary>Starts a per-statement Resume Next protected region in the managed emitter.</summary>
 public sealed record IrErrorBoundaryStartInstruction(int? HandlerBlockId = null) : IrInstruction;
 
-/// <summary>Ends a per-statement Resume Next protected region in the managed emitter.</summary>
-public sealed record IrErrorBoundaryEndInstruction : IrInstruction;
+/// <summary>
+/// Ends a per-statement protected region. <paramref name="ErrorContinuationBlockId"/> separates
+/// an exception continuation from the ordinary fall-through path when a statement normally
+/// transfers control itself, such as <c>Resume &lt;label&gt;</c>.
+/// </summary>
+public sealed record IrErrorBoundaryEndInstruction(int? ErrorContinuationBlockId = null) : IrInstruction;
 
 public enum IrResumeKind
 {
     Same,
-    Next
+    Next,
+    Label
 }
 
 public sealed record IrResumeInstruction(IrResumeKind Kind) : IrInstruction;
@@ -532,6 +537,12 @@ public enum IrRuntimeMethod
     StringStr,
     StringRepeat,
     StringFormat,
+    StringStrReverse,
+    StringFormatNumber,
+    StringFormatCurrency,
+    StringFormatPercent,
+    StringFormatDateTime,
+    StringPartition,
     StringIsNumeric,
     StringLike,
     StringInStr,
@@ -730,6 +741,8 @@ public enum IrRuntimeMethod
     FunctionChoose,
     FunctionIIf,
     FunctionRGB,
+    FunctionCallByName,
+    FunctionQBColor,
     ObjectIs,
     DynamicGetMember,
     DynamicGetIndexedMember,

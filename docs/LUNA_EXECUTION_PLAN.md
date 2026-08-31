@@ -12,18 +12,18 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1341/1341 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1351/1351 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **118 Erwartungen**: **70 implemented**, **8 partial** und
-  **40 planned**; **78** sind `documented-verified`.
-- **`S1` und `S2` sind geschlossen** und stehen auf `implemented`. `S1` deckt `byref`, `set`,
+- Die Matrix umfasst aktuell **118 Erwartungen**: **71 implemented**, **8 partial** und
+  **39 planned**; **79** sind `documented-verified`.
+- **`S1` bis `S3` sind geschlossen** und stehen auf `implemented`. `S1` deckt `byref`, `set`,
   `array`, `fixed-string` und `late-bound`; `S2` deckt `unset-object` (91), `missing-file` (53)
-  und `collection-index` (9 gegen 5).
-- **Die nächste Karte ist `S3` (`s3-remaining-standard-intrinsics`).** Danach folgt
-  `l1-02-j`. Begründung und Messwerte im Befundregister weiter
+  und `collection-index` (9 gegen 5); `S3` deklariert und implementiert die acht fehlenden
+  Standard-Intrinsics.
+- **Die nächste Karte ist `l1-02-j` (`l1-02-j-nested-error-resume`).** Begründung und Messwerte im Befundregister weiter
   unten. `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst
   `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
@@ -394,10 +394,10 @@ Einstiegspunkte sind genannt, damit keine Repository-Gesamtsuche nötig ist.
 |---|---|---|---|
 | `S1` | `s1-class-public-field-storage` | A1–A5, geschlossen | `Binder.cs` (`TryGetProperty`-Zweig ~Z. 3273, ByRef-Positivliste ~Z. 3949), `Semantics.cs` (`PropertySymbol` Z. 420), `IrLowerer.cs` (`_classFields`), `Parser.cs` (Klassenmember) |
 | `S2` | `s2-documented-runtime-error-numbers` | B1–B5, geschlossen | `VBErrors.cs` (`Set`-Zuordnung), `VBFiles.cs` (Open/FileLen), `VBCollection.cs` (`ResolveIndex`) |
-| `S3` | `s3-remaining-standard-intrinsics` | C | `VBIntrinsicSymbols.cs` (Deklaration), `VBStrings.cs` / `VBFunctions.cs` (Implementierung) |
+| `S3` | `s3-remaining-standard-intrinsics` | C, geschlossen | `VBIntrinsicSymbols.cs` (Deklaration), `VBStrings.cs` / `VBFunctions.cs` (Implementierung) |
 
 `S1` kam zuerst, weil A1 still falsch war; `S2` folgte, weil B1 in echtem VB6-Code häufig
-vorkommt. Beide sind geschlossen. `S3` ist Fleissarbeit ohne Risiko und passt in jede Lücke. Die Befunde unter **D**
+vorkommt. Alle drei Karten sind geschlossen. Die Befunde unter **D**
 haben bewusst **keine** eigene Karte: Sie hängen an Architekturentscheidungen oder an einer
 fremden Kartenfläche und werden nach §9 gemeldet, nicht nebenbei erledigt.
 
@@ -593,13 +593,11 @@ zur dokumentierten Trennung „Index → 9, Schlüssel → 5" passt.
 
 ### C — Acht fehlende Standardfunktionen
 
-`StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
-`Partition`, `CallByName`, `QBColor` sind nicht deklariert (`VB6S0005`).
-
-Das deckt sich mit der Rückstufung von `format.complete-surface` und `math.complete-surface`
-auf `partial` — die Matrix sagt hier bereits die Wahrheit. Vorhanden und geprüft sind unter
-anderem `Split`, `Filter`, `Replace`, `InStrRev`, `MonthName`, `WeekdayName`, `Round`,
-`StrConv`, `Choose`, `Switch`, `IIf`, `DateAdd`, `DateDiff`, `DatePart`, `RGB`, `Hex`, `Oct`.
+`S3` ist geschlossen. `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`,
+`FormatDateTime`, `Partition`, `CallByName` und `QBColor` sind als Intrinsics deklariert,
+über IR und Managed-Emitter verbunden und mit Runtime- sowie Managed-E2E-Tests belegt.
+`CallByName` nutzt den vorhandenen dynamischen Member-Dispatch für `vbMethod`, `vbGet`,
+`vbLet` und `vbSet`; die Formatfunktionen respektieren den gewählten Kompatibilitätsmodus.
 
 ### E — Nachtrag vom 31.08.2026: UDT-Arraygrenzen stürzten ab
 

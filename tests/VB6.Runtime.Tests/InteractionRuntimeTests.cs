@@ -14,6 +14,33 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void QBColor_UsesTheQbasicPaletteAndRejectsNumbersOutsideIt()
+    {
+        Assert.AreEqual(0x000000, VBFunctions.QBColor(0));
+        Assert.AreEqual(0xFF0000, VBFunctions.QBColor(9));
+        Assert.AreEqual(0x0000FF, VBFunctions.QBColor(12));
+        Assert.AreEqual(0xFFFFFF, VBFunctions.QBColor(15));
+        var exception = Assert.ThrowsException<VB6RuntimeErrorException>(() => VBFunctions.QBColor(16));
+        Assert.AreEqual(5, exception.Number);
+    }
+
+    [TestMethod]
+    public void CallByName_UsesTheExistingDynamicMemberDispatchForMethodsAndProperties()
+    {
+        var target = new CallByNameTarget { Value = 4 };
+        var noArguments = new VBArray<object>(new VBArrayBound(0, -1));
+        var methodArguments = new VBArray<object>(new VBArrayBound(0, 0));
+        methodArguments[0] = 3;
+        var setterArguments = new VBArray<object>(new VBArrayBound(0, 0));
+        setterArguments[0] = 9;
+
+        Assert.AreEqual(7, VBFunctions.CallByName(target, "Add", 1, methodArguments));
+        Assert.AreEqual(4, VBFunctions.CallByName(target, "Value", 2, noArguments));
+        Assert.IsNull(VBFunctions.CallByName(target, "Value", 4, setterArguments));
+        Assert.AreEqual(9, target.Value);
+    }
+
+    [TestMethod]
     public void Choose_ReturnsSelectedChoiceOrNullOutsideTheChoiceRange()
     {
         var choices = new VBArray<object>(new VBArrayBound(0, 2));
@@ -332,5 +359,12 @@ public sealed class InteractionRuntimeTests
         Assert.IsFalse(captured.IsStep);
         Assert.IsTrue(captured.DrawBox);
         Assert.IsTrue(captured.Fill);
+    }
+
+    public sealed class CallByNameTarget
+    {
+        public int Value { get; set; }
+
+        public int Add(int value) => Value + value;
     }
 }

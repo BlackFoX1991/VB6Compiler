@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Globalization;
 
 namespace VB6.Runtime;
 
@@ -653,6 +654,311 @@ public static class VBStrings
 
         return FormatNumber(number, expression, format, profile);
     }
+
+    /// <summary>Returns the UTF-16 code-unit reversal used by the VB6 StrReverse intrinsic.</summary>
+    public static string StrReverse(string expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        var result = expression.ToCharArray();
+        Array.Reverse(result);
+        return new string(result);
+    }
+
+    public static string FormatNumber(
+        object? expression,
+        int numDigitsAfterDecimal,
+        int includeLeadingDigit,
+        int useParensForNegativeNumbers,
+        int groupDigits,
+        VBCompatibilityProfile profile) =>
+        FormatStandardNumber(
+            expression,
+            numDigitsAfterDecimal,
+            includeLeadingDigit,
+            useParensForNegativeNumbers,
+            groupDigits,
+            StandardNumberFormat.Number,
+            profile);
+
+    public static string FormatCurrency(
+        object? expression,
+        int numDigitsAfterDecimal,
+        int includeLeadingDigit,
+        int useParensForNegativeNumbers,
+        int groupDigits,
+        VBCompatibilityProfile profile) =>
+        FormatStandardNumber(
+            expression,
+            numDigitsAfterDecimal,
+            includeLeadingDigit,
+            useParensForNegativeNumbers,
+            groupDigits,
+            StandardNumberFormat.Currency,
+            profile);
+
+    public static string FormatPercent(
+        object? expression,
+        int numDigitsAfterDecimal,
+        int includeLeadingDigit,
+        int useParensForNegativeNumbers,
+        int groupDigits,
+        VBCompatibilityProfile profile) =>
+        FormatStandardNumber(
+            expression,
+            numDigitsAfterDecimal,
+            includeLeadingDigit,
+            useParensForNegativeNumbers,
+            groupDigits,
+            StandardNumberFormat.Percent,
+            profile);
+
+    public static string FormatDateTime(
+        object? expression,
+        int namedFormat,
+        VBCompatibilityProfile profile)
+    {
+        var format = namedFormat switch
+        {
+            0 => "General Date",
+            1 => "Long Date",
+            2 => "Short Date",
+            3 => "Long Time",
+            4 => "Short Time",
+            _ => throw new VB6RuntimeErrorException(5, $"Unsupported FormatDateTime format {namedFormat}.")
+        };
+
+        return FormatValue(ToDateValue(expression, profile), format, 0, 0, profile);
+    }
+
+    public static string Partition(int number, int start, int stop, int interval)
+    {
+        if (start < 0 || stop < start || interval < 1)
+        {
+            throw new VB6RuntimeErrorException(5, "Partition requires non-negative bounds and a positive interval.");
+        }
+
+        var width = stop.ToString(CultureInfo.InvariantCulture).Length;
+        if (number < start)
+        {
+            return FormatPartitionRange(null, (long)start - 1, width);
+        }
+
+        if (number > stop)
+        {
+            return FormatPartitionRange((long)stop + 1, null, width);
+        }
+
+        var lower = (long)start + (((long)number - start) / interval * interval);
+        var upper = Math.Min(lower + interval - 1, stop);
+        return FormatPartitionRange(lower, upper, width);
+    }
+
+    private enum StandardNumberFormat
+    {
+        Number,
+        Currency,
+        Percent
+    }
+
+    private static string FormatStandardNumber(
+        object? expression,
+        int numDigitsAfterDecimal,
+        int includeLeadingDigit,
+        int useParensForNegativeNumbers,
+        int groupDigits,
+        StandardNumberFormat format,
+        VBCompatibilityProfile profile)
+    {
+        var number = GetStandardFormatNumber(expression, profile);
+        var numberFormat = (NumberFormatInfo)FormatCulture(profile).NumberFormat.Clone();
+        if (profile == VBCompatibilityProfile.Deterministic)
+        {
+            numberFormat.CurrencySymbol = "$";
+            numberFormat.PercentPositivePattern = 1;
+            numberFormat.PercentNegativePattern = 1;
+        }
+
+        var digits = ResolveDecimalDigits(numDigitsAfterDecimal, numberFormat, format);
+        var includeLeading = ResolveTriState(includeLeadingDigit, true, nameof(includeLeadingDigit));
+        var useParens = ResolveTriState(
+            useParensForNegativeNumbers,
+            DefaultNegativeParentheses(numberFormat, format),
+            nameof(useParensForNegativeNumbers));
+        var group = ResolveTriState(groupDigits, true, nameof(groupDigits));
+        var formatCharacter = ApplyStandardNumberFormat(numberFormat, digits, group, format);
+        var result = number.ToString(formatCharacter + digits.ToString(CultureInfo.InvariantCulture), numberFormat) ?? string.Empty;
+
+        if (useParens)
+        {
+            result = ParenthesizeNegativeResult(result, numberFormat.NegativeSign);
+        }
+        else
+        {
+            result = RemoveParentheses(result, numberFormat.NegativeSign);
+        }
+
+        return includeLeading ? result : RemoveLeadingZero(result, numberFormat, format);
+    }
+
+    private static IFormattable GetStandardFormatNumber(object? expression, VBCompatibilityProfile profile)
+    {
+        expression = VBVariantObject.ResolveDefaultValue(expression);
+        VBVariants.ThrowIfMissing(expression);
+        VBVariants.ThrowIfArray(expression);
+        VBVariants.ThrowIfNull(expression);
+
+        if (expression is null)
+        {
+            return (short)0;
+        }
+
+        if (TryGetFormatNumber(expression, out var number))
+        {
+            return number;
+        }
+
+        if (expression is string text && decimal.TryParse(
+                text.Trim(),
+                NumberStyles.Float | NumberStyles.AllowThousands,
+                FormatCulture(profile),
+                out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new VB6TypeMismatchException("FormatNumber requires a numeric expression.");
+    }
+
+    private static int ResolveDecimalDigits(
+        int digits,
+        NumberFormatInfo numberFormat,
+        StandardNumberFormat format)
+    {
+        if (digits < -1)
+        {
+            throw new VB6RuntimeErrorException(5, "The decimal-place argument must be -1 or greater.");
+        }
+
+        if (digits >= 0)
+        {
+            return digits;
+        }
+
+        return format switch
+        {
+            StandardNumberFormat.Number => numberFormat.NumberDecimalDigits,
+            StandardNumberFormat.Currency => numberFormat.CurrencyDecimalDigits,
+            StandardNumberFormat.Percent => numberFormat.PercentDecimalDigits,
+            _ => throw new InvalidOperationException()
+        };
+    }
+
+    private static bool ResolveTriState(int value, bool defaultValue, string parameterName) => value switch
+    {
+        -2 => defaultValue,
+        -1 => true,
+        0 => false,
+        _ => throw new VB6RuntimeErrorException(5, $"{parameterName} must be vbUseDefault, vbTrue, or vbFalse.")
+    };
+
+    private static string ApplyStandardNumberFormat(
+        NumberFormatInfo numberFormat,
+        int digits,
+        bool group,
+        StandardNumberFormat format)
+    {
+        switch (format)
+        {
+            case StandardNumberFormat.Number:
+                numberFormat.NumberDecimalDigits = digits;
+                if (!group) numberFormat.NumberGroupSizes = [0];
+                return "N";
+            case StandardNumberFormat.Currency:
+                numberFormat.CurrencyDecimalDigits = digits;
+                if (!group) numberFormat.CurrencyGroupSizes = [0];
+                return "C";
+            case StandardNumberFormat.Percent:
+                numberFormat.PercentDecimalDigits = digits;
+                if (!group) numberFormat.PercentGroupSizes = [0];
+                return "P";
+            default:
+                throw new InvalidOperationException();
+        }
+    }
+
+    private static bool DefaultNegativeParentheses(NumberFormatInfo numberFormat, StandardNumberFormat format) => format switch
+    {
+        StandardNumberFormat.Number => numberFormat.NumberNegativePattern == 0,
+        StandardNumberFormat.Currency => numberFormat.CurrencyNegativePattern is 0 or 4 or 14 or 15,
+        StandardNumberFormat.Percent => false,
+        _ => false
+    };
+
+    private static string ParenthesizeNegativeResult(string result, string negativeSign)
+    {
+        var index = result.IndexOf(negativeSign, StringComparison.Ordinal);
+        return index < 0
+            ? result
+            : "(" + result.Remove(index, negativeSign.Length) + ")";
+    }
+
+    private static string RemoveParentheses(string result, string negativeSign)
+    {
+        if (result.Length >= 2 && result[0] == '(' && result[^1] == ')')
+        {
+            return negativeSign + result[1..^1];
+        }
+
+        return result;
+    }
+
+    private static string RemoveLeadingZero(
+        string result,
+        NumberFormatInfo numberFormat,
+        StandardNumberFormat format)
+    {
+        var separator = format switch
+        {
+            StandardNumberFormat.Number => numberFormat.NumberDecimalSeparator,
+            StandardNumberFormat.Currency => numberFormat.CurrencyDecimalSeparator,
+            StandardNumberFormat.Percent => numberFormat.PercentDecimalSeparator,
+            _ => string.Empty
+        };
+        var index = result.IndexOf(separator, StringComparison.Ordinal);
+        if (index <= 0 || result[index - 1] != '0' ||
+            (index > 1 && char.IsDigit(result[index - 2])))
+        {
+            return result;
+        }
+
+        return result.Remove(index - 1, 1);
+    }
+
+    private static VBDateValue ToDateValue(object? value, VBCompatibilityProfile profile)
+    {
+        value = VBVariantObject.ResolveDefaultValue(value);
+        VBVariants.ThrowIfMissing(value);
+        VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
+
+        return value switch
+        {
+            null => new VBDateValue(0d),
+            VBDateValue date => date,
+            DateTime date => new VBDateValue(date.ToOADate()),
+            string text when DateTime.TryParse(
+                text,
+                FormatCulture(profile),
+                DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
+                out var parsed) => new VBDateValue(parsed.ToOADate()),
+            _ => new VBDateValue(VBConversions.CDate(value))
+        };
+    }
+
+    private static string FormatPartitionRange(long? lower, long? upper, int width) =>
+        (lower is null ? new string(' ', width) : lower.Value.ToString(CultureInfo.InvariantCulture).PadLeft(width)) +
+        ":" +
+        (upper is null ? new string(' ', width) : upper.Value.ToString(CultureInfo.InvariantCulture).PadLeft(width));
 
     private static string FormatNumber(
         IFormattable number,

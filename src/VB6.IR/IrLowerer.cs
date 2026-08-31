@@ -1146,6 +1146,13 @@ public static class IrLowerer
                         : null;
                     break;
                 case BoundResumeStatement resume:
+                    var protectResume = _resumeNext;
+                    if (protectResume)
+                    {
+                        Emit(new IrErrorBoundaryStartInstruction(
+                            _errorHandler is null ? null : _labels[_errorHandler]));
+                    }
+
                     if (resume.TargetLabel is not null)
                     {
                         if (!_labels.TryGetValue(resume.TargetLabel, out var resumeTarget))
@@ -1153,13 +1160,24 @@ public static class IrLowerer
                             throw new InvalidOperationException($"Label '{resume.TargetLabel}' was not predeclared.");
                         }
 
+                        Emit(new IrResumeInstruction(IrResumeKind.Label));
+                        var afterResume = NewBlock("after_resume");
+                        if (protectResume)
+                        {
+                            Emit(new IrErrorBoundaryEndInstruction(afterResume.Id));
+                        }
+
                         Terminate(new IrGotoTerminator(resumeTarget));
-                        _current = NewBlock("after_resume");
+                        _current = afterResume;
                     }
                     else
                     {
                         Emit(new IrResumeInstruction(
                             resume.IsNext ? IrResumeKind.Next : IrResumeKind.Same));
+                        if (protectResume)
+                        {
+                            Emit(new IrErrorBoundaryEndInstruction());
+                        }
                     }
                     break;
                 case BoundGoSubStatement goSub:
@@ -4154,6 +4172,12 @@ public static class IrLowerer
             "VBStrings.Str" => IrRuntimeMethod.StringStr,
             "VBStrings.String" => IrRuntimeMethod.StringRepeat,
             "VBStrings.FormatValue" => IrRuntimeMethod.StringFormat,
+            "VBStrings.StrReverse" => IrRuntimeMethod.StringStrReverse,
+            "VBStrings.FormatNumber" => IrRuntimeMethod.StringFormatNumber,
+            "VBStrings.FormatCurrency" => IrRuntimeMethod.StringFormatCurrency,
+            "VBStrings.FormatPercent" => IrRuntimeMethod.StringFormatPercent,
+            "VBStrings.FormatDateTime" => IrRuntimeMethod.StringFormatDateTime,
+            "VBStrings.Partition" => IrRuntimeMethod.StringPartition,
             "VBStrings.IsNumeric" => IrRuntimeMethod.StringIsNumeric,
             "VBStrings.InStr" => IrRuntimeMethod.StringInStr,
             "VBStrings.InStrB" => IrRuntimeMethod.StringInStrB,
@@ -4290,6 +4314,8 @@ public static class IrLowerer
             "VBFunctions.Choose" => IrRuntimeMethod.FunctionChoose,
             "VBFunctions.IIf" => IrRuntimeMethod.FunctionIIf,
             "VBFunctions.RGB" => IrRuntimeMethod.FunctionRGB,
+            "VBFunctions.CallByName" => IrRuntimeMethod.FunctionCallByName,
+            "VBFunctions.QBColor" => IrRuntimeMethod.FunctionQBColor,
             "VBConversions.CByte" => IrRuntimeMethod.CByte,
             "VBConversions.CInt" => IrRuntimeMethod.CInt,
             "VBConversions.CLng" => IrRuntimeMethod.CLng,
