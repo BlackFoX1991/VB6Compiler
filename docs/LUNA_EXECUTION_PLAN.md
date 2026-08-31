@@ -12,18 +12,18 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1337/1337 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1341/1341 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
 - `L0-01`, `L0-02`, `L0-03` und die Queue-/Schema-Karten `L1-01` bis `L1-05` sind abgeschlossen.
-- Die Matrix umfasst aktuell **118 Erwartungen**: **69 implemented**, **8 partial** und
-  **41 planned**; **77** sind `documented-verified`.
-- **`S1` (`s1-class-public-field-storage`) ist geschlossen** und steht als erste Karte des
-  Breitendurchgangs auf `implemented`. Alle fünf Teile halten: `byref`, `set`, `array`,
-  `fixed-string` und `late-bound`.
-- **Die nächste Karte ist `S2` (`s2-documented-runtime-error-numbers`).** Die Reihenfolge
-  lautet unverändert **S2 → S3 → `l1-02-j`**. Begründung und Messwerte im Befundregister weiter
+- Die Matrix umfasst aktuell **118 Erwartungen**: **70 implemented**, **8 partial** und
+  **40 planned**; **78** sind `documented-verified`.
+- **`S1` und `S2` sind geschlossen** und stehen auf `implemented`. `S1` deckt `byref`, `set`,
+  `array`, `fixed-string` und `late-bound`; `S2` deckt `unset-object` (91), `missing-file` (53)
+  und `collection-index` (9 gegen 5).
+- **Die nächste Karte ist `S3` (`s3-remaining-standard-intrinsics`).** Danach folgt
+  `l1-02-j`. Begründung und Messwerte im Befundregister weiter
   unten. `l1-02-a-language-grammar-context` bleibt als breiter Familienstatus bewusst
   `partial`.
 - Die 14 L1-02-Familien sind als eindeutige geplante Matrix-Erwartungen `l1-02-a` bis
@@ -393,11 +393,11 @@ Einstiegspunkte sind genannt, damit keine Repository-Gesamtsuche nötig ist.
 | Karte | Erwartungs-ID | Deckt ab | Einstieg |
 |---|---|---|---|
 | `S1` | `s1-class-public-field-storage` | A1–A5, geschlossen | `Binder.cs` (`TryGetProperty`-Zweig ~Z. 3273, ByRef-Positivliste ~Z. 3949), `Semantics.cs` (`PropertySymbol` Z. 420), `IrLowerer.cs` (`_classFields`), `Parser.cs` (Klassenmember) |
-| `S2` | `s2-documented-runtime-error-numbers` | B1–B3 | `VBErrors.cs` (`Set`-Zuordnung), `VBFiles.cs` (Open/FileLen), `VBCollection.cs` (`ResolveIndex`) |
+| `S2` | `s2-documented-runtime-error-numbers` | B1–B5, geschlossen | `VBErrors.cs` (`Set`-Zuordnung), `VBFiles.cs` (Open/FileLen), `VBCollection.cs` (`ResolveIndex`) |
 | `S3` | `s3-remaining-standard-intrinsics` | C | `VBIntrinsicSymbols.cs` (Deklaration), `VBStrings.cs` / `VBFunctions.cs` (Implementierung) |
 
-`S1` kam zuerst, weil A1 still falsch war, und ist geschlossen. `S2` folgt, weil B1 in echtem VB6-Code häufig
-vorkommt. `S3` ist Fleissarbeit ohne Risiko und passt in jede Lücke. Die Befunde unter **D**
+`S1` kam zuerst, weil A1 still falsch war; `S2` folgte, weil B1 in echtem VB6-Code häufig
+vorkommt. Beide sind geschlossen. `S3` ist Fleissarbeit ohne Risiko und passt in jede Lücke. Die Befunde unter **D**
 haben bewusst **keine** eigene Karte: Sie hängen an Architekturentscheidungen oder an einer
 fremden Kartenfläche und werden nach §9 gemeldet, nicht nebenbei erledigt.
 
@@ -557,15 +557,39 @@ den Zugriff zur Laufzeit. Das ist dieselbe Stelle und dieselbe Karte wert.
 
 ### B — Fehlende VB6-Fehlernummern
 
-| # | Fall | Gemessen | VB6 |
-|---|---|---|---|
-| B1 | Mitgliedsaufruf auf nicht gesetzter Objektvariablen | **5** | **91** „Object variable not set" |
-| B2 | `Open` / `FileLen` auf nicht existierende Datei | **5** | **53** „File not found" |
-| B3 | `c(0)` und `c.Remove 5` auf einer `Collection` | **5** | vermutlich **9** — ohne Orakel nicht entschieden |
+| # | Fall | Gemessen | VB6 | Stand |
+|---|---|---|---|---|
+| B1 | Mitgliedsaufruf auf nicht gesetzter Objektvariablen | ~~5~~ → **91** | **91** „Object variable not set" | **behoben am 31.08.2026** |
+| B2 | `Open` / `FileLen` auf nicht existierende Datei | ~~5~~ → **53** | **53** „File not found" | **behoben am 31.08.2026** |
+| B4 | `Kill` auf nicht existierende Datei | ~~**0**~~ → **53** | **53** | **behoben am 31.08.2026** |
+| B5 | `FileDateTime` auf nicht existierende Datei | ~~**Datum**~~ → **53** | **53** | **behoben am 31.08.2026** |
+| B3 | `c(0)` und `c.Remove 5` auf einer `Collection` | ~~5~~ → **9** | **9** | **behoben am 31.08.2026** |
 
-B1 ist häufig in echtem VB6-Code und deshalb vorrangig. Bereits korrekt und nicht anzufassen:
+B1 war häufig in echtem VB6-Code und deshalb vorrangig. Bereits korrekt und nicht angefasst:
 `Left(s, -1)`, `Mid(s, 0)`, `Sqr(-1)`, `Log(0)` melden **5**; `CByte(300)` und `CInt("99999")`
 melden **6**; ein doppelter `Collection`-Schlüssel meldet **457**.
+
+**B4 und B5 sind neu und waren schwerer als das gemeldete B2.** Die Messung über die ganze
+Fläche hat zwei Fälle gefunden, die überhaupt keinen Fehler meldeten: `Kill` auf eine fehlende
+Datei lief still durch (Err.Number **0**), und `FileDateTime` lieferte für sie ein Datum
+(`-109205.04`, der 1601er-Platzhalter von `File.GetLastWriteTime`). Beides ist „still falsch"
+statt „falsche Nummer" und damit nach §13 die schwerere Klasse. Ursache: .NET schweigt an
+beiden Stellen — `File.Delete` wirft für eine fehlende Datei nicht, `File.GetLastWriteTime`
+auch nicht. `Open` und `FileLen` warfen dagegen bereits `FileNotFoundException`, dort genügte
+die Zuordnung in `VBErrors.Set`.
+
+**B1 ist eine bewusst breite Zuordnung.** `NullReferenceException => 91` trifft jeden
+Null-Zugriff, auch einen, der aus einem Compilerdefekt stammt. Das ist hingenommen: VB6 meldet
+an dieser Stelle 91, und der bisherige Sammelwert 5 hat denselben Defekt genauso verdeckt — nur
+mit einer Nummer, die noch weniger aussagt. Der Regressionslauf über 1341 Tests hat keine
+Verschiebung gezeigt.
+
+**Entscheidung zu B3, im Code sichtbar gemacht:** `ResolveIndex` bedient auch `Add`s
+`Before`/`After`. Dort bleibt die Nummer **5** — eine Position außerhalb der Sammlung ist bei
+`Add` ein ungültiges *Argument*, kein Subscript. Nur `Item` und `Remove` melden **9**. Der
+Parameter `outOfRangeNumber` macht die Trennung an der Aufrufstelle sichtbar, statt sie im
+Rumpf zu verstecken. Bestätigend: der unbekannte *Schlüssel* meldete schon vorher **5**, was
+zur dokumentierten Trennung „Index → 9, Schlüssel → 5" passt.
 
 ### C — Acht fehlende Standardfunktionen
 

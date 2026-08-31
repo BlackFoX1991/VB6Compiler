@@ -4023,3 +4023,63 @@ Matrix bewegt sich erstmals seit dem Breitendurchgang nach oben: **69 implemente
 41 planned von 118 | 77/118 documented-verified**.
 
 Naechste offene Karte ist `S2` (`s2-documented-runtime-error-numbers`).
+
+## Dokumentierte Laufzeitfehlernummern statt des Sammelwerts 5 (31.08.2026)
+
+Karte `S2` (`s2-documented-runtime-error-numbers`), geschlossen. Sie deckt drei Gruppen ab, in
+denen VB6 eine bestimmte Nummer vergibt und der Compiler bisher den Sammelwert **5** lieferte.
+
+**B1 — nicht gesetzte Objektvariable meldet 91.** Gemessen wurden vier Wege: Methodenaufruf,
+Property-Lesen, explizites `Set c = Nothing` und ein spaet gebundener Zugriff ueber `Object`.
+Alle vier lieferten 5, alle vier liefern jetzt 91. Die Zuordnung `NullReferenceException => 91`
+ist bewusst breit: Der frueh gebundene Pfad ruft auf null und erzeugt die CLR-Ausnahme, der
+spaet gebundene wirft sie in `RequireTarget` selbst, und beide Wege treffen sich in
+`VBErrors.Set`. Sie trifft damit auch einen Null-Zugriff, der aus einem Compilerdefekt stammt —
+hingenommen, weil VB6 an dieser Stelle 91 meldet und der bisherige Sammelwert 5 denselben
+Defekt genauso verdeckt hat, nur mit einer Nummer, die noch weniger aussagt. Der
+Regressionslauf ueber 1337 Tests hat keine Verschiebung gezeigt.
+
+**B2 — fehlender Pfad meldet 53.** Das Register nannte `Open` und `FileLen`. Die Messung ueber
+die ganze Flaeche hat zwei weitere Faelle gefunden, die **schwerer** waren als der gemeldete
+Befund, weil sie ueberhaupt keinen Fehler meldeten:
+
+- `Kill` auf eine fehlende Datei lief still durch, `Err.Number` blieb **0**. Das Loeschen einer
+  nicht existierenden Datei galt als Erfolg.
+- `FileDateTime` auf eine fehlende Datei lieferte ein **Datum** — `-109205.04`, der
+  1601er-Platzhalter von `File.GetLastWriteTime` als OADate.
+
+Ursache ist in beiden Faellen das Framework, nicht der Compiler: `File.Delete` wirft fuer eine
+fehlende Datei nicht, `File.GetLastWriteTime` auch nicht. Sie brauchen deshalb eine eigene
+Existenzpruefung, die die Framework-Ausnahme wirft — so bleibt die Fehlernummer an genau einer
+Stelle definiert, in der Zuordnung in `VBErrors.Set`. `Open` und `FileLen` warfen bereits
+`FileNotFoundException`; dort genuegte die neue Zuordnung
+`FileNotFoundException or DirectoryNotFoundException => 53`.
+
+**B3 — Collection trennt Index und Schluessel.** Eine Position ausserhalb der Sammlung meldet
+jetzt **9** („Subscript out of range"), ein unbekannter Schluessel weiterhin **5**. Der
+Schluesselfall war bereits korrekt und hat die dokumentierte Trennung bestaetigt.
+
+Eine Entscheidung ist dabei im Code sichtbar gemacht worden: `ResolveIndex` bedient auch
+`Add`s `Before`/`After`. Dort bleibt die Nummer **5**, weil eine Position ausserhalb der
+Sammlung bei `Add` ein ungueltiges *Argument* ist und kein Subscript. Der Parameter
+`outOfRangeNumber` traegt diese Unterscheidung an der Aufrufstelle, statt sie im Rumpf zu
+verstecken.
+
+**Gegenproben unveraendert, als eigener Test festgeschrieben:** `Left(s, -1)`, `Mid(s, 0)`,
+`Sqr(-1)` und `Log(0)` melden weiterhin **5**; `CByte(300)` und `CInt("99999")` melden **6**;
+ein doppelter `Collection`-Schluessel meldet **457**; ein Array-Subscript meldet **9**;
+`CLng(Null)` meldet **94**. Ohne diesen Test sieht jede kuenftige Verschiebung nach 91 oder 53
+wie ein Fortschritt aus.
+
+**Methodischer Nachtrag, als Falle festgehalten:** Die beiden schwersten Befunde standen gerade
+**nicht** in der Liste der falschen 5. Eine Fehlernummernmessung, die nur bekannte Fehlerfaelle
+abfragt, findet die Klasse „meldet ueberhaupt nicht" nie — die **0** gehoert in die Faelle, und
+jeder Fall braucht neben „welche Nummer?" auch die Frage „meldet er ueberhaupt?".
+
+Kanonischer Nachweis: `build.ps1 -Configuration Release` misst **1341/1341** Tests, **0**
+Fehler, Release ohne Warnungen und **40/40** fehlerfrei analysierte VISIA-Projekt-Items. Ein
+separater Lauf nur mit den Runtime-Aenderungen, ohne die neuen Tests, blieb vorher bei
+**1337/1337** gruen. Die Matrix steht auf **70 implemented, 8 partial, 40 planned von 118 |
+78/118 documented-verified**.
+
+Naechste offene Karte ist `S3` (`s3-remaining-standard-intrinsics`).

@@ -16,9 +16,9 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H),
 abgearbeitet über die Karten in `docs/LUNA_EXECUTION_PLAN.md` und die Qualitätsqueue
-`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 118 Erwartungen (69 `implemented`,
-8 `partial`, 41 `planned`; 77 `documented-verified`); die nächste offene
-Implementierungskarte ist `s2-documented-runtime-error-numbers`. `L1-02-A` bleibt als breiter
+`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 118 Erwartungen (70 `implemented`,
+8 `partial`, 40 `planned`; 78 `documented-verified`); die nächste offene
+Implementierungskarte ist `s3-remaining-standard-intrinsics`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
@@ -307,4 +307,11 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   unbekannte Ausnahme darauf ab, deshalb sieht ein falsches 5 wie ein Ergebnis aus. Beim
   Breitendurchgang waren fünf gemessene 5 falsch (richtig wären 6, 9, 13, 91, 94) und vier
   richtig. Eine gemessene 5 ist ein Verdacht, bis sie gegen die Dokumentation geprüft ist.
+- **Beim Nachmessen von Fehlernummern gehört die 0 in die Fälle.** Der Sammelwert 5 verdeckt
+  eine falsche Nummer, aber .NET verdeckt manchmal den *Fehler selbst*: `File.Delete` löscht
+  eine fehlende Datei geräuschlos, `File.GetLastWriteTime` liefert für sie einen 1601er-Platz-
+  halter. `Kill` und `FileDateTime` meldeten deshalb gar nichts, während `Open` und `FileLen`
+  immerhin die falsche 5 lieferten — die schwereren Befunde standen also gerade **nicht** in
+  der Liste der falschen 5. Eine Fehlernummernmessung, die nur bekannte Fehlerfälle abfragt,
+  findet diese Klasse nie; jeder Fall braucht auch die Frage „meldet er überhaupt?".
 - **Die CLI implementiert jede Option mehrfach.** `src/VB6.Compiler.Cli/Program.cs` ist Top-Level-Code mit handgeschriebenen Arity-Guards (`args.Length is >= 3 and <= 8`); `--dump-ir`, `--emit-llvm`, `--emit-assembly` und `--report` existieren getrennt im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup`. Eine neue Option heißt drei Stellen ändern, und ein vergessener Zweig fällt nur über die langsamen Prozesstests auf.
