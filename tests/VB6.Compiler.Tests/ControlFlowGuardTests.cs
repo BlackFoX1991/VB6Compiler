@@ -239,6 +239,35 @@ public sealed class ControlFlowGuardTests
         CollectionAssert.AreEqual(new[] { "20" }, output);
     }
 
+    /// <summary>
+    /// A bare Resume and Resume Next leave the procedure through the resume dispatch switch.
+    /// Wrapping them in a per-statement protected region turns that switch into a branch out of
+    /// a try block, and the emitted method then fails verification with InvalidProgramException
+    /// rather than running. Only Resume &lt;label&gt; may carry the region.
+    /// </summary>
+    [TestMethod]
+    public void Lower_DoesNotWrapABareResumeNextInAProtectedRegion()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                On Error Resume Next
+                Resume Next
+                Debug.Print 1
+            End Sub
+            """);
+
+        var starts = VB6TestIr.Procedures(program)
+            .SelectMany(procedure => procedure.Blocks)
+            .Where(block => block.Instructions
+                .OfType<VB6.IR.IrResumeInstruction>()
+                .Any(resume => resume.Kind != VB6.IR.IrResumeKind.Label))
+            .Select(block => block.Instructions.OfType<VB6.IR.IrErrorBoundaryStartInstruction>().Count())
+            .ToArray();
+
+        Assert.AreEqual(1, starts.Length, "genau ein Block traegt das Resume");
+        Assert.AreEqual(1, starts[0], $"Regionen um das Resume: {starts[0]}");
+    }
+
     [TestMethod]
     public void EmitManagedApplication_DoesNotReenterAnActiveErrorHandler()
     {
