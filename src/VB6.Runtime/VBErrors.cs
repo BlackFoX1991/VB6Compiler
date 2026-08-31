@@ -116,6 +116,7 @@ public static class VBErrors
                 VB6MissingArgumentException => 448,
                 VB6TypeMismatchException => 13,
                 VB6RuntimeErrorException runtimeError => runtimeError.Number,
+                VB6RaisedError raisedError => raisedError.Number,
                 OverflowException => 6,
                 DivideByZeroException => 11,
                 FormatException or InvalidCastException => 13,
@@ -149,6 +150,11 @@ public static class VBErrors
     /// <summary>Clears Err and deactivates the current handler for a Resume operation.</summary>
     public static void Resume()
     {
+        if (_state is null || _activeHandlerDepth != _procedureDepth)
+        {
+            InvalidResume();
+        }
+
         Clear();
         _activeHandlerDepth = -1;
     }
