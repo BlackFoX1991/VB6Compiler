@@ -16,6 +16,52 @@ public static class VBFunctions
         (ClampColor(green) << 8) |
         (ClampColor(blue) << 16);
 
+    /// <summary>
+    /// Invokes, gets, or sets a member selected at runtime. The call-type values are the public
+    /// VB6 constants vbMethod (1), vbGet (2), vbLet (4), and vbSet (8).
+    /// </summary>
+    public static object? CallByName(
+        object? target,
+        string procName,
+        int callType,
+        VBArray<object> arguments)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(procName);
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        return callType switch
+        {
+            1 => VBDynamicDispatch.InvokeMember(target, procName, arguments),
+            2 => arguments.Length == 0
+                ? VBDynamicDispatch.GetMember(target, procName)
+                : VBDynamicDispatch.GetIndexedMember(target, procName, arguments),
+            4 or 8 => SetCallByNameMember(target, procName, arguments),
+            _ => throw new VB6RuntimeErrorException(5, $"Unsupported CallByName call type {callType}.")
+        };
+    }
+
+    /// <summary>Returns the OLE_COLOR corresponding to one of the sixteen QBASIC colors.</summary>
+    public static int QBColor(short color) => color switch
+    {
+        0 => 0x000000,
+        1 => 0x800000,
+        2 => 0x008000,
+        3 => 0x808000,
+        4 => 0x000080,
+        5 => 0x800080,
+        6 => 0x008080,
+        7 => 0xC0C0C0,
+        8 => 0x808080,
+        9 => 0xFF0000,
+        10 => 0x00FF00,
+        11 => 0xFFFF00,
+        12 => 0x0000FF,
+        13 => 0xFF00FF,
+        14 => 0x00FFFF,
+        15 => 0xFFFFFF,
+        _ => throw new VB6RuntimeErrorException(5, "QBColor requires a color number from 0 through 15.")
+    };
+
     public static string TypeName(object? value)
     {
         if (VBVariants.IsNull(value))
@@ -117,6 +163,33 @@ public static class VBFunctions
         }
 
         return choices[choices.LBound() + index - 1];
+    }
+
+    private static object? SetCallByNameMember(
+        object? target,
+        string procName,
+        VBArray<object> arguments)
+    {
+        if (arguments.Length == 0)
+        {
+            throw new VB6RuntimeErrorException(5, "CallByName property assignment requires a value argument.");
+        }
+
+        var value = arguments[arguments.UBound()];
+        if (arguments.Length == 1)
+        {
+            VBDynamicDispatch.SetMember(target, procName, value);
+            return null;
+        }
+
+        var indexes = new VBArray<object>(new VBArrayBound(0, arguments.Length - 2));
+        for (var index = 0; index < indexes.Length; index++)
+        {
+            indexes[index] = arguments[arguments.LBound() + index];
+        }
+
+        VBDynamicDispatch.SetIndexedMember(target, procName, indexes, value);
+        return null;
     }
 
     private static int ClampColor(int value) => Math.Clamp(value, 0, 255);
