@@ -12,7 +12,7 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1332/1332 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1336/1336 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
@@ -552,6 +552,52 @@ Das deckt sich mit der Rückstufung von `format.complete-surface` und `math.comp
 auf `partial` — die Matrix sagt hier bereits die Wahrheit. Vorhanden und geprüft sind unter
 anderem `Split`, `Filter`, `Replace`, `InStrRev`, `MonthName`, `WeekdayName`, `Round`,
 `StrConv`, `Choose`, `Switch`, `IIf`, `DateAdd`, `DateDiff`, `DatePart`, `RGB`, `Hex`, `Oct`.
+
+### E — Nachtrag vom 31.08.2026: UDT-Arraygrenzen stürzten ab
+
+Nicht Teil des ursprünglichen Durchgangs. Der Befund fiel bei der Vorabmessung zur Frage an,
+ob eine benannte Konstante als `String * n`-Länge zugelassen werden soll — und war deutlich
+schwerer als die Frage, die ihn ausgelöst hat.
+
+In einem `Type`-Block funktionierten **ausschließlich nackte Integer-Literale** als Arraygrenze.
+Jede andere Form stürzte zur Laufzeit ab, ohne dass der Compiler etwas meldete.
+
+| Grenze im `Type` | Gemessen vorher | VB6 |
+|---|---|---|
+| `a(1 To 3)` | `1/3` | `1/3` |
+| `a(1 To 2 + 1)` | **Absturz** (`NullReferenceException`) | `1/3` |
+| `a(1 To Breite)` | **Absturz** | `1/3` |
+| `a(1 To Breite * 2)` | **Absturz** | `6` |
+| `a(Start To 4)` | **Absturz** | `2/4` |
+| `a(1 To 2, 1 To 1 + 1)` | **Absturz** | `2` |
+| `Const` nach dem `Type` | **Absturz** | läuft |
+| `a(1 To n)` — echter Fehler | **Absturz** | Meldung |
+| `a(5 To 1)` — echter Fehler | **Absturz** | Meldung |
+
+Ursache war eine stille Rückgabe: Schlug `TryEvaluateIntegerConstant` fehl, lieferte
+`BindArrayBounds` eine **leere** Grenzenliste zurück, ohne zu melden. Das Member bekam keinen
+Speicher, das Array wurde nie angelegt, der erste Zugriff riss das Programm ab. Selbst die
+beiden Fälle, die garantiert Fehler sind, kamen so als Absturz statt als Diagnose heraus.
+
+Zur Abgrenzung gegen die Smart-App-Control-Falle: Die gemessenen Exitcodes waren
+`-1073741819` (0xC0000005, `NullReferenceException`) und `-532462766` bei `a(5 To 1)`, jeweils
+mit ausgeschriebener Ausnahme in der Ausgabe des Kindprozesses. Echte Defekte, kein blockiertes
+Assembly.
+
+**Behoben am 31.08.2026.** Der Falter beherrscht jetzt benannte Konstanten unabhängig von der
+Deklarationsreihenfolge — sie werden vollständig gesammelt, bevor ein Member aufgelöst wird —
+sowie `+ - * \` mit `checked`-Überlaufprüfung. Was nicht faltet, meldet neu `VB6S0071`; eine
+Obergrenze unter der Untergrenze meldet neu `VB6S0072`. Beide Codes haben Positivassertions.
+
+Gegenproben unverändert: ein gewöhnliches `Dim a(1 To Breite * 2)` läuft weiter (es wertet
+seine Grenzen zur Laufzeit aus und braucht den Falter gar nicht), und ein verschachteltes
+UDT-Arrayfeld verhält sich wie zuvor.
+
+**Bewusst nicht mitgenommen:** Die Breite eines `String * n` hängt am selben Falter, hat aber
+noch ihre eigene Literal-only-Prüfung — in **zwei** Pfaden (`BindFixedStringLength` für das
+UDT-Member, `ResolveFixedLengthStringType` für den Deklarator). Nur die UDT-Seite zu öffnen
+hätte die beiden Formen wieder auseinanderlaufen lassen, was bei A4 gerade bewusst vermieden
+wurde. Eigene Karte, die beide Stellen gemeinsam umstellt.
 
 ### D — Bereits früher gemeldet, weiterhin offen
 

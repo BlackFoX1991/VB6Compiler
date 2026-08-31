@@ -277,6 +277,17 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   ebenfalls behoben; offen bleibt nur der spät gebundene Zugriff.
   Gegenprobe: ByRef funktioniert über Locals, Globals, UDT-Member und Array-Elemente. Wer hier
   etwas anfasst, prüft alle vier Symptome.
+- **Ein UDT-Member hat ein festes Layout — und der UDT-Binder hat seinen eigenen, schwächeren
+  Konstantenfalter.** `UserDefinedTypeDeclarationBinder` faltet Arraygrenzen und `String * n`-
+  Breiten selbst, weil der Speicher zur Übersetzungszeit feststehen muss; ein gewöhnliches `Dim`
+  wertet seine Grenzen dagegen zur Laufzeit aus und kommt deshalb ohne Falter aus. Bis 08/2026
+  faltete er **nur Literale** und gab bei allem anderen eine **leere Grenzenliste ohne Diagnose**
+  zurück — das Member bekam keinen Speicher, und der erste Zugriff riss das Programm mit einer
+  `NullReferenceException` ab. Auch `a(5 To 1)` kam so als Absturz statt als Meldung heraus. Wer
+  hier etwas ergänzt: **eine Faltung, die fehlschlägt, muss melden**, nie still etwas Leeres
+  liefern. Und die `String * n`-Breite hängt am selben Falter, hat aber noch ihre eigene
+  Literal-only-Prüfung in **zwei** Pfaden (`BindFixedStringLength` und
+  `ResolveFixedLengthStringType`) — wer einen davon öffnet, öffnet beide.
 - **`String * n` hat vier Deklarationsformen und drei Stellen, die es tragen müssen.** Lokal,
   Modulvariable, Klassenfeld und UDT-Member gehen durch `ParseVariableDeclarators` bzw.
   `ResolveVariableDeclaratorType` — bis auf das UDT-Member, das seinen eigenen Pfad hat. Die
