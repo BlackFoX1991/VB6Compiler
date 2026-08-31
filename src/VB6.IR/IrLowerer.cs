@@ -1146,7 +1146,11 @@ public static class IrLowerer
                         : null;
                     break;
                 case BoundResumeStatement resume:
-                    var protectResume = _resumeNext;
+                    // Only Resume <label> may run inside a protected region. A bare Resume and
+                    // Resume Next leave the procedure through the resume dispatch switch, and a
+                    // switch out of a protected region is not a valid leave - the emitted method
+                    // fails verification with InvalidProgramException instead of running.
+                    var protectResume = _resumeNext && resume.TargetLabel is not null;
                     if (protectResume)
                     {
                         Emit(new IrErrorBoundaryStartInstruction(
