@@ -1,0 +1,167 @@
+namespace VB6.Compiler.Tests;
+
+/// <summary>
+/// Fehlernummern, die VB6 ausdruecklich vergibt und die vorher unter dem Sammelwert 5 lagen.
+/// Die 5 ist in <c>VBErrors.Set</c> der Rueckfall fuer jede nicht zugeordnete Ausnahme, deshalb
+/// sieht ein falsches 5 wie ein Ergebnis aus. Jeder Fall hier ist gemessen, keiner hergeleitet.
+/// </summary>
+[TestClass]
+public sealed class DocumentedErrorNumberExecutionTests
+{
+    /// <summary>
+    /// Ein Mitgliedszugriff auf eine nicht gesetzte Objektvariable ist Fehler 91. Der frueh
+    /// gebundene Pfad ruft dabei auf null, der spaet gebundene wirft in <c>RequireTarget</c>;
+    /// beide Wege muessen dieselbe Nummer liefern.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_ReportsObjectVariableNotSet()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim c As Collection
+                Dim o As Object
+
+                On Error Resume Next
+
+                c.Add "x"
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print c.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                Set c = New Collection
+                Set c = Nothing
+                c.Add "x"
+                Debug.Print Err.Number
+
+                Err.Clear
+                o.Irgendwas
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "91", "91", "91", "91" }, output);
+    }
+
+    /// <summary>
+    /// Ein fehlender Pfad ist Fehler 53. Zwei der vier Faelle waren vorher nicht einmal Fehler:
+    /// <c>File.Delete</c> loescht eine fehlende Datei geraeuschlos, und
+    /// <c>File.GetLastWriteTime</c> liefert fuer sie einen 1601er-Platzhalter statt zu werfen.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_ReportsFileNotFound()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim missing As String
+                missing = "vb6-gibt-es-nicht-4711.txt"
+
+                On Error Resume Next
+
+                Open missing For Input As #1
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print FileLen(missing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Kill missing
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print FileDateTime(missing)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Nur vier Zeilen: Unter Resume Next bricht die ganze Debug.Print-Anweisung ab, der
+        // fehlgeschlagene Aufruf gibt also gar nichts aus.
+        CollectionAssert.AreEqual(
+            new[] { "53", "53", "53", "53" },
+            output);
+    }
+
+    /// <summary>
+    /// VB6 trennt die beiden Fehlschlaege einer Collection: eine Position ausserhalb der
+    /// Sammlung ist 9 (Subscript out of range), ein unbekannter Schluessel dagegen 5. Die
+    /// Position von <c>Add</c>s Before/After bleibt bewusst 5 -- dort ist sie ein ungueltiges
+    /// Argument an Add, kein Subscript.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_SeparatesCollectionIndexFromKeyFailures()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim c As New Collection
+                c.Add "x", "k"
+
+                On Error Resume Next
+
+                Debug.Print c(0)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print c(5)
+                Debug.Print Err.Number
+
+                Err.Clear
+                c.Remove 5
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print c("fehlt")
+                Debug.Print Err.Number
+
+                Err.Clear
+                c.Add "y", , 9
+                Debug.Print Err.Number
+
+                Err.Clear
+                c.Add "z", "k"
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // 457 am Ende ist die Gegenprobe: ein doppelter Schluessel behaelt seine eigene Nummer.
+        CollectionAssert.AreEqual(
+            new[] { "9", "9", "9", "5", "5", "457" },
+            output);
+    }
+
+    /// <summary>
+    /// Gegenproben: Diese Faelle melden 5 zu Recht und duerfen nicht mitgezogen werden, wenn
+    /// eine neue Zuordnung dazukommt. Ohne sie sieht jede Verschiebung nach 91 oder 53 wie ein
+    /// Fortschritt aus.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_KeepsUnmappedFailuresAtFive()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+
+                Debug.Print Left("abc", -1)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print Mid("abc", 0)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print Sqr(-1)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Debug.Print Log(0)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "5", "5", "5", "5" },
+            output);
+    }
+}
