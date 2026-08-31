@@ -10,6 +10,7 @@ public enum SyntaxKind
     IntegerLiteralToken,
     FloatingLiteralToken,
     StringLiteralToken,
+    DateLiteralToken,
 
     PlusToken,
     MinusToken,

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using VB6.Syntax;
 using VB6.Syntax.Diagnostics;
@@ -100,6 +101,11 @@ public sealed class Lexer
         if (Current == '&' && IsRadixPrefix(Peek(1)) && IsRadixDigit(Peek(2), IsHexPrefix(Peek(1))))
         {
             return ReadRadixNumericToken(start, leadingTrivia);
+        }
+
+        if (Current == '#' && TryReadDateLiteralToken(start, leadingTrivia, out var dateLiteral))
+        {
+            return dateLiteral;
         }
 
         var tokenKind = Current switch
@@ -576,6 +582,49 @@ public sealed class Lexer
         }
 
         return trivia.ToImmutable();
+    }
+
+    /// <summary>
+    /// Recognises a <c>#...#</c> date literal. The same '#' also introduces a file number
+    /// (<c>Print #1, x</c>) and can follow a numeric literal as a Double type suffix, so the
+    /// candidate only becomes a date when a closing '#' appears on the same line and the text
+    /// between the two actually parses as a date or time. Everything else stays a HashToken.
+    ///
+    /// VB6 date literals are written in US order regardless of the machine locale, so they are
+    /// parsed with the invariant culture like the rest of the runtime.
+    /// </summary>
+    private bool TryReadDateLiteralToken(
+        int start,
+        ImmutableArray<SyntaxTrivia> leadingTrivia,
+        [NotNullWhen(true)] out SyntaxToken? token)
+    {
+        token = null;
+        var index = start + 1;
+        while (index < _text.Length && _text[index] is not '\r' and not '\n' and not '#' and not '"')
+        {
+            index++;
+        }
+
+        if (index >= _text.Length || _text[index] != '#')
+        {
+            return false;
+        }
+
+        var inner = _text.ToString(TextSpan.FromBounds(start + 1, index)).Trim();
+        if (inner.Length == 0 ||
+            !DateTime.TryParse(
+                inner,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.NoCurrentDateDefault,
+                out var parsed))
+        {
+            return false;
+        }
+
+        var length = index + 1 - start;
+        _position = start + length;
+        token = CreateToken(SyntaxKind.DateLiteralToken, start, length, parsed.ToOADate(), leadingTrivia);
+        return true;
     }
 
     private SyntaxToken CreateToken(
