@@ -114,6 +114,27 @@ public sealed class ControlFlowGuardTests
     }
 
     [TestMethod]
+    public void Lower_RepresentsResumeLabelAsAStateClearingResumeOperation()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                On Error GoTo Failed
+                Err.Raise 5
+            Failed:
+                Resume Done
+            Done:
+            End Sub
+            """);
+
+        Assert.IsTrue(
+            VB6TestIr.Procedures(program)
+                .SelectMany(procedure => procedure.Blocks)
+                .SelectMany(block => block.Instructions)
+                .OfType<VB6.IR.IrResumeInstruction>()
+                .Any(instruction => instruction.Kind == VB6.IR.IrResumeKind.Label));
+    }
+
+    [TestMethod]
     public void Lower_EmitsResumeNextRegions()
     {
         var lowering = VBCompilation.Create("""
@@ -178,6 +199,44 @@ public sealed class ControlFlowGuardTests
             """);
 
         Assert.AreEqual("continued", output.Trim());
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ResumeLabelClearsTheHandlerBeforeExecutionContinues()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error GoTo Failed
+            100
+                Err.Raise 5, "unit", "first"
+                Exit Sub
+            Failed:
+                If Err.Number = 5 Then Resume Continue
+                Debug.Print Err.Number
+                Exit Sub
+            Continue:
+                Debug.Print Err.Number
+                Debug.Print Erl
+                Err.Raise 6, "unit", "second"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "0", "0", "6" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ResumeLabelWithoutAnActiveErrorRaisesError20()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                Resume Done
+                Debug.Print Err.Number
+            Done:
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "20" }, output);
     }
 
     [TestMethod]
