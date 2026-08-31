@@ -123,6 +123,14 @@ public static class VBErrors
                 // Faelle wie Space(-1) ab, fuer die VB6 weiterhin 5 meldet.
                 IndexOutOfRangeException => 9,
                 MissingMemberException => 438,
+                // Ein Mitgliedszugriff auf eine nicht gesetzte Objektvariable ist in VB6
+                // Fehler 91. Der frueh gebundene Pfad ruft dabei auf null und erzeugt die
+                // CLR-Ausnahme, der spaet gebundene wirft sie in RequireTarget selbst --
+                // beide Wege treffen sich hier.
+                NullReferenceException => 91,
+                // Ein fehlender Pfad ist in VB6 Fehler 53. Die Verzeichnisvariante zaehlt mit:
+                // VB6 unterscheidet beim Oeffnen nicht, welcher Teil des Pfades fehlt.
+                FileNotFoundException or DirectoryNotFoundException => 53,
                 _ => 5
             },
             Source: exception.GetType().Name,

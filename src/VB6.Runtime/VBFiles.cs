@@ -26,6 +26,7 @@ public static class VBFiles
     public static void Kill(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        RequireExistingFile(path);
         File.Delete(path);
     }
 
@@ -148,7 +149,23 @@ public static class VBFiles
     public static double FileDateTime(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        RequireExistingFile(path);
         return File.GetLastWriteTime(path).ToOADate();
+    }
+
+    /// <summary>
+    /// Rejects a missing path with the VB6 "File not found" error. Some framework calls are silent
+    /// about a missing file - <see cref="File.Delete(string)"/> succeeds and
+    /// <see cref="File.GetLastWriteTime(string)"/> answers with a 1601 placeholder - so the check
+    /// has to happen before them. Throwing the framework exception keeps the error number defined
+    /// in one place, in the mapping in <see cref="VBErrors"/>.
+    /// </summary>
+    private static void RequireExistingFile(string path)
+    {
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            throw new FileNotFoundException("File not found.", path);
+        }
     }
 
     /// <summary>Implements Dir's stateful first-call/continuation form and attribute filtering.</summary>

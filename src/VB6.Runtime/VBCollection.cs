@@ -50,11 +50,11 @@ public sealed class VBCollection
         var insertAt = _items.Count;
         if (!VBVariants.IsMissing(before))
         {
-            insertAt = ResolveIndex(before);
+            insertAt = ResolveIndex(before, outOfRangeNumber: 5);
         }
         else if (!VBVariants.IsMissing(after))
         {
-            insertAt = checked(ResolveIndex(after) + 1);
+            insertAt = checked(ResolveIndex(after, outOfRangeNumber: 5) + 1);
         }
 
         string? normalizedKey = null;
@@ -93,7 +93,15 @@ public sealed class VBCollection
 
     public static void RemoveValue(VBCollection collection, object? index) => collection.Remove(index);
 
-    private int ResolveIndex(object? index)
+    /// <summary>
+    /// Resolves a key or a one-based position to a storage index. VB6 separates the two failures:
+    /// a numeric position outside the collection is 9 ("Subscript out of range"), while an unknown
+    /// key is 5 ("Invalid procedure call or argument"). Only <c>Item</c> and <c>Remove</c> address
+    /// an element, so only they report 9; <c>Add</c> passes <paramref name="outOfRangeNumber"/> 5
+    /// for its Before/After position, which VB6 treats as an invalid argument to Add rather than a
+    /// subscript.
+    /// </summary>
+    private int ResolveIndex(object? index, int outOfRangeNumber = 9)
     {
         if (index is string key)
         {
@@ -108,7 +116,9 @@ public sealed class VBCollection
         var oneBased = VBConversions.CLng(index);
         if (oneBased < 1 || oneBased > _items.Count)
         {
-            throw InvalidCollectionArgument($"Collection index {oneBased} is out of range.");
+            throw new VB6RuntimeErrorException(
+                outOfRangeNumber,
+                $"Collection index {oneBased} is out of range.");
         }
 
         return oneBased - 1;
