@@ -178,4 +178,87 @@ public sealed class FixedUdtArrayExecutionTests
 
         Assert.IsFalse(VB6TestIr.Expressions(program).OfType<IrCopyArrayExpression>().Any());
     }
+
+    /// <summary>
+    /// Ein UDT hat ein festes Layout, seine Arraygrenzen muessen deshalb zur Uebersetzungszeit
+    /// feststehen. Bisher faltete der UDT-Binder ausschliesslich Literale und liess jede andere
+    /// Form **ohne Diagnose** fallen; das Member bekam dann gar keine Grenzen, das Array wurde nie
+    /// angelegt, und der erste Zugriff riss das Programm mit einer NullReferenceException ab.
+    /// Benannte Konstanten und konstante Arithmetik sind in VB6 an dieser Stelle erlaubt.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_FoldsConstantUdtArrayBounds()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Const Breite As Long = 3
+            Const Start As Long = 2
+            Const Ohne = 4
+
+            Type Rec
+                literal(1 To 3) As Long
+                rechnung(1 To 2 + 1) As Long
+                konstante(1 To Breite) As Long
+                gemischt(1 To Breite * 2) As Long
+                untere(Start To 4) As Long
+                zweidim(1 To 2, 1 To 1 + 1) As Long
+                spaeter(1 To Spaet) As Long
+                ohneTyp(1 To Ohne) As Long
+                abgeleitet(1 To Doppelt) As Long
+            End Type
+
+            Const Spaet As Long = 5
+            Const Doppelt As Long = Spaet + 1
+
+            Sub Main()
+                Dim r As Rec
+
+                Debug.Print LBound(r.literal) & "/" & UBound(r.literal)
+                Debug.Print UBound(r.rechnung)
+                Debug.Print UBound(r.konstante)
+                Debug.Print UBound(r.gemischt)
+                Debug.Print LBound(r.untere) & "/" & UBound(r.untere)
+                Debug.Print UBound(r.zweidim)
+                Debug.Print UBound(r.spaeter)
+                Debug.Print UBound(r.ohneTyp)
+                Debug.Print UBound(r.abgeleitet)
+
+                r.konstante(2) = 7
+                Debug.Print r.konstante(2)
+            End Sub
+            """);
+
+        // "spaeter" belegt, dass eine Konstante auch nach dem Type stehen darf, "abgeleitet",
+        // dass eine Konstante sich auf eine spaeter deklarierte beziehen darf: die Konstanten
+        // werden vollstaendig gesammelt, bevor ein Member aufgeloest wird.
+        CollectionAssert.AreEqual(
+            new[] { "1/3", "3", "3", "6", "2/4", "2", "5", "4", "6", "7" },
+            output);
+    }
+
+    /// <summary>
+    /// Was nicht faltet, wird gemeldet statt verworfen. Vorher entstand in beiden Faellen ein
+    /// Member ohne Speicher, und der Fehler zeigte sich erst zur Laufzeit als Absturz.
+    /// </summary>
+    [TestMethod]
+    [DataRow("VB6S0071", "a(1 To n) As Long")]
+    [DataRow("VB6S0071", "a(1 To 3 / 0) As Long")]
+    [DataRow("VB6S0072", "a(5 To 1) As Long")]
+    public void Analyze_RejectsUdtArrayBoundsThatAreNotConstant(string code, string member)
+    {
+        var compilation = VBCompilation.Create(
+            string.Join(
+                Environment.NewLine,
+                "Type Rec",
+                "    " + member,
+                "End Type",
+                string.Empty,
+                "Sub Main()",
+                "    Dim r As Rec",
+                "End Sub"),
+            "Module1.bas");
+
+        Assert.IsTrue(
+            compilation.Analyze().Diagnostics.Any(diagnostic => diagnostic.Code == code),
+            $"Expected {code}.");
+    }
 }
