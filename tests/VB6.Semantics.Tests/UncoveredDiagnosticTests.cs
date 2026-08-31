@@ -26,6 +26,23 @@ public sealed class UncoveredDiagnosticTests
             """);
     }
 
+    /// <summary>
+    /// The function name is its own return storage and shares the scope with the module
+    /// variables, so a module variable of the same name is what VB6 calls an ambiguous name.
+    /// Reporting it keeps the compilation from ending in an unhandled ArgumentException, which
+    /// looked like a compiler defect rather than a source error.
+    /// </summary>
+    [TestMethod]
+    public void Bind_ReportsAFunctionNameThatCollidesWithAModuleVariable()
+    {
+        AssertDiagnostic("VB6S0073", """
+            Private total As Long
+            Function Total() As Long
+                Total = 1
+            End Function
+            """);
+    }
+
     [TestMethod]
     public void Bind_ReportsADuplicateParameter()
     {

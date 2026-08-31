@@ -71,7 +71,7 @@ public sealed class MemberArrayAccessParserTests
         Assert.AreEqual(0, result.Diagnostics.Length, FormatDiagnostics(result));
         var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
         var debugPrint = (DebugPrintStatementSyntax)procedure.Statements.Single();
-        return debugPrint.Expression;
+        return debugPrint.Expression!;
     }
 
     private static string FormatDiagnostics(VB6.Parser.ParseResult result) =>

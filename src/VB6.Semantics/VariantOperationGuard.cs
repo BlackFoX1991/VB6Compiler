@@ -144,7 +144,21 @@ public static class VariantOperationGuard
                 break;
 
             case BoundDebugPrintStatement debugPrint:
-                VisitExpression(text, debugPrint.Expression, diagnostics);
+                if (debugPrint.Expressions.IsDefaultOrEmpty)
+                {
+                    if (debugPrint.Expression is not null)
+                    {
+                        VisitExpression(text, debugPrint.Expression, diagnostics);
+                    }
+                }
+                else
+                {
+                    foreach (var item in debugPrint.Expressions)
+                    {
+                        VisitExpression(text, item, diagnostics);
+                    }
+                }
+
                 break;
 
             case BoundDebugAssertStatement debugAssert:

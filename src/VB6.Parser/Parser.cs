@@ -2754,8 +2754,46 @@ public sealed class Parser
         var debugKeyword = MatchToken(SyntaxKind.DebugKeyword);
         var dotToken = MatchToken(SyntaxKind.DotToken);
         var printKeyword = MatchToken(SyntaxKind.PrintKeyword);
-        var expression = ParseExpression();
-        return new DebugPrintStatementSyntax(debugKeyword, dotToken, printKeyword, expression);
+        var expressions = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+        var separators = ImmutableArray.CreateBuilder<SyntaxToken>();
+        while (Current.Kind is not SyntaxKind.NewLineToken
+               and not SyntaxKind.ColonToken
+               and not SyntaxKind.EndOfFileToken)
+        {
+            if (Current.Kind is SyntaxKind.CommaToken or SyntaxKind.SemicolonToken)
+            {
+                // A leading separator stands for an empty output item; a trailing one keeps the
+                // current line open instead of ending it, exactly as in Print #.
+                separators.Add(NextToken());
+                if (expressions.Count == 0
+                    || Current.Kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            expressions.Add(ParseExpression());
+            if (Current.Kind is not SyntaxKind.CommaToken and not SyntaxKind.SemicolonToken)
+            {
+                break;
+            }
+
+            separators.Add(NextToken());
+            if (Current.Kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken)
+            {
+                break;
+            }
+        }
+
+        return new DebugPrintStatementSyntax(
+            debugKeyword,
+            dotToken,
+            printKeyword,
+            expressions.Count == 0 ? null : expressions[0],
+            expressions.ToImmutable(),
+            separators.ToImmutable());
     }
 
     private DebugAssertStatementSyntax ParseDebugAssertStatement()
@@ -2850,7 +2888,7 @@ public sealed class Parser
             expression = new ParenthesizedExpressionSyntax(openParenthesis, inner, closeParenthesis);
         }
         else if (Current.Kind is SyntaxKind.IntegerLiteralToken or SyntaxKind.FloatingLiteralToken or SyntaxKind.StringLiteralToken or
-                 SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
+                 SyntaxKind.DateLiteralToken or SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
         {
             expression = new LiteralExpressionSyntax(NextToken());
         }

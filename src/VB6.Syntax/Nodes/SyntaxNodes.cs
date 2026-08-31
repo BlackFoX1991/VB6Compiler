@@ -430,7 +430,9 @@ public sealed record DebugPrintStatementSyntax(
     SyntaxToken DebugKeyword,
     SyntaxToken DotToken,
     SyntaxToken PrintKeyword,
-    ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugPrintStatement);
+    ExpressionSyntax? Expression,
+    ImmutableArray<ExpressionSyntax> Expressions = default,
+    ImmutableArray<SyntaxToken> Separators = default) : StatementSyntax(SyntaxKind.DebugPrintStatement);
 
 public sealed record DebugAssertStatementSyntax(
     SyntaxToken DebugKeyword,
