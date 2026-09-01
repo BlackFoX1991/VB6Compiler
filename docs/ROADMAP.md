@@ -25,9 +25,9 @@ Die Reihenfolge nutzt weiterhin die Konstrukt-Frequenzanalyse über echten VB6-C
 aber nicht mehr vom Korpus begrenzt: Maßgeblich ist eine vollständige, dokumentationsbasierte
 VB6-SP6-Kompatibilitätsmatrix.
 
-Die operative Abarbeitung für Luna steht in [`LUNA_EXECUTION_PLAN.md`](LUNA_EXECUTION_PLAN.md).
-Sie zerlegt die Matrix in atomare Karten mit festen Einstiegspunkten, gezielten Tests und einem
-kanonischen Gate nach jeder Welle. Die Roadmap bleibt dabei die fachliche Quelle für Ziel,
+Die operative Abarbeitung folgt der Kompatibilitätsmatrix `vb6-sp6-compatibility-matrix.json`.
+Sie zerlegt den Umfang in atomare Erwartungen mit eigenen Statusachsen und einem kanonischen
+Gate. Die Roadmap bleibt dabei die fachliche Quelle für Ziel,
 Abgrenzung und Meilensteinstatus; die Queue ist die Quelle für die nächste konkrete Änderung.
 
 ## Gemessener Ist-Stand
@@ -56,10 +56,9 @@ neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 **118 Erwartungen**, davon **71 implemented**, **8 partial** und **39 planned**;
 **79/118 documented-verified** (Stand 2026-08-31).
 
-Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah. Das
-vollständige Befundregister mit Ist- und Sollwerten steht in
-[`LUNA_EXECUTION_PLAN.md`](LUNA_EXECUTION_PLAN.md); die noch offenen Punkte daraus sind unten
-in den Etappen B und C als eigene Zeilen geführt.
+Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
+offenen Punkte daraus sind unten in den Etappen B und C als eigene Zeilen geführt. Das
+vollständige Befundregister steht im Changelog.
 
 Als Compiler-Kern vorhanden: `Property Get/Let/Set`, Events, `WithEvents`, `New`, `Set`,
 `TypeOf`, Variant-Arrays, Standard-`Collection`, late-bound Object-/Control-Mitglieder sowie
@@ -214,8 +213,8 @@ ausgeführt werden können.
 
 Die Umsetzung erfolgt seriell über die operative Luna-Queue. Pro Karte werden nur die
 referenzierten Dateien und Tests gelesen; nach vier verifizierten Karten oder am Ende einer
-Kartenfamilie läuft `build.ps1 -NoRestore -Configuration Release`. Der pausierte Einstieg und
-die genaue Kartenreihenfolge stehen in [`LUNA_EXECUTION_PLAN.md`](LUNA_EXECUTION_PLAN.md).
+Kartenfamilie läuft `build.ps1 -NoRestore -Configuration Release`. Die offenen Karten und ihre
+Reihenfolge stehen in der Kompatibilitätsmatrix.
 
 ### Öffentlicher Profilvertrag
 
