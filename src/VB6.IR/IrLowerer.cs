@@ -1252,7 +1252,7 @@ public static class IrLowerer
                         Emit(new IrEvaluateInstruction(Runtime(
                             IrRuntimeMethod.DebugPrint,
                             TypeSymbol.Error,
-                            LowerExpression(debugExpressions[0]))));
+                            LowerPrintItem(debugExpressions[0]))));
                         break;
                     }
 
@@ -1264,7 +1264,7 @@ public static class IrLowerer
                         Emit(new IrEvaluateInstruction(Runtime(
                             IrRuntimeMethod.DebugPrintValue,
                             TypeSymbol.Error,
-                            LowerExpression(debugExpressions[index]),
+                            LowerPrintItem(debugExpressions[index]),
                             new IrConstantExpression(index >= print.Separators.Length, TypeSymbol.Boolean),
                             new IrConstantExpression(debugSeparator, TypeSymbol.Long))));
                     }
@@ -4092,6 +4092,16 @@ public static class IrLowerer
             : type == TypeSymbol.Single ? IrRuntimeMethod.AddSingle
             : type == TypeSymbol.Date || type == TypeSymbol.Double ? IrRuntimeMethod.AddDouble
             : IrRuntimeMethod.AddInteger;
+
+        /// <summary>
+        /// Lowers one Debug.Print item. A typed Date is boxed as a Date value rather than as the
+        /// bare OLE automation double it shares a representation with, so the runtime can still
+        /// tell the two apart when it renders the item.
+        /// </summary>
+        private IrExpression LowerPrintItem(BoundExpression expression) =>
+            expression.Type == TypeSymbol.Date
+                ? Runtime(IrRuntimeMethod.DateToVariant, TypeSymbol.Variant, LowerExpression(expression))
+                : LowerExpression(expression);
 
         private static IrRuntimeMethod SubtractMethod(TypeSymbol type) => type == TypeSymbol.Byte ? IrRuntimeMethod.SubtractByte
             : type == TypeSymbol.LongLong ? IrRuntimeMethod.SubtractLongLong
