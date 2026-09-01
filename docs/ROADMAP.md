@@ -46,14 +46,14 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1403 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1410 Tests, alle grün** in 13
 Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
 Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1403 Tests; die
+byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1410 Tests; die
 neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **71 implemented**, **10 partial** und **37 planned**;
+**118 Erwartungen**, davon **72 implemented**, **9 partial** und **37 planned**;
 **81/118 documented-verified** (Stand 2026-09-01).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
@@ -254,8 +254,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Diagnosen ebenfalls geschlossen. Die acht zuvor fehlenden Standard-Intrinsics sind
       ebenfalls implementiert; als nächste offene Implementierungskarte folgt
       `l1-02-l-locale-datetime-math-financial`. Die derzeit 118 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (71 `implemented`, 10 `partial`, 37 `planned`;
-      80 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
+      maschinenprüfbare Statusachsen (72 `implemented`, 9 `partial`, 37 `planned`;
+      81 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
       danach VISIA und weitere Legacy-Projekte.
