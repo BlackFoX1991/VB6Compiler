@@ -440,6 +440,10 @@ public sealed record DebugAssertStatementSyntax(
     SyntaxToken AssertIdentifier,
     ExpressionSyntax Expression) : StatementSyntax(SyntaxKind.DebugAssertStatement);
 
+public sealed record ErrorStatementSyntax(
+    SyntaxToken ErrorKeyword,
+    ExpressionSyntax Number) : StatementSyntax(SyntaxKind.ErrorStatement);
+
 public sealed record FilePrintStatementSyntax(
     SyntaxToken PrintKeyword,
     FileNumberSyntax FileNumber,

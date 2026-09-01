@@ -150,6 +150,7 @@ public enum SyntaxKind
     CaseElseClause,
     DebugPrintStatement,
     DebugAssertStatement,
+    ErrorStatement,
     FilePrintStatement,
     FileWriteStatement,
     LockStatement,
