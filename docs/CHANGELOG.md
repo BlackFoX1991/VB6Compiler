@@ -4309,3 +4309,28 @@ Sweep-Arbeit der letzten zwei Tage nicht nachgezogen hatte: die `Debug.Print`-Au
 
 Kanonischer Nachweis unveraendert: **1384/1384** Tests, **0** Fehler, Release ohne Warnungen,
 **40/40** VISIA-Projektitems.
+
+## CStr eines Date lieferte die Seriennummer (01.09.2026)
+
+`CStr(aDate)` gab `43832` zurueck statt eines Datums, ebenso die Verkettung `"am " & d`, die
+Zuweisung an einen `String` und `Print #`. Nach der Debug.Print-Aenderung war das der letzte
+Textweg, der einer eigenen Darstellung folgte.
+
+Zwei Ursachen, beide dieselbe wie zuvor bei `Debug.Print`. `VBConversions.CStr` rendert einen
+`VBDateValue` ausdruecklich als OADate-Zahl -- das ist auf die dokumentierte **General
+Date**-Form umgestellt. Und ein typisierter `Date` erreichte `CStr` ueberhaupt nur als blanker
+`Double`, weil er sich die Repraesentation mit ihm teilt; die Konvertierung nach `String` boxt
+ihn jetzt als Date-Wert. Aus demselben Grund laufen die Ausgabeelemente von `Print #` nun ueber
+denselben Helfer wie die von `Debug.Print`.
+
+Damit stimmen alle fuenf Textwege ueberein: `CStr`, `&`, Zuweisung an `String`, `Debug.Print`
+und `Print #` liefern `2020-01-02` beziehungsweise `2020-01-02 18:00:00`. Eine ausdrueckliche
+numerische Konvertierung bleibt unveraendert: `CDbl` liefert weiterhin `43832`, `Year` liefert
+`2020`.
+
+Die befuerchtete Breitenwirkung trat nicht ein: **kein einziger bestehender Test** sicherte die
+Seriennummer als Textform zu, der Lauf blieb ohne Anpassung fremder Zusicherungen gruen.
+
+Kanonischer Nachweis: **1388/1388** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.

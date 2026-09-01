@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1384 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (71 implemented, 8 partial, 39 planned) with 79/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next open managed card is `l1-02-j-nested-error-resume`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1388 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (71 implemented, 8 partial, 39 planned) with 79/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next open managed card is `l1-02-j-nested-error-resume`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -68,6 +68,7 @@ Implemented so far:
 - `Enum ... End Enum` with optional visibility plus explicit or implicit member values, bound as Long-backed constants
 - `Function` declarations without an `As` clause, which return Variant as they do in VB6
 - file I/O: binary `Open`, `Close`, `Get`, `Put` and `Seek`, plus text `Open For Input/Output/Append`, `Print #`, `Line Input #` and `Input #` parsing, from lexing the file number through a runtime file-number table to generated programs that read and write real files. Positions are one-based and each supported binary type transfers its exact VB6 storage size; variable-length Strings use a two-byte character-count prefix, scalar-layout UDT records transfer their fields in declaration order, including variable `String` fields and scalar Variant type tags, scalar and fixed-array `String * n` UDT fields transfer exactly `n` bytes without a descriptor, fixed UDT array fields support scalar and nested non-recursive elements, top-level supported scalar arrays (including variable `String` elements) transfer element-wise without an outer descriptor in Binary, and dynamic top-level arrays carry the descriptor in Random; scalar Random records honor one-based record positions, fixed `Len` boundaries, padding and the VB6 default length. `Input #` restores Write-# Empty/Null/Boolean/Date/Error markers and scalar numeric values into Variant targets. The current managed fixed-string profile uses one Latin-1 byte per character; host code-page selection, Variant-array/object records, and the remaining Random/Len layout rules are still reported rather than approximated
+- every text rendering of a `Date` agrees on the documented General Date form: `CStr`, concatenation, assignment to a `String`, `Debug.Print` and `Print #`. An explicit numeric conversion still yields the OLE automation serial number
 - `Debug.Print` takes the same output list as `Print #`: any number of expressions joined by `;` or `,`, where a comma advances to the next 14-column print zone, a trailing separator holds the line open, and a bare `Debug.Print` writes an empty line. A `Date` value prints in the documented General Date form rather than as its OLE automation serial number
 - `Print #` output lists preserve semicolon concatenation, comma zone separators, and trailing-semicolon line continuation through parser, binding, managed emission, and generated-file execution
 - `LSet target = source` and `RSet target = source` assignment syntax, including Managed execution for fixed-length String targets, same-type UDT copies, and cross-UDT raw-layout transfers with scalar, Boolean, and native-width `LongPtr` fields; `RSet` right-aligns fixed strings, pads on the left and truncates to the leftmost characters while variable-length targets keep normal assignment semantics; dynamic strings, arrays, Variants, and other native ABI layouts remain guarded
@@ -131,7 +132,7 @@ Implemented so far:
 ## Current verification
 
 The canonical serial `build.ps1 -Configuration Release` run on 2026-08-31 reports
-**1384 test cases**, **1384 passed**, **0 failed** across 13 test projects, with a warning-free
+**1388 test cases**, **1388 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
 **118 expectations**: **71 implemented**, **8 partial**, **39 planned**, and **79/118
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
