@@ -38,6 +38,7 @@ public static class SyntaxNavigator
             WithStatementSyntax with => with.WithKeyword,
             DebugPrintStatementSyntax debugPrint => debugPrint.DebugKeyword,
             DebugAssertStatementSyntax debugAssert => debugAssert.DebugKeyword,
+            ErrorStatementSyntax errorStatement => errorStatement.ErrorKeyword,
             FilePrintStatementSyntax filePrint => filePrint.PrintKeyword,
             FileWriteStatementSyntax fileWrite => fileWrite.WriteKeyword,
             LockStatementSyntax lockStatement => lockStatement.LockKeyword,

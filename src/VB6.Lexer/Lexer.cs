@@ -75,7 +75,10 @@ public sealed class Lexer
             }
 
             char? typeSuffix = null;
-            if (keywordKind == SyntaxKind.IdentifierToken && IsIdentifierTypeSuffix(Current))
+            // Error is a keyword because On Error needs it, but it is also the name of the
+            // Error/Error$ function, so it carries a type suffix like any other intrinsic name.
+            if ((keywordKind == SyntaxKind.IdentifierToken || keywordKind == SyntaxKind.ErrorKeyword) &&
+                IsIdentifierTypeSuffix(Current))
             {
                 typeSuffix = Current;
                 _position++;

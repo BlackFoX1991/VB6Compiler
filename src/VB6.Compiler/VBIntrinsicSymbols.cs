@@ -69,6 +69,9 @@ internal static class VBIntrinsicSymbols
         Function("AscW", VBIntrinsicKind.AscW, "VBStrings.AscW", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.String)),
         // The byte counterparts of Asc and Chr, completing the family LeftB, RightB, MidB,
         // InStrB and LenB already form.
+        Function("Tab", VBIntrinsicKind.Tab, "VBStrings.Tab", TypeSymbol.Variant, Parameter("Column", TypeSymbol.Long)),
+        Function("Spc", VBIntrinsicKind.Spc, "VBStrings.Spc", TypeSymbol.Variant, Parameter("Count", TypeSymbol.Long)),
+        Function("Error", VBIntrinsicKind.ErrorText, "VBErrors.ErrorText", TypeSymbol.String, Parameter("ErrorNumber", TypeSymbol.Long)),
         Function("AscB", VBIntrinsicKind.AscB, "VBStrings.AscB", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Function("ChrB", VBIntrinsicKind.ChrB, "VBStrings.ChrB", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
         Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),

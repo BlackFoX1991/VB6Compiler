@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1403 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (71 implemented, 10 partial, 37 planned) with 81/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next open managed card is `l1-02-l-locale-datetime-math-financial`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1410 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (72 implemented, 9 partial, 37 planned) with 81/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next open managed card is `l1-02-l-locale-datetime-math-financial`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -105,7 +105,7 @@ Implemented so far:
 - VB built-in string and numeric constants such as `vbCrLf`, `vbTab`, `vbWhite`, `vbButtonFace`, `vbRetry`, and `vbPicTypeBitmap`, which user declarations of the same name still override
 - the `Len`/`LenB`, two- and three-argument `Mid` plus `Mid(...) = ...`/`Mid$(...) = ...` assignment, byte-oriented `LeftB`/`RightB`/`MidB`/`InStrB`, ASCII `Chr`, `InStr`, `InStrRev`, `StrComp`, `Replace`, `RSet`, and current `Abs`/`Sgn`/`Fix`/`Round`/`Sqr`/`Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn`/`Rnd`/`Randomize` math intrinsics, including `Null`-propagation for `Len`/`LenB` and `Null`-/`Empty`-semantics for `Abs`, `Sgn`, `Fix`, `Round` and `Int`, plus the `CByte`/`CInt`/`CLng`/`CLngPtr`/`CUShort`/`CUInt`/`CULng`/`CDec`/`CSng`/`CDbl`/`CBool`/`CStr` conversions and the `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` string functions. `LenB` preserves the Unicode byte count and generated UDT in-memory layout. Byte-oriented functions use the selected profile's encoded representation and return clipped byte slices/offsets. Each intrinsic symbol carries the runtime method the backend calls, so it is resolved and checked like any other procedure and a user declaration of the same name still shadows it
 - the deterministic `Format`/`Format$` subset for numeric masks (`0`, `#`, grouping, decimals, percent and sections), standard numeric names, string case masks, common date/time tokens, scalar `Year`/`Month`/`Day`/`Hour`/`Minute`/`Second`/`Timer` intrinsics, `DateValue`/`TimeValue`, and `DateSerial`/`TimeSerial`/`DateAdd`/`DateDiff` for the supported interval subset; week-number, locale-specific formatting and further placeholders remain explicit follow-up work
-- `AscB`, `ChrB` and `CLngLng`, completing the byte-string family around `LeftB`/`RightB`/`MidB`/`InStrB`/`LenB` and reaching the LongLong conversion by name
+- `AscB`, `ChrB`, `CLngLng`, the `Error`/`Error$` message function with its `Error <number>` statement form, and the `Tab`/`Spc` output-list positions, completing the byte-string family around `LeftB`/`RightB`/`MidB`/`InStrB`/`LenB` and reaching the LongLong conversion by name
 - the `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`, `Partition`, `CallByName`, and `QBColor` intrinsics; the format helpers resolve their `vbUseDefault`/`vbTrue`/`vbFalse` tri-state arguments against the selected compatibility profile, `CallByName` dispatches `vbMethod`/`vbGet`/`vbLet`/`vbSet` through the existing dynamic member dispatch, and `QBColor` maps the documented sixteen-colour OLE_COLOR table
 - `#...#` date literals, resolved at lex time to an OLE automation date and carried on as an ordinary `Date` constant; the same `#` keeps working as a file number and as a Double type suffix
 - bracketed identifiers such as `[Stop]`
@@ -133,9 +133,9 @@ Implemented so far:
 ## Current verification
 
 The canonical serial `build.ps1 -Configuration Release` run on 2026-08-31 reports
-**1403 test cases**, **1403 passed**, **0 failed** across 13 test projects, with a warning-free
+**1410 test cases**, **1410 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
-**118 expectations**: **71 implemented**, **10 partial**, **37 planned**, and **81/118
+**118 expectations**: **72 implemented**, **9 partial**, **37 planned**, and **81/118
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
 With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **50/50 passed**, **0 skipped**. The counter-check on an x64 test host fails 7 of those cases, so the x86 result is a real measurement rather than a silently skipped one.
 

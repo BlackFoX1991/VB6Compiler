@@ -4397,3 +4397,34 @@ Drei bleiben offen und halten die Karte auf `partial`:
 Kanonischer Nachweis: **1403/1403** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix steht auf **71 implemented, 10 partial, 37 planned von 118 |
 81/118 documented-verified**.
+
+## Karte l1-02-k geschlossen: Error, Tab und Spc (01.09.2026)
+
+Die drei verbliebenen Namen der Karte binden jetzt.
+
+**`Error` und `Error$`** waren nicht ansprechbar, weil `ERROR` ein Keyword ist -- `On Error`
+braucht es. Beide Formen bekommen deshalb ihren eigenen Weg: die **Anweisung** `Error <Nummer>`
+ist ein eigener Syntaxknoten, der ueber `VBErrors.RaiseNumber` mit der dokumentierten
+Beschreibung ausloest; die **Funktion** `Error(n)` wird im Ausdruckspfad als Aufruf gebaut, nicht
+als Name, den die Element-Zugriffsschleife sonst in einen Index verwandelt haette. Der Lexer
+nimmt fuer das Keyword jetzt auch ein Typsuffix an, damit `Error$` ueberhaupt lexbar ist.
+
+`VBErrors.ErrorText` liefert die dokumentierten Meldungen; eine Nummer, die VB6 nicht
+dokumentiert, ergibt wie dort "Application-defined or object-defined error".
+
+**`Tab(n)` und `Spc(n)`** erzeugen keinen Wert, sondern positionieren das naechste Element. Sie
+reisen als `VBPrintPosition`-Marker durch die Ausgabeliste, den beide Print-Wege aufloesen --
+`Debug.Print` und `Print #` verhalten sich damit gleich. Bekannte Abweichung: steht die
+Tab-Spalte bereits hinter der aktuellen Position, beginnt VB6 eine neue Zeile, waehrend hier
+ohne Auffuellung weitergeschrieben wird.
+
+Gemessen: `Error(5)` = "Invalid procedure call or argument", `Error$(53)` = "File not found",
+`Error 53` setzt `Err.Number` 53 mit derselben Beschreibung, `Error 6` erreicht einen Handler,
+`"a"; Tab(10); "b"` setzt das b auf Spalte 10, `"a"; Spc(3); "b"` ergibt `a   b`, und
+`Print #` positioniert identisch.
+
+Die Karte steht damit auf **`implemented`** / `documented-verified`.
+
+Kanonischer Nachweis: **1410/1410** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **72 implemented, 9 partial, 37 planned von 118 |
+81/118 documented-verified**.

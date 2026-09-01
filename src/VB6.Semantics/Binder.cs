@@ -1434,6 +1434,9 @@ public sealed class Binder
             ExitStatementSyntax exitStatement => BindExit(exitStatement),
             SelectCaseStatementSyntax selectStatement => BindSelectCase(selectStatement, variables, procedures),
             DebugPrintStatementSyntax debugPrint => BindDebugPrint(debugPrint, variables, procedures),
+            ErrorStatementSyntax errorStatement => new BoundErrorStatement(BindConversion(
+                BindExpression(errorStatement.Number, variables, procedures),
+                TypeSymbol.Long)),
             DebugAssertStatementSyntax debugAssert =>
                 new BoundDebugAssertStatement(BindConversion(
                     BindExpression(debugAssert.Expression, variables, procedures),

@@ -411,7 +411,11 @@ public static class VBFiles
             WritePrintText(stream, new string(' ', spaces), width, ref lineLength);
         }
 
-        WritePrintText(stream, VBDebug.Format(value), width, ref lineLength);
+        WritePrintText(
+            stream,
+            value is VBPrintPosition position ? VBDebug.ResolvePrintPosition(position, lineLength) : VBDebug.Format(value),
+            width,
+            ref lineLength);
         if (endRecord)
         {
             var terminator = Encoding.UTF8.GetBytes("\r\n");

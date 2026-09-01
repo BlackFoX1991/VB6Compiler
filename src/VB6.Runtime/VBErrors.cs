@@ -70,6 +70,87 @@ public static class VBErrors
         throw new VB6RaisedError(number, description);
     }
 
+    /// <summary>
+    /// The VB6 Error statement: raises the given number with its documented description.
+    /// </summary>
+    public static void RaiseNumber(int number) =>
+        Raise(number, string.Empty, ErrorText(number), string.Empty, 0);
+
+    /// <summary>
+    /// The VB6 Error function: the documented message for an error number. Numbers VB6 does not
+    /// document resolve to the same generic text it uses for them.
+    /// </summary>
+    public static string ErrorText(int number) => number switch
+    {
+        3 => "Return without GoSub",
+        5 => "Invalid procedure call or argument",
+        6 => "Overflow",
+        7 => "Out of memory",
+        9 => "Subscript out of range",
+        10 => "This array is fixed or temporarily locked",
+        11 => "Division by zero",
+        13 => "Type mismatch",
+        14 => "Out of string space",
+        16 => "Expression too complex",
+        17 => "Can't perform requested operation",
+        18 => "User interrupt occurred",
+        20 => "Resume without error",
+        28 => "Out of stack space",
+        35 => "Sub or Function not defined",
+        48 => "Error in loading DLL",
+        49 => "Bad DLL calling convention",
+        51 => "Internal error",
+        52 => "Bad file name or number",
+        53 => "File not found",
+        54 => "Bad file mode",
+        55 => "File already open",
+        57 => "Device I/O error",
+        58 => "File already exists",
+        59 => "Bad record length",
+        61 => "Disk full",
+        62 => "Input past end of file",
+        63 => "Bad record number",
+        67 => "Too many files",
+        68 => "Device unavailable",
+        70 => "Permission denied",
+        71 => "Disk not ready",
+        74 => "Can't rename with different drive",
+        75 => "Path/File access error",
+        76 => "Path not found",
+        91 => "Object variable or With block variable not set",
+        92 => "For loop not initialized",
+        93 => "Invalid pattern string",
+        94 => "Invalid use of Null",
+        322 => "Can't create necessary temporary file",
+        424 => "Object required",
+        429 => "ActiveX component can't create object",
+        430 => "Class doesn't support Automation",
+        432 => "File name or class name not found during Automation operation",
+        438 => "Object doesn't support this property or method",
+        440 => "Automation error",
+        442 => "Connection to type library or object library for remote process has been lost",
+        443 => "Automation object does not have a default value",
+        445 => "Object doesn't support this action",
+        446 => "Object doesn't support named arguments",
+        447 => "Object doesn't support the current locale setting",
+        448 => "Named argument not found",
+        449 => "Argument not optional",
+        450 => "Wrong number of arguments or invalid property assignment",
+        451 => "Property let procedure not defined and property get procedure did not return an object",
+        452 => "Invalid ordinal",
+        453 => "Specified DLL function not found",
+        455 => "Code resource lock error",
+        457 => "This key is already associated with an element of this collection",
+        458 => "Variable uses an Automation type not supported in Visual Basic",
+        460 => "Invalid Clipboard format",
+        461 => "Method or data member not found",
+        462 => "The remote server machine does not exist or is unavailable",
+        463 => "Class not registered on local machine",
+        481 => "Invalid picture",
+        482 => "Printer error",
+        _ => "Application-defined or object-defined error"
+    };
+
     public static void Set(Exception exception)
     {
         Set(exception, -1);

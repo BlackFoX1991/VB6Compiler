@@ -1132,6 +1132,30 @@ public static class VBDebug
 
     private static int _lineLength;
 
+    /// <summary>
+    /// Applies a Tab or Spc item to a print line of the given length and returns the padding to
+    /// write. Both are output-list positioning functions rather than values, so every print path
+    /// resolves them the same way.
+    /// </summary>
+    public static string ResolvePrintPosition(VBPrintPosition position, int lineLength)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        if (!position.IsColumn)
+        {
+            return new string(' ', Math.Max(0, position.Value));
+        }
+
+        // Tab(n) is a one-based column. A column already passed starts a new line in VB6; the
+        // print paths here stay on the line and pad to the next occurrence of it instead.
+        var column = Math.Max(1, position.Value) - 1;
+        return lineLength <= column
+            ? new string(' ', column - lineLength)
+            : string.Empty;
+    }
+
+    /// <summary>The current column of the Debug.Print line, used to resolve Tab and Spc.</summary>
+    public static int LineLength => _lineLength;
+
     public static void Print(object? value) => PrintValue(value, endLine: true, separator: 0);
 
     /// <summary>
@@ -1152,7 +1176,9 @@ public static class VBDebug
             Write(new string(' ', PrintZoneWidth - (_lineLength % PrintZoneWidth)));
         }
 
-        Write(Format(value));
+        Write(value is VBPrintPosition position
+            ? ResolvePrintPosition(position, _lineLength)
+            : Format(value));
         if (endLine)
         {
             Console.WriteLine();

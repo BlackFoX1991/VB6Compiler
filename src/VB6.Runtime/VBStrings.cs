@@ -2326,6 +2326,12 @@ public static class VBStrings
         return builder.ToString();
     }
 
+    /// <summary>The VB6 Tab output-list function: position the next item at a column.</summary>
+    public static object Tab(int column) => new VBPrintPosition(column, IsColumn: true);
+
+    /// <summary>The VB6 Spc output-list function: insert a number of spaces.</summary>
+    public static object Spc(int count) => new VBPrintPosition(count, IsColumn: false);
+
     /// <summary>Returns the first byte of the VB6 AscB intrinsic's byte view of the string.</summary>
     public static int AscB(string value) => AscB(value, VBCompatibilityProfile.Deterministic);
 

@@ -1129,6 +1129,11 @@ public sealed class Parser
             SyntaxKind.CallKeyword when LooksLikeQualifiedCallAfterCall() =>
                 ParseQualifiedInvocationStatementAfterCall(),
             SyntaxKind.CallKeyword => ParseInvocationStatement(),
+            // Error is a keyword because of On Error, so its own statement and function forms
+            // need their own entries. "Error <number>" raises; "Error(<number>)" is the message
+            // lookup and is parsed as an expression.
+            SyntaxKind.ErrorKeyword when Peek(1).Kind != SyntaxKind.OpenParenthesisToken =>
+                ParseErrorStatement(),
             SyntaxKind.OnKeyword when LooksLikeOnErrorStatement() => ParseOnErrorStatement(),
             SyntaxKind.OnKeyword => ParseOnBranchStatement(),
             SyntaxKind.ResumeKeyword => ParseResumeStatement(),
@@ -2749,6 +2754,12 @@ public sealed class Parser
         return arguments.ToImmutable();
     }
 
+    private ErrorStatementSyntax ParseErrorStatement()
+    {
+        var errorKeyword = MatchToken(SyntaxKind.ErrorKeyword);
+        return new ErrorStatementSyntax(errorKeyword, ParseExpression());
+    }
+
     private DebugPrintStatementSyntax ParseDebugPrintStatement()
     {
         var debugKeyword = MatchToken(SyntaxKind.DebugKeyword);
@@ -2891,6 +2902,29 @@ public sealed class Parser
                  SyntaxKind.DateLiteralToken or SyntaxKind.TrueKeyword or SyntaxKind.FalseKeyword)
         {
             expression = new LiteralExpressionSyntax(NextToken());
+        }
+        else if (Current.Kind == SyntaxKind.ErrorKeyword && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
+        {
+            // The Error function shares its name with the keyword that On Error needs, so the
+            // token is handed on as the identifier the intrinsic lookup expects - and as an
+            // invocation, not a name the element-access loop would turn into an index.
+            var errorKeyword = NextToken();
+            var errorIdentifier = new SyntaxToken(
+                SyntaxKind.IdentifierToken,
+                errorKeyword.Span,
+                errorKeyword.Text,
+                null,
+                errorKeyword.LeadingTrivia)
+            {
+                TypeSuffix = errorKeyword.TypeSuffix
+            };
+            var errorOpenParenthesis = NextToken();
+            var errorArguments = ParseArguments(SyntaxKind.CloseParenthesisToken);
+            expression = new InvocationExpressionSyntax(
+                errorIdentifier,
+                errorOpenParenthesis,
+                errorArguments,
+                MatchToken(SyntaxKind.CloseParenthesisToken));
         }
         else if (IsIdentifier(Current, "AddressOf") && Peek(1).Kind == SyntaxKind.IdentifierToken)
         {

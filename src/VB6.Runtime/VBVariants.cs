@@ -252,3 +252,9 @@ public static class VBVariants
         : type == typeof(VBDateValue) || type == typeof(DateTime) ? "Date"
         : type.Name;
 }
+
+/// <summary>
+/// A Tab or Spc item of a VB6 print output list. Both position the next item rather than
+/// producing a value, so they travel through the list as a marker every print path resolves.
+/// </summary>
+public sealed record VBPrintPosition(int Value, bool IsColumn);
