@@ -1269,6 +1269,12 @@ public static class IrLowerer
                             new IrConstantExpression(debugSeparator, TypeSymbol.Long))));
                     }
                     break;
+                case BoundErrorStatement errorStatement:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.ErrorsRaiseNumber,
+                        TypeSymbol.Error,
+                        LowerExpression(errorStatement.Number))));
+                    break;
                 case BoundDebugAssertStatement:
                     // VB6 removes Debug.Assert calls from compiled executables. Keeping the
                     // bound expression for diagnostics while emitting no IR preserves that
@@ -4276,6 +4282,9 @@ public static class IrLowerer
             "VBStrings.AscW" => IrRuntimeMethod.StringAscW,
             "VBStrings.AscB" => IrRuntimeMethod.StringAscB,
             "VBStrings.ChrB" => IrRuntimeMethod.StringChrB,
+            "VBErrors.ErrorText" => IrRuntimeMethod.ErrorsErrorText,
+            "VBStrings.Tab" => IrRuntimeMethod.StringTab,
+            "VBStrings.Spc" => IrRuntimeMethod.StringSpc,
             "VBStrings.Val" => IrRuntimeMethod.StringVal,
             "VBStrings.Hex" => IrRuntimeMethod.StringHex,
             "VBStrings.Oct" => IrRuntimeMethod.StringOct,
