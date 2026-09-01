@@ -4241,3 +4241,26 @@ sinnlosen Wert, der sich von Lauf zu Lauf aendert.
 Kanonischer Nachweis: **1382/1382** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Spaet gebundene Zahlen lieferten die Boxadresse (01.09.2026)
+
+`Me.ScaleWidth` in `Form_Load` antwortete mit Werten wie `89723312`, die sich bei jedem Zugriff
+und bei jedem Programmlauf aenderten. `Caption` war dabei korrekt, alle numerischen
+Eigenschaften falsch -- ein stilles falsches Ergebnis ohne jede Diagnose.
+
+Eine Ablaufverfolgung im Dispatch zeigte, dass der Host durchgaengig den richtigen Wert liefert
+(`[disp] ScaleWidth -> HOST = 8160`). Der Defekt sitzt dahinter: `VBDynamicDispatch.GetMember`
+gibt `object` zurueck, waehrend der gebundene Baum den Membertyp bereits kennt. Der Lowerer
+typisierte die Runtime-Call deshalb direkt als `Long`, und der Emitter liess den geboxten
+Verweis auf dem Stack stehen, wo eine Zahl erwartet wurde. Gelesen wurde die **Adresse der Box** --
+daher die monoton wachsenden Werte, ein frisch allozierter Kasten pro Zugriff. Strings blieben
+richtig, weil dort die Referenz der Wert ist.
+
+Ein dynamischer Memberzugriff mit numerischem Zieltyp bleibt jetzt als `Variant` typisiert und
+traegt eine ausdrueckliche Konvertierung. Gemessen an einem Formular: `ScaleWidth` 8160,
+`ScaleHeight` 5280, `Width` 8400 (Aussenmass inklusive Rahmen), `Caption` unveraendert -- sowohl
+unqualifiziert als auch ueber `Me.`.
+
+Kanonischer Nachweis: **1383/1383** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.
