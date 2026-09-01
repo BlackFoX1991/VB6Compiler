@@ -67,6 +67,10 @@ internal static class VBIntrinsicSymbols
         Function("RTrim", VBIntrinsicKind.RTrim, "VBStrings.RTrim", TypeSymbol.String, Parameter("Expression", TypeSymbol.String)),
         Function("Asc", VBIntrinsicKind.Asc, "VBStrings.Asc", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
         Function("AscW", VBIntrinsicKind.AscW, "VBStrings.AscW", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.String)),
+        // The byte counterparts of Asc and Chr, completing the family LeftB, RightB, MidB,
+        // InStrB and LenB already form.
+        Function("AscB", VBIntrinsicKind.AscB, "VBStrings.AscB", TypeSymbol.Long, Parameter("Expression", TypeSymbol.String)),
+        Function("ChrB", VBIntrinsicKind.ChrB, "VBStrings.ChrB", TypeSymbol.String, Parameter("CharCode", TypeSymbol.Long)),
         Function("Val", VBIntrinsicKind.Val, "VBStrings.Val", TypeSymbol.Double, Parameter("String", TypeSymbol.String)),
         Function("Hex", VBIntrinsicKind.Hex, "VBStrings.Hex", TypeSymbol.String, Parameter("Number", TypeSymbol.Variant)),
         Function("Oct", VBIntrinsicKind.Oct, "VBStrings.Oct", TypeSymbol.Variant, Parameter("Number", TypeSymbol.Variant)),
@@ -629,6 +633,9 @@ internal static class VBIntrinsicSymbols
         Function("CInt", VBIntrinsicKind.CInt, "VBConversions.CInt", TypeSymbol.Integer, Parameter("Expression", TypeSymbol.Variant)),
         Function("CLng", VBIntrinsicKind.CLng, "VBConversions.CLng", TypeSymbol.Long, Parameter("Expression", TypeSymbol.Variant)),
         Function("CLngPtr", VBIntrinsicKind.CLngPtr, "VBConversions.CLngPtr", TypeSymbol.LongPtr, Parameter("Expression", TypeSymbol.Variant)),
+        // LongLong is a declared type and the runtime conversion existed, but no intrinsic name
+        // reached it - VB6 source could name the type and never convert to it.
+        Function("CLngLng", VBIntrinsicKind.CLngLng, "VBConversions.CLngLng", TypeSymbol.LongLong, Parameter("Expression", TypeSymbol.Variant)),
         Function("CUShort", VBIntrinsicKind.CUShort, "VBConversions.CUShort", TypeSymbol.UShort, Parameter("Expression", TypeSymbol.Variant)),
         Function("CUInt", VBIntrinsicKind.CUInt, "VBConversions.CUInt", TypeSymbol.UInteger, Parameter("Expression", TypeSymbol.Variant)),
         Function("CULng", VBIntrinsicKind.CULng, "VBConversions.CULng", TypeSymbol.ULong, Parameter("Expression", TypeSymbol.Variant)),
