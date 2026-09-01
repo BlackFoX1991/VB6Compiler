@@ -4264,3 +4264,28 @@ unqualifiziert als auch ueber `Me.`.
 Kanonischer Nachweis: **1383/1383** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Die WinForms-Companion-DLL wurde nichtdeterministisch gewaehlt (01.09.2026)
+
+Beim Messen der Formulargroesse wirkte eine uebersetzte Host-Aenderung scheinbar nicht: das
+emittierte Programm bekam eine eine Woche alte Debug-Kopie von
+`VB6.Runtime.WinForms.dll`, obwohl der frische Release-Stand danebenlag.
+
+`FindWinFormsRuntimeAssembly` sammelte alle Kandidaten -- die Kopie neben der geladenen Runtime,
+`AppContext.BaseDirectory` und alles unter `src/VB6.Runtime.WinForms/bin` rekursiv -- und
+sortierte sie ausschliesslich danach, ob der Ordner `net10.0-windows` heisst. Damit wurde
+ausgerechnet die **richtige** Kopie degradiert: sie liegt neben der Compiler-Ausgabe, und deren
+Ordner heisst `net10.0`. Innerhalb gleicher Sortierschluessel entschied die Aufzaehlungsreihenfolge
+des Verzeichnisses, also `Debug` vor `Release`.
+
+Die Aufloesung ist jetzt explizit: Liegt die Companion-DLL neben der geladenen Runtime oder im
+Basisverzeichnis, gewinnt sie sofort -- die beiden muessen ohnehin zusammenpassen. Erst danach
+greift der Baum-Fallback, und der ordnet nach Konfiguration der geladenen Runtime, dann
+Zielframework, dann juengstem Stand.
+
+Gegenprobe: mit einem kuenstlich auf 2030 datierten Debug-Artefakt waehlt der Resolver weiterhin
+den Release-Stand; `EmitAssembly_CopiesTheWinFormsCompanionOfThisBuild` ist ohne den Fix rot.
+
+Kanonischer Nachweis: **1384/1384** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.
