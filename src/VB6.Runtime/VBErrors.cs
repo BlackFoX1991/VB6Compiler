@@ -162,6 +162,22 @@ public static class VBErrors
     public static void InvalidResume() =>
         throw new VB6RaisedError(20, "Resume without an active error.");
 
+    /// <summary>
+    /// True while a Resume may run, that is while this procedure has an error its handler is
+    /// still working on. The bare Resume and Resume Next forms ask before they act: their
+    /// dispatch is a switch outside every protected region, so an exception raised there could
+    /// never be caught by an enclosing On Error Resume Next.
+    /// </summary>
+    public static bool HasActiveResume() => _state is not null && _activeHandlerDepth == _procedureDepth;
+
+    /// <summary>
+    /// Records the documented error 20 for a Resume that has no error to return from, without
+    /// raising it. An enclosing On Error Resume Next then observes it through Err and carries on
+    /// with the next statement, exactly as it would for any other error.
+    /// </summary>
+    public static void RecordResumeWithoutError() =>
+        Set(new VB6RaisedError(20, "Resume without an active error."), -1, hasHandler: false);
+
     private sealed record ErrorState(
         int Number,
         string Source,
