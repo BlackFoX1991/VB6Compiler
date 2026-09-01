@@ -210,6 +210,9 @@ public enum VBIntrinsicKind
     AscB,
     ChrB,
     CLngLng,
+    ErrorText,
+    Tab,
+    Spc,
     Val,
     Hex,
     Oct,
@@ -489,6 +492,7 @@ public enum BoundNodeKind
     SelectCaseStatement,
     DebugPrintStatement,
     DebugAssertStatement,
+    ErrorStatement,
     GraphicsLineStatement,
     FilePrintStatement,
     FileWriteStatement,
@@ -669,6 +673,9 @@ public sealed record BoundDebugPrintStatement(
 
 public sealed record BoundDebugAssertStatement(BoundExpression Expression)
     : BoundStatement(BoundNodeKind.DebugAssertStatement);
+
+public sealed record BoundErrorStatement(BoundExpression Number)
+    : BoundStatement(BoundNodeKind.ErrorStatement);
 
 public sealed record BoundGraphicsLineStatement(
     BoundExpression StartX,
