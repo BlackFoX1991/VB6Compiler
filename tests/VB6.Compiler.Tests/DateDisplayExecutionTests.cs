@@ -71,6 +71,81 @@ public sealed class DateDisplayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ConvertsADateToItsGeneralDateText()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Date
+                value = CDate(43832)
+                Debug.Print CStr(value)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2020-01-02" }, output);
+    }
+
+    /// <summary>
+    /// Concatenation and assignment to a String both go through the same conversion, so all
+    /// three text renderings of a Date have to agree.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_RendersADateTheSameWayInEveryTextContext()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Date
+                Dim text As String
+                value = CDate(43832)
+                text = value
+                Debug.Print CStr(value)
+                Debug.Print "on " & value
+                Debug.Print text
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2020-01-02", "on 2020-01-02", "2020-01-02" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_WritesADateAsADateThroughPrintToAFile()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Date, handle As Integer, line1 As String
+                value = CDate(43832)
+                handle = FreeFile
+                Open "datetext.txt" For Output As #handle
+                Print #handle, value
+                Close #handle
+                handle = FreeFile
+                Open "datetext.txt" For Input As #handle
+                Line Input #handle, line1
+                Close #handle
+                Kill "datetext.txt"
+                Debug.Print Trim(line1)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2020-01-02" }, output);
+    }
+
+    /// <summary>An explicit numeric conversion still yields the serial number.</summary>
+    [TestMethod]
+    public void EmitManagedApplication_KeepsTheSerialNumberForAnExplicitNumericConversion()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Date
+                value = CDate(43832)
+                Debug.Print CDbl(value)
+                Debug.Print Year(value)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "43832", "2020" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_LeavesPlainNumbersUnchanged()
     {
         var output = VB6TestProgram.RunLines("""

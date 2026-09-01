@@ -536,8 +536,16 @@ public static class VBConversions
             VBErrorValue error => $"Error {error.Code}",
             IntPtr pointer => pointer.ToInt64().ToString(CultureInfo.InvariantCulture),
             VBCurrency currency => currency.ToString(),
-            VBDateValue date => date.OADate.ToString("G15", CultureInfo.InvariantCulture),
-            DateTime date => date.ToOADate().ToString("G15", CultureInfo.InvariantCulture),
+            // A Date renders as a date, not as its OLE automation serial number - the same
+            // General Date form Debug.Print and Print # use, so every text rendering of a Date
+            // agrees.
+            VBDateValue date => VBStrings.FormatValue(date, "General Date", 0, 0, VBCompatibilityProfile.Deterministic),
+            DateTime date => VBStrings.FormatValue(
+                new VBDateValue(date.ToOADate()),
+                "General Date",
+                0,
+                0,
+                VBCompatibilityProfile.Deterministic),
             decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
