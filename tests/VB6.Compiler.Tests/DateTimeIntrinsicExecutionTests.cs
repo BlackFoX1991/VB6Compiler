@@ -118,7 +118,7 @@ public sealed class DateTimeIntrinsicExecutionTests
         var output = VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation));
 
         Assert.AreEqual(5, output.Length, string.Join(" | ", output));
-        CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00", "43834" }, output[..3]);
+        CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00", "2020-01-04" }, output[..3]);
         Assert.IsFalse(string.IsNullOrWhiteSpace(output[3]));
         Assert.IsFalse(string.IsNullOrWhiteSpace(output[4]));
     }

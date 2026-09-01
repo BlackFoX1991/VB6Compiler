@@ -116,7 +116,7 @@ public sealed class MathIntrinsicExecutionTests
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "True", "0", "43832", "448" }, output);
+        CollectionAssert.AreEqual(new[] { "True", "0", "2020-01-02", "448" }, output);
     }
 
     [TestMethod]
