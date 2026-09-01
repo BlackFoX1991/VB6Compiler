@@ -2811,8 +2811,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) value = ColorTranslator.ToOle(control.BackColor);
         else if (string.Equals(memberName, "ForeColor", StringComparison.OrdinalIgnoreCase)) value = ColorTranslator.ToOle(control.ForeColor);
-        else if (string.Equals(memberName, "ScaleWidth", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.ClientSize.Width, twipsPerPixelX);
-        else if (string.Equals(memberName, "ScaleHeight", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.ClientSize.Height, twipsPerPixelY);
+        else if (string.Equals(memberName, "ScaleWidth", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(memberName, "ClientWidth", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.ClientSize.Width, twipsPerPixelX);
+        else if (string.Equals(memberName, "ScaleHeight", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(memberName, "ClientHeight", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.ClientSize.Height, twipsPerPixelY);
         else if (string.Equals(memberName, "hWnd", StringComparison.OrdinalIgnoreCase)) value = control.Handle.ToInt64();
         else if (string.Equals(memberName, "hDC", StringComparison.OrdinalIgnoreCase)) value = 0L;
         else if (string.Equals(memberName, "hInstance", StringComparison.OrdinalIgnoreCase)) value = 0L;
@@ -2875,6 +2877,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "Top", StringComparison.OrdinalIgnoreCase)) control.Top = FromTwips(value, twipsPerPixelY);
         else if (string.Equals(memberName, "Width", StringComparison.OrdinalIgnoreCase)) control.Width = FromTwips(value, twipsPerPixelX);
         else if (string.Equals(memberName, "Height", StringComparison.OrdinalIgnoreCase)) control.Height = FromTwips(value, twipsPerPixelY);
+        // ClientWidth/ClientHeight are the form's client area, which is what the designer stores
+        // and what ScaleWidth/ScaleHeight read back.
+        else if (string.Equals(memberName, "ClientWidth", StringComparison.OrdinalIgnoreCase))
+        {
+            control.ClientSize = new Size(FromTwips(value, twipsPerPixelX), control.ClientSize.Height);
+        }
+        else if (string.Equals(memberName, "ClientHeight", StringComparison.OrdinalIgnoreCase))
+        {
+            control.ClientSize = new Size(control.ClientSize.Width, FromTwips(value, twipsPerPixelY));
+        }
         else if (string.Equals(memberName, "Visible", StringComparison.OrdinalIgnoreCase)) control.Visible = VBConversions.CBool(value);
         else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase))
         {
