@@ -1408,6 +1408,8 @@ public sealed class ManagedEmitter
             }
             else if (call.Method is IrRuntimeMethod.StringLenB or
                      IrRuntimeMethod.StringAsc or
+                     IrRuntimeMethod.StringAscB or
+                     IrRuntimeMethod.StringChrB or
                      IrRuntimeMethod.StringMidB or
                      IrRuntimeMethod.StringLeftB or
                      IrRuntimeMethod.StringRightB or
@@ -4113,6 +4115,8 @@ public sealed class ManagedEmitter
                 if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Asc") return Static(typeof(VBStrings), name, typeof(string), typeof(VBCompatibilityProfile));
                 if (name == "AscW") return Static(typeof(VBStrings), name, typeof(string));
+                if (name == "AscB") return Static(typeof(VBStrings), name, typeof(string), typeof(VBCompatibilityProfile));
+                if (name == "ChrB") return Static(typeof(VBStrings), name, typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Oct") return Static(typeof(VBStrings), name, typeof(object));
