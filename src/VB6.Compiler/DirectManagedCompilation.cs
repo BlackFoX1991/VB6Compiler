@@ -638,17 +638,37 @@ internal static class ManagedArtifactWriter
             winFormsRuntimeOutputPath);
     }
 
+    /// <summary>
+    /// Locates the WinForms runtime companion that is copied next to an emitted forms project.
+    /// The assembly beside the loaded VB6.Runtime wins, because those two have to match; only if
+    /// there is none does the search fall back to the repository build tree.
+    ///
+    /// That fallback used to take whichever file the directory walk produced first, which put a
+    /// stale Debug build ahead of a fresh Release one. A host change then appeared to have no
+    /// effect even though it was compiled, so the ordering is now explicit: the configuration of
+    /// the loaded runtime first, then the target framework, then the most recent build.
+    /// </summary>
     private static string? FindWinFormsRuntimeAssembly()
     {
-        var candidates = new List<string>();
         var runtimeDirectory = Path.GetDirectoryName(typeof(VBConversions).Assembly.Location);
-        if (!string.IsNullOrWhiteSpace(runtimeDirectory))
+        foreach (var directory in new[] { runtimeDirectory, AppContext.BaseDirectory })
         {
-            candidates.Add(Path.Combine(runtimeDirectory, "VB6.Runtime.WinForms.dll"));
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                continue;
+            }
+
+            var beside = Path.Combine(directory, "VB6.Runtime.WinForms.dll");
+            if (File.Exists(beside))
+            {
+                return beside;
+            }
         }
 
-        candidates.Add(Path.Combine(AppContext.BaseDirectory, "VB6.Runtime.WinForms.dll"));
-
+        // The build configuration the compiler itself was loaded from, e.g. "Release" in
+        // src/VB6.Compiler.Cli/bin/Release/net10.0.
+        var configuration = Path.GetFileName(Path.GetDirectoryName(runtimeDirectory));
+        var candidates = new List<string>();
         foreach (var root in EnumerateAncestors(runtimeDirectory).Concat(EnumerateAncestors(Environment.CurrentDirectory)))
         {
             var binDirectory = Path.Combine(root, "src", "VB6.Runtime.WinForms", "bin");
@@ -675,10 +695,15 @@ internal static class ManagedArtifactWriter
         return candidates
             .Where(File.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(path => string.Equals(
+            .OrderByDescending(path => !string.IsNullOrEmpty(configuration) && string.Equals(
+                Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path))),
+                configuration,
+                StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(path => string.Equals(
                 Path.GetFileName(Path.GetDirectoryName(path)),
                 "net10.0-windows",
                 StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
 
         static IEnumerable<string> EnumerateAncestors(string? start)
