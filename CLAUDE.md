@@ -14,9 +14,9 @@ VB6-kompatibler Compiler in C#, der bestehende VB6-Projekte nach .NET 10 überse
 Die Priorisierung ist **.NET-first**. Der Managed-Pfad ist der Zielpfad, an dem Kompatibilität
 entschieden wird; alles andere ordnet sich unter.
 
-Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H),
-abgearbeitet über die Karten in `docs/LUNA_EXECUTION_PLAN.md` und die Qualitätsqueue
-`docs/LUNA_WORKORDER_Q.md`. Der aktuelle Matrixstand beträgt 118 Erwartungen (71 `implemented`,
+Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H).
+Die offenen Karten und ihre Statusachsen stehen in `docs/vb6-sp6-compatibility-matrix.json`.
+Der aktuelle Matrixstand beträgt 118 Erwartungen (71 `implemented`,
 8 `partial`, 39 `planned`; 79 `documented-verified`); die nächste offene
 Implementierungskarte ist `l1-02-j-nested-error-resume`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
@@ -53,18 +53,11 @@ Arbeitsschritt **ans Ende** des Changelogs hängen. Keine Verlaufsprosa in die R
 zurückschreiben — genau daran ist sie vorher auf 2800 Zeilen angewachsen, in denen 130
 Abschnitte gleichzeitig „Aktueller …-Nachtrag" hießen.
 
-Dazu kommen drei operative Dokumente:
-
-- **`docs/LUNA_GUARDRAILS.md`** — **verbindliche Arbeitsregeln**, die über dem operativen Ablauf
-  stehen. Statuswahrheit der Kompatibilitätsmatrix, Definition of Done, Herkunft von Messwerten,
-  Dokumentenrollen, Verhalten im Parallelbetrieb, Abbruchgründe. **Vor jedem Agentenlauf lesen.**
-- **`docs/LUNA_EXECUTION_PLAN.md`** — die operative Warteschlange: Karten, Wellen, Testtakt.
-- **`docs/LUNA_WORKORDER_Q.md`** — der laufende Qualitäts- und Konsistenzdurchgang (`Q`-Karten).
-
 Die Kompatibilitätsmatrix `docs/vb6-sp6-compatibility-matrix.json` hat **zwei unabhängige
 Statusachsen** — `implementation` (`planned`/`partial`/`implemented`) und `verification`
 (`not-yet-verified`/`documented-verified`/`oracle-verified`). Sie werden nie vermischt und nie
-optimistisch gefüllt; die Regeln dazu stehen in §1 der Leitplanken. Steht eine Achse auf 100 %,
+optimistisch gefüllt. `oracle-verified` darf nie ohne echten Lauf gegen einen VB6-SP6-
+Originalcompiler gesetzt werden. Steht eine Achse auf 100 %,
 während die Roadmap offene Punkte führt, ist das ein Fehler und kein Erfolg.
 
 ## Die eine Regel, die alles andere schlägt
@@ -257,14 +250,14 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Binder, Lowerer und Runtime haben zusammen zu viele Pfade. Ein Wegwerfprogramm über
   `VB6TestProgram.RunLines`, das `VarType`, `Err.Number` und Ergebniswert über die ganze
   Vertragsfläche ausgibt, kostet Minuten und verhindert, dass funktionierender Code umgebaut
-  wird. Verbindlich als §11 der Leitplanken.
+  wird. Das ist verbindlich: erst messen, dann bauen.
 - **Ein bestehender Test, dessen Name eine Vertragszusage ausspricht, schlägt eine Herleitung
   aus der VB6-Dokumentation.** Ohne installiertes Orakel ist er der bessere Zeuge. Zweimal
   belegt: `CDec(Null)` soll laut Doku 94 melden, liefert aber korrekt Null, weil ein Variant mit
   Decimal-Subtyp Null tragen kann; `CInt(CVErr(5))` soll laut Doku 13 melden, hängt aber über
   `CInt(Missing) = 448` an der Missing-Argument-Mechanik. In beiden Fällen war die Herleitung
   plausibel und falsch. Reißt eine Änderung so einen Test, wird die Änderung zurückgenommen und
-  die Frage notiert — nicht der Test angepasst. Verbindlich als §12 der Leitplanken.
+  die Frage notiert — nicht der Test angepasst.
 - **Ein `Public`-Feld einer Klasse ist keine Variable, sondern eine Property.** `Binder.cs`
   löst `c.N` über `classType.TryGetProperty(...)` auf. Diese Modellierung hat vier Symptome
   erzeugt: `Bump c.N` mit `ByRef` verlor **still** das Rückschreiben, `Set c.ObjFeld = …` meldete

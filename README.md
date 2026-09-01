@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1384 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (71 implemented, 8 partial, 39 planned) with 79/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the executable queue in `docs/LUNA_EXECUTION_PLAN.md`; the next open managed card is `l1-02-j-nested-error-resume`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1384 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (71 implemented, 8 partial, 39 planned) with 79/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next open managed card is `l1-02-j-nested-error-resume`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -68,6 +68,7 @@ Implemented so far:
 - `Enum ... End Enum` with optional visibility plus explicit or implicit member values, bound as Long-backed constants
 - `Function` declarations without an `As` clause, which return Variant as they do in VB6
 - file I/O: binary `Open`, `Close`, `Get`, `Put` and `Seek`, plus text `Open For Input/Output/Append`, `Print #`, `Line Input #` and `Input #` parsing, from lexing the file number through a runtime file-number table to generated programs that read and write real files. Positions are one-based and each supported binary type transfers its exact VB6 storage size; variable-length Strings use a two-byte character-count prefix, scalar-layout UDT records transfer their fields in declaration order, including variable `String` fields and scalar Variant type tags, scalar and fixed-array `String * n` UDT fields transfer exactly `n` bytes without a descriptor, fixed UDT array fields support scalar and nested non-recursive elements, top-level supported scalar arrays (including variable `String` elements) transfer element-wise without an outer descriptor in Binary, and dynamic top-level arrays carry the descriptor in Random; scalar Random records honor one-based record positions, fixed `Len` boundaries, padding and the VB6 default length. `Input #` restores Write-# Empty/Null/Boolean/Date/Error markers and scalar numeric values into Variant targets. The current managed fixed-string profile uses one Latin-1 byte per character; host code-page selection, Variant-array/object records, and the remaining Random/Len layout rules are still reported rather than approximated
+- `Debug.Print` takes the same output list as `Print #`: any number of expressions joined by `;` or `,`, where a comma advances to the next 14-column print zone, a trailing separator holds the line open, and a bare `Debug.Print` writes an empty line. A `Date` value prints in the documented General Date form rather than as its OLE automation serial number
 - `Print #` output lists preserve semicolon concatenation, comma zone separators, and trailing-semicolon line continuation through parser, binding, managed emission, and generated-file execution
 - `LSet target = source` and `RSet target = source` assignment syntax, including Managed execution for fixed-length String targets, same-type UDT copies, and cross-UDT raw-layout transfers with scalar, Boolean, and native-width `LongPtr` fields; `RSet` right-aligns fixed strings, pads on the left and truncates to the leftmost characters while variable-length targets keep normal assignment semantics; dynamic strings, arrays, Variants, and other native ABI layouts remain guarded
 - filesystem path intrinsics for legacy projects: `FileCopy`, `MkDir`, `RmDir`, `ChDir`, `CurDir`, `GetAttr`, `SetAttr`, and `FileDateTime` through the Managed runtime
@@ -104,6 +105,7 @@ Implemented so far:
 - the `Len`/`LenB`, two- and three-argument `Mid` plus `Mid(...) = ...`/`Mid$(...) = ...` assignment, byte-oriented `LeftB`/`RightB`/`MidB`/`InStrB`, ASCII `Chr`, `InStr`, `InStrRev`, `StrComp`, `Replace`, `RSet`, and current `Abs`/`Sgn`/`Fix`/`Round`/`Sqr`/`Exp`/`Log`/`Sin`/`Cos`/`Tan`/`Atn`/`Rnd`/`Randomize` math intrinsics, including `Null`-propagation for `Len`/`LenB` and `Null`-/`Empty`-semantics for `Abs`, `Sgn`, `Fix`, `Round` and `Int`, plus the `CByte`/`CInt`/`CLng`/`CLngPtr`/`CUShort`/`CUInt`/`CULng`/`CDec`/`CSng`/`CDbl`/`CBool`/`CStr` conversions and the `Left`/`Right`/`UCase`/`LCase`/`Trim`/`LTrim`/`RTrim`/`Asc`/`IsNumeric` string functions. `LenB` preserves the Unicode byte count and generated UDT in-memory layout. Byte-oriented functions use the selected profile's encoded representation and return clipped byte slices/offsets. Each intrinsic symbol carries the runtime method the backend calls, so it is resolved and checked like any other procedure and a user declaration of the same name still shadows it
 - the deterministic `Format`/`Format$` subset for numeric masks (`0`, `#`, grouping, decimals, percent and sections), standard numeric names, string case masks, common date/time tokens, scalar `Year`/`Month`/`Day`/`Hour`/`Minute`/`Second`/`Timer` intrinsics, `DateValue`/`TimeValue`, and `DateSerial`/`TimeSerial`/`DateAdd`/`DateDiff` for the supported interval subset; week-number, locale-specific formatting and further placeholders remain explicit follow-up work
 - the `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`, `Partition`, `CallByName`, and `QBColor` intrinsics; the format helpers resolve their `vbUseDefault`/`vbTrue`/`vbFalse` tri-state arguments against the selected compatibility profile, `CallByName` dispatches `vbMethod`/`vbGet`/`vbLet`/`vbSet` through the existing dynamic member dispatch, and `QBColor` maps the documented sixteen-colour OLE_COLOR table
+- `#...#` date literals, resolved at lex time to an OLE automation date and carried on as an ordinary `Date` constant; the same `#` keeps working as a file number and as a Double type suffix
 - bracketed identifiers such as `[Stop]`
 - semantic binder with procedure, parameter, return-value, local-variable and primitive type symbols
 - explicit conversion nodes and typed arithmetic promotion
@@ -118,6 +120,7 @@ Implemented so far:
 - native `SAFEARRAY(VT_UNKNOWN)` marshalling for `Declare` object arrays, including `IUnknown*`, `Nothing` elements, reference cleanup and managed round-trip
 - end-to-end execution tests for generated single-file and multi-module managed applications
 - `.vbp` loading for common project metadata, modules, classes, forms, controls, property pages, user documents, legacy `Designer=...; file.dsr` sources, references, and components, plus `.vbg` group loading and command-line batch emission of declared projects
+- designer form geometry: `ClientWidth`/`ClientHeight` from the `.frm` are applied to the emitted form, which VB6 stores instead of form-level `Width`/`Height`
 - an optional host boundary for compiled Forms/UserControls: `VB6.Runtime` exposes lifecycle, dynamic member, control-creation, enumeration and event hooks, while `VB6.Runtime.WinForms` maps standard VB6 controls, Twips, OLE colors, fonts and `Load`/`Unload`/`Show` to WinForms
 - `.cls` project sources: designer metadata stripping, class type registration, `New`, `Set`, `TypeOf`, class Properties, Events, `WithEvents`, `Implements` as CLR interfaces, and class-member binding
 - the standard `Collection` object on the managed backend: `New Collection`, one-based and keyed `Item`, `Count`, `Add` with `Key`/`Before`, `Remove`, and `For Each` in insertion order
@@ -318,7 +321,8 @@ bounds and replacement write-back. Native-width `LongPtr()` arrays are supported
 ## Next milestones
 
 The detailed, measured plan lives in `docs/ROADMAP.md`; the chronological work journal is
-`docs/CHANGELOG.md`. Luna follows the executable queue in `docs/LUNA_EXECUTION_PLAN.md`:
+`docs/CHANGELOG.md`. The open cards and their status axes live in
+`docs/vb6-sp6-compatibility-matrix.json`:
 
 1. Etappe A: Matrix, Statusachsen und messbare Abnahme
 2. Etappe B: Sprache, Variant, Klassen und Fehlerbehandlung

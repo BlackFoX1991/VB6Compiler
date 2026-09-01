@@ -4289,3 +4289,23 @@ den Release-Stand; `EmitAssembly_CopiesTheWinFormsCompanionOfThisBuild` ist ohne
 Kanonischer Nachweis: **1384/1384** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Die LUNA-Dokumente sind entfallen (01.09.2026)
+
+`LUNA_GUARDRAILS.md`, `LUNA_EXECUTION_PLAN.md` und `LUNA_WORKORDER_Q.md` sind entfernt. Alle
+lebenden Verweise darauf in `CLAUDE.md`, `docs/ROADMAP.md` und `README.md` zeigen jetzt auf die
+Kompatibilitaetsmatrix, die die Karten-IDs und beide Statusachsen ohnehin fuehrt. Drei
+Paragrafenverweise in `CLAUDE.md` ("§1", "§11", "§12") standen ohne Ziel da und sind zu
+eigenstaendigen Saetzen gemacht; die Regeln selbst bleiben damit erhalten.
+
+Was mit den Dateien verschwunden ist und nirgends sonst steht: der Arbeitskartenvertrag, die
+Wellenreihenfolge L0-L7, der Testtakt und das Befundregister des Breitendurchgangs vom
+30.08.2026. Die Karten-IDs und ihr Status stehen weiterhin in der Matrix, die Historie im
+Changelog.
+
+Bei der Gelegenheit sind drei Luecken in der README-Merkmalsliste geschlossen worden, die die
+Sweep-Arbeit der letzten zwei Tage nicht nachgezogen hatte: die `Debug.Print`-Ausgabeliste, die
+`#...#`-Datumsliterale und die Uebernahme der Designer-Formulargroesse.
+
+Kanonischer Nachweis unveraendert: **1384/1384** Tests, **0** Fehler, Release ohne Warnungen,
+**40/40** VISIA-Projektitems.
