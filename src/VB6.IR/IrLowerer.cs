@@ -1333,7 +1333,7 @@ public static class IrLowerer
                             IrRuntimeMethod.FilePrint,
                             TypeSymbol.Error,
                             LowerExpression(print.FileNumber),
-                            LowerExpression(printExpressions[0]))));
+                            LowerPrintItem(printExpressions[0]))));
                         break;
                     }
 
@@ -1346,7 +1346,7 @@ public static class IrLowerer
                             IrRuntimeMethod.FilePrintValue,
                             TypeSymbol.Error,
                             LowerExpression(print.FileNumber),
-                            LowerExpression(printExpressions[index]),
+                            LowerPrintItem(printExpressions[index]),
                             new IrConstantExpression(index >= print.Separators.Length, TypeSymbol.Boolean),
                             new IrConstantExpression(separator, TypeSymbol.Long))));
                     }
@@ -3887,9 +3887,20 @@ public static class IrLowerer
                 : conversion.TargetType == TypeSymbol.Boolean ? IrRuntimeMethod.ConvertCBool
                 : conversion.TargetType == TypeSymbol.String ? IrRuntimeMethod.ConvertCStr
                 : (IrRuntimeMethod?)null;
-            return method is null
-                ? operand
-                : Runtime(method.Value, conversion.TargetType, operand);
+            if (method is null)
+            {
+                return operand;
+            }
+
+            // A Date shares its representation with a Double, so boxing it for a helper that takes
+            // object loses the Date. CStr would then render the OLE automation serial number
+            // instead of a date - the same value Debug.Print shows, and the same reason.
+            if (conversion.TargetType == TypeSymbol.String && conversion.Expression.Type == TypeSymbol.Date)
+            {
+                operand = Runtime(IrRuntimeMethod.DateToVariant, TypeSymbol.Variant, operand);
+            }
+
+            return Runtime(method.Value, conversion.TargetType, operand);
         }
 
         private IrExpression LowerFileInputValue(IrExpression field, TypeSymbol targetType)
