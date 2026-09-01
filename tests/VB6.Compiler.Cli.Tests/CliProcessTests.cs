@@ -1652,4 +1652,91 @@ public sealed class CliProcessTests
     }
 
     private sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);
+
+    /// <summary>
+    /// The WinForms companion that ends up beside an emitted forms project has to be the one this
+    /// compiler was built with. The resolver used to sort every candidate under
+    /// src/VB6.Runtime.WinForms/bin by target framework alone, which demoted the copy next to the
+    /// compiler - its folder is net10.0, not net10.0-windows - and let a stale Debug build from an
+    /// earlier day win. A host change then looked as if it had no effect at all.
+    /// </summary>
+    [TestMethod]
+    public void EmitAssembly_CopiesTheWinFormsCompanionOfThisBuild()
+    {
+        var expected = FindCompilerWinFormsCompanion();
+        Assert.IsNotNull(expected, "Der Referenzstand der Companion-DLL wurde nicht gefunden.");
+
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Companion.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="MainForm"
+                Name="Companion"
+                Form=MainForm.frm
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainForm.frm"), """
+                VERSION 5.00
+                Begin VB.Form MainForm
+                   Caption = "Companion"
+                End
+                Attribute VB_Name = "MainForm"
+                Attribute VB_PredeclaredId = True
+
+                Private Sub Form_Load()
+                    Unload Me
+                End Sub
+                """);
+            var outputDirectory = Path.Combine(directory, "bin");
+
+            var result = RunCli(projectPath, "--emit-assembly", outputDirectory, "--x86");
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+
+            var emitted = Path.Combine(outputDirectory, "VB6.Runtime.WinForms.dll");
+            Assert.IsTrue(File.Exists(emitted), "Es wurde keine WinForms-Companion-DLL kopiert.");
+            CollectionAssert.AreEqual(
+                File.ReadAllBytes(expected!),
+                File.ReadAllBytes(emitted),
+                "Die kopierte Companion-DLL stammt nicht aus diesem Build.");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    /// <summary>
+    /// The companion beside the compiler binaries of the configuration these tests were built in.
+    /// </summary>
+    private static string? FindCompilerWinFormsCompanion()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        var configuration = current.Parent?.Name;
+        if (string.IsNullOrWhiteSpace(configuration))
+        {
+            return null;
+        }
+
+        while (current is not null)
+        {
+            var candidate = Path.Combine(
+                current.FullName,
+                "src",
+                "VB6.Compiler.Cli",
+                "bin",
+                configuration,
+                "net10.0",
+                "VB6.Runtime.WinForms.dll");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
 }

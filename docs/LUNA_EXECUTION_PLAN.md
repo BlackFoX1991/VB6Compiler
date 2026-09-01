@@ -12,7 +12,7 @@ Ausführung: ein aktiver Arbeitsblock zur Zeit, keine parallelen Subagenten.
 
 ## Aktueller Einstieg
 
-- Der letzte kanonische Nachweis ist **1383/1383 Tests**, Release ohne Warnungen/Fehler
+- Der letzte kanonische Nachweis ist **1384/1384 Tests**, Release ohne Warnungen/Fehler
   und VISIA **40/40**.
 - Der Byte-String-Block (`LeftB`, `RightB`, `MidB`, `InStrB`) hat gezielte Runtime- und
   Compiler-Tests bestanden; der anschließende kanonische Lauf ist ebenfalls grün.
