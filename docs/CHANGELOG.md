@@ -4213,3 +4213,31 @@ Darstellung jetzt im Namen zu.
 Kanonischer Nachweis: **1381/1381** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Formulargroesse aus dem Designer (01.09.2026)
+
+Der VISIA-Korpus wurde erstmals nicht nur analysiert und emittiert, sondern **gestartet**. Das
+Programm laeuft, stuerzt nicht ab und zeigt `frmSplash` als echtes Fenster -- die Kette traegt
+also durchgehend. Das Fenster war aber **300x300**, die WinForms-Standardgroesse, statt der
+544x352, die der Designer mit `ClientWidth = 8160` und `ClientHeight = 5280` Twips vorgibt.
+
+Ursache: Ein VB6-Formular schreibt seine Groesse **nie** als `Width`/`Height` auf Formularebene,
+sondern immer als `ClientWidth`/`ClientHeight`. Die Whitelist unterstuetzter Designer-
+Eigenschaften kannte nur die erste Form -- also genau die, die Formulare nicht verwenden. Alle
+sechs VISIA-Formulare fuehren `ClientWidth`/`ClientHeight` und keines `Width`/`Height`.
+
+Beide Namen sind jetzt in der Whitelist, der Host setzt sie auf `ClientSize` und liest sie von
+dort zurueck -- dieselbe Flaeche, die `ScaleWidth`/`ScaleHeight` bereits bedienen. Gemessen:
+`frmSplash` rendert mit 544x352, ein minimales Testformular ebenso.
+
+Beim Nachmessen fiel eine Falle des Emissionspfads auf: `FindWinFormsRuntimeAssembly` durchsucht
+`src/VB6.Runtime.WinForms/bin` **rekursiv** und nimmt den ersten Treffer, was hier eine Woche
+alte Debug-Kopie war. Eine Host-Aenderung wirkt dadurch scheinbar nicht, obwohl sie uebersetzt
+ist. Wer am Host misst, prueft den Zeitstempel der kopierten DLL.
+
+Offen und separat: Ein unqualifiziertes `ScaleWidth` innerhalb von `Form_Load` liefert einen
+sinnlosen Wert, der sich von Lauf zu Lauf aendert.
+
+Kanonischer Nachweis: **1382/1382** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.
