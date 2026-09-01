@@ -2326,6 +2326,35 @@ public static class VBStrings
         return builder.ToString();
     }
 
+    /// <summary>Returns the first byte of the VB6 AscB intrinsic's byte view of the string.</summary>
+    public static int AscB(string value) => AscB(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware AscB over the same byte view LeftB, MidB and InStrB use.</summary>
+    public static int AscB(string value, VBCompatibilityProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Length == 0)
+        {
+            throw new ArgumentException("VB6 AscB requires a non-empty string.", nameof(value));
+        }
+
+        return EncodeByteString(value, profile)[0];
+    }
+
+    /// <summary>Returns the single-byte string of the VB6 ChrB intrinsic.</summary>
+    public static string ChrB(int charCode) => ChrB(charCode, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Profile-aware ChrB producing exactly one byte of the active byte view.</summary>
+    public static string ChrB(int charCode, VBCompatibilityProfile profile)
+    {
+        if (charCode is < 0 or > 255)
+        {
+            throw new VB6RuntimeErrorException(5, "VB6 ChrB accepts byte values from 0 through 255 only.");
+        }
+
+        return DecodeByteSlice([(byte)charCode], 0, 1, profile);
+    }
+
     private static byte[] EncodeByteString(string value, VBCompatibilityProfile profile) =>
         (profile == VBCompatibilityProfile.Deterministic
             ? Encoding.Unicode
