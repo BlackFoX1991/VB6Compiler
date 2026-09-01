@@ -724,6 +724,11 @@ public sealed class VBProjectCompilation
         name.Equals("Top", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Width", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Height", StringComparison.OrdinalIgnoreCase) ||
+        // A VB6 form never writes Width/Height at form level - the designer stores its size as
+        // the client area instead. Without these two every emitted form kept the WinForms
+        // default size no matter what the .frm said.
+        name.Equals("ClientWidth", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("ClientHeight", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("BackColor", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("ForeColor", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("SelStart", StringComparison.OrdinalIgnoreCase) ||
