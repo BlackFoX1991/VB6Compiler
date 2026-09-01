@@ -683,22 +683,47 @@ public sealed class ManagedEmitter
                 return;
             }
 
-            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.ResumeIndexValue))));
-            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Resume))));
+            // The dispatch below is a switch into the statement continuations, which sit outside
+            // every protected region - branching there from inside a try would not verify. So the
+            // "no error to resume from" case must not raise: it is recorded as error 20 and the
+            // method falls through to the next statement, where an enclosing On Error Resume Next
+            // sees it through Err like any other error.
             var targets = errorBoundaries
                 .Select(boundary => resume.Kind == IrResumeKind.Next
                     ? boundary.Continuation
                     : boundary.TryStart)
                 .ToArray();
-            if (targets.Length > 0)
+
+            // Without a single protected region the procedure has no place to continue at, so a
+            // Resume with nothing to return from stays a raised error 20.
+            if (targets.Length == 0)
             {
-                var switchEncoder = encoder.Switch(targets.Length);
-                foreach (var target in targets)
-                {
-                    switchEncoder.Branch(target);
-                }
+                encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Resume))));
+                encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.InvalidResume))));
+                return;
             }
+
+            // The dispatch below switches into the statement continuations, which sit outside
+            // every protected region - branching there from inside a try would not verify. So the
+            // "nothing to resume from" case must not raise here: it is recorded as error 20 and
+            // the method falls through to the next statement, where the enclosing On Error Resume
+            // Next observes it through Err like any other error.
+            var withoutError = encoder.DefineLabel();
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.HasActiveResume))));
+            encoder.Branch(ILOpCode.Brfalse, withoutError);
+
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.ResumeIndexValue))));
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.Resume))));
+            var switchEncoder = encoder.Switch(targets.Length);
+            foreach (var target in targets)
+            {
+                switchEncoder.Branch(target);
+            }
+
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.InvalidResume))));
+
+            encoder.MarkLabel(withoutError);
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.RecordResumeWithoutError))));
         }
 
         private sealed record ErrorBoundary(
