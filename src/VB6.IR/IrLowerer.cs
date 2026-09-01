@@ -3128,11 +3128,53 @@ public static class IrLowerer
                 lowered.Add(new IrCallArgument(dynamicArguments));
             }
 
+            return ConvertDynamicResult(
+                new IrRuntimeCallExpression(
+                    arguments.IsDefaultOrEmpty
+                        ? IrRuntimeMethod.DynamicGetMember
+                        : IrRuntimeMethod.DynamicGetIndexedMember,
+                    lowered.ToImmutable(),
+                    IsDynamicResultConverted(resultType) ? TypeSymbol.Variant : resultType),
+                resultType);
+        }
+
+        /// <summary>
+        /// The dynamic dispatch returns <c>object</c>. When the bound tree already knows the
+        /// member is numeric, the call has to be converted rather than left on the stack as the
+        /// declared type - otherwise the backend reads the boxed reference itself, which shows up
+        /// as a plausible but wrong number that changes with every allocation.
+        /// </summary>
+        private static bool IsDynamicResultConverted(TypeSymbol type) =>
+            type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Long ||
+            type == TypeSymbol.LongLong || type == TypeSymbol.LongPtr || type == TypeSymbol.UShort ||
+            type == TypeSymbol.UInteger || type == TypeSymbol.ULong || type == TypeSymbol.Currency ||
+            type == TypeSymbol.Date || type == TypeSymbol.Single || type == TypeSymbol.Double ||
+            type == TypeSymbol.Boolean;
+
+        private static IrExpression ConvertDynamicResult(IrExpression call, TypeSymbol resultType)
+        {
+            if (!IsDynamicResultConverted(resultType))
+            {
+                return call;
+            }
+
+            var method = resultType == TypeSymbol.Byte ? IrRuntimeMethod.ConvertCByte
+                : resultType == TypeSymbol.Integer ? IrRuntimeMethod.ConvertCInt
+                : resultType == TypeSymbol.Long ? IrRuntimeMethod.ConvertCLng
+                : resultType == TypeSymbol.LongLong ? IrRuntimeMethod.ConvertCLngLng
+                : resultType == TypeSymbol.LongPtr ? IrRuntimeMethod.ConvertCLngPtr
+                : resultType == TypeSymbol.UShort ? IrRuntimeMethod.ConvertCUShort
+                : resultType == TypeSymbol.UInteger ? IrRuntimeMethod.ConvertCUInt
+                : resultType == TypeSymbol.ULong ? IrRuntimeMethod.ConvertCULng
+                : resultType == TypeSymbol.Currency ? IrRuntimeMethod.ConvertCCur
+                : resultType == TypeSymbol.Date ? IrRuntimeMethod.ConvertCDate
+                : resultType == TypeSymbol.Single ? IrRuntimeMethod.ConvertCSng
+                : resultType == TypeSymbol.Double ? IrRuntimeMethod.ConvertCDbl
+                : IrRuntimeMethod.ConvertCBool;
+
             return new IrRuntimeCallExpression(
-                arguments.IsDefaultOrEmpty
-                    ? IrRuntimeMethod.DynamicGetMember
-                    : IrRuntimeMethod.DynamicGetIndexedMember,
-                lowered.ToImmutable(),
+                method,
+                ImmutableArray.Create(new IrCallArgument(call)),
                 resultType);
         }
 
@@ -3145,12 +3187,14 @@ public static class IrLowerer
             var dynamicArguments = arguments.Length == 1 && arguments[0].Parameter?.IsParamArray == true
                 ? LowerValueCopy(arguments[0].Expression)
                 : LowerDynamicArguments(arguments.Select(argument => argument.Expression));
-            return new IrRuntimeCallExpression(
-                IrRuntimeMethod.DynamicInvokeMember,
-                ImmutableArray.Create(
-                    new IrCallArgument(LowerExpression(receiver)),
-                    new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)),
-                    new IrCallArgument(dynamicArguments)),
+            return ConvertDynamicResult(
+                new IrRuntimeCallExpression(
+                    IrRuntimeMethod.DynamicInvokeMember,
+                    ImmutableArray.Create(
+                        new IrCallArgument(LowerExpression(receiver)),
+                        new IrCallArgument(new IrConstantExpression(memberName, TypeSymbol.String)),
+                        new IrCallArgument(dynamicArguments)),
+                    IsDynamicResultConverted(resultType) ? TypeSymbol.Variant : resultType),
                 resultType);
         }
 
