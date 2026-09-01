@@ -2423,4 +2423,32 @@ public sealed class WinFormsHostTests
 
         return arguments;
     }
+
+    /// <summary>
+    /// A VB6 form stores its size as ClientWidth/ClientHeight in twips and never writes
+    /// Width/Height at form level, so a host that only knew the latter left every emitted form at
+    /// the WinForms default size no matter what the designer said.
+    /// </summary>
+    [STATestMethod]
+    public void HostAppliesTheDesignerClientSizeToAForm()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+
+        host.Load(owner);
+
+        Assert.IsTrue(host.TrySetMember(owner, "ClientWidth", Array.Empty<object?>(), 8160));
+        Assert.IsTrue(host.TrySetMember(owner, "ClientHeight", Array.Empty<object?>(), 5280));
+
+        Assert.IsTrue(host.TryGetMember(owner, "ClientWidth", Array.Empty<object?>(), out var width));
+        Assert.IsTrue(host.TryGetMember(owner, "ClientHeight", Array.Empty<object?>(), out var height));
+        Assert.AreEqual(8160, Convert.ToInt32(width));
+        Assert.AreEqual(5280, Convert.ToInt32(height));
+
+        // ScaleWidth/ScaleHeight read the same client area, so both names have to agree.
+        Assert.IsTrue(host.TryGetMember(owner, "ScaleWidth", Array.Empty<object?>(), out var scaleWidth));
+        Assert.IsTrue(host.TryGetMember(owner, "ScaleHeight", Array.Empty<object?>(), out var scaleHeight));
+        Assert.AreEqual(8160, Convert.ToInt32(scaleWidth));
+        Assert.AreEqual(5280, Convert.ToInt32(scaleHeight));
+    }
 }
