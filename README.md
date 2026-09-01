@@ -132,7 +132,7 @@ Implemented so far:
 
 ## Current verification
 
-The canonical serial `build.ps1 -Configuration Release` run on 2026-08-31 reports
+The canonical serial `build.ps1 -Configuration Release` run on 2026-09-01 reports
 **1410 test cases**, **1410 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
 **118 expectations**: **72 implemented**, **9 partial**, **37 planned**, and **81/118

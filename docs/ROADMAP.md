@@ -40,6 +40,7 @@ verschlechtern.
 | Messpunkt | Fehler gesamt | Parser | Lexer | Semantik | fehlerfreie Dateien |
 |---|---|---|---|---|---|
 | 2026-08-25 | **0** | **0** | **0** | **0** | **40 von 40** |
+| 2026-09-01 | **0** | **0** | **0** | **0** | **40 von 40** |
 
 Alle 40 `.bas`-, `.cls`-, `.frm`- und `.ctl`-Quellen werden gelesen, Designer-Metadaten
 offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auch durch
@@ -47,10 +48,11 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
 **Regressionssuite** — `build.ps1 -Configuration Release`: **1410 Tests, alle grün** in 13
-Testprojekten (Stand 2026-08-31); der Lauf testet projektweise seriell.
-Der aktuelle Stand nach den `Open`-Access-, Default-Random-, `Print #`-, `Width #`-,
-byteorientierten String- und Control-Flow-/Error-State-Erweiterungen umfasst 1410 Tests; die
-neuen Parser-, Runtime- und Managed-E2E-Regressionen sind grün.
+Testprojekten (Stand 2026-09-01); der Lauf testet projektweise seriell.
+Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
+Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
+Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Handler mit allen
+`Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
 **118 Erwartungen**, davon **72 implemented**, **9 partial** und **37 planned**;
