@@ -1114,7 +1114,7 @@ public static class VBDebug
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             decimal number => FormatNumeric(number.ToString("G29", CultureInfo.InvariantCulture)),
             VBCurrency currency => FormatNumeric(currency.ToDecimal().ToString("G15", CultureInfo.InvariantCulture)),
-            VBDateValue date => FormatNumeric(date.OADate.ToString("G15", CultureInfo.InvariantCulture)),
+            VBDateValue date => VBStrings.FormatValue(date, "General Date", 0, 0, VBCompatibilityProfile.Deterministic),
             _ => VBConversions.CStr(value)
         };
     }

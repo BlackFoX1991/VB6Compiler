@@ -4188,3 +4188,28 @@ Integer-Namen (`VB6E0003`). Die Zeile ist jetzt an `AddMethod` angeglichen.
 Kanonischer Nachweis: **1376/1376** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Ein Date wurde als Seriennummer gedruckt (01.09.2026)
+
+`Debug.Print` eines Date-Wertes gab die rohe OADate-Zahl aus -- `43832` statt eines Datums.
+Betroffen war nicht nur `Debug.Print`: die Darstellung haengt an `VBDebug.Format`, das auch
+`Print #` bedient, und der typisierte `Date` erreichte sie ueberhaupt nur als blanker `Double`,
+weil er sich die Repraesentation mit ihm teilt.
+
+Zwei Aenderungen: Ein Date-Ausgabeelement wird jetzt als Date-Wert uebergeben statt als roher
+Double, und `VBDebug.Format` rendert einen Date-Wert in der dokumentierten **General
+Date**-Form -- nur Datum, solange keine Tageszeit vorhanden ist, sonst Datum und Zeit. Die
+Formatmaschine dafuer war vorhanden und getestet; im deterministischen Profil bleibt die
+Ausgabe invariant.
+
+**Zwei bestehende Zusicherungen wurden dabei angepasst**, was §12 sonst verbietet:
+`EmitManagedApplication_UsesVariantStateForInt` las `43832` und
+`EmitManagedApplication_PassesSelectedProfileToDateTimeIntrinsics` las `43834`. Beide Namen
+sprechen keine Zusage ueber Datumsdarstellung aus -- der eine prueft den Variant-Zustand von
+`Int`, der andere das Durchreichen des Profils; die Zahl war dort Ableseform, nicht Vertrag.
+Damit das nicht wieder als Nebenwirkung haengt, sagt `DateDisplayExecutionTests` die
+Darstellung jetzt im Namen zu.
+
+Kanonischer Nachweis: **1381/1381** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
+79/118 documented-verified**.
