@@ -1072,7 +1072,7 @@
     },
     {
       "id": "l1-02-k-standard-library-remaining",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "runtime-standard-library",
       "input": "Remaining documented String, conversion, array and information intrinsics with omitted/invalid arguments",
       "expected": {
@@ -1080,11 +1080,11 @@
         "values": "return values and Null/Empty handling match the selected profile",
         "errors": "invalid ranges, types and locale combinations expose stable VB6 error numbers"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
-        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
-        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/ByteStringAndLongLongIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs"
       ]
     },
     {

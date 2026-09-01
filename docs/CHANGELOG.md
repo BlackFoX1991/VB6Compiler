@@ -4367,3 +4367,33 @@ nicht; ohne Orakel wird das nicht entschieden.
 Kanonischer Nachweis: **1399/1399** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix steht auf **71 implemented, 9 partial, 38 planned von 118 |
 80/118 documented-verified**.
+
+## Karte l1-02-k: fehlende Standard-Intrinsics, erster Durchgang (01.09.2026)
+
+Gemessen statt geschaetzt: 171 Intrinsics sind deklariert, und ein Bindungstest ueber die
+dokumentierte Kartenflaeche fand **sechs** Namen, die nicht binden. Die `$`-Varianten
+(`Left$`, `Format$`, `Str$`, `Hex$`, `Date$`, `Time$`), `LBound`/`UBound` und `CVDate` binden
+entgegen der Vermutung alle bereits.
+
+Drei davon sind jetzt geschlossen:
+
+- **`AscB`** und **`ChrB`** vervollstaendigen die Byte-String-Familie, die `LeftB`, `RightB`,
+  `MidB`, `InStrB` und `LenB` bereits bilden. Sie arbeiten auf derselben profilabhaengigen
+  Byte-Sicht; im deterministischen Profil ist `Len(ChrB(65))` = 1 und `LenB(ChrB(65))` = 2.
+  Ein leeres Argument und ein Code ausserhalb 0-255 melden **5**.
+- **`CLngLng`** erreicht die LongLong-Konvertierung, die es in der Runtime und im IR laengst
+  gab, waehrend kein VB6-Quelltext sie benennen konnte -- `LongLong` war ein deklarierter Typ
+  ohne zugehoerige Konvertierungsfunktion.
+
+Drei bleiben offen und halten die Karte auf `partial`:
+
+- **`Error`** und **`Error$`** binden nicht; die `Error`-Anweisung (`Error 5`) ist ebenfalls ein
+  Parserfehler. Beides braucht Parserarbeit, weil `Error` heute nur als Kontextwort in
+  `On Error` existiert.
+- **`Tab(n)`** und **`Spc(n)`** binden nicht. Sie gehoeren in die Ausgabelisten von `Print #`
+  und `Debug.Print` und brauchen deshalb eine Anbindung an die Ausgabelistenmechanik, nicht nur
+  einen Tabelleneintrag.
+
+Kanonischer Nachweis: **1403/1403** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **71 implemented, 10 partial, 37 planned von 118 |
+81/118 documented-verified**.

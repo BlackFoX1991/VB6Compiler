@@ -540,6 +540,8 @@ public enum IrRuntimeMethod
     StringRepeat,
     StringFormat,
     StringStrReverse,
+    StringAscB,
+    StringChrB,
     StringFormatNumber,
     StringFormatCurrency,
     StringFormatPercent,

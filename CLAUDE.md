@@ -17,8 +17,8 @@ entschieden wird; alles andere ordnet sich unter.
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H).
 Die offenen Karten und ihre Statusachsen stehen in `docs/vb6-sp6-compatibility-matrix.json`.
 Der aktuelle Matrixstand beträgt 118 Erwartungen (71 `implemented`,
-9 `partial`, 38 `planned`; 80 `documented-verified`); die nächste offene
-Implementierungskarte ist `l1-02-k-standard-library-remaining`. `L1-02-A` bleibt als breiter
+10 `partial`, 37 `planned`; 80 `documented-verified`); die nächste offene
+Implementierungskarte ist `l1-02-l-locale-datetime-math-financial`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
