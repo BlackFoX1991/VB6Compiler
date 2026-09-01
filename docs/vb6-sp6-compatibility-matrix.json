@@ -9,8 +9,16 @@
     "oraclePolicy": "documented-verified-until-vb6-runner-is-available"
   },
   "statusModel": {
-    "implementation": ["planned", "partial", "implemented"],
-    "verification": ["not-yet-verified", "documented-verified", "oracle-verified"]
+    "implementation": [
+      "planned",
+      "partial",
+      "implemented"
+    ],
+    "verification": [
+      "not-yet-verified",
+      "documented-verified",
+      "oracle-verified"
+    ]
   },
   "sourcePrecedence": [
     "official-vb6-documentation",
@@ -30,9 +38,25 @@
     "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi"
   },
   "expectationSchema": {
-    "required": ["id", "matrixEntry", "implementation", "input", "expected", "verification", "testRefs"],
-    "implementationValues": ["planned", "partial", "implemented"],
-    "verificationValues": ["not-yet-verified", "documented-verified", "oracle-verified"],
+    "required": [
+      "id",
+      "matrixEntry",
+      "implementation",
+      "input",
+      "expected",
+      "verification",
+      "testRefs"
+    ],
+    "implementationValues": [
+      "planned",
+      "partial",
+      "implemented"
+    ],
+    "verificationValues": [
+      "not-yet-verified",
+      "documented-verified",
+      "oracle-verified"
+    ],
     "oracleComparable": true
   },
   "expectations": [
@@ -46,7 +70,9 @@
         "target": "caller-default"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/CompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      ]
     },
     {
       "id": "profile.vb6sp6-x86",
@@ -59,7 +85,10 @@
         "assemblyMetadata": "VBCompatibilityProfileAttribute(Profile=VB6Sp6)"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
+      ]
     },
     {
       "id": "profile.vb6sp6-x64-rejected",
@@ -72,7 +101,10 @@
         "reason": "x86-only profile"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ]
     },
     {
       "id": "profile.strconv-locale",
@@ -84,7 +116,10 @@
         "vb6Sp6": "İ"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "profile.strconv-width-kana",
@@ -97,7 +132,10 @@
         "invalidLocale": "vbWide/vbNarrow require East-Asian locale; vbKatakana/vbHiragana require Japanese locale"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "profile.strconv-explicit-lcid",
@@ -109,7 +147,9 @@
         "deterministic": "explicit LCID does not change invariant behavior"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs"
+      ]
     },
     {
       "id": "profile.ansi-string-intrinsics",
@@ -122,7 +162,10 @@
         "chr": "ANSI byte decoding"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "operators.typed-scalar-comparison-emission",
@@ -134,7 +177,10 @@
         "result": "VB6 comparison semantics are preserved"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"
+      ]
     },
     {
       "id": "operators.option-compare-text-relations",
@@ -146,7 +192,9 @@
         "binary": "Option Compare Binary remains ordinal and case-sensitive"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs"
+      ]
     },
     {
       "id": "strings.strcomp-comparison",
@@ -160,7 +208,10 @@
         "omittedCompare": "inherits Option Compare"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "strings.rset-fixed-string",
@@ -174,7 +225,11 @@
         "unsupportedLayouts": "non-string destinations remain explicitly guarded"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/LSetParserTests.cs", "tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/LSetParserTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"
+      ]
     },
     {
       "id": "strings.mid-assignment",
@@ -188,7 +243,11 @@
         "fixedStringTarget": "declared String * n width is preserved"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/LSetParserTests.cs", "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Compiler.Tests/MidIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/LSetParserTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MidIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "strings.byte-oriented-intrinsics",
@@ -202,7 +261,10 @@
         "profile": "VB6Sp6 uses the active ANSI code page; Deterministic uses its stable UTF-16 byte representation"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "profile.format-locale",
@@ -214,7 +276,9 @@
         "vb6Sp6": "1.234,50 / Januar"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/CultureIndependenceTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs"
+      ]
     },
     {
       "id": "profile.datetime-locale-and-rounding",
@@ -227,11 +291,15 @@
         "firstWeekOfYear": "vbUseSystem follows the active culture's CalendarWeekRule"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
+      ]
     },
-  {
-    "id": "format.complete-surface",
-    "implementation": "partial",
+    {
+      "id": "format.complete-surface",
+      "implementation": "partial",
       "matrixEntry": "runtime-standard-library",
       "input": "Format/Format$ with named formats, four numeric sections, string placeholders and documented date/time tokens",
       "expected": {
@@ -242,11 +310,15 @@
         "locale": "VB6Sp6 uses active separators, patterns, names and currency; Deterministic is invariant"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
+      ]
     },
-  {
-    "id": "math.complete-surface",
-    "implementation": "partial",
+    {
+      "id": "math.complete-surface",
+      "implementation": "partial",
       "matrixEntry": "runtime-standard-library",
       "input": "Abs/Sgn/Fix/Int/Round/Sqr/Exp/Log/Sin/Cos/Tan/Atn/Rnd/Randomize with scalar and Variant values",
       "expected": {
@@ -258,7 +330,10 @@
         "random": "Rnd and Randomize use the repeatable VB6 24-bit sequence"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/MathRuntimeTests.cs", "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/MathRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "financial.core-annuity",
@@ -275,7 +350,10 @@
         "depreciation": "SLN, SYD and DDB schedule formulas"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs", "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "msbuild.exact-input-manifest",
@@ -291,7 +369,9 @@
         "designTimeBuild": "resolves-and-validates-without-emission"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ]
     },
     {
       "id": "msbuild.clean-rebuild-output-manifest",
@@ -304,7 +384,9 @@
         "scope": "unrelated files are not deleted"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ]
     },
     {
       "id": "arrays.lower-bound-preservation",
@@ -317,7 +399,9 @@
         "valueAt5": 42
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"
+      ]
     },
     {
       "id": "arrays.erase-byref-parameter-writeback",
@@ -330,7 +414,10 @@
         "afterReDim": "caller can allocate a new descriptor"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/ArrayLibraryBinderTests.cs", "tests/VB6.Compiler.Tests/ArrayLibraryExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/ArrayLibraryBinderTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayLibraryExecutionTests.cs"
+      ]
     },
     {
       "id": "safearray.variant-type-preservation",
@@ -343,7 +430,10 @@
         "boundsPreserved": true
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"
+      ]
     },
     {
       "id": "forms.drawmode-rop2",
@@ -356,7 +446,9 @@
         "invalidMode": "values outside 1..16 raise VB6 error 380"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "file-io.loc-mode-semantics",
@@ -369,7 +461,10 @@
         "sequential": "current 128-byte block"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.reset-closes-channels",
@@ -381,7 +476,10 @@
         "nextFreeFile": 1
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.write-scalar-formatting",
@@ -394,7 +492,10 @@
         "null": "#NULL#"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.lock-unlock-ranges",
@@ -407,7 +508,10 @@
         "sequential": "the complete file is affected"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.open-sharing-modes",
@@ -421,7 +525,10 @@
         "lockReadWrite": "FileShare.None"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.open-access-modes",
@@ -434,7 +541,11 @@
         "readWrite": "FileAccess.ReadWrite"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.open-default-random-mode",
@@ -446,7 +557,10 @@
         "recordLength": 128
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.print-empty-output-list",
@@ -458,7 +572,10 @@
         "content": "empty line"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.print-output-list-separators",
@@ -471,7 +588,10 @@
         "trailingSemicolon": "leave the record open for the next Print # statement"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.width-print-wrapping",
@@ -485,7 +605,11 @@
         "wrapping": "start a new CRLF line before the next value when the width is reached"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "file-io.input-variant-state",
@@ -499,7 +623,11 @@
         "binary": "scalar Variant Get/Put uses the VB6 type tag and payload layout; top-level supported scalar arrays, including variable String elements, transfer element-wise without an outer descriptor in Binary, while Random dynamic arrays carry the documented descriptor"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FileStatementGuardTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileStatementGuardTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-language-grammar-context",
@@ -514,7 +642,12 @@
       },
       "implementationNotes": "Module-level visibility is implemented and project-scoped; procedure/block context grammar remains in this family.",
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/ParserTests.cs", "tests/VB6.Semantics.Tests/BinderTests.cs", "tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ParserTests.cs",
+        "tests/VB6.Semantics.Tests/BinderTests.cs",
+        "tests/VB6.Compiler.Tests/CompilationTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-dim-withevents-declaration",
@@ -527,7 +660,9 @@
         "declarator": "the variable identifier and declared type are preserved"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-option-private-module-syntax",
@@ -540,7 +675,9 @@
         "context": "the directive is not accepted as a procedure statement"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-static-procedure-syntax",
@@ -553,7 +690,9 @@
         "order": "visibility precedes Static when both modifiers are present"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-static-procedure-semantics",
@@ -566,7 +705,10 @@
         "arrays": "static-procedure local array declarations retain their storage contract"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/StaticBinderTests.cs", "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/StaticBinderTests.cs",
+        "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-deftype-directive-syntax",
@@ -579,7 +721,9 @@
         "context": "DefType directives are rejected inside procedure bodies"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-deftype-default-semantics",
@@ -593,7 +737,9 @@
         "precedence": "an explicit As clause or identifier type suffix overrides the default"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-deftype-implicit-variables",
@@ -606,7 +752,9 @@
         "precedence": "an identifier type suffix still overrides the DefType default"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-deftype-range-conflicts",
@@ -618,7 +766,9 @@
         "adjacent": "non-overlapping adjacent ranges remain valid and retain their respective types"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
+      ]
     },
     {
       "id": "l1-02-b-named-arguments-evaluation-order",
@@ -632,7 +782,12 @@
         "invalid": "duplicate, unknown or out-of-order arguments diagnose deterministically"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/NamedArgumentParserTests.cs", "tests/VB6.Parser.Tests/OptionalParameterParserTests.cs", "tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs", "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/NamedArgumentParserTests.cs",
+        "tests/VB6.Parser.Tests/OptionalParameterParserTests.cs",
+        "tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
+      ]
     },
     {
       "id": "l1-02-b-named-arguments-side-effect-order",
@@ -645,7 +800,9 @@
         "result": "the callee observes values produced by that documented evaluation order"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-b-named-arguments-invalid-shapes",
@@ -658,7 +815,9 @@
         "determinism": "each invalid call produces a stable diagnostic without rebinding a parameter"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-array-udt-shape",
@@ -691,7 +850,9 @@
         "byref": "a nested array element field can be passed ByRef and writes back to the caller"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-redim-preserve-multidimensional",
@@ -704,7 +865,9 @@
         "defaults": "new final-dimension slots expose VB6 scalar default values"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ReDimExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ReDimExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-udt-array-rank-diagnostics",
@@ -715,7 +878,9 @@
         "diagnostics": "the binder reports VB6S0027 for a UDT array member rank mismatch"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/UserDefinedTypeMemberArrayBindingTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/UserDefinedTypeMemberArrayBindingTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-redim-element-type-diagnostic",
@@ -726,7 +891,9 @@
         "diagnostics": "the binder reports VB6S0031 and rejects the element type change"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/ReDimBinderTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/ReDimBinderTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-redim-paramarray-diagnostic",
@@ -737,7 +904,9 @@
         "diagnostics": "the binder reports VB6S0066 and rejects ReDim on ParamArray storage"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-foreach-udt-array-diagnostic",
@@ -748,7 +917,9 @@
         "diagnostics": "the analyzer reports VB6S0056 instead of coercing the UDT element to Variant"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ForEachSyntaxGuardTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ForEachSyntaxGuardTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-array-parameter-diagnostics",
@@ -760,7 +931,9 @@
         "bounds": "the binder reports VB6S0032 because parameter rank/bounds are caller-defined"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Semantics.Tests/ReDimBinderTests.cs"]
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/ReDimBinderTests.cs"
+      ]
     },
     {
       "id": "l1-02-c-dynamic-udt-array-member",
@@ -773,7 +946,9 @@
         "values": "nested UDT elements preserve their declared type and writable fields"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/DynamicUserDefinedTypeArrayExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/DynamicUserDefinedTypeArrayExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-d-control-flow-error-state",
@@ -786,7 +961,11 @@
         "diagnostics": "illegal control-flow/error constructs are rejected with stable IDs"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/ErrorHandlingParserTests.cs", "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs", "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ErrorHandlingParserTests.cs",
+        "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs",
+        "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"
+      ]
     },
     {
       "id": "l1-02-e-operator-dispatch",
@@ -799,7 +978,11 @@
         "overflow": "overflow and invalid operator combinations raise the documented VB6 errors"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/VariantEqualityExecutionTests.cs", "tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs", "tests/VB6.Semantics.Tests/DeferredComparisonOperatorBinderTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/VariantEqualityExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/DeferredComparisonOperatorBinderTests.cs"
+      ]
     },
     {
       "id": "l1-02-f-variant-state-conversions",
@@ -812,7 +995,11 @@
         "numeric": "Date/Currency/Decimal conversions preserve documented rounding and overflow behavior"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/VariantStateTests.cs", "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs", "tests/VB6.Compiler.Tests/VariantTypePredicateExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs",
+        "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantTypePredicateExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-g-variant-promotion-table",
@@ -825,7 +1012,11 @@
         "errors": "Null, Error and incompatible object operands retain their specified propagation/diagnostic"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/VariantArithmeticTests.cs", "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs", "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantArithmeticTests.cs",
+        "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs",
+        "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-h-variant-object-array-dispatch",
@@ -839,7 +1030,11 @@
         "unsupported": "unsupported SAFEARRAY/object shapes fail explicitly"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs", "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs", "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"
+      ]
     },
     {
       "id": "l1-02-i-object-members-lifecycle",
@@ -852,11 +1047,16 @@
         "contracts": "Implements and WithEvents enforce declared members and event hookup"
       },
       "verification": "documented-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/CollectionExecutionTests.cs", "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs", "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs", "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CollectionExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"
+      ]
     },
     {
       "id": "l1-02-j-nested-error-resume",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "language-control-flow-and-errors",
       "input": "Nested procedure calls with active On Error handlers, every Resume form and Err/Erl propagation",
       "expected": {
@@ -864,8 +1064,11 @@
         "resume": "Resume, Resume Next and Resume label re-enter the correct block",
         "state": "Err.Number, Description, Source and Erl are cleared/retained exactly as specified"
       },
-      "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs", "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"]
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/NestedErrorResumeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs"
+      ]
     },
     {
       "id": "l1-02-k-standard-library-remaining",
@@ -878,7 +1081,11 @@
         "errors": "invalid ranges, types and locale combinations expose stable VB6 error numbers"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/StringFunctionTests.cs", "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs", "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-l-locale-datetime-math-financial",
@@ -891,7 +1098,12 @@
         "financial": "annuity, rate/period and depreciation formulas agree across supported input states"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs", "tests/VB6.Runtime.Tests/MathRuntimeTests.cs", "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs", "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/MathRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-m-headless-host-services",
@@ -904,7 +1116,10 @@
         "profile": "locale and code-page behavior follows the selected compatibility profile"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs", "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-02-n-file-io-remaining",
@@ -918,7 +1133,11 @@
         "errors": "EOF, channel, record-length and type errors are deterministic"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-a-project-kinds-startup-bitness",
@@ -932,7 +1151,10 @@
         "bitness": "legacy VB6 target defaults and explicit x86 validation are deterministic"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ProjectCompilationTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ]
     },
     {
       "id": "l1-03-b-project-group-dependency-order",
@@ -945,7 +1167,10 @@
         "cycles": "reference cycles produce a stable project diagnostic"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs", "tests/VB6.ProjectSystem.Tests/VBProjectGroupLoaderTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs",
+        "tests/VB6.ProjectSystem.Tests/VBProjectGroupLoaderTests.cs"
+      ]
     },
     {
       "id": "l1-03-c-project-compatibility-resources-components",
@@ -958,7 +1183,10 @@
         "closure": "only declared project inputs enter the deterministic source/output manifest"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.ProjectSystem.Tests/VBProjectLoaderTests.cs", "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs"]
+      "testRefs": [
+        "tests/VB6.ProjectSystem.Tests/VBProjectLoaderTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs"
+      ]
     },
     {
       "id": "l1-03-d-file-open-modes-access-sharing",
@@ -972,7 +1200,10 @@
         "defaultRandom": "omitted For defaults to Random with record length 128"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/FileStatementParserTests.cs", "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"
+      ]
     },
     {
       "id": "l1-03-e-file-position-functions",
@@ -986,7 +1217,10 @@
         "loc": "Loc uses byte, record or 128-byte block units according to mode"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-f-file-text-transfer-codepage",
@@ -1000,7 +1234,10 @@
         "encoding": "VB6Sp6 uses the active ANSI code page while Deterministic remains stable"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-g-file-scalar-udt-record-layout",
@@ -1014,7 +1251,10 @@
         "record": "Random record length controls the transfer boundary"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/FileIoExecutionTests.cs", "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-h-file-array-descriptor-bounds",
@@ -1027,7 +1267,10 @@
         "elements": "values and fixed-length element widths round-trip element-wise"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/FileIoExecutionTests.cs", "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-i-file-variant-object-composite-layout",
@@ -1040,7 +1283,10 @@
         "composite": "nested record layout and ByRef write-back are deterministic"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FileRuntimeTests.cs", "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-j-typelib-alias-record-pointer-import",
@@ -1054,7 +1300,10 @@
         "arrays": "C-array metadata is retained or diagnosed when it cannot be mapped"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs", "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
+        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"
+      ]
     },
     {
       "id": "l1-03-k-automation-ownership-byref",
@@ -1068,7 +1317,10 @@
         "writeback": "ByRef updates are visible to the VB6 caller"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
+      ]
     },
     {
       "id": "l1-03-l-idispatch-lcid-propertyput-excepinfo",
@@ -1082,7 +1334,10 @@
         "errors": "PROPERTYPUT and EXCEPINFO preserve HRESULT and error details"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs", "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-m-declare-x86-signature-mapping",
@@ -1096,7 +1351,10 @@
         "udt": "UDT fields and packing are preserved or diagnosed explicitly"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs", "tests/VB6.Parser.Tests/DeclareParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
+        "tests/VB6.Parser.Tests/DeclareParserTests.cs"
+      ]
     },
     {
       "id": "l1-03-n-addressof-callback-lifetime",
@@ -1110,7 +1368,10 @@
         "writeback": "native ByRef changes reach the managed/VB6 caller"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs", "tests/VB6.Parser.Tests/AddressOfParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
+        "tests/VB6.Parser.Tests/AddressOfParserTests.cs"
+      ]
     },
     {
       "id": "l1-03-o-safearray-callback-element-abi",
@@ -1124,7 +1385,10 @@
         "longPtr": "element width follows the x86 compatibility contract"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs", "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-03-p-com-classfactory-activation",
@@ -1138,7 +1402,10 @@
         "shutdown": "activation and clean shutdown release the COM server deterministically"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs", "tests/VB6.ComActivationProbe"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
+        "tests/VB6.ComActivationProbe"
+      ]
     },
     {
       "id": "l1-03-q-typelib-registration-localserver",
@@ -1152,7 +1419,10 @@
         "localServer": "ActiveX-EXE local-server lifecycle is represented or diagnosed"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"
+      ]
     },
     {
       "id": "l1-04-a-designer-form-frx-persistence",
@@ -1166,7 +1436,9 @@
         "spans": "source offsets remain addressable for diagnostics"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs"]
+      "testRefs": [
+        "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs"
+      ]
     },
     {
       "id": "l1-04-b-designer-control-resource-artifacts",
@@ -1180,7 +1452,10 @@
         "errors": "malformed persistence produces stable diagnostics"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"]
+      "testRefs": [
+        "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ]
     },
     {
       "id": "l1-04-c-form-control-lifecycle-focus",
@@ -1194,7 +1469,10 @@
         "headless": "the semantic/runtime contract can be tested without an interactive UI"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "l1-04-d-intrinsic-controls-events-menus-timers",
@@ -1208,7 +1486,10 @@
         "timers": "timer interval/enabled behavior is deterministic"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
+        "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs"
+      ]
     },
     {
       "id": "l1-04-e-control-array-dynamic-load-unload",
@@ -1222,7 +1503,10 @@
         "errors": "duplicate, missing and invalid indices report documented errors"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-04-f-form-scale-autoredraw-attributes",
@@ -1236,7 +1520,10 @@
         "clipping": "drawing is clipped to the target surface"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "l1-04-g-visible-paint-gdi-drawing",
@@ -1250,7 +1537,10 @@
         "clipping": "GDI/DIB bounds prevent writes outside the target"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Parser.Tests/GraphicsLineParserTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Parser.Tests/GraphicsLineParserTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "l1-04-h-drawmode-rop2-active-persistent",
@@ -1264,7 +1554,10 @@
         "invalid": "values outside 1..16 report error 380"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"
+      ]
     },
     {
       "id": "l1-04-i-mdi-parent-child-window-state",
@@ -1278,7 +1571,10 @@
         "windowList": "WindowList entries and selection remain synchronized"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-04-j-stock-control-inventory-status",
@@ -1292,7 +1588,10 @@
         "host": "managed host behavior does not claim native OCX success without an x86 run"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-04-k-generic-activex-inplace-ambient",
@@ -1306,7 +1605,10 @@
         "events": "connection-point events reach the VB6 sink"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "l1-04-l-activex-persistence-propertypages",
@@ -1320,7 +1622,10 @@
         "errors": "unsupported persistence interfaces remain explicit"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "l1-04-m-usercontrol-ole-propertybag",
@@ -1334,7 +1639,10 @@
         "lifecycle": "Initialize/ReadProperties/Resize/Terminate order is preserved"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ]
     },
     {
       "id": "l1-04-n-enterprise-designer-artifacts",
@@ -1348,7 +1656,10 @@
         "unsupported": "missing native dependencies remain diagnostic and visible"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-04-o-msbuild-resolver-task",
@@ -1362,7 +1673,10 @@
         "headless": "DesignTimeBuild-compatible resolution does not emit unexpectedly"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-04-p-msbuild-incremental-clean-rebuild",
@@ -1376,7 +1690,10 @@
         "typelib": "TypeLib/COM outputs participate in the target graph"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-04-q-msbuild-designtime-package-validation",
@@ -1390,7 +1707,10 @@
         "cps": "no Visual-Studio-CPS dependency is required"
       },
       "verification": "not-yet-verified",
-      "testRefs": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"]
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ]
     },
     {
       "id": "l1-02-a-procedure-visibility",
@@ -1500,8 +1820,8 @@
       ]
     },
     {
-    "id": "l1-02-a-declare-declaration-context-guard",
-    "implementation": "implemented",
+      "id": "l1-02-a-declare-declaration-context-guard",
+      "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",
       "input": "Module-only visibility modifiers on Declare declarations encountered inside a procedure or nested statement block",
       "expected": {
@@ -1509,13 +1829,13 @@
         "recovery": "the parser consumes each invalid declaration line and continues at the next statement",
         "module": "a module-level visibility modifier remains valid on a Declare declaration"
       },
-    "verification": "documented-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs"
       ]
     },
     {
-    "id": "l1-02-a-property-event-declaration-context-guard",
+      "id": "l1-02-a-property-event-declaration-context-guard",
       "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",
       "input": "Module-only visibility modifiers on Property and Event declarations encountered inside a procedure or nested statement block",
@@ -1663,7 +1983,9 @@
       "id": "language-declarations-and-statements",
       "domain": "language",
       "surface": "declarations, procedures, attributes, modifiers, literals and statement grammar",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "VB6 source is parsed and bound with VB6 declaration, scope and statement rules",
         "runtime": "not applicable",
@@ -1673,14 +1995,20 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Parser.Tests"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs",
+        "tests/VB6.Parser.Tests"
+      ],
       "gap": "The full documented grammar and all context restrictions remain open."
     },
     {
       "id": "language-arrays-and-udts",
       "domain": "language",
       "surface": "fixed/dynamic arrays, ReDim, For Each and Type blocks",
-      "sourceRefs": ["vb6-docs", "automation-types"],
+      "sourceRefs": [
+        "vb6-docs",
+        "automation-types"
+      ],
       "contract": {
         "compile": "lower bounds, rank, UDT fields and ByRef array shape are preserved",
         "runtime": "array errors and value-copy/write-back follow VB6 rules",
@@ -1690,14 +2018,19 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/*Array*Tests.cs", "tests/VB6.Compiler.Tests/*Udt*Tests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/*Array*Tests.cs",
+        "tests/VB6.Compiler.Tests/*Udt*Tests.cs"
+      ],
       "gap": "Remaining Variant-array, UDT-layout and unsupported-shape cases are tracked in Etappen B-D."
     },
     {
       "id": "language-control-flow-and-errors",
       "domain": "language",
       "surface": "If, Select, loops, GoTo, On Error, Resume and Err",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "control-flow graph and handler state are explicit in managed IR",
         "runtime": "active handler, Resume target, Err and Erl state are deterministic",
@@ -1707,14 +2040,19 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs", "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs",
+        "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"
+      ],
       "gap": "Nested handler and complete Resume state coverage remain open."
     },
     {
       "id": "language-operators-and-variants",
       "domain": "language",
       "surface": "scalar comparisons and operator dispatch",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "semantically aligned scalar operands use a typed managed comparison path",
         "runtime": "comparison ordering follows the selected scalar type; Variant/object values retain dynamic dispatch",
@@ -1724,14 +2062,20 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"],
+      "tests": [
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"
+      ],
       "gap": "Variant/object promotion and the remaining operator matrix are tracked in Etappe B."
     },
     {
       "id": "runtime-variant-and-conversions",
       "domain": "runtime",
       "surface": "Variant subtypes, Empty/Null/Missing/Error, conversion and promotion",
-      "sourceRefs": ["vb6-docs", "automation-types"],
+      "sourceRefs": [
+        "vb6-docs",
+        "automation-types"
+      ],
       "contract": {
         "compile": "typed and Variant expressions retain the selected promotion path",
         "runtime": "subtype, overflow, rounding and Type Mismatch behavior are observable",
@@ -1741,14 +2085,19 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/Variant*Tests.cs", "tests/VB6.Runtime.Tests"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/Variant*Tests.cs",
+        "tests/VB6.Runtime.Tests"
+      ],
       "gap": "The complete promotion table, object variants and all array variants remain open."
     },
     {
       "id": "runtime-standard-library",
       "domain": "runtime",
       "surface": "String, Math, Financial, Date/Time, Format, Array, Interaction, App and Environment APIs",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "documented intrinsic names, arity and return types bind",
         "runtime": "documented return values, error numbers and side effects",
@@ -1758,14 +2107,19 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/*Intrinsic*Tests.cs", "tests/VB6.Runtime.Tests"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/*Intrinsic*Tests.cs",
+        "tests/VB6.Runtime.Tests"
+      ],
       "gap": "The remaining documented intrinsic surface is Etappe C."
     },
     {
       "id": "runtime-file-io",
       "domain": "runtime",
       "surface": "Open, Get/Put, Input/Line Input, Print/Write, Lock/Unlock, EOF/Loc/LOF/Seek",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "file statements bind with VB6 channel and record-layout rules",
         "runtime": "Binary, Random, Input, Output and Append modes preserve record semantics",
@@ -1775,14 +2129,19 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/File*Tests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/File*Tests.cs"
+      ],
       "gap": "Loc now preserves Binary/Random/Sequential mode units, Reset closes all channels, Write # covers multi-value scalar formatting, Print # accepts an empty output list, Lock/Unlock maps Binary/Random ranges plus Sequential whole-file locks, and Open Access/sharing clauses map to explicit FileAccess/FileShare policies; omitted For defaults to Random with length 128. Input # restores scalar Variant state markers and binary Get/Put supports scalar Variant type tags, while Variant arrays/objects, richer UDT layouts and remaining file modes remain open."
     },
     {
       "id": "project-vbp-vbg",
       "domain": "project",
       "surface": ".vbp/.vbg project types, references, components, startup and dependencies",
-      "sourceRefs": ["vb6-docs", "vb6-support"],
+      "sourceRefs": [
+        "vb6-docs",
+        "vb6-support"
+      ],
       "contract": {
         "compile": "project metadata selects sources, project kind, startup and output",
         "runtime": "referenced projects and generated support files are deployable",
@@ -1792,14 +2151,20 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/ProjectCompilationTests.cs", "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs", "tests/VB6.ProjectSystem.Tests"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs",
+        "tests/VB6.ProjectSystem.Tests"
+      ],
       "gap": "Binary compatibility, complete project kinds and dependency closure remain open."
     },
     {
       "id": "project-persisted-designer-artifacts",
       "domain": "project",
       "surface": ".frm/.frx/.ctl/.ctx/.pag/.dob/.dsr/.res persistence",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "persisted metadata is loaded without losing source offsets or properties",
         "runtime": "forms, controls and enterprise artifacts can be emitted and hosted",
@@ -1809,14 +2174,21 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "tests": [
+        "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ],
       "gap": "Full persistence and executable DataEnvironment/DataReport/UserDocument/PropertyPage behavior remain open."
     },
     {
       "id": "com-automation-types",
       "domain": "com",
       "surface": "VARIANT, BSTR, SAFEARRAY, IUnknown and IDispatch Automation types",
-      "sourceRefs": ["automation-api", "safearray", "automation-types"],
+      "sourceRefs": [
+        "automation-api",
+        "safearray",
+        "automation-types"
+      ],
       "contract": {
         "compile": "Declare and TypeLib signatures map to Automation-compatible managed signatures",
         "runtime": "ownership, bounds, subtype and ByRef write-back are preserved",
@@ -1826,14 +2198,22 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs", "tests/VB6.Runtime.Tests", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
+        "tests/VB6.Runtime.Tests",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
+      ],
       "gap": "Raw ABI, complete TypeLib import and all dispatch edge cases remain open."
     },
     {
       "id": "com-server-and-typelib-emission",
       "domain": "com",
       "surface": "COM server activation, class factories, manifests and TypeLib emission",
-      "sourceRefs": ["automation-api", "idispatch", "vb6-support"],
+      "sourceRefs": [
+        "automation-api",
+        "idispatch",
+        "vb6-support"
+      ],
       "contract": {
         "compile": "public classes receive stable identities and Automation metadata",
         "runtime": "activation, registration-free manifests and clean shutdown work",
@@ -1843,14 +2223,20 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ],
       "gap": "TypeLib generation and the full raw class-factory/ActiveX-EXE contract remain open."
     },
     {
       "id": "forms-lifecycle-and-intrinsic-controls",
       "domain": "forms",
       "surface": "Form/UserControl lifecycle, events, menus, timers and intrinsic controls",
-      "sourceRefs": ["vb6-docs", "windows-controls"],
+      "sourceRefs": [
+        "vb6-docs",
+        "windows-controls"
+      ],
       "contract": {
         "compile": "designer declarations and event procedures bind to generated host types",
         "runtime": "Load/Initialize/Activate/Terminate and focus/event ordering are observable",
@@ -1860,14 +2246,20 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Runtime.WinForms.Tests", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "tests": [
+        "tests/VB6.Runtime.WinForms.Tests",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ],
       "gap": "Full control surface, focus/z-order and stock-OCX coverage remain open."
     },
     {
       "id": "forms-drawing-and-mdi",
       "domain": "forms",
       "surface": "GDI drawing, Scale*, AutoRedraw, DrawMode/ROP2 and MDI",
-      "sourceRefs": ["vb6-docs", "windows-gdi"],
+      "sourceRefs": [
+        "vb6-docs",
+        "windows-gdi"
+      ],
       "contract": {
         "compile": "drawing statements bind with VB6 coordinate and attribute rules",
         "runtime": "pixel output, clipping, persistent surfaces and MDI activation are deterministic",
@@ -1877,14 +2269,23 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs", "tests/VB6.Runtime.WinForms.Tests", "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs", "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"],
+      "tests": [
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests",
+        "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+      ],
       "gap": "Fixed ScaleX/ScaleY conversions and all sixteen DrawMode ROP2 merges are implemented for persistent managed surfaces; direct visible-surface/Paint-context composition, GDI/DIB clipping and complete MDI state remain open."
     },
     {
       "id": "activex-stock-and-generic-host",
       "domain": "activex",
       "surface": "Microsoft redistributable stock controls and generic TypeLib-described ActiveX controls",
-      "sourceRefs": ["vb6-docs", "windows-controls", "automation-api"],
+      "sourceRefs": [
+        "vb6-docs",
+        "windows-controls",
+        "automation-api"
+      ],
       "contract": {
         "compile": "control references and persisted properties remain loadable",
         "runtime": "in-place activation, ambient properties, persistence and events work where TypeLib describes them",
@@ -1901,7 +2302,10 @@
       "id": "abi-declare-addressof",
       "domain": "abi",
       "surface": "Declare, AddressOf, VarPtr/StrPtr/ObjPtr, native ByRef and callback layouts",
-      "sourceRefs": ["vb6-docs", "automation-types"],
+      "sourceRefs": [
+        "vb6-docs",
+        "automation-types"
+      ],
       "contract": {
         "compile": "documented x86 signatures map to callable managed/native stubs",
         "runtime": "pointer width, strings, UDTs, arrays and callback write-back are preserved",
@@ -1911,14 +2315,20 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs", "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs"
+      ],
       "gap": "Complete pointer, UDT, callback and native host ABI coverage remains open."
     },
     {
       "id": "profile-selection-and-provenance",
       "domain": "profile",
       "surface": "VBCompatibilityProfile, CLI/SDK selection, x86 validation and output provenance",
-      "sourceRefs": ["vb6-docs", "vb6-support"],
+      "sourceRefs": [
+        "vb6-docs",
+        "vb6-support"
+      ],
       "contract": {
         "compile": "Deterministic is the default; VB6Sp6 selects the documented x86 contract",
         "runtime": "generated programs carry the selected profile without a global runtime switch",
@@ -1928,14 +2338,23 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Tests/CompilationTests.cs", "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs", "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs", "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs", "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs", "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ],
       "gap": "Additional profile-aware runtime APIs and COM/ActiveX semantic and ABI propagation remain open."
     },
     {
       "id": "msbuild-headless-sdk",
       "domain": "build",
       "surface": "headless MSBuild resolution, DesignTimeBuild, incremental inputs and outputs",
-      "sourceRefs": ["vb6-docs"],
+      "sourceRefs": [
+        "vb6-docs"
+      ],
       "contract": {
         "compile": "ResolveVB6Project and output targets operate without Visual Studio CPS",
         "runtime": "clean/rebuild and generated runtime/COM artifacts are reproducible",
@@ -1945,7 +2364,9 @@
       },
       "implementation": "partial",
       "verification": "documented-verified",
-      "tests": ["tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"],
+      "tests": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ],
       "gap": "A separately packaged ProjectSystem resolver task plus complete Clean/Rebuild and TypeLib output orchestration remain open."
     }
   ]

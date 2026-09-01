@@ -4334,3 +4334,36 @@ Seriennummer als Textform zu, der Lauf blieb ohne Anpassung fremder Zusicherunge
 Kanonischer Nachweis: **1388/1388** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Matrix unveraendert bei **71 implemented, 8 partial, 39 planned von 118 |
 79/118 documented-verified**.
+
+## Karte l1-02-j: verschachtelte Handler und alle Resume-Formen (01.09.2026)
+
+Zuerst gemessen, dann gebaut. Eine Probenreihe ueber die Vertragsflaeche der Karte --
+Verschachtelung, jede `Resume`-Form, `Err`/`Erl`-Zustand -- ergab **15 von 16 Faellen bereits
+korrekt**. Zwei vermeintliche Befunde waren keine: das blanke `Resume` wiederholt die fehlerhafte
+Anweisung richtig, meine erste Probe hatte den Zaehler nur vor der wiederholten Zeile stehen und
+lief deshalb selbst endlos.
+
+Der eine echte Defekt: `Resume` und `Resume Next` ohne aktiven Fehler brachen das Programm mit
+einer unbehandelten 20 ab, auch wenn ein `On Error Resume Next` daneben stand. Ursache ist die
+Form des Dispatch -- er ist ein `switch` in die Statement-Fortsetzungen, die **ausserhalb** jeder
+geschuetzten Region liegen. Ein Sprung dorthin aus einem `try` heraus verifiziert nicht; genau
+daran war der frueher zurueckgenommene Versuch gescheitert, die Anweisung einzuwickeln.
+
+Deshalb wird jetzt nicht mehr geworfen, sondern vorher gefragt: `VBErrors.HasActiveResume`
+entscheidet, und ohne aktiven Fehler traegt `RecordResumeWithoutError` die dokumentierte **20**
+in `Err` ein, worauf die Methode zur naechsten Anweisung durchfaellt. Eine Prozedur ganz ohne
+geschuetzte Region hat kein Ziel zum Fortsetzen -- dort bleibt es bei der geworfenen 20.
+
+Gemessen: unter `On Error Resume Next` melden `Resume` und `Resume Next` jetzt `err=20` und
+laufen weiter; ohne jedes `On Error` haelt das Programm an; `Resume <Label>`, gewoehnliches
+`Resume Next` und die Wiederholung sind unveraendert. Die Probenreihe laeuft mit **16 von 16**
+ohne Befund durch.
+
+Die Karte steht auf **`partial`** und nicht auf `implemented`: offen bleibt, ob `Err` geleert
+sein muss, wenn ein Handler ueber `End Sub` verlaesst statt ueber `Exit Sub` oder `Resume`.
+Gemessen wird der Wert behalten. Die Dokumentation nennt `Exit Sub` ausdruecklich und `End Sub`
+nicht; ohne Orakel wird das nicht entschieden.
+
+Kanonischer Nachweis: **1399/1399** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **71 implemented, 9 partial, 38 planned von 118 |
+80/118 documented-verified**.
