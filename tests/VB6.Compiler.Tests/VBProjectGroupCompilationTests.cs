@@ -154,6 +154,53 @@ public sealed class VBProjectGroupCompilationTests
     }
 
     [TestMethod]
+    public void AnalyzeAndEmit_ReportsProjectReferenceCyclesWithoutCreatingArtifacts()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var groupPath = Path.Combine(directory, "LegacyGroup.vbg");
+            File.WriteAllText(groupPath, "Type=Group\nProject=First.vbp\nProject=Second.vbp\n");
+            WriteLibraryProject(
+                directory,
+                "First",
+                "First.vbp",
+                "First.bas",
+                "Second.vbp",
+                "Second");
+            WriteLibraryProject(
+                directory,
+                "Second",
+                "Second.vbp",
+                "Second.bas",
+                "First.vbp",
+                "First");
+
+            var compilation = VBProjectGroupCompilation.Create(groupPath);
+            var analysis = compilation.Analyze();
+
+            Assert.IsFalse(analysis.Success);
+            var diagnostic = analysis.GroupDiagnostics.Single(diagnostic => diagnostic.Code == "VB6VBG0009");
+            Assert.AreEqual(groupPath, diagnostic.FilePath);
+            StringAssert.Contains(
+                diagnostic.Message,
+                "First.vbp -> Second.vbp -> First.vbp");
+
+            var outputDirectory = Path.Combine(directory, "bin");
+            var emit = compilation.EmitManagedApplications(outputDirectory);
+            Assert.IsFalse(emit.Success);
+            Assert.AreEqual(0, emit.Projects.Length);
+            Assert.IsFalse(Directory.Exists(outputDirectory));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void Analyze_ReportsDuplicateProjectEntries()
     {
         var directory = CreateTemporaryDirectory();
@@ -330,6 +377,28 @@ public sealed class VBProjectGroupCompilationTests
             $"""
             Sub Main()
                 Debug.Print {value}
+            End Sub
+            """);
+    }
+
+    private static void WriteLibraryProject(
+        string directory,
+        string name,
+        string projectFileName,
+        string moduleFileName,
+        string referencedProjectFileName,
+        string referencedProjectName)
+    {
+        File.WriteAllText(
+            Path.Combine(directory, projectFileName),
+            $"Type=OleDll\n" +
+            $"Name={name}\n" +
+            $"Reference=*\\G{{00025E01-0000-0000-C000-000000000046}}#1.0#0#{referencedProjectFileName}#{referencedProjectName}\n" +
+            $"Module={Path.GetFileNameWithoutExtension(moduleFileName)}; {moduleFileName}\n");
+        File.WriteAllText(
+            Path.Combine(directory, moduleFileName),
+            """
+            Public Sub Placeholder()
             End Sub
             """);
     }
