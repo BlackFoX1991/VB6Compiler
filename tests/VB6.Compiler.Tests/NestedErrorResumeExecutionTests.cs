@@ -240,4 +240,45 @@ public sealed class NestedErrorResumeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "0|||0" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ExitSubFromAnActiveHandlerClearsEveryErrField()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Inner
+                Debug.Print Err.Number & "|" & Err.Source & "|" & Err.Description & "|" & Erl
+            End Sub
+
+            Sub Inner()
+                On Error GoTo Failed
+            100
+                Err.Raise 13, "srcname", "descr"
+                Exit Sub
+            Failed:
+                Exit Sub
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "0|||0" }, output);
+    }
+
+    [TestMethod]
+    public void Lower_MarksOnlyExplicitProcedureExitForActiveHandlerCleanup()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Exit Sub
+            End Sub
+            """);
+
+        var returns = VB6TestIr.Procedures(program)
+            .SelectMany(procedure => procedure.Blocks)
+            .Select(block => block.Terminator)
+            .OfType<VB6.IR.IrReturnTerminator>()
+            .ToArray();
+
+        Assert.AreEqual(1, returns.Count(terminator => terminator.ClearsActiveErrorHandler));
+        Assert.IsTrue(returns.Any(terminator => !terminator.ClearsActiveErrorHandler));
+    }
 }
