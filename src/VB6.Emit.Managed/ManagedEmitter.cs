@@ -1422,7 +1422,14 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.TimeDateValue or
                      IrRuntimeMethod.DateTimeWeekdayName or
                      IrRuntimeMethod.DateTimeMonthName or
-                     IrRuntimeMethod.VariantIsDate)
+                     IrRuntimeMethod.VariantIsDate or
+                     IrRuntimeMethod.FilePrint or
+                     IrRuntimeMethod.FilePrintValue or
+                     IrRuntimeMethod.FileWrite or
+                     IrRuntimeMethod.FileLineInput or
+                     IrRuntimeMethod.FileInputField or
+                     IrRuntimeMethod.FileInputValue or
+                     IrRuntimeMethod.FileInput)
             {
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
@@ -4284,9 +4291,9 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileReset => Static(typeof(VBFiles), nameof(VBFiles.Reset)),
                 IrRuntimeMethod.FileRecordStart => ResolveFileRecordStart(call, out skippedArgument),
                 IrRuntimeMethod.FileRecordEnd => Static(typeof(VBFiles), "EndRecord", typeof(int), typeof(bool)),
-                IrRuntimeMethod.FilePrint => Static(typeof(VBFiles), "Print", typeof(int), typeof(object)),
-                IrRuntimeMethod.FilePrintValue => Static(typeof(VBFiles), nameof(VBFiles.PrintValue), typeof(int), typeof(object), typeof(bool), typeof(int)),
-                IrRuntimeMethod.FileWrite => Static(typeof(VBFiles), nameof(VBFiles.WriteValue), typeof(int), typeof(object), typeof(bool)),
+                IrRuntimeMethod.FilePrint => Static(typeof(VBFiles), "Print", typeof(int), typeof(object), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FilePrintValue => Static(typeof(VBFiles), nameof(VBFiles.PrintValue), typeof(int), typeof(object), typeof(bool), typeof(int), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FileWrite => Static(typeof(VBFiles), nameof(VBFiles.WriteValue), typeof(int), typeof(object), typeof(bool), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileWidth => Static(typeof(VBFiles), nameof(VBFiles.Width), typeof(int), typeof(int)),
                 IrRuntimeMethod.FileLock => Static(typeof(VBFiles), nameof(VBFiles.Lock), typeof(int), typeof(long), typeof(long)),
                 IrRuntimeMethod.FileUnlock => Static(typeof(VBFiles), nameof(VBFiles.Unlock), typeof(int), typeof(long), typeof(long)),
@@ -4315,10 +4322,10 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FilePutRawFixedString => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FilePutVariant => ResolveFileVariantPut(call, out skippedArgument),
                 IrRuntimeMethod.FilePutRawVariant => Static(typeof(VBFiles), nameof(VBFiles.PutRawVariant), typeof(int), typeof(object)),
-                IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int)),
-                IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int)),
-                IrRuntimeMethod.FileInputValue => Static(typeof(VBFiles), nameof(VBFiles.InputValue), typeof(int)),
-                IrRuntimeMethod.FileInput => Static(typeof(VBFiles), "Input", typeof(long), typeof(int)),
+                IrRuntimeMethod.FileLineInput => Static(typeof(VBFiles), "LineInput", typeof(int), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FileInputValue => Static(typeof(VBFiles), nameof(VBFiles.InputValue), typeof(int), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FileInput => Static(typeof(VBFiles), "Input", typeof(long), typeof(int), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileGetVariant => ResolveFileVariantGet(call, out skippedArgument),
                 IrRuntimeMethod.FileGetRawVariant => Static(typeof(VBFiles), nameof(VBFiles.GetRawVariant), typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
