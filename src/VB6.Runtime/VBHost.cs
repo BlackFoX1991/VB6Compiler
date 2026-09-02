@@ -99,6 +99,39 @@ public interface IVB6Host
     /// <summary>Tries to set the process-wide VB6 <c>Screen.MousePointer</c> value.</summary>
     bool TrySetScreenMousePointer(int mousePointer) => false;
 
+    /// <summary>
+    /// Tries to expose the selected VB6 <c>Printer</c> and its current document state. Hosts that
+    /// return a state own subsequent updates through <see cref="TrySetPrinterState"/> as well.
+    /// </summary>
+    bool TryGetPrinterState(out VBPrinterState? printer)
+    {
+        printer = null;
+        return false;
+    }
+
+    /// <summary>Tries to apply an updated selected-printer or print-document state.</summary>
+    bool TrySetPrinterState(VBPrinterState printer) => false;
+
+    /// <summary>Tries to append one text operation to the active print document.</summary>
+    bool TryWritePrinterText(string text) => false;
+
+    /// <summary>Tries to emit the current page and start a new one.</summary>
+    bool TryAdvancePrinterPage() => false;
+
+    /// <summary>Tries to complete or abort the current print document.</summary>
+    bool TryCompletePrinterDocument(bool abort) => false;
+
+    /// <summary>Tries to measure printer text in its currently selected coordinate system.</summary>
+    bool TryMeasurePrinterText(string text, out float width, out float height)
+    {
+        width = 0f;
+        height = 0f;
+        return false;
+    }
+
+    /// <summary>Tries to draw a supported PaintPicture operation into the active printer document.</summary>
+    bool TryPaintPrinter(VBPaintPicture picture) => false;
+
     /// <summary>Lets a host display a message box instead of using the deterministic headless result.</summary>
     bool TryShowMessageBox(string prompt, int buttons, string title, out short result)
     {
@@ -233,6 +266,86 @@ public sealed record VBScreenState(
         TwipsPerPixelX: 15f,
         TwipsPerPixelY: 15f,
         MousePointer: 0);
+}
+
+/// <summary>
+/// Portable state of VB6's selected <c>Printer</c> object and its active print document. It is a
+/// value snapshot so hosts can validate page settings before accepting an update.
+/// </summary>
+public sealed record VBPrinterState(
+    string DeviceName,
+    string DriverName,
+    string Port,
+    string DocumentName,
+    string OutputFile,
+    int ColorMode,
+    int Copies,
+    int DrawMode,
+    int DrawStyle,
+    int DrawWidth,
+    int Duplex,
+    int FillColor,
+    int FillStyle,
+    int ForeColor,
+    int Hdc,
+    int Height,
+    int Orientation,
+    int PaperBin,
+    int PaperSize,
+    int PrintQuality,
+    int ScaleMode,
+    int Page,
+    int Width,
+    int Zoom,
+    float CurrentX,
+    float CurrentY,
+    float ScaleHeight,
+    float ScaleLeft,
+    float ScaleTop,
+    float ScaleWidth,
+    float TwipsPerPixelX,
+    float TwipsPerPixelY,
+    bool TrackDefault,
+    bool IsDefaultPrinter,
+    object? Font)
+{
+    /// <summary>Safe letter-sized, 96-DPI printer state for deterministic headless execution.</summary>
+    public static VBPrinterState Headless { get; } = new(
+        DeviceName: string.Empty,
+        DriverName: string.Empty,
+        Port: string.Empty,
+        DocumentName: "VB6Compiler",
+        OutputFile: string.Empty,
+        ColorMode: 2,
+        Copies: 1,
+        DrawMode: 13,
+        DrawStyle: 0,
+        DrawWidth: 1,
+        Duplex: 1,
+        FillColor: 0,
+        FillStyle: 1,
+        ForeColor: 0,
+        Hdc: 0,
+        Height: 15840,
+        Orientation: 1,
+        PaperBin: 0,
+        PaperSize: 1,
+        PrintQuality: -4,
+        ScaleMode: 1,
+        Page: 0,
+        Width: 12240,
+        Zoom: 100,
+        CurrentX: 0f,
+        CurrentY: 0f,
+        ScaleHeight: 15840f,
+        ScaleLeft: 0f,
+        ScaleTop: 0f,
+        ScaleWidth: 12240f,
+        TwipsPerPixelX: 15f,
+        TwipsPerPixelY: 15f,
+        TrackDefault: true,
+        IsDefaultPrinter: false,
+        Font: new VBFont());
 }
 
 /// <summary>

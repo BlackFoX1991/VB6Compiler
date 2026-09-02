@@ -18,6 +18,9 @@ public static class VBInteraction
     private static readonly VBScreen ScreenValue = new();
     private static readonly object ScreenGate = new();
     private static VBScreenState _headlessScreen = VBScreenState.Headless;
+    private static readonly VBPrinter PrinterValue = new();
+    private static readonly object PrinterGate = new();
+    private static VBPrinterState _headlessPrinter = VBPrinterState.Headless;
     private static string _commandLine = string.Empty;
     private static bool _commandLineSetByHost;
 
@@ -571,6 +574,248 @@ public static class VBInteraction
             return _headlessScreen;
         }
     }
+
+    /// <summary>Returns the runtime facade behind the built-in <c>Printer</c> global.</summary>
+    public static VBPrinter Printer() => PrinterValue;
+
+    public static string PrinterGetString(string propertyName) => propertyName.ToUpperInvariant() switch
+    {
+        "DEVICENAME" => CurrentPrinterState().DeviceName,
+        "DRIVERNAME" => CurrentPrinterState().DriverName,
+        "PORT" => CurrentPrinterState().Port,
+        "DOCUMENTNAME" => CurrentPrinterState().DocumentName,
+        "OUTPUTFILE" => CurrentPrinterState().OutputFile,
+        _ => throw UnsupportedPrinterProperty(propertyName)
+    };
+
+    public static void PrinterSetString(string propertyName, string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        UpdatePrinterState(propertyName, state => propertyName.ToUpperInvariant() switch
+        {
+            "DEVICENAME" => state with { DeviceName = value },
+            "DRIVERNAME" => state with { DriverName = value },
+            "PORT" => state with { Port = value },
+            "DOCUMENTNAME" => state with { DocumentName = value },
+            "OUTPUTFILE" => state with { OutputFile = value },
+            _ => throw UnsupportedPrinterProperty(propertyName)
+        });
+    }
+
+    public static int PrinterGetLong(string propertyName) => propertyName.ToUpperInvariant() switch
+    {
+        "COLORMODE" => CurrentPrinterState().ColorMode,
+        "COPIES" => CurrentPrinterState().Copies,
+        "DRAWMODE" => CurrentPrinterState().DrawMode,
+        "DRAWSTYLE" => CurrentPrinterState().DrawStyle,
+        "DRAWWIDTH" => CurrentPrinterState().DrawWidth,
+        "DUPLEX" => CurrentPrinterState().Duplex,
+        "FILLCOLOR" => CurrentPrinterState().FillColor,
+        "FILLSTYLE" => CurrentPrinterState().FillStyle,
+        "FORECOLOR" => CurrentPrinterState().ForeColor,
+        "HDC" => CurrentPrinterState().Hdc,
+        "HEIGHT" => CurrentPrinterState().Height,
+        "ORIENTATION" => CurrentPrinterState().Orientation,
+        "PAGE" => CurrentPrinterState().Page,
+        "PAPERBIN" => CurrentPrinterState().PaperBin,
+        "PAPERSIZE" => CurrentPrinterState().PaperSize,
+        "PRINTQUALITY" => CurrentPrinterState().PrintQuality,
+        "SCALEMODE" => CurrentPrinterState().ScaleMode,
+        "WIDTH" => CurrentPrinterState().Width,
+        "ZOOM" => CurrentPrinterState().Zoom,
+        _ => throw UnsupportedPrinterProperty(propertyName)
+    };
+
+    public static void PrinterSetLong(string propertyName, int value)
+    {
+        UpdatePrinterState(propertyName, state => propertyName.ToUpperInvariant() switch
+        {
+            "COLORMODE" => state with { ColorMode = value },
+            "COPIES" => state with { Copies = value },
+            "DRAWMODE" => state with { DrawMode = value },
+            "DRAWSTYLE" => state with { DrawStyle = value },
+            "DRAWWIDTH" => state with { DrawWidth = value },
+            "DUPLEX" => state with { Duplex = value },
+            "FILLCOLOR" => state with { FillColor = value },
+            "FILLSTYLE" => state with { FillStyle = value },
+            "FORECOLOR" => state with { ForeColor = value },
+            "HEIGHT" => state with { Height = value, ScaleHeight = value },
+            "ORIENTATION" => state with { Orientation = value },
+            "PAPERBIN" => state with { PaperBin = value },
+            "PAPERSIZE" => state with { PaperSize = value },
+            "PRINTQUALITY" => state with { PrintQuality = value },
+            "SCALEMODE" when value is >= 0 and <= 7 => state with { ScaleMode = value },
+            "SCALEMODE" => throw new ArgumentOutOfRangeException(nameof(value), "VB6 scale modes are between 0 and 7."),
+            "WIDTH" => state with { Width = value, ScaleWidth = value },
+            "ZOOM" when value > 0 => state with { Zoom = value },
+            "ZOOM" => throw new ArgumentOutOfRangeException(nameof(value), "Printer.Zoom must be positive."),
+            _ => throw UnsupportedPrinterProperty(propertyName)
+        });
+    }
+
+    public static float PrinterGetSingle(string propertyName) => propertyName.ToUpperInvariant() switch
+    {
+        "CURRENTX" => CurrentPrinterState().CurrentX,
+        "CURRENTY" => CurrentPrinterState().CurrentY,
+        "SCALEHEIGHT" => CurrentPrinterState().ScaleHeight,
+        "SCALELEFT" => CurrentPrinterState().ScaleLeft,
+        "SCALETOP" => CurrentPrinterState().ScaleTop,
+        "SCALEWIDTH" => CurrentPrinterState().ScaleWidth,
+        "TWIPSPERPIXELX" => CurrentPrinterState().TwipsPerPixelX,
+        "TWIPSPERPIXELY" => CurrentPrinterState().TwipsPerPixelY,
+        _ => throw UnsupportedPrinterProperty(propertyName)
+    };
+
+    public static void PrinterSetSingle(string propertyName, float value)
+    {
+        UpdatePrinterState(propertyName, state => propertyName.ToUpperInvariant() switch
+        {
+            "CURRENTX" => state with { CurrentX = value },
+            "CURRENTY" => state with { CurrentY = value },
+            "SCALEHEIGHT" => state with { ScaleHeight = value, ScaleMode = 0 },
+            "SCALELEFT" => state with { ScaleLeft = value, ScaleMode = 0 },
+            "SCALETOP" => state with { ScaleTop = value, ScaleMode = 0 },
+            "SCALEWIDTH" => state with { ScaleWidth = value, ScaleMode = 0 },
+            _ => throw UnsupportedPrinterProperty(propertyName)
+        });
+    }
+
+    public static bool PrinterGetBoolean(string propertyName) => propertyName.ToUpperInvariant() switch
+    {
+        "TRACKDEFAULT" => CurrentPrinterState().TrackDefault,
+        "ISDEFAULTPRINTER" => CurrentPrinterState().IsDefaultPrinter,
+        _ => throw UnsupportedPrinterProperty(propertyName)
+    };
+
+    public static void PrinterSetBoolean(string propertyName, bool value)
+    {
+        UpdatePrinterState(propertyName, state => propertyName.ToUpperInvariant() switch
+        {
+            "TRACKDEFAULT" => state with { TrackDefault = value },
+            _ => throw UnsupportedPrinterProperty(propertyName)
+        });
+    }
+
+    public static object? PrinterGetObject(string propertyName) => propertyName.ToUpperInvariant() switch
+    {
+        "FONT" => CurrentPrinterState().Font,
+        _ => throw UnsupportedPrinterProperty(propertyName)
+    };
+
+    public static void PrinterSetObject(string propertyName, object? value)
+    {
+        UpdatePrinterState(propertyName, state => propertyName.ToUpperInvariant() switch
+        {
+            "FONT" => state with { Font = value },
+            _ => throw UnsupportedPrinterProperty(propertyName)
+        });
+    }
+
+    /// <summary>Appends a text line to the selected printer document without requiring a desktop.</summary>
+    public static void PrinterPrint(object? value)
+    {
+        var text = VBConversions.CStr(value);
+        Host?.TryWritePrinterText(text);
+        UpdatePrinterState("Print", state => state with
+        {
+            Page = state.Page == 0 ? 1 : state.Page,
+            CurrentX = 0f,
+            CurrentY = state.CurrentY + 1f
+        });
+    }
+
+    public static void PrinterNewPage()
+    {
+        Host?.TryAdvancePrinterPage();
+        UpdatePrinterState("NewPage", state => state with
+        {
+            Page = state.Page == 0 ? 2 : state.Page + 1,
+            CurrentX = 0f,
+            CurrentY = 0f
+        });
+    }
+
+    public static void PrinterEndDoc() => CompletePrinterDocument(abort: false);
+
+    public static void PrinterKillDoc() => CompletePrinterDocument(abort: true);
+
+    public static float PrinterTextWidth(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return Host?.TryMeasurePrinterText(text, out var width, out _) == true
+            ? width
+            : TextWidth(text);
+    }
+
+    public static float PrinterTextHeight(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return Host?.TryMeasurePrinterText(text, out _, out var height) == true
+            ? height
+            : TextHeight(text);
+    }
+
+    public static float PrinterScaleX(float value, int fromScale, int toScale) => ScaleX(value, fromScale, toScale);
+
+    public static float PrinterScaleY(float value, int fromScale, int toScale) => ScaleY(value, fromScale, toScale);
+
+    public static void PrinterPaintPicture(object? picture, float x, float y, float width, float height)
+    {
+        Host?.TryPaintPrinter(new VBPaintPicture(picture, x, y, width, height));
+        UpdatePrinterState("PaintPicture", state => state with
+        {
+            Page = state.Page == 0 ? 1 : state.Page,
+            CurrentX = x,
+            CurrentY = y
+        });
+    }
+
+    private static void CompletePrinterDocument(bool abort)
+    {
+        Host?.TryCompletePrinterDocument(abort);
+        UpdatePrinterState(abort ? "KillDoc" : "EndDoc", state => state with
+        {
+            Page = 0,
+            CurrentX = 0f,
+            CurrentY = 0f
+        });
+    }
+
+    private static VBPrinterState CurrentPrinterState()
+    {
+        if (Host?.TryGetPrinterState(out var printer) == true && printer is not null)
+        {
+            return printer;
+        }
+
+        lock (PrinterGate)
+        {
+            return _headlessPrinter;
+        }
+    }
+
+    private static void UpdatePrinterState(string operation, Func<VBPrinterState, VBPrinterState> update)
+    {
+        var current = CurrentPrinterState();
+        var next = update(current);
+        if (Host is { } host && host.TryGetPrinterState(out var hostState) && hostState is not null)
+        {
+            if (host.TrySetPrinterState(next))
+            {
+                return;
+            }
+
+            throw new VB6RuntimeErrorException(383, $"Printer host rejected {operation}.");
+        }
+
+        lock (PrinterGate)
+        {
+            _headlessPrinter = next;
+        }
+    }
+
+    private static VB6RuntimeErrorException UnsupportedPrinterProperty(string propertyName) =>
+        new(438, $"Printer does not support property '{propertyName}'.");
 
     /// <summary>
     /// Provides a deterministic process-local replacement for the VB6 registry settings API.

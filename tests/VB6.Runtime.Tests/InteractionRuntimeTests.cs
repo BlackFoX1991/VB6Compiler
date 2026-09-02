@@ -284,6 +284,78 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void PrinterServices_ProvideDeterministicDocumentStateAndAnInjectedHost()
+    {
+        var previousHost = VBInteraction.Host;
+        try
+        {
+            VBInteraction.Host = null;
+            var printer = VBInteraction.Printer();
+            printer.EndDoc();
+            printer.DocumentName = "Headless report";
+            printer.Copies = 2;
+            printer.CurrentX = 3f;
+            printer.CurrentY = 4f;
+
+            Assert.AreSame(printer, VBInteraction.Printer());
+            Assert.AreEqual(15f, printer.TwipsPerPixelX);
+            Assert.AreEqual(15f, printer.TwipsPerPixelY);
+            Assert.AreEqual(2, printer.Copies);
+            Assert.AreEqual(3f, printer.CurrentX);
+            Assert.AreEqual(4f, printer.CurrentY);
+            Assert.AreEqual(1440f, printer.ScaleX(1f, 5, 1));
+
+            printer.Print("first line");
+            Assert.AreEqual(1, printer.Page);
+            Assert.AreEqual(5f, printer.CurrentY);
+            printer.NewPage();
+            Assert.AreEqual(2, printer.Page);
+            Assert.AreEqual(0f, printer.CurrentX);
+            Assert.AreEqual(0f, printer.CurrentY);
+            printer.EndDoc();
+            Assert.AreEqual(0, printer.Page);
+
+            var host = new InteractionServiceHost();
+            host.SetPrinterState(VBPrinterState.Headless with
+            {
+                DeviceName = "Test printer",
+                DriverName = "Test driver",
+                Port = "TEST:",
+                DocumentName = "Host report",
+                Hdc = 123,
+                TwipsPerPixelX = 12f,
+                TwipsPerPixelY = 13f
+            });
+            VBInteraction.Host = host;
+            printer = VBInteraction.Printer();
+
+            Assert.AreEqual("Test printer", printer.DeviceName);
+            Assert.AreEqual(123, printer.hDC);
+            Assert.AreEqual(12f, printer.TwipsPerPixelX);
+            Assert.AreEqual(13f, printer.TwipsPerPixelY);
+            printer.Copies = 3;
+            printer.Print("host line");
+            Assert.AreEqual(3, printer.Copies);
+            CollectionAssert.AreEqual(new[] { "host line" }, host.PrinterText);
+            Assert.AreEqual(1, printer.Page);
+            printer.NewPage();
+            Assert.AreEqual(1, host.AdvancedPageCount);
+            Assert.AreEqual(2, printer.Page);
+            Assert.AreEqual(12f, printer.TextWidth("measure"));
+            Assert.AreEqual(3f, printer.TextHeight("measure"));
+            printer.EndDoc();
+            Assert.IsFalse(host.LastPrinterCompletionWasAbort);
+            Assert.AreEqual(0, printer.Page);
+        }
+        finally
+        {
+            VBInteraction.Host = null;
+            VBInteraction.PrinterEndDoc();
+            VBInteraction.Host = previousHost;
+        }
+    }
+
+    [TestMethod]
     public void Shell_UsesHeadlessContractOrStartsAWindowsProcess()
     {
         if (!OperatingSystem.IsWindows())
@@ -532,8 +604,17 @@ public sealed class InteractionRuntimeTests
         private readonly List<HostSetting> _settings = [];
         private readonly Dictionary<int, object?> _clipboard = [];
         private VBScreenState _screen = VBScreenState.Headless;
+        private VBPrinterState _printer = VBPrinterState.Headless;
 
         public void SetScreenState(VBScreenState screen) => _screen = screen;
+
+        public List<string> PrinterText { get; } = [];
+
+        public int AdvancedPageCount { get; private set; }
+
+        public bool LastPrinterCompletionWasAbort { get; private set; }
+
+        public void SetPrinterState(VBPrinterState printer) => _printer = printer;
 
         public void DoEvents()
         {
@@ -674,6 +755,44 @@ public sealed class InteractionRuntimeTests
         public bool TrySetScreenMousePointer(int mousePointer)
         {
             _screen = _screen with { MousePointer = mousePointer };
+            return true;
+        }
+
+        public bool TryGetPrinterState(out VBPrinterState? printer)
+        {
+            printer = _printer;
+            return true;
+        }
+
+        public bool TrySetPrinterState(VBPrinterState printer)
+        {
+            _printer = printer;
+            return true;
+        }
+
+        public bool TryWritePrinterText(string text)
+        {
+            PrinterText.Add(text);
+            return true;
+        }
+
+        public bool TryAdvancePrinterPage()
+        {
+            AdvancedPageCount++;
+            return true;
+        }
+
+        public bool TryCompletePrinterDocument(bool abort)
+        {
+            LastPrinterCompletionWasAbort = abort;
+            return true;
+        }
+
+        public bool TryMeasurePrinterText(string text, out float width, out float height)
+        {
+            Assert.AreEqual("measure", text);
+            width = 12f;
+            height = 3f;
             return true;
         }
 

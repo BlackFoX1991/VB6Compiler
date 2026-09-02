@@ -63,6 +63,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         new(ReferenceEqualityComparer.Instance);
     private readonly ToolTip _toolTip = new();
     private int _screenMousePointer;
+    private VBPrinterState _printer = VBPrinterState.Headless;
     private bool _disposed;
 
     public WinFormsHost(
@@ -154,6 +155,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ThrowIfDisposed();
         _screenMousePointer = mousePointer;
         System.Windows.Forms.Cursor.Current = ToScreenCursor(mousePointer);
+        return true;
+    }
+
+    public bool TryGetPrinterState(out VBPrinterState? printer)
+    {
+        ThrowIfDisposed();
+        printer = _printer;
+        return true;
+    }
+
+    public bool TrySetPrinterState(VBPrinterState printer)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(printer);
+        _printer = printer;
         return true;
     }
 
