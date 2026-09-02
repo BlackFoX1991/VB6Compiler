@@ -301,6 +301,37 @@ public sealed class VBArrayTests
 
     private static void Replace(ref object? value) => value = "changed";
 
+    [TestMethod]
+    public void CopyAssignedValue_GivesAnArrayItsOwnStorageAndLeavesEverythingElseAlone()
+    {
+        var source = new VBArray<object>(new VBArrayBound(2, 3));
+        source[2] = "erst";
+        source[3] = 7;
+
+        var copy = (VBArray<object>)VBArrayOperations.CopyAssignedValue(source)!;
+        copy[2] = "geaendert";
+
+        Assert.AreEqual("erst", source[2]);
+        Assert.AreEqual("geaendert", copy[2]);
+        Assert.AreEqual(2, copy.LBound());
+        Assert.AreEqual(3, copy.UBound());
+        Assert.AreEqual(7, copy[3]);
+
+        // Ein CLR-Array aus einem SAFEARRAY laeuft ueber denselben Vertrag.
+        var clrArray = new[] { 1, 2, 3 };
+        var clrCopy = (int[])VBArrayOperations.CopyAssignedValue(clrArray)!;
+        clrCopy[0] = 42;
+        Assert.AreEqual(1, clrArray[0]);
+        Assert.AreEqual(42, clrCopy[0]);
+
+        // Objekte behalten ihre Identitaet, Skalare gehen unveraendert durch.
+        var instance = new object();
+        Assert.AreSame(instance, VBArrayOperations.CopyAssignedValue(instance));
+        Assert.AreSame(VBVariants.NothingValue(), VBArrayOperations.CopyAssignedValue(VBVariants.NothingValue()));
+        Assert.AreEqual("text", VBArrayOperations.CopyAssignedValue("text"));
+        Assert.IsNull(VBArrayOperations.CopyAssignedValue(null));
+    }
+
     private sealed class MutableValue
     {
         public int Value { get; set; }
