@@ -619,11 +619,16 @@ public sealed class ManagedEmitter
 
                         RecordSequencePoint(sequencePoints, encoder, block.Terminator.SourceLocation);
                         EmitTerminator(encoder, procedure, block.Terminator, blockLabels);
-                    }
 
-                    if (activeBoundary is not null)
-                    {
-                        throw new InvalidOperationException("Error handling region crossed a basic-block boundary.");
+                        // The check belongs to the block, not to the procedure. Left at the end of
+                        // the loop it never fired for a region that merely spanned some blocks and
+                        // was closed later, and the try region emitted around those branches made
+                        // the whole method fail CLR verification instead.
+                        if (activeBoundary is not null)
+                        {
+                            throw new InvalidOperationException(
+                                "Error handling region crossed a basic-block boundary.");
+                        }
                     }
                 }
 
