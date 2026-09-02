@@ -59,6 +59,7 @@ public sealed class MathRuntimeTests
         var negativeCurrency = VBConversions.CCur(-1.75m);
         var fixedCurrency = VBMath.Fix(negativeCurrency);
         var flooredCurrency = VBConversions.Int(negativeCurrency);
+        var absoluteCurrency = VBMath.Abs(negativeCurrency);
         var date = new VBDateValue(43832.75d);
         var negativeDate = new VBDateValue(-1.75d);
 
@@ -66,10 +67,14 @@ public sealed class MathRuntimeTests
         Assert.AreEqual(-1m, ((VBCurrency)fixedCurrency).ToDecimal());
         Assert.IsInstanceOfType<VBCurrency>(flooredCurrency);
         Assert.AreEqual(-2m, ((VBCurrency)flooredCurrency).ToDecimal());
+        Assert.IsInstanceOfType<VBCurrency>(absoluteCurrency);
+        Assert.AreEqual(1.75m, ((VBCurrency)absoluteCurrency).ToDecimal());
 
         Assert.AreEqual(new VBDateValue(43832d), VBMath.Fix(date));
         Assert.AreEqual(new VBDateValue(43832d), VBConversions.Int(date));
         Assert.AreEqual(new VBDateValue(1.75d), VBMath.Abs(negativeDate));
+        Assert.AreEqual(new VBDateValue(-1d), VBMath.Fix(negativeDate));
+        Assert.AreEqual(new VBDateValue(-2d), VBConversions.Int(negativeDate));
 
         Assert.IsInstanceOfType<float>(VBMath.Fix(-1.75f));
         Assert.IsInstanceOfType<float>(VBConversions.Int(-1.75f));
