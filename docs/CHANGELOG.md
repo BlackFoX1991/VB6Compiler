@@ -4662,3 +4662,22 @@ Kanonischer Nachweis: **1424/1424** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **79 implemented, 12 partial, 27 planned von 118 |
 91/118 documented-verified**.
 
+## Karte l1-03-b: Projektgruppen-Abhängigkeiten und Zyklen verifiziert (01.09.2026)
+
+VBG-Projektgruppen lösen deklarierte VBP-Referenzen innerhalb der Gruppe auf und emittieren die
+Abhängigkeitsclosure vor ihren Verbrauchern. Neu prüft die Gruppenanalyse Referenzzyklen
+deterministisch und meldet sie als `VB6VBG0009` einschließlich der zyklischen Projektfolge. Eine
+fehlerhafte Gruppe bricht die Emission vor dem Anlegen des Ausgabeverzeichnisses ab, so dass keine
+Teil-Artefakte entstehen.
+
+Die neue Regression erzeugt `First.vbp -> Second.vbp -> First.vbp`, sichert die stabile
+Gruppendiagnose und bestätigt die artefaktfreie Emissionsgrenze. Zusammen mit den vorhandenen
+Loader- und Abhängigkeitsreihenfolge-Tests ist
+`l1-03-b-project-group-dependency-order` damit **`implemented`** /
+`documented-verified`; Binary Compatibility, Ressourcen und Komponenten bleiben auf der folgenden
+Projektkarte offen.
+
+Kanonischer Nachweis: **1425/1425** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **80 implemented, 12 partial, 26 planned von 118 |
+92/118 documented-verified**.
+
