@@ -164,4 +164,56 @@ public sealed class DocumentedErrorNumberExecutionTests
             new[] { "5", "5", "5", "5" },
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_SeparatesEndOfFileFromAClosedChannel()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim f As Integer
+                Dim s As String
+                Dim l As Long
+
+                On Error Resume Next
+
+                f = FreeFile
+                Open "kanaele.txt" For Output As #f
+                Print #f, "eine"
+                Close #f
+
+                f = FreeFile
+                Open "kanaele.txt" For Input As #f
+                Line Input #f, s
+                Debug.Print Err.Number
+                Line Input #f, s
+                Debug.Print Err.Number
+                Close #f
+
+                Err.Clear
+                Print #97, "x"
+                Debug.Print Err.Number
+                Err.Clear
+                Line Input #96, s
+                Debug.Print Err.Number
+                Err.Clear
+                Get #95, 1, l
+                Debug.Print Err.Number
+                Err.Clear
+                l = LOF(94)
+                Debug.Print Err.Number
+                Err.Clear
+                Close #93
+                Debug.Print Err.Number
+
+                Kill "kanaele.txt"
+            End Sub
+            """);
+
+        // Lesen ueber das Dateiende ist 62, ein nicht geoeffneter Kanal 52. Beide fielen vorher
+        // in den Sammelwert 5 und waren damit von jedem anderen nicht zugeordneten Fehler
+        // ununterscheidbar. Close auf einen ungeoeffneten Kanal bleibt geraeuschlos, wie in VB6.
+        CollectionAssert.AreEqual(
+            new[] { "0", "62", "52", "52", "52", "52", "0" },
+            output);
+    }
 }
