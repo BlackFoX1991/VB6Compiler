@@ -282,15 +282,15 @@ public static partial class VBOperators
         };
     }
 
-    public static object? AndVariant(object? left, object? right) => ApplyVariantBitwise(left, right, AndBoolean, AndByte, AndInteger, AndLong, AndLongLong, AndUShort, AndUInteger, AndULong);
+    public static object? AndVariant(object? left, object? right) => ApplyVariantBitwise(left, right, VariantNullRule.And, AndBoolean, AndByte, AndInteger, AndLong, AndLongLong, AndUShort, AndUInteger, AndULong);
 
-    public static object? OrVariant(object? left, object? right) => ApplyVariantBitwise(left, right, OrBoolean, OrByte, OrInteger, OrLong, OrLongLong, OrUShort, OrUInteger, OrULong);
+    public static object? OrVariant(object? left, object? right) => ApplyVariantBitwise(left, right, VariantNullRule.Or, OrBoolean, OrByte, OrInteger, OrLong, OrLongLong, OrUShort, OrUInteger, OrULong);
 
-    public static object? XorVariant(object? left, object? right) => ApplyVariantBitwise(left, right, XorBoolean, XorByte, XorInteger, XorLong, XorLongLong, XorUShort, XorUInteger, XorULong);
+    public static object? XorVariant(object? left, object? right) => ApplyVariantBitwise(left, right, VariantNullRule.Propagate, XorBoolean, XorByte, XorInteger, XorLong, XorLongLong, XorUShort, XorUInteger, XorULong);
 
-    public static object? EqvVariant(object? left, object? right) => ApplyVariantBitwise(left, right, EqvBoolean, null, EqvInteger, EqvLong, EqvLongLong, EqvUShort, EqvUInteger, EqvULong);
+    public static object? EqvVariant(object? left, object? right) => ApplyVariantBitwise(left, right, VariantNullRule.Propagate, EqvBoolean, null, EqvInteger, EqvLong, EqvLongLong, EqvUShort, EqvUInteger, EqvULong);
 
-    public static object? ImpVariant(object? left, object? right) => ApplyVariantBitwise(left, right, ImpBoolean, null, ImpInteger, ImpLong, ImpLongLong, ImpUShort, ImpUInteger, ImpULong);
+    public static object? ImpVariant(object? left, object? right) => ApplyVariantBitwise(left, right, VariantNullRule.Imp, ImpBoolean, null, ImpInteger, ImpLong, ImpLongLong, ImpUShort, ImpUInteger, ImpULong);
 
     public static object VariantEqual(object? left, object? right) => CompareVariant(left, right, comparison => comparison == 0);
 
@@ -893,9 +893,74 @@ public static partial class VBOperators
         }
     }
 
+    /// <summary>
+    /// How an operator answers when one operand is Null. VB6's three-valued logic is not simply
+    /// "Null wins": <c>And</c> is False as soon as one side is False, <c>Or</c> is True as soon as
+    /// one side is True, and <c>Imp</c> is True once its antecedent is False or its consequent is
+    /// True - the unknown side never has to be resolved. <c>Xor</c>, <c>Eqv</c> and <c>Not</c> have
+    /// no such case and keep propagating.
+    /// </summary>
+    private enum VariantNullRule
+    {
+        Propagate,
+        And,
+        Or,
+        Imp
+    }
+
+    /// <summary>
+    /// Applies the absorbing cases of the documented truth tables. The determining operand is
+    /// returned as it stands, so <c>False And Null</c> stays Boolean while <c>0 And Null</c> keeps
+    /// its numeric subtype. Any other value leaves the result Null: only all-bits-clear and
+    /// all-bits-set decide a bitwise operation on their own.
+    /// </summary>
+    private static object? ResolveNullOperand(object? left, object? right, VariantNullRule rule)
+    {
+        var leftKnown = VBVariants.IsNull(left) ? null : left;
+        var rightKnown = VBVariants.IsNull(right) ? null : right;
+
+        switch (rule)
+        {
+            case VariantNullRule.And when IsAllBitsClear(leftKnown):
+                return leftKnown;
+            case VariantNullRule.And when IsAllBitsClear(rightKnown):
+                return rightKnown;
+            case VariantNullRule.Or when IsAllBitsSet(leftKnown):
+                return leftKnown;
+            case VariantNullRule.Or when IsAllBitsSet(rightKnown):
+                return rightKnown;
+            // Imp only decides on a Boolean operand: the numeric table is not documented with the
+            // same clarity, and guessing it would be exactly the approximation this project bans.
+            case VariantNullRule.Imp when leftKnown is false || rightKnown is true:
+                return true;
+            default:
+                return VBVariants.NullValue();
+        }
+    }
+
+    private static bool IsAllBitsClear(object? value) => value switch
+    {
+        bool boolean => !boolean,
+        byte number => number == 0,
+        short number => number == 0,
+        int number => number == 0,
+        long number => number == 0,
+        _ => false
+    };
+
+    private static bool IsAllBitsSet(object? value) => value switch
+    {
+        bool boolean => boolean,
+        short number => number == -1,
+        int number => number == -1,
+        long number => number == -1,
+        _ => false
+    };
+
     private static object? ApplyVariantBitwise(
         object? left,
         object? right,
+        VariantNullRule nullRule,
         Func<bool, bool, bool> booleanOperation,
         Func<byte, byte, byte>? byteOperation,
         Func<short, short, short> integerOperation,
@@ -914,7 +979,7 @@ public static partial class VBOperators
 
         if (HasNullOperand(left, right))
         {
-            return VBVariants.NullValue();
+            return ResolveNullOperand(left, right, nullRule);
         }
 
         if (left is bool leftBoolean && right is bool rightBoolean)
