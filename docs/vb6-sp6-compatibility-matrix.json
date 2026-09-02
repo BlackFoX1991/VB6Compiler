@@ -1244,7 +1244,7 @@
     },
     {
       "id": "l1-03-g-file-scalar-udt-record-layout",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
       "input": "Binary and Random Get/Put for scalar values, UDTs and fixed-length String records",
       "expected": {
@@ -1253,7 +1253,7 @@
         "fixedString": "String * n fields retain width and padding",
         "record": "Random record length controls the transfer boundary"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
         "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"
