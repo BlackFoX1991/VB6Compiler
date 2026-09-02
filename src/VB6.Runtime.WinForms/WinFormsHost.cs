@@ -62,6 +62,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private readonly Dictionary<Control, DesignerControlState> _designerControlStates =
         new(ReferenceEqualityComparer.Instance);
     private readonly ToolTip _toolTip = new();
+    private int _screenMousePointer;
     private bool _disposed;
 
     public WinFormsHost(
@@ -122,6 +123,85 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             System.Windows.Forms.SendKeys.Send(keys);
         }
     }
+
+    public bool TryGetScreenState(out VBScreenState? screen)
+    {
+        ThrowIfDisposed();
+
+        var activeForm = Form.ActiveForm;
+        if (activeForm is null || activeForm.IsDisposed)
+        {
+            activeForm = _bindings.Values
+                .Select(binding => binding.Form)
+                .FirstOrDefault(form => !form.IsDisposed && form.ContainsFocus);
+        }
+
+        var activeControl = FindActiveControl(activeForm);
+        var dpi = activeForm is { IsDisposed: false, DeviceDpi: > 0 }
+            ? activeForm.DeviceDpi
+            : 96;
+        screen = new VBScreenState(
+            FindGeneratedForm(activeForm),
+            activeControl,
+            1440f / dpi,
+            1440f / dpi,
+            _screenMousePointer);
+        return true;
+    }
+
+    public bool TrySetScreenMousePointer(int mousePointer)
+    {
+        ThrowIfDisposed();
+        _screenMousePointer = mousePointer;
+        System.Windows.Forms.Cursor.Current = ToScreenCursor(mousePointer);
+        return true;
+    }
+
+    private object? FindGeneratedForm(Form? form)
+    {
+        if (form is null || form.IsDisposed)
+        {
+            return null;
+        }
+
+        foreach (var (vbObject, binding) in _bindings)
+        {
+            if (ReferenceEquals(binding.Form, form))
+            {
+                return vbObject;
+            }
+        }
+
+        return form;
+    }
+
+    private static Control? FindActiveControl(Control? control)
+    {
+        while (control is ContainerControl container && container.ActiveControl is { } child)
+        {
+            control = child;
+        }
+
+        return control is Form ? null : control;
+    }
+
+    private static Cursor ToScreenCursor(int mousePointer) => mousePointer switch
+    {
+        1 => Cursors.Arrow,
+        2 => Cursors.Cross,
+        3 => Cursors.IBeam,
+        5 or 15 => Cursors.SizeAll,
+        6 => Cursors.SizeNESW,
+        7 => Cursors.SizeNS,
+        8 => Cursors.SizeNWSE,
+        9 => Cursors.SizeWE,
+        10 => Cursors.UpArrow,
+        11 => Cursors.WaitCursor,
+        12 => Cursors.No,
+        13 => Cursors.AppStarting,
+        14 => Cursors.Help,
+        _ => Cursors.Default
+    };
 
     public bool TryGetClipboardText(out string? text) => TryGetClipboardText(1, out text);
 

@@ -86,6 +86,19 @@ public interface IVB6Host
     /// <summary>Tries to clear every format from the host clipboard.</summary>
     bool TryClearClipboard() => false;
 
+    /// <summary>
+    /// Tries to expose the current VB6 <c>Screen</c> state. Returning <see langword="false"/>
+    /// keeps the runtime on its deterministic, desktop-independent fallback.
+    /// </summary>
+    bool TryGetScreenState(out VBScreenState? screen)
+    {
+        screen = null;
+        return false;
+    }
+
+    /// <summary>Tries to set the process-wide VB6 <c>Screen.MousePointer</c> value.</summary>
+    bool TrySetScreenMousePointer(int mousePointer) => false;
+
     /// <summary>Lets a host display a message box instead of using the deterministic headless result.</summary>
     bool TryShowMessageBox(string prompt, int buttons, string title, out short result)
     {
@@ -200,6 +213,26 @@ public interface IVB6Host
     }
 
     IEnumerable<object?>? EnumerateControls(object? target);
+}
+
+/// <summary>
+/// Snapshot of the small process-wide surface exposed by VB6's <c>Screen</c> object. Form and
+/// control values remain host-owned objects so a concrete UI adapter can preserve their identity.
+/// </summary>
+public sealed record VBScreenState(
+    object? ActiveForm,
+    object? ActiveControl,
+    float TwipsPerPixelX,
+    float TwipsPerPixelY,
+    int MousePointer)
+{
+    /// <summary>Portable 96-DPI fallback used when no interactive desktop host is installed.</summary>
+    public static VBScreenState Headless { get; } = new(
+        ActiveForm: null,
+        ActiveControl: null,
+        TwipsPerPixelX: 15f,
+        TwipsPerPixelY: 15f,
+        MousePointer: 0);
 }
 
 /// <summary>

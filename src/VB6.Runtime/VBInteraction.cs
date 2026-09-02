@@ -15,6 +15,9 @@ public static class VBInteraction
     private static readonly Dictionary<int, object?> ClipboardData = new();
     private static readonly object ClipboardGate = new();
     private static readonly VBApplication ApplicationValue = VBApplication.Create();
+    private static readonly VBScreen ScreenValue = new();
+    private static readonly object ScreenGate = new();
+    private static VBScreenState _headlessScreen = VBScreenState.Headless;
     private static string _commandLine = string.Empty;
     private static bool _commandLineSetByHost;
 
@@ -523,6 +526,51 @@ public static class VBInteraction
     public static int ApplicationMinor() => ApplicationValue.Minor;
 
     public static int ApplicationRevision() => ApplicationValue.Revision;
+
+    /// <summary>Returns the runtime facade behind the built-in <c>Screen</c> global.</summary>
+    public static VBScreen Screen() => ScreenValue;
+
+    /// <summary>Returns the active form, or null for the deterministic headless fallback.</summary>
+    public static object? ScreenActiveForm() => CurrentScreenState().ActiveForm;
+
+    /// <summary>Returns the active control, or null for the deterministic headless fallback.</summary>
+    public static object? ScreenActiveControl() => CurrentScreenState().ActiveControl;
+
+    /// <summary>Returns the horizontal twips-per-pixel conversion factor.</summary>
+    public static float ScreenTwipsPerPixelX() => CurrentScreenState().TwipsPerPixelX;
+
+    /// <summary>Returns the vertical twips-per-pixel conversion factor.</summary>
+    public static float ScreenTwipsPerPixelY() => CurrentScreenState().TwipsPerPixelY;
+
+    /// <summary>Returns the process-wide VB6 mouse-pointer value.</summary>
+    public static int ScreenMousePointer() => CurrentScreenState().MousePointer;
+
+    /// <summary>Sets the process-wide VB6 mouse-pointer value through the host or headless state.</summary>
+    public static void ScreenSetMousePointer(int mousePointer)
+    {
+        if (Host?.TrySetScreenMousePointer(mousePointer) == true)
+        {
+            return;
+        }
+
+        lock (ScreenGate)
+        {
+            _headlessScreen = _headlessScreen with { MousePointer = mousePointer };
+        }
+    }
+
+    private static VBScreenState CurrentScreenState()
+    {
+        if (Host?.TryGetScreenState(out var screen) == true && screen is not null)
+        {
+            return screen;
+        }
+
+        lock (ScreenGate)
+        {
+            return _headlessScreen;
+        }
+    }
 
     /// <summary>
     /// Provides a deterministic process-local replacement for the VB6 registry settings API.
