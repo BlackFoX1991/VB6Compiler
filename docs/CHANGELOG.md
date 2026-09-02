@@ -4556,3 +4556,24 @@ Kanonischer Nachweis: **1431/1431** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix bleibt bei **83 implemented, 10 partial, 25 planned von 118 |
 93/118 documented-verified**.
 
+## Karte l1-02-n: Profilbewusste sequentielle Datei-Textkanäle (01.09.2026)
+
+`Print #`, `Write #`, `Line Input #`, `Input #` und die `Input`-Funktion erhalten im
+Managed-Emitter nun das gewählte Kompatibilitätsprofil als verstecktes Laufzeitargument.
+`Deterministic` behält die bisherige stabile UTF-8-Übertragung einschließlich UTF-8-BOM-Behandlung;
+`VB6Sp6` kodiert und dekodiert sequentielle Textdateien über die aktive Windows-ANSI-Codepage.
+Damit stimmen Textdateien mit den bereits profilbewussten `LenB`-/`Asc`-/`Chr`-Pfaden überein,
+ohne Binär-Stringtransfers oder Fixed-String-UDT-Layouts zu verändern.
+
+Die neue Runtime-Regression misst die exakten Ausgabebytes und den Rückweg über `Line Input #`
+und `Input #`; ein emittiertes VB6Sp6-Programm prüft die verdeckte Profilweitergabe für
+`Print #`, `Write #`, `Line Input #` und `Input #`. Der vollständige Texttransfer-Teilvertrag
+`l1-03-f-file-text-transfer-codepage` ist damit **`implemented`** /
+`documented-verified`; die breite Restkarte `l1-02-n-file-io-remaining` ist
+**`partial`**. Variant-Arrays/-Objekte und komplexere Random-/UDT-Recordlayouts bleiben bewusst
+offen.
+
+Kanonischer Nachweis: **1421/1421** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **74 implemented, 11 partial, 33 planned von 118 |
+85/118 documented-verified**.
+

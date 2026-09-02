@@ -1125,7 +1125,7 @@
     },
     {
       "id": "l1-02-n-file-io-remaining",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "runtime-file-io",
       "input": "Remaining Binary, Random, Sequential and text file cases, including code pages, Variant states and composite layouts",
       "expected": {
@@ -1134,7 +1134,7 @@
         "layouts": "scalar, array, UDT and Variant records preserve documented descriptors, bounds and state tags",
         "errors": "EOF, channel, record-length and type errors are deterministic"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
@@ -1226,7 +1226,7 @@
     },
     {
       "id": "l1-03-f-file-text-transfer-codepage",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
       "input": "Print #, Write #, Input # and Line Input with separators, quoted values, CRLF and profile code pages",
       "expected": {
@@ -1235,8 +1235,9 @@
         "input": "text fields and scalar Variant states round-trip",
         "encoding": "VB6Sp6 uses the active ANSI code page while Deterministic remains stable"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
       ]
