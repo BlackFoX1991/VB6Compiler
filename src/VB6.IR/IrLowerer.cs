@@ -1044,7 +1044,7 @@ public static class IrLowerer
                     var variablePlace = LowerVariablePlace(assignment.Variable);
                     Emit(new IrStoreInstruction(
                         variablePlace,
-                        LowerFixedStringWrite(variablePlace.Type, LowerValueCopy(assignment.Expression))));
+                        LowerFixedStringWrite(variablePlace.Type, LowerAssignedValueCopy(assignment.Expression, assignment.IsSetAssignment))));
                     LowerWithEventsSubscriptions(assignment.Variable);
                     break;
                 }
@@ -1058,7 +1058,7 @@ public static class IrLowerer
                             new IrLoadExpression(LowerVariablePlace(assignment.Array)),
                             assignment.Indices.Select(LowerExpression).ToImmutableArray(),
                             arrayType.ElementType),
-                        LowerFixedStringWrite(arrayType.ElementType, LowerValueCopy(assignment.Expression))));
+                        LowerFixedStringWrite(arrayType.ElementType, LowerAssignedValueCopy(assignment.Expression))));
                     break;
                 case BoundMemberAssignmentStatement assignment:
                 {
@@ -1067,7 +1067,7 @@ public static class IrLowerer
                         Emit(new IrVariantArraySetInstruction(
                             LowerExpression(variantArray.Receiver),
                             variantArray.Indices.Select(LowerExpression).ToImmutableArray(),
-                            LowerValueCopy(assignment.Expression)));
+                            LowerAssignedValueCopy(assignment.Expression)));
                         break;
                     }
 
@@ -1115,7 +1115,7 @@ public static class IrLowerer
                     var memberTarget = LowerPlace(assignment.Target);
                     Emit(new IrStoreInstruction(
                         memberTarget,
-                        LowerFixedStringWrite(memberTarget.Type, LowerValueCopy(assignment.Expression))));
+                        LowerFixedStringWrite(memberTarget.Type, LowerAssignedValueCopy(assignment.Expression, assignment.IsSetAssignment))));
                     break;
                 }
                 case BoundReDimStatement reDim:
@@ -2168,7 +2168,7 @@ public static class IrLowerer
             var target = LowerVariablePlace(declaration.Variable);
             if (declaration.Initializer is not null && !declaration.Variable.IsAsNew)
             {
-                Emit(new IrStoreInstruction(target, LowerValueCopy(declaration.Initializer)));
+                Emit(new IrStoreInstruction(target, LowerAssignedValueCopy(declaration.Initializer)));
                 return;
             }
 
@@ -3666,7 +3666,9 @@ public static class IrLowerer
                 }
                 else
                 {
-                    lowered.Add(new IrCallArgument(LowerValueCopy(argument.Expression)));
+                    lowered.Add(new IrCallArgument(procedure.IntrinsicTarget is null
+                        ? LowerAssignedValueCopy(argument.Expression)
+                        : LowerValueCopy(argument.Expression)));
                 }
             }
 
@@ -4015,6 +4017,43 @@ public static class IrLowerer
             return expression;
         }
 
+        /// <summary>
+        /// Demands an object where VB6 does. A declared object type is already guaranteed by the
+        /// type system, so only a Variant needs the run-time check - and it needs it, because an
+        /// Empty Variant is the same CLR null reference a concrete slot uses for Nothing.
+        /// </summary>
+        private static IrExpression RequireObjectOperand(BoundExpression expression, IrExpression value) =>
+            expression.Type == TypeSymbol.Variant
+                ? new IrRuntimeCallExpression(
+                    IrRuntimeMethod.ObjectRequireOperand,
+                    ImmutableArray.Create(new IrCallArgument(value)),
+                    TypeSymbol.Variant)
+                : value;
+
+        /// <summary>
+        /// A value copy that also honours VB6's copy-on-assignment rule for arrays. Whether a
+        /// Variant carries an array is only known at run time, so the decision cannot be made here
+        /// the way it is for a UDT; the runtime call passes every other payload straight through.
+        /// Reading intrinsics keep the plain <see cref="LowerValueCopy"/> - copying an array just
+        /// to ask for its bounds would be pure waste.
+        /// </summary>
+        private IrExpression LowerAssignedValueCopy(BoundExpression expression, bool requireObject = false)
+        {
+            var value = LowerValueCopy(expression);
+            if (expression.Type != TypeSymbol.Variant)
+            {
+                return value;
+            }
+
+            // A Set source must be an object; an array or scalar never reaches the copy rule.
+            return requireObject
+                ? RequireObjectOperand(expression, value)
+                : new IrRuntimeCallExpression(
+                    IrRuntimeMethod.ArrayCopyAssignedValue,
+                    ImmutableArray.Create(new IrCallArgument(value)),
+                    TypeSymbol.Variant);
+        }
+
         private IrExpression LowerValueCopy(BoundExpression expression)
         {
             var value = LowerExpression(expression);
@@ -4268,7 +4307,11 @@ public static class IrLowerer
                         right,
                         new IrConstantExpression(binary.UseTextCompare, TypeSymbol.Boolean));
                 case SyntaxKind.IsKeyword:
-                    return Runtime(IrRuntimeMethod.ObjectIs, TypeSymbol.Boolean, left, right);
+                    return Runtime(
+                        IrRuntimeMethod.ObjectIs,
+                        TypeSymbol.Boolean,
+                        RequireObjectOperand(binary.Left, left),
+                        RequireObjectOperand(binary.Right, right));
                 case SyntaxKind.EqualsToken: method = IsStringVariantComparison(binary)
                     ? IrRuntimeMethod.StringVariantEqual
                     : binary.Left.Type == TypeSymbol.Variant || binary.Right.Type == TypeSymbol.Variant

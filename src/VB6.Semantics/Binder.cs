@@ -2430,10 +2430,16 @@ public sealed class Binder
         var expression = BindExpression(syntax.Expression, variables, procedures);
         if (target is BoundVariableExpression variable)
         {
-            return new BoundAssignmentStatement(variable.Variable, BindConversion(expression, variable.Variable.Type));
+            return new BoundAssignmentStatement(
+                variable.Variable,
+                BindConversion(expression, variable.Variable.Type),
+                IsSetAssignment: true);
         }
 
-        return new BoundMemberAssignmentStatement(target, BindConversion(expression, target.Type));
+        return new BoundMemberAssignmentStatement(
+            target,
+            BindConversion(expression, target.Type),
+            IsSetAssignment: true);
     }
 
     private BoundMemberAssignmentStatement BindMemberAssignment(

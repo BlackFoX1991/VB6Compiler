@@ -586,7 +586,15 @@ public sealed record BoundEraseStatement(
     bool Deallocate)
     : BoundStatement(BoundNodeKind.EraseStatement);
 
-public sealed record BoundAssignmentStatement(VariableSymbol Variable, BoundExpression Expression)
+/// <summary>
+/// Assignment to a variable. <paramref name="IsSetAssignment"/> records that the source was written
+/// with <c>Set</c>: VB6 demands an object there, and for a Variant source only the run time can
+/// tell whether one arrived.
+/// </summary>
+public sealed record BoundAssignmentStatement(
+    VariableSymbol Variable,
+    BoundExpression Expression,
+    bool IsSetAssignment = false)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
 
 public sealed record BoundMidAssignmentStatement(

@@ -8,6 +8,32 @@ namespace VB6.Runtime.Tests;
 public sealed class LikeAndObjectIdentityTests
 {
     [TestMethod]
+    public void RequireObjectOperand_AcceptsObjectsAndNothingButRejectsEveryOtherVariant()
+    {
+        var instance = new object();
+        Assert.AreSame(instance, VBObjectIdentity.RequireObjectOperand(instance));
+        Assert.AreSame(
+            VBVariants.NothingValue(),
+            VBObjectIdentity.RequireObjectOperand(VBVariants.NothingValue()));
+
+        // Empty is the CLR null reference, the same value a declared object slot uses for
+        // Nothing. Without this guard the two would compare equal and Is would answer True.
+        foreach (var rejected in new object?[]
+                 {
+                     null,
+                     VBVariants.NullValue(),
+                     "text",
+                     5,
+                     new VBArray<object>(new VBArrayBound(0, 1))
+                 })
+        {
+            var error = Assert.ThrowsException<VB6RuntimeErrorException>(
+                () => VBObjectIdentity.RequireObjectOperand(rejected));
+            Assert.AreEqual(424, error.Number);
+        }
+    }
+
+    [TestMethod]
     public void Like_SupportsWildcardsDigitsListsAndRanges()
     {
         Assert.IsTrue(VBStrings.Like("abc", "a*", false));

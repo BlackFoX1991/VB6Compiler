@@ -4170,6 +4170,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.FunctionCallByName) return Static(typeof(VBFunctions), nameof(VBFunctions.CallByName), typeof(object), typeof(string), typeof(int), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.FunctionQBColor) return Static(typeof(VBFunctions), nameof(VBFunctions.QBColor), typeof(short));
             if (m == IrRuntimeMethod.ArrayIsAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.IsAllocated), typeof(object));
+            if (m == IrRuntimeMethod.ArrayCopyAssignedValue) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.CopyAssignedValue), typeof(object));
+            if (m == IrRuntimeMethod.ObjectRequireOperand) return Static(typeof(VBObjectIdentity), nameof(VBObjectIdentity.RequireObjectOperand), typeof(object));
             if (m == IrRuntimeMethod.ArrayRequireAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.RequireAllocated), typeof(object));
 
             if (m is IrRuntimeMethod.Equal or IrRuntimeMethod.NotEqual or IrRuntimeMethod.Less or IrRuntimeMethod.LessOrEqual or IrRuntimeMethod.Greater or IrRuntimeMethod.GreaterOrEqual or IrRuntimeMethod.Concat)

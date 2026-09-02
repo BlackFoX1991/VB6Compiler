@@ -827,6 +827,8 @@ public enum IrRuntimeMethod
     ArrayUBound,
     ArrayIsAllocated,
     ArrayRequireAllocated,
+    ArrayCopyAssignedValue,
+    ObjectRequireOperand,
     ArrayEnumerateValues,
 
     FixedStringRead,

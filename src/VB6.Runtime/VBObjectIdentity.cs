@@ -5,6 +5,18 @@ namespace VB6.Runtime;
 /// <summary>Reference identity used by the VB6 <c>Is</c> operator.</summary>
 public static class VBObjectIdentity
 {
+    /// <summary>
+    /// Guards the places where VB6 demands an object expression: both operands of <c>Is</c> and the
+    /// right-hand side of <c>Set</c>. A concrete object slot is checked by the type system, but a
+    /// Variant only reveals what it carries at run time - and <c>Empty</c> is the CLR null
+    /// reference, which would otherwise compare equal to <c>Nothing</c> and erase exactly the
+    /// distinction this contract is about.
+    /// </summary>
+    public static object? RequireObjectOperand(object? value) =>
+        VBVariants.IsObject(value)
+            ? value
+            : throw new VB6RuntimeErrorException(424, "An object reference is required here.");
+
     public static bool IsSame(object? left, object? right)
     {
         if (ReferenceEquals(left, right))

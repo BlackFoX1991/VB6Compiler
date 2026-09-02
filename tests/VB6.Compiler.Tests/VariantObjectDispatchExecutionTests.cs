@@ -939,4 +939,166 @@ public sealed class VariantObjectDispatchExecutionTests
         // ununterscheidbar waren.
         CollectionAssert.AreEqual(new[] { "9", "438", "438" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_CopiesVariantArraysAtEveryValueBoundary()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                Dim v As Variant
+                Dim fixedArr(0 To 2) As Long
+
+                a = Array(1, 2, 3)
+                b = a
+                b(0) = 42
+                Debug.Print a(0)
+                Debug.Print b(0)
+
+                fixedArr(0) = 1
+                v = fixedArr
+                v(0) = 42
+                Debug.Print fixedArr(0)
+                Debug.Print v(0)
+
+                a = Array(1, 2, 3)
+                Debug.Print Overwrite(a)
+                Debug.Print a(0)
+
+                ' Ein Objekt ist kein Array: die Referenz muss dieselbe bleiben.
+                Dim c As Variant
+                Set c = New Collection
+                Set v = c
+                Debug.Print (v Is c)
+            End Sub
+
+            Function Overwrite(ByVal arg As Variant) As Long
+                arg(0) = 99
+                Overwrite = arg(0)
+            End Function
+            """);
+
+        // VB6 kopiert ein Array an jeder Wertgrenze: bei der Zuweisung zwischen Variants,
+        // beim Ablegen eines typisierten Arrays in einem Variant und beim ByVal-Argument.
+        // Der Aufgerufene schreibt deshalb nur in seine eigene Kopie zurueck. Objekte sind
+        // davon ausgenommen und behalten ihre Referenzidentitaet.
+        CollectionAssert.AreEqual(
+            new[] { "1", "42", "1", "42", "99", "1", "True" },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReportsDocumentedErrorNumbersForNonObjectVariants()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim v As Variant
+                Dim a As Variant
+                Dim b As Variant
+                Dim c As Collection
+                Dim i As Long
+                Dim f As Boolean
+
+                On Error Resume Next
+
+                Set v = Nothing
+                i = v.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                Set c = Nothing
+                i = c.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = "text"
+                i = v.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = Empty
+                f = (v Is Nothing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = Null
+                f = (v Is Nothing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                a = Array(1, 2, 3)
+                f = (a Is Nothing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Set v = New Collection
+                i = v(1)
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = Array(1, 2)
+                Set b = v
+                Debug.Print Err.Number
+
+                ' Gegenproben: der Objektpfad bleibt unberuehrt.
+                Err.Clear
+                Set v = New Collection
+                Set b = v
+                v.Add "y"
+                Debug.Print Err.Number & " " & (b Is v) & " " & v.Count & " " & v(1)
+
+                Err.Clear
+                Set v = Nothing
+                f = (v Is Nothing)
+                Debug.Print Err.Number & " " & f
+            End Sub
+            """);
+
+        // 91 fuer ein Mitglied auf Nothing -- der spaet gebundene Pfad meldete 438, obwohl der
+        // typisierte daneben schon 91 lieferte. 424 ueberall dort, wo VB6 ein Objekt verlangt und
+        // ein Variant keines traegt: Mitgliedszugriff auf einen Skalar, beide Is-Operanden und die
+        // rechte Seite von Set. 9 fuer eine Position ausserhalb der Collection -- die Nummer kam
+        // aus dem Member, ging aber in der Reflexionsverpackung verloren und wurde zum pauschalen 5.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "91", "91", "424", "424", "424", "424", "9", "424",
+                "0 True 1 y",
+                "0 True"
+            },
+            output);
+    }
+
+    [TestMethod]
+    public void Lower_CopiesVariantValueBoundariesButNotIntrinsicReads()
+    {
+        var assigning = VB6TestIr.Lower("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                a = Array(1, 2)
+                b = a
+            End Sub
+            """);
+
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(assigning).ToArray(),
+            VB6.IR.IrRuntimeMethod.ArrayCopyAssignedValue);
+
+        var reading = VB6TestIr.Lower("""
+            Sub Main()
+                Dim a As Variant
+                Dim i As Long
+                a = Array(1, 2)
+                i = UBound(a)
+            End Sub
+            """);
+
+        // Nur die Zuweisung ist eine Wertgrenze. Wuerde der Lowerer auch fuer ein lesendes
+        // Intrinsic kopieren, kostete jedes UBound eine vollstaendige Arraykopie.
+        Assert.AreEqual(
+            1,
+            VB6TestIr.RuntimeCalls(reading).Count(method => method == VB6.IR.IrRuntimeMethod.ArrayCopyAssignedValue));
+    }
 }
