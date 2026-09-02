@@ -4035,6 +4035,13 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionApplicationMajor) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationMajor));
             if (m == IrRuntimeMethod.InteractionApplicationMinor) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationMinor));
             if (m == IrRuntimeMethod.InteractionApplicationRevision) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationRevision));
+            if (m == IrRuntimeMethod.InteractionScreen) return Static(typeof(VBInteraction), nameof(VBInteraction.Screen));
+            if (m == IrRuntimeMethod.InteractionScreenActiveForm) return Static(typeof(VBInteraction), nameof(VBInteraction.ScreenActiveForm));
+            if (m == IrRuntimeMethod.InteractionScreenActiveControl) return Static(typeof(VBInteraction), nameof(VBInteraction.ScreenActiveControl));
+            if (m == IrRuntimeMethod.InteractionScreenTwipsPerPixelX) return Static(typeof(VBInteraction), nameof(VBInteraction.ScreenTwipsPerPixelX));
+            if (m == IrRuntimeMethod.InteractionScreenTwipsPerPixelY) return Static(typeof(VBInteraction), nameof(VBInteraction.ScreenTwipsPerPixelY));
+            if (m == IrRuntimeMethod.InteractionScreenMousePointer) return Static(typeof(VBInteraction), nameof(VBInteraction.ScreenMousePointer));
+            if (m == IrRuntimeMethod.InteractionScreenSetMousePointer) return Static(typeof(VBInteraction), nameof(VBInteraction.ScreenSetMousePointer), typeof(int));
             if (m == IrRuntimeMethod.InteractionClipboardGetText) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetText), typeof(int));
             if (m == IrRuntimeMethod.InteractionClipboardClear) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardClear));
             if (m == IrRuntimeMethod.InteractionClipboardGetData) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetData), typeof(int));
