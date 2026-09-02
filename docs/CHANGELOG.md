@@ -4577,3 +4577,19 @@ Kanonischer Nachweis: **1421/1421** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **74 implemented, 11 partial, 33 planned von 118 |
 85/118 documented-verified**.
 
+## Karte l1-03-g: Skalare und UDT-Dateirecords verifiziert (01.09.2026)
+
+Die Matrixkarte für skalare Binary-/Random-Recordlayouts war noch als `planned` geführt, obwohl
+der Implementierungspfad bereits vollständig vorhanden ist. Die gezielte Prüfung über
+`FileIoExecutionTests` und `FixedLengthStringUdtExecutionTests` umfasst Feldreihenfolge,
+`Integer`/`Long`/`Boolean`/`Date`/`Currency`, Random-Recordgrenzen und `Len`, verschachtelte UDTs
+sowie gepaddete `String * n`-Felder. Alle **50** zugehörigen Managed-Tests sind grün.
+
+Die Karte `l1-03-g-file-scalar-udt-record-layout` lautet damit **`implemented`** /
+`documented-verified`; Variant-Arrays/-Objekte und zusammengesetzte Random-Recordlayouts bleiben
+separate offene Teilverträge.
+
+Kanonischer Nachweis bleibt **1421/1421** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **75 implemented, 11 partial, 32 planned von 118 |
+86/118 documented-verified**.
+
