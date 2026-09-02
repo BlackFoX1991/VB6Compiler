@@ -181,4 +181,24 @@ public sealed class VBProjectLoaderTests
             Path.GetFullPath(Path.Combine(Path.GetDirectoryName(result.Project.FilePath)!, "..", "Shared", "Shared.vbp")),
             result.Project.References[0].Metadata.GetFullPath(result.Project.ProjectDirectory));
     }
+
+    [TestMethod]
+    public void Parse_PreservesVersionAndBinaryCompatibilityMetadataAsProperties()
+    {
+        var result = new VBProjectLoader().Parse(
+            "MajorVer=1\nMinorVer=2\nRevisionVer=3\nAutoIncrementVer=0\n" +
+            "CompatibleMode=2\nCompatibleEXE32=bin\\Legacy.exe\n",
+            Path.Combine(Path.GetTempPath(), "LegacyCompatibility.vbp"));
+
+        var properties = result.Project.Properties.ToDictionary(
+            property => property.Name,
+            property => property.Value,
+            StringComparer.OrdinalIgnoreCase);
+        Assert.AreEqual("1", properties["MajorVer"]);
+        Assert.AreEqual("2", properties["MinorVer"]);
+        Assert.AreEqual("3", properties["RevisionVer"]);
+        Assert.AreEqual("0", properties["AutoIncrementVer"]);
+        Assert.AreEqual("2", properties["CompatibleMode"]);
+        Assert.AreEqual("bin\\Legacy.exe", properties["CompatibleEXE32"]);
+    }
 }
