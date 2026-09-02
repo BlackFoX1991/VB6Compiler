@@ -4851,3 +4851,42 @@ und `WithEvents` sind davon unberührt.
 Kanonischer Nachweis: **1437/1437** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix steht unverändert auf **86 implemented, 7 partial, 25 planned von
 118 | 93/118 documented-verified**.
+
+## Karte l1-02-h: Variant-Wertkopie und die Objektgrenze (02.09.2026)
+
+Ein Breitendurchgang über die Vertragsfläche der Karte hat einen Defekt und sechs falsche
+Fehlernummern gemessen; der Quelltext allein zeigte keinen davon.
+
+**Arrays im Variant wurden nicht kopiert.** VB6 kopiert ein Array an jeder Wertgrenze. Für
+UDT-Member setzt `IrLowerer.LowerValueCopy` das bereits um, aber ob ein Variant ein Array trägt,
+steht erst zur Laufzeit fest. Gemessen teilten `b = a` zwischen Variants, das Ablegen eines
+typisierten Arrays in einem Variant und ein `ByVal`-Argument die Speicherung: der Aufgerufene
+schrieb in das Array des Aufrufers zurück. Die neue Runtime-Operation
+`VBArrayOperations.CopyAssignedValue` legt an jeder echten Wertgrenze eigene Speicherung an;
+Objekte behalten ihre Referenzidentität, Skalare gehen unverändert durch. Lesende Intrinsics
+bleiben bewusst außen vor — ein `UBound` würde sonst das ganze Array kopieren, was eine
+IR-Regression festhält.
+
+**Ein Variant ohne Objekt meldete die falsche Nummer.** `Nothing` ist im Variant ein
+identitätstragender Marker, kein `null`; die Membersuche lief deshalb ins Leere und meldete 438,
+während der typisierte Pfad daneben schon 91 lieferte. Ein Mitgliedszugriff auf einen Skalar
+meldete ebenfalls 438 statt 424. Beide Operanden von `Is` und die rechte Seite von `Set`
+verlangten gar kein Objekt: `Empty Is Nothing` lieferte sogar `True`, weil `Empty` dieselbe
+CLR-`null` ist, die ein Objektslot für `Nothing` benutzt — genau die Unterscheidung, um die es in
+dieser Karte geht. Der Wächter prüft am statischen Typ und greift nur bei Variant-Operanden, damit
+der Objektpfad unberührt bleibt. Dafür trägt der Bound Tree jetzt mit, dass eine Zuweisung ein
+`Set` war.
+
+**Eine Fehlernummer ging in der Reflexion verloren.** `Collection.Item` meldet für eine Position
+außerhalb der Sammlung korrekt 9, aber der spät gebundene Aufruf verpackte sie in eine
+`TargetInvocationException` ohne VB6-Nummer, die in `VBErrors.Set` im Sammelwert 5 landete. Die
+Verpackung wird jetzt aufgelöst. Ein bestehender Test schrieb genau diese Verpackung fest; seine
+Vertragszusage — die Ausnahme eines Default-Getters kommt heraus — gilt unverändert, festgelegt
+war nur das Reflexionsdetail.
+
+Die Karte bleibt **`partial`** / `documented-verified`: Automation-Dispatch über echte
+IDispatch-Server und die vollständige SAFEARRAY-Formenlehre sind nicht Teil dieser Messung.
+
+Kanonischer Nachweis: **1444/1444** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht unverändert auf **86 implemented, 7 partial, 25 planned von
+118 | 93/118 documented-verified**.
