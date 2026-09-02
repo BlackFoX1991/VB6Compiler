@@ -96,10 +96,16 @@ public sealed class VBProjectGroupCompilation
             }
         }
 
+        var analyzedProjects = projects.ToImmutable();
+        ValidateProjectReferenceCycles(
+            loadResult.Group,
+            analyzedProjects,
+            groupDiagnostics);
+
         return new VBProjectGroupAnalysis(
             loadResult.Group,
             groupDiagnostics.ToImmutable(),
-            projects.ToImmutable());
+            analyzedProjects);
     }
 
     private static void ValidateDeclaredProjectReferences(
@@ -123,6 +129,78 @@ public sealed class VBProjectGroupCompilation
         }
     }
 
+    private static void ValidateProjectReferenceCycles(
+        VBProjectGroup group,
+        ImmutableArray<VBProjectGroupProjectAnalysis> projects,
+        ImmutableArray<VBProjectGroupCompilationDiagnostic>.Builder groupDiagnostics)
+    {
+        var projectsByPath = new Dictionary<string, VBProjectGroupProjectAnalysis>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var project in projects)
+        {
+            projectsByPath.TryAdd(project.FullPath, project);
+        }
+
+        var state = new Dictionary<string, VisitState>(StringComparer.OrdinalIgnoreCase);
+        var ancestry = new List<VBProjectGroupProjectAnalysis>();
+        foreach (var project in projects)
+        {
+            Visit(project);
+        }
+
+        void Visit(VBProjectGroupProjectAnalysis project)
+        {
+            if (state.TryGetValue(project.FullPath, out var currentState))
+            {
+                if (currentState is VisitState.Visited or VisitState.Visiting)
+                {
+                    return;
+                }
+            }
+
+            state[project.FullPath] = VisitState.Visiting;
+            ancestry.Add(project);
+            if (project.Compilation is not null)
+            {
+                foreach (var reference in project.Compilation.Project.References.Where(reference =>
+                             reference.Metadata.Kind == VBProjectReferenceKind.Project))
+                {
+                    var referencePath = reference.Metadata.GetFullPath(
+                        project.Compilation.Project.ProjectDirectory);
+                    if (referencePath is null ||
+                        !projectsByPath.TryGetValue(referencePath, out var dependency))
+                    {
+                        continue;
+                    }
+
+                    if (state.TryGetValue(dependency.FullPath, out var dependencyState) &&
+                        dependencyState == VisitState.Visiting)
+                    {
+                        var cycleStart = ancestry.FindIndex(candidate =>
+                            string.Equals(
+                                candidate.FullPath,
+                                dependency.FullPath,
+                                StringComparison.OrdinalIgnoreCase));
+                        var cycle = ancestry
+                            .Skip(cycleStart)
+                            .Select(candidate => candidate.Project.RelativePath)
+                            .Append(dependency.Project.RelativePath);
+                        groupDiagnostics.Add(new VBProjectGroupCompilationDiagnostic(
+                            "VB6VBG0009",
+                            $"Project reference cycle detected: {string.Join(" -> ", cycle)}.",
+                            group.FilePath));
+                        continue;
+                    }
+
+                    Visit(dependency);
+                }
+            }
+
+            ancestry.RemoveAt(ancestry.Count - 1);
+            state[project.FullPath] = VisitState.Visited;
+        }
+    }
+
     public VBProjectGroupEmitResult EmitManagedApplications(
         string outputDirectory,
         ManagedEmitOptions? options = null)
@@ -130,6 +208,13 @@ public sealed class VBProjectGroupCompilation
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
 
         var analysis = Analyze();
+        if (!analysis.Success)
+        {
+            return new VBProjectGroupEmitResult(
+                analysis,
+                ImmutableArray<VBProjectGroupProjectEmitResult>.Empty);
+        }
+
         var fullOutputDirectory = Path.GetFullPath(outputDirectory);
         Directory.CreateDirectory(fullOutputDirectory);
 
