@@ -4825,3 +4825,29 @@ Blindfleck abgedeckt. Die bestehenden Tests belegen weiter die vier Zahlenabschn
 Kanonischer Nachweis: **1435/1435** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix steht auf **86 implemented, 7 partial, 25 planned von 118 |
 93/118 documented-verified**.
+
+## As-New-Reaktivierung und die Nothing-Speichergrenze (02.09.2026)
+
+`Dim x As New C` legt die Instanz jetzt erst beim ersten Zugriff an, und `Set x = Nothing` leert
+den Slot so, dass die nächste Referenz erneut aktiviert. Der Binder merkt sich die
+`New`-Deklaration am lokalen Symbol, das IR trägt dafür einen eigenen Aktivierungsausdruck, und
+der Lowerer gibt ihn auch für ein ByRef übergebenes As-New-Local aus — sonst umginge die reine
+Adressbildung die verzögerte Anlage.
+
+Dazu gehört die Speicherfrage, an der die erste Fassung vorbeigelaufen ist: Ein Klassen-Slot
+erhält für `Nothing` die CLR-Nullreferenz, denn genau daran erkennt die Reaktivierung den
+geleerten Zustand. Der generische `Object` ist aber ebenfalls ein Klassensymbol, während sein
+Speicher variantenförmig bleibt und den identitätstragenden Nothing-Marker braucht — ohne ihn
+ist ein Element in einem `SAFEARRAY(VT_DISPATCH)` nicht mehr von `Empty` zu unterscheiden. Die
+Regel schließt `VBStandardTypes.Object` deshalb ausdrücklich aus.
+
+Gemessen ist das an der bestehenden Vertragszusage: Der Marshalling-Fall für Variant-Array-
+Callbacks prüft die Marker-Identität der Elemente nach `Set values(4) = Nothing` und fiel mit der
+breiten Regel um. Er ist unverändert geblieben; eingeengt wurde die Regel.
+
+Die Karte `l1-02-i-object-members-lifecycle` bleibt **`partial`** — Lebenszyklus, `Implements`
+und `WithEvents` sind davon unberührt.
+
+Kanonischer Nachweis: **1437/1437** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht unverändert auf **86 implemented, 7 partial, 25 planned von
+118 | 93/118 documented-verified**.
