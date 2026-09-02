@@ -4628,3 +4628,18 @@ Kanonischer Nachweis bleibt **1421/1421** Tests, **0** Fehler, Release ohne Warn
 VISIA-Projektitems. Die Matrix steht auf **78 implemented, 11 partial, 29 planned von 118 |
 89/118 documented-verified**.
 
+## Karte l1-03-i: Variant-/Objekt-Dateilayouts abgegrenzt (01.09.2026)
+
+Binäre Scalar-Variants tragen weiterhin Typ-Tag und Payload. Für den noch nicht implementierten
+Composite-Teil ist der Fehlervertrag jetzt gezielt gesichert: Variant-Werte mit Array, nicht
+serialisierbare Objektvarianten sowie eingehende SAFEARRAY-Tags führen zu einem expliziten
+VB-Typfehler; sie werden weder als Text noch als flaches Array übertragen. Die neue Runtime-
+Regression prüft alle drei Grenzen. Damit ist
+`l1-03-i-file-variant-object-composite-layout` **`partial`** /
+`documented-verified`; die vollständige SAFEARRAY-/COM-Besitzsemantik und komplexe
+Variant-/UDT-Recordlayouts bleiben offen.
+
+Kanonischer Nachweis: **1423/1423** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **78 implemented, 12 partial, 28 planned von 118 |
+90/118 documented-verified**.
+
