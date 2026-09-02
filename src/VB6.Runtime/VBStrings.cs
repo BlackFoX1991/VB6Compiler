@@ -21,7 +21,11 @@ public static class VBStrings
             DecoderFallback.ExceptionFallback);
     }
 
-    private static Encoding GetAnsiEncoding(VBCompatibilityProfile profile)
+    /// <summary>
+    /// Resolves the single-byte encoding used by the selected legacy compatibility contract.
+    /// File I/O reuses this so byte-string intrinsics and sequential text channels agree.
+    /// </summary>
+    internal static Encoding GetAnsiEncoding(VBCompatibilityProfile profile)
     {
         if (profile != VBCompatibilityProfile.VB6Sp6)
         {
