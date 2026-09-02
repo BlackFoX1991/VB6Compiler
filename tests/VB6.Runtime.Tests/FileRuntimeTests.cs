@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -141,6 +143,47 @@ public sealed class FileRuntimeTests
             VBFiles.Close(1);
 
             Assert.AreEqual("\"a\"\"b\"\r\n#TRUE#\r\n#NULL#\r\n", File.ReadAllText(path));
+        });
+    }
+
+    [TestMethod]
+    public void SequentialTextTransfers_RespectTheSelectedCompatibilityProfileCodePage()
+    {
+        WithTemporaryFile(path =>
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var ansi = Encoding.GetEncoding(
+                0,
+                EncoderFallback.ExceptionFallback,
+                DecoderFallback.ExceptionFallback);
+
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Print(1, "ä", VBCompatibilityProfile.VB6Sp6);
+            VBFiles.Write(1, "ö", VBCompatibilityProfile.VB6Sp6);
+            VBFiles.Close(1);
+
+            CollectionAssert.AreEqual(
+                ansi.GetBytes("ä\r\n\"ö\"\r\n"),
+                File.ReadAllBytes(path),
+                "VB6Sp6 sequential transfers use the active ANSI code page.");
+
+            VBFiles.OpenInput(1, path);
+            Assert.AreEqual("ä", VBFiles.LineInput(1, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual("ö", VBFiles.InputField(1, VBCompatibilityProfile.VB6Sp6));
+            VBFiles.Close(1);
+
+            VBFiles.OpenOutput(1, path);
+            VBFiles.Print(1, "ä");
+            VBFiles.Close(1);
+
+            CollectionAssert.AreEqual(
+                Encoding.UTF8.GetBytes("ä\r\n"),
+                File.ReadAllBytes(path),
+                "The default overload remains deterministic UTF-8.");
+
+            VBFiles.OpenInput(1, path);
+            Assert.AreEqual("ä", VBFiles.LineInput(1));
+            VBFiles.Close(1);
         });
     }
 

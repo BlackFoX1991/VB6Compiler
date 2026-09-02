@@ -268,6 +268,11 @@ public static class VBFiles
     private static readonly Dictionary<int, List<FileLockRange>> FileLocks = new();
     private static readonly Encoding FixedStringEncoding = Encoding.Latin1;
 
+    private static Encoding TextEncoding(VBCompatibilityProfile compatibilityProfile) =>
+        compatibilityProfile == VBCompatibilityProfile.VB6Sp6
+            ? VBStrings.GetAnsiEncoding(compatibilityProfile)
+            : Encoding.UTF8;
+
     public static void OpenBinary(int fileNumber, string path)
         => OpenBinary(fileNumber, path, (int)VBFileSharingMode.Shared);
 
@@ -385,7 +390,11 @@ public static class VBFiles
     public static void BeginRecord(int fileNumber, long position) => BeginRecord(fileNumber, (long?)position);
 
     public static void Print(int fileNumber, object? value)
-        => PrintValue(fileNumber, value, endRecord: true, separator: 0);
+        => Print(fileNumber, value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Writes a single <c>Print #</c> value using the selected text-file encoding.</summary>
+    public static void Print(int fileNumber, object? value, VBCompatibilityProfile compatibilityProfile)
+        => PrintValue(fileNumber, value, endRecord: true, separator: 0, compatibilityProfile);
 
     /// <summary>
     /// Writes one value using the VB6 <c>Print #</c> output-list rules.
@@ -395,6 +404,19 @@ public static class VBFiles
     /// statement.
     /// </summary>
     public static void PrintValue(int fileNumber, object? value, bool endRecord, int separator)
+        => PrintValue(fileNumber, value, endRecord, separator, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Writes one <c>Print #</c> value using a profile-specific sequential text encoding. The
+    /// deterministic profile deliberately retains UTF-8, whereas VB6Sp6 uses the active ANSI
+    /// code page supplied by the Windows host.
+    /// </summary>
+    public static void PrintValue(
+        int fileNumber,
+        object? value,
+        bool endRecord,
+        int separator,
+        VBCompatibilityProfile compatibilityProfile)
     {
         if (separator is < 0 or > 2)
         {
@@ -408,17 +430,18 @@ public static class VBFiles
         {
             var zoneOffset = lineLength % PrintZoneWidth;
             var spaces = PrintZoneWidth - zoneOffset;
-            WritePrintText(stream, new string(' ', spaces), width, ref lineLength);
+            WritePrintText(stream, new string(' ', spaces), width, ref lineLength, TextEncoding(compatibilityProfile));
         }
 
         WritePrintText(
             stream,
             value is VBPrintPosition position ? VBDebug.ResolvePrintPosition(position, lineLength) : VBDebug.Format(value),
             width,
-            ref lineLength);
+            ref lineLength,
+            TextEncoding(compatibilityProfile));
         if (endRecord)
         {
-            var terminator = Encoding.UTF8.GetBytes("\r\n");
+            var terminator = TextEncoding(compatibilityProfile).GetBytes("\r\n");
             stream.Write(terminator, 0, terminator.Length);
             stream.Flush();
             lineLength = 0;
@@ -427,7 +450,12 @@ public static class VBFiles
         PrintLineLengths[fileNumber] = lineLength;
     }
 
-    private static void WritePrintText(FileStream stream, string text, int width, ref int lineLength)
+    private static void WritePrintText(
+        FileStream stream,
+        string text,
+        int width,
+        ref int lineLength,
+        Encoding encoding)
     {
         if (text.Length == 0)
         {
@@ -436,7 +464,7 @@ public static class VBFiles
 
         if (width == 0)
         {
-            var bytes = Encoding.UTF8.GetBytes(text);
+            var bytes = encoding.GetBytes(text);
             stream.Write(bytes, 0, bytes.Length);
             lineLength += text.Length;
             return;
@@ -447,48 +475,61 @@ public static class VBFiles
         {
             if (lineLength >= width)
             {
-                WritePrintNewLine(stream);
+                WritePrintNewLine(stream, encoding);
                 lineLength = 0;
             }
 
             var count = Math.Min(width - lineLength, text.Length - offset);
-            var bytes = Encoding.UTF8.GetBytes(text.Substring(offset, count));
+            var bytes = encoding.GetBytes(text.Substring(offset, count));
             stream.Write(bytes, 0, bytes.Length);
             offset += count;
             lineLength += count;
             if (offset < text.Length)
             {
-                WritePrintNewLine(stream);
+                WritePrintNewLine(stream, encoding);
                 lineLength = 0;
             }
         }
     }
 
-    private static void WritePrintNewLine(FileStream stream)
+    private static void WritePrintNewLine(FileStream stream, Encoding encoding)
     {
-        var terminator = Encoding.UTF8.GetBytes("\r\n");
+        var terminator = encoding.GetBytes("\r\n");
         stream.Write(terminator, 0, terminator.Length);
     }
 
     /// <summary>Writes one value using VB6's machine-readable <c>Write #</c> representation.</summary>
     public static void Write(int fileNumber, object? value)
-        => WriteValue(fileNumber, value, endRecord: true);
+        => Write(fileNumber, value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Writes a single <c>Write #</c> value using the selected text-file encoding.</summary>
+    public static void Write(int fileNumber, object? value, VBCompatibilityProfile compatibilityProfile)
+        => WriteValue(fileNumber, value, endRecord: true, compatibilityProfile);
 
     /// <summary>Writes one value and optionally finishes the current <c>Write #</c> record.</summary>
     public static void WriteValue(int fileNumber, object? value, bool endRecord)
+        => WriteValue(fileNumber, value, endRecord, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Writes one <c>Write #</c> field with profile-specific sequential text encoding.</summary>
+    public static void WriteValue(
+        int fileNumber,
+        object? value,
+        bool endRecord,
+        VBCompatibilityProfile compatibilityProfile)
     {
         var stream = GetStream(fileNumber);
+        var encoding = TextEncoding(compatibilityProfile);
         if (!WriteChannels.Add(fileNumber))
         {
-            var separator = Encoding.UTF8.GetBytes(",");
+            var separator = encoding.GetBytes(",");
             stream.Write(separator, 0, separator.Length);
         }
 
-        var bytes = Encoding.UTF8.GetBytes(FormatWriteValue(value));
+        var bytes = encoding.GetBytes(FormatWriteValue(value));
         stream.Write(bytes, 0, bytes.Length);
         if (endRecord)
         {
-            var terminator = Encoding.UTF8.GetBytes("\r\n");
+            var terminator = encoding.GetBytes("\r\n");
             stream.Write(terminator, 0, terminator.Length);
             stream.Flush();
             WriteChannels.Remove(fileNumber);
@@ -524,9 +565,13 @@ public static class VBFiles
     }
 
     public static string LineInput(int fileNumber)
+        => LineInput(fileNumber, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Reads one text line using the selected sequential file encoding.</summary>
+    public static string LineInput(int fileNumber, VBCompatibilityProfile compatibilityProfile)
     {
         var stream = GetStream(fileNumber);
-        SkipUtf8Bom(stream);
+        SkipUtf8Bom(stream, compatibilityProfile);
         var bytes = new List<byte>();
         while (true)
         {
@@ -554,13 +599,17 @@ public static class VBFiles
             bytes.RemoveAt(bytes.Count - 1);
         }
 
-        return Encoding.UTF8.GetString(bytes.ToArray());
+        return TextEncoding(compatibilityProfile).GetString(bytes.ToArray());
     }
 
     public static string InputField(int fileNumber)
     {
-        return ReadInputField(fileNumber);
+        return InputField(fileNumber, VBCompatibilityProfile.Deterministic);
     }
+
+    /// <summary>Reads one <c>Input #</c> field using the selected sequential file encoding.</summary>
+    public static string InputField(int fileNumber, VBCompatibilityProfile compatibilityProfile) =>
+        ReadInputField(fileNumber, compatibilityProfile);
 
     /// <summary>
     /// Reads one machine-readable <c>Input #</c> field.  Fields produced by <c>Write #</c>
@@ -570,8 +619,12 @@ public static class VBFiles
     /// Unrecognised fields remain Strings so ordinary text files keep the historical behavior.
     /// </summary>
     public static object? InputValue(int fileNumber)
+        => InputValue(fileNumber, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Reads one typed <c>Input #</c> field using the selected sequential file encoding.</summary>
+    public static object? InputValue(int fileNumber, VBCompatibilityProfile compatibilityProfile)
     {
-        var field = ReadInputField(fileNumber);
+        var field = ReadInputField(fileNumber, compatibilityProfile);
         if (field.Length == 0)
         {
             return VBVariants.EmptyValue();
@@ -649,10 +702,10 @@ public static class VBFiles
         return field;
     }
 
-    private static string ReadInputField(int fileNumber)
+    private static string ReadInputField(int fileNumber, VBCompatibilityProfile compatibilityProfile)
     {
         var stream = GetStream(fileNumber);
-        SkipUtf8Bom(stream);
+        SkipUtf8Bom(stream, compatibilityProfile);
         var bytes = new List<byte>();
         var quoted = false;
         var sawValue = false;
@@ -721,11 +774,15 @@ public static class VBFiles
             }
         }
 
-        return Encoding.UTF8.GetString(bytes.ToArray());
+        return TextEncoding(compatibilityProfile).GetString(bytes.ToArray());
     }
 
     /// <summary>Reads a requested number of text bytes from the current file position.</summary>
     public static string Input(long numberOfCharacters, int fileNumber)
+        => Input(numberOfCharacters, fileNumber, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>Reads text bytes using the selected sequential file encoding.</summary>
+    public static string Input(long numberOfCharacters, int fileNumber, VBCompatibilityProfile compatibilityProfile)
     {
         if (numberOfCharacters < 0 || numberOfCharacters > int.MaxValue)
         {
@@ -733,7 +790,7 @@ public static class VBFiles
         }
 
         var stream = GetStream(fileNumber);
-        SkipUtf8Bom(stream);
+        SkipUtf8Bom(stream, compatibilityProfile);
         var bytes = new byte[(int)numberOfCharacters];
         var offset = 0;
         while (offset < bytes.Length)
@@ -747,7 +804,7 @@ public static class VBFiles
             offset += read;
         }
 
-        return Encoding.UTF8.GetString(bytes, 0, offset);
+        return TextEncoding(compatibilityProfile).GetString(bytes, 0, offset);
     }
 
     private static void ConsumeLineFeed(FileStream stream)
@@ -759,9 +816,9 @@ public static class VBFiles
         }
     }
 
-    private static void SkipUtf8Bom(FileStream stream)
+    private static void SkipUtf8Bom(FileStream stream, VBCompatibilityProfile compatibilityProfile)
     {
-        if (stream.Position != 0)
+        if (compatibilityProfile != VBCompatibilityProfile.Deterministic || stream.Position != 0)
         {
             return;
         }
