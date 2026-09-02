@@ -172,9 +172,18 @@ public sealed class DirectManagedProjectExecutionTests
     }
 
     [TestMethod]
-    public void EmitManaged_EmitsOleExeAndActiveXExeProjectsAsLibrariesWithoutSubMain()
+    public void EmitManaged_EmitsAllSupportedLibraryProjectKindsWithoutSubMain()
     {
-        foreach (var projectType in new[] { "OleExe", "ActiveX EXE" })
+        foreach (var projectType in new[]
+                 {
+                     "OleDll",
+                     "OleExe",
+                     "Control",
+                     "Dll",
+                     "ActiveX DLL",
+                     "ActiveX EXE",
+                     "ActiveX Control"
+                 })
         {
             var projectDirectory = Path.Combine(
                 Path.GetTempPath(),

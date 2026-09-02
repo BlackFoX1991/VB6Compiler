@@ -261,12 +261,24 @@ public sealed class CliProcessTests
             var projectPath = Path.Combine(directory, "Manifest.vbp");
             File.WriteAllText(
                 projectPath,
-                "Type=Exe\nName=Manifest\nModule=Main; Main.bas\nForm=Main.frm\n");
+                "Type=Exe\nName=Manifest\nModule=Main; Main.bas\nForm=Main.frm\n" +
+                "Reference=*\\G{00025E01-0000-0000-C000-000000000046}#1.0#0#References\\Legacy.tlb#Legacy Library\n" +
+                "Object={831FDD16-0C5C-11D2-A9FC-0000F8754DA1}#2.0#0; Controls\\Legacy.ocx\n" +
+                "ResFile32=Resources\\Legacy.res\n");
             File.WriteAllText(Path.Combine(directory, "Main.bas"), "Sub Main()\nEnd Sub\n");
             File.WriteAllText(
                 Path.Combine(directory, "Main.frm"),
                 "VERSION 5.00\nBegin VB.Form Main\nEnd\n");
             File.WriteAllBytes(Path.Combine(directory, "Main.frx"), new byte[] { 1, 2, 3 });
+            var referencesDirectory = Path.Combine(directory, "References");
+            var controlsDirectory = Path.Combine(directory, "Controls");
+            var resourcesDirectory = Path.Combine(directory, "Resources");
+            Directory.CreateDirectory(referencesDirectory);
+            Directory.CreateDirectory(controlsDirectory);
+            Directory.CreateDirectory(resourcesDirectory);
+            File.WriteAllBytes(Path.Combine(referencesDirectory, "Legacy.tlb"), new byte[] { 1 });
+            File.WriteAllBytes(Path.Combine(controlsDirectory, "Legacy.ocx"), new byte[] { 2 });
+            File.WriteAllBytes(Path.Combine(resourcesDirectory, "Legacy.res"), new byte[] { 3 });
             var unrelatedDirectory = Path.Combine(directory, "unrelated");
             Directory.CreateDirectory(unrelatedDirectory);
             File.WriteAllText(Path.Combine(unrelatedDirectory, "Ignored.bas"), "Sub Ignored()\nEnd Sub\n");
@@ -279,6 +291,9 @@ public sealed class CliProcessTests
             StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(directory, "Main.bas"));
             StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(directory, "Main.frm"));
             StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(directory, "Main.frx"));
+            StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(referencesDirectory, "Legacy.tlb"));
+            StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(controlsDirectory, "Legacy.ocx"));
+            StringAssert.Contains(string.Join(Environment.NewLine, lines), Path.Combine(resourcesDirectory, "Legacy.res"));
             Assert.IsFalse(lines.Any(line => line.Contains("Ignored.bas", StringComparison.OrdinalIgnoreCase)));
             Assert.IsTrue(lines.All(line => line.Contains('\t')));
         }
