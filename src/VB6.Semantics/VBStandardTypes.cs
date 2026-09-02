@@ -114,7 +114,6 @@ public static class VBStandardTypes
     {
         var screen = new ClassTypeSymbol("Screen");
         screen.MarkAsRuntimeObjectContract();
-        screen.MarkAsLateBoundObject();
         var properties = new List<PropertySymbol>
         {
             ReadOnlyProperty("ActiveForm", Form),

@@ -4717,3 +4717,21 @@ Kanonischer Nachweis: **1428/1428** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **82 implemented, 11 partial, 25 planned von 118 |
 93/118 documented-verified**.
 
+## Karte l1-02-m: Screen-Hostvertrag (01.09.2026)
+
+`Screen` ist nicht länger nur ein semantisch bekanntes, dynamisch dispatchtes Objekt. Der
+Managed-Pfad senkt `ActiveForm`, `ActiveControl`, `TwipsPerPixelX`, `TwipsPerPixelY` und
+`MousePointer` in eigene IR- und Runtime-Operationen ab. `IVB6Host` liefert dafür einen
+zusammenhängenden `VBScreenState` sowie einen Pointer-Setter; der Headless-Fallback hat keinen
+aktiven Host, verwendet 96-DPI-Umrechnung (15 Twips pro Pixel) und hält den Zeigerwert
+deterministisch pro Prozess. Der WinForms-Adapter liefert aktive gebundene Form bzw. Control,
+den aktuellen DPI-Faktor und reicht verbreitete VB6-Zeigerformen an Windows-Cursor weiter.
+
+Gemessen: Runtime-Regressionen prüfen den Headless-Zustand, die Objektidentität des Screen-
+Facades und einen injizierten Host. Managed-End-to-End- und IR-Regressionen prüfen die
+kompilierten Skalare, den Setter sowie alle fünf lesbaren Member. **26 Runtime- und 19
+Managed-End-to-End-Tests** sind gezielt grün.
+
+Die Karte bleibt **`partial`** / `documented-verified`: Die Screen-Oberfläche ist geschlossen;
+als verbleibender expliziter Hostvertrag bleibt `Printer`.
+

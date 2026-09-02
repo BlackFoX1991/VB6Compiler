@@ -88,6 +88,21 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesScreenContracts()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Screen.MousePointer = 11
+                Debug.Print Screen.MousePointer
+                Debug.Print Screen.TwipsPerPixelX
+                Debug.Print Screen.TwipsPerPixelY
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "11", "15", "15" }, lines);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesEnvironNameAndIndexContracts()
     {
         var name = "VB6COMPILER_ENV_EXEC_" + Guid.NewGuid().ToString("N");
@@ -140,6 +155,8 @@ public sealed class StandardLibraryHostContractExecutionTests
                 Dim pictureValue As StdPicture
                 Dim fontValue As Font
                 Dim bag As PropertyBag
+                Dim screenForm As Form
+                Dim screenControl As Control
                 Set pictureValue = LoadPicture("")
                 Debug.Print pictureValue.Width
                 Debug.Print pictureValue.Height
@@ -148,6 +165,8 @@ public sealed class StandardLibraryHostContractExecutionTests
                 Screen.MousePointer = vbHourglass
                 Debug.Print Screen.TwipsPerPixelX
                 Debug.Print Screen.TwipsPerPixelY
+                Set screenForm = Screen.ActiveForm
+                Set screenControl = Screen.ActiveControl
                 Set bag = Nothing
                 Call bag.WriteProperty("Caption", "value")
                 Debug.Print bag.ReadProperty("Caption", "fallback")
@@ -227,6 +246,34 @@ public sealed class StandardLibraryHostContractExecutionTests
         CollectionAssert.Contains(
             VB6TestIr.RuntimeCalls(program).ToArray(),
             VB6.IR.IrRuntimeMethod.InteractionClipboardGetData);
+    }
+
+    [TestMethod]
+    public void Lower_UsesExplicitScreenRuntimeContracts()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim formValue As Form
+                Dim controlValue As Control
+                Dim screenObject As Object
+                Set screenObject = Screen
+                Set formValue = Screen.ActiveForm
+                Set controlValue = Screen.ActiveControl
+                Screen.MousePointer = 11
+                Debug.Print Screen.MousePointer
+                Debug.Print Screen.TwipsPerPixelX
+                Debug.Print Screen.TwipsPerPixelY
+            End Sub
+            """);
+
+        var calls = VB6TestIr.RuntimeCalls(program).ToArray();
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreen);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenActiveForm);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenActiveControl);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenSetMousePointer);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenMousePointer);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenTwipsPerPixelX);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenTwipsPerPixelY);
     }
 
     [TestMethod]

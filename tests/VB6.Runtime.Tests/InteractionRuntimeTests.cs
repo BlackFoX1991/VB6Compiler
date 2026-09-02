@@ -237,6 +237,53 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void ScreenServices_ProvideDeterministicHeadlessStateAndAnInjectedHost()
+    {
+        var previousHost = VBInteraction.Host;
+        try
+        {
+            VBInteraction.Host = null;
+            var previousPointer = VBInteraction.ScreenMousePointer();
+            try
+            {
+                Assert.IsNull(VBInteraction.ScreenActiveForm());
+                Assert.IsNull(VBInteraction.ScreenActiveControl());
+                Assert.AreEqual(15f, VBInteraction.ScreenTwipsPerPixelX());
+                Assert.AreEqual(15f, VBInteraction.ScreenTwipsPerPixelY());
+                Assert.AreSame(VBInteraction.Screen(), VBInteraction.Screen());
+
+                VBInteraction.ScreenSetMousePointer(11);
+                Assert.AreEqual(11, VBInteraction.ScreenMousePointer());
+                Assert.AreEqual(11, VBInteraction.Screen().MousePointer);
+            }
+            finally
+            {
+                VBInteraction.ScreenSetMousePointer(previousPointer);
+            }
+
+            var activeForm = new object();
+            var activeControl = new object();
+            var host = new InteractionServiceHost();
+            host.SetScreenState(new VBScreenState(activeForm, activeControl, 12f, 13.5f, 2));
+            VBInteraction.Host = host;
+
+            Assert.AreSame(activeForm, VBInteraction.ScreenActiveForm());
+            Assert.AreSame(activeControl, VBInteraction.ScreenActiveControl());
+            Assert.AreEqual(12f, VBInteraction.ScreenTwipsPerPixelX());
+            Assert.AreEqual(13.5f, VBInteraction.ScreenTwipsPerPixelY());
+            Assert.AreEqual(2, VBInteraction.ScreenMousePointer());
+
+            VBInteraction.ScreenSetMousePointer(11);
+            Assert.AreEqual(11, VBInteraction.ScreenMousePointer());
+            Assert.AreEqual(11, VBInteraction.Screen().MousePointer);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+        }
+    }
+
+    [TestMethod]
     public void Shell_UsesHeadlessContractOrStartsAWindowsProcess()
     {
         if (!OperatingSystem.IsWindows())
@@ -484,6 +531,9 @@ public sealed class InteractionRuntimeTests
     {
         private readonly List<HostSetting> _settings = [];
         private readonly Dictionary<int, object?> _clipboard = [];
+        private VBScreenState _screen = VBScreenState.Headless;
+
+        public void SetScreenState(VBScreenState screen) => _screen = screen;
 
         public void DoEvents()
         {
@@ -612,6 +662,18 @@ public sealed class InteractionRuntimeTests
         public bool TryClearClipboard()
         {
             _clipboard.Clear();
+            return true;
+        }
+
+        public bool TryGetScreenState(out VBScreenState? screen)
+        {
+            screen = _screen;
+            return true;
+        }
+
+        public bool TrySetScreenMousePointer(int mousePointer)
+        {
+            _screen = _screen with { MousePointer = mousePointer };
             return true;
         }
 
