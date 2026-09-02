@@ -18,6 +18,7 @@ public static class VBStandardTypes
     public static ClassTypeSymbol Form { get; } = CreateControl("Form", includeMdiProperties: true);
     public static ClassTypeSymbol UserControl { get; } = CreateControl("UserControl");
     public static ClassTypeSymbol Screen { get; } = CreateScreen();
+    public static ClassTypeSymbol Printer { get; } = CreatePrinter();
     public static ClassTypeSymbol Ambient { get; } = CreateAmbient();
     public static ClassTypeSymbol PropertyBag { get; } = CreatePropertyBag();
     public static ClassTypeSymbol Clipboard { get; } = CreateClipboard();
@@ -85,6 +86,13 @@ public static class VBStandardTypes
             DefaultValue = defaultValue
         };
 
+    private static ParameterSymbol OptionalSingleParameter(string name, float defaultValue = 0f) =>
+        new(name, TypeSymbol.Single, ParameterPassingMode.ByVal)
+        {
+            IsOptional = true,
+            DefaultValue = defaultValue
+        };
+
     private static ClassTypeSymbol CreateApp()
     {
         var app = new ClassTypeSymbol("App");
@@ -132,6 +140,87 @@ public static class VBStandardTypes
         }
 
         return screen;
+    }
+
+    private static ClassTypeSymbol CreatePrinter()
+    {
+        var printer = new ClassTypeSymbol("Printer");
+        printer.MarkAsRuntimeObjectContract();
+        var procedures = new[]
+        {
+            new ProcedureSymbol("EndDoc"),
+            new ProcedureSymbol("KillDoc"),
+            new ProcedureSymbol("NewPage"),
+            new ProcedureSymbol(
+                "Print",
+                ImmutableArray.Create(new ParameterSymbol("Value", TypeSymbol.Variant, ParameterPassingMode.ByVal))),
+            new ProcedureSymbol(
+                "PaintPicture",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Picture", TypeSymbol.Variant, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("X", TypeSymbol.Single, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("Y", TypeSymbol.Single, ParameterPassingMode.ByVal),
+                    OptionalSingleParameter("Width"),
+                    OptionalSingleParameter("Height"))),
+            new ProcedureSymbol(
+                "TextWidth",
+                ImmutableArray.Create(new ParameterSymbol("Text", TypeSymbol.String, ParameterPassingMode.ByVal)),
+                TypeSymbol.Single),
+            new ProcedureSymbol(
+                "TextHeight",
+                ImmutableArray.Create(new ParameterSymbol("Text", TypeSymbol.String, ParameterPassingMode.ByVal)),
+                TypeSymbol.Single),
+            new ProcedureSymbol(
+                "ScaleX",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Value", TypeSymbol.Single, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("FromScale", TypeSymbol.Long, ParameterPassingMode.ByVal),
+                    OptionalLongParameter("ToScale", 1L)),
+                TypeSymbol.Single),
+            new ProcedureSymbol(
+                "ScaleY",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Value", TypeSymbol.Single, ParameterPassingMode.ByVal),
+                    new ParameterSymbol("FromScale", TypeSymbol.Long, ParameterPassingMode.ByVal),
+                    OptionalLongParameter("ToScale", 1L)),
+                TypeSymbol.Single)
+        };
+        var properties = new List<PropertySymbol>
+        {
+            ReadOnlyProperty("hDC", TypeSymbol.Long),
+            ReadOnlyProperty("IsDefaultPrinter", TypeSymbol.Boolean),
+            ReadOnlyProperty("Page", TypeSymbol.Long),
+            ReadOnlyProperty("TwipsPerPixelX", TypeSymbol.Single),
+            ReadOnlyProperty("TwipsPerPixelY", TypeSymbol.Single)
+        };
+        foreach (var name in new[]
+                 {
+                     "ColorMode", "Copies", "DrawMode", "DrawStyle", "DrawWidth", "Duplex",
+                     "FillColor", "FillStyle", "ForeColor", "Height", "Orientation", "PaperBin",
+                     "PaperSize", "PrintQuality", "ScaleMode", "Width", "Zoom"
+                 })
+        {
+            properties.AddRange(ReadWriteProperties(name, TypeSymbol.Long));
+        }
+
+        foreach (var name in new[] { "CurrentX", "CurrentY", "ScaleHeight", "ScaleLeft", "ScaleTop", "ScaleWidth" })
+        {
+            properties.AddRange(ReadWriteProperties(name, TypeSymbol.Single));
+        }
+
+        foreach (var name in new[] { "DocumentName", "DriverName", "DeviceName", "OutputFile", "Port" })
+        {
+            properties.AddRange(ReadWriteProperties(name, TypeSymbol.String));
+        }
+
+        properties.AddRange(ReadWriteProperties("TrackDefault", TypeSymbol.Boolean));
+        properties.AddRange(ReadWriteProperties("Font", Font));
+        if (!printer.TryDefineMembers(procedures, properties, Array.Empty<EventSymbol>(), out var duplicate))
+        {
+            throw new InvalidOperationException($"Built-in Printer member '{duplicate}' is duplicated.");
+        }
+
+        return printer;
     }
 
     private static ClassTypeSymbol CreatePicture()

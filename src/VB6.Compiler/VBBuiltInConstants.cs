@@ -219,6 +219,7 @@ internal static class VBBuiltInConstants
             CreateObject("App", VBStandardTypes.App),
             CreateObject("UserControl", VBStandardTypes.UserControl),
             CreateObject("Screen", VBStandardTypes.Screen),
+            CreateObject("Printer", VBStandardTypes.Printer),
             CreateObject("Ambient", VBStandardTypes.Ambient),
             CreateObject("Clipboard", VBStandardTypes.Clipboard),
             CreateVariant("Err"));
