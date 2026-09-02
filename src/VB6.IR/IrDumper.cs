@@ -102,6 +102,7 @@ public static class IrDumper
         IrSyntheticCallExpression call => $"call {call.Procedure.Name}(...) ",
         IrNewVBArrayExpression => "new VBArray(...) ",
         IrNewClassExpression @new => $"new {@new.ClassType.Name}() ",
+        IrEnsureLocalClassExpression ensure => $"ensure-new-local %{ensure.Local.Name}",
         IrTypeOfExpression typeOf => $"typeof({typeOf.TargetType.Name}, ...) ",
         IrEnsureArrayExpression ensure => $"ensure-array {FormatPlace(ensure.Storage)}",
         IrCopyArrayExpression copy => $"copy-array {FormatExpression(copy.Source)}",

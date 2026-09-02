@@ -153,6 +153,13 @@ public enum ParameterPassingMode
 public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Name)
 {
     public bool IsConstant { get; init; }
+
+    /// <summary>
+    /// Marks a local <c>As New</c> declarator.  Unlike an ordinary object initializer, VB6
+    /// creates the object only when the variable is first read (and creates it again after the
+    /// storage has been assigned <c>Nothing</c>).
+    /// </summary>
+    public bool IsAsNew { get; init; }
 }
 
 public sealed record LocalVariableSymbol(string Name, TypeSymbol Type)

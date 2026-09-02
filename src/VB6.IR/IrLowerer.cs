@@ -2166,7 +2166,7 @@ public static class IrLowerer
         private void InitializeVariableDeclaration(BoundVariableDeclarationStatement declaration)
         {
             var target = LowerVariablePlace(declaration.Variable);
-            if (declaration.Initializer is not null)
+            if (declaration.Initializer is not null && !declaration.Variable.IsAsNew)
             {
                 Emit(new IrStoreInstruction(target, LowerValueCopy(declaration.Initializer)));
                 return;
@@ -3356,6 +3356,13 @@ public static class IrLowerer
                 return LowerExpression(value);
             }
 
+            if (symbol is LocalVariableSymbol { IsAsNew: true } local &&
+                local.Type is ClassTypeSymbol classType &&
+                _locals.TryGetValue(local, out var irLocal))
+            {
+                return new IrEnsureLocalClassExpression(irLocal, classType);
+            }
+
             return new IrLoadExpression(LowerVariablePlace(symbol));
         }
 
@@ -3629,6 +3636,20 @@ public static class IrLowerer
                             variantElement));
                         continue;
                     }
+
+                    // Passing a local As New variable by reference is still a reference to the
+                    // variable in VB6, so its implicit instance must exist before the callee can
+                    // observe or replace the storage.  LowerPlace deliberately yields only an
+                    // address and would otherwise bypass the lazy read above.
+                    if (!argument.RequiresByRefTemporary &&
+                        StripConversions(argument.Expression) is BoundVariableExpression
+                        {
+                            Variable: LocalVariableSymbol { IsAsNew: true } asNew
+                        })
+                    {
+                        Emit(new IrEvaluateInstruction(LowerVariableRead(asNew)));
+                    }
+
                     IrPlace place;
                     if (argument.RequiresByRefTemporary)
                     {
@@ -4115,6 +4136,22 @@ public static class IrLowerer
                 (conversion.TargetType == TypeSymbol.Long || conversion.TargetType == TypeSymbol.LongPtr))
             {
                 return new IrAddressOfExpression(addressOf.Procedure, conversion.TargetType);
+            }
+
+            // Nothing travels as an identity-bearing sentinel while it is a Variant, so the
+            // Variant predicates and file format can distinguish it from Empty.  A concrete
+            // object slot, however, must receive the CLR null reference.  In particular, a
+            // local As New slot relies on that null to reactivate itself at the next reference.
+            // The generic Object type is a class symbol too, but its storage stays Variant-shaped
+            // and keeps the sentinel so a SAFEARRAY element remains distinguishable from Empty.
+            if (conversion.TargetType is ClassTypeSymbol classTarget &&
+                !ReferenceEquals(classTarget, VBStandardTypes.Object) &&
+                conversion.Expression is BoundInvocationExpression
+                {
+                    Procedure.IntrinsicKind: VBIntrinsicKind.Nothing
+                })
+            {
+                return new IrNullExpression(conversion.TargetType);
             }
 
             var operand = LowerExpression(conversion.Expression);

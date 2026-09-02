@@ -956,6 +956,9 @@ public sealed class ManagedEmitter
                 case IrNewClassExpression @new:
                     EmitNewClass(encoder, @new);
                     break;
+                case IrEnsureLocalClassExpression ensureLocalClass:
+                    EmitEnsureLocalClass(encoder, ensureLocalClass);
+                    break;
                 case IrTypeOfExpression typeOf:
                     EmitTypeOf(encoder, procedure, typeOf);
                     break;
@@ -2158,6 +2161,24 @@ public sealed class ManagedEmitter
 
             encoder.OpCode(ILOpCode.Newobj);
             encoder.Token(constructor);
+        }
+
+        private void EmitEnsureLocalClass(
+            InstructionEncoder encoder,
+            IrEnsureLocalClassExpression expression)
+        {
+            // Keep one copy of an existing object on the evaluation stack.  If the local is
+            // Nothing, discard that null, create the instance, then retain one copy in the local
+            // and leave the other as the result of this expression.
+            var initialized = encoder.DefineLabel();
+            encoder.LoadLocal(expression.Local.Id);
+            encoder.OpCode(ILOpCode.Dup);
+            encoder.Branch(ILOpCode.Brtrue, initialized);
+            encoder.OpCode(ILOpCode.Pop);
+            EmitNewClass(encoder, new IrNewClassExpression(expression.ClassType));
+            encoder.OpCode(ILOpCode.Dup);
+            encoder.StoreLocal(expression.Local.Id);
+            encoder.MarkLabel(initialized);
         }
 
         private void EmitRaiseEvent(

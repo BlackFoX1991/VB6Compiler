@@ -1164,7 +1164,10 @@ public sealed class Binder
         foreach (var declarator in declarators)
         {
             var type = ResolveVariableDeclaratorType(declarator);
-            var variable = new LocalVariableSymbol(declarator.Identifier.Text, type);
+            var variable = new LocalVariableSymbol(declarator.Identifier.Text, type)
+            {
+                IsAsNew = declarator.NewKeyword is not null && type is ClassTypeSymbol
+            };
             if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
             {
                 Report(
