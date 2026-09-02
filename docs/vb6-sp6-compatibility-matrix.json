@@ -318,7 +318,7 @@
     },
     {
       "id": "math.complete-surface",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
       "input": "Abs/Sgn/Fix/Int/Round/Sqr/Exp/Log/Sin/Cos/Tan/Atn/Rnd/Randomize with scalar and Variant values",
       "expected": {
