@@ -1125,8 +1125,7 @@ public sealed class ManagedEmitter
                     EmitLoadIndirect(encoder, element.ElementType);
                     break;
                 case IrVariantArrayElementPlace element:
-                    EmitVariantArrayElementAddress(encoder, procedure, element);
-                    EmitLoadIndirect(encoder, element.Type);
+                    EmitVariantArrayElementGet(encoder, procedure, element);
                     break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
@@ -1179,9 +1178,7 @@ public sealed class ManagedEmitter
                     EmitStoreIndirect(encoder, element.ElementType);
                     break;
                 case IrVariantArrayElementPlace element:
-                    EmitVariantArrayElementAddress(encoder, procedure, element);
-                    EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.Type);
-                    EmitStoreIndirect(encoder, element.Type);
+                    EmitVariantArrayElementSet(encoder, procedure, element.Array, element.Indices, value);
                     break;
                 case IrIndirectPlace indirect:
                     EmitExpression(encoder, procedure, indirect.Address);
@@ -1676,6 +1673,25 @@ public sealed class ManagedEmitter
 
             foreach (var argument in call.Arguments)
             {
+                if (argument.Kind == IrCallArgumentKind.Address && argument.WriteBackPlace is not null)
+                {
+                    if (argument.Expression is not IrAddressExpression
+                        {
+                            Place: IrLocalPlace valueTemporary
+                        })
+                    {
+                        throw new InvalidOperationException(
+                            "A Variant element ByRef write-back requires a compiler local.");
+                    }
+
+                    EmitStore(
+                        encoder,
+                        procedure,
+                        argument.WriteBackPlace,
+                        new IrLoadExpression(valueTemporary));
+                    continue;
+                }
+
                 if (argument.Kind == IrCallArgumentKind.StringPointer)
                 {
                     if (argument.BufferTemporary is null)
@@ -2303,15 +2319,9 @@ public sealed class ManagedEmitter
             IrProcedure procedure,
             IrVariantArrayCallExpression call)
         {
-            EmitExpression(encoder, procedure, call.Array);
             if (call.Operation == IrVariantArrayOperation.GetElement)
             {
-                EmitObjectArray(encoder, procedure, call.Arguments);
-                encoder.Call(GetRuntimeMethodReference(
-                    typeof(VBArrayOperations).GetMethod(
-                        nameof(VBArrayOperations.GetElement),
-                        new[] { typeof(object), typeof(object[]) })
-                    ?? throw new MissingMethodException("VBArrayOperations.GetElement(object,object[]) is required.")));
+                EmitVariantArrayElementGet(encoder, procedure, call.Array, call.Arguments);
                 return;
             }
 
@@ -2320,6 +2330,7 @@ public sealed class ManagedEmitter
                 throw new InvalidOperationException("Variant array bounds require exactly one dimension argument.");
             }
 
+            EmitExpression(encoder, procedure, call.Array);
             EmitExpression(encoder, procedure, call.Arguments[0]);
             var methodName = call.Operation == IrVariantArrayOperation.UBound
                 ? nameof(VBArrayOperations.UBound)
@@ -2336,9 +2347,40 @@ public sealed class ManagedEmitter
             IrProcedure procedure,
             IrVariantArraySetInstruction set)
         {
-            EmitExpression(encoder, procedure, set.Array);
-            EmitObjectArray(encoder, procedure, set.Arguments);
-            EmitExpressionWithAssignmentConversion(encoder, procedure, set.Value, TypeSymbol.Variant);
+            EmitVariantArrayElementSet(encoder, procedure, set.Array, set.Arguments, set.Value);
+        }
+
+        private void EmitVariantArrayElementGet(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrVariantArrayElementPlace element) =>
+            EmitVariantArrayElementGet(encoder, procedure, element.Array, element.Indices);
+
+        private void EmitVariantArrayElementGet(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrExpression array,
+            ImmutableArray<IrExpression> indices)
+        {
+            EmitExpression(encoder, procedure, array);
+            EmitObjectArray(encoder, procedure, indices);
+            encoder.Call(GetRuntimeMethodReference(
+                typeof(VBArrayOperations).GetMethod(
+                    nameof(VBArrayOperations.GetElement),
+                    new[] { typeof(object), typeof(object[]) })
+                ?? throw new MissingMethodException("VBArrayOperations.GetElement(object,object[]) is required.")));
+        }
+
+        private void EmitVariantArrayElementSet(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrExpression array,
+            ImmutableArray<IrExpression> indices,
+            IrExpression value)
+        {
+            EmitExpression(encoder, procedure, array);
+            EmitObjectArray(encoder, procedure, indices);
+            EmitExpressionWithAssignmentConversion(encoder, procedure, value, TypeSymbol.Variant);
             encoder.Call(GetRuntimeMethodReference(
                 typeof(VBArrayOperations).GetMethod(
                     nameof(VBArrayOperations.SetElement),
