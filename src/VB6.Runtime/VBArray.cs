@@ -43,6 +43,13 @@ public interface IVBArray
     int UBound(int dimension = 1);
     object? GetObjectValue(int[] indices);
     void SetObjectValue(int[] indices, object? value);
+
+    /// <summary>
+    /// Creates independent storage with the same bounds and element descriptor. The generic
+    /// <see cref="VBArray{T}.Clone"/> is unreachable from code that only holds a Variant, which is
+    /// exactly where VB6's copy-on-assignment rule has to be applied.
+    /// </summary>
+    IVBArray CloneStorage();
 }
 
 /// <summary>
@@ -124,6 +131,8 @@ public sealed class VBArray<T> : IVBArray
     {
         this[indices] = ConvertElement(value);
     }
+
+    IVBArray IVBArray.CloneStorage() => Clone();
 
     /// <summary>
     /// Reinitializes every element while preserving rank and bounds. This is the runtime operation
@@ -304,6 +313,19 @@ public static class VBArrayOperations
 
     public static object RequireAllocated(object? value) => value ??
         throw new InvalidOperationException("The array must be allocated before file data can be read into it.");
+
+    /// <summary>
+    /// Applies VB6's copy-on-assignment rule to a Variant value. An array crossing a value
+    /// boundary - a Let assignment or a ByVal argument - becomes independent storage, so writing
+    /// through the copy cannot reach the source. Objects, including <c>Nothing</c>, keep their
+    /// reference identity, and every scalar subtype passes through untouched.
+    /// </summary>
+    public static object? CopyAssignedValue(object? value) => value switch
+    {
+        IVBArray array => array.CloneStorage(),
+        Array clrArray => clrArray.Clone(),
+        _ => value
+    };
 
     /// <summary>
     /// Converts a CLR SAFEARRAY result into the compiler's bound-preserving array representation.
