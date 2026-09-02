@@ -989,6 +989,88 @@ public sealed class VariantObjectDispatchExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ReportsDocumentedErrorNumbersForNonObjectVariants()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim v As Variant
+                Dim a As Variant
+                Dim b As Variant
+                Dim c As Collection
+                Dim i As Long
+                Dim f As Boolean
+
+                On Error Resume Next
+
+                Set v = Nothing
+                i = v.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                Set c = Nothing
+                i = c.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = "text"
+                i = v.Count
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = Empty
+                f = (v Is Nothing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = Null
+                f = (v Is Nothing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                a = Array(1, 2, 3)
+                f = (a Is Nothing)
+                Debug.Print Err.Number
+
+                Err.Clear
+                Set v = New Collection
+                i = v(1)
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = Array(1, 2)
+                Set b = v
+                Debug.Print Err.Number
+
+                ' Gegenproben: der Objektpfad bleibt unberuehrt.
+                Err.Clear
+                Set v = New Collection
+                Set b = v
+                v.Add "y"
+                Debug.Print Err.Number & " " & (b Is v) & " " & v.Count & " " & v(1)
+
+                Err.Clear
+                Set v = Nothing
+                f = (v Is Nothing)
+                Debug.Print Err.Number & " " & f
+            End Sub
+            """);
+
+        // 91 fuer ein Mitglied auf Nothing -- der spaet gebundene Pfad meldete 438, obwohl der
+        // typisierte daneben schon 91 lieferte. 424 ueberall dort, wo VB6 ein Objekt verlangt und
+        // ein Variant keines traegt: Mitgliedszugriff auf einen Skalar, beide Is-Operanden und die
+        // rechte Seite von Set. 9 fuer eine Position ausserhalb der Collection -- die Nummer kam
+        // aus dem Member, ging aber in der Reflexionsverpackung verloren und wurde zum pauschalen 5.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "91", "91", "424", "424", "424", "424", "9", "424",
+                "0 True 1 y",
+                "0 True"
+            },
+            output);
+    }
+
+    [TestMethod]
     public void Lower_CopiesVariantValueBoundariesButNotIntrinsicReads()
     {
         var assigning = VB6TestIr.Lower("""

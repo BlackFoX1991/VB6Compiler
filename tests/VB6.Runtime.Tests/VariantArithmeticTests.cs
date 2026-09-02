@@ -253,10 +253,11 @@ public sealed class VariantArithmeticTests
     [TestMethod]
     public void ObjectVariants_PropagateDefaultGetterFailures()
     {
-        var exception = Assert.ThrowsException<TargetInvocationException>(
+        // Die Ausnahme des Getters kommt unverpackt heraus. Vorher stand hier die
+        // TargetInvocationException der Reflexion -- die traegt keine VB6-Nummer und landete in
+        // VBErrors.Set im Sammelwert 5, wodurch etwa die 9 von Collection.Item verschwand.
+        Assert.ThrowsException<InvalidOperationException>(
             () => VBVariants.VarType(new ThrowingDefaultObject()));
-
-        Assert.IsInstanceOfType<InvalidOperationException>(exception.InnerException);
     }
 
     [TestMethod]
