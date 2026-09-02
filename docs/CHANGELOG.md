@@ -4511,3 +4511,25 @@ Kanonischer Nachweis: **1415/1415** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
 83/118 documented-verified**.
 
+## Karte l1-02-g: Variant-Promotion und Objektfehlergrenze geschlossen (01.09.2026)
+
+Die vorhandene Promotionstabelle für Numeric-, Boolean-, String-, Date- und Empty-Variants
+war bereits breit getestet. Offen war allein der Fehlerpfad für Objekte, deren Default-Member
+ohne Argument keinen skalaren Wert liefern kann: `Collection.Item` ist parameterpflichtig.
+`+` meldete dafür schon Fehler 13, `&` ließ den CLR-Objekttext durch und `=` fiel in einen
+falschen Vergleichsfehler.
+
+Nach der Default-Member-Auflösung prüfen nun alle dynamischen arithmetischen, logischen,
+Vergleichs- und Verkettungsoperatoren diesen Restfall einheitlich als VB6-Fehler 13. Ein Objekt
+mit skalarem Default-Member bleibt weiterhin gültig; `Nothing` behält seinen eigenen
+Objektzustandspfad. Die Runtime-Regression deckt 14 Operatorfamilien mit `Collection` ab, und
+ein emittiertes Programm misst für `+`, `&` und `=` jeweils `Err.Number = 13`.
+
+Damit ist `l1-02-g-variant-promotion-table` **`implemented`** /
+`documented-verified`. Der umfangreichere Vertrag für Objektidentität, Variant-Arrays und
+Automation-Dispatch verbleibt auf `l1-02-h-variant-object-array-dispatch`.
+
+Kanonischer Nachweis: **1430/1430** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **83 implemented, 10 partial, 25 planned von 118 |
+93/118 documented-verified**.
+
