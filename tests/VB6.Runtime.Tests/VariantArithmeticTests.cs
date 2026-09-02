@@ -40,6 +40,39 @@ public sealed class VariantArithmeticTests
     }
 
     [TestMethod]
+    public void LogicalOperators_ResolveTheAbsorbingCasesOfTheNullTruthTable()
+    {
+        var nullValue = VBVariants.NullValue();
+
+        // And ist False, sobald eine Seite False ist -- die unbekannte Seite entscheidet nichts
+        // mehr. Der bestimmende Operand kommt unveraendert zurueck, damit False Boolean bleibt
+        // und 0 seinen numerischen Untertyp behaelt.
+        Assert.AreEqual(false, VBOperators.AndVariant(nullValue, false));
+        Assert.AreEqual(false, VBOperators.AndVariant(false, nullValue));
+        Assert.AreEqual((short)0, VBOperators.AndVariant(nullValue, (short)0));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.AndVariant(nullValue, true)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.AndVariant(nullValue, 1)));
+
+        // Or ist True, sobald eine Seite True ist. Numerisch entscheidet nur der Wert mit allen
+        // gesetzten Bits; eine beliebige Zahl laesst das Ergebnis Null.
+        Assert.AreEqual(true, VBOperators.OrVariant(nullValue, true));
+        Assert.AreEqual(true, VBOperators.OrVariant(true, nullValue));
+        Assert.AreEqual(-1, VBOperators.OrVariant(nullValue, -1));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.OrVariant(nullValue, false)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.OrVariant(nullValue, 1)));
+
+        // Imp ist True, sobald der Vordersatz False oder der Nachsatz True ist.
+        Assert.AreEqual(true, VBOperators.ImpVariant(false, nullValue));
+        Assert.AreEqual(true, VBOperators.ImpVariant(nullValue, true));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.ImpVariant(nullValue, false)));
+
+        // Xor, Eqv und Not haben keinen absorbierenden Fall.
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.XorVariant(nullValue, true)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.EqvVariant(nullValue, true)));
+        Assert.IsTrue(VBVariants.IsNull(VBOperators.NotVariant(nullValue)));
+    }
+
+    [TestMethod]
     public void Division_PromotesByteIntegerAndSingleVariantsToSingle()
     {
         var integerResult = VBOperators.DivideVariant((short)5, (short)2);
