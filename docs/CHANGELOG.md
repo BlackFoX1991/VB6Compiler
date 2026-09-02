@@ -4490,3 +4490,24 @@ Kanonischer Nachweis: **1413/1413** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
 83/118 documented-verified**.
 
+## Karte l1-02-m: Clipboard-Grundvertrag (01.09.2026)
+
+Der globale `Clipboard` besitzt jetzt seine deklarierte Kernoberfläche `Clear`, `GetData`,
+`GetFormat`, `GetText`, `SetData` und `SetText` einschließlich der VB6-Formatkonstanten. Sie
+bindet nicht mehr als untypisiertes Late-Binding-Objekt, sondern wird über explizite IR-Operationen
+in die Managed-Runtime gesenkt. `IVB6Host` enthält dafür je eigene Read-/Write-/Format-/Clear-
+Hooks; `WinFormsHost` reicht Text- und unterstützte Datenformate an die Windows-Zwischenablage
+weiter. Ohne Desktop sorgt der Runtime-Speicher für eine reproduzierbare Mehrformat-Sicht und
+`Clear` entfernt alle Formate.
+
+Gemessen: Die Runtime prüft Text-, RTF- und Datenformate, Leerung und Host-Delegation. Ein
+emittiertes Managed-Programm prüft Syntax, Standardkonstanten, IR, Text-/Daten-Rundlauf,
+Formatabfrage und Leerung. **25 Runtime- und 17 Managed-End-to-End-Tests** sind grün.
+
+Die Karte bleibt **`partial`** / `documented-verified`: Registry und Clipboard sind geschlossen;
+die ausstehenden expliziten Hostoberflächen sind `Screen` und `Printer`.
+
+Kanonischer Nachweis: **1415/1415** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
+83/118 documented-verified**.
+
