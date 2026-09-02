@@ -1001,18 +1001,25 @@ public static class IrLowerer
             var enclosing = _location;
             _location = ToIrLocation(statement.SourceLocation) ?? enclosing;
             var protect = (_resumeNext || _errorHandler is not null) && CanProtectForErrorHandling(statement);
+            var startBlock = _current;
+            var startIndex = _current.Instructions.Count;
             try
             {
-                if (protect)
-                {
-                    Emit(new IrErrorBoundaryStartInstruction(
-                        _errorHandler is null ? null : _labels[_errorHandler]));
-                }
-
                 LowerStatementCore(statement);
 
-                if (protect && !_current.HasTerminator)
+                // A protected region may not cross a basic block - the emitted try region would
+                // span branches and the method fails CLR verification. Whether a statement stays
+                // inside one block is only known after lowering it: a Put or Get of an array
+                // expands into an element loop. So the region is inserted afterwards, and only
+                // when the statement really stayed put.
+                if (protect &&
+                    ReferenceEquals(_current, startBlock) &&
+                    !_current.HasTerminator)
                 {
+                    startBlock.Instructions.Insert(
+                        startIndex,
+                        new IrErrorBoundaryStartInstruction(
+                            _errorHandler is null ? null : _labels[_errorHandler]));
                     Emit(new IrErrorBoundaryEndInstruction());
                 }
             }
@@ -4255,6 +4262,15 @@ public static class IrLowerer
             if (conversion.TargetType == conversion.Expression.Type)
             {
                 return operand;
+            }
+
+            // The mirror image of the rule above. A declared object slot holds the CLR null
+            // reference for Nothing, and a Variant reads that as Empty - VarType, TypeName and
+            // IsObject would all answer for the wrong state. Boxing it re-attaches the sentinel.
+            if (conversion.TargetType == TypeSymbol.Variant &&
+                conversion.Expression.Type is ClassTypeSymbol)
+            {
+                return Runtime(IrRuntimeMethod.ObjectToVariant, TypeSymbol.Variant, operand);
             }
 
             var method = conversion.TargetType == TypeSymbol.Variant && conversion.Expression.Type == TypeSymbol.Date

@@ -369,6 +369,43 @@ public sealed class NestedErrorResumeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_TransfersArrayRecordsUnderAnActiveErrorHandler()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim f As Integer
+                Dim typisiert(0 To 1) As Long
+                Dim varianten(0 To 1) As Variant
+                Dim gelesen(0 To 1) As Long
+
+                On Error Resume Next
+
+                f = FreeFile
+                Open "records.dat" For Binary As #f
+                typisiert(0) = 7
+                typisiert(1) = 9
+                Put #f, 1, typisiert
+                Debug.Print Err.Number
+                Get #f, 1, gelesen
+                Debug.Print Err.Number & " " & gelesen(0) & " " & gelesen(1)
+
+                varianten(0) = 1
+                varianten(1) = "zwei"
+                Put #f, 20, varianten
+                Debug.Print Err.Number
+                Close #f
+                Kill "records.dat"
+            End Sub
+            """);
+
+        // Ein Put oder Get eines Arrays expandiert in eine Elementschleife und verlaesst damit
+        // seinen Basisblock. Weil die Schutzregion vorher schon geoeffnet war, spannte sich die
+        // Try-Region ueber die Spruenge und die CLR lehnte die ganze Methode ab -- das Programm
+        // startete nicht. Ohne aktiven Handler lief derselbe Code.
+        CollectionAssert.AreEqual(new[] { "0", "0 7 9", "0" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_RoutesAConditionErrorToAnOnErrorGoToHandler()
     {
         var output = VB6TestProgram.RunLines("""

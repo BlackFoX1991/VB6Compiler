@@ -1720,7 +1720,11 @@ public static class VBFiles
         ValidateFileNumber(fileNumber);
         if (!OpenFiles.TryGetValue(fileNumber, out var stream))
         {
-            throw new InvalidOperationException(
+            // 52 is VB6's documented number for addressing a channel that is not open. A plain
+            // InvalidOperationException carries none and fell into the catch-all 5, where it was
+            // indistinguishable from every other unmapped failure.
+            throw new VB6RuntimeErrorException(
+                52,
                 $"VB6 file number {fileNumber.ToString(CultureInfo.InvariantCulture)} is not open.");
         }
 

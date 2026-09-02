@@ -554,7 +554,14 @@ public sealed class FileRuntimeTests
     public void Operations_OnAClosedFileNumberFail()
     {
         VBFiles.CloseAll();
-        Assert.ThrowsException<InvalidOperationException>(() => VBFiles.GetByte(1, null));
+
+        // Ein nicht geoeffneter Kanal ist VB6-Fehler 52. Vorher stand hier die generische
+        // InvalidOperationException -- sie traegt keine Nummer und fiel in VBErrors.Set in den
+        // Sammelwert 5, wo sie von jedem anderen nicht zugeordneten Fehler ununterscheidbar war.
+        var closed = Assert.ThrowsException<VB6RuntimeErrorException>(() => VBFiles.GetByte(1, null));
+        Assert.AreEqual(52, closed.Number);
+
+        // Eine Kanalnummer ausserhalb 1..511 bleibt ein Argumentfehler des Aufrufers.
         Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBFiles.GetByte(0, null));
     }
 
