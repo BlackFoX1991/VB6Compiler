@@ -78,6 +78,13 @@ public static class VBStandardTypes
             IsOptional = true
         };
 
+    private static ParameterSymbol OptionalLongParameter(string name, long defaultValue = 0L) =>
+        new(name, TypeSymbol.Long, ParameterPassingMode.ByVal)
+        {
+            IsOptional = true,
+            DefaultValue = defaultValue
+        };
+
     private static ClassTypeSymbol CreateApp()
     {
         var app = new ClassTypeSymbol("App");
@@ -211,10 +218,33 @@ public static class VBStandardTypes
     {
         var clipboard = new ClassTypeSymbol("Clipboard");
         clipboard.MarkAsRuntimeObjectContract();
-        clipboard.MarkAsLateBoundObject();
         var procedures = new[]
         {
-            new ProcedureSymbol("GetText", ImmutableArray<ParameterSymbol>.Empty, TypeSymbol.String)
+            new ProcedureSymbol("Clear", ImmutableArray<ParameterSymbol>.Empty, ReturnType: null),
+            new ProcedureSymbol(
+                "GetData",
+                ImmutableArray.Create(OptionalLongParameter("Format")),
+                TypeSymbol.Variant),
+            new ProcedureSymbol(
+                "GetFormat",
+                ImmutableArray.Create(new ParameterSymbol("Format", TypeSymbol.Long, ParameterPassingMode.ByVal)),
+                TypeSymbol.Boolean),
+            new ProcedureSymbol(
+                "GetText",
+                ImmutableArray.Create(OptionalLongParameter("Format", 1L)),
+                TypeSymbol.String),
+            new ProcedureSymbol(
+                "SetData",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Data", TypeSymbol.Variant, ParameterPassingMode.ByVal),
+                    OptionalLongParameter("Format")),
+                ReturnType: null),
+            new ProcedureSymbol(
+                "SetText",
+                ImmutableArray.Create(
+                    new ParameterSymbol("Text", TypeSymbol.String, ParameterPassingMode.ByVal),
+                    OptionalLongParameter("Format", 1L)),
+                ReturnType: null)
         };
         if (!clipboard.TryDefineMembers(
                 procedures,

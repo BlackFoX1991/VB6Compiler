@@ -3986,7 +3986,12 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionApplicationMajor) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationMajor));
             if (m == IrRuntimeMethod.InteractionApplicationMinor) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationMinor));
             if (m == IrRuntimeMethod.InteractionApplicationRevision) return Static(typeof(VBInteraction), nameof(VBInteraction.ApplicationRevision));
-            if (m == IrRuntimeMethod.InteractionClipboardGetText) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetText));
+            if (m == IrRuntimeMethod.InteractionClipboardGetText) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetText), typeof(int));
+            if (m == IrRuntimeMethod.InteractionClipboardClear) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardClear));
+            if (m == IrRuntimeMethod.InteractionClipboardGetData) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetData), typeof(int));
+            if (m == IrRuntimeMethod.InteractionClipboardGetFormat) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetFormat), typeof(int));
+            if (m == IrRuntimeMethod.InteractionClipboardSetData) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardSetData), typeof(object), typeof(int));
+            if (m == IrRuntimeMethod.InteractionClipboardSetText) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardSetText), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.InteractionGetSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.GetSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSaveSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.SaveSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionDeleteSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.DeleteSetting), typeof(string), typeof(object), typeof(object));

@@ -2808,7 +2808,10 @@ public static class IrLowerer
         {
             if (IsClipboardGetText(expression.Receiver, expression.Property.Name))
             {
-                return Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String);
+                return Runtime(
+                    IrRuntimeMethod.InteractionClipboardGetText,
+                    TypeSymbol.String,
+                    new IrConstantExpression(1L, TypeSymbol.Long));
             }
 
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
@@ -2879,7 +2882,10 @@ public static class IrLowerer
             if (expression.Arguments.IsDefaultOrEmpty &&
                 IsClipboardGetText(expression.Receiver, expression.Property.Name))
             {
-                return Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String);
+                return Runtime(
+                    IrRuntimeMethod.InteractionClipboardGetText,
+                    TypeSymbol.String,
+                    new IrConstantExpression(1L, TypeSymbol.Long));
             }
 
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
@@ -2946,9 +2952,12 @@ public static class IrLowerer
             ProcedureSymbol requested,
             ImmutableArray<BoundArgument> arguments)
         {
-            if (arguments.IsDefaultOrEmpty && IsClipboardGetText(receiver, requested.Name))
+            if (IsClipboardObject(receiver))
             {
-                return Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String);
+                return LowerClipboardProcedure(requested, arguments);
+            }
+
+            {
             }
 
             if (requested.IsLateBound || IsRuntimeObject(receiver))
@@ -3317,10 +3326,32 @@ public static class IrLowerer
             expression.Type is ClassTypeSymbol classType &&
             ReferenceEquals(classType, VBStandardTypes.App);
 
+
         private static bool IsClipboardGetText(BoundExpression receiver, string propertyName) =>
-            receiver.Type is ClassTypeSymbol classType &&
-            ReferenceEquals(classType, VBStandardTypes.Clipboard) &&
+            IsClipboardObject(receiver) &&
             string.Equals(propertyName, "GetText", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsClipboardObject(BoundExpression receiver) =>
+            receiver.Type is ClassTypeSymbol classType &&
+            ReferenceEquals(classType, VBStandardTypes.Clipboard);
+
+        private IrExpression LowerClipboardProcedure(
+            ProcedureSymbol procedure,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            var lowered = arguments.Select(argument => LowerValueCopy(argument.Expression)).ToArray();
+            return procedure.Name.ToUpperInvariant() switch
+            {
+                "CLEAR" => Runtime(IrRuntimeMethod.InteractionClipboardClear, TypeSymbol.Error),
+                "GETDATA" => Runtime(IrRuntimeMethod.InteractionClipboardGetData, TypeSymbol.Variant, lowered),
+                "GETFORMAT" => Runtime(IrRuntimeMethod.InteractionClipboardGetFormat, TypeSymbol.Boolean, lowered),
+                "GETTEXT" => Runtime(IrRuntimeMethod.InteractionClipboardGetText, TypeSymbol.String, lowered),
+                "SETDATA" => Runtime(IrRuntimeMethod.InteractionClipboardSetData, TypeSymbol.Error, lowered),
+                "SETTEXT" => Runtime(IrRuntimeMethod.InteractionClipboardSetText, TypeSymbol.Error, lowered),
+                _ => throw new NotSupportedException(
+                    $"Clipboard procedure '{procedure.Name}' has no managed runtime implementation.")
+            };
+        }
 
         private static bool IsRuntimeObject(BoundExpression expression) =>
             expression.Type is ClassTypeSymbol classType &&

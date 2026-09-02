@@ -51,6 +51,41 @@ public interface IVB6Host
         return false;
     }
 
+    /// <summary>Tries to read text in a concrete VB6 clipboard format.</summary>
+    bool TryGetClipboardText(int format, out string? text)
+    {
+        if (format == 1)
+        {
+            return TryGetClipboardText(out text);
+        }
+
+        text = null;
+        return false;
+    }
+
+    /// <summary>Tries to write text in a concrete VB6 clipboard format.</summary>
+    bool TrySetClipboardText(string text, int format) => false;
+
+    /// <summary>Tries to read opaque clipboard data in a concrete VB6 clipboard format.</summary>
+    bool TryGetClipboardData(int format, out object? data)
+    {
+        data = null;
+        return false;
+    }
+
+    /// <summary>Tries to write opaque clipboard data in a concrete VB6 clipboard format.</summary>
+    bool TrySetClipboardData(object? data, int format) => false;
+
+    /// <summary>Tries to query whether a clipboard format is currently available.</summary>
+    bool TryGetClipboardFormat(int format, out bool available)
+    {
+        available = false;
+        return false;
+    }
+
+    /// <summary>Tries to clear every format from the host clipboard.</summary>
+    bool TryClearClipboard() => false;
+
     /// <summary>Lets a host display a message box instead of using the deterministic headless result.</summary>
     bool TryShowMessageBox(string prompt, int buttons, string title, out short result)
     {
