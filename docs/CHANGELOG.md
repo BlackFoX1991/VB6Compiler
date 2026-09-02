@@ -4466,3 +4466,27 @@ Kanonischer Nachweis: **1411/1411** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
 83/118 documented-verified**.
 
+## Karte l1-02-m: vollständiger Registry-Vertrag (01.09.2026)
+
+Die Settings-Familie deckt jetzt neben `GetSetting`/`SaveSetting` auch `DeleteSetting` und
+`GetAllSettings` ab. Die neuen Intrinsics durchlaufen Symboltabelle, Binder, IR und Managed-
+Emitter bis zu `VBInteraction`. Der explizite `IVB6Host`-Vertrag erhält passende Delete- und
+Enumerations-Hooks; ohne Host bleibt ein prozesslokaler, case-insensitiver Speicher aktiv.
+`DeleteSetting` löscht gezielt einen Schlüssel, einen Bereich oder einen Anwendungseintrag und
+meldet einen nicht vorhandenen Löschbereich als deterministischen Laufzeitfehler. `GetAllSettings`
+liefert die dokumentierte zweidimensionale Key/Value-Variant-Matrix und bei nicht vorhandener
+Anwendung oder Bereich einen uninitialisierten Variantwert.
+
+Gemessen: Die `InteractionRuntimeTests` prüfen Rang, Bounds, Ordnung, Schlüssel-/Bereichs- und
+Anwendungs-Löschung sowie die Host-Delegation. Ein emittiertes Managed-Programm prüft dieselben
+API-Aufrufe durch den vollständigen Compilerpfad. **24 Runtime- und 16 Managed-End-to-End-Tests**
+sind grün.
+
+Die Karte bleibt **`partial`** / `documented-verified`: Registry ist geschlossen, während
+`Screen`, `Printer` und die vollständige Clipboard-Oberfläche weiterhin eigene Hostverträge
+benötigen.
+
+Kanonischer Nachweis: **1413/1413** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
+83/118 documented-verified**.
+

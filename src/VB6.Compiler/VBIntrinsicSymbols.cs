@@ -473,6 +473,20 @@ internal static class VBIntrinsicSymbols
             Parameter("Key", TypeSymbol.String),
             Parameter("Setting", TypeSymbol.String)),
         Sub(
+            "DeleteSetting",
+            VBIntrinsicKind.DeleteSetting,
+            "VBInteraction.DeleteSetting",
+            Parameter("AppName", TypeSymbol.String),
+            OptionalParameter("Section", TypeSymbol.Variant),
+            OptionalParameter("Key", TypeSymbol.Variant)),
+        Function(
+            "GetAllSettings",
+            VBIntrinsicKind.GetAllSettings,
+            "VBInteraction.GetAllSettings",
+            TypeSymbol.Variant,
+            Parameter("AppName", TypeSymbol.String),
+            Parameter("Section", TypeSymbol.String)),
+        Sub(
             "SendKeys",
             VBIntrinsicKind.SendKeys,
             "VBInteraction.SendKeys",

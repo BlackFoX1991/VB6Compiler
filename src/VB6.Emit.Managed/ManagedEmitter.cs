@@ -3989,6 +3989,8 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionClipboardGetText) return Static(typeof(VBInteraction), nameof(VBInteraction.ClipboardGetText));
             if (m == IrRuntimeMethod.InteractionGetSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.GetSetting), typeof(string), typeof(string), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSaveSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.SaveSetting), typeof(string), typeof(string), typeof(string), typeof(string));
+            if (m == IrRuntimeMethod.InteractionDeleteSetting) return Static(typeof(VBInteraction), nameof(VBInteraction.DeleteSetting), typeof(string), typeof(object), typeof(object));
+            if (m == IrRuntimeMethod.InteractionGetAllSettings) return Static(typeof(VBInteraction), nameof(VBInteraction.GetAllSettings), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionSendKeys) return Static(typeof(VBInteraction), nameof(VBInteraction.SendKeys), typeof(string), typeof(bool));
             if (m == IrRuntimeMethod.InteractionPopupMenu) return Static(typeof(VBInteraction), nameof(VBInteraction.PopupMenu), typeof(object), typeof(int), typeof(float), typeof(float));
             if (m == IrRuntimeMethod.InteractionLoadPicture) return Static(typeof(VBInteraction), nameof(VBInteraction.LoadPicture), typeof(string));

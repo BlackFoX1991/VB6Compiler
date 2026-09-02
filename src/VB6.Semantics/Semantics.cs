@@ -364,6 +364,8 @@ public enum VBIntrinsicKind
     RGB,
     GetSetting,
     SaveSetting,
+    DeleteSetting,
+    GetAllSettings,
     SendKeys,
     PopupMenu,
     LoadPicture,
