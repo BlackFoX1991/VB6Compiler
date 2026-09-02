@@ -4381,6 +4381,8 @@ public static class IrLowerer
             "VBInteraction.Environ" => IrRuntimeMethod.InteractionEnviron,
             "VBInteraction.GetSetting" => IrRuntimeMethod.InteractionGetSetting,
             "VBInteraction.SaveSetting" => IrRuntimeMethod.InteractionSaveSetting,
+            "VBInteraction.DeleteSetting" => IrRuntimeMethod.InteractionDeleteSetting,
+            "VBInteraction.GetAllSettings" => IrRuntimeMethod.InteractionGetAllSettings,
             "VBInteraction.SendKeys" => IrRuntimeMethod.InteractionSendKeys,
             "VBInteraction.PopupMenu" => IrRuntimeMethod.InteractionPopupMenu,
             "VBInteraction.LoadPicture" => IrRuntimeMethod.InteractionLoadPicture,

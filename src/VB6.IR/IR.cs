@@ -759,6 +759,8 @@ public enum IrRuntimeMethod
     DynamicInvokeMember,
     InteractionGetSetting,
     InteractionSaveSetting,
+    InteractionDeleteSetting,
+    InteractionGetAllSettings,
     InteractionSendKeys,
     InteractionPopupMenu,
     InteractionLoadPicture,
