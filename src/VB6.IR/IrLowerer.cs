@@ -4264,6 +4264,15 @@ public static class IrLowerer
                 return operand;
             }
 
+            // The mirror image of the rule above. A declared object slot holds the CLR null
+            // reference for Nothing, and a Variant reads that as Empty - VarType, TypeName and
+            // IsObject would all answer for the wrong state. Boxing it re-attaches the sentinel.
+            if (conversion.TargetType == TypeSymbol.Variant &&
+                conversion.Expression.Type is ClassTypeSymbol)
+            {
+                return Runtime(IrRuntimeMethod.ObjectToVariant, TypeSymbol.Variant, operand);
+            }
+
             var method = conversion.TargetType == TypeSymbol.Variant && conversion.Expression.Type == TypeSymbol.Date
                 ? IrRuntimeMethod.DateToVariant
                 : conversion.TargetType == TypeSymbol.Boolean && conversion.Expression.Type == TypeSymbol.Variant
