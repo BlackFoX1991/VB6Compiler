@@ -4805,3 +4805,23 @@ Kanonischer Nachweis: **1434/1434** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **85 implemented, 8 partial, 25 planned von 118 |
 93/118 documented-verified**.
 
+## Karte `format.complete-surface`: Stringmasken exakt verifiziert (01.09.2026)
+
+Der Format-Code deckte bereits benannte Zahlen-, Boolean-, Datums- und Zeitformate,
+vierteilige Zahlenmasken, Datumstoken einschließlich Kalenderwochen und die profilabhängige
+Kultur ab. Die letzte nur indirekte Teststelle war die Stringmasken-Ausrichtung: `Debug.Print`
+entfernt sichtbare Randauffüllung in seinen Vergleichshelfern und kann deshalb `@` nicht als
+Leerzeichenprobe belegen.
+
+Die Runtime-Regression prüft die Zeichenkette selbst: `@@@` füllt rechtsbündig mit einem
+Leerzeichen auf, `!@@@` füllt linksbündig, und `&&&` lässt ein nicht benötigtes Platzhalterzeichen
+weg. Damit sind `@`, `&`, `<`, `>`, `!`, Literale und Escapes ohne einen ausgabebedingten
+Blindfleck abgedeckt. Die bestehenden Tests belegen weiter die vier Zahlenabschnitte einschließlich
+`Null`, sämtliche dokumentierten Datum-/Zeit-Token und die Trennung von invariantem
+`Deterministic`-Profil und kulturabhängigem `VB6Sp6`-Profil.
+
+`format.complete-surface` ist somit **`implemented`** / `documented-verified`.
+
+Kanonischer Nachweis: **1435/1435** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **86 implemented, 7 partial, 25 planned von 118 |
+93/118 documented-verified**.

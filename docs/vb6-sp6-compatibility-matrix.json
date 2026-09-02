@@ -299,7 +299,7 @@
     },
     {
       "id": "format.complete-surface",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
       "input": "Format/Format$ with named formats, four numeric sections, string placeholders and documented date/time tokens",
       "expected": {

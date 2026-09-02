@@ -56,6 +56,22 @@ public sealed class StringFunctionTests
     }
 
     [TestMethod]
+    public void VariantStringFunctions_PropagateNull()
+    {
+        var nullValue = VBVariants.NullValue();
+
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Mid(nullValue, 1)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Mid(nullValue, 1, 1)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Left(nullValue, 1)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Right(nullValue, 1)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.UCase(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.LCase(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.Trim(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.LTrim(nullValue)));
+        Assert.IsTrue(VBVariants.IsNull(VBStrings.RTrim(nullValue)));
+    }
+
+    [TestMethod]
     public void Asc_ReturnsWindows1252CodesAndRejectsUnrepresentableCharacters()
     {
         Assert.AreEqual(65, VBStrings.Asc("ABC"));
