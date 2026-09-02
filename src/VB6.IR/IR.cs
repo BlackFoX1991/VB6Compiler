@@ -172,7 +172,14 @@ public sealed record IrOnGoSubTerminator(
     int ReturnIndex,
     int DefaultBlockId) : IrTerminator;
 
-public sealed record IrReturnTerminator(IrExpression? Value) : IrTerminator;
+/// <summary>
+/// Ends the current VB6 procedure.  An explicit <c>Exit Sub</c>, <c>Exit Function</c> or
+/// <c>Exit Property</c> from an active error handler also resets <c>Err</c>; reaching the
+/// ordinary end of a procedure does not carry that statement-level guarantee.
+/// </summary>
+public sealed record IrReturnTerminator(
+    IrExpression? Value,
+    bool ClearsActiveErrorHandler = false) : IrTerminator;
 
 public abstract record IrPlace(TypeSymbol Type) : IrNode;
 
