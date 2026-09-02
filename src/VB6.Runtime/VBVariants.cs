@@ -82,6 +82,14 @@ public static class VBVariants
 
     public static bool IsNothing(object? value) => ReferenceEquals(value, NothingMarker);
 
+    /// <summary>
+    /// Boxes a declared object slot into a Variant. Such a slot holds the CLR null reference for
+    /// <c>Nothing</c>, which a Variant reads as <c>Empty</c> - the sentinel keeps the two states
+    /// apart, so <c>VarType</c>, <c>TypeName</c> and <c>IsObject</c> answer for the right one. A
+    /// value that already carries the sentinel, or any real reference, passes through unchanged.
+    /// </summary>
+    public static object? ObjectToVariant(object? value) => value ?? NothingMarker;
+
     public static bool IsMissing(object? value) => ReferenceEquals(value, MissingMarker);
 
     public static bool IsError(object? value) => value is VBErrorValue;
