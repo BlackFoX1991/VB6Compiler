@@ -678,6 +678,16 @@ public sealed record ArgumentPassingModeExpressionSyntax(
     SyntaxToken PassingModeKeyword,
     ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.ArgumentPassingModeExpression);
 
+/// <summary>
+/// The file-number marker inside an argument list, as in <c>Input(3, #1)</c> or <c>LOF(#1)</c>.
+/// VB6 accepts the <c>#</c> in the function forms just as it does in the statement forms, and it
+/// carries no meaning beyond marking the argument. The lexer has already separated a date literal
+/// from a bare hash, so this can only be the marker.
+/// </summary>
+public sealed record FileNumberArgumentExpressionSyntax(
+    SyntaxToken HashToken,
+    ExpressionSyntax Expression) : ExpressionSyntax(SyntaxKind.FileNumberArgumentExpression);
+
 public sealed record NamedArgumentExpressionSyntax(
     SyntaxToken NameToken,
     SyntaxToken ColonToken,

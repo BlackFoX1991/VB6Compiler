@@ -171,6 +171,7 @@ public enum SyntaxKind
     NewExpression,
     AddressOfExpression,
     ArgumentPassingModeExpression,
+    FileNumberArgumentExpression,
     NamedArgumentExpression,
     QualifiedInvocationStatement,
     OmittedArgumentExpression,
