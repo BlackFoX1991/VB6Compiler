@@ -281,4 +281,113 @@ public sealed class NestedErrorResumeExecutionTests
         Assert.AreEqual(1, returns.Count(terminator => terminator.ClearsActiveErrorHandler));
         Assert.IsTrue(returns.Any(terminator => !terminator.ClearsActiveErrorHandler));
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_HandlesErrorsRaisedInsideControlFlowConditions()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim s As String
+                Dim n As Long
+
+                On Error Resume Next
+                a = Array(1, 2)
+
+                s = "unberuehrt"
+                If a(99) = 1 Then s = "dann" Else s = "sonst"
+                Debug.Print Err.Number & " " & s
+
+                Err.Clear
+                s = "unberuehrt"
+                If False Then
+                    s = "dann"
+                ElseIf a(98) = 1 Then
+                    s = "elseif"
+                Else
+                    s = "sonst"
+                End If
+                Debug.Print Err.Number & " " & s
+
+                Err.Clear
+                Do While a(97) = 1
+                    Debug.Print "Rumpf"
+                Loop
+                Debug.Print Err.Number
+
+                Err.Clear
+                While a(96) = 1
+                    Debug.Print "Rumpf"
+                Wend
+                Debug.Print Err.Number
+
+                Err.Clear
+                Select Case a(95)
+                    Case 1
+                        Debug.Print "eins"
+                    Case Else
+                        Debug.Print "sonst"
+                End Select
+                Debug.Print Err.Number
+
+                Err.Clear
+                For n = 1 To a(94)
+                    Debug.Print "Rumpf"
+                Next n
+                Debug.Print Err.Number
+
+                ' Gegenproben: fehlerfreie Kopfteile laufen unveraendert.
+                Err.Clear
+                If a(0) = 1 Then n = 10 Else n = 20
+                Debug.Print Err.Number & " " & n
+
+                n = 0
+                For n = 1 To 3
+                Next n
+                Debug.Print Err.Number & " " & n
+            End Sub
+            """);
+
+        // Ein Fehler im Kopf einer Kontrollflussanweisung wurde vorher gar nicht abgefangen: Die
+        // Anweisung selbst kann nicht geschuetzt werden, weil ihr Rumpf mehrere Basisbloecke
+        // umfasst, aber ihr Kopf laeuft im aktuellen Block. Ohne Schutz beendete die Ausnahme den
+        // Prozess. Jetzt vermerkt Resume Next die 9 und setzt hinter der Anweisung fort -- kein
+        // Zweig und kein Schleifenrumpf laeuft.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "9 unberuehrt",
+                "9 unberuehrt",
+                "9",
+                "9",
+                "9",
+                "9",
+                "0 10",
+                "0 4"
+            },
+            output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RoutesAConditionErrorToAnOnErrorGoToHandler()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim s As String
+
+                On Error GoTo Handler
+                a = Array(1, 2)
+                s = "vorher"
+                If a(99) = 1 Then s = "dann" Else s = "sonst"
+                Debug.Print "nicht erreicht"
+                Exit Sub
+
+            Handler:
+                Debug.Print Err.Number & " " & s
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "9 vorher" }, output);
+    }
 }
