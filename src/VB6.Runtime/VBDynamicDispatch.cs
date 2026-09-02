@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 
 namespace VB6.Runtime;
@@ -189,7 +190,7 @@ public static class VBDynamicDispatch
         if (property is not null)
         {
             var converted = ConvertPropertyArguments(property, arguments);
-            return property.GetValue(target, converted);
+            return Unwrapped(() => property.GetValue(target, converted));
         }
 
         if (FindPublicField(target, memberName) is { } field)
@@ -339,6 +340,15 @@ public static class VBDynamicDispatch
             result = null;
             return false;
         }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            // The member ran and raised a VB6 error of its own. Reflection wraps it, and a
+            // TargetInvocationException carries no VB6 number, so it would land in the catch-all 5
+            // and hide, for example, the 9 that Collection.Item reports for a position outside the
+            // collection. Rethrowing the original keeps the number the early-bound path produces.
+            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
+        }
     }
 
     private static bool IsMissingComMember(COMException exception) =>
@@ -389,7 +399,7 @@ public static class VBDynamicDispatch
                 $"Member '{method.Name}' received {arguments.Length} argument(s), but only {argumentIndex} could be bound.");
         }
 
-        var result = method.Invoke(target, converted);
+        var result = Unwrapped(() => method.Invoke(target, converted));
         for (var index = 0; index < parameters.Length; index++)
         {
             if (parameters[index].ParameterType.IsByRef && sourceIndexes[index] >= 0)
@@ -522,8 +532,43 @@ public static class VBDynamicDispatch
         return converted;
     }
 
-    private static object RequireTarget(object? target) =>
-        target ?? throw new NullReferenceException("Object member access requires a non-empty object reference.");
+    /// <summary>
+    /// Rejects a target that carries no object. A concrete object variable holds the CLR null
+    /// reference for <c>Nothing</c>, but a Variant holds the identity-bearing marker instead - and
+    /// that marker is an ordinary object as far as reflection is concerned, so a member lookup on
+    /// it would find nothing and report 438 where VB6 reports 91. A Variant carrying a scalar is a
+    /// different failure: nothing is missing, the value simply is not an object, which is 424.
+    /// </summary>
+    private static object RequireTarget(object? target)
+    {
+        if (target is null || VBVariants.IsNothing(target))
+        {
+            throw new NullReferenceException("Object member access requires a non-empty object reference.");
+        }
+
+        return VBVariants.IsObject(target)
+            ? target
+            : throw new VB6RuntimeErrorException(424, "Member access requires an object reference.");
+    }
+
+    /// <summary>
+    /// Runs a reflection call so that a VB6 error raised inside the member keeps its number.
+    /// Reflection wraps it in a <see cref="TargetInvocationException"/>, which carries no number of
+    /// its own and would end up in the catch-all 5 - hiding, for example, the 9 that
+    /// <c>Collection.Item</c> reports for a position outside the collection.
+    /// </summary>
+    private static object? Unwrapped(Func<object?> call)
+    {
+        try
+        {
+            return call();
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
+        }
+    }
 
     private static string ResolveDefaultMemberName(object? target)
     {
