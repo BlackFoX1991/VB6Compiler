@@ -4610,3 +4610,21 @@ Kanonischer Nachweis bleibt **1421/1421** Tests, **0** Fehler, Release ohne Warn
 VISIA-Projektitems. Die Matrix steht auf **76 implemented, 11 partial, 31 planned von 118 |
 87/118 documented-verified**.
 
+## Karten l1-03-d/e: Open- und Positionsverträge verifiziert (01.09.2026)
+
+Die zuvor noch geplanten Datei-Karten für `Open` sowie `Seek`/`EOF`/`LOF`/`Loc` waren bereits
+durchgängig implementiert: Die Syntax bewahrt Access- und Sharing-Klauseln, die Runtime setzt
+die passenden `FileAccess`-/`FileShare`-Regeln und der fehlende `For`-Modus wählt Random mit
+Standardlänge 128. Datei-Positionen bleiben 1-basiert; `Loc` liefert Byte-, Datensatz- oder
+Sequential-Blockeinheiten je nach Kanalmodus.
+
+`FileStatementParserTests` (17) und `FileIoExecutionTests` (37) sind gezielt grün; die
+Runtime-Regressionen decken die Streamgrenzen, Moduseinheiten und Zugangsbeschränkungen ab.
+Damit lauten `l1-03-d-file-open-modes-access-sharing` und
+`l1-03-e-file-position-functions` jeweils **`implemented`** /
+`documented-verified`.
+
+Kanonischer Nachweis bleibt **1421/1421** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **78 implemented, 11 partial, 29 planned von 118 |
+89/118 documented-verified**.
+

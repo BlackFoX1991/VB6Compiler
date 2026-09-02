@@ -1192,7 +1192,7 @@
     },
     {
       "id": "l1-03-d-file-open-modes-access-sharing",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
       "input": "Open statements using Binary, Random, Sequential, Input, Output, Append, Access and Sharing clauses",
       "expected": {
@@ -1201,7 +1201,7 @@
         "sharing": "Shared and Lock combinations map to explicit sharing policies",
         "defaultRandom": "omitted For defaults to Random with record length 128"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"
@@ -1209,7 +1209,7 @@
     },
     {
       "id": "l1-03-e-file-position-functions",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
       "input": "Seek, EOF, LOF and mode-aware Loc after sequential, binary and random transfers",
       "expected": {
@@ -1218,7 +1218,7 @@
         "lof": "LOF reports the underlying file length",
         "loc": "Loc uses byte, record or 128-byte block units according to mode"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
