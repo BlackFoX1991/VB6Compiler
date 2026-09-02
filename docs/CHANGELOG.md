@@ -4643,3 +4643,22 @@ Kanonischer Nachweis: **1423/1423** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **78 implemented, 12 partial, 28 planned von 118 |
 90/118 documented-verified**.
 
+## Karte l1-03-a: Projektarten, Startobjekt und Bitness verifiziert (01.09.2026)
+
+Die VBP-Karte war im Code bereits weiter als ihr Matrixstatus: `Exe` sowie `OleDll`, `OleExe`,
+`Control`, `Dll`, `ActiveX DLL`, `ActiveX EXE` und `ActiveX Control` werden als Anwendung oder
+Bibliothek klassifiziert. Bibliotheken benötigen kein `Sub Main`; EXE-Projekte verwenden
+`Sub Main` oder eine deklarierte Form als Startobjekt. Ausgabename und -endung folgen den
+Projektmetadaten, und CLI/SDK wählen für Legacyprojekte deterministisch x86, sofern keine
+Plattform angegeben ist.
+
+Die neue Regression prüft alle sieben unterstützten Bibliothekstypen ohne künstlichen Entry Point.
+Sie ergänzt die Form-/Ausgabe-/Plattform-CLI-Tests und die Projektkompilierungsfälle. Die Karte
+`l1-03-a-project-kinds-startup-bitness` ist damit **`implemented`** /
+`documented-verified`; Binary Compatibility, vollständige Ressourcen/Komponenten und breitere
+Projektgruppenabhängigkeiten bleiben getrennt offen.
+
+Kanonischer Nachweis: **1424/1424** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **79 implemented, 12 partial, 27 planned von 118 |
+91/118 documented-verified**.
+
