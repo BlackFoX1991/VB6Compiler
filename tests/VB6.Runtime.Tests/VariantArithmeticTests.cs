@@ -259,6 +259,29 @@ public sealed class VariantArithmeticTests
         Assert.IsInstanceOfType<InvalidOperationException>(exception.InnerException);
     }
 
+    [TestMethod]
+    public void ObjectVariants_WithoutAScalarDefaultMemberRaiseTypeMismatchInVariantExpressions()
+    {
+        var collection = new VBCollection();
+
+        // Collection.Item is a parameterized default member.  It cannot supply a scalar for
+        // an operator expression without an index, so every operator reports error 13.
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AddVariant(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AddStringVariant(collection, "x"));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.SubtractVariant(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.MultiplyInteger(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.DivideVariant(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.IntegerDivideVariant(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.ModVariant(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.PowerVariant(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.ConcatVariant(collection, "x"));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.VariantEqual(collection, 1));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.StringVariantEqual(collection, "x"));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.NegateVariant(collection));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.NotVariant(collection));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBOperators.AndVariant(collection, 1));
+    }
+
     [DefaultMember(nameof(Value))]
     private sealed class NumericDefaultObject
     {

@@ -217,6 +217,32 @@ public sealed class VariantStateExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_RejectsObjectVariantsWithoutAScalarDefaultMember()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                Dim result As Variant
+
+                Set value = New Collection
+
+                On Error Resume Next
+                result = value + 1
+                Debug.Print Err.Number
+                Err.Clear
+                result = value & "x"
+                Debug.Print Err.Number
+                Err.Clear
+                result = (value = 1)
+                Debug.Print Err.Number
+                On Error GoTo 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "13", "13", "13" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesMissingVariantAsError448OutsideIsMissing()
     {
         var output = VB6TestProgram.RunLines("""

@@ -43,6 +43,21 @@ public sealed class LikeAndObjectIdentityExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_AssignsNothingAsANullTypedObjectReference()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Dim value As Object
+                Set value = CreateObject("Example.Item")
+                Set value = Nothing
+                Debug.Print value Is Nothing
+            End Sub
+            """);
+
+        Assert.AreEqual("True", output.Trim());
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_UsesOptionCompareTextForStringRelations()
     {
         var output = VB6TestProgram.Run("""
