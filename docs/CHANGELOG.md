@@ -4759,3 +4759,28 @@ Kanonischer Nachweis: **1415/1415** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
 83/118 documented-verified**.
 
+## Karte l1-02-j: aktiver Handler bei `Exit Sub` (01.09.2026)
+
+Die letzte offene Klausel der Karte war kein fehlender `Resume`-Zweig, sondern der Zustand von
+`Err` beim expliziten Verlassen eines aktiven Handlers. Die offizielle VBA-Referenz schreibt für
+`Exit Sub`, `Exit Function` und `Exit Property` innerhalb eines Fehlerhandlers ein Zurücksetzen
+der `Err`-Eigenschaften vor. Der Managed-Emitter kannte jedoch nur einen unmarkierten
+Prozedur-Return; dadurch blieb `Err` nach `Exit Sub` mitsamt Nummer, Quelle, Beschreibung und
+`Erl` im aufrufenden Code sichtbar.
+
+`IrReturnTerminator` trägt nun die explizite Kennzeichnung für diesen Rückweg. Der Lowerer setzt
+sie ausschließlich für die gebundene `Exit Sub`/`Function`/`Property`-Anweisung; normale
+Fall-through-Returns bleiben davon getrennt. Der Managed-Emitter ruft vor dem Prozeduraustritt
+die neue, handlerbewusste Runtime-Operation auf, die `Err` nur bei einem tatsächlich aktiven
+Handler löscht. Die End-to-End-Regression prüft alle Felder nach der Rückkehr, und eine
+IR-Regression sichert die klare Trennung zwischen explizitem Exit und natürlichem Ende.
+
+Damit sind Verschachtelung, das Wiederherstellen äußerer Handler, jede `Resume`-Form,
+`Err`/`Erl`-Fortschreibung sowie das dokumentierte Reset-Verhalten vollständig abgedeckt.
+`l1-02-j-nested-error-resume` und die zugehörige Control-Flow-Matrixfläche stehen auf
+**`implemented`** / `documented-verified`.
+
+Kanonischer Nachweis: **1433/1433** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **84 implemented, 9 partial, 25 planned von 118 |
+93/118 documented-verified**.
+
