@@ -343,20 +343,28 @@ public static class VBInteraction
     }
 
     /// <summary>
-    /// Returns the default affirmative/first button in headless builds. A GUI host can replace this
-    /// service at the application boundary without changing generated code.
+    /// Returns the host result when one is available, otherwise the default affirmative/first
+    /// button in headless builds.
     /// </summary>
-    public static short MsgBox(string prompt, int buttons, string title) => buttons switch
+    public static short MsgBox(string prompt, int buttons, string title)
     {
-        4 => 6, // vbYesNo: deterministic default is Yes.
-        3 => 6, // vbYesNoCancel: deterministic default is Yes.
-        5 => 4, // vbRetryCancel: deterministic default is Retry.
-        _ => 1 // vbOKOnly and all message-style flags.
-    };
+        if (Host is { } host && host.TryShowMessageBox(prompt, buttons, title, out var result))
+        {
+            return result;
+        }
+
+        return buttons switch
+        {
+            4 => 6, // vbYesNo: deterministic default is Yes.
+            3 => 6, // vbYesNoCancel: deterministic default is Yes.
+            5 => 4, // vbRetryCancel: deterministic default is Retry.
+            _ => 1 // vbOKOnly and all message-style flags.
+        };
+    }
 
     /// <summary>
-    /// Headless InputBox contract. A UI host can replace this implementation and keep the
-    /// generated call signature stable; compiler and CI runs return the supplied default.
+    /// Uses an explicit host InputBox service when available. Compiler and CI runs stay headless
+    /// and return the supplied default.
     /// </summary>
     public static string InputBox(
         string prompt,
@@ -367,12 +375,19 @@ public static class VBInteraction
         string helpFile,
         int context)
     {
-        _ = prompt;
-        _ = title;
-        _ = xpos;
-        _ = ypos;
-        _ = helpFile;
-        _ = context;
+        if (Host is { } host && host.TryShowInputBox(
+                prompt,
+                title,
+                defaultResponse,
+                xpos,
+                ypos,
+                helpFile,
+                context,
+                out var response))
+        {
+            return response ?? string.Empty;
+        }
+
         return defaultResponse;
     }
 
@@ -516,6 +531,11 @@ public static class VBInteraction
         string key,
         string defaultValue)
     {
+        if (Host is { } host && host.TryGetSetting(appName, section, key, out var hostValue))
+        {
+            return hostValue ?? string.Empty;
+        }
+
         var settingKey = MakeSettingKey(appName, section, key);
         lock (SettingsGate)
         {
@@ -529,6 +549,11 @@ public static class VBInteraction
         string key,
         string setting)
     {
+        if (Host is { } host && host.TrySaveSetting(appName, section, key, setting))
+        {
+            return;
+        }
+
         var settingKey = MakeSettingKey(appName, section, key);
         lock (SettingsGate)
         {

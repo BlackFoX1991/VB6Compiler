@@ -51,6 +51,38 @@ public interface IVB6Host
         return false;
     }
 
+    /// <summary>Lets a host display a message box instead of using the deterministic headless result.</summary>
+    bool TryShowMessageBox(string prompt, int buttons, string title, out short result)
+    {
+        result = 0;
+        return false;
+    }
+
+    /// <summary>Lets a host collect InputBox input instead of returning the deterministic default.</summary>
+    bool TryShowInputBox(
+        string prompt,
+        string title,
+        string defaultResponse,
+        float xpos,
+        float ypos,
+        string helpFile,
+        int context,
+        out string? response)
+    {
+        response = null;
+        return false;
+    }
+
+    /// <summary>Lets a host provide a persistent registry/settings value.</summary>
+    bool TryGetSetting(string appName, string section, string key, out string? value)
+    {
+        value = null;
+        return false;
+    }
+
+    /// <summary>Lets a host persist a registry/settings value.</summary>
+    bool TrySaveSetting(string appName, string section, string key, string value) => false;
+
     void Load(object target);
 
     void Unload(object target);
