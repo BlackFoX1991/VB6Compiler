@@ -1024,6 +1024,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (VBVariants.IsNull(left) && VBVariants.IsNull(right))
         {

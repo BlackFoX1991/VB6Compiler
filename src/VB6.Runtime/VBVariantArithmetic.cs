@@ -9,6 +9,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -60,6 +61,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -76,6 +78,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -115,6 +118,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -137,6 +141,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -169,6 +174,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -203,6 +209,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {
@@ -219,6 +226,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         ThrowIfErrorOperand(value);
+        ThrowIfUnsupportedObjectOperand(value);
 
         if (VBVariants.IsNull(value))
         {
@@ -247,6 +255,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(value);
         VBVariants.ThrowIfArray(value);
         ThrowIfErrorOperand(value);
+        ThrowIfUnsupportedObjectOperand(value);
 
         if (VBVariants.IsNull(value))
         {
@@ -582,6 +591,33 @@ public static partial class VBOperators
         }
     }
 
+    /// <summary>
+    /// An object can participate in a Variant expression only after its default member has
+    /// supplied a scalar value. ResolveDefaultValue has already attempted that lookup at each
+    /// call site; a remaining concrete object therefore cannot be coerced by the operator.
+    /// Nothing remains a distinct object-state marker and keeps its existing conversion path.
+    /// </summary>
+    private static void ThrowIfUnsupportedObjectOperand(object? left, object? right)
+    {
+        if (IsUnsupportedObjectOperand(left) || IsUnsupportedObjectOperand(right))
+        {
+            throw new VB6TypeMismatchException(
+                "An object without a scalar default member cannot be used in this Variant expression.");
+        }
+    }
+
+    private static void ThrowIfUnsupportedObjectOperand(object? value)
+    {
+        if (IsUnsupportedObjectOperand(value))
+        {
+            throw new VB6TypeMismatchException(
+                "An object without a scalar default member cannot be used in this Variant expression.");
+        }
+    }
+
+    private static bool IsUnsupportedObjectOperand(object? value) =>
+        VBVariants.IsObject(value) && !VBVariants.IsNothing(value);
+
     private static bool HasNullOperand(object? left, object? right) =>
         VBVariants.IsNull(left) || VBVariants.IsNull(right);
 
@@ -591,6 +627,8 @@ public static partial class VBOperators
         right = VBVariantObject.ResolveDefaultValue(right);
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
+
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (left is VBErrorValue leftError && right is VBErrorValue rightError)
         {
@@ -614,6 +652,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         return HasNullOperand(left, right)
             ? VBVariants.NullValue()
@@ -871,6 +910,7 @@ public static partial class VBOperators
         VBVariants.ThrowIfMissing(left, right);
         VBVariants.ThrowIfArray(left, right);
         ThrowIfErrorOperand(left, right);
+        ThrowIfUnsupportedObjectOperand(left, right);
 
         if (HasNullOperand(left, right))
         {

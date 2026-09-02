@@ -1003,7 +1003,7 @@
     },
     {
       "id": "l1-02-g-variant-promotion-table",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-variant-and-conversions",
       "input": "Every supported pair of Variant numeric, Boolean, String, Date and Empty operands across arithmetic, logical, comparison and concatenation operators",
       "expected": {
@@ -1015,7 +1015,8 @@
       "testRefs": [
         "tests/VB6.Runtime.Tests/VariantArithmeticTests.cs",
         "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs",
-        "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
       ]
     },
     {

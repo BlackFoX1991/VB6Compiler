@@ -44,6 +44,7 @@ public sealed class LikeAndObjectIdentityTests
         Assert.IsTrue(VBObjectIdentity.IsSame(value, value));
         Assert.IsFalse(VBObjectIdentity.IsSame(value, new object()));
         Assert.IsTrue(VBObjectIdentity.IsSame(null, null));
+        Assert.IsTrue(VBObjectIdentity.IsSame(null, VBVariants.NothingValue()));
     }
 
     [TestMethod]

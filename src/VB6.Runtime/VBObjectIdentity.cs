@@ -12,6 +12,24 @@ public static class VBObjectIdentity
             return true;
         }
 
+        // A Variant needs a marker for Nothing so it remains distinguishable from Empty.  A
+        // concrete object reference has no such marker and uses null, but both values mean
+        // Nothing to the VB6 Is operator.
+        if (VBVariants.IsNothing(left))
+        {
+            left = null;
+        }
+
+        if (VBVariants.IsNothing(right))
+        {
+            right = null;
+        }
+
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
         if (left is null || right is null ||
             !OperatingSystem.IsWindows() ||
             !Marshal.IsComObject(left) ||
