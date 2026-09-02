@@ -1161,7 +1161,7 @@
     },
     {
       "id": "l1-03-b-project-group-dependency-order",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "project-vbp-vbg",
       "input": "VBG project groups with project references, shared references and multiple dependent VBP files",
       "expected": {
@@ -1169,7 +1169,7 @@
         "order": "dependency closure and emission order are deterministic",
         "cycles": "reference cycles produce a stable project diagnostic"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs",
         "tests/VB6.ProjectSystem.Tests/VBProjectGroupLoaderTests.cs"
