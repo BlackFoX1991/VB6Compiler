@@ -103,6 +103,41 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesPrinterContracts()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim printerObject As Object
+                Printer.EndDoc
+                Set printerObject = Printer
+                Debug.Print printerObject.Page
+                Printer.DocumentName = "Compiled report"
+                Printer.Copies = 2
+                Printer.CurrentX = 3
+                Printer.CurrentY = 4
+                Printer.Print "first line"
+                Debug.Print Printer.DocumentName
+                Debug.Print Printer.Copies
+                Debug.Print Printer.Page
+                Debug.Print Printer.CurrentX
+                Debug.Print Printer.CurrentY
+                Printer.NewPage
+                Debug.Print Printer.Page
+                Debug.Print Printer.CurrentY
+                Debug.Print Printer.TextWidth("abc")
+                Debug.Print Printer.ScaleX(1, vbInches, vbTwips)
+                Printer.EndDoc
+                Debug.Print Printer.Page
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "0", "Compiled report", "2", "1", "0", "5", "2", "0", "3", "1440", "0" },
+            lines,
+            $"Actual printer output: {string.Join("|", lines)}");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesEnvironNameAndIndexContracts()
     {
         var name = "VB6COMPILER_ENV_EXEC_" + Guid.NewGuid().ToString("N");
@@ -274,6 +309,45 @@ public sealed class StandardLibraryHostContractExecutionTests
         CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenMousePointer);
         CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenTwipsPerPixelX);
         CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionScreenTwipsPerPixelY);
+    }
+
+    [TestMethod]
+    public void Lower_UsesExplicitPrinterRuntimeContracts()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim printerObject As Object
+                Dim printerFont As Font
+                Set printerObject = Printer
+                Set printerFont = Printer.Font
+                Printer.DocumentName = "report"
+                Debug.Print Printer.DocumentName
+                Printer.Copies = 2
+                Debug.Print Printer.Copies
+                Printer.CurrentX = 3
+                Printer.TrackDefault = False
+                Printer.Print "first line"
+                Printer.NewPage
+                Debug.Print Printer.TextWidth("abc")
+                Debug.Print Printer.ScaleX(1, vbInches, vbTwips)
+                Printer.EndDoc
+            End Sub
+            """);
+
+        var calls = VB6TestIr.RuntimeCalls(program).ToArray();
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinter);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterGetString);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterSetString);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterGetLong);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterSetLong);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterSetSingle);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterSetBoolean);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterGetObject);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterPrint);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterNewPage);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterTextWidth);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterScaleX);
+        CollectionAssert.Contains(calls, VB6.IR.IrRuntimeMethod.InteractionPrinterEndDoc);
     }
 
     [TestMethod]
