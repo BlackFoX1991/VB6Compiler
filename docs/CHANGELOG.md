@@ -4784,3 +4784,24 @@ Kanonischer Nachweis: **1433/1433** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **84 implemented, 9 partial, 25 planned von 118 |
 93/118 documented-verified**.
 
+## Karte `math.complete-surface`: Variant-Untertypen nachgemessen (01.09.2026)
+
+Die Math-Familie war in Runtime, Intrinsic-Bindung und Roadmap bereits vollständig umgesetzt,
+stand in der Matrix aber noch auf `partial`. Der Abschlussabgleich hat jede Klausel direkt einer
+Ausführungsprobe zugeordnet: `Null`/`Empty`, die Zahluntertypen von `Abs`/`Fix`/`Int`, negative
+Bruchteile, Banker's Rounding, die Definitions- und Überlaufgrenzen sowie die wiederholbare
+24-Bit-`Rnd`/`Randomize`-Folge.
+
+Als bislang nur indirekt belegte Grenze ergänzt der Runtime-Test negative `Currency`- und
+`Date`-Werte: `Abs` bewahrt den Currency-Untertyp und Betrag, `Fix` schneidet ein Date-Variant
+gegen Null ab, und `Int` rundet dasselbe Variant gegen minus unendlich. Der gezielte Testlauf
+misst **9/9** Math-Runtimefälle grün; die bestehenden Managed-E2E-Fälle decken die Intrinsic-
+Bindung und Ausführung ab.
+
+`math.complete-surface` ist damit **`implemented`** / `documented-verified`; nicht zur Karte
+gehörige Objekt-/Array-Operator- und Automation-Regeln bleiben getrennt offen.
+
+Kanonischer Nachweis: **1434/1434** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **85 implemented, 8 partial, 25 planned von 118 |
+93/118 documented-verified**.
+
