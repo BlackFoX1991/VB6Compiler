@@ -180,6 +180,35 @@ public sealed class FileStatementParserTests
         Assert.IsInstanceOfType<AssignmentStatementSyntax>(statement);
     }
 
+    [TestMethod]
+    public void Parse_FileNumberMarkerInsideAnArgumentList()
+    {
+        var statement = ParseSingleStatement("""
+            s = Input(3, #f)
+            """);
+
+        var assignment = (AssignmentStatementSyntax)statement;
+        var call = (InvocationExpressionSyntax)assignment.Expression;
+        Assert.AreEqual(2, call.Arguments.Length);
+        var marked = (FileNumberArgumentExpressionSyntax)call.Arguments[1];
+        Assert.AreEqual(SyntaxKind.HashToken, marked.HashToken.Kind);
+        Assert.IsInstanceOfType<NameExpressionSyntax>(marked.Expression);
+    }
+
+    [TestMethod]
+    public void Parse_KeepsADateLiteralApartFromTheFileNumberMarker()
+    {
+        // Der Lexer trennt beides bereits: ein gueltiges Datum zwischen Rauten ist ein eigener
+        // Token, alles andere bleibt HashToken. Sonst wuerde das Argumentzeichen Datumsliterale
+        // schlucken.
+        var statement = ParseSingleStatement("""
+            d = #1/2/2020#
+            """);
+
+        var assignment = (AssignmentStatementSyntax)statement;
+        Assert.IsInstanceOfType<LiteralExpressionSyntax>(assignment.Expression);
+    }
+
     private static StatementSyntax ParseSingleStatement(string statement)
     {
         var source = $"""
