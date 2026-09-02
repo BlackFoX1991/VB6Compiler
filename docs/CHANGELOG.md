@@ -4975,3 +4975,24 @@ Die Kartenstände bleiben unverändert; gemessen wurde die Absicherung, nicht de
 
 Kanonischer Nachweis: **1449/1449** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Der Kanalmarker in der Argumentliste (02.09.2026)
+
+Der Breitendurchgang hatte notiert, dass `Input(n, #f)` nicht geparst wird — `VB6P0001` auf dem
+`HashToken` — während die Anweisungsform `Input #f, var` funktioniert. Der Befund lag nicht dort,
+wo die Meldung hinzeigte: Intrinsic und Runtime waren beide längst vorhanden, `Input(3, f)` ohne
+Marker lief auch vorher. Gescheitert ist allein der Parser am `#`.
+
+VB6 erlaubt den Kanalmarker in jeder Argumentliste, nicht nur bei `Input`: `LOF(#1)`, `EOF(#1)` und
+`Seek(#1)` sind ebenso gültig. `ParseArgument` nimmt ihn jetzt entgegen und legt ihn als eigenen
+Knoten ab — dasselbe Muster, das der Parser für `ByVal`/`ByRef` am Aufrufort schon nutzt. Der
+Binder reicht auf den Ausdruck dahinter durch; das Zeichen trägt keine Semantik.
+
+Die Mehrdeutigkeit gegen das Datumsliteral entsteht dabei nicht neu: Der Lexer macht aus einem
+gültigen Datum zwischen Rauten bereits einen eigenen Token und lässt nur alles andere als
+`HashToken` stehen. Ein `#` in Argumentposition kann deshalb nur der Marker sein. Ein Parsertest
+hält beide Seiten fest, dazu ein End-to-End-Fall mit `Input`, `LOF`, `EOF`, `Seek` und einem
+Datumsliteral in derselben Prozedur.
+
+Kanonischer Nachweis: **1452/1452** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
