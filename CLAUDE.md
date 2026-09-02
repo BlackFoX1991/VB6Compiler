@@ -16,9 +16,9 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H).
 Die offenen Karten und ihre Statusachsen stehen in `docs/vb6-sp6-compatibility-matrix.json`.
-Der aktuelle Matrixstand beträgt 118 Erwartungen (72 `implemented`,
-9 `partial`, 37 `planned`; 81 `documented-verified`); die nächste offene
-Implementierungskarte ist `l1-02-l-locale-datetime-math-financial`. `L1-02-A` bleibt als breiter
+Der aktuelle Matrixstand beträgt 118 Erwartungen (86 `implemented`,
+7 `partial`, 25 `planned`; 93 `documented-verified`); die nächste offene
+Implementierungskarte ist `l1-02-h-variant-object-array-dispatch`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
@@ -41,11 +41,11 @@ Default, damit die Projektgrenze die Legacy-Kompatibilität bestimmt.
 
 Zwei getrennte Dokumente — die Trennung bitte halten:
 
-- **`docs/ROADMAP.md`** (825 Zeilen) ist **Ist-Stand und Offenes**: Produktziel, die drei
+- **`docs/ROADMAP.md`** ist **Ist-Stand und Offenes**: Produktziel, die drei
  aktuellen Messwerte, Korpus-Frequenzen, „Entschiedene Weichenstellungen" und die Meilensteine
  0–10 mit `[x]`/`[~]`/`[ ]`-Listen. `[~]` heißt „begonnen, teilweise ausgabefähig" — der
  häufigste Zustand. Hier steht, was zu tun ist.
-- **`docs/CHANGELOG.md`** (3345 Zeilen) ist das **chronologische Arbeitsjournal**, älteste
+- **`docs/CHANGELOG.md`** ist das **chronologische Arbeitsjournal**, älteste
  Einträge zuerst. Hier steht, was getan wurde.
 
 Nach einem abgeschlossenen Feature: den Meilensteinstatus in der Roadmap fortschreiben und den
@@ -207,7 +207,7 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung (2026-08-26): Der kanonische `build.ps1`-Lauf prüft alle 13 Testprojekte
+Stand der letzten Prüfung (2026-09-01): Der kanonische `build.ps1`-Lauf prüft alle 13 Testprojekte
 seriell; die genaue Testzahl steht im Roadmap-/README-Messwert und muss bei jeder Änderung neu
 erfasst werden.
 

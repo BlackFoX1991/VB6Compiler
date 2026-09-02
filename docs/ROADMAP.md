@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1410 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1435 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-01); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -55,8 +55,8 @@ Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Hand
 `Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **72 implemented**, **9 partial** und **37 planned**;
-**81/118 documented-verified** (Stand 2026-09-01).
+**118 Erwartungen**, davon **86 implemented**, **7 partial** und **25 planned**;
+**93/118 documented-verified** (Stand 2026-09-01).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
 offenen Punkte daraus sind unten in den Etappen B und C als eigene Zeilen geführt. Das
@@ -255,9 +255,21 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Error-State-Vertrag ist mit expliziten CFG-Kanten, Handler-/Resume-Zielen und stabilen
       Diagnosen ebenfalls geschlossen. Die acht zuvor fehlenden Standard-Intrinsics sind
       ebenfalls implementiert; als nächste offene Implementierungskarte folgt
-      `l1-02-l-locale-datetime-math-financial`. Die derzeit 118 Erwartungen tragen getrennte,
-      maschinenprüfbare Statusachsen (72 `implemented`, 9 `partial`, 37 `planned`;
-      81 `documented-verified`); jede weitere Karte behält ihre eindeutige Erwartungs-ID.
+       `l1-02-l-locale-datetime-math-financial` ist nach der gezielten Runtime- und Managed-
+       Messung geschlossen: Locale-/Profilgrenzen für Date/Time und Format, die deterministischen
+       Math-/Random-Verträge sowie alle aktuell unterstützten Financial-Intrinsics sind durch die
+       vier karteneigenen Testdateien abgedeckt. `l1-02-m-headless-host-services` ist mit
+       expliziten `IVB6Host`-Hooks für Message-/InputBox, Registry, Screen und Clipboard jetzt `partial`:
+       der Registry-Vertrag (`Get`/`Save`/`Delete`/Enumeration) und der Clipboard-Grundvertrag
+       (`Clear`, Text, Daten und Formate) besitzen portable Mehrformat-Fallbacks. `Screen`
+       bindet aktive Form/Control, DPI-basierte Twip-Faktoren und `MousePointer` explizit; ohne
+       Desktop liefert der Runtimevertrag keinen aktiven Host und 96-DPI-Umrechnung. `Printer`
+       deckt die ausgewählte Instanz, Kern-Eigenschaften, Seiten-/Dokumentzustand, Text, Messen,
+       Skalieren und den sicheren Host-Übergang ab; ohne annehmenden Host entsteht ausdrücklich
+       kein physischer Druckauftrag. Die derzeit 118
+       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (86 `implemented`,
+       7 `partial`, 25 `planned`; 93 `documented-verified`); jede weitere Karte behält ihre
+       eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
       danach VISIA und weitere Legacy-Projekte.
@@ -275,10 +287,12 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [ ] `Let`/`Set`, Default-Member, `DISPID_VALUE`, Collection-Randfälle, `As New`, `Implements`,
       Events und `WithEvents` erhalten den vollständigen Objektvertrag. Im `VB6Sp6`-Profil wird
       die Initialize-/Terminate-Lebensdauer explizit geführt und nicht dem GC überlassen.
-- [~] Der Managed-IR-Fehlerautomat bildet die aktiven/inaktiven `On Error`-/`Resume`-Zustände
+- [x] Der Managed-IR-Fehlerautomat bildet die aktiven/inaktiven `On Error`-/`Resume`-Zustände
       im getesteten Managed-Pfad ab: `Err`, Fehlernummern, `Erl` für numerische Zeilenlabels,
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
-      implementiert. Weitere verschachtelte Aufruf-/Resume-Matrixfälle bleiben offen.
+      implementiert. `Resume`, `Resume Next` und `Resume <Label>` schließen den aktiven Handler
+      gemäß dem dokumentierten Zustandsvertrag; ein explizites `Exit Sub` aus einem aktiven
+      Handler leert `Err`.
 - [x] Ein `Public`-Feld einer Klasse ist echter Speicher, kein `Property Get` (`S1`, geschlossen).
       `ByRef`-Rückschreiben, `Set` auf Objekt-/Variant-Felder, die Indizierung array-typisierter
       Felder, `String * n` als Klassenmember und der spät gebundene Zugriff über `Object` oder
@@ -359,11 +373,22 @@ Rückgabematrix bleibt in Etappe B/C offen.
       erzeugt bei Erreichen der Breite ein CRLF vor dem nächsten Wert. `Input #` stellt für
       Variant-Ziele die von `Write #` erzeugten Empty-/Null-/Boolean-/Date-/Error-Marker sowie
       skalare Zahlen wieder her; binäre `Get`-/`Put`-Transfers führen für skalare Variant-Felder
-      das VB6-Typ-Tag samt Payload. Variant-Arrays/Objekte, komplexere UDT-Layouts und weitere
-      Dateiformate bleiben offen.
-- [ ] `.vbp`/`.vbg` einschließlich Projektarten, Version/Binary Compatibility, Ressourcen,
+      das VB6-Typ-Tag samt Payload. Für `Print #`, `Write #`, `Input #` und `Line Input #` reicht
+      der Emitter das Kompatibilitätsprofil explizit an die Runtime weiter: `Deterministic`
+      bleibt bei UTF-8 einschließlich BOM-Behandlung, `VB6Sp6` verwendet die aktive Windows-
+      ANSI-Codepage. Variant-Arrays/Objekte und eingehende SAFEARRAY-Tags werden als expliziter
+      Typfehler zurückgewiesen; deren vollständige Speicherung, komplexere UDT-Layouts und
+      weitere Dateiformate bleiben offen.
+- [~] `.vbp`/`.vbg` einschließlich Projektarten, Version/Binary Compatibility, Ressourcen,
       Referenzen, Komponenten und Abhängigkeiten vollständig auswerten; `.frm`, `.frx`, `.ctl`,
-      `.ctx`, `.pag`, `.dob`, `.dsr` und `.res` verlustfrei laden.
+      `.ctx`, `.pag`, `.dob`, `.dsr` und `.res` verlustfrei laden. Die Kernklassifikation für
+      EXE sowie `OleDll`/`OleExe`/`Control`/`Dll` und die ActiveX-Äquivalente, `Sub Main` oder
+      Form-Start, Artefaktnamen und den x86-Projektdefault ist verifiziert. Deklarierte VBG-
+      Projektreferenzen werden aufgelöst, vor ihren Verbrauchern emittiert und Zyklen als stabile
+      Gruppendiagnose ohne Teil-Artefakte gemeldet. Versions-/Binary-Compatibility-Metadaten bleiben
+      adressierbar; deklarierte Ressourcen-, TypeLib- und OCX-Dateien gehören ausschließlich zum
+      exakten Eingabemanifest. Resource-Embedding, Component-Package- und Binary-Compatibility-
+      Emission bleiben offen.
 
 ### Etappe D — COM-, ActiveX- und Win32-x86-ABI
 
@@ -553,7 +578,7 @@ Zwei Nachträge:
 - [x] ByRef-Randfälle **vorgezogen**: Temporaries für Literale/Ausdrücke/Funktionsergebnisse,
       Klammern erzwingen ByVal, Typmismatch bleibt `VB6S0008`
 - [~] `Is`-Objektreferenzidentität für Variant-/Hostobjekte und emittierte Klasseninstanzen steht; COM-RCW-Identität wird über `IUnknown` verglichen, die übrige COM-Interop bleibt offen
-- [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; numerische Variant-Objektindizes fallen auf das Managed-Default-`Item` zurück; vollständige benannte Default-Property- und COM-Dispatch-Regeln bleiben offen
+- [~] `Property Get`/`Let`/`Set`: typisierte Managed-Instanz-Dispatch-Emission sowie implizites `Item`-Default-Property-Get/Let und `VB_UserMemId`-benannte Default-Properties stehen; numerische Variant-Objektindizes fallen auf das Managed-Default-`Item` zurück und schreiben bei `ByRef` über einen einmal ausgewerteten Temporary zurück; vollständige benannte Default-Property- und COM-Dispatch-Regeln bleiben offen
 - [~] Klassenmodule: `.cls`, Klassentypen, `New`, `Set`, `TypeOf`, Instanzspeicher sowie `Class_Initialize`/`Terminate` sind emittiert; `Implements` wird als CLR-Interface mit MethodImpl-/Property-Dispatch emittiert, COM-Dispatch und Forms bleiben offen
 - [~] Standard-`Collection`: semantischer Vertrag sowie Managed-`New`/`Count`/`Item`/`Add`/`Remove`/`For Each` mit one-based, keyed lookup und Einfügereihenfolge stehen; ungültige Indizes/Keys sowie `Before`/`After` melden Fehler 5, doppelte Keys Fehler 457. Weitere VB6-Randfälle und COM-Collection-Dispatch bleiben offen
 - [~] Late-bound `Variant`-/`Object`-Member: Property-Get/Let/Set und Methodenaufrufe auf erzeugten Managed-Klassen sowie CLR-Property-Fallback stehen; optionale Parameter, `ParamArray`, typisierte Property-/Indexer-Konversionen und ByRef-Writeback für Managed-/CLR-Ziele sind ergänzt; COM-Defaultzugriff über `DISPID_VALUE`, COM-RCW-Identität über `IUnknown` und TypeInfo-gesteuertes typisiertes COM-ByRef-Marshalling für unterstützte Automation-Typen sind ergänzt, vollständige COM-/IDispatch-Auflösung, UDT-/Pointer-/Event-ABI und Host-ABI bleiben offen
@@ -575,14 +600,14 @@ Blockstruktur, nicht mehr des Textgenerators.
 - [x] Syntax, Bindung und Lowering für `GoTo`, Labels, `On Error GoTo`/`GoTo 0`, `Resume`, `Resume Next` und `Resume <Label>`
 - [x] `GoTo` und Labels vollständig: gebunden, gelowert und E2E ausgeführt
 - [x] Numerische und benannte Labels, `On ... GoTo`, `GoSub`/`Return` und `On ... GoSub` im Basic-Block-IR und Managed-Backend
-- [~] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt und
+- [x] `On Error GoTo`, `On Error Resume Next`, `On Error GoTo 0`, `Err`-Objekt und
       fehlerstellenspezifischer `Resume Next`-Dispatcher stehen im Managed-Backend. Numerische
       Labels aktualisieren `Erl`; ein Fehler aus einem aktiven Handler wird nicht rekursiv in
       denselben Handler geleitet, sondern an den Aufrufer weitergereicht. `Resume <Label>`
       leert den aktiven Handlerzustand vor dem Sprung und meldet ohne aktiven Fehler 20.
-      Offen bleiben weitere
-      verschachtelte Aufruf-/Resume-Matrixfälle und die abschließende dokumentationsbasierte
-      VB6-SP6-Matrix. Die native LLVM-ABI ist ausgeschlossen.
+      Explizites `Exit Sub` aus einem aktiven Handler leert `Err`; die verschachtelte
+      Aufruf-/Resume-Matrix ist dokumentationsbasiert abgesichert. Die native LLVM-ABI ist
+      ausgeschlossen.
 - [x] Quellpositionen: der Binder hängt `SourceLocation` referenziell an jede gebundene Anweisung,
       `IrLowerer` stempelt sie auf die entstehenden Instruktionen, der Emitter merkt sich die
       IL-Offsets und `PortablePdbEmitter` schreibt daraus Sequenzpunkte. Die PDB trägt damit
@@ -609,10 +634,11 @@ Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6
     `LeftB`, `RightB`, `MidB`, `InStrB`, `InStr`, `InStrRev`, `StrComp`, zweiargumentiges `Mid` und die kontextuelle `Mid(...) = ...`-
     beziehungsweise `Mid$(...) = ...`-Zuweisung sind über die Intrinsic-Tabelle und End-to-End-
     Tests verdrahtet.
-1d. Host- und Kontrollintrinsics — `IIf`/`RGB`, `GetSetting`/`SaveSetting`, `SendKeys`,
+1d. Host- und Kontrollintrinsics — `IIf`/`RGB`, `GetSetting`/`SaveSetting`/`DeleteSetting`/
+    `GetAllSettings`, `SendKeys`,
     `PopupMenu`, `LoadPicture`, `PropertyChanged`, `TextWidth`/`TextHeight`, `Print` und
     `PaintPicture` — ✅ als headless-fähige Runtime-Verträge;
-    echte UI-/Registry-Hostadapter folgen in M8/M9.
+    native Printer-Treiber-, erweiterte Grafik- und sonstige UI-Adapter folgen in M8/M9.
 1e. `LSet`/`RSet` — die kontextuelle `LSet target = source`- und `RSet target = source`-Syntax
     sowie Managed-Ausführung für feste String-Ziele, gleichartige UDT-Werte und unterschiedliche
     rohe UDT-Layouts mit skalaren, Boolean- und `LongPtr`-Feldern sind ✅. `RSet` füllt kurze
@@ -644,6 +670,8 @@ Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6
    Binary elementweise ohne äußeren Descriptor übertragen; dynamische Top-Level-Arrays führen in
    Random zusätzlich den dokumentierten Descriptor und
    schreiben die rekonstruierte Form beim `Get` in die Zielvariable zurück;
+   `Print #`, `Write #`, `Input #` und `Line Input #` wählen jetzt profilbewusst UTF-8
+   (`Deterministic`) beziehungsweise die aktive Windows-ANSI-Codepage (`VB6Sp6`);
    Variant-Arrays als Variant-Wert/Objekte sowie weitere zusammengesetzte Random-Record-Layouts
    bleiben offen.
 3. `MsgBox`/`InputBox` als hostfähige Verträge ✅; `MsgBox` liefert deterministische Buttonwerte und
@@ -652,7 +680,9 @@ Weiter nach Korpusbedarf priorisiert, im Umfang aber durch die vollständige VB6
    `Rnd` und `Randomize` sind als Managed-Intrinsics umgesetzt. `Null`/`Empty`, Banker's Rounding,
    Definitionsbereichs-/Überlauffehler, die VB6-Zufallsfolge sowie der Untertyperhalt von `Int`,
    `Fix` und `Abs` einschließlich `Currency` und `Date` sind durch Runtime- und Managed-E2E-Tests
-   abgesichert. Die vollständige Variant-Promotion bleibt getrennt in Etappe B offen;
+   abgesichert. Die Promotionstabelle einschließlich Null-, Error- und nicht auflösbarer
+   Objektoperanden ist geschlossen; der getrennte Objekt-/Array-Dispatch-Vertrag bleibt in
+   Etappe B offen;
    `Like`/`Option Compare` sind für den aktuellen String-/Variant-Subset implementiert.
 5. [x] `Format$` — benannte numerische, Boolean-, Datums- und Zeitformate, ein- bis vierteilige
    numerische Masken, vollständige `@`/`&`/`<`/`>`/`!`-Stringmasken mit Literalen/Escapes sowie
