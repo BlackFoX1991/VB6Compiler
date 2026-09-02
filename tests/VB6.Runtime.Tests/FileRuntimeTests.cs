@@ -261,6 +261,36 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void BinaryVariantTransfers_RejectArrayAndObjectLayoutsExplicitly()
+    {
+        WithTemporaryFile(path =>
+        {
+            var arrayError = Assert.ThrowsException<VB6TypeMismatchException>(() =>
+            {
+                VBFiles.OpenBinary(1, path);
+                VBFiles.PutVariant(1, 1, new VBArray<int>(new VBArrayBound(0, 1)));
+            });
+            StringAssert.Contains(arrayError.Message, "Array Variant");
+            VBFiles.CloseAll();
+
+            var objectError = Assert.ThrowsException<VB6TypeMismatchException>(() =>
+            {
+                VBFiles.OpenBinary(1, path);
+                VBFiles.PutVariant(1, 1, new object());
+            });
+            StringAssert.Contains(objectError.Message, "binary Variant");
+            VBFiles.CloseAll();
+
+            File.WriteAllBytes(path, BitConverter.GetBytes((ushort)0x2003));
+            VBFiles.OpenBinary(1, path);
+            var safeArrayError = Assert.ThrowsException<VB6TypeMismatchException>(() =>
+                VBFiles.GetVariant(1, 1));
+            StringAssert.Contains(safeArrayError.Message, "SAFEARRAY");
+            VBFiles.Close(1);
+        });
+    }
+
+    [TestMethod]
     public void Width_WrapsPrintContinuationAndValidatesRange()
     {
         WithTemporaryFile(path =>

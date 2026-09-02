@@ -1278,7 +1278,7 @@
     },
     {
       "id": "l1-03-i-file-variant-object-composite-layout",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "runtime-file-io",
       "input": "Variant arrays, object variants and composite Variant/UDT record layouts in file transfers",
       "expected": {
@@ -1286,7 +1286,7 @@
         "objects": "unsupported object layouts fail explicitly rather than being flattened",
         "composite": "nested record layout and ByRef write-back are deterministic"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
@@ -2136,7 +2136,7 @@
       "tests": [
         "tests/VB6.Compiler.Tests/File*Tests.cs"
       ],
-      "gap": "Loc now preserves Binary/Random/Sequential mode units, Reset closes all channels, Write # covers multi-value scalar formatting, Print # accepts an empty output list, Lock/Unlock maps Binary/Random ranges plus Sequential whole-file locks, and Open Access/sharing clauses map to explicit FileAccess/FileShare policies; omitted For defaults to Random with length 128. Input # restores scalar Variant state markers and binary Get/Put supports scalar Variant type tags, while Variant arrays/objects, richer UDT layouts and remaining file modes remain open."
+      "gap": "Loc now preserves Binary/Random/Sequential mode units, Reset closes all channels, Write # covers multi-value scalar formatting, Print # accepts an empty output list, Lock/Unlock maps Binary/Random ranges plus Sequential whole-file locks, and Open Access/sharing clauses map to explicit FileAccess/FileShare policies; omitted For defaults to Random with length 128. Sequential Print #, Write #, Input # and Line Input # now use stable UTF-8 for Deterministic and the active Windows ANSI code page for VB6Sp6. Input # restores scalar Variant state markers and binary Get/Put supports scalar Variant type tags; Variant arrays, object values and incoming SAFEARRAY tags currently fail explicitly with a type mismatch, while their complete layouts, richer UDT layouts and remaining file modes remain open."
     },
     {
       "id": "project-vbp-vbg",
