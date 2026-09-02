@@ -216,6 +216,10 @@ public static class VBErrors
                 // Nur IndexOutOfRange, nicht ArgumentOutOfRange: Letztere deckt auch
                 // Faelle wie Space(-1) ab, fuer die VB6 weiterhin 5 meldet.
                 IndexOutOfRangeException => 9,
+                // Lesen ueber das Dateiende hinaus ist in VB6 Fehler 62. Der Text stand in der
+                // Fehlertabelle schon, nur erreichte ihn niemand: die Ausnahme fiel in den
+                // Sammelwert 5.
+                EndOfStreamException => 62,
                 MissingMemberException => 438,
                 // Ein Mitgliedszugriff auf eine nicht gesetzte Objektvariable ist in VB6
                 // Fehler 91. Der frueh gebundene Pfad ruft dabei auf null und erzeugt die
