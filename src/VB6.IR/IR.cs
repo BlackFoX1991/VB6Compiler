@@ -275,6 +275,16 @@ public sealed record IrNewVBArrayExpression(
 public sealed record IrNewClassExpression(ClassTypeSymbol ClassType)
     : IrExpression(ClassType);
 
+/// <summary>
+/// Reads a local <c>As New</c> variable.  A null local is initialized and the created instance
+/// is retained in that same local before it is returned.  This preserves the VB6 lazy-instance
+/// contract, including reactivation after <c>Set variable = Nothing</c>.
+/// </summary>
+public sealed record IrEnsureLocalClassExpression(
+    IrLocal Local,
+    ClassTypeSymbol ClassType)
+    : IrExpression(ClassType);
+
 public sealed record IrTypeOfExpression(
     IrExpression Expression,
     ClassTypeSymbol TargetType)
