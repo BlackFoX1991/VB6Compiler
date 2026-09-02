@@ -1143,7 +1143,7 @@
     },
     {
       "id": "l1-03-a-project-kinds-startup-bitness",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "project-vbp-vbg",
       "input": "VBP projects with executable/library kinds, startup objects, configured outputs and target bitness",
       "expected": {
@@ -1152,9 +1152,10 @@
         "output": "output path and assembly kind follow project metadata",
         "bitness": "legacy VB6 target defaults and explicit x86 validation are deterministic"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs",
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
       ]
     },
