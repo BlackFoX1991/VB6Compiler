@@ -4593,3 +4593,20 @@ Kanonischer Nachweis bleibt **1421/1421** Tests, **0** Fehler, Release ohne Warn
 VISIA-Projektitems. Die Matrix steht auf **75 implemented, 11 partial, 32 planned von 118 |
 86/118 documented-verified**.
 
+## Karte l1-03-h: Datei-Array-Descriptoren und Bounds verifiziert (01.09.2026)
+
+Die gezielte Prüfung der bereits vorhandenen Array-Dateipfade deckt die gesamte Kartenoberfläche
+ab: feste und dynamische Scalar-, `String`- und UDT-Arrays übertragen ihre Elemente; Rang,
+Unter- und Obergrenzen bleiben erhalten; Binary schreibt keine äußere Descriptor-Hülle, Random
+trägt sie für dynamische Top-Level-Arrays. Ein uninitialisierter dynamischer UDT-Member bleibt
+dabei uninitialisiert. Runtime-, Array-IR- und Managed-E2E-Regressionen sind in den drei
+karteneigenen Testdateien zusammen **61**-mal grün.
+
+`l1-03-h-file-array-descriptor-bounds` lautet damit **`implemented`** /
+`documented-verified`. Nicht Teil dieses Vertrags sind Variant-Werte, deren Inhalt selbst ein
+Array oder Objekt ist; diese bleiben explizit bei der Composite-Variant-Karte offen.
+
+Kanonischer Nachweis bleibt **1421/1421** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **76 implemented, 11 partial, 31 planned von 118 |
+87/118 documented-verified**.
+
