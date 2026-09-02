@@ -142,6 +142,81 @@ public sealed class VariantObjectDispatchExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedProject_WritesBackByRefThroughVariantDefaultProperty()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantDefaultByRefTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "VariantDefaultByRef.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="VariantDefaultByRef"
+                Class=Bucket; Bucket.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bucket.cls"), """
+                Private stored As Variant
+
+                Public Property Get Item(ByVal index As Long) As Variant
+                    Item = stored
+                End Property
+
+                Public Property Let Item(ByVal index As Long, ByVal value As Variant)
+                    stored = value
+                End Property
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Private calls As Long
+
+                Private Function NextIndex() As Long
+                    calls = calls + 1
+                    NextIndex = calls
+                End Function
+
+                Private Function Replace(ByRef target As Variant) As String
+                    target = "changed"
+                    Replace = "returned"
+                End Function
+
+                Public Sub Main()
+                    Dim bucket As Variant
+                    Set bucket = New Bucket
+                    bucket(1) = "before"
+                    Debug.Print Replace(bucket(NextIndex()))
+                    Debug.Print calls
+                    Debug.Print bucket(1)
+                End Sub
+                """);
+
+            var compilation = VBProjectCompilation.Create(projectPath);
+            var analysis = compilation.Analyze();
+            Assert.IsTrue(
+                analysis.Success,
+                string.Join(
+                    Environment.NewLine,
+                    analysis.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))));
+
+            CollectionAssert.AreEqual(
+                new[] { "returned", "1", "changed" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedProject_PreservesStringKeysForVariantDefaultProperties()
     {
         var directory = Path.Combine(

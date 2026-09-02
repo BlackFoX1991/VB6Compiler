@@ -4533,3 +4533,26 @@ Kanonischer Nachweis: **1430/1430** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **83 implemented, 10 partial, 25 planned von 118 |
 93/118 documented-verified**.
 
+## Karte l1-02-h: ByRef-Write-back für indizierte Variantwerte (01.09.2026)
+
+Ein indizierter Variantwert wurde bisher für `ByRef` als CLR-Adresse angefordert. Das funktioniert
+nur für den internen `VBArray<Variant>`-Speicher. Eine schreibbare Default-Property und ein
+CLR-/SAFEARRAY-Wert haben keine solche Adresse; der Aufruf brach vor dem Callee mit „Variant does
+not contain an array“ ab.
+
+Der Lowerer hält Empfänger, Indizes und Elementwert nun jeweils in Compiler-Temporaries. Der
+Callee erhält den Wert als echte ByRef-Variable, und der Managed-Emitter schreibt ihn nach der
+Rückkehr über den regulären dynamischen Elementpfad zurück. Damit bleiben Arraygrenzen,
+Elementkonversion und schreibbare Default-Member einheitlich. Die temporären Indizes bewahren
+zudem die einmalige Auswertung bei Seiteneffekten; Funktionsrückgabewerte werden vor dem
+Write-back gesichert und danach wieder bereitgestellt.
+
+Die neue Projekt-Regression schreibt durch eine Variant-Default-Property zurück, prüft einen
+einmal ausgeführten Indexausdruck und den erhaltenen Funktionsrückgabewert. Die Karte bleibt
+**`partial`** / `documented-verified`: Native SAFEARRAY-Descriptoren mit UDT-/Pointer-Elementen
+und weitere COM-ABI-Formen gehören weiterhin zum separaten Interop-Vertrag.
+
+Kanonischer Nachweis: **1431/1431** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix bleibt bei **83 implemented, 10 partial, 25 planned von 118 |
+93/118 documented-verified**.
+

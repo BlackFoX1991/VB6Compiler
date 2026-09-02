@@ -3457,6 +3457,14 @@ public static class IrLowerer
 
                 if (argument.Parameter?.PassingMode == ParameterPassingMode.ByRef)
                 {
+                    if (!argument.RequiresByRefTemporary &&
+                        StripConversions(argument.Expression) is BoundVariantArrayAccessExpression variantElement)
+                    {
+                        lowered.Add(LowerVariantArrayElementByRefArgument(
+                            argument.Parameter!,
+                            variantElement));
+                        continue;
+                    }
                     IrPlace place;
                     if (argument.RequiresByRefTemporary)
                     {
@@ -3490,11 +3498,8 @@ public static class IrLowerer
                     procedure.ReturnType ?? TypeSymbol.Error);
             }
 
-            var resultTemporary = procedure.IsExternal &&
-                                  procedure.ReturnType is not null &&
-                                  lowered.Any(argument =>
-                                      argument.Kind == IrCallArgumentKind.StringBuffer &&
-                                      argument.WriteBackPlace is not null)
+            var resultTemporary = procedure.ReturnType is not null &&
+                                  lowered.Any(argument => argument.WriteBackPlace is not null)
                 ? NewLocal("__declare_return", procedure.ReturnType, compilerGenerated: true)
                 : null;
 
@@ -3504,6 +3509,55 @@ public static class IrLowerer
                 procedure.ReturnType ?? TypeSymbol.Error,
                 receiver,
                 resultTemporary);
+        }
+
+        /// <summary>
+        /// A Variant index may address a native VBArray, a CLR/SAFEARRAY-backed Array, or a
+        /// writable default member. Only the first form exposes a CLR managed reference. Spill
+        /// the receiver, indices, and value to locals so the callee still receives a real ByRef
+        /// variable, then write the changed local back through the dynamic element contract.
+        /// </summary>
+        private IrCallArgument LowerVariantArrayElementByRefArgument(
+            ParameterSymbol parameter,
+            BoundVariantArrayAccessExpression element)
+        {
+            var receiverTemporary = NewLocal(
+                "__variant_byref_receiver",
+                element.Receiver.Type,
+                compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(receiverTemporary),
+                LowerExpression(element.Receiver)));
+
+            var indices = ImmutableArray.CreateBuilder<IrExpression>(element.Indices.Length);
+            foreach (var index in element.Indices)
+            {
+                var indexTemporary = NewLocal(
+                    "__variant_byref_index",
+                    index.Type,
+                    compilerGenerated: true);
+                Emit(new IrStoreInstruction(
+                    new IrLocalPlace(indexTemporary),
+                    LowerExpression(index)));
+                indices.Add(new IrLoadExpression(new IrLocalPlace(indexTemporary)));
+            }
+
+            var receiver = new IrLoadExpression(new IrLocalPlace(receiverTemporary));
+            var capturedIndices = indices.ToImmutable();
+            var elementPlace = new IrVariantArrayElementPlace(receiver, capturedIndices);
+            var valueTemporary = NewLocal("__variant_byref_value", parameter.Type, compilerGenerated: true);
+            Emit(new IrStoreInstruction(
+                new IrLocalPlace(valueTemporary),
+                new IrVariantArrayCallExpression(
+                    IrVariantArrayOperation.GetElement,
+                    receiver,
+                    capturedIndices,
+                    TypeSymbol.Variant)));
+
+            return new IrCallArgument(
+                new IrAddressExpression(new IrLocalPlace(valueTemporary)),
+                IrCallArgumentKind.Address,
+                elementPlace);
         }
 
         private IrPlace? TryLowerPlace(BoundExpression expression)
