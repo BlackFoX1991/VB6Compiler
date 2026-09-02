@@ -939,4 +939,84 @@ public sealed class VariantObjectDispatchExecutionTests
         // ununterscheidbar waren.
         CollectionAssert.AreEqual(new[] { "9", "438", "438" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_CopiesVariantArraysAtEveryValueBoundary()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                Dim v As Variant
+                Dim fixedArr(0 To 2) As Long
+
+                a = Array(1, 2, 3)
+                b = a
+                b(0) = 42
+                Debug.Print a(0)
+                Debug.Print b(0)
+
+                fixedArr(0) = 1
+                v = fixedArr
+                v(0) = 42
+                Debug.Print fixedArr(0)
+                Debug.Print v(0)
+
+                a = Array(1, 2, 3)
+                Debug.Print Overwrite(a)
+                Debug.Print a(0)
+
+                ' Ein Objekt ist kein Array: die Referenz muss dieselbe bleiben.
+                Dim c As Variant
+                Set c = New Collection
+                Set v = c
+                Debug.Print (v Is c)
+            End Sub
+
+            Function Overwrite(ByVal arg As Variant) As Long
+                arg(0) = 99
+                Overwrite = arg(0)
+            End Function
+            """);
+
+        // VB6 kopiert ein Array an jeder Wertgrenze: bei der Zuweisung zwischen Variants,
+        // beim Ablegen eines typisierten Arrays in einem Variant und beim ByVal-Argument.
+        // Der Aufgerufene schreibt deshalb nur in seine eigene Kopie zurueck. Objekte sind
+        // davon ausgenommen und behalten ihre Referenzidentitaet.
+        CollectionAssert.AreEqual(
+            new[] { "1", "42", "1", "42", "99", "1", "True" },
+            output);
+    }
+
+    [TestMethod]
+    public void Lower_CopiesVariantValueBoundariesButNotIntrinsicReads()
+    {
+        var assigning = VB6TestIr.Lower("""
+            Sub Main()
+                Dim a As Variant
+                Dim b As Variant
+                a = Array(1, 2)
+                b = a
+            End Sub
+            """);
+
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(assigning).ToArray(),
+            VB6.IR.IrRuntimeMethod.ArrayCopyAssignedValue);
+
+        var reading = VB6TestIr.Lower("""
+            Sub Main()
+                Dim a As Variant
+                Dim i As Long
+                a = Array(1, 2)
+                i = UBound(a)
+            End Sub
+            """);
+
+        // Nur die Zuweisung ist eine Wertgrenze. Wuerde der Lowerer auch fuer ein lesendes
+        // Intrinsic kopieren, kostete jedes UBound eine vollstaendige Arraykopie.
+        Assert.AreEqual(
+            1,
+            VB6TestIr.RuntimeCalls(reading).Count(method => method == VB6.IR.IrRuntimeMethod.ArrayCopyAssignedValue));
+    }
 }
