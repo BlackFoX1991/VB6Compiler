@@ -1090,7 +1090,7 @@
     },
     {
       "id": "l1-02-l-locale-datetime-math-financial",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
       "input": "Date/Time, Format, Math and Financial intrinsics under Deterministic and VB6Sp6 locale/profile policies",
       "expected": {
@@ -1098,7 +1098,7 @@
         "numeric": "rounding, domain, overflow and random-sequence contracts are deterministic",
         "financial": "annuity, rate/period and depreciation formulas agree across supported input states"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
         "tests/VB6.Runtime.Tests/MathRuntimeTests.cs",

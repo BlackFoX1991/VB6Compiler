@@ -4428,3 +4428,21 @@ Die Karte steht damit auf **`implemented`** / `documented-verified`.
 Kanonischer Nachweis: **1410/1410** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix steht auf **72 implemented, 9 partial, 37 planned von 118 |
 81/118 documented-verified**.
+
+## Karte l1-02-l geschlossen: Locale, Date/Time, Math und Financial (01.09.2026)
+
+Die Karte war im Managed-Pfad bereits vollständig verdrahtet, aber noch als `planned` geführt.
+Die gezielte Messung deckt die vier karteneigenen Testdateien ab: Locale-/Profilgrenzen für
+`DateValue`, `TimeValue`, Datumsnamen und `Format`; deterministische Rundungs-, Bereichs- und
+Random-Verträge der Math-Intrinsics; sowie alle unterstützten Annuitäten-, Cashflow- und
+Abschreibungsfunktionen. Die Financial-Oberfläche wird zusätzlich durch einen emittierten
+Managed-VB6-Prozess geprüft.
+
+Gemessen: **36 Runtime- und 14 Managed-End-to-End-Tests**, alle grün. Der Status lautet damit
+**`implemented`** / `documented-verified`; ein VB6-SP6-Orakel ist weiterhin nicht installiert.
+Die nächste offene Managed-Karte ist `l1-02-m-headless-host-services`.
+
+Kanonischer Nachweis: **1410/1410** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **73 implemented, 9 partial, 36 planned von 118 |
+82/118 documented-verified**.
+
