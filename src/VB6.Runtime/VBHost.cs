@@ -83,6 +83,27 @@ public interface IVB6Host
     /// <summary>Lets a host persist a registry/settings value.</summary>
     bool TrySaveSetting(string appName, string section, string key, string value) => false;
 
+    /// <summary>
+    /// Lets a host delete a key, a section, or the complete application settings entry. The
+    /// presence flags preserve VB6's omitted-argument distinction from an explicitly empty name.
+    /// </summary>
+    bool TryDeleteSetting(
+        string appName,
+        bool hasSection,
+        string? section,
+        bool hasKey,
+        string? key) => false;
+
+    /// <summary>
+    /// Lets a host return the two-dimensional Variant array used by <c>GetAllSettings</c>.
+    /// Returning <see langword="false"/> uses the deterministic process-local fallback.
+    /// </summary>
+    bool TryGetAllSettings(string appName, string section, out VBArray<object>? settings)
+    {
+        settings = null;
+        return false;
+    }
+
     void Load(object target);
 
     void Unload(object target);

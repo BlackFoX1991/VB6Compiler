@@ -9,7 +9,7 @@ namespace VB6.Runtime;
 /// <summary>Headless, deterministic implementations of VB6 interaction intrinsics.</summary>
 public static class VBInteraction
 {
-    private static readonly Dictionary<string, string> Settings = new(StringComparer.Ordinal);
+    private static readonly Dictionary<SettingKey, string> Settings = new(SettingKeyComparer.Instance);
     private static readonly object SettingsGate = new();
     private static readonly VBApplication ApplicationValue = VBApplication.Create();
     private static string _commandLine = string.Empty;
@@ -561,6 +561,85 @@ public static class VBInteraction
         }
     }
 
+    /// <summary>
+    /// Deletes a registry key, section, or complete application entry through the host when it
+    /// provides one. The deterministic fallback mirrors VB6's hierarchy without touching the
+    /// interactive user's registry.
+    /// </summary>
+    public static void DeleteSetting(string appName, object? section = null, object? key = null)
+    {
+        ArgumentNullException.ThrowIfNull(appName);
+        var (hasSection, sectionName) = ReadOptionalSettingPart(section, "Section");
+        var (hasKey, keyName) = ReadOptionalSettingPart(key, "Key");
+        if (hasKey && !hasSection)
+        {
+            throw new VB6RuntimeErrorException(5, "DeleteSetting requires a section when a key is supplied.");
+        }
+
+        if (Host is { } host && host.TryDeleteSetting(appName, hasSection, sectionName, hasKey, keyName))
+        {
+            return;
+        }
+
+        lock (SettingsGate)
+        {
+            var matches = Settings.Keys
+                .Where(candidate =>
+                    SettingKeyComparer.NameEquals(candidate.AppName, appName) &&
+                    (!hasSection || SettingKeyComparer.NameEquals(candidate.Section, sectionName!)) &&
+                    (!hasKey || SettingKeyComparer.NameEquals(candidate.Key, keyName!)))
+                .ToArray();
+            if (matches.Length == 0)
+            {
+                throw new VB6RuntimeErrorException(5, "DeleteSetting could not find the requested settings entry.");
+            }
+
+            foreach (var match in matches)
+            {
+                Settings.Remove(match);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns the VB6 two-column Variant array of key/value pairs for one application section.
+    /// A missing application or section returns an uninitialized Variant, represented by null.
+    /// </summary>
+    public static object? GetAllSettings(string appName, string section)
+    {
+        ArgumentNullException.ThrowIfNull(appName);
+        ArgumentNullException.ThrowIfNull(section);
+        if (Host is { } host && host.TryGetAllSettings(appName, section, out var hostSettings))
+        {
+            return hostSettings;
+        }
+
+        lock (SettingsGate)
+        {
+            var matches = Settings
+                .Where(pair =>
+                    SettingKeyComparer.NameEquals(pair.Key.AppName, appName) &&
+                    SettingKeyComparer.NameEquals(pair.Key.Section, section))
+                .OrderBy(pair => pair.Key.Key, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (matches.Length == 0)
+            {
+                return null;
+            }
+
+            var result = new VBArray<object>(
+                new VBArrayBound(0, matches.Length - 1),
+                new VBArrayBound(0, 1));
+            for (var index = 0; index < matches.Length; index++)
+            {
+                result[index, 0] = matches[index].Key.Key;
+                result[index, 1] = matches[index].Value;
+            }
+
+            return result;
+        }
+    }
+
     /// <summary>Forwards keyboard injection to the UI host; headless execution does nothing.</summary>
     public static void SendKeys(string keys, bool wait)
     {
@@ -837,12 +916,44 @@ public static class VBInteraction
     /// <summary>Host callback for drawing operations; null means a headless no-op backend.</summary>
     public static Action<VBGraphicsLine>? GraphicsLineSink { get; set; }
 
-    private static string MakeSettingKey(string appName, string section, string key) =>
-        string.Join(
-            '\u001f',
-            appName.ToUpperInvariant(),
-            section.ToUpperInvariant(),
-            key.ToUpperInvariant());
+    private static SettingKey MakeSettingKey(string appName, string section, string key) =>
+        new(appName, section, key);
+
+    private static (bool HasValue, string? Value) ReadOptionalSettingPart(object? value, string parameterName)
+    {
+        if (value is null || VBVariants.IsMissing(value))
+        {
+            return (false, null);
+        }
+
+        if (VBVariants.IsNull(value))
+        {
+            throw new VB6RuntimeErrorException(94, $"Invalid use of Null for DeleteSetting {parameterName}.");
+        }
+
+        return (true, VBConversions.CStr(value));
+    }
+
+
+    private readonly record struct SettingKey(string AppName, string Section, string Key);
+
+    private sealed class SettingKeyComparer : IEqualityComparer<SettingKey>
+    {
+        public static readonly SettingKeyComparer Instance = new();
+
+        public bool Equals(SettingKey left, SettingKey right) =>
+            NameEquals(left.AppName, right.AppName) &&
+            NameEquals(left.Section, right.Section) &&
+            NameEquals(left.Key, right.Key);
+
+        public int GetHashCode(SettingKey value) => HashCode.Combine(
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.AppName),
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.Section),
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.Key));
+
+        public static bool NameEquals(string left, string right) =>
+            string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>Managed storage for the VB6 Font/StdFont host contract.</summary>
