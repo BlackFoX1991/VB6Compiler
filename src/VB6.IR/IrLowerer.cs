@@ -1001,18 +1001,25 @@ public static class IrLowerer
             var enclosing = _location;
             _location = ToIrLocation(statement.SourceLocation) ?? enclosing;
             var protect = (_resumeNext || _errorHandler is not null) && CanProtectForErrorHandling(statement);
+            var startBlock = _current;
+            var startIndex = _current.Instructions.Count;
             try
             {
-                if (protect)
-                {
-                    Emit(new IrErrorBoundaryStartInstruction(
-                        _errorHandler is null ? null : _labels[_errorHandler]));
-                }
-
                 LowerStatementCore(statement);
 
-                if (protect && !_current.HasTerminator)
+                // A protected region may not cross a basic block - the emitted try region would
+                // span branches and the method fails CLR verification. Whether a statement stays
+                // inside one block is only known after lowering it: a Put or Get of an array
+                // expands into an element loop. So the region is inserted afterwards, and only
+                // when the statement really stayed put.
+                if (protect &&
+                    ReferenceEquals(_current, startBlock) &&
+                    !_current.HasTerminator)
                 {
+                    startBlock.Instructions.Insert(
+                        startIndex,
+                        new IrErrorBoundaryStartInstruction(
+                            _errorHandler is null ? null : _labels[_errorHandler]));
                     Emit(new IrErrorBoundaryEndInstruction());
                 }
             }
