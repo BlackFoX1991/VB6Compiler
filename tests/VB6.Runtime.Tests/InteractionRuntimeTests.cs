@@ -80,6 +80,42 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void Settings_GetAllAndDeletePreserveTheVB6RegistryHierarchy()
+    {
+        var appName = "RegistryRuntime_" + Guid.NewGuid().ToString("N");
+        VBInteraction.SaveSetting(appName, "General", "Zebra", "last");
+        VBInteraction.SaveSetting(appName, "General", "Alpha", "first");
+        VBInteraction.SaveSetting(appName, "Other", "Retained", "yes");
+
+        var settingsValue = VBInteraction.GetAllSettings(appName.ToLowerInvariant(), "general");
+        Assert.IsInstanceOfType<VBArray<object>>(settingsValue);
+        var settings = (VBArray<object>)settingsValue!;
+        Assert.AreEqual(2, settings.Rank);
+        Assert.AreEqual(0, settings.LBound(1));
+        Assert.AreEqual(1, settings.UBound(1));
+        Assert.AreEqual(0, settings.LBound(2));
+        Assert.AreEqual(1, settings.UBound(2));
+        Assert.AreEqual("Alpha", settings[0, 0]);
+        Assert.AreEqual("first", settings[0, 1]);
+        Assert.AreEqual("Zebra", settings[1, 0]);
+        Assert.AreEqual("last", settings[1, 1]);
+
+        VBInteraction.DeleteSetting(appName, "General", "alpha");
+        Assert.AreEqual("missing", VBInteraction.GetSetting(appName, "General", "Alpha", "missing"));
+        Assert.IsNotNull(VBInteraction.GetAllSettings(appName, "General"));
+
+        VBInteraction.DeleteSetting(appName, "General");
+        Assert.IsNull(VBInteraction.GetAllSettings(appName, "General"));
+        Assert.AreEqual("yes", VBInteraction.GetSetting(appName, "Other", "Retained", "missing"));
+
+        VBInteraction.DeleteSetting(appName);
+        Assert.IsNull(VBInteraction.GetAllSettings(appName, "Other"));
+        var exception = Assert.ThrowsException<VB6RuntimeErrorException>(
+            () => VBInteraction.DeleteSetting(appName, "Other"));
+        Assert.AreEqual(5, exception.Number);
+    }
+
+    [TestMethod]
     public void PropertyBag_StoresValuesAndUsesFallbacks()
     {
         var bag = new VBPropertyBag();

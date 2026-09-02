@@ -33,6 +33,35 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesRegistryEnumerationAndDeletionContracts()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim settings As Variant
+
+                SaveSetting "RegistryCompiler", "General", "Zebra", "last"
+                SaveSetting "RegistryCompiler", "General", "Alpha", "first"
+                SaveSetting "RegistryCompiler", "Other", "Retained", "yes"
+                settings = GetAllSettings("RegistryCompiler", "General")
+                Debug.Print settings(0, 0)
+                Debug.Print settings(0, 1)
+                Debug.Print settings(1, 0)
+                Debug.Print settings(1, 1)
+                DeleteSetting "RegistryCompiler", "General", "Alpha"
+                Debug.Print GetSetting("RegistryCompiler", "General", "Alpha", "missing")
+                DeleteSetting "RegistryCompiler", "General"
+                Debug.Print IsEmpty(GetAllSettings("RegistryCompiler", "General"))
+                DeleteSetting "RegistryCompiler"
+                Debug.Print GetSetting("RegistryCompiler", "Other", "Retained", "missing")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "Alpha", "first", "Zebra", "last", "missing", "True", "missing" },
+            lines);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesEnvironNameAndIndexContracts()
     {
         var name = "VB6COMPILER_ENV_EXEC_" + Guid.NewGuid().ToString("N");
