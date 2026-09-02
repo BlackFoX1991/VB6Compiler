@@ -4890,3 +4890,31 @@ IDispatch-Server und die vollständige SAFEARRAY-Formenlehre sind nicht Teil die
 Kanonischer Nachweis: **1444/1444** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Die Matrix steht unverändert auf **86 implemented, 7 partial, 25 planned von
 118 | 93/118 documented-verified**.
+
+## Karte l1-02-j: Fehler im Kopf einer Kontrollflussanweisung (02.09.2026)
+
+Die Karte stand auf `implemented` / `documented-verified`, doch eine ganze Fehlerklasse entkam
+`On Error` vollständig und beendete den Prozess: ein Fehler bei der Auswertung einer Bedingung.
+Der Befund gilt auch für längst vorhandene Fehler wie einen Index außerhalb der Arraygrenzen und
+ist damit älter als die zuletzt ergänzten Formen.
+
+Der Grund ist strukturell. `CanProtectForErrorHandling` nimmt Kontrollflussanweisungen von der
+Absicherung aus, weil ihr Rumpf mehrere Basisblöcke umfasst und eine Schutzregion keine
+Blockgrenze überschreiten darf — der Emitter lehnt das ausdrücklich ab. Ihr **Kopf** läuft aber im
+aktuellen Block: die Bedingung von `If`, `ElseIf`, `While` und `Do`, der Selektor von
+`Select Case` sowie Startwert, Grenze und Schrittweite von `For`.
+
+Genau dieser Kopf bekommt jetzt seine eigene Schutzregion. Die Fehler-Fortsetzung, die
+`IrErrorBoundaryEndInstruction` bereits getrennt führt, zeigt dabei auf den Block hinter der
+Anweisung — das ist die Resume-Next-Semantik: der Fehler steht in `Err`, kein Zweig und kein
+Schleifenrumpf läuft, und die Ausführung geht hinter der Anweisung weiter. Ein `On Error GoTo`
+gewinnt weiterhin mit seinem Handlerziel.
+
+Gemessen über alle sechs Kopfformen mit `Err.Number` 9 und unverändertem Zweigzustand, dazu
+Gegenproben mit fehlerfreien Köpfen und ein `On Error GoTo`-Fall.
+
+Die Karte bleibt **`implemented`** / `documented-verified`; der vorherige Stand war für diese
+Fehlerklasse zu optimistisch.
+
+Kanonischer Nachweis: **1444/1444** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
