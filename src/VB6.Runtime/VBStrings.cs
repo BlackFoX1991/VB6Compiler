@@ -159,6 +159,13 @@ public static class VBStrings
     }
 
     /// <summary>
+    /// Variant-aware Mid. Null stays Null as required by VB6; the string overload remains the
+    /// typed fast path for callers whose input is already known to be a String.
+    /// </summary>
+    public static object? Mid(object? value, int start, int length) =>
+        TransformVariantString(value, text => Mid(text, start, length));
+
+    /// <summary>
     /// The two-argument VB6 Mid, which returns everything from <paramref name="start"/> onwards.
     /// </summary>
     public static string Mid(string value, int start)
@@ -171,6 +178,10 @@ public static class VBStrings
 
         return start > value.Length ? string.Empty : value[(start - 1)..];
     }
+
+    /// <summary>Variant-aware two-argument Mid with the same Null propagation as VB6.</summary>
+    public static object? Mid(object? value, int start) =>
+        TransformVariantString(value, text => Mid(text, start));
 
     /// <summary>
     /// Implements the byte-oriented MidB intrinsic. The requested positions and length are
@@ -263,6 +274,10 @@ public static class VBStrings
         return length >= value.Length ? value : value[..length];
     }
 
+    /// <summary>Variant-aware Left that preserves a Null Variant rather than coercing it.</summary>
+    public static object? Left(object? value, int length) =>
+        TransformVariantString(value, text => Left(text, length));
+
     /// <summary>VB6 Right, clipped the same way Left is.</summary>
     public static string Right(string value, int length)
     {
@@ -274,6 +289,10 @@ public static class VBStrings
 
         return length >= value.Length ? value : value[^length..];
     }
+
+    /// <summary>Variant-aware Right that preserves a Null Variant rather than coercing it.</summary>
+    public static object? Right(object? value, int length) =>
+        TransformVariantString(value, text => Right(text, length));
 
     /// <summary>Returns a byte-counted suffix, as documented for RightB.</summary>
     public static string RightB(string value, int length)
@@ -320,11 +339,19 @@ public static class VBStrings
         return value.ToUpperInvariant();
     }
 
+    /// <summary>Variant-aware UCase that propagates Null.</summary>
+    public static object? UCase(object? value) =>
+        TransformVariantString(value, UCase);
+
     public static string LCase(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
         return value.ToLowerInvariant();
     }
+
+    /// <summary>Variant-aware LCase that propagates Null.</summary>
+    public static object? LCase(object? value) =>
+        TransformVariantString(value, LCase);
 
     /// <summary>
     /// VB6 Trim removes spaces, not every kind of whitespace, so a trailing tab survives it. Using
@@ -336,16 +363,37 @@ public static class VBStrings
         return value.Trim(' ');
     }
 
+    /// <summary>Variant-aware Trim that propagates Null.</summary>
+    public static object? Trim(object? value) =>
+        TransformVariantString(value, Trim);
+
     public static string LTrim(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
         return value.TrimStart(' ');
     }
 
+    /// <summary>Variant-aware LTrim that propagates Null.</summary>
+    public static object? LTrim(object? value) =>
+        TransformVariantString(value, LTrim);
+
     public static string RTrim(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
         return value.TrimEnd(' ');
+    }
+
+    /// <summary>Variant-aware RTrim that propagates Null.</summary>
+    public static object? RTrim(object? value) =>
+        TransformVariantString(value, RTrim);
+
+    private static object? TransformVariantString(object? value, Func<string, string> transform)
+    {
+        value = VBVariantObject.ResolveDefaultValue(value);
+        VBVariants.ThrowIfArray(value);
+        return VBVariants.IsNull(value)
+            ? VBVariants.NullValue()
+            : transform(VBConversions.CStr(value));
     }
 
     /// <summary>Returns the first character's Windows-1252 byte value for the VB6 Asc intrinsic.</summary>
