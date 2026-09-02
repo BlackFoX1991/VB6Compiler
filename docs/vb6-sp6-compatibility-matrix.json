@@ -1059,7 +1059,7 @@
     },
     {
       "id": "l1-02-j-nested-error-resume",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "language-control-flow-and-errors",
       "input": "Nested procedure calls with active On Error handlers, every Resume form and Err/Erl propagation",
       "expected": {
@@ -2049,13 +2049,12 @@
         "bitness": "agnostic",
         "com": "errors may carry COM HRESULT/EXCEPINFO"
       },
-      "implementation": "partial",
+      "implementation": "implemented",
       "verification": "documented-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs",
         "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"
-      ],
-      "gap": "Nested handler and complete Resume state coverage remain open."
+      ]
     },
     {
       "id": "language-operators-and-variants",

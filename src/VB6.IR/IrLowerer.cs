@@ -1149,7 +1149,7 @@ public static class IrLowerer
                     LowerExit(exit);
                     break;
                 case BoundReturnStatement:
-                    Terminate(ReturnTerminator());
+                    Terminate(ReturnTerminator(clearsActiveErrorHandler: true));
                     _current = NewBlock("after_return");
                     break;
                 case BoundEndStatement:
@@ -4321,9 +4321,11 @@ public static class IrLowerer
                 LowerExpression(dimension.LowerBound),
                 LowerExpression(dimension.UpperBound))).ToImmutableArray();
 
-        private IrReturnTerminator ReturnTerminator() => _returnLocal is null
-            ? new IrReturnTerminator(null)
-            : new IrReturnTerminator(new IrLoadExpression(new IrLocalPlace(_returnLocal)));
+        private IrReturnTerminator ReturnTerminator(bool clearsActiveErrorHandler = false) => _returnLocal is null
+            ? new IrReturnTerminator(null, clearsActiveErrorHandler)
+            : new IrReturnTerminator(
+                new IrLoadExpression(new IrLocalPlace(_returnLocal)),
+                clearsActiveErrorHandler);
 
         private void Emit(IrInstruction instruction)
         {
