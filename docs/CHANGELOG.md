@@ -4699,3 +4699,21 @@ Kanonischer Nachweis: **1426/1426** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **81 implemented, 12 partial, 25 planned von 118 |
 93/118 documented-verified**.
 
+## Karte l1-02-f: Variant-Zustände und Null-Konvertierungen geschlossen (01.09.2026)
+
+`Mid`, `Left`, `Right`, `UCase`, `LCase`, `Trim`, `LTrim` und `RTrim` waren als reine
+String-Operationen deklariert. Ein `Null`-Variant wurde dadurch vor dem Aufruf zu `String`
+konvertiert und meldete Fehler 94, obwohl diese Variant-Formen Null weitergeben müssen. Die
+Intrinsic-Signaturen sind nun `Variant -> Variant`; Runtime-Overloads halten Null als Null,
+lösen Default-Member auf und verwenden für alle übrigen Werte die bestehende VB6-Stringkonversion.
+
+Die neue Runtime-Regression deckt beide `Mid`-Formen sowie alle sieben weiteren String-Funktionen
+ab; das emittierte VB6-Programm misst denselben Weg durch Binder, IR und Managed-Emitter. Damit
+sind die Zustands-, Null- und numerischen Klauseln von
+`l1-02-f-variant-state-conversions` **`implemented`** / `documented-verified`. Objekt-/Array-
+Varianten und die vollständige Operator-Promotion bleiben getrennte Teilkarten.
+
+Kanonischer Nachweis: **1428/1428** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **82 implemented, 11 partial, 25 planned von 118 |
+93/118 documented-verified**.
+

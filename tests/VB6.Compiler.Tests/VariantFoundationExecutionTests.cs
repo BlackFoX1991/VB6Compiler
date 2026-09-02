@@ -103,6 +103,29 @@ public sealed class VariantFoundationExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_PropagatesNullThroughVariantStringFunctions()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim value As Variant
+                value = Null
+
+                Debug.Print IsNull(Mid(value, 1))
+                Debug.Print IsNull(Mid(value, 1, 1))
+                Debug.Print IsNull(Left(value, 1))
+                Debug.Print IsNull(Right(value, 1))
+                Debug.Print IsNull(UCase(value))
+                Debug.Print IsNull(LCase(value))
+                Debug.Print IsNull(Trim(value))
+                Debug.Print IsNull(LTrim(value))
+                Debug.Print IsNull(RTrim(value))
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(Enumerable.Repeat("True", 9).ToArray(), output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_PreservesVariantSubtypeTagsAcrossAssignment()
     {
         var output = VB6TestProgram.RunLines("""

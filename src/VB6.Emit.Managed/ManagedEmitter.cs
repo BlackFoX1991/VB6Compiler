@@ -4162,17 +4162,17 @@ public sealed class ManagedEmitter
                 if (name == "Len") return Static(typeof(VBStrings), "Len", typeof(object));
                 if (name == "LenB") return Static(typeof(VBStrings), "LenB", typeof(object), typeof(VBCompatibilityProfile));
                 if (name == "Mid") return call.Arguments.Length == 2
-                    ? Static(typeof(VBStrings), "Mid", typeof(string), typeof(int))
-                    : Static(typeof(VBStrings), "Mid", typeof(string), typeof(int), typeof(int));
+                    ? Static(typeof(VBStrings), "Mid", typeof(object), typeof(int))
+                    : Static(typeof(VBStrings), "Mid", typeof(object), typeof(int), typeof(int));
                 if (name == "MidB") return call.Arguments.Length == 2
                     ? Static(typeof(VBStrings), "MidB", typeof(string), typeof(int), typeof(VBCompatibilityProfile))
                     : Static(typeof(VBStrings), "MidB", typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "MidAssign") return Static(typeof(VBStrings), nameof(VBStrings.MidAssign), typeof(string), typeof(int), typeof(string), typeof(int));
                 if (name == "Chr") return Static(typeof(VBStrings), "Chr", typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "ChrW") return Static(typeof(VBStrings), "ChrW", typeof(int));
-                if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(string), typeof(int));
+                if (name is "Left" or "Right") return Static(typeof(VBStrings), name, typeof(object), typeof(int));
                 if (name is "LeftB" or "RightB") return Static(typeof(VBStrings), name, typeof(string), typeof(int), typeof(VBCompatibilityProfile));
-                if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim") return Static(typeof(VBStrings), name, typeof(string));
+                if (name is "UCase" or "LCase" or "Trim" or "LTrim" or "RTrim") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Asc") return Static(typeof(VBStrings), name, typeof(string), typeof(VBCompatibilityProfile));
                 if (name == "AscW") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "AscB") return Static(typeof(VBStrings), name, typeof(string), typeof(VBCompatibilityProfile));

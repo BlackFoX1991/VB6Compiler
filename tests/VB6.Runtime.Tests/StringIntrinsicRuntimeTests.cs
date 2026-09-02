@@ -282,6 +282,9 @@ public sealed class StringIntrinsicRuntimeTests
     {
         Assert.AreEqual("hello", VBStrings.FormatValue("HELLO", "<", 0, 0));
         Assert.AreEqual("HELLO", VBStrings.FormatValue("hello", ">", 0, 0));
+        Assert.AreEqual(" AB", VBStrings.FormatValue("AB", "@@@", 0, 0));
+        Assert.AreEqual("AB ", VBStrings.FormatValue("AB", "!@@@", 0, 0));
+        Assert.AreEqual("AB", VBStrings.FormatValue("AB", "&&&", 0, 0));
         Assert.AreEqual("unchanged", VBStrings.FormatValue("unchanged", string.Empty, 0, 0));
     }
 
