@@ -989,6 +989,52 @@ public sealed class VariantObjectDispatchExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ReportsNothingForADeclaredObjectSlot()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim e As Collection
+                Dim o As Object
+                Dim v As Variant
+                Dim leer As Variant
+
+                Debug.Print TypeName(e) & " " & VarType(e) & " " & IsObject(e) & " " & (e Is Nothing)
+                Debug.Print TypeName(o) & " " & VarType(o) & " " & IsObject(o)
+
+                Set e = New Collection
+                Debug.Print TypeName(e) & " " & VarType(e) & " " & (e Is Nothing)
+                Set e = Nothing
+                Debug.Print TypeName(e) & " " & VarType(e) & " " & (e Is Nothing)
+
+                Set v = Nothing
+                Debug.Print TypeName(v) & " " & VarType(v) & " " & IsObject(v)
+                Debug.Print TypeName(leer) & " " & VarType(leer) & " " & IsObject(leer)
+
+                Set e = New Collection
+                Set v = e
+                Debug.Print TypeName(v) & " " & (v Is e)
+            End Sub
+            """);
+
+        // Eine deklarierte Objektvariable haelt fuer Nothing die CLR-Nullreferenz, und die liest
+        // ein Variant als Empty -- VarType, TypeName und IsObject antworteten deshalb fuer den
+        // falschen Zustand. Beim Boxen bekommt der Slot jetzt denselben Marker, den ein Variant
+        // ohnehin traegt. Ein wirklich leeres Variant bleibt davon unberuehrt.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Nothing 9 True True",
+                "Nothing 9 True",
+                "Collection 9 False",
+                "Nothing 9 True",
+                "Nothing 9 True",
+                "Empty 0 False",
+                "Collection True"
+            },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ReportsDocumentedErrorNumbersForNonObjectVariants()
     {
         var output = VB6TestProgram.RunLines("""
