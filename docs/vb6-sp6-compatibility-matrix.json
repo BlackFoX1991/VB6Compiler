@@ -1177,7 +1177,7 @@
     },
     {
       "id": "l1-03-c-project-compatibility-resources-components",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "project-vbp-vbg",
       "input": "VBP version, binary-compatibility, resource, component and complete declared-input metadata",
       "expected": {
@@ -1185,10 +1185,11 @@
         "resources": "resource files and component entries participate in input resolution",
         "closure": "only declared project inputs enter the deterministic source/output manifest"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.ProjectSystem.Tests/VBProjectLoaderTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs"
+        "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
       ]
     },
     {
@@ -2161,7 +2162,7 @@
         "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs",
         "tests/VB6.ProjectSystem.Tests"
       ],
-      "gap": "Binary compatibility, complete project kinds and dependency closure remain open."
+      "gap": "Core executable/library project-kind classification, Sub Main/Form startup selection, output naming, the legacy x86 default, VBG dependency ordering and declared input manifests are verified. Binary Compatibility metadata is preserved for downstream use; resource embedding, component packaging and full binary-compatibility emission remain open."
     },
     {
       "id": "project-persisted-designer-artifacts",
