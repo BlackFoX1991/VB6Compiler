@@ -4681,3 +4681,21 @@ Kanonischer Nachweis: **1425/1425** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **80 implemented, 12 partial, 26 planned von 118 |
 92/118 documented-verified**.
 
+## Karte l1-03-c: Projektmetadaten und exakte Eingaben verifiziert (01.09.2026)
+
+VBP-Version und Binary-Compatibility-Einstellungen bleiben unverändert als benannte
+Projektmetadaten adressierbar. Der deterministische CLI-Eingabemanifestpfad beschränkt sich auf
+deklarierte Quellen, Designer-Sidecars, Referenzen, OCX-Komponenten und `ResFile*`-Ressourcen;
+nicht deklarierte Dateien im Projektverzeichnis bleiben ausgeschlossen.
+
+Neue Regressionen prüfen den Erhalt von Versions- und Compatibility-Feldern im ProjectSystem sowie
+im erzeugten Manifest TypeLib-, OCX- und `.res`-Dateien neben Form und `.frx`, während eine
+unabhängige Quelldatei weiter fehlt. Damit ist
+`l1-03-c-project-compatibility-resources-components` **`implemented`** /
+`documented-verified`. Die Karte besagt Eingabeadressierung, nicht bereits Resource-Embedding,
+Component-Package- oder Binary-Compatibility-Emission; diese bleiben ausdrücklich offen.
+
+Kanonischer Nachweis: **1426/1426** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **81 implemented, 12 partial, 25 planned von 118 |
+93/118 documented-verified**.
+
