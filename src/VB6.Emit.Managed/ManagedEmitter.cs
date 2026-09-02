@@ -903,6 +903,12 @@ public sealed class ManagedEmitter
                     {
                         EmitExpression(encoder, procedure, ret.Value);
                     }
+                    if (ret.ClearsActiveErrorHandler)
+                    {
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBErrors),
+                            nameof(VBErrors.ClearWhenExitingActiveHandler))));
+                    }
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
                         nameof(VBGoSub.Leave))));
