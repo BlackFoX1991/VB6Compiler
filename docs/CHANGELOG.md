@@ -4735,3 +4735,27 @@ Managed-End-to-End-Tests** sind gezielt grün.
 Die Karte bleibt **`partial`** / `documented-verified`: Die Screen-Oberfläche ist geschlossen;
 als verbleibender expliziter Hostvertrag bleibt `Printer`.
 
+## Karte l1-02-m: Printer-Hostvertrag (01.09.2026)
+
+Der globale `Printer` besitzt jetzt einen typisierten Standardvertrag statt eines nicht gebundenen
+Namens: Geräte-/Dokumentnamen, Druck- und Seitenattribute, Koordinaten, Skalierung,
+Twip-Faktoren, `Font`, `Print`, `NewPage`, `EndDoc`, `KillDoc`, Messen und `PaintPicture` werden
+in eigene Managed-IR-Operationen abgesenkt. `VBPrinterState` ist der gemeinsame Snapshot für
+einen Host; die Druckausgabe selbst erfolgt nur über dessen explizite Callbacks. Ohne passenden
+Host modelliert die Runtime einen sicheren virtuellen Letter-/96-DPI-Druckauftrag und erzeugt
+keinen physischen Druck.
+
+Gemessen: Der Runtime-Test prüft den deterministischen Dokument-Lebenszyklus sowie State-,
+Mess- und Output-Delegation zu einem Testhost. Das emittierte Programm prüft globale Instanz,
+Kern-Eigenschaften, `Print`/Seitenwechsel, Messen und Skalierung; eine IR-Regression prüft die
+typisierten Getter, Setter und Operationen. **27 Runtime- und 21 Managed-End-to-End-Tests** sind
+gezielt grün.
+
+Die Karte bleibt **`partial`** / `documented-verified`, weil native Druckertreiber und die
+erweiterten Druck-Grafikprimitive bewusst nach M8/M9 gehören. Die zuvor offene explizite
+Printer-Hostoberfläche selbst ist damit geschlossen.
+
+Kanonischer Nachweis: **1415/1415** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
+83/118 documented-verified**.
+

@@ -1111,18 +1111,21 @@
     },
     {
       "id": "l1-02-m-headless-host-services",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "runtime-standard-library",
       "input": "Interaction, Environment, Registry, App, Screen, Printer and Clipboard intrinsics with explicit headless host adapters",
       "expected": {
-        "host": "host capabilities are injected explicitly and do not depend on an interactive desktop",
-        "fallback": "unsupported services return documented values or diagnostics instead of hanging",
+        "host": "host capabilities are injected explicitly and do not depend on an interactive desktop; Screen exposes active objects, DPI-derived twips and MousePointer, while Printer exposes selected-device/document state and explicit output callbacks",
+        "fallback": "unsupported services return documented values or diagnostics instead of hanging; Screen falls back to no active object and 96-DPI twips, Printer to a virtual 96-DPI document that never starts a physical print job",
         "profile": "locale and code-page behavior follows the selected compatibility profile"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
-        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryHostContractExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/MsgBoxExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/InputBoxExecutionTests.cs"
       ]
     },
     {
