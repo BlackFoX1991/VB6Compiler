@@ -17,7 +17,8 @@ public sealed record BoundMemberAccessExpression(
 /// </summary>
 public sealed record BoundMemberAssignmentStatement(
     BoundExpression Target,
-    BoundExpression Expression)
+    BoundExpression Expression,
+    bool IsSetAssignment = false)
     : BoundStatement(BoundNodeKind.AssignmentStatement);
 
 public sealed record BoundMemberInvocationStatement(
