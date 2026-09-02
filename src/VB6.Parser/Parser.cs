@@ -2716,6 +2716,14 @@ public sealed class Parser
             return new ArgumentPassingModeExpressionSyntax(passingMode, ParseExpression());
         }
 
+        // VB6 allows the file-number marker in the function forms too: Input(3, #1), LOF(#1).
+        // A date literal is a token of its own, so a hash here can only be that marker.
+        if (Current.Kind == SyntaxKind.HashToken)
+        {
+            var hashToken = NextToken();
+            return new FileNumberArgumentExpressionSyntax(hashToken, ParseExpression());
+        }
+
         return ParseExpression();
     }
 

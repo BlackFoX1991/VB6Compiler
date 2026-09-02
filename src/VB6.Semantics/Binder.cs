@@ -3264,6 +3264,9 @@ public sealed class Binder
             // The keyword only decides how the argument is passed; the value itself is the operand.
             ArgumentPassingModeExpressionSyntax passingMode =>
                 BindExpression(passingMode.Expression, variables, procedures),
+            // Das Kanalzeichen markiert das Argument nur; gebunden wird der Ausdruck dahinter.
+            FileNumberArgumentExpressionSyntax fileNumber =>
+                BindExpression(fileNumber.Expression, variables, procedures),
             _ => new BoundErrorExpression()
         };
     }
