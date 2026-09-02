@@ -123,15 +123,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
-    public bool TryGetClipboardText(out string? text)
+    public bool TryGetClipboardText(out string? text) => TryGetClipboardText(1, out text);
+
+    public bool TryGetClipboardText(int format, out string? text)
     {
         ThrowIfDisposed();
 
         try
         {
-            if (System.Windows.Forms.Clipboard.ContainsText())
+            if (TryGetTextDataFormat(format, out var textFormat) &&
+                System.Windows.Forms.Clipboard.ContainsText(textFormat))
             {
-                text = System.Windows.Forms.Clipboard.GetText();
+                text = System.Windows.Forms.Clipboard.GetText(textFormat);
                 return true;
             }
         }
@@ -144,6 +147,158 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         text = null;
         return false;
+    }
+
+    public bool TrySetClipboardText(string text, int format)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(text);
+        if (!TryGetTextDataFormat(format, out var textFormat))
+        {
+            return false;
+        }
+
+        try
+        {
+            System.Windows.Forms.Clipboard.SetText(text, textFormat);
+            return true;
+        }
+        catch (ExternalException)
+        {
+            return false;
+        }
+        catch (ThreadStateException)
+        {
+            return false;
+        }
+    }
+
+    public bool TryGetClipboardData(int format, out object? data)
+    {
+        ThrowIfDisposed();
+        if (format == 0 || !TryGetClipboardDataFormat(format, out var dataFormat))
+        {
+            data = null;
+            return false;
+        }
+
+        try
+        {
+            var clipboard = System.Windows.Forms.Clipboard.GetDataObject();
+            if (clipboard?.GetDataPresent(dataFormat, autoConvert: false) == true)
+            {
+                data = clipboard.GetData(dataFormat, autoConvert: false);
+                return true;
+            }
+        }
+        catch (ExternalException)
+        {
+        }
+        catch (ThreadStateException)
+        {
+        }
+
+        data = null;
+        return false;
+    }
+
+    public bool TrySetClipboardData(object? data, int format)
+    {
+        ThrowIfDisposed();
+        if (data is null || format == 0 || !TryGetClipboardDataFormat(format, out var dataFormat))
+        {
+            return false;
+        }
+
+        try
+        {
+            System.Windows.Forms.Clipboard.SetData(dataFormat, data);
+            return true;
+        }
+        catch (ExternalException)
+        {
+            return false;
+        }
+        catch (ThreadStateException)
+        {
+            return false;
+        }
+    }
+
+    public bool TryGetClipboardFormat(int format, out bool available)
+    {
+        ThrowIfDisposed();
+        try
+        {
+            if (TryGetTextDataFormat(format, out var textFormat))
+            {
+                available = System.Windows.Forms.Clipboard.ContainsText(textFormat);
+                return true;
+            }
+
+            if (TryGetClipboardDataFormat(format, out var dataFormat))
+            {
+                available = System.Windows.Forms.Clipboard.ContainsData(dataFormat);
+                return true;
+            }
+        }
+        catch (ExternalException)
+        {
+        }
+        catch (ThreadStateException)
+        {
+        }
+
+        available = false;
+        return false;
+    }
+
+    public bool TryClearClipboard()
+    {
+        ThrowIfDisposed();
+        try
+        {
+            System.Windows.Forms.Clipboard.Clear();
+            return true;
+        }
+        catch (ExternalException)
+        {
+            return false;
+        }
+        catch (ThreadStateException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryGetTextDataFormat(int format, out TextDataFormat textFormat)
+    {
+        textFormat = format switch
+        {
+            1 => TextDataFormat.Text,
+            13 => TextDataFormat.UnicodeText,
+            -16639 => TextDataFormat.Rtf,
+            _ => default
+        };
+        return format is 1 or 13 or -16639;
+    }
+
+    private static bool TryGetClipboardDataFormat(int format, out string dataFormat)
+    {
+        dataFormat = format switch
+        {
+            1 => DataFormats.Text,
+            2 => DataFormats.Bitmap,
+            3 => DataFormats.MetafilePict,
+            8 => DataFormats.Dib,
+            9 => DataFormats.Palette,
+            13 => DataFormats.UnicodeText,
+            14 => DataFormats.EnhancedMetafile,
+            15 => DataFormats.FileDrop,
+            -16639 => DataFormats.Rtf,
+            _ => string.Empty
+        };
+        return dataFormat.Length != 0;
     }
 
     public void PopupMenu(object? menu, int flags, float x, float y)

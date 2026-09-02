@@ -9,8 +9,11 @@ namespace VB6.Runtime;
 /// <summary>Headless, deterministic implementations of VB6 interaction intrinsics.</summary>
 public static class VBInteraction
 {
+    private const int ClipboardTextFormat = 1;
     private static readonly Dictionary<SettingKey, string> Settings = new(SettingKeyComparer.Instance);
     private static readonly object SettingsGate = new();
+    private static readonly Dictionary<int, object?> ClipboardData = new();
+    private static readonly object ClipboardGate = new();
     private static readonly VBApplication ApplicationValue = VBApplication.Create();
     private static string _commandLine = string.Empty;
     private static bool _commandLineSetByHost;
@@ -647,17 +650,107 @@ public static class VBInteraction
         Host?.SendKeys(keys, wait);
     }
 
-    /// <summary>Reads clipboard text through a configured sink or the active UI host.</summary>
-    public static string ClipboardGetText()
+    /// <summary>Reads clipboard text through a configured sink, the active UI host, or the deterministic fallback.</summary>
+    public static string ClipboardGetText(int format = ClipboardTextFormat)
     {
-        if (ClipboardTextSink is { } sink)
+        if (format == ClipboardTextFormat && ClipboardTextSink is { } sink)
         {
             return sink() ?? string.Empty;
         }
 
-        return Host?.TryGetClipboardText(out var text) == true
-            ? text ?? string.Empty
-            : string.Empty;
+        if (Host?.TryGetClipboardText(format, out var text) == true)
+        {
+            return text ?? string.Empty;
+        }
+
+        lock (ClipboardGate)
+        {
+            return ClipboardData.TryGetValue(format, out var data) && data is string storedText
+                ? storedText
+                : string.Empty;
+        }
+    }
+
+    /// <summary>Writes text under one VB6 clipboard format without requiring a desktop session.</summary>
+    public static void ClipboardSetText(string text, int format = ClipboardTextFormat)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (Host?.TrySetClipboardText(text, format) == true)
+        {
+            return;
+        }
+
+        lock (ClipboardGate)
+        {
+            ClipboardData[format] = text;
+        }
+    }
+
+    /// <summary>Returns opaque clipboard data or null when the requested format is unavailable.</summary>
+    public static object? ClipboardGetData(int format = 0)
+    {
+        if (Host?.TryGetClipboardData(format, out var hostData) == true)
+        {
+            return hostData;
+        }
+
+        lock (ClipboardGate)
+        {
+            if (format == 0)
+            {
+                return ClipboardData.OrderBy(pair => pair.Key).Select(pair => pair.Value).FirstOrDefault();
+            }
+
+            return ClipboardData.TryGetValue(format, out var data) ? data : null;
+        }
+    }
+
+    /// <summary>Writes opaque clipboard data under the requested format or an inferred default.</summary>
+    public static void ClipboardSetData(object? data, int format = 0)
+    {
+        var effectiveFormat = format == 0 ? InferClipboardFormat(data) : format;
+        if (Host?.TrySetClipboardData(data, effectiveFormat) == true)
+        {
+            return;
+        }
+
+        lock (ClipboardGate)
+        {
+            ClipboardData[effectiveFormat] = data;
+        }
+    }
+
+    /// <summary>Returns whether the requested clipboard format is currently available.</summary>
+    public static bool ClipboardGetFormat(int format)
+    {
+        if (format == ClipboardTextFormat && ClipboardTextSink is not null)
+        {
+            return true;
+        }
+
+        if (Host?.TryGetClipboardFormat(format, out var available) == true)
+        {
+            return available;
+        }
+
+        lock (ClipboardGate)
+        {
+            return format == 0 ? ClipboardData.Count != 0 : ClipboardData.ContainsKey(format);
+        }
+    }
+
+    /// <summary>Clears every clipboard format through the configured host or deterministic fallback.</summary>
+    public static void ClipboardClear()
+    {
+        if (Host?.TryClearClipboard() == true)
+        {
+            return;
+        }
+
+        lock (ClipboardGate)
+        {
+            ClipboardData.Clear();
+        }
     }
 
     /// <summary>Context-menu display belongs to the UI host; headless execution intentionally does nothing.</summary>
@@ -934,6 +1027,7 @@ public static class VBInteraction
         return (true, VBConversions.CStr(value));
     }
 
+    private static int InferClipboardFormat(object? data) => data is string ? ClipboardTextFormat : 0;
 
     private readonly record struct SettingKey(string AppName, string Section, string Key);
 
