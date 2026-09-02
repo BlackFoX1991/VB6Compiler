@@ -78,4 +78,47 @@ public sealed class FileStringIoExecutionTests
             new[] { expectedFirstByte, "ä", "ö" },
             VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation)));
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReadsCharactersThroughTheInputFunction()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim f As Integer
+                Dim s As String
+                Dim d As Variant
+
+                f = FreeFile
+                Open "zeichen.txt" For Output As #f
+                Print #f, "abcdef"
+                Close #f
+
+                f = FreeFile
+                Open "zeichen.txt" For Input As #f
+                s = Input(3, #f)
+                Debug.Print s
+                s = Input(2, f)
+                Debug.Print s
+                Close #f
+
+                f = FreeFile
+                Open "zeichen.txt" For Input As #f
+                Debug.Print LOF(#f) & " " & EOF(#f) & " " & Seek(#f)
+                Close #f
+
+                d = #1/2/2020#
+                Debug.Print VarType(d) & " " & Year(d)
+
+                Kill "zeichen.txt"
+            End Sub
+            """);
+
+        // Die Funktionsform Input(n, #f) wurde vorher nicht geparst -- VB6P0001 auf dem
+        // HashToken -- obwohl Intrinsic und Runtime laengst vorhanden waren. VB6 erlaubt den
+        // Kanalmarker in jeder Argumentliste, auch bei LOF, EOF und Seek. Das Datumsliteral
+        // bleibt davon unberuehrt: der Lexer trennt es schon vom blanken Rautenzeichen.
+        CollectionAssert.AreEqual(
+            new[] { "abc", "de", "8 False 1", "7 2020" },
+            output);
+    }
 }
