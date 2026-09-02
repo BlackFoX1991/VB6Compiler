@@ -4446,3 +4446,23 @@ Kanonischer Nachweis: **1410/1410** Tests, **0** Fehler, Release ohne Warnungen,
 VISIA-Projektitems. Die Matrix steht auf **73 implemented, 9 partial, 36 planned von 118 |
 82/118 documented-verified**.
 
+## Karte l1-02-m: explizite Headless-Interaktionsdienste (01.09.2026)
+
+`MsgBox`, `InputBox` und die Settings-API besaßen einen dokumentierten deterministischen
+Headless-Fallback, konnten aber nicht über den vorhandenen `IVB6Host` ersetzt werden. Das ist
+jetzt ein echter Hostvertrag: `TryShowMessageBox`, `TryShowInputBox`, `TryGetSetting` und
+`TrySaveSetting` erlauben einer Anwendung, die Dienste explizit bereitzustellen. Gibt ein Host
+einen Dienst nicht an, bleibt das bisherige Verhalten erhalten — MessageBox-Standardantwort,
+InputBox-Default und prozesslokaler, case-insensitiver Settings-Speicher.
+
+Gemessen: Ein Testhost liefert eine eigene Dialogantwort und persistiert Settings, während die
+emittierten `MsgBox`-/`InputBox`- und Standardbibliotheksprogramme weiterhin ohne interaktiven
+Desktop durchlaufen. **23 Runtime- und 21 Managed-End-to-End-Tests** sind grün.
+
+Die Karte steht auf **`partial`** / `documented-verified`: `Screen`, `Printer` und die
+vollständige Clipboard-Oberfläche brauchen weiterhin eigene, explizite Hostverträge.
+
+Kanonischer Nachweis: **1411/1411** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Die Matrix steht auf **73 implemented, 10 partial, 35 planned von 118 |
+83/118 documented-verified**.
+
