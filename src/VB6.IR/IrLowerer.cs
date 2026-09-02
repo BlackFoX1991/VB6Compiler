@@ -1071,6 +1071,15 @@ public static class IrLowerer
                         break;
                     }
 
+                    if (assignment.Target is BoundPropertyAccessExpression screenProperty &&
+                        IsScreenObject(screenProperty.Receiver))
+                    {
+                        Emit(new IrEvaluateInstruction(LowerScreenPropertySet(
+                            screenProperty.Property.Name,
+                            LowerValueCopy(assignment.Expression))));
+                        break;
+                    }
+
                     if (assignment.Target is BoundPropertyAccessExpression dynamicProperty &&
                         (dynamicProperty.Property.IsLateBound || IsRuntimeObject(dynamicProperty.Receiver)))
                     {
@@ -2814,6 +2823,11 @@ public static class IrLowerer
                     new IrConstantExpression(1L, TypeSymbol.Long));
             }
 
+            if (IsScreenObject(expression.Receiver))
+            {
+                return LowerScreenProperty(expression.Property.Name);
+            }
+
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
@@ -2886,6 +2900,11 @@ public static class IrLowerer
                     IrRuntimeMethod.InteractionClipboardGetText,
                     TypeSymbol.String,
                     new IrConstantExpression(1L, TypeSymbol.Long));
+            }
+
+            if (expression.Arguments.IsDefaultOrEmpty && IsScreenObject(expression.Receiver))
+            {
+                return LowerScreenProperty(expression.Property.Name);
             }
 
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
@@ -3300,6 +3319,11 @@ public static class IrLowerer
                 return Runtime(IrRuntimeMethod.InteractionApplication, application.Type);
             }
 
+            if (symbol is ModuleVariableSymbol screen && IsScreenObject(screen))
+            {
+                return Runtime(IrRuntimeMethod.InteractionScreen, screen.Type);
+            }
+
             if (symbol is ModuleVariableSymbol module &&
                 _program.TryGetConstantValue(module, out var value))
             {
@@ -3326,6 +3350,27 @@ public static class IrLowerer
             expression.Type is ClassTypeSymbol classType &&
             ReferenceEquals(classType, VBStandardTypes.App);
 
+        private static IrExpression LowerScreenProperty(string name) =>
+            name.ToUpperInvariant() switch
+            {
+                "ACTIVEFORM" => Runtime(IrRuntimeMethod.InteractionScreenActiveForm, VBStandardTypes.Form),
+                "ACTIVECONTROL" => Runtime(IrRuntimeMethod.InteractionScreenActiveControl, VBStandardTypes.Control),
+                "TWIPSPERPIXELX" => Runtime(IrRuntimeMethod.InteractionScreenTwipsPerPixelX, TypeSymbol.Single),
+                "TWIPSPERPIXELY" => Runtime(IrRuntimeMethod.InteractionScreenTwipsPerPixelY, TypeSymbol.Single),
+                "MOUSEPOINTER" => Runtime(IrRuntimeMethod.InteractionScreenMousePointer, TypeSymbol.Long),
+                _ => throw new NotSupportedException($"Screen property '{name}' has no runtime contract.")
+            };
+
+        private static IrExpression LowerScreenPropertySet(string name, IrExpression value) =>
+            name.ToUpperInvariant() switch
+            {
+                "MOUSEPOINTER" => Runtime(IrRuntimeMethod.InteractionScreenSetMousePointer, TypeSymbol.Error, value),
+                _ => throw new NotSupportedException($"Screen property '{name}' is read-only.")
+            };
+
+        private static bool IsScreenObject(BoundExpression expression) =>
+            expression.Type is ClassTypeSymbol classType &&
+            ReferenceEquals(classType, VBStandardTypes.Screen);
 
         private static bool IsClipboardGetText(BoundExpression receiver, string propertyName) =>
             IsClipboardObject(receiver) &&
@@ -3361,6 +3406,9 @@ public static class IrLowerer
 
         private static bool IsApplicationObject(ModuleVariableSymbol symbol) =>
             ReferenceEquals(symbol.Type, VBStandardTypes.App);
+
+        private static bool IsScreenObject(ModuleVariableSymbol symbol) =>
+            ReferenceEquals(symbol.Type, VBStandardTypes.Screen);
 
         private IrPlace LowerVariablePlace(VariableSymbol symbol)
         {
