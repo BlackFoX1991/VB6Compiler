@@ -116,6 +116,46 @@ public sealed class InteractionRuntimeTests
     }
 
     [TestMethod]
+    public void InteractionServices_UseInjectedHostBeforeHeadlessFallback()
+    {
+        var previousHost = VBInteraction.Host;
+        var host = new InteractionServiceHost();
+        try
+        {
+            VBInteraction.Host = host;
+
+            Assert.AreEqual((short)7, VBInteraction.MsgBox("Proceed?", 4, "Confirm"));
+            Assert.AreEqual(
+                "host response",
+                VBInteraction.InputBox("Prompt", "Title", "default", 1f, 2f, "help.chm", 3));
+
+            VBInteraction.SaveSetting("App", "Section", "Key", "persisted");
+            Assert.AreEqual("persisted", VBInteraction.GetSetting("App", "Section", "Key", "fallback"));
+            Assert.AreEqual("fallback", VBInteraction.GetSetting("App", "Section", "other", "fallback"));
+
+            var settingsValue = VBInteraction.GetAllSettings("App", "Section");
+            Assert.IsInstanceOfType<VBArray<object>>(settingsValue);
+            var settings = (VBArray<object>)settingsValue!;
+            Assert.AreEqual("Key", settings[0, 0]);
+            Assert.AreEqual("persisted", settings[0, 1]);
+            VBInteraction.DeleteSetting("App", "Section", "Key");
+            Assert.IsNull(VBInteraction.GetAllSettings("App", "Section"));
+
+            VBInteraction.ClipboardSetText("host clipboard", 13);
+            Assert.IsTrue(VBInteraction.ClipboardGetFormat(13));
+            Assert.AreEqual("host clipboard", VBInteraction.ClipboardGetText(13));
+            VBInteraction.ClipboardSetData("host data", 9001);
+            Assert.AreEqual("host data", VBInteraction.ClipboardGetData(9001));
+            VBInteraction.ClipboardClear();
+            Assert.IsFalse(VBInteraction.ClipboardGetFormat(13));
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+        }
+    }
+
+    [TestMethod]
     public void PropertyBag_StoresValuesAndUsesFallbacks()
     {
         var bag = new VBPropertyBag();
@@ -156,6 +196,42 @@ public sealed class InteractionRuntimeTests
         }
         finally
         {
+            VBInteraction.ClipboardTextSink = previousSink;
+        }
+    }
+
+    [TestMethod]
+    public void ClipboardServices_ProvideDeterministicMultiFormatHeadlessFallbacks()
+    {
+        var previousHost = VBInteraction.Host;
+        var previousSink = VBInteraction.ClipboardTextSink;
+        try
+        {
+            VBInteraction.Host = null;
+            VBInteraction.ClipboardTextSink = null;
+            VBInteraction.ClipboardClear();
+
+            VBInteraction.ClipboardSetText("plain", 1);
+            VBInteraction.ClipboardSetText("{\\rtf1 rich}", -16639);
+            var picture = new VBPicture("picture.bmp");
+            VBInteraction.ClipboardSetData(picture, 2);
+
+            Assert.IsTrue(VBInteraction.ClipboardGetFormat(1));
+            Assert.IsTrue(VBInteraction.ClipboardGetFormat(-16639));
+            Assert.IsTrue(VBInteraction.ClipboardGetFormat(2));
+            Assert.AreEqual("plain", VBInteraction.ClipboardGetText());
+            Assert.AreEqual("{\\rtf1 rich}", VBInteraction.ClipboardGetText(-16639));
+            Assert.AreSame(picture, VBInteraction.ClipboardGetData(2));
+
+            VBInteraction.ClipboardClear();
+            Assert.IsFalse(VBInteraction.ClipboardGetFormat(1));
+            Assert.AreEqual(string.Empty, VBInteraction.ClipboardGetText());
+            Assert.IsNull(VBInteraction.ClipboardGetData(2));
+        }
+        finally
+        {
+            VBInteraction.ClipboardClear();
+            VBInteraction.Host = previousHost;
             VBInteraction.ClipboardTextSink = previousSink;
         }
     }
@@ -402,5 +478,172 @@ public sealed class InteractionRuntimeTests
         public int Value { get; set; }
 
         public int Add(int value) => Value + value;
+    }
+
+    private sealed class InteractionServiceHost : IVB6Host
+    {
+        private readonly List<HostSetting> _settings = [];
+        private readonly Dictionary<int, object?> _clipboard = [];
+
+        public void DoEvents()
+        {
+        }
+
+        public bool TryShowMessageBox(string prompt, int buttons, string title, out short result)
+        {
+            Assert.AreEqual("Proceed?", prompt);
+            Assert.AreEqual(4, buttons);
+            Assert.AreEqual("Confirm", title);
+            result = 7;
+            return true;
+        }
+
+        public bool TryShowInputBox(
+            string prompt,
+            string title,
+            string defaultResponse,
+            float xpos,
+            float ypos,
+            string helpFile,
+            int context,
+            out string? response)
+        {
+            Assert.AreEqual("Prompt", prompt);
+            Assert.AreEqual("Title", title);
+            Assert.AreEqual("default", defaultResponse);
+            Assert.AreEqual(1f, xpos);
+            Assert.AreEqual(2f, ypos);
+            Assert.AreEqual("help.chm", helpFile);
+            Assert.AreEqual(3, context);
+            response = "host response";
+            return true;
+        }
+
+        public bool TryGetSetting(string appName, string section, string key, out string? value)
+        {
+            var setting = _settings.FirstOrDefault(candidate =>
+                NameEquals(candidate.AppName, appName) &&
+                NameEquals(candidate.Section, section) &&
+                NameEquals(candidate.Key, key));
+            value = setting?.Value;
+            return setting is not null;
+        }
+
+        public bool TrySaveSetting(string appName, string section, string key, string value)
+        {
+            var existing = _settings.FindIndex(candidate =>
+                NameEquals(candidate.AppName, appName) &&
+                NameEquals(candidate.Section, section) &&
+                NameEquals(candidate.Key, key));
+            if (existing >= 0)
+            {
+                _settings[existing] = new HostSetting(appName, section, key, value);
+            }
+            else
+            {
+                _settings.Add(new HostSetting(appName, section, key, value));
+            }
+
+            return true;
+        }
+
+        public bool TryDeleteSetting(string appName, bool hasSection, string? section, bool hasKey, string? key)
+        {
+            var removed = _settings.RemoveAll(candidate =>
+                NameEquals(candidate.AppName, appName) &&
+                (!hasSection || NameEquals(candidate.Section, section!)) &&
+                (!hasKey || NameEquals(candidate.Key, key!)));
+            return removed > 0;
+        }
+
+        public bool TryGetAllSettings(string appName, string section, out VBArray<object>? settings)
+        {
+            var matches = _settings
+                .Where(candidate =>
+                    NameEquals(candidate.AppName, appName) &&
+                    NameEquals(candidate.Section, section))
+                .OrderBy(candidate => candidate.Key, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (matches.Length == 0)
+            {
+                settings = null;
+                return true;
+            }
+
+            settings = new VBArray<object>(
+                new VBArrayBound(0, matches.Length - 1),
+                new VBArrayBound(0, 1));
+            for (var index = 0; index < matches.Length; index++)
+            {
+                settings[index, 0] = matches[index].Key;
+                settings[index, 1] = matches[index].Value;
+            }
+
+            return true;
+        }
+
+        public bool TryGetClipboardText(int format, out string? text)
+        {
+            text = _clipboard.TryGetValue(format, out var data) ? data as string : null;
+            return text is not null;
+        }
+
+        public bool TrySetClipboardText(string text, int format)
+        {
+            _clipboard[format] = text;
+            return true;
+        }
+
+        public bool TryGetClipboardData(int format, out object? data) =>
+            _clipboard.TryGetValue(format, out data);
+
+        public bool TrySetClipboardData(object? data, int format)
+        {
+            _clipboard[format] = data;
+            return true;
+        }
+
+        public bool TryGetClipboardFormat(int format, out bool available)
+        {
+            available = _clipboard.ContainsKey(format);
+            return true;
+        }
+
+        public bool TryClearClipboard()
+        {
+            _clipboard.Clear();
+            return true;
+        }
+
+        public void Load(object target)
+        {
+        }
+
+        public void Unload(object target)
+        {
+        }
+
+        public object? CreateControl(object owner, string name, string typeName) => null;
+
+        public bool TryGetMember(object target, string memberName, object?[] arguments, out object? value)
+        {
+            value = null;
+            return false;
+        }
+
+        public bool TrySetMember(object target, string memberName, object?[] arguments, object? value) => false;
+
+        public bool TryInvokeMember(object target, string memberName, object?[] arguments, out object? result)
+        {
+            result = null;
+            return false;
+        }
+
+        public IEnumerable<object?>? EnumerateControls(object? target) => [];
+
+        private static bool NameEquals(string left, string right) =>
+            string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+
+        private sealed record HostSetting(string AppName, string Section, string Key, string Value);
     }
 }

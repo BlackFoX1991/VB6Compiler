@@ -62,6 +62,32 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ExecutesClipboardFormatAndDataContracts()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Clipboard.Clear
+                Clipboard.SetText "plain text"
+                Clipboard.SetText "{\rtf1 rich text}", vbCFRTF
+                Debug.Print Clipboard.GetFormat(vbCFText)
+                Debug.Print Clipboard.GetFormat(vbCFRTF)
+                Debug.Print Clipboard.GetText()
+                Debug.Print Clipboard.GetText(vbCFRTF)
+                Clipboard.SetData "opaque data", 9001
+                Debug.Print Clipboard.GetFormat(9001)
+                Debug.Print Clipboard.GetData(9001)
+                Clipboard.Clear
+                Debug.Print Clipboard.GetFormat(vbCFText)
+                Debug.Print "[" & Clipboard.GetText() & "]"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "True", "plain text", "{\\rtf1 rich text}", "True", "opaque data", "False", "[]" },
+            lines);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesEnvironNameAndIndexContracts()
     {
         var name = "VB6COMPILER_ENV_EXEC_" + Guid.NewGuid().ToString("N");
@@ -152,12 +178,17 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
-    public void Analyze_ResolvesClipboardGetTextContract()
+    public void Analyze_ResolvesClipboardContract()
     {
         var analysis = VBCompilation.Create("""
             Sub Main()
                 Dim text As String
                 text = Clipboard.GetText
+                Clipboard.SetText "text", vbCFText
+                Clipboard.SetData "opaque", 9001
+                Debug.Print Clipboard.GetFormat(vbCFText)
+                Debug.Print Clipboard.GetData(9001)
+                Clipboard.Clear
             End Sub
             """).Analyze();
 
@@ -165,17 +196,37 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
-    public void Lower_UsesClipboardGetTextRuntimeContract()
+    public void Lower_UsesClipboardRuntimeContracts()
     {
         var program = VB6TestIr.Lower("""
             Sub Main()
+                Clipboard.Clear
+                Clipboard.SetText "text", vbCFText
+                Clipboard.SetData "opaque", 9001
                 Debug.Print Clipboard.GetText
+                Debug.Print Clipboard.GetFormat(vbCFText)
+                Debug.Print Clipboard.GetData(9001)
             End Sub
             """);
 
         CollectionAssert.Contains(
             VB6TestIr.RuntimeCalls(program).ToArray(),
             VB6.IR.IrRuntimeMethod.InteractionClipboardGetText);
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionClipboardClear);
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionClipboardSetText);
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionClipboardSetData);
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionClipboardGetFormat);
+        CollectionAssert.Contains(
+            VB6TestIr.RuntimeCalls(program).ToArray(),
+            VB6.IR.IrRuntimeMethod.InteractionClipboardGetData);
     }
 
     [TestMethod]
