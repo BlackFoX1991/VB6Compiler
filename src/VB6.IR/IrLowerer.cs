@@ -2251,6 +2251,47 @@ public static class IrLowerer
                 TypeSymbol.Error)));
         }
 
+        /// <summary>
+        /// Evaluates a control-flow condition inside its own protected region. The statement as a
+        /// whole cannot be protected - its body spans several basic blocks, and a protected region
+        /// may not cross one - but the condition is evaluated in the current block. Without this an
+        /// error there escapes <c>On Error</c> entirely and ends the process, while VB6 records it
+        /// and carries on after the statement.
+        /// </summary>
+        private IrExpression LowerProtectedCondition(BoundExpression condition, int errorContinuationBlockId)
+        {
+            if (!_resumeNext && _errorHandler is null)
+            {
+                return LowerExpression(condition);
+            }
+
+            var temporary = new IrLocalPlace(
+                NewLocal($"__condition_{_nextLocalId}", condition.Type, compilerGenerated: true));
+            LowerProtectedHeader(
+                errorContinuationBlockId,
+                () => Emit(new IrStoreInstruction(temporary, LowerExpression(condition))));
+            return new IrLoadExpression(temporary);
+        }
+
+        /// <summary>
+        /// Runs the instructions of a control-flow statement's header inside a protected region.
+        /// The callback must stay within the current basic block - a protected region may not cross
+        /// one - which the header of every loop and conditional does.
+        /// </summary>
+        private void LowerProtectedHeader(int errorContinuationBlockId, Action emit)
+        {
+            if (!_resumeNext && _errorHandler is null)
+            {
+                emit();
+                return;
+            }
+
+            Emit(new IrErrorBoundaryStartInstruction(
+                _errorHandler is null ? null : _labels[_errorHandler]));
+            emit();
+            Emit(new IrErrorBoundaryEndInstruction(errorContinuationBlockId));
+        }
+
         private void LowerIf(BoundIfStatement statement)
         {
             var end = NewBlock("if_end");
@@ -2266,7 +2307,10 @@ public static class IrLowerer
                 var next = index == clauses.Count - 1
                     ? statement.ElseBody is null ? end : NewBlock("if_else")
                     : NewBlock($"if_test_{index + 1}");
-                Terminate(new IrConditionalTerminator(LowerExpression(clauses[index].Condition), body.Id, next.Id));
+                Terminate(new IrConditionalTerminator(
+                    LowerProtectedCondition(clauses[index].Condition, end.Id),
+                    body.Id,
+                    next.Id));
 
                 _current = body;
                 LowerBlock(clauses[index].Body);
@@ -2288,10 +2332,9 @@ public static class IrLowerer
             var control = LowerVariablePlace(statement.ControlVariable);
             var limit = NewLocal($"__for_limit_{statement.LoopId}", statement.ControlVariable.Type, true);
             var step = NewLocal($"__for_step_{statement.LoopId}", statement.ControlVariable.Type, true);
-            Emit(new IrStoreInstruction(control, LowerExpression(statement.InitialValue)));
-            Emit(new IrStoreInstruction(new IrLocalPlace(limit), LowerExpression(statement.Limit)));
-            Emit(new IrStoreInstruction(new IrLocalPlace(step), LowerExpression(statement.Step)));
 
+            // The exit block is needed before the header runs: an error while evaluating the start
+            // value, the limit or the step skips the whole loop under On Error Resume Next.
             var sign = NewBlock($"for_sign_{statement.LoopId}");
             var positive = NewBlock($"for_positive_{statement.LoopId}");
             var negative = NewBlock($"for_negative_{statement.LoopId}");
@@ -2299,6 +2342,14 @@ public static class IrLowerer
             var increment = NewBlock($"for_increment_{statement.LoopId}");
             var exit = NewBlock($"for_exit_{statement.LoopId}");
             _loopExits[statement.LoopId] = exit.Id;
+
+            LowerProtectedHeader(exit.Id, () =>
+            {
+                Emit(new IrStoreInstruction(control, LowerExpression(statement.InitialValue)));
+                Emit(new IrStoreInstruction(new IrLocalPlace(limit), LowerExpression(statement.Limit)));
+                Emit(new IrStoreInstruction(new IrLocalPlace(step), LowerExpression(statement.Step)));
+            });
+
             Terminate(new IrGotoTerminator(sign.Id));
 
             _current = sign;
@@ -2433,7 +2484,10 @@ public static class IrLowerer
             var exit = NewBlock("while_exit");
             Terminate(new IrGotoTerminator(test.Id));
             _current = test;
-            Terminate(new IrConditionalTerminator(LowerExpression(statement.Condition), body.Id, exit.Id));
+            Terminate(new IrConditionalTerminator(
+                LowerProtectedCondition(statement.Condition, exit.Id),
+                body.Id,
+                exit.Id));
             _current = body;
             LowerBlock(statement.Body);
             GotoIfOpen(test.Id);
@@ -2451,7 +2505,7 @@ public static class IrLowerer
             if (statement.Condition is not null)
             {
                 _current = test;
-                var condition = LowerExpression(statement.Condition);
+                var condition = LowerProtectedCondition(statement.Condition, exit.Id);
                 Terminate(statement.IsUntil
                     ? new IrConditionalTerminator(condition, exit.Id, body.Id)
                     : new IrConditionalTerminator(condition, body.Id, exit.Id));
@@ -2467,7 +2521,7 @@ public static class IrLowerer
                 }
                 else if (statement.ConditionIsPostTest)
                 {
-                    var condition = LowerExpression(statement.Condition);
+                    var condition = LowerProtectedCondition(statement.Condition, exit.Id);
                     Terminate(statement.IsUntil
                         ? new IrConditionalTerminator(condition, exit.Id, body.Id)
                         : new IrConditionalTerminator(condition, body.Id, exit.Id));
@@ -2522,8 +2576,12 @@ public static class IrLowerer
         private void LowerSelect(BoundSelectCaseStatement statement)
         {
             var value = NewLocal($"__select_{statement.SelectId}", statement.Expression.Type, true);
-            Emit(new IrStoreInstruction(new IrLocalPlace(value), LowerExpression(statement.Expression)));
             var exit = NewBlock($"select_exit_{statement.SelectId}");
+            LowerProtectedHeader(
+                exit.Id,
+                () => Emit(new IrStoreInstruction(
+                    new IrLocalPlace(value),
+                    LowerExpression(statement.Expression))));
             var nextTest = _current;
 
             foreach (var caseBlock in statement.Cases)
