@@ -4918,3 +4918,60 @@ Fehlerklasse zu optimistisch.
 
 Kanonischer Nachweis: **1444/1444** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Breitendurchgang über die offenen partial-Karten (02.09.2026)
+
+Ein Durchgang mit Wegwerfprogrammen über `l1-02-e`, `l1-02-i`, `l1-02-m`, `l1-02-n` und
+`l1-03-i` hat vier Defekte gemessen. Keiner war beim Lesen des Quelltexts sichtbar, und drei
+lagen in Flächen, die als abgeschlossen galten.
+
+**Ein Array-`Put` unter aktivem Handler erzeugte ungültiges IL.** `Put` und `Get` eines Arrays
+expandieren in eine Elementschleife und verlassen dabei ihren Basisblock. Die Schutzregion war
+aber schon vorher geöffnet, also spannte sich die Try-Region über die Sprünge, und die CLR lehnte
+die ganze Methode mit `InvalidProgramException` ab — das Programm startete nicht. Ohne aktiven
+Handler lief derselbe Code. Betroffen war jedes Array, typisiert wie Variant. Der Emitter hatte
+gegen diesen Fall bereits eine Prüfung, sie stand jedoch außerhalb der Blockschleife und lief erst
+nach der letzten Anweisung der Prozedur; eine Region, die Blöcke überspannte und später ordentlich
+geschlossen wurde, fiel dadurch nie auf. Die Region wird jetzt **nachträglich** eingefügt: erst
+wird die Anweisung gesenkt, und nur wenn sie im selben Block geblieben ist, wandert der Anfang an
+die gemerkte Position. Das deckt jede künftige Anweisung ab, die sich in Blöcke aufspaltet, ohne
+sie aufzählen zu müssen. Die Emitterprüfung liegt jetzt in der Blockschleife und meldet einen
+Verstoß laut, statt ungültiges IL zu erzeugen.
+
+**Die dreiwertige Logik kannte ihre absorbierenden Fälle nicht.** `ApplyVariantBitwise` gab
+pauschal `Null` zurück, sobald ein Operand `Null` war. VB6 entscheidet aber früher: `And` steht
+fest, sobald eine Seite False ist, `Or`, sobald eine Seite True ist, und `Imp`, sobald der
+Vordersatz False oder der Nachsatz True ist. Fünf von elf gemessenen Kombinationen waren falsch.
+Der bestimmende Operand kommt jetzt unverändert zurück, damit `False And Null` Boolean bleibt und
+`0 And Null` seinen numerischen Untertyp behält. Numerisch entscheiden nur 0 und der Wert mit
+allen gesetzten Bits; `Null Or 1` bleibt `Null`, wie es ein bestehender Test bereits festhält.
+Bei `Imp` gilt die Regel bewusst nur für Boolean-Operanden — die numerische Tabelle ist nicht
+gleich klar dokumentiert.
+
+**Eine deklarierte Objektvariable sah aus wie `Empty`.** Ein Klassenslot hält für `Nothing` die
+CLR-Nullreferenz, und die liest ein Variant als `Empty`: `TypeName` meldete `"Empty"` statt
+`"Nothing"`, `VarType` 0 statt 9, `IsObject` False statt True. Über ein Variant war dasselbe
+korrekt. Die Konvertierung `ClassTypeSymbol → Variant` fiel durch alle Zweige und reichte die rohe
+Referenz durch; sie hängt den Marker jetzt wieder an — das exakte Spiegelbild der Regel, die ein
+Variant-`Nothing` beim Ablegen in einem Klassenslot zu `null` macht. Ein wirklich leeres Variant
+bleibt davon unberührt.
+
+**Zwei weitere Sammelwerte 5 im Datei-I/O.** Lesen über das Dateiende meldete 5 statt 62, ein
+nicht geöffneter Kanal 5 statt 52. Beide Texte standen in der Fehlertabelle bereits, nur erreichte
+sie niemand: `GetStream` warf eine generische `InvalidOperationException`, `LineInput` eine
+`EndOfStreamException`. `Close` auf einen nicht geöffneten Kanal bleibt geräuschlos wie in VB6.
+
+Zwei bestehende Tests mussten ihre Form ändern, keiner seine Zusage: `ObjectVariants_Propagate\
+DefaultGetterFailures` hielt die `TargetInvocationException` der Reflexion fest und
+`Operations_OnAClosedFileNumberFail` die generische `InvalidOperationException` — beide Formen
+verschluckten genau die VB6-Nummer, um die es ging. Der Grund steht jetzt im jeweiligen Test.
+
+Offen und ausdrücklich nicht mitgenommen: die Funktionsform `Input(n, #f)` wird nicht geparst
+(`VB6P0001`), während die Anweisungsform `Input #f, var` funktioniert. `Printer.Page` zählt ab 0
+statt ab 1 — der Headless-Vertrag legt die Seitenzählung allerdings selbst fest. `l1-02-a` war mit
+dem Einzeldatei-Helfer nicht messbar und braucht ein Mehrprojekt-Setup.
+
+Die Kartenstände bleiben unverändert; gemessen wurde die Absicherung, nicht der Umfang.
+
+Kanonischer Nachweis: **1449/1449** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
