@@ -50,6 +50,18 @@ public static class VBErrors
     }
 
     /// <summary>
+    /// Applies the special <c>Exit Sub</c>/<c>Exit Function</c>/<c>Exit Property</c> rule for
+    /// an active error handler.  Ordinary exits deliberately leave <c>Err</c> untouched.
+    /// </summary>
+    public static void ClearWhenExitingActiveHandler()
+    {
+        if (_activeHandlerDepth == _procedureDepth)
+        {
+            Clear();
+        }
+    }
+
+    /// <summary>
     /// Records the most recently executed numeric VB6 line label. <c>Erl</c> reports this value
     /// when a later statement raises an error; ordinary named labels do not change it.
     /// </summary>
