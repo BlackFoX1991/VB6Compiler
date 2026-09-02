@@ -1080,6 +1080,15 @@ public static class IrLowerer
                         break;
                     }
 
+                    if (assignment.Target is BoundPropertyAccessExpression printerProperty &&
+                        IsPrinterObject(printerProperty.Receiver))
+                    {
+                        Emit(new IrEvaluateInstruction(LowerPrinterPropertySet(
+                            printerProperty.Property,
+                            LowerValueCopy(assignment.Expression))));
+                        break;
+                    }
+
                     if (assignment.Target is BoundPropertyAccessExpression dynamicProperty &&
                         (dynamicProperty.Property.IsLateBound || IsRuntimeObject(dynamicProperty.Receiver)))
                     {
@@ -2828,6 +2837,11 @@ public static class IrLowerer
                 return LowerScreenProperty(expression.Property.Name);
             }
 
+            if (IsPrinterObject(expression.Receiver))
+            {
+                return LowerPrinterProperty(expression.Property);
+            }
+
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
@@ -2907,6 +2921,11 @@ public static class IrLowerer
                 return LowerScreenProperty(expression.Property.Name);
             }
 
+            if (expression.Arguments.IsDefaultOrEmpty && IsPrinterObject(expression.Receiver))
+            {
+                return LowerPrinterProperty(expression.Property);
+            }
+
             if (expression.Property.IsLateBound || IsRuntimeObject(expression.Receiver))
             {
                 return LowerDynamicGet(
@@ -2976,7 +2995,9 @@ public static class IrLowerer
                 return LowerClipboardProcedure(requested, arguments);
             }
 
+            if (IsPrinterObject(receiver))
             {
+                return LowerPrinterProcedure(requested, arguments);
             }
 
             if (requested.IsLateBound || IsRuntimeObject(receiver))
@@ -3324,6 +3345,11 @@ public static class IrLowerer
                 return Runtime(IrRuntimeMethod.InteractionScreen, screen.Type);
             }
 
+            if (symbol is ModuleVariableSymbol printer && IsPrinterObject(printer))
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinter, printer.Type);
+            }
+
             if (symbol is ModuleVariableSymbol module &&
                 _program.TryGetConstantValue(module, out var value))
             {
@@ -3372,6 +3398,93 @@ public static class IrLowerer
             expression.Type is ClassTypeSymbol classType &&
             ReferenceEquals(classType, VBStandardTypes.Screen);
 
+        private static IrExpression LowerPrinterProperty(PropertySymbol property)
+        {
+            var name = new IrConstantExpression(property.Name, TypeSymbol.String);
+            if (property.Type == TypeSymbol.String)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterGetString, TypeSymbol.String, name);
+            }
+
+            if (property.Type == TypeSymbol.Long)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterGetLong, TypeSymbol.Long, name);
+            }
+
+            if (property.Type == TypeSymbol.Single)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterGetSingle, TypeSymbol.Single, name);
+            }
+
+            if (property.Type == TypeSymbol.Boolean)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterGetBoolean, TypeSymbol.Boolean, name);
+            }
+
+            if (ReferenceEquals(property.Type, VBStandardTypes.Font))
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterGetObject, property.Type, name);
+            }
+
+            throw new NotSupportedException($"Printer property '{property.Name}' has no runtime Get contract.");
+        }
+
+        private static IrExpression LowerPrinterPropertySet(PropertySymbol property, IrExpression value)
+        {
+            var name = new IrConstantExpression(property.Name, TypeSymbol.String);
+            if (property.Type == TypeSymbol.String)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterSetString, TypeSymbol.Error, name, value);
+            }
+
+            if (property.Type == TypeSymbol.Long)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterSetLong, TypeSymbol.Error, name, value);
+            }
+
+            if (property.Type == TypeSymbol.Single)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterSetSingle, TypeSymbol.Error, name, value);
+            }
+
+            if (property.Type == TypeSymbol.Boolean)
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterSetBoolean, TypeSymbol.Error, name, value);
+            }
+
+            if (ReferenceEquals(property.Type, VBStandardTypes.Font))
+            {
+                return Runtime(IrRuntimeMethod.InteractionPrinterSetObject, TypeSymbol.Error, name, value);
+            }
+
+            throw new NotSupportedException($"Printer property '{property.Name}' has no runtime Set contract.");
+        }
+
+        private IrExpression LowerPrinterProcedure(
+            ProcedureSymbol procedure,
+            ImmutableArray<BoundArgument> arguments)
+        {
+            var lowered = arguments.Select(argument => LowerValueCopy(argument.Expression)).ToArray();
+            return procedure.Name.ToUpperInvariant() switch
+            {
+                "PRINT" => Runtime(IrRuntimeMethod.InteractionPrinterPrint, TypeSymbol.Error, lowered),
+                "NEWPAGE" => Runtime(IrRuntimeMethod.InteractionPrinterNewPage, TypeSymbol.Error),
+                "ENDDOC" => Runtime(IrRuntimeMethod.InteractionPrinterEndDoc, TypeSymbol.Error),
+                "KILLDOC" => Runtime(IrRuntimeMethod.InteractionPrinterKillDoc, TypeSymbol.Error),
+                "TEXTWIDTH" => Runtime(IrRuntimeMethod.InteractionPrinterTextWidth, TypeSymbol.Single, lowered),
+                "TEXTHEIGHT" => Runtime(IrRuntimeMethod.InteractionPrinterTextHeight, TypeSymbol.Single, lowered),
+                "SCALEX" => Runtime(IrRuntimeMethod.InteractionPrinterScaleX, TypeSymbol.Single, lowered),
+                "SCALEY" => Runtime(IrRuntimeMethod.InteractionPrinterScaleY, TypeSymbol.Single, lowered),
+                "PAINTPICTURE" => Runtime(IrRuntimeMethod.InteractionPrinterPaintPicture, TypeSymbol.Error, lowered),
+                _ => throw new NotSupportedException(
+                    $"Printer procedure '{procedure.Name}' has no managed runtime implementation.")
+            };
+        }
+
+        private static bool IsPrinterObject(BoundExpression expression) =>
+            expression.Type is ClassTypeSymbol classType &&
+            ReferenceEquals(classType, VBStandardTypes.Printer);
+
         private static bool IsClipboardGetText(BoundExpression receiver, string propertyName) =>
             IsClipboardObject(receiver) &&
             string.Equals(propertyName, "GetText", StringComparison.OrdinalIgnoreCase);
@@ -3409,6 +3522,9 @@ public static class IrLowerer
 
         private static bool IsScreenObject(ModuleVariableSymbol symbol) =>
             ReferenceEquals(symbol.Type, VBStandardTypes.Screen);
+
+        private static bool IsPrinterObject(ModuleVariableSymbol symbol) =>
+            ReferenceEquals(symbol.Type, VBStandardTypes.Printer);
 
         private IrPlace LowerVariablePlace(VariableSymbol symbol)
         {
