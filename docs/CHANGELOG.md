@@ -5640,3 +5640,35 @@ was vorher dort stand.
 
 Kanonischer Nachweis: **1504/1504** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Der Resolver läuft jetzt im MSBuild-Prozess (03.09.2026)
+
+Etappe G war bis auf einen Punkt fertig: Die Eingabeauflösung startete für jeden Build einen
+`vb6c`-Prozess, nur um ein Manifest zu schreiben. Bei einem inkrementellen Build, der sonst nichts
+tut, ist das der größte Teil der Kosten.
+
+Voraussetzung war die Aufräumung der Woche zuvor — erst nachdem die Optionsgrammatik an einer
+Stelle lag, konnte die Manifestlogik herausgelöst werden, ohne von einem der drei CLI-Zweige
+abzuweichen. Sie liegt jetzt als `VBInputManifest` in `VB6.ProjectSystem`, und **beide** Wege
+benutzen dieselbe Implementierung; die CLI ist auf einen Aufruf zusammengeschrumpft.
+
+Neu ist `VB6.Compiler.Sdk.Tasks` mit einem einzigen `ITask`. Er reist im NuGet-Paket unter
+`tasks/net10.0` mit, zusammen mit `VB6.ProjectSystem` — der einzigen Abhängigkeit, die er braucht.
+Der Compiler selbst bleibt draußen: er gehört nicht in den MSBuild-Prozess.
+
+**Der CLI-Weg bleibt.** Das ist kein harter Schnitt: Findet das SDK die Task-Assembly nicht, oder
+setzt jemand `VB6UseResolverTask=false`, läuft alles wie vorher. Beide Zweige stehen mit
+gegensätzlichen Bedingungen nebeneinander in denselben Targets.
+
+Der Nachweis kommt ohne Logauswertung aus: Das Testprojekt setzt `VB6CompilerPath` auf eine Datei,
+die es nicht gibt, und ruft nur das Auflösungsziel auf. Läuft es durch und liegt das Manifest da,
+kann kein Prozess gestartet worden sein. Mit `VB6UseResolverTask=false` **muss** derselbe Aufruf
+scheitern — sonst wären die beiden Wege nicht wirklich getrennt.
+
+Zwei Kleinigkeiten am Rande: Das Paket unterdrückt `NU5100` mit Begründung — eine Task-Assembly
+gehört bewusst nicht nach `lib`, sie wird geladen und nicht referenziert. Und
+`Microsoft.Build.Utilities.Core` musste auf 17.14 gehoben werden; die zuerst gewählte 17.11 trägt
+eine bekannte Sicherheitslücke, und der Build meldet das als Fehler.
+
+Kanonischer Nachweis: **1505/1505** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
