@@ -5132,3 +5132,31 @@ der Host kein solches Mitglied kennt, verpuffte genau dieser Pfad.
 
 Kanonischer Nachweis: **1462/1462** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Circle mit Bögen, Segmenten und Seitenverhältnis (03.09.2026)
+
+Wie schon bei `PSet` scheiterte jede unqualifizierte Form am Parser. Die qualifizierte Form
+`Picture1.Circle (50, 50), 20` parste zwar, erzeugte aber **keinen** Zeichenaufruf: sie lief über
+den spätgebundenen Memberpfad, den der Host nicht kennt, und tat damit nichts.
+
+Die Karte ist größer als `PSet`, weil VB6 vier optionale Argumente kennt — Farbe, Start- und
+Endwinkel, Seitenverhältnis — und jedes davon **mittendrin** ausgelassen werden darf.
+`Circle (x, y), r, , 0, 3.14` zeichnet einen Bogen in der aktuellen Vordergrundfarbe; würde der
+Parser die Lücke schlucken, käme der Startwinkel als Farbe an. Ein eigener Parsertest hält das fest.
+
+Drei Übersetzungsentscheidungen stehen mit Begründung im Code:
+
+- **Winkel**: VB6 misst im Bogenmaß gegen den Uhrzeigersinn ab drei Uhr, GDI+ in Grad im
+  Uhrzeigersinn ab derselben Stelle. Umgekehrt wird deshalb die Drehrichtung, nicht nur die Einheit.
+- **Negative Winkel**: In VB6 verlangt ein negativer Winkel zusätzlich die Radiuslinie, aus dem
+  Bogen wird ein Tortenstück. Das Vorzeichen entscheidet zwischen `DrawArc` und `DrawPie`, für die
+  Lage zählt der Betrag.
+- **Seitenverhältnis**: Der Radius gilt entlang der x-Achse, die y-Achse wird gestreckt.
+
+Der Pixeltest prüft das gegenständlich: bei Verhältnis 2.0 liegt der obere Rand doppelt so weit vom
+Mittelpunkt entfernt wie der rechte, und im Mittelpunkt liegt keine Farbe — `Circle` zeichnet den
+Umriss, nicht die Fläche. Die Zeichenposition wird wie bei `PSet` fortgeschrieben, `Step` misst von
+ihr aus. Ohne UI-Host bleibt `Circle` ein deterministischer No-op.
+
+Kanonischer Nachweis: **1467/1467** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
