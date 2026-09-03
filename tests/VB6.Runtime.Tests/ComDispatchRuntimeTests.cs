@@ -28,6 +28,105 @@ public sealed class ComDispatchRuntimeTests
     }
 
     [TestMethod]
+    public void ComException_ReportsTheServersOwnErrorNumber()
+    {
+        // EXCEPINFO carries the error in exactly one of two fields, and wCode wins when set.
+        var withCode = VBComDispatch.MapComException(
+            1234,
+            0,
+            "TestServer",
+            "Der Auftrag ist unbekannt.",
+            "help.chm",
+            77);
+
+        Assert.AreEqual(1234, withCode.Number);
+        Assert.AreEqual("TestServer", withCode.Source);
+        Assert.AreEqual("Der Auftrag ist unbekannt.", withCode.Description);
+        Assert.AreEqual("help.chm", withCode.HelpFile);
+        Assert.AreEqual(77, withCode.HelpContext);
+    }
+
+    [TestMethod]
+    public void ComException_UnwrapsAVb6ErrorNumberThatTravelledOverCom()
+    {
+        // Ein VB6-Server, der Err.Raise 9 auslöst, sendet 0x800A0009. Der Client muss wieder 9
+        // sehen -- sonst käme die Subscript-Meldung als roher HRESULT an.
+        var subscript = VBComDispatch.MapComException(
+            0,
+            unchecked((int)0x800A0009),
+            "Server",
+            "Subscript out of range",
+            string.Empty,
+            0);
+
+        Assert.AreEqual(9, subscript.Number);
+
+        // Alles außerhalb dieses Bereichs bleibt der volle negative HRESULT -- genau damit rechnet
+        // vbObjectError-Arithmetik im Anwendercode.
+        var objectError = VBComDispatch.MapComException(
+            0,
+            unchecked((int)0x80040005),
+            "Server",
+            "Eigener Fehler",
+            string.Empty,
+            0);
+
+        Assert.AreEqual(unchecked((int)0x80040005), objectError.Number);
+    }
+
+    [TestMethod]
+    public void ComException_FallsBackToTheAutomationError()
+    {
+        // Ein Server darf scheitern, ohne zu sagen warum. VB6 braucht trotzdem eine Nummer.
+        var undescribed = VBComDispatch.MapComException(
+            0,
+            0,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            0);
+
+        Assert.AreEqual(440, undescribed.Number);
+        Assert.AreEqual("Automation error", undescribed.Description);
+    }
+
+    [TestMethod]
+    public void ComException_ReachesErrOnlyForADispatchException()
+    {
+        var error = VBComDispatch.MapComException(
+            0,
+            unchecked((int)0x800A0035),
+            "TestServer",
+            "File not found",
+            "help.chm",
+            42);
+
+        try
+        {
+            // Nur DISP_E_EXCEPTION besagt, dass der Server selbst etwas ausgelöst hat.
+            var raised = Assert.ThrowsExactly<VB6RaisedError>(() =>
+                VBComDispatch.RaiseComException(unchecked((int)0x80020009), error));
+            Assert.AreEqual(53, raised.Number);
+            Assert.AreEqual("File not found", raised.Description);
+
+            // Der Server beschreibt sich selbst -- Quelle und Hilfe landen mit im Err-Objekt.
+            Assert.AreEqual(53, VBErrors.NumberValue());
+            Assert.AreEqual("TestServer", VBErrors.SourceValue());
+            Assert.AreEqual("help.chm", VBErrors.HelpFileValue());
+            Assert.AreEqual(42, VBErrors.HelpContextValue());
+
+            // Jeder andere HRESULT beschreibt die Aufrufform. Der behält seine Wiederholungen --
+            // eine falsche Aufrufform ist genau das, wofür die Rückfallpfade da sind.
+            VBComDispatch.RaiseComException(unchecked((int)0x80070057), error);
+            VBComDispatch.RaiseComException(0, error);
+        }
+        finally
+        {
+            VBErrors.Clear();
+        }
+    }
+
+    [TestMethod]
     [SupportedOSPlatform("windows")]
     public void NativeExceptionInfo_ClearsAllBstrFields()
     {
