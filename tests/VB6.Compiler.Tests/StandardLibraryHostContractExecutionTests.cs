@@ -436,6 +436,59 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void Lower_UsesGraphicsPSetHostContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim x As Long
+                Dim picture As Control
+                x = 10
+                PSet (x, 2)
+                PSet (x, 2), vbRed
+                PSet Step (1, 2)
+                picture.PSet (3, 4), vbBlue
+            End Sub
+            """);
+
+        // Die drei unqualifizierten Formen treffen die Flaeche des Hosts, die vierte ihr Ziel.
+        var calls = VB6TestIr.RuntimeCalls(program)
+            .Where(method =>
+                method == VB6.IR.IrRuntimeMethod.GraphicsPSet ||
+                method == VB6.IR.IrRuntimeMethod.GraphicsPSetOnTarget)
+            .ToArray();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                VB6.IR.IrRuntimeMethod.GraphicsPSet,
+                VB6.IR.IrRuntimeMethod.GraphicsPSet,
+                VB6.IR.IrRuntimeMethod.GraphicsPSet,
+                VB6.IR.IrRuntimeMethod.GraphicsPSetOnTarget
+            },
+            calls);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RunsPSetWithoutAUiHost()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                PSet (10, 20)
+                Debug.Print Err.Number
+                PSet (10, 20), vbRed
+                Debug.Print Err.Number
+                PSet Step (1, 2)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Ohne UI-Host bleibt PSet ein deterministischer No-op, genau wie Line und Cls -- die
+        // Suite hat keinen Desktop, und ein Zeichenbefehl darf dort nicht scheitern.
+        CollectionAssert.AreEqual(new[] { "0", "0", "0" }, output);
+    }
+
+    [TestMethod]
     public void Lower_UsesTargetGraphicsLineHostContract()
     {
         var program = VB6TestIr.Lower("""

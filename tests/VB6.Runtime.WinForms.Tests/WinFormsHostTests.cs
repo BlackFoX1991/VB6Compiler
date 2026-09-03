@@ -1115,6 +1115,54 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostSetsAPixelAndTracksTheDrawingPosition()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+
+            // Twips: 1440 pro Zoll, 15 pro Pixel bei 96 DPI -- 1440 Twips sind Pixel 96.
+            VBInteraction.GraphicsPSet(1440, 1440, ColorTranslator.ToOle(Color.Red), false);
+
+            Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var image));
+            using var snapshot = new Bitmap((Bitmap)image!);
+            var pixel = snapshot.GetPixel(96, 96);
+            Assert.IsTrue(pixel.R > 180 && pixel.G < 120 && pixel.B < 120);
+
+            // Nur dieser eine Punkt ist gesetzt.
+            var neighbour = snapshot.GetPixel(98, 98);
+            Assert.IsFalse(neighbour.R > 180 && neighbour.G < 120 && neighbour.B < 120);
+
+            // PSet laesst die Zeichenposition auf dem gesetzten Punkt stehen.
+            Assert.IsTrue(host.TryGetMember(owner, "CurrentX", Array.Empty<object?>(), out var currentX));
+            Assert.IsTrue(host.TryGetMember(owner, "CurrentY", Array.Empty<object?>(), out var currentY));
+            Assert.AreEqual(1440f, currentX);
+            Assert.AreEqual(1440f, currentY);
+
+            // Step misst von dort aus weiter.
+            VBInteraction.GraphicsPSet(1440, 0, ColorTranslator.ToOle(Color.Blue), true);
+            using var stepped = new Bitmap((Bitmap)image!);
+            var steppedPixel = stepped.GetPixel(192, 96);
+            Assert.IsTrue(steppedPixel.B > 150 && steppedPixel.R < 120);
+            Assert.IsTrue(host.TryGetMember(owner, "CurrentX", Array.Empty<object?>(), out var afterStep));
+            Assert.AreEqual(2880f, afterStep);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostRendersGraphicsLineOnFormSurface()
     {
         using var host = new WinFormsHost();
