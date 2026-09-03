@@ -82,7 +82,9 @@ internal static class VBClassModuleSource
     /// the class a global instance named after itself.
     /// </summary>
     private static bool IsSemanticAttribute(string line) =>
-        IsDefaultPropertyAttribute(line) || IsPredeclaredIdAttribute(line);
+        IsDefaultPropertyAttribute(line) ||
+        IsPredeclaredIdAttribute(line) ||
+        IsInstancingAttribute(line);
 
     private static bool IsDefaultPropertyAttribute(string line) =>
         line.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase) &&
@@ -92,6 +94,12 @@ internal static class VBClassModuleSource
     private static bool IsPredeclaredIdAttribute(string line) =>
         line.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase) &&
         line.Contains("VB_PredeclaredId", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>VB_Exposed and VB_Creatable are how VB6 writes down a class Instancing.</summary>
+    private static bool IsInstancingAttribute(string line) =>
+        line.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase) &&
+        (line.Contains("VB_Exposed", StringComparison.OrdinalIgnoreCase) ||
+         line.Contains("VB_Creatable", StringComparison.OrdinalIgnoreCase));
 
     private static bool LooksLikeDesignerModule(string source)
     {

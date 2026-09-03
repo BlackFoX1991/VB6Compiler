@@ -1006,6 +1006,15 @@ public sealed class VBProjectCompilation
             {
                 classType.SetDefaultPropertyName(defaultPropertyName);
             }
+
+            // A .cls without these attributes is not a VB6-authored class module -- a hand-written
+            // file or a form -- and keeps the permissive default.
+            var exposed = TryReadBooleanAttribute(module.SemanticRoot, "VB_Exposed");
+            var creatable = TryReadBooleanAttribute(module.SemanticRoot, "VB_Creatable");
+            if (exposed is not null || creatable is not null)
+            {
+                classType.SetComInstancing(exposed ?? true, creatable ?? true);
+            }
         }
 
         foreach (var relation in interfaceRelations)
@@ -1039,6 +1048,22 @@ public sealed class VBProjectCompilation
                 interfaceType,
                 relation.FilePath,
                 projectDiagnostics);
+        }
+
+        static bool? TryReadBooleanAttribute(CompilationUnitSyntax root, string attributeName)
+        {
+            foreach (var attribute in root.Members.OfType<AttributeSyntax>())
+            {
+                var tokens = attribute.Tokens;
+                if (tokens.Length >= 3 &&
+                    string.Equals(tokens[0].Text, attributeName, StringComparison.OrdinalIgnoreCase) &&
+                    tokens[1].Kind == SyntaxKind.EqualsToken)
+                {
+                    return string.Equals(tokens[2].Text, "True", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return null;
         }
 
         static string? TryReadDefaultPropertyName(CompilationUnitSyntax root)

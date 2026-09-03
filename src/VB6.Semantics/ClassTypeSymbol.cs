@@ -46,6 +46,15 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public bool MembersDefined => _definition.IsDefined;
     public string? DefaultPropertyName => _definition.DefaultPropertyName;
 
+    /// <summary>
+    /// VB6 Instancing. A Private class exists only inside its own project and must not appear in
+    /// a type library or a registration; PublicNotCreatable is visible but cannot be created from
+    /// outside. VB6 writes both as the .cls attributes VB_Exposed and VB_Creatable.
+    /// </summary>
+    public bool IsComExposed => _definition.IsComExposed;
+
+    public bool IsComCreatable => _definition.IsComCreatable;
+
     public bool TryGetProcedure(string name, out ProcedureSymbol procedure) =>
         _definition.ProcedureMap.TryGetValue(name, out procedure!);
 
@@ -164,6 +173,12 @@ public sealed record ClassTypeSymbol : TypeSymbol
         _definition.DefaultPropertyName = name;
     }
 
+    public void SetComInstancing(bool isExposed, bool isCreatable)
+    {
+        _definition.IsComExposed = isExposed;
+        _definition.IsComCreatable = isCreatable;
+    }
+
     public void MarkAsInterfaceContract() => _definition.IsInterfaceContract = true;
 
     public void MarkAsRuntimeObjectContract() => IsRuntimeObjectContract = true;
@@ -194,6 +209,10 @@ public sealed record ClassTypeSymbol : TypeSymbol
         public ImmutableArray<PropertySymbol> Properties { get; set; } = ImmutableArray<PropertySymbol>.Empty;
         public ImmutableArray<EventSymbol> Events { get; set; } = ImmutableArray<EventSymbol>.Empty;
         public string? DefaultPropertyName { get; set; }
+
+        public bool IsComExposed { get; set; } = true;
+
+        public bool IsComCreatable { get; set; } = true;
         public ImmutableArray<ClassTypeSymbol> ImplementedInterfaces { get; set; } =
             ImmutableArray<ClassTypeSymbol>.Empty;
         public bool IsInterfaceContract { get; set; }
