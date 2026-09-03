@@ -32,6 +32,12 @@ public sealed class Binder
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     private readonly SourceText _text;
+
+    /// <summary>
+    /// Die modulweiten ganzzahligen Konstanten. Eine `String * n`-Breite muss zur Übersetzungszeit
+    /// feststehen und darf dabei -- wie in VB6 -- eine benannte Konstante sein.
+    /// </summary>
+    private Dictionary<string, long> _integerConstants = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyDictionary<string, long> _qualifiedEnumMembers;
     private readonly IReadOnlySet<string> _moduleNames;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
@@ -261,6 +267,7 @@ public sealed class Binder
     private void ApplyModuleOptions(CompilationUnitSyntax root)
     {
         _optionBase = 0;
+        _integerConstants = VBIntegerConstantFolder.CollectIntegerConstants(root);
         _optionExplicit = root.Members.OfType<OptionExplicitSyntax>().Any();
         _optionCompareText = false;
         Array.Clear(_defaultTypes);
@@ -783,8 +790,11 @@ public sealed class Binder
             return TypeSymbol.Error;
         }
 
-        if (declarator.FixedStringLength is not LiteralExpressionSyntax literal ||
-            literal.LiteralToken.Kind != SyntaxKind.IntegerLiteralToken)
+        // Derselbe Falter wie beim UDT-Member: Ein Literal und eine benannte Konstante müssen in
+        // beiden Deklarationsformen dasselbe bedeuten, sonst hängt die Breite davon ab, wo sie
+        // geschrieben steht.
+        if (declarator.FixedStringLength is null ||
+            !VBIntegerConstantFolder.TryEvaluate(declarator.FixedStringLength, _integerConstants, out var length))
         {
             Report(
                 "VB6S0043",
@@ -794,14 +804,13 @@ public sealed class Binder
             return TypeSymbol.Error;
         }
 
-        var length = Convert.ToInt64(literal.LiteralToken.Value, CultureInfo.InvariantCulture);
         if (length is < 1 or > 65526)
         {
             Report(
                 "VB6S0044",
                 $"Fixed-length String member '{declarator.Identifier.Text}' must contain between 1 and " +
                 "65526 characters.",
-                literal.LiteralToken.Span);
+                declarator.StarToken?.Span ?? declarator.Identifier.Span);
             return TypeSymbol.Error;
         }
 

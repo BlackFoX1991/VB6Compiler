@@ -358,8 +358,10 @@ public sealed class UserDefinedTypeDeclarationBinder
 
     private int? BindFixedStringLength(TypeMemberSyntax member)
     {
-        if (member.FixedStringLength is not LiteralExpressionSyntax literal ||
-            literal.LiteralToken.Kind != SyntaxKind.IntegerLiteralToken)
+        // Die Breite folgt demselben Falter wie eine Arraygrenze: eine benannte Konstante ist hier
+        // so gültig wie ein Literal, und beide Deklarationsformen müssen dasselbe akzeptieren.
+        if (member.FixedStringLength is null ||
+            !VBIntegerConstantFolder.TryEvaluate(member.FixedStringLength, _integerConstants, out var value))
         {
             Report(
                 "VB6S0043",
@@ -368,13 +370,12 @@ public sealed class UserDefinedTypeDeclarationBinder
             return null;
         }
 
-        var value = Convert.ToInt64(literal.LiteralToken.Value, System.Globalization.CultureInfo.InvariantCulture);
         if (value is < 1 or > 65526)
         {
             Report(
                 "VB6S0044",
                 $"Fixed-length String member '{member.Identifier.Text}' must contain between 1 and 65526 characters.",
-                literal.LiteralToken.Span);
+                member.StarToken?.Span ?? member.Identifier.Span);
             return null;
         }
 
