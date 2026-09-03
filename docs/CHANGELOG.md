@@ -5748,3 +5748,54 @@ Zwei Fehler auf dem Weg, beide lehrreich:
 
 Kanonischer Nachweis: **1508/1508** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Der ActiveX-EXE-Local-Server (03.09.2026)
+
+Ein `Type=ActiveX EXE` wurde bisher als **DLL** emittiert. Damit fehlte genau das, was diese
+Projektart ausmacht: eine ausführbare Datei, die COM mit `/Embedding` startet, wenn ein Client eine
+ihrer Klassen anfordert.
+
+VB6 startet dieselbe Datei in zwei Rollen. Doppelt angeklickt läuft `Sub Main`. Von COM gestartet
+darf das Programm **gar nicht** laufen — die Datei registriert ihre Klassenobjekte, pumpt
+Nachrichten, bis der Client fertig ist, und beendet sich. Beide Richtungen sind auffällig, wenn man
+sie verwechselt: ein Server, der unter `/Embedding` sein Programm startet, zeigt ein Fenster, das
+niemand wollte; einer, der sich nicht registriert, lässt den Client auf eine Antwort warten, die
+nie kommt.
+
+Der Einstiegspunkt wird deshalb **erzeugt** und nicht aus `Sub Main` genommen: Ein ActiveX EXE darf
+gar keine haben — seine ausführbare Datei existiert für COM, nicht für ein Programm, das jemand
+startet. Der erzeugte Einstieg bietet sich zuerst COM an und ruft `Sub Main` nur, wenn es beides
+gibt: ein normal gestartetes Programm und eine `Sub Main`.
+
+`VBComLocalServer` in der Runtime trägt den Rest: `CoRegisterClassObject` mit `REGCLS_SUSPENDED`
+und anschließendem `CoResumeClassObjects` — damit kein Client eine Klasse erreicht, während eine
+andere noch nicht registriert ist —, eine Nachrichtenschleife, weil COM prozessübergreifende
+Aufrufe als Fenstermeldungen zustellt, und ein Zähler, der weiß, wann der letzte Client fertig ist.
+Der Zähler hängt an einer `ConditionalWeakTable`: Der Client gibt einen **Proxy** frei, nicht das
+Objekt, also erfährt der Server das Ende nur über den Sammler.
+
+Drei Befunde auf dem Weg, alle drei mit Ansage im Code:
+
+- **Ein CCW entsteht nur für öffentliche Typen.** Die Klassenfabrik war `internal` — für COM damit
+  unsichtbar. Das Symptom ist `E_NOINTERFACE`, wenn COM das registrierte Klassenobjekt nach
+  `IClassFactory` fragt: Der Server startet, registriert sich, und kann trotzdem nichts liefern.
+- **Ein Server ohne Klassen schwieg.** Er beendete sich wortlos und ließ den Client warten. Er
+  meldet das jetzt.
+- **Git Bash wandelt `/Embedding` in einen Pfad um.** Das kostete eine Runde Fehlersuche am
+  falschen Ende — von PowerShell aus lief derselbe Server sofort.
+
+Der Nachweis ist ein echter Rundlauf ohne Attrappe: Die erzeugte `.exe` wird unter `HKCU` als
+`LocalServer32` registriert, COM startet sie, der Testprozess erzeugt die Klasse, ruft `Summe`
+spät gebunden über die **Prozessgrenze** (`Marshal.IsComObject` ist wahr, es ist ein echter Proxy),
+gibt frei — und der Server beendet sich von selbst. Ohne Registrierungsleiche: Der Test räumt den
+Schlüssel wieder ab.
+
+**Ein bestehender Test hat dabei seine Zusage verloren, und das war richtig so.**
+`EmitManaged_EmitsAllSupportedLibraryProjectKindsWithoutSubMain` prüfte, dass **jede**
+Bibliotheksart ohne Einstiegspunkt emittiert — einschließlich ActiveX EXE. Diese Zusage war eine
+Herleitung, keine gemessene VB6-Eigenschaft: VB6 baut daraus eine `.exe`, und eine `.exe` hat einen
+Einstiegspunkt. Die beiden EXE-Arten sind deshalb aus der Liste genommen und haben ihren eigenen
+Test bekommen.
+
+Kanonischer Nachweis: **1510/1510** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
