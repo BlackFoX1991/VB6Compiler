@@ -5672,3 +5672,41 @@ eine bekannte Sicherheitslücke, und der Build meldet das als Fehler.
 
 Kanonischer Nachweis: **1505/1505** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Das Stock-OCX-Inventar — und ein Test, der es ehrlich hält (03.09.2026)
+
+Etappe F beginnt mit einer Bestandsaufnahme: welche der Microsoft-redistributablen VB6-Controls
+dieses Projekt bedient, und **wie**. Die Matrix führt sie jetzt in `activeXStockControls`, 34
+Einträge mit Datei, Bibliothek und einer von drei Einstufungen:
+
+- **`managed-adapter`** — der Host baut das Control selbst nach; es läuft **ohne installiertes
+  OCX**. Das sind heute `TreeView`, `ImageList`, `ImageCombo`, `RichTextBox` und `CommonDialog`.
+- **`native-only`** — läuft nur über `AxHost` mit registriertem x86-OCX; sonst bleibt ein sichtbarer
+  Platzhalter. Das betrifft die übrigen Windows-Common-Controls: `ListView`, `Toolbar`,
+  `StatusBar`, `ProgressBar`, `Slider`, `TabStrip`.
+- **`not-implemented`** — weder das eine noch das andere: `MSFlexGrid`, `SSTab`, `MaskEdBox`,
+  `Winsock`, `MSComm`, die datengebundenen Controls und der Rest.
+
+Der Punkt der Einstufung ist, dass sie **nicht** aussagt, ob das OCX zufällig installiert ist. Das
+wäre eine Eigenschaft der Maschine, keine des Compilers, und genau diese Vermischung macht solche
+Tabellen wertlos.
+
+Damit das Inventar eine Messung bleibt und keine Behauptung wird, liest ein Test die Matrix und
+prüft sie gegen den Host: **jedes** als `managed-adapter` geführte Control muss sich ohne
+installiertes OCX erzeugen lassen, und ein Platzhalter zählt dabei ausdrücklich **nicht** als
+Umsetzung. Wer künftig eine Einstufung hochschreibt, ohne den Adapter zu bauen, bekommt einen roten
+Test statt einer schöneren Tabelle.
+
+Die zweite Hälfte prüft die Gegenrichtung: Ein Control ohne Adapter darf das Laden eines Formulars
+nicht abbrechen. Ohne OCX bleibt ein Platzhalter, mit OCX entsteht ein echtes Control — beides ist
+zulässig, ein harter Abbruch nicht.
+
+**Bei der Gelegenheit die Matrix nachgezogen.** Sieben Karten standen noch auf `planned`, obwohl
+die Arbeit erledigt und getestet ist — `IDispatch` samt EXCEPINFO und benannten Argumenten, die
+intrinsischen Controls, Control-Arrays, der Zeichenpfad, MDI und der MSBuild-Resolver-Task. Der
+Stand geht damit von 86/7/25 auf **88 implemented, 12 partial, 18 planned**, bei 100 von 118
+`documented-verified`. `oracle-verified` bleibt unverändert bei null: dafür bräuchte es einen Lauf
+gegen echtes VB6 SP6.
+
+Kanonischer Nachweis: **1507/1507** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

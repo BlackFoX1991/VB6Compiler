@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1505 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1507 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -55,8 +55,8 @@ Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Hand
 `Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **86 implemented**, **7 partial** und **25 planned**;
-**93/118 documented-verified** (Stand 2026-09-01).
+**118 Erwartungen**, davon **88 implemented**, **12 partial** und **18 planned**;
+**100/118 documented-verified** (Stand 2026-09-03).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
 offenen Punkte daraus sind unten in den Etappen B und C als eigene Zeilen geführt. Das
@@ -267,8 +267,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
        deckt die ausgewählte Instanz, Kern-Eigenschaften, Seiten-/Dokumentzustand, Text, Messen,
        Skalieren und den sicheren Host-Übergang ab; ohne annehmenden Host entsteht ausdrücklich
        kein physischer Druckauftrag. Die derzeit 118
-       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (86 `implemented`,
-       7 `partial`, 25 `planned`; 93 `documented-verified`); jede weitere Karte behält ihre
+       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (88 `implemented`,
+       12 `partial`, 18 `planned`; 100 `documented-verified`); jede weitere Karte behält ihre
        eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
@@ -420,7 +420,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 ### Etappe F — Stock-OCX, UserControls und Enterprise-Artefakte
 
-- [ ] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
+- [~] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
       Controls laufen nativ; fehlende Controls werden über ABI-Testkomponenten geprüft und sichtbar
       als nicht nativ verifiziert markiert.
 - [ ] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
