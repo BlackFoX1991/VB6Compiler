@@ -5976,3 +5976,25 @@ Der Test hält beide Seiten fest, den abgewiesenen Zugriff von außen und den er
 
 Kanonischer Nachweis: **1520/1520** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Null wurde längst weitergereicht — nur nicht geprüft (03.09.2026)
+
+Die Roadmap führte: „`Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase` und `LCase` reichen
+`Null` nicht weiter, sondern melden **94**; sie sind als `String -> String` deklariert statt als
+`Variant -> Variant`."
+
+Die Messung widerspricht dem in allen neun geprüften Fällen: Jede dieser Funktionen liefert für
+`Null` sauber `vbNull` bei `Err.Number = 0`. Die Intrinsics sind längst `Variant -> Variant`
+deklariert. Die Zeile beschrieb einen Zustand, den es nicht mehr gibt.
+
+Das ist derselbe Musterfall, den `CLAUDE.md` bereits zweimal festhält: Die Umsetzung ist weiter als
+ihre Absicherung. Ungeprüft ist ein solches Verhalten aber nur einen Refactor davon entfernt,
+wieder zu verschwinden — also steht es jetzt in zwei Tests.
+
+Der zweite Test hält die **Gegenseite**, die beim Lesen leicht untergeht: Die Dollar-Form ist
+`String -> String`, und dort hat `Null` keinen Platz. `Left$(Null, 2)` meldet **94** statt still
+eine leere Zeichenkette zu liefern. Beide Familien nebeneinander sind der eigentliche Vertrag —
+Altcode liest Datenbankfelder in Variants und verlässt sich darauf, dass Null die Runde übersteht.
+
+Kanonischer Nachweis: **1522/1522** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

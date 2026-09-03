@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1520 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1522 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -346,9 +346,9 @@ Rückgabematrix bleibt in Etappe B/C offen.
       `Collection`-Index ausserhalb der Sammlung meldet **9**, ein unbekannter Schlüssel
       weiterhin **5**; die Position von `Add`s `Before`/`After` bleibt bewusst **5**, weil sie
       dort ein ungültiges Argument ist und kein Subscript.
-- [ ] `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase` und `LCase` reichen `Null`
-      nicht weiter, sondern melden **94**; sie sind als `String -> String` deklariert statt als
-      `Variant -> Variant`.
+- [x] `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase`, `LCase` und `Len` reichen `Null`
+      weiter; die Dollar-Formen sind `String -> String` und melden dort **94**. Die Messung fand
+      das bereits richtig vor — die Zeile beschrieb einen Zustand, den es nicht mehr gab.
 - [~] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv` (einschließlich
       locale-gesteuertem `vbWide`/`vbNarrow` und japanischem Kana), `LenB`, `Asc`, `Chr`,
       `Format`, `DateValue`/`TimeValue`, `WeekdayName`/`MonthName` sowie `IsDate`/`IsNumeric`
