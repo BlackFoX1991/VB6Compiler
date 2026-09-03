@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1502 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1504 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -415,7 +415,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [~] Der `VB6Sp6`-Zeichenpfad verwendet GDI-basierte DC-/DIB-Flächen für `PSet`, `Point`, `Line`,
       `Circle`, `PaintPicture`, `Cls`, Zeichen-/Füllattribute, `Scale*`, `AutoRedraw` und alle
       16 `DrawMode`-/ROP2-Werte.
-- [ ] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
+- [~] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
       WindowList-Menüs, Menüübernahme, Fokus und persistente Fensterzustände ergänzen.
 
 ### Etappe F — Stock-OCX, UserControls und Enterprise-Artefakte

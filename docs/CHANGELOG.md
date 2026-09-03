@@ -5618,3 +5618,25 @@ baubar.
 
 Kanonischer Nachweis: **1502/1502** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## MDI: ActiveForm, Arrange und die Fensterliste (03.09.2026)
+
+Von MDI standen bisher nur die beiden Registrierungen: ein Formular konnte Container werden
+(`MDIForm = True`) und ein anderes sein Kind (`MDIChild = True`). Alles, was ein Programm damit
+danach tut, fehlte.
+
+**`ActiveForm`** antwortet jetzt — und zwar mit dem **VB6-Objekt**, nicht mit dem WinForms-Fenster
+dahinter. VB6 reicht überall seine eigenen Formularobjekte herum, deshalb muss eine Eigenschaft,
+die ein Fenster liefert, über diese Grenze zurückübersetzen. Auf einem Container ist es das aktive
+Kind, sonst das aktive Fenster der Anwendung — dasselbe, was `Screen.ActiveForm` meldet.
+
+**`Arrange`** bildet die vier VB6-Konstanten auf `LayoutMdi` ab: Cascade (0), horizontal (1) und
+vertikal (2) gekachelt, Symbole anordnen (3). Ein unbekannter Wert meldet **380** statt sich eine
+Anordnung auszusuchen — dieselbe Regel wie bei `ScaleMode` und `DrawMode`.
+
+**`WindowList`** markiert das Menü, das VB6 mit den offenen Kindfenstern füllt. VB6 erlaubt genau
+eines pro Formular, und der WinForms-Menüstreifen ebenso; eine Zuweisung ersetzt daher schlicht,
+was vorher dort stand.
+
+Kanonischer Nachweis: **1504/1504** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

@@ -1589,6 +1589,24 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        // Arrange belongs to the MDI container and takes the layout as a VB6 constant.
+        if (string.Equals(memberName, "Arrange", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 1 &&
+            resolved is Form { IsMdiContainer: true } arrangeParent)
+        {
+            arrangeParent.LayoutMdi(VBConversions.CLng(arguments[0]) switch
+            {
+                ArrangeCascade => MdiLayout.Cascade,
+                ArrangeTileHorizontal => MdiLayout.TileHorizontal,
+                ArrangeTileVertical => MdiLayout.TileVertical,
+                ArrangeIcons => MdiLayout.ArrangeIcons,
+
+                // VB6 rejects an arrangement it does not know with 380 rather than picking one.
+                _ => throw RaiseInvalidArrange()
+            });
+            return true;
+        }
+
         // Point is a function, so unlike PSet and Circle the qualified form arrives here as an
         // ordinary member call rather than as its own statement.
         if (string.Equals(memberName, "Point", StringComparison.OrdinalIgnoreCase) &&
@@ -1947,6 +1965,28 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         binding = _bindings.Values.FirstOrDefault(candidate =>
             ReferenceEquals(candidate.Form, form))!;
         return binding is not null;
+    }
+
+    /// <summary>
+    /// The VB6 object a window belongs to. VB6 hands out its own form object everywhere, so a
+    /// property that answers with a window has to translate back across this boundary.
+    /// </summary>
+    private object? FindVbObject(Form? form)
+    {
+        if (form is null)
+        {
+            return null;
+        }
+
+        foreach (var entry in _bindings)
+        {
+            if (ReferenceEquals(entry.Value.Form, form))
+            {
+                return entry.Key;
+            }
+        }
+
+        return null;
     }
 
     private void ApplyMdiParent(FormBinding binding)
@@ -2559,6 +2599,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return _bindings.TryGetValue(source, out var binding) ? binding.Form : null;
+    }
+
+    private const int ArrangeCascade = 0;
+    private const int ArrangeTileHorizontal = 1;
+    private const int ArrangeTileVertical = 2;
+    private const int ArrangeIcons = 3;
+
+    private static Exception RaiseInvalidArrange()
+    {
+        VBErrors.Raise(380, "Arrange", "Invalid property value", string.Empty, 0);
+        return new InvalidOperationException("unreachable");
     }
 
     private static ScrollBarBridge? TryGetScrollBarBridge(Control control) => control switch
@@ -3503,6 +3554,17 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        // ActiveForm answers with the VB6 object, not with the WinForms window behind it. On an
+        // MDI container it is the active child; anywhere else it is the active window of the
+        // application, which is what Screen.ActiveForm reports too.
+        if (string.Equals(memberName, "ActiveForm", StringComparison.OrdinalIgnoreCase))
+        {
+            value = FindVbObject(control is Form { IsMdiContainer: true } container
+                ? container.ActiveMdiChild
+                : Form.ActiveForm);
+            return true;
+        }
+
         if (TryReadDesignerControlProperty(control, memberName, out value))
         {
             return true;
@@ -3651,6 +3713,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             value = menu.Enabled;
         }
+        else if (string.Equals(memberName, "WindowList", StringComparison.OrdinalIgnoreCase))
+        {
+            value = menu.IsWindowList;
+        }
         else if (string.Equals(memberName, "Checked", StringComparison.OrdinalIgnoreCase))
         {
             value = menu.Checked;
@@ -3713,6 +3779,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "Shortcut", StringComparison.OrdinalIgnoreCase))
         {
             menu.Shortcut = VBConversions.CLng(value);
+        }
+        else if (string.Equals(memberName, "WindowList", StringComparison.OrdinalIgnoreCase))
+        {
+            // The menu that lists the open MDI children. VB6 allows exactly one per form, and so
+            // does the WinForms menu strip, so assigning it simply replaces whatever was there.
+            menu.IsWindowList = VBConversions.CBool(value);
+            if (menu.Owner is MenuStrip strip)
+            {
+                strip.MdiWindowListItem = menu.IsWindowList ? menu : null;
+            }
         }
         else
         {
@@ -5411,6 +5487,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Shortcut { get; set; }
+
+        /// <summary>The menu VB6 fills with the open MDI child windows.</summary>
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool IsWindowList { get; set; }
     }
 
     private sealed class LineControl : Control
