@@ -5902,3 +5902,35 @@ weiterhin abgelehnt.
 
 Kanonischer Nachweis: **1517/1517** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Eine Objekt-Property mit Get und Set las Nothing zurück (03.09.2026)
+
+Der Befund stand seit längerem in der Roadmap und war präzise beschrieben: Eine Klasse mit
+`Property Get` **und** `Property Set` gleichen Namens liefert aus dem `Get` `Empty`; das `Set`
+speichert nachweislich korrekt, und ein `Get` **ohne** `Set` liefert korrekt. Nur die Kombination
+bricht — und sie ist die Normalform jeder Objekt-Property.
+
+Die Messung bestätigte genau das und schnitt die Ursache ein:
+
+```
+feld-leer:False        ' das Set hat gespeichert
+get-nothing:True       ' das Get liefert Nothing
+h.Obj.Kennung -> ok    ' die Kette über dasselbe Get funktioniert
+```
+
+Dass der verkettete Zugriff funktioniert, war der entscheidende Hinweis: Nicht der Aufruf des Get
+war falsch, sondern **sein Rumpf**. In `BindSetAssignment` wurde ein blanker Name zuerst gegen die
+Set-Property der enthaltenden Klasse geprüft — **vor** dem lokalen Gültigkeitsbereich. Innerhalb von
+`Property Get Obj` ist `Obj` aber der Rückgabewert. `Set Obj = m_obj` band damit an die
+gleichnamige `Property Set` und schrieb `m_obj` auf sich selbst; der Rückgabewert blieb unberührt,
+also Nothing.
+
+Der Let-Pfad und **beide** Lesepfade prüfen den lokalen Gültigkeitsbereich zuerst. Nur der Set-Pfad
+tat es nicht — eine einzelne fehlende Bedingung. Sie steht jetzt dort, mit derselben Reihenfolge
+wie überall sonst.
+
+Der Test prüft beide Paare, Get/Set und Get/Let, und zwar über vier Leseformen: `TypeName`,
+`Is Nothing`, den verketteten Aufruf und `Set o = h.Obj`.
+
+Kanonischer Nachweis: **1518/1518** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
