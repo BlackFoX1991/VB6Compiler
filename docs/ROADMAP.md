@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1526 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1527 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -323,9 +323,10 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Rückgabewert.
 - [x] Der Zugriff auf ein **privates** Klassenfeld von aussen meldet `VB6S0074`. Das Feld bleibt
       in der Mitgliedsfläche, damit die Klasse es über `Me` weiter erreicht.
-- [ ] `Dim x As New C` erzeugt eifrig statt bei der ersten Verwendung, und `Class_Terminate`
-      feuert nie — weder bei `Set o = Nothing` noch beim Verlassen des Gültigkeitsbereichs.
-      Deterministische Lebensdauer auf einer GC-Laufzeit ist eine offene Architekturfrage.
+- [~] `Dim x As New C` erzeugt verzögert bei der ersten Verwendung — lokal, als Modulvariable und
+      als Klassenfeld. `Class_Terminate` läuft über einen emittierten Finalizer und damit nach der
+      Uhr des Sammlers, nicht nach der letzten Referenz. Die deterministische Lebensdauer bleibt
+      offen: Eine halbe Referenzzählung würde Terminate auf einem lebenden Objekt auslösen.
 - [x] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **91**, früh wie
       spät gebunden. Die Zuordnung ist bewusst breit: sie trifft jeden Null-Zugriff, weil VB6
       an dieser Stelle 91 meldet und der vorherige Sammelwert 5 dasselbe verdeckte.
