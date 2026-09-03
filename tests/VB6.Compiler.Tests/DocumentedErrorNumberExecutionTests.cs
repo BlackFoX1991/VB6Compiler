@@ -264,4 +264,79 @@ public sealed class DocumentedErrorNumberExecutionTests
             new[] { "0 12 7 [abc   ] True", "59" },
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReportsTheDocumentedNumbersOfTheIntrinsicArgumentContracts()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim s As String
+                Dim i As Long
+                Dim v As Variant
+
+                On Error Resume Next
+
+                i = Asc("")
+                Debug.Print Err.Number
+                Err.Clear
+                s = Left("abc", -1)
+                Debug.Print Err.Number
+                Err.Clear
+                s = Mid("abc", 0)
+                Debug.Print Err.Number
+                Err.Clear
+                s = Space(-1)
+                Debug.Print Err.Number
+                Err.Clear
+                s = StrConv("abc", 99)
+                Debug.Print Err.Number
+                Err.Clear
+                i = InStr(0, "abc", "b")
+                Debug.Print Err.Number
+                Err.Clear
+                v = Sqr(-1)
+                Debug.Print Err.Number
+                Err.Clear
+                v = Log(0)
+                Debug.Print Err.Number
+
+                Err.Clear
+                v = CInt("keine Zahl")
+                Debug.Print Err.Number
+                Err.Clear
+                v = CLng(99999999999#)
+                Debug.Print Err.Number
+                Err.Clear
+                i = 1 \ 0
+                Debug.Print Err.Number
+                Err.Clear
+                i = 1 Mod 0
+                Debug.Print Err.Number
+
+                ' Ohne Fehler: Choose und Switch liefern Null, Format rundet bankerskonform.
+                Err.Clear
+                v = Choose(0, "a", "b")
+                Debug.Print Err.Number & " " & IsNull(v)
+                Err.Clear
+                v = Switch(False, "a")
+                Debug.Print Err.Number & " " & IsNull(v)
+                Err.Clear
+                Debug.Print Format(1.5, "###") & " " & Err.Number
+            End Sub
+            """);
+
+        // Ein ungueltiges Argument ist in VB6 Fehler 5 -- hier die dokumentierte 5, nicht der
+        // Sammelwert in Verkleidung. Eine nicht konvertierbare Zeichenkette ist 13, ein Ueberlauf
+        // 6 und eine Division durch null 11. Ein Index ausserhalb von Choose und ein Switch ohne
+        // Treffer sind kein Fehler, sondern Null. Ein Breitendurchgang hat alle diese Verhalten
+        // als korrekt gemessen und zugleich als voellig ungetestet vorgefunden.
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "5", "5", "5", "5", "5", "5", "5", "5",
+                "13", "6", "11", "11",
+                "0 True", "0 True", "2 0"
+            },
+            output);
+    }
 }

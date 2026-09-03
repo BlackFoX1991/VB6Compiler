@@ -5077,3 +5077,26 @@ geändert wurde nur die geprüfte Ausnahmeform, mit dem Grund im Test.
 
 Kanonischer Nachweis: **1456/1456** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Ein Breitendurchgang ohne Defekt — und was er trotzdem einbrachte (03.09.2026)
+
+Nachdem dasselbe Muster viermal aufgetreten war — eine korrekt implementierte Prüfung, deren
+VB6-Nummer verloren geht, weil sie als .NET-Ausnahme ohne Nummer gemeldet wird — lag der Verdacht
+nahe, dass es endemisch ist. Die Runtime enthält 78 generische Würfe.
+
+Die Messung widerlegt das. Der größte Block, 33 Stellen in `VBStrings`, ist **bewusste
+Lückenmeldung**: „Format mask is outside the current subset" ist kein VB6-Fehler, sondern genau die
+Regel, lieber zu melden als zu raten. Und alle neunzehn geprüften Argumentverträge sind korrekt:
+`Asc("")`, `Left(-1)`, `Mid(0)`, `Space(-1)`, `String(-1)`, `Chr(-1)`, `StrConv` mit ungültiger
+Konstante, `InStr(0)`, `Sqr(-1)` und `Log(0)` melden die **dokumentierte** 5 („Invalid procedure
+call or argument") und nicht den Sammelwert in Verkleidung; nicht konvertierbarer Text meldet 13,
+ein Überlauf 6, eine Division durch null 11. `Choose` mit einem Index außerhalb und `Switch` ohne
+Treffer sind kein Fehler, sondern liefern `Null`.
+
+Der Ertrag liegt deshalb nicht in einer Korrektur, sondern darin, dass diese neunzehn Verträge
+**völlig ungetestet** waren. Die Messung ist jetzt ein Regressionsschutz. Ein Fall gehörte beim
+Schreiben ausdrücklich nicht dazu: `ReDim Preserve` auf ein festes Array ist korrekterweise die
+Übersetzungsdiagnose `VB6S0029` und kein Laufzeitfehler.
+
+Kanonischer Nachweis: **1457/1457** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
