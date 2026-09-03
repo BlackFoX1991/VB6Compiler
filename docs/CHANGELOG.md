@@ -5160,3 +5160,31 @@ ihr aus. Ohne UI-Host bleibt `Circle` ein deterministischer No-op.
 
 Kanonischer Nachweis: **1467/1467** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Point liest zurück, was gezeichnet wurde (03.09.2026)
+
+`PSet` und `Circle` schreiben auf die Zeichenfläche; `Point` ist die Gegenrichtung und damit die
+erste Stelle, an der der Host ein Pixel **liest**. Das ändert die Form: `PSet` und `Circle` sind
+Anweisungen mit eigener Syntax und scheiterten am Parser, `Point` ist eine Funktion mit
+gewöhnlicher Aufrufform und scheiterte deshalb eine Schicht später, am Binder mit
+`VB6S0005 – Procedure 'Point' is not declared`.
+
+Der Vertrag ist `IVB6Host.TryGetGraphicsPoint` mit einer Standardimplementierung, die `false`
+liefert. Der Rückgabewert trennt „keine Farbe" von einer Farbe, die zufällig 0 ist;
+`VBInteraction.GraphicsPoint` macht daraus die dokumentierte VB6-Antwort **-1** für einen Punkt
+außerhalb der Fläche — und dieselbe -1 gilt kopflos, wo es gar keine Fläche gibt.
+
+Zwei Entscheidungen stehen mit Begründung im Host:
+
+- **Ein unberührtes Pixel meldet die Hintergrundfarbe.** Auf der persistenten Zeichenfläche ist es
+  durchsichtig; VB6 sieht dort die Farbe, auf die die Fläche gelöscht wurde. Ohne diese Umsetzung
+  käme statt `BackColor` ein durchsichtiges Schwarz zurück.
+- **Die qualifizierte Form geht einen anderen Weg.** `Picture1.PSet (x, y)` ist eine eigene
+  Anweisung mit Ziel, `Picture1.Point(x, y)` dagegen ein gewöhnlicher Memberaufruf und landet in
+  `TryInvokeMember`. Beide Wege teilen sich dieselbe Leseroutine.
+
+`Point` ist wie `Cls` ein gewöhnlicher Bezeichner: eine eigene Prozedur dieses Namens verdeckt das
+Intrinsic. Ein E2E-Test hält das fest, weil der Name in Altprojekten frei vergeben sein kann.
+
+Kanonischer Nachweis: **1472/1472** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

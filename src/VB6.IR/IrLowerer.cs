@@ -4846,6 +4846,7 @@ public static class IrLowerer
             "VBInteraction.Print" => IrRuntimeMethod.InteractionPrint,
             "VBInteraction.PaintPicture" => IrRuntimeMethod.InteractionPaintPicture,
             "VBInteraction.Cls" => IrRuntimeMethod.InteractionCls,
+            "VBInteraction.GraphicsPoint" => IrRuntimeMethod.GraphicsPoint,
             "VBMemory.VarPtr" => IrRuntimeMethod.MemoryVarPtr,
             "VBMemory.ObjPtr" => IrRuntimeMethod.MemoryObjPtr,
             "VBMemory.StrPtr" => IrRuntimeMethod.MemoryStrPtr,

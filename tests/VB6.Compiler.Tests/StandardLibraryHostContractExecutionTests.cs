@@ -541,6 +541,54 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void Lower_UsesGraphicsPointHostContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim c As Long
+                c = Point(10, 20)
+            End Sub
+            """);
+
+        CollectionAssert.Contains(VB6TestIr.RuntimeCalls(program).ToArray(), VB6.IR.IrRuntimeMethod.GraphicsPoint);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReadsPointWithoutAUiHost()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                Debug.Print Point(10, 20)
+                Debug.Print Err.Number
+                Debug.Print VarType(Point(10, 20))
+            End Sub
+            """);
+
+        // Ohne Zeichenflaeche liegt jeder Punkt ausserhalb, und VB6 antwortet dort mit -1. Der
+        // Rueckgabetyp ist Long (3), nicht Variant -- Point traegt eine Farbe, keinen leeren Wert.
+        CollectionAssert.AreEqual(new[] { "-1", "0", "3" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_LetsAUserProcedureShadowPoint()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Function Point(ByVal x As Long, ByVal y As Long) As Long
+                Point = x + y
+            End Function
+
+            Sub Main()
+                Debug.Print Point(2, 3)
+            End Sub
+            """);
+
+        // Point ist ein gewoehnlicher Bezeichner: eine eigene Prozedur verdeckt das Intrinsic,
+        // sonst braeche der Name Altprojekte, die ihn selbst vergeben haben.
+        CollectionAssert.AreEqual(new[] { "5" }, output);
+    }
+
+    [TestMethod]
     public void Lower_UsesTargetGraphicsLineHostContract()
     {
         var program = VB6TestIr.Lower("""

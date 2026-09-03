@@ -1398,6 +1398,13 @@ public static class VBInteraction
 
     public static Action<VBGraphicsCircle>? GraphicsCircleSink { get; set; }
 
+    /// <summary>
+    /// Reads the colour of one pixel of the active drawing surface. VB6 answers -1 for a point
+    /// outside the surface, and that is also what a host without a drawing surface reports.
+    /// </summary>
+    public static int GraphicsPoint(float x, float y) =>
+        Host is { } host && host.TryGetGraphicsPoint(x, y, out var color) ? color : -1;
+
     private static SettingKey MakeSettingKey(string appName, string section, string key) =>
         new(appName, section, key);
 

@@ -3979,6 +3979,11 @@ public sealed class ManagedEmitter
                 typeof(bool),
                 typeof(bool),
                 typeof(bool));
+            if (m == IrRuntimeMethod.GraphicsPoint) return Static(
+                typeof(VBInteraction),
+                nameof(VBInteraction.GraphicsPoint),
+                typeof(float),
+                typeof(float));
             if (m == IrRuntimeMethod.GraphicsCircle) return Static(
                 typeof(VBInteraction),
                 nameof(VBInteraction.GraphicsCircle),

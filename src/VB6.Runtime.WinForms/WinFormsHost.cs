@@ -461,6 +461,44 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
+    public bool TryGetGraphicsPoint(float x, float y, out int color)
+    {
+        ThrowIfDisposed();
+        var target = _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(form => !form.IsDisposed);
+        return TryReadGraphicsPoint(target, x, y, out color);
+    }
+
+    /// <summary>
+    /// Reads one pixel of the persistent drawing surface. A pixel nothing has drawn on is
+    /// transparent there, while VB6 sees the background it was cleared to -- so an untouched
+    /// pixel answers with the control's BackColor rather than with a transparent black.
+    /// </summary>
+    private bool TryReadGraphicsPoint(Control? target, float x, float y, out int color)
+    {
+        color = -1;
+        if (target is null || target.IsDisposed)
+        {
+            return false;
+        }
+
+        var state = GetDesignerControlState(target);
+        var scale = GetScaleFactors(target, state);
+        var deviceX = (int)MathF.Floor(x * scale.X);
+        var deviceY = (int)MathF.Floor(y * scale.Y);
+
+        var surface = GetDrawingSurface(target);
+        if (deviceX < 0 || deviceY < 0 || deviceX >= surface.Width || deviceY >= surface.Height)
+        {
+            return false;
+        }
+
+        var pixel = surface.GetPixel(deviceX, deviceY);
+        color = ColorTranslator.ToOle(pixel.A == 0 ? target.BackColor : pixel);
+        return true;
+    }
+
     public void GraphicsCircle(VBGraphicsCircle circle)
     {
         ThrowIfDisposed();
@@ -1483,6 +1521,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                     VBConversions.CSng(arguments[3]),
                     VBConversions.CSng(arguments[4]))))
         {
+            return true;
+        }
+
+        // Point is a function, so unlike PSet and Circle the qualified form arrives here as an
+        // ordinary member call rather than as its own statement.
+        if (string.Equals(memberName, "Point", StringComparison.OrdinalIgnoreCase) &&
+            arguments.Length == 2)
+        {
+            result = TryReadGraphicsPoint(
+                resolved,
+                VBConversions.CSng(arguments[0]),
+                VBConversions.CSng(arguments[1]),
+                out var pointColor)
+                ? pointColor
+                : -1;
             return true;
         }
 

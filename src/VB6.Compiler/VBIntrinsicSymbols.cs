@@ -404,6 +404,13 @@ internal static class VBIntrinsicSymbols
         Function("QBColor", VBIntrinsicKind.QBColor, "VBFunctions.QBColor", TypeSymbol.Long, Parameter("Color", TypeSymbol.Integer)),
         Sub("DoEvents", VBIntrinsicKind.DoEvents, "VBInteraction.DoEvents"),
         Sub("Cls", VBIntrinsicKind.Cls, "VBInteraction.Cls"),
+        Function(
+            "Point",
+            VBIntrinsicKind.Point,
+            "VBInteraction.GraphicsPoint",
+            TypeSymbol.Long,
+            Parameter("X", TypeSymbol.Single),
+            Parameter("Y", TypeSymbol.Single)),
         Sub("Kill", VBIntrinsicKind.Kill, "VBFiles.Kill", Parameter("Path", TypeSymbol.String)),
         Sub(
             "FileCopy",
