@@ -72,10 +72,38 @@ internal static class VBComDispatch
         try
         {
             var dispatch = (INativeDispatch)target;
-            if (!TryGetDispId(dispatch, memberName, out var dispId))
+
+            // Named arguments cannot be resolved when the call is compiled, so they arrive
+            // wrapped. GetIDsOfNames resolves the member and its parameter names in one call --
+            // the same mechanism VB6 uses -- and the result decides both the DISPPARAMS layout
+            // and the order the values have to be written in.
+            if (!TrySplitNamedArguments(arguments, setProperty, out var callArguments, out var argumentNames))
             {
                 return false;
             }
+
+            int dispId;
+            int[]? namedDispIds = null;
+            if (argumentNames.Length == 0)
+            {
+                if (!TryGetDispId(dispatch, memberName, out dispId))
+                {
+                    return false;
+                }
+            }
+            else if (!TryGetDispIds(dispatch, memberName, argumentNames, out dispId, out namedDispIds))
+            {
+                // VB6 answers a name the target does not know with 448.
+                VBErrors.Raise(
+                    448,
+                    memberName,
+                    "Named argument not found",
+                    string.Empty,
+                    0);
+                return false;
+            }
+
+            arguments = callArguments;
 
             var flags = setProperty
                 ? ShouldUsePropertyPutRef(arguments)
@@ -96,6 +124,7 @@ internal static class VBComDispatch
                 flags,
                 argumentTypes,
                 byRefArguments,
+                namedDispIds,
                 out result,
                 out var error);
             if (hr < 0 && byRefArguments is not null)
@@ -109,6 +138,7 @@ internal static class VBComDispatch
                     flags,
                     argumentTypes,
                     null,
+                    namedDispIds,
                     out result,
                     out error);
             }
@@ -127,6 +157,7 @@ internal static class VBComDispatch
                     fallbackFlags,
                     argumentTypes,
                     null,
+                    namedDispIds,
                     out result,
                     out error);
             }
@@ -697,6 +728,131 @@ internal static class VBComDispatch
         return null;
     }
 
+    /// <summary>
+    /// Separates the named arguments from the positional ones and puts the list into the order
+    /// DISPPARAMS wants. <c>Invoke</c> writes rgvarg back to front, and rgvarg has to start with
+    /// the named values in the order of rgdispidNamedArgs -- so the named values go last here, in
+    /// reverse. A property put keeps its value at the very end, where the existing
+    /// DISPID_PROPERTYPUT handling expects it.
+    /// </summary>
+    private static bool TrySplitNamedArguments(
+        object?[] arguments,
+        bool setProperty,
+        out object?[] callArguments,
+        out string[] argumentNames)
+    {
+        callArguments = arguments;
+        argumentNames = Array.Empty<string>();
+        var count = setProperty ? arguments.Length - 1 : arguments.Length;
+        if (count < 0)
+        {
+            return true;
+        }
+
+        var hasNamed = false;
+        for (var index = 0; index < count; index++)
+        {
+            if (arguments[index] is VBNamedArgument)
+            {
+                hasNamed = true;
+                break;
+            }
+        }
+
+        if (!hasNamed)
+        {
+            return true;
+        }
+
+        var positional = new List<object?>();
+        var named = new List<VBNamedArgument>();
+        for (var index = 0; index < count; index++)
+        {
+            if (arguments[index] is VBNamedArgument namedArgument)
+            {
+                named.Add(namedArgument);
+            }
+            else
+            {
+                positional.Add(arguments[index]);
+            }
+        }
+
+        var ordered = new List<object?>(positional);
+        for (var index = named.Count - 1; index >= 0; index--)
+        {
+            ordered.Add(named[index].Value);
+        }
+
+        if (setProperty)
+        {
+            ordered.Add(arguments[^1]);
+        }
+
+        callArguments = ordered.ToArray();
+        argumentNames = named.Select(entry => entry.Name).ToArray();
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the member and its named parameters in one GetIDsOfNames call. Passing them
+    /// together is what lets a server map the names against the member the call actually names,
+    /// rather than against whatever else it exposes.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static bool TryGetDispIds(
+        INativeDispatch dispatch,
+        string memberName,
+        string[] argumentNames,
+        out int dispId,
+        out int[]? namedDispIds)
+    {
+        dispId = 0;
+        namedDispIds = null;
+        var total = argumentNames.Length + 1;
+        var pointers = new IntPtr[total];
+        var names = Marshal.AllocCoTaskMem(IntPtr.Size * total);
+        var ids = Marshal.AllocCoTaskMem(sizeof(int) * total);
+        try
+        {
+            pointers[0] = Marshal.StringToCoTaskMemUni(memberName);
+            for (var index = 0; index < argumentNames.Length; index++)
+            {
+                pointers[index + 1] = Marshal.StringToCoTaskMemUni(argumentNames[index]);
+            }
+
+            for (var index = 0; index < total; index++)
+            {
+                Marshal.WriteIntPtr(names, index * IntPtr.Size, pointers[index]);
+            }
+
+            var iid = Guid.Empty;
+            if (dispatch.GetIDsOfNames(ref iid, names, (uint)total, ComLocaleId, ids) < 0)
+            {
+                return false;
+            }
+
+            var resolved = new int[total];
+            Marshal.Copy(ids, resolved, 0, total);
+            dispId = resolved[0];
+            namedDispIds = resolved.Skip(1).ToArray();
+            return true;
+        }
+        finally
+        {
+            foreach (var pointer in pointers)
+            {
+                if (pointer != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(pointer);
+                }
+            }
+
+            Marshal.FreeCoTaskMem(names);
+            Marshal.FreeCoTaskMem(ids);
+        }
+    }
+
     private static bool TryGetDispId(
         INativeDispatch dispatch,
         string memberName,
@@ -704,20 +860,23 @@ internal static class VBComDispatch
     {
         var name = Marshal.StringToCoTaskMemUni(memberName);
         var names = Marshal.AllocCoTaskMem(IntPtr.Size);
+        var ids = Marshal.AllocCoTaskMem(sizeof(int));
         try
         {
             Marshal.WriteIntPtr(names, name);
             var iid = Guid.Empty;
             dispId = 0;
-            return dispatch.GetIDsOfNames(
-                ref iid,
-                names,
-                1,
-                ComLocaleId,
-                out dispId) >= 0;
+            if (dispatch.GetIDsOfNames(ref iid, names, 1, ComLocaleId, ids) < 0)
+            {
+                return false;
+            }
+
+            dispId = Marshal.ReadInt32(ids);
+            return true;
         }
         finally
         {
+            Marshal.FreeCoTaskMem(ids);
             Marshal.FreeCoTaskMem(names);
             Marshal.FreeCoTaskMem(name);
         }
@@ -731,6 +890,7 @@ internal static class VBComDispatch
         ushort flags,
         ushort?[]? argumentTypes,
         ushort?[]? byRefArguments,
+        int[]? namedDispIds,
         out object? result,
         out ComInvocationError? error)
     {
@@ -746,7 +906,9 @@ internal static class VBComDispatch
         // in-apartment call tolerates a null there, but the standard IDispatch proxy -- which is
         // what an STA object called from an MTA thread goes through -- rejects it with
         // RPC_X_NULL_REF_POINTER before the server ever sees the call.
-        var namedArguments = Marshal.AllocCoTaskMem(sizeof(int));
+        var namedCount = (namedDispIds?.Length ?? 0) +
+            (flags is DispatchPropertyPut or DispatchPropertyPutRef ? 1 : 0);
+        var namedArguments = Marshal.AllocCoTaskMem(sizeof(int) * Math.Max(1, namedCount));
         var initialized = new bool[arguments.Length];
 
         try
@@ -801,15 +963,34 @@ internal static class VBComDispatch
                 initialized[index] = true;
             }
 
+            // DISPID_PROPERTYPUT comes first when there is one: its value is the last argument,
+            // and Invoke writes rgvarg back to front, so it lands in rgvarg[0].
             var isPropertyPut = flags is DispatchPropertyPut or DispatchPropertyPutRef;
-            Marshal.WriteInt32(namedArguments, isPropertyPut ? DispIdPropertyPut : 0);
+            var namedSlot = 0;
+            if (isPropertyPut)
+            {
+                Marshal.WriteInt32(namedArguments, namedSlot++ * sizeof(int), DispIdPropertyPut);
+            }
+
+            if (namedDispIds is not null)
+            {
+                foreach (var namedDispId in namedDispIds)
+                {
+                    Marshal.WriteInt32(namedArguments, namedSlot++ * sizeof(int), namedDispId);
+                }
+            }
+
+            if (namedSlot == 0)
+            {
+                Marshal.WriteInt32(namedArguments, 0);
+            }
 
             var parameters = new NativeDispParams
             {
                 Arguments = variants,
                 NamedArguments = namedArguments,
                 ArgumentCount = (uint)arguments.Length,
-                NamedArgumentCount = isPropertyPut ? 1u : 0u
+                NamedArgumentCount = (uint)namedSlot
             };
             var exception = default(NativeExcepInfo);
             try
@@ -2220,13 +2401,16 @@ internal static class VBComDispatch
         [PreserveSig]
         int GetTypeInfo(uint typeInfoIndex, uint lcid, out IntPtr typeInfo);
 
+        // rgDispId is an array: one entry for the member plus one per named parameter. Declaring
+        // it as a single out int would work for the one-name case and corrupt the stack for any
+        // other, so it stays a raw pointer the caller sizes.
         [PreserveSig]
         int GetIDsOfNames(
             ref Guid iid,
             IntPtr names,
             uint nameCount,
             uint lcid,
-            out int dispId);
+            IntPtr dispIds);
 
         [PreserveSig]
         int Invoke(
