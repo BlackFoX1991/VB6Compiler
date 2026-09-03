@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1512 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1515 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -450,15 +450,50 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 ### Etappe H — Abschlussgate und Dokumentationsstatus
 
-- [ ] Jeder Matrixeintrag besitzt mindestens Parser-/Binder-, Runtime- oder Emitter- und Managed-
+- [x] Jeder Matrixeintrag besitzt mindestens Parser-/Binder-, Runtime- oder Emitter- und Managed-
       End-to-End-Abdeckung; beobachtbare Profilunterschiede erhalten tabellengetriebene Tests.
-- [ ] Raw-COM-Probes prüfen VTables, DISPIDs, VARIANT-/SAFEARRAY-Layouts, Referenzzählung,
+      Ein Test prüft das maschinell: jede Erwartung nennt Tests, diese Tests existieren, und die
+      in README und Roadmap zitierten Zahlen sind die Zahlen der Matrix.
+- [~] Raw-COM-Probes prüfen VTables, DISPIDs, VARIANT-/SAFEARRAY-Layouts, Referenzzählung,
       ByRef-Write-back, Events, Registrierung und registry-free Aktivierung in beide Richtungen
-      mit kontrollierten Testkomponenten.
-- [ ] Forms-Tests prüfen Lifecycle-/Eventtraces, MDI und Control-Arrays; GDI-Zeichenoperationen
-      erhalten Pixeltests bei festem DPI und Theme.
-- [ ] Der kanonische Build, alle vorhandenen Regressionen und VISIA 40/40 bleiben grün. Das
+      mit kontrollierten Testkomponenten. Beide Richtungen laufen: generierter Code gegen echte
+      Fremdserver (`ComInteropExecutionTests`), und unsere Klassen von einem Fremdprozess aus --
+      in-process über `VB6.ComActivationProbe`, out-of-process über `LocalServerActivationTests`.
+      Offen bleiben die exotischen Typbibliotheksformen, die eine aus IDL gebaute Komponente
+      brauchen.
+- [~] Forms-Tests prüfen Lifecycle-/Eventtraces, MDI und Control-Arrays; GDI-Zeichenoperationen
+      erhalten Pixeltests bei festem DPI und Theme. Lifecycle, MDI, Control-Arrays einschließlich
+      Menü-Arrays und die Zeichenprimitive sind abgedeckt; die Pixeltests laufen bei der DPI des
+      Testhosts, nicht bei einer festgeschriebenen.
+- [x] Der kanonische Build, alle vorhandenen Regressionen und VISIA 40/40 bleiben grün. Das
       deterministische Profil darf sich in keinem bestehenden Snapshot verändern.
+
+#### Was bewusst `documented-verified` bleibt
+
+Kein Eintrag der Matrix trägt `oracle-verified`, und ein Test hält das fest
+(`CompatibilityMatrixTests`): Dieser Status darf nur nach einem Lauf gegen einen echten
+VB6-SP6-Compiler stehen, und ein solches Orakel existiert für dieses Projekt nicht. Die folgenden
+Flächen bleiben deshalb dauerhaft dokumentationsgestützt, jede aus einem eigenen Grund:
+
+1. **Locale-abhängige Datums- und Kalenderfälle.** `Weekday(d, vbUseSystemDayOfWeek)` und
+   `Format(d, "ww")` lösen `vbUseSystem` über `CurrentCulture` auf. Das ist VB6-treu und verletzt
+   zugleich die Determinismus-Entscheidung dieses Projekts; der Zielkonflikt ist offen und wird
+   nicht einseitig aufgelöst.
+2. **Fälle, in denen die Dokumentationsherleitung nachweislich falsch war.** `CDec(Null)` und
+   `CInt(CVErr(5))` verhalten sich anders, als die Doku nahelegt, und ein bestehender Test ist
+   dort der bessere Zeuge. Ohne Orakel wird daran nichts „korrigiert".
+3. **Exotische Typbibliotheksformen.** VT_CARRAY, Pointer-auf-Pointer und frühgebundene
+   vtable-Interfaces brauchen eine aus IDL gebaute Testkomponente. Dafür fehlt auf dieser Maschine
+   das Windows SDK — kein `midl.exe`, kein `oaidl.h`. Der Aufrufpfad selbst ist gegen echte
+   Fremdserver gemessen (`Scripting.Dictionary`, `Scripting.FileSystemObject`), die exotischen
+   Formen sind es nicht.
+4. **Native OCX-Flächen.** Sie hängen an registrierten x86-Controls und laufen nur im
+   ausdrücklichen Opt-in-Lauf (`VB6_REQUIRE_NATIVE_OCX=1`, `TargetPlatform=x86`). Im normalen Lauf
+   überspringen sie sich selbst und sagen dort nichts aus — das Stock-Control-Inventar führt
+   deshalb `native-only` als eigene Einstufung.
+5. **Undokumentiertes controlspezifisches Verhalten.** Steht ausdrücklich außerhalb des Vertrags
+   und soll dort bleiben.
+
 - [ ] Der Managed-Abschluss ist erreicht, wenn außerhalb der ausdrücklich ausgeschlossenen
       LLVM-/LSP-/IDE-Flächen keine Implementierungszeile mehr `[~]` oder `[ ]` ist. Fehlende echte
       VB6-Gegenprüfung bleibt als Validierungsstatus sichtbar, blockiert diesen Abschluss aber nicht.
