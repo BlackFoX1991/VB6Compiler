@@ -5934,3 +5934,23 @@ Der Test prüft beide Paare, Get/Set und Get/Let, und zwar über vier Leseformen
 
 Kanonischer Nachweis: **1518/1518** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Eine Property, die ein Array liefert, lässt sich jetzt indizieren (03.09.2026)
+
+`c.Nums(1)` meldete `VB6S0006 – Procedure 'Nums' expects 0 argument(s), but 1 were supplied`. Der
+Binder hielt die Klammern für eine Argumentliste, obwohl sie ein Index sind: In VB6 wird die
+parameterlose Property gerufen und **ihr Ergebnis** indiziert.
+
+Für den verwandten Fall gab es den Weg bereits — eine Property, die eine Collection liefert, wird
+gerufen und deren Default-Property indiziert. Das Array daneben fehlte. Es geht denselben Weg über
+`BoundElementAccessExpression`, das eine beliebige Array-wertige Ausdrucksquelle indiziert und im
+Lowerer bereits unterstützt war.
+
+Der erste Versuch riss dabei einen bestehenden Test: `Public Grid(1 To 2, 1 To 2) As Long` mit
+`c.Grid(1)` muss **VB6S0027** melden. Mein Zweig hätte daraus stillschweigend einen Zugriff mit
+einem Index gemacht und den Übersetzungsfehler in einen Laufzeitfehler verwandelt. Die Übersetzung
+greift jetzt nur, wenn die Zahl der Indizes zur deklarierten Dimensionszahl passt; alles andere
+fällt weiter in die Diagnose.
+
+Kanonischer Nachweis: **1519/1519** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

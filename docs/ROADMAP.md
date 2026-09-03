@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1518 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1519 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -313,8 +313,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       in allen Formen außerhalb der aktuellen Teilmenge (`VB6S0043`).
 - [ ] Ein `String * n` an einen `ByRef s As String` meldet `VB6S0008`; VB6 erlaubt die Übergabe
       mit Copy-in/Copy-out. Der Zielkonflikt zur bewusst typstrengen ByRef-Regel ist offen.
-- [ ] Eine deklarierte `Property Get` mit Array-Rückgabetyp kann nicht indiziert werden;
-      `c.Nums(1)` meldet `VB6S0006`, statt die Property zu rufen und ihr Ergebnis zu indizieren.
+- [x] Eine `Property Get` mit Array-Rückgabetyp wird gerufen und ihr Ergebnis indiziert. Eine
+      falsche Zahl von Indizes bleibt `VB6S0027` und wird nicht stillschweigend übersetzt.
 - [x] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liest richtig
       zurück. Ursache war die Namensauflösung im Set-Pfad: Ein blanker Name wurde gegen die
       Set-Property der Klasse geprüft, bevor der lokale Gültigkeitsbereich befragt wurde — womit
