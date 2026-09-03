@@ -5188,3 +5188,35 @@ Intrinsic. Ein E2E-Test hält das fest, weil der Name in Altprojekten frei verge
 
 Kanonischer Nachweis: **1472/1472** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## EXCEPINFO war gefüllt, freigegeben und nie gelesen (03.09.2026)
+
+`VBComDispatch.Invoke` übergab `IDispatch::Invoke` eine `EXCEPINFO`-Struktur, gab deren BSTR-Felder
+korrekt wieder frei — und wertete sie nie aus. Zurück kam nur der blanke `HRESULT`. Ein Server, der
+`Err.Raise 53` auslöste, kam beim Anwendercode deshalb als `false` aus `TryInvoke` an, fiel in den
+Reflection-Pfad und endete dort als **438**. Nummer, Beschreibung, Quelle und Hilfe des Servers
+waren zu diesem Zeitpunkt bereits freigegeben.
+
+Die Struktur wird jetzt gelesen, **bevor** sie freigegeben wird, und über `VBErrors.Raise` auf das
+`Err`-Objekt abgebildet. Drei Regeln stehen mit Begründung im Code:
+
+- **wCode schlägt scode.** `EXCEPINFO` trägt den Fehler in genau einem der beiden Felder.
+- **Ein scode im FACILITY_CONTROL-Bereich ist eine VB6-Nummer, die über COM gereist ist.** Ein
+  Server, der `Err.Raise 9` auslöst, sendet `0x800A0009`; der Client muss wieder 9 sehen. Alles
+  außerhalb dieses Bereichs bleibt der volle negative HRESULT — genau damit rechnet
+  `vbObjectError`-Arithmetik im Anwendercode.
+- **Ohne Beschreibung bleibt 440.** Ein Server darf scheitern, ohne zu sagen warum; VB6 braucht
+  trotzdem eine Nummer, und 440 ist sein dokumentierter Sammelwert für Automatisierungsfehler.
+
+Die entscheidende Einschränkung: gemeldet wird **nur** bei `DISP_E_EXCEPTION`. Jeder andere
+HRESULT beschreibt die Aufrufform, nicht den Server — und behält damit seine Wiederholungen mit
+ByVal-Aufrufform beziehungsweise dem anderen `PROPERTYPUT`-Vertrag. Genau dafür sind die
+Rückfallpfade da; ein Fehler daraus darf nicht beim Anwender landen.
+
+Absicherung: vier Runtime-Tests über die reine Abbildung und über die Entscheidungsregel, welcher
+HRESULT überhaupt beim Anwender ankommt. Der Ende-zu-Ende-Nachweis gegen einen echten COM-Server
+fehlt noch — er hängt an den kontrollierten Testkomponenten aus Phase 0 des Managed-Abschlussplans.
+Bis dahin bleibt diese Fläche **dokumentationsgestützt**, nicht gegenständlich gemessen.
+
+Kanonischer Nachweis: **1476/1476** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
