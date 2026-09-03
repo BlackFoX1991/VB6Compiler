@@ -1305,6 +1305,28 @@ public static class IrLowerer
                     // bound expression for diagnostics while emitting no IR preserves that
                     // release behavior and avoids evaluating assertion side effects.
                     break;
+                case BoundGraphicsPSetStatement pset:
+                    var psetColor = pset.Color is null
+                        ? new IrNullExpression(TypeSymbol.Variant)
+                        : LowerExpression(pset.Color);
+                    var psetStep = new IrConstantExpression(pset.IsStep, TypeSymbol.Boolean);
+                    Emit(new IrEvaluateInstruction(pset.Target is null
+                        ? Runtime(
+                            IrRuntimeMethod.GraphicsPSet,
+                            TypeSymbol.Error,
+                            LowerExpression(pset.X),
+                            LowerExpression(pset.Y),
+                            psetColor,
+                            psetStep)
+                        : Runtime(
+                            IrRuntimeMethod.GraphicsPSetOnTarget,
+                            TypeSymbol.Error,
+                            LowerExpression(pset.Target),
+                            LowerExpression(pset.X),
+                            LowerExpression(pset.Y),
+                            psetColor,
+                            psetStep)));
+                    break;
                 case BoundGraphicsLineStatement line:
                     var graphicsLineMethod = line.Target is null
                         ? IrRuntimeMethod.GraphicsLine

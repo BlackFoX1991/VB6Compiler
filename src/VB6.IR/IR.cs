@@ -530,6 +530,8 @@ public enum IrRuntimeMethod
     DebugPrintEmptyLine,
     GraphicsLine,
     GraphicsLineOnTarget,
+    GraphicsPSet,
+    GraphicsPSetOnTarget,
     EndProgram,
 
     StringLen,
