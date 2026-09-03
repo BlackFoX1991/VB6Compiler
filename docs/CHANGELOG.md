@@ -5220,3 +5220,28 @@ Bis dahin bleibt diese Fläche **dokumentationsgestützt**, nicht gegenständlic
 
 Kanonischer Nachweis: **1476/1476** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Der harte ANSI-CharSet bei Declare ist kein Fehler (03.09.2026)
+
+`ManagedEmitter` setzt für jeden `Declare` fest `CharSetAnsi` zusammen mit `ExactSpelling`. Der
+Abschlussplan hatte das als möglichen Bugfix geführt — mit dem ausdrücklichen Vorbehalt, vorher zu
+klären, ob echtes VB6 ein `Alias "MessageBoxW"` als ANSI marshallt oder Unicode ableitet.
+
+Die Klärung fällt gegen den Fix aus. VB6 ist ANSI-only: es marshallt jeden `String` eines `Declare`
+als `LPSTR`, unabhängig davon, worauf der Alias zeigt. Ein Alias auf die W-Funktion bekommt dort
+ANSI-Bytes und liefert Unsinn — beobachtbares VB6-Verhalten, kein Compilerfehler. `ExactSpelling`
+gehört dazu: VB6 hängt nie still ein `A` oder `W` an einen Aliasnamen.
+
+Damit greift die Regel, die alles andere schlägt: eine Unicode-Ableitung wäre keine Reparatur,
+sondern eine Verschiebung der Semantik für Altcode. Ein `Declare`, das heute in VB6 ANSI überträgt,
+würde danach etwas anderes übertragen. Ein Unicode-Aufruf bleibt in VB6 das, was er immer war — ein
+Aufruf über ein Bytearray.
+
+Geändert hat sich deshalb nichts am Emitter, nur an der Absicherung: ein Emittertest hält jetzt
+gegenständlich fest, dass ein `Alias "MessageBoxW"` mit `CharSetAnsi`, `ExactSpelling` und
+wörtlichem Importnamen in den Metadaten landet. Die Entscheidung ist damit gepinnt statt nur
+gemeint. Ein additives Opt-in für echtes Unicode-Marshalling bleibt möglich — additiv, mit eigener
+Syntax, ohne bestehende `Declare`-Zeilen zu berühren.
+
+Kanonischer Nachweis: **1477/1477** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
