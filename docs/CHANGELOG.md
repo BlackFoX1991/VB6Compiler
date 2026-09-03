@@ -5536,3 +5536,33 @@ Eine Klasse **ohne** das Attribut bleibt weiterhin kein Wert; ein Test hält auc
 
 Kanonischer Nachweis: **1497/1497** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Instancing entschied bisher gar nichts (03.09.2026)
+
+Jede Klasse eines ActiveX-Projekts wurde COM-sichtbar emittiert — auch eine, die VB6 als
+`Private` führt. Damit landete eine reine Hilfsklasse in der Typbibliothek, in der Registrierung
+und im reg-freien Manifest, wo VB6 sie ausdrücklich heraushält.
+
+Die Ursache lag zwei Schichten früher: `VBClassModuleSource.Normalize` löscht jede
+`Attribute`-Zeile eines Klassenmoduls, und die Instancing-Angabe steht genau dort — VB6 schreibt
+sie als `VB_Exposed` und `VB_Creatable`. Beide Zeilen bleiben jetzt erhalten, wie schon die
+Default-Property-Zeile und `VB_PredeclaredId`.
+
+Die Abbildung folgt der VB6-Tabelle:
+
+| Instancing | `VB_Exposed` | `VB_Creatable` | Ergebnis |
+|---|---|---|---|
+| Private | False | False | **nicht** COM-sichtbar |
+| PublicNotCreatable | True | False | sichtbar, **ohne** ProgID |
+| MultiUse / SingleUse | True | True | sichtbar mit ProgID |
+
+Die ProgID ist die Stelle, an der „nicht erzeugbar" wirksam wird: ohne sie lässt sich die Klasse
+als Rückgabewert benutzen, aber nicht über ihren Namen erzeugen. Und weil der Manifestschreiber
+seine Klassenliste aus dem `ComVisible`-Attribut der emittierten Assembly liest, wirkt die
+Entscheidung ohne weiteres Zutun bis in Manifest und Registrierung durch.
+
+Ein `.cls` **ohne** diese Attribute — handgeschrieben oder ein Formular — behält den bisherigen,
+großzügigen Default. Sonst wäre jede Testdatei dieses Repos plötzlich privat.
+
+Kanonischer Nachweis: **1498/1498** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
