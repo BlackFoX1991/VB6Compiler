@@ -1422,6 +1422,13 @@ public sealed class VBProjectCompilation
         return false;
     }
 
+    /// <summary>
+    /// The project kinds VB6 builds as an out-of-process COM server. They are libraries by
+    /// contract but executables by form, because COM starts them as their own process.
+    /// </summary>
+    internal static bool IsLocalServerProjectType(string? projectType) =>
+        projectType?.Trim().ToUpperInvariant() is "OLEEXE" or "ACTIVEX EXE";
+
     internal static bool IsLibraryProjectType(string? projectType) =>
         projectType?.Trim().ToUpperInvariant() is
             "OLEDLL" or
