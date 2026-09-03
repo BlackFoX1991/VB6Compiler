@@ -307,4 +307,20 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   immerhin die falsche 5 lieferten — die schwereren Befunde standen also gerade **nicht** in
   der Liste der falschen 5. Eine Fehlernummernmessung, die nur bekannte Fehlerfälle abfragt,
   findet diese Klasse nie; jeder Fall braucht auch die Frage „meldet er überhaupt?".
+- **Ein funktionierender Rückfall verdeckt einen toten Hauptpfad.** `VBComDispatch.TryInvoke`
+  meldete bei jedem Problem `false`, und `VBDynamicDispatch` beantwortete den Aufruf per
+  Reflection. Das Programm lief weiter — nur ohne die Fehlernummern des Servers. Auf x64 war der
+  schnelle IDispatch-Pfad dadurch für **jeden Aufruf mit mehr als einem Argument** tot, jahrelang
+  unbemerkt, weil kein Test die Nummer geprüft hat. Ursache war `VariantSize = 16`: ein `VARIANT`
+  ist auf x64 **24** Bytes, die Union trägt `BRECORD` mit zwei Zeigern. Wer an COM-Marshalling
+  etwas ändert, misst gegen einen echten Fremdserver (`Scripting.Dictionary` aus `scrrun.dll`,
+  siehe `ComInteropRuntimeTests`) und prüft `Err.Number`, nicht nur, ob der Aufruf gelingt.
+  Zwei verwandte Stolpersteine derselben Familie: `rgdispidNamedArgs` darf nicht null sein, sonst
+  weist der Standard-Proxy den Aufruf ab (ein STA-Objekt vom MTA-Thread aus), und `EXCEPINFO` hat
+  zwischen `dwHelpContext` und `pfnDeferredFillIn` ein `pvReserved`, ohne das `Scode` ins
+  Leere liest.
+- **Ein FACILITY_CONTROL-HRESULT ist nicht automatisch ein Serverfehler.**
+  `Scripting.Dictionary.Add` lehnt die ByRef-Aufrufform ab, die seine eigene Typbibliothek
+  beschreibt, mit `0x800A0005`; erst der ByVal-Rückfall gelingt. Ein COM-Fehler wird deshalb erst
+  gemeldet, wenn **jede** Aufrufform durch ist — nicht beim ersten misslungenen `Invoke`.
 - **Die CLI-Optionsgrammatik liegt an genau einer Stelle — dort halten.** `CommandLineParser.TryParse` in `src/VB6.Compiler.Cli/CommandLine.cs` parst sie einmal für alle drei Eingabearten; `Program.cs` verzweigt danach nur noch über `CommandLineOptions.Command`. Vorher stand dieselbe Grammatik dreimal da — im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup` — mit handgeschriebenen Arity-Guards, und eine neue Option hieß drei Stellen ändern. Wer eine Option ergänzt, tut das im Parser, nicht im Zweig. Welche Befehle eine Eingabeart überhaupt zulässt, entscheidet weiterhin der Zweig — eine `.vbg` nimmt kein `--dump-ir`.

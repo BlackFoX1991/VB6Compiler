@@ -32,8 +32,17 @@ internal static class VBComDispatch
     private const ushort VariantSafeArray = 0x001B;
     private const int DispIdPropertyPut = -3;
     private const int DispatchException = unchecked((int)0x80020009);
+    private const int FacilityControlMask = unchecked((int)0x800A0000);
     private const int AutomationErrorNumber = 440;
-    private const int VariantSize = 16;
+    /// <summary>
+    /// sizeof(VARIANT). Sixteen bytes on x86, twenty-four on x64 -- the union carries BRECORD,
+    /// which is two pointers. Hard-coding sixteen made every argument after the first overlap the
+    /// one before it on x64, so a call with two or more arguments reached the server as garbage
+    /// and the standard proxy rejected it with RPC_X_NULL_REF_POINTER before it ever ran. Nothing
+    /// looked broken from outside: the reflection fallback answered instead, only without the
+    /// server error numbers.
+    /// </summary>
+    private static readonly int VariantSize = IntPtr.Size == 8 ? 24 : 16;
     private const int VariantDataOffset = 8;
     private const uint InvariantComLocaleId = 1033;
 
@@ -89,7 +98,6 @@ internal static class VBComDispatch
                 byRefArguments,
                 out result,
                 out var error);
-            RaiseComException(hr, error);
             if (hr < 0 && byRefArguments is not null)
             {
                 // A type library can describe an [out] parameter while an individual server
@@ -103,7 +111,6 @@ internal static class VBComDispatch
                     null,
                     out result,
                     out error);
-                RaiseComException(hr, error);
             }
             if (hr < 0 && setProperty)
             {
@@ -122,8 +129,13 @@ internal static class VBComDispatch
                     null,
                     out result,
                     out error);
-                RaiseComException(hr, error);
             }
+
+            // Reported only once every call shape has been tried. A FACILITY_CONTROL answer is
+            // not proof that the server ran: Scripting.Dictionary.Add rejects the ByRef shape its
+            // own type library describes with 0x800A0005, and the ByVal retry then succeeds.
+            // Reporting on the first attempt would turn that working fallback into error 5.
+            RaiseComException(hr, error);
 
             return hr >= 0;
         }
@@ -730,9 +742,11 @@ internal static class VBComDispatch
         var byRefValues = byRefArguments is null
             ? IntPtr.Zero
             : Marshal.AllocCoTaskMem(VariantSize * arguments.Length);
-        var namedArguments = flags is DispatchPropertyPut or DispatchPropertyPutRef
-            ? Marshal.AllocCoTaskMem(sizeof(int))
-            : IntPtr.Zero;
+        // rgdispidNamedArgs is always allocated, even when there are no named arguments. An
+        // in-apartment call tolerates a null there, but the standard IDispatch proxy -- which is
+        // what an STA object called from an MTA thread goes through -- rejects it with
+        // RPC_X_NULL_REF_POINTER before the server ever sees the call.
+        var namedArguments = Marshal.AllocCoTaskMem(sizeof(int));
         var initialized = new bool[arguments.Length];
 
         try
@@ -787,17 +801,15 @@ internal static class VBComDispatch
                 initialized[index] = true;
             }
 
-            if (namedArguments != IntPtr.Zero)
-            {
-                Marshal.WriteInt32(namedArguments, DispIdPropertyPut);
-            }
+            var isPropertyPut = flags is DispatchPropertyPut or DispatchPropertyPutRef;
+            Marshal.WriteInt32(namedArguments, isPropertyPut ? DispIdPropertyPut : 0);
 
             var parameters = new NativeDispParams
             {
                 Arguments = variants,
                 NamedArguments = namedArguments,
                 ArgumentCount = (uint)arguments.Length,
-                NamedArgumentCount = namedArguments == IntPtr.Zero ? 0u : 1u
+                NamedArgumentCount = isPropertyPut ? 1u : 0u
             };
             var exception = default(NativeExcepInfo);
             try
@@ -885,24 +897,33 @@ internal static class VBComDispatch
     }
 
     /// <summary>
-    /// Reports a server-side failure as a VB6 error. Only DISP_E_EXCEPTION says that the server
-    /// itself raised something -- every other HRESULT describes the call shape, and those keep
-    /// their retries, because a wrong call shape is exactly what the fallbacks exist to correct.
-    /// Swallowing this one would turn a described error into a bare 438 from the reflection path.
+    /// Reports a server-side failure as a VB6 error. Two HRESULTs say the server raised something
+    /// itself rather than complaining about the call shape: DISP_E_EXCEPTION, and anything in
+    /// FACILITY_CONTROL -- the range VB6 and Automation servers use for their own error numbers.
+    /// <c>Scripting.Dictionary</c> answers a duplicate key with 0x800A01C9 straight from
+    /// <c>Invoke</c> without filling EXCEPINFO at all, so keying only on DISP_E_EXCEPTION lost
+    /// that error to the reflection fallback, where it arrived as a bare 5.
+    ///
+    /// Every other HRESULT describes the call shape and keeps its retries -- a wrong call shape
+    /// is what the fallbacks exist to correct. Stopping on a server error matters for a second
+    /// reason as well: the call already ran, and a retry would repeat its side effects.
     /// </summary>
     internal static void RaiseComException(int hr, ComInvocationError? error)
     {
-        if (hr != DispatchException)
+        if (hr != DispatchException && !IsServerError(hr))
         {
             return;
         }
 
-        var raised = error ?? new ComInvocationError(
-            AutomationErrorNumber,
-            string.Empty,
-            "Automation error",
-            string.Empty,
-            0);
+        // Without EXCEPINFO the HRESULT is all there is, and its low word carries the number.
+        var raised = error ?? (hr == DispatchException
+            ? new ComInvocationError(
+                AutomationErrorNumber,
+                string.Empty,
+                "Automation error",
+                string.Empty,
+                0)
+            : MapComException(0, hr, string.Empty, string.Empty, string.Empty, 0));
         VBErrors.Raise(
             raised.Number,
             raised.Source,
@@ -974,13 +995,23 @@ internal static class VBComDispatch
             number = AutomationErrorNumber;
         }
 
+        // A server that answers through scode alone leaves no description behind. VB6 shows its
+        // own text for a number it knows -- Scripting.Dictionary reports 457 without a word, and
+        // VB6 still says "This key is already associated with an element of this collection".
         return new ComInvocationError(
             number,
             source,
-            description.Length == 0 ? "Automation error" : description,
+            description.Length == 0 ? VBErrors.ErrorText(number) : description,
             helpFile,
             unchecked((int)helpContext));
     }
+
+    /// <summary>
+    /// FACILITY_CONTROL is where VB6 and Automation servers put their own error numbers. An
+    /// HRESULT from that range is never a complaint about how the member was called.
+    /// </summary>
+    private static bool IsServerError(int hr) =>
+        (hr & unchecked((int)0xFFFF0000)) == FacilityControlMask;
 
     private static string ReadNativeBstr(IntPtr value) =>
         value == IntPtr.Zero ? string.Empty : Marshal.PtrToStringBSTR(value);
@@ -2100,8 +2131,8 @@ internal static class VBComDispatch
 
     private static void ClearVariantStorage(IntPtr variant)
     {
-        Span<byte> empty = stackalloc byte[VariantSize];
-        Marshal.Copy(empty.ToArray(), 0, variant, VariantSize);
+        var empty = new byte[VariantSize];
+        Marshal.Copy(empty, 0, variant, VariantSize);
     }
 
     private static void CopyVariant(IntPtr source, IntPtr destination)
@@ -2227,6 +2258,12 @@ internal static class VBComDispatch
         public uint NamedArgumentCount;
     }
 
+    /// <summary>
+    /// EXCEPINFO as OAIDL declares it. The <c>pvReserved</c> slot between the help context and
+    /// the deferred fill-in callback is easy to leave out and shifts everything after it: without
+    /// it, <c>Scode</c> reads the first half of a function pointer instead of the error code, so
+    /// a server that reports through scode rather than wCode looks like it reported nothing.
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     internal struct NativeExcepInfo
     {
@@ -2236,6 +2273,7 @@ internal static class VBComDispatch
         public IntPtr Description;
         public IntPtr HelpFile;
         public uint HelpContext;
+        public IntPtr ReservedPointer;
         public IntPtr DeferredFillIn;
         public int Scode;
     }

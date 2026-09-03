@@ -5325,3 +5325,65 @@ Namen genannt**, statt dass eine zu lange Kommandozeile pauschal die Nutzung aus
 
 Kanonischer Nachweis: **1484/1484** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Der schnelle IDispatch-Pfad hat auf x64 nie mehr als ein Argument übertragen (03.09.2026)
+
+Der Abschlussplan sieht für Etappe D kontrollierte COM-Testkomponenten aus IDL vor — eine
+Grundwahrheit, die nicht unser eigener Emitter erzeugt hat. Auf dieser Maschine ist kein Windows
+SDK installiert: kein `midl.exe`, kein `oaidl.h`. Die Komponenten sind hier also nicht baubar.
+
+Als Ersatz dient ein COM-Server, den Windows selbst mitbringt: `Scripting.Dictionary` aus
+`scrrun.dll` — echte Typbibliothek, duale Schnittstelle, Default-Property, dokumentierte
+Fehlernummern. Nicht so aussagekräftig wie eine eigene Komponente für exotische
+Typbibliotheksformen, aber eine ehrliche Grundwahrheit für den Aufrufpfad. Die erste Messung dagegen
+fand drei Defekte, von denen keiner beim Lesen des Quelltexts sichtbar war.
+
+**1. `VariantSize` war fest 16.** Ein `VARIANT` ist auf x86 sechzehn Bytes, auf **x64
+vierundzwanzig** — die Union trägt `BRECORD`, und das sind zwei Zeiger. Mit der festen 16 überlappte
+jedes Argument ab dem zweiten das vorige. Ein Aufruf mit einem Argument oder ohne funktionierte,
+jeder Aufruf mit zweien kam als Unsinn am Server an und wurde vom Standard-Proxy mit
+`RPC_X_NULL_REF_POINTER` abgewiesen, bevor er überhaupt lief.
+
+**Von außen sah nichts kaputt aus.** `TryInvoke` meldete `false`, der Reflection-Rückfall in
+`VBDynamicDispatch` beantwortete den Aufruf, und das Programm lief weiter — nur ohne die
+Fehlernummern des Servers. Der schnelle Pfad war auf x64 für mehrargumentige Aufrufe schlicht tot,
+und kein Test hat es gesehen, weil der Rückfall funktioniert.
+
+**2. `rgdispidNamedArgs` war null, wenn es keine benannten Argumente gab.** Innerhalb desselben
+Apartments verzeiht das jeder Server. Ein STA-Objekt, das von einem MTA-Thread aus gerufen wird —
+und der Testhost ist MTA —, geht über den Standard-IDispatch-Proxy, und der weist den Nullzeiger ab.
+Der Zeiger wird jetzt immer bereitgestellt, `cNamedArgs` bleibt 0.
+
+**3. `EXCEPINFO` fehlte ein Feld.** Zwischen `dwHelpContext` und `pfnDeferredFillIn` steht in
+`oaidl.h` ein `pvReserved`. Ohne dieses Feld rutschte alles danach: `Scode` las die erste Hälfte
+eines Funktionszeigers statt der Fehlernummer. Ein Server, der über `scode` statt `wCode` meldet,
+sah damit aus, als hätte er gar nichts gemeldet.
+
+**Und eine Korrektur an der Meldestelle von gestern.** Der EXCEPINFO-Nachtrag meldete beim ersten
+misslungenen `Invoke`. Das ist zu früh: `Scripting.Dictionary.Add` lehnt die ByRef-Aufrufform ab,
+die seine **eigene** Typbibliothek beschreibt, und zwar mit `0x800A0005` — im FACILITY_CONTROL-
+Bereich, also nach der Regel ein Serverfehler. Der ByVal-Rückfall gelingt danach. Wer sofort meldet,
+macht aus einem funktionierenden Rückfall einen Fehler 5. Gemeldet wird jetzt erst, wenn **jede**
+Aufrufform durch ist.
+
+Dazu kommt: fehlt die Beschreibung, zeigt VB6 seinen eigenen Text zur Nummer.
+`Scripting.Dictionary` meldet 457 wortlos, und VB6 sagt trotzdem „This key is already associated
+with an element of this collection".
+
+Gemessenes Ergebnis, vorher und nachher:
+
+| Aufruf | vorher | jetzt |
+|---|---|---|
+| `d.Add "a", 1` | über Reflection | direkt über IDispatch |
+| `d.Add` mit doppeltem Schlüssel | `Err.Number = 5`, Beschreibung `0x800A01C9` | **457** mit VB6-Text |
+| `d.Remove` mit fehlendem Schlüssel | `Err.Number = 5` | **32811** |
+
+Absicherung: zwei Runtime-Tests direkt gegen den Fremdserver und ein Ende-zu-Ende-Test, der
+denselben Weg durch generierten VB6-Code nimmt. Damit ist die Lücke geschlossen, die der
+EXCEPINFO-Nachtrag ausdrücklich offengelassen hatte.
+
+**Weiter offen:** eine aus IDL gebaute Testkomponente für VT_CARRAY, Pointer-auf-Pointer und
+frühgebundene vtable-Interfaces. Die braucht ein Windows SDK und ist hier nicht baubar.
+
+Kanonischer Nachweis: **1487/1487** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
