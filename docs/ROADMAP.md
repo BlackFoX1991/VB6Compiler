@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1524 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1526 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -311,8 +311,9 @@ Rückgabematrix bleibt in Etappe B/C offen.
       UDT-Member — mit einheitlicher Breite: *n* Leerzeichen als Anfangswert, Abschneiden beim
       Überschreiten und Auffüllen beim Unterschreiten. Eine benannte Konstante als Länge bleibt
       in allen Formen außerhalb der aktuellen Teilmenge (`VB6S0043`).
-- [ ] Ein `String * n` an einen `ByRef s As String` meldet `VB6S0008`; VB6 erlaubt die Übergabe
-      mit Copy-in/Copy-out. Der Zielkonflikt zur bewusst typstrengen ByRef-Regel ist offen.
+- [x] Ein `String * n` an einen `ByRef s As String` geht mit Copy-in/Copy-out durch, wie in VB6.
+      Der Zielkonflikt ist an der obersten Regel entschieden: Altcode übergibt so, und die
+      typstrenge ByRef-Regel gilt weiterhin einer Variablen des falschen Typs.
 - [x] Eine `Property Get` mit Array-Rückgabetyp wird gerufen und ihr Ergebnis indiziert. Eine
       falsche Zahl von Indizes bleibt `VB6S0027` und wird nicht stillschweigend übersetzt.
 - [x] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liest richtig

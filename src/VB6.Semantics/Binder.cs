@@ -4326,6 +4326,7 @@ public sealed class Binder
             var expression = BindExpression(argumentSyntaxes[index], variables, procedures);
 
             var requiresByRefTemporary = false;
+            var writesBackByRefTemporary = false;
 
             // An explicit ByVal at the call site overrides a ByRef parameter, the same way
             // parentheses do: CopyMemory dst, ByVal VarPtr(src), 4 hands over a value.
@@ -4379,6 +4380,18 @@ public sealed class Binder
                     expression = BindConversion(expression, parameter.Type);
                     requiresByRefTemporary = true;
                 }
+                else if (parameter.PassingMode == ParameterPassingMode.ByRef &&
+                         expression.Type is FixedLengthStringTypeSymbol &&
+                         parameter.Type == TypeSymbol.String)
+                {
+                    // VB6 übergibt ein String * n an einen ByRef String mit Copy-in/Copy-out: Der
+                    // Aufgerufene sieht eine gewöhnliche Zeichenkette, und was er zurückgibt, wird
+                    // beim Rückschreiben wieder auf die feste Breite gebracht. Ein Fehler wäre hier
+                    // die typstrengere, aber falsche Antwort -- Altcode tut genau das.
+                    expression = BindConversion(expression, parameter.Type);
+                    requiresByRefTemporary = true;
+                    writesBackByRefTemporary = true;
+                }
                 else if (!parameter.IsAny && !AreByRefTypesCompatible(expression.Type, parameter.Type) &&
                          expression.Type != TypeSymbol.Error &&
                          parameter.Type != TypeSymbol.Error)
@@ -4396,6 +4409,7 @@ public sealed class Binder
             arguments.Add(new BoundArgument(parameter, expression)
             {
                 RequiresByRefTemporary = requiresByRefTemporary,
+                WritesBackByRefTemporary = writesBackByRefTemporary,
                 IsByValAtCallSite = forcedByValue
             });
         }

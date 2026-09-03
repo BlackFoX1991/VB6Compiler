@@ -6027,3 +6027,26 @@ zur Laufzeit festzulegen, und genau das kann ein festes Layout nicht.
 
 Kanonischer Nachweis: **1524/1524** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## String * n an ByRef String: der Zielkonflikt ist entschieden (03.09.2026)
+
+Die Roadmap führte diesen Punkt als **offen**: Ein `String * n` an einen `ByRef s As String` meldete
+`VB6S0008`; VB6 erlaubt die Übergabe mit Copy-in/Copy-out, und der Konflikt zur bewusst typstrengen
+ByRef-Regel war ungelöst.
+
+Er löst sich an der Regel, die alles andere schlägt: **Legacy-Projekte kompilieren unverändert.**
+Altcode übergibt feste Zeichenketten genau so, und ein Fehler wäre hier die strengere, aber falsche
+Antwort. Die typstrenge Regel bleibt trotzdem — sie gilt einer Variablen des **falschen Typs**, für
+die das Rückschreiben kein Ziel hätte. Eine Zeichenkette fester Breite hat eines.
+
+Der Weg war schon da, nur nicht verbunden: `RequiresByRefTemporary` erzeugt die Kopie,
+`IrCallArgument.WriteBackPlace` schreibt sie zurück, und der Emitter implementiert das bereits für
+Variant-Arrayelemente. Neu ist die Unterscheidung, **wann** zurückgeschrieben wird — für die
+übrigen Temporär-Fälle ist das Verwerfen genau richtig, weil dort kein Ziel existiert.
+
+Gemessen in beiden Richtungen: Der Aufgerufene sieht `Len(s) = 5`, also die volle Breite; was er
+zurückgibt, kommt als `"xy   "` mit `Len = 5` an, also wieder auf Breite gebracht. Das gilt für die
+lokale Variable wie für das UDT-Member.
+
+Kanonischer Nachweis: **1526/1526** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

@@ -3771,18 +3771,30 @@ public static class IrLowerer
                     }
 
                     IrPlace place;
+                    IrPlace? writeBack = null;
                     if (argument.RequiresByRefTemporary)
                     {
                         var temp = NewLocal("__byref_temp", argument.Parameter.Type, true);
                         Emit(new IrStoreInstruction(new IrLocalPlace(temp), LowerExpression(argument.Expression)));
                         place = new IrLocalPlace(temp);
+
+                        // Copy-out: nur wo VB6 den Wert zurückschreibt. Sonst bleibt die Kopie eine
+                        // Kopie, und der Aufgerufene schreibt ins Leere -- was für die übrigen
+                        // Temporär-Fälle genau richtig ist.
+                        if (argument.WritesBackByRefTemporary)
+                        {
+                            writeBack = TryLowerPlace(argument.Expression);
+                        }
                     }
                     else
                     {
                         place = LowerPlace(argument.Expression);
                     }
 
-                    lowered.Add(new IrCallArgument(new IrAddressExpression(place), IrCallArgumentKind.Address));
+                    lowered.Add(new IrCallArgument(
+                        new IrAddressExpression(place),
+                        IrCallArgumentKind.Address,
+                        writeBack));
                 }
                 else
                 {

@@ -875,6 +875,13 @@ public sealed record BoundArgument(
     BoundExpression Expression)
 {
     public bool RequiresByRefTemporary { get; init; }
+
+    /// <summary>
+    /// Copy-in/copy-out: der Aufgerufene arbeitet auf einer Kopie, und ihr Wert wird nach dem
+    /// Aufruf in den ursprünglichen Speicher zurückgeschrieben. VB6 übergibt ein `String * n` so
+    /// an einen `ByRef s As String`.
+    /// </summary>
+    public bool WritesBackByRefTemporary { get; init; }
     public bool IsByValAtCallSite { get; init; }
     public bool IsOmitted { get; init; }
 }

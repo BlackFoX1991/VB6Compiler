@@ -1722,11 +1722,23 @@ public sealed class ManagedEmitter
                             "A Variant element ByRef write-back requires a compiler local.");
                     }
 
-                    EmitStore(
-                        encoder,
-                        procedure,
-                        argument.WriteBackPlace,
-                        new IrLoadExpression(valueTemporary));
+                    // Ein String * n behält seine Breite auch beim Rückschreiben: Der Aufgerufene
+                    // liefert eine gewöhnliche Zeichenkette, die hier wieder abgeschnitten oder
+                    // aufgefüllt wird.
+                    IrExpression writtenBack = new IrLoadExpression(valueTemporary);
+                    if (argument.WriteBackPlace.Type is FixedLengthStringTypeSymbol fixedTarget)
+                    {
+                        writtenBack = new IrRuntimeCallExpression(
+                            IrRuntimeMethod.FixedStringWrite,
+                            ImmutableArray.Create(
+                                new IrCallArgument(writtenBack),
+                                new IrCallArgument(new IrConstantExpression(
+                                    (long)fixedTarget.Length,
+                                    TypeSymbol.Long))),
+                            TypeSymbol.String);
+                    }
+
+                    EmitStore(encoder, procedure, argument.WriteBackPlace, writtenBack);
                     continue;
                 }
 
