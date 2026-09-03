@@ -322,7 +322,7 @@ public sealed class VBProjectCompilation
                         moduleVariablesForBinding,
                         containingClass);
             }
-            if (containingClass is not null && IsHostModuleKind(module.Item.Kind))
+            if (containingClass is not null && HasDesignerSurface(module.Item.Kind))
             {
                 var instanceVariables = semanticModel.InstanceVariables.ToBuilder();
                 foreach (var control in ReadDesignerControls(module.FilePath, designerDocuments))
@@ -434,7 +434,7 @@ public sealed class VBProjectCompilation
         var variables = new Dictionary<string, ModuleVariableSymbol>(
             projectVariables,
             StringComparer.OrdinalIgnoreCase);
-        if (!IsHostModuleKind(module.Item.Kind))
+        if (!HasDesignerSurface(module.Item.Kind))
         {
             return variables;
         }
@@ -970,8 +970,11 @@ public sealed class VBProjectCompilation
                     allowObjectAssignment: !withEventsNames.Contains(variable.Name));
             }
 
-            if (IsHostModuleKind(module.Item.Kind))
+            if (HasDesignerSurface(module.Item.Kind))
             {
+                // A PropertyPage and a UserDocument are containers of the UserControl shape: they
+                // carry designer controls and the same host properties, but unlike a form they
+                // have no global instance of their own.
                 var hostType = module.Item.Kind == VBProjectItemKind.Form
                     ? VBStandardTypes.Form
                     : VBStandardTypes.UserControl;
@@ -1300,7 +1303,7 @@ public sealed class VBProjectCompilation
             }
         }
 
-        if (IsHostModuleKind(module.Item.Kind))
+        if (HasDesignerSurface(module.Item.Kind))
         {
             VBIntrinsicSymbols.AddHostProcedures(procedures);
         }
@@ -1456,8 +1459,23 @@ public sealed class VBProjectCompilation
             VBProjectItemKind.UserDocument or
             VBProjectItemKind.Designer;
 
+    /// <summary>
+    /// The kinds that own a global instance named after themselves. VB6 addresses a form by its
+    /// name without creating one; a PropertyPage or UserDocument is never reachable that way.
+    /// </summary>
     private static bool IsHostModuleKind(VBProjectItemKind kind) =>
         kind is VBProjectItemKind.Form or VBProjectItemKind.UserControl;
+
+    /// <summary>
+    /// The kinds that are drawn in a designer and therefore carry designer controls and the host
+    /// property surface. This is the wider set: a PropertyPage has an OK button on it just like a
+    /// form does, and its code has to see it.
+    /// </summary>
+    private static bool HasDesignerSurface(VBProjectItemKind kind) =>
+        kind is VBProjectItemKind.Form or
+            VBProjectItemKind.UserControl or
+            VBProjectItemKind.PropertyPage or
+            VBProjectItemKind.UserDocument;
 
     private sealed record ParsedProjectModule(
         VBProjectItem Item,

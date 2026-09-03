@@ -5873,3 +5873,32 @@ allerdings bei der DPI des Testhosts, nicht bei einer festgeschriebenen.
 
 Kanonischer Nachweis: **1515/1515** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## PropertyPage und UserDocument sehen ihre eigenen Controls (03.09.2026)
+
+Beide Artefaktarten **kompilierten** bereits: Ein `.pag` und ein `.dob` werden geladen, geparst und
+gebunden. Sobald aber ein Control darauf lag, brach es ab:
+
+```
+VB6S0001  Variable 'cmdOk' is not declared.
+```
+
+Die Ursache war eine Prädikatsgrenze, die zwei verschiedene Fragen beantwortet hat.
+`IsHostModuleKind` bedeutete gleichzeitig „hat eine Entwurfsoberfläche" **und** „besitzt eine
+globale Instanz ihres Namens" — und stand auf `Form or UserControl`. Für die Entwurfsoberfläche ist
+das zu eng, denn eine PropertyPage trägt ihren OK-Knopf genauso wie ein Formular. Für die globale
+Instanz wäre eine Erweiterung dagegen **falsch**: Ein Formular ist in VB6 über seinen Namen
+ansprechbar, ohne dass jemand es erzeugt; eine PropertyPage ist das nie.
+
+Die beiden Fragen sind jetzt getrennt. `HasDesignerSurface` umfasst Form, UserControl,
+PropertyPage und UserDocument und entscheidet über Designer-Controls, Host-Eigenschaften und
+Host-Intrinsics; `IsHostModuleKind` bleibt bei Form und UserControl und entscheidet allein über die
+globale Instanz. PropertyPage und UserDocument sind dabei Container der UserControl-Form — sie
+bekommen deren Eigenschaftsfläche, nicht die eines Formulars.
+
+Zwei Tests halten beide Seiten: Ein `.pag` mit Knopf und ein `.dob` mit Textfeld kompilieren samt
+Zugriff auf ihre Controls, und ein Projekt, das eine PropertyPage über ihren Namen anspricht, wird
+weiterhin abgelehnt.
+
+Kanonischer Nachweis: **1517/1517** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
