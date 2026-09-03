@@ -5458,3 +5458,39 @@ Default-Properties sind alle gegenständlich gegen einen Fremdserver gemessen.
 
 Kanonischer Nachweis: **1492/1492** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Menü-Arrays, und was an Declare schon fertig war (03.09.2026)
+
+Zwei Zeilen der Roadmap, beide zuerst gemessen.
+
+**`Declare` und `AddressOf` waren fertig.** 24 Tests decken Signaturen (skalar, `Currency`,
+`Boolean`/VARIANT_BOOL, vorzeichenlose Breiten, `LongPtr`), Zeichenketten (ANSI, Rückschreibpuffer),
+Zeiger (`As Any`, `StrPtr`), UDTs (blittable, feste Zeichenketten, VB6-Vier-Byte-Packung), Arrays
+(SafeArray ByRef und als Rückgabe, `LongPtr`-Arrays) und Callbacks (nativ, ANSI+Boolean,
+Variant-Slots, Variant- und String-Arrays, ByRef-UDT) ab. Die Nachmessung fand keinen Defekt:
+`Declare Sub`, `ByRef … As Any` auf ein Arrayelement innerhalb eines UDT und ANSI-`ByVal`-Strings
+verhalten sich richtig. Zwei bis dahin ungetestete Formen sind jetzt festgehalten — mehr war nicht
+zu tun.
+
+**Menü-Arrays fehlten ganz.** `LoadControlArrayElement` prüfte `template is not Control` und gab in
+allen anderen Fällen `null` zurück. Ein Menü ist im Host aber keine `Control`, sondern ein
+`MenuProxy` — `Load mnuDatei(1)` tat deshalb **still gar nichts**. Wieder derselbe Musterfehler:
+ein Rückfall, der nicht meldet.
+
+Die Fehlersemantik lag bereits richtig in der Runtime und gilt für jedes Arrayelement: ein Index
+unter der Untergrenze meldet 9, ein bereits geladener Index meldet 360, und ein Index über der
+Obergrenze erweitert das Array. Gefehlt hat nur die Host-Umsetzung:
+
+- Das geladene Element landet im **selben Drop-down wie seine Vorlage, direkt dahinter**, damit die
+  Reihenfolge im Menü der Deklaration entspricht.
+- Es erbt Beschriftung, `Enabled`, `Checked` und Tastenkürzel, startet aber **unsichtbar** — wie
+  jedes geladene Element eines Control-Arrays.
+- `Unload` nimmt es aus seinem Container **und** aus der Komponentenliste, sodass derselbe Index
+  danach ein frisches Element erzeugt.
+
+UserControl-Arrays gehen denselben Weg wie gewöhnliche Controls, weil ein generiertes UserControl
+eine `Control` ist. Gegenständlich gemessen ist das **nicht** — dafür bräuchte die Suite ein
+generiertes UserControl, und der VISIA-Korpus wird analysiert, nicht ausgeführt.
+
+Kanonischer Nachweis: **1494/1494** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
