@@ -3475,6 +3475,14 @@ public static class IrLowerer
                 return new IrEnsureLocalClassExpression(irLocal, classType);
             }
 
+            // A module variable or class field declared As New defers the same way a local does.
+            // Its storage is not a local, so the place decides where the created instance goes.
+            if (symbol is ModuleVariableSymbol { IsAsNew: true, IsConstant: false } moduleVariable &&
+                moduleVariable.Type is ClassTypeSymbol moduleClassType)
+            {
+                return new IrEnsureClassExpression(LowerVariablePlace(symbol), moduleClassType);
+            }
+
             return new IrLoadExpression(LowerVariablePlace(symbol));
         }
 
