@@ -4083,6 +4083,14 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ComLocalServerTryRun) return Static(
                 typeof(VBComLocalServer),
                 nameof(VBComLocalServer.TryRunAsLocalServer));
+            if (m == IrRuntimeMethod.FileAttr) return Static(
+                typeof(VBFiles),
+                nameof(VBFiles.FileAttr),
+                typeof(int),
+                typeof(int));
+            if (m == IrRuntimeMethod.IMEStatus) return Static(
+                typeof(VBInteraction),
+                nameof(VBInteraction.IMEStatus));
             if (m == IrRuntimeMethod.NamedArgument) return Static(
                 typeof(VBVariants),
                 nameof(VBVariants.NamedArgument),

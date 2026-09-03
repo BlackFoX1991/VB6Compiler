@@ -1720,6 +1720,49 @@ public static class VBFiles
         return stream;
     }
 
+    /// <summary>
+    /// The mode an open channel was opened in. VB6 numbers them 1 Input, 2 Output, 4 Random,
+    /// 8 Append and 32 Binary — the same bits the Open statement uses, so a program can compare
+    /// against the vbFile* constants it already knows.
+    ///
+    /// A ReturnType of 2 asks for the DOS file handle. 32-bit VB6 has none to give and answers 5;
+    /// the same is true here, and for the same reason: there is no such handle.
+    /// </summary>
+    public static int FileAttr(int fileNumber, int returnType)
+    {
+        ValidateFileNumber(fileNumber);
+        if (returnType == 2)
+        {
+            VBErrors.Raise(
+                5,
+                "FileAttr",
+                "FileAttr cannot report a DOS file handle; 32-bit VB6 has none either.",
+                string.Empty,
+                0);
+        }
+
+        if (returnType != 1)
+        {
+            VBErrors.Raise(5, "FileAttr", "Invalid procedure call or argument", string.Empty, 0);
+        }
+
+        if (!AccessModes.TryGetValue(fileNumber, out var mode))
+        {
+            throw new VB6RuntimeErrorException(
+                52,
+                $"VB6 file number {fileNumber.ToString(CultureInfo.InvariantCulture)} is not open.");
+        }
+
+        return mode switch
+        {
+            VBFileAccessMode.Input => 1,
+            VBFileAccessMode.Output => 2,
+            VBFileAccessMode.Random => 4,
+            VBFileAccessMode.Append => 8,
+            _ => 32
+        };
+    }
+
     private static FileStream GetStream(int fileNumber)
     {
         ValidateFileNumber(fileNumber);

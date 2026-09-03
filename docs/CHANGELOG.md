@@ -6102,3 +6102,33 @@ und **wo** es ginge, statt den Sammelwert unerklärt zu lassen.
 
 Kanonischer Nachweis: **1529/1529** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Die Funktionstabelle ist vollständig (03.09.2026)
+
+Etappe C führt als große Zeile „alle dokumentierten String-, Math-, Financial-, Datum/Zeit-,
+`Format`-, Array-, Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-,
+Screen-, Printer- und Clipboard-Verträge implementieren". Diese Zeile klingt offen-endig, also war
+die erste Frage nicht „was bauen", sondern **wie weit ist sie**.
+
+Ein Abgleich der Intrinsics-Tabelle gegen die dokumentierte VB6-Funktionsliste ergab: 180
+Deklarationen, und genau **zwei** fehlten — `FileAttr` und `IMEStatus`. (`LBound` und `UBound`
+stehen nicht in der Tabelle, weil sie ihre eigene gebundene Form haben.) Die Finanzfamilie,
+`Partition`, `Switch`, `Choose`, die Registry-Vierergruppe, die B-Varianten und `StrConv` waren
+bereits alle da — der erste Durchlauf hatte sie nur groß/klein verschieden geschrieben gefunden.
+
+`FileAttr` meldet den Modus eines offenen Kanals in denselben Bits, die `Open` benutzt: 1 Input,
+2 Output, 4 Random, 8 Append, 32 Binary. Ein `ReturnType` von 2 fragt nach dem DOS-Dateihandle —
+das hat auch 32-Bit-VB6 nicht, und die Antwort ist dort wie hier 5, aus demselben Grund. Ein
+geschlossener Kanal meldet 52, wie jede andere Kanalfunktion.
+
+`IMEStatus` antwortet mit 0, `vbIMEModeNoControl`. Dieser Host installiert nie eine ostasiatische
+Eingabemethode, und das ist die Antwort, die VB6 auf einem System ohne eine solche gibt. Einen
+Fehler zu melden hieße, Code zu brechen, der bloß fragt.
+
+Damit ist die **Deklarationsfläche** der Standardbibliothek geschlossen. Offen bleibt, was die Zeile
+daneben meint: die Vollständigkeit einzelner Verträge — `Format` und `Math` bleiben ausdrücklich
+`partial`, weil dort die Frage nicht lautet, ob die Funktion existiert, sondern ob sie jede
+dokumentierte Eingabe richtig beantwortet.
+
+Kanonischer Nachweis: **1531/1531** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
