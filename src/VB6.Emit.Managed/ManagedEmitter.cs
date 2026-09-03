@@ -3845,6 +3845,19 @@ public sealed class ManagedEmitter
         private void AddComTypeMetadata(TypeDefinitionHandle typeHandle, IrClassDefinition classDefinition)
         {
             var classType = classDefinition.Symbol;
+
+            // A Private class -- Instancing 1 -- exists only inside its own project. Marking it
+            // ComVisible would put it into the type library, the registration and the reg-free
+            // manifest, all of which VB6 keeps it out of.
+            if (!classType.IsComExposed)
+            {
+                _metadata.AddCustomAttribute(
+                    typeHandle,
+                    GetAttributeConstructor(typeof(ComVisibleAttribute), typeof(bool)),
+                    EncodeBooleanAttribute(false));
+                return;
+            }
+
             _metadata.AddCustomAttribute(
                 typeHandle,
                 GetAttributeConstructor(typeof(ComVisibleAttribute), typeof(bool)),
@@ -3869,10 +3882,15 @@ public sealed class ManagedEmitter
                     typeHandle,
                     GetAttributeConstructor(typeof(ClassInterfaceAttribute), typeof(ClassInterfaceType)),
                     EncodeEnumAttribute((int)ClassInterfaceType.AutoDual));
-                _metadata.AddCustomAttribute(
-                    typeHandle,
-                    GetAttributeConstructor(typeof(ProgIdAttribute), typeof(string)),
-                    EncodeStringAttribute(GetComProgId(classType)));
+                // Only a creatable class gets a ProgID. PublicNotCreatable is reachable as a
+                // return value but must not be constructible by name.
+                if (classType.IsComCreatable)
+                {
+                    _metadata.AddCustomAttribute(
+                        typeHandle,
+                        GetAttributeConstructor(typeof(ProgIdAttribute), typeof(string)),
+                        EncodeStringAttribute(GetComProgId(classType)));
+                }
             }
         }
 
