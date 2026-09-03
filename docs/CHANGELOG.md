@@ -5566,3 +5566,55 @@ großzügigen Default. Sonst wäre jede Testdatei dieses Repos plötzlich privat
 
 Kanonischer Nachweis: **1498/1498** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Connection Points für erzeugte COM-Klassen (03.09.2026)
+
+Eine erzeugte COM-Klasse konnte bisher keine Ereignisse nach außen geben. `RaiseEvent` erreichte
+die Handler des eigenen Programms und endete dort; ein COM-Client hatte keine Möglichkeit, sich
+anzumelden.
+
+Der naheliegende Weg — `ComSourceInterfacesAttribute` — trägt hier nicht. Die CLR baut den
+Connection Point daraus nur, wenn die Klasse **CLR-Ereignisse mit Delegattypen** hat. VB6-Ereignisse
+werden in dieser Runtime aber **namentlich zur Laufzeit** verteilt (`VBEvents.Raise(quelle, name,
+argumente)`); es gibt weder Delegat noch CLR-Event, und beides nachzurüsten hieße, das
+Ereignismodell umzubauen.
+
+Der Container wird deshalb selbst implementiert. `VBComEventSource` ist die Basisklasse jeder
+COM-sichtbaren erzeugten Klasse und stellt `IConnectionPointContainer` bereit; ein Ereignis
+erreicht eine Senke auf demselben Weg wie jeder andere spät gebundene Aufruf dieser Runtime — die
+Senke ist ein `IDispatch`, ihre DISPID wird über den Namen aufgelöst, der Aufruf geht durch
+`Invoke`. `VBEvents.Raise` reicht das Ereignis **nach** den eigenen Handlern hinaus, sodass ein
+Programm, das sein Ereignis selbst behandelt und veröffentlicht, dieselbe Reihenfolge sieht wie in
+VB6.
+
+Vier Entscheidungen stehen mit Begründung im Code:
+
+- **Die Basis kommt nur an COM-sichtbare Klassen.** Eine `Private`-Klasse bleibt ein schlichtes
+  `Object`; sie trägt keinen COM-Ballast, den niemand sehen kann.
+- **Die Basis ist `ComVisible(true)`.** Das ist keine Bequemlichkeit: Die CLR weigert sich, ein
+  AutoDual-Klasseninterface zu bauen, wenn ein Basistyp für COM unsichtbar ist — der erste Versuch
+  scheiterte genau daran mit `0x80131509` bei `IClassFactory::CreateInstance`. In das Interface
+  gelangt trotzdem nichts, weil jedes Mitglied der Basis eine **explizite**
+  Schnittstellenimplementierung ist.
+- **Jede angefragte Interface-ID liefert denselben Connection Point.** VB6 hat genau eine
+  Ereignisquelle je Klasse, und ein Client ohne Typbibliothek — bis zur Typbibliothekserzeugung
+  also jeder — fragt mit `IID_NULL`. Ihn an einer Formalie abzuweisen hieße, das Ereignis nie
+  zustellen zu können.
+- **Eine Senke, die das Ereignis nicht kennt, ist kein Fehler** und darf die übrigen Senken nicht
+  um ihre Zustellung bringen.
+
+Dazu kam eine Ergänzung im Emitter: Eine Klasse mit Basistyp muss deren Konstruktor aufrufen. Der
+erzeugte `.ctor` tat das bisher nirgends — bei `System.Object` fällt das nicht auf, bei einer
+Basis mit eigenem Zustand schon.
+
+Absicherung: drei Runtime-Tests über Advise, Zustellung, Unadvise samt `CONNECT_E_NOCONNECTION` für
+einen unbekannten Cookie, und ein Emittertest, der die Basistypwahl gegenständlich prüft. Der
+bestehende Aktivierungstest über den echten `comhost` bleibt grün — er hat den AutoDual-Fehler
+gefunden.
+
+**Offen bleibt** die Gegenprobe mit einem echten, prozessfremden COM-Client. Sie hängt an der
+Typbibliothekserzeugung und an einer nativen Testkomponente; ohne Windows SDK ist beides hier nicht
+baubar.
+
+Kanonischer Nachweis: **1502/1502** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
