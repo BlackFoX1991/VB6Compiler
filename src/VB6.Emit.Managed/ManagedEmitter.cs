@@ -2946,7 +2946,10 @@ public sealed class ManagedEmitter
                     parameterStarts[procedure]);
                 EnsureHandle(actual, _methodHandles[procedure], "method");
 
-                if (procedure == _program.EntryPoint && _options.EnableWinFormsHost)
+                // A COM local server is apartment-threaded, exactly like a forms application:
+                // both marshal calls through a message pump that only an STA provides.
+                if (procedure == _program.EntryPoint &&
+                    (_options.EnableWinFormsHost || _options.EnableComHosting))
                 {
                     _metadata.AddCustomAttribute(
                         actual,
@@ -4065,6 +4068,9 @@ public sealed class ManagedEmitter
                 typeof(bool),
                 typeof(bool),
                 typeof(bool));
+            if (m == IrRuntimeMethod.ComLocalServerTryRun) return Static(
+                typeof(VBComLocalServer),
+                nameof(VBComLocalServer.TryRunAsLocalServer));
             if (m == IrRuntimeMethod.NamedArgument) return Static(
                 typeof(VBVariants),
                 nameof(VBVariants.NamedArgument),
