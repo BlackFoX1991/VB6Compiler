@@ -783,10 +783,7 @@
       },
       "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Parser.Tests/NamedArgumentParserTests.cs",
-        "tests/VB6.Parser.Tests/OptionalParameterParserTests.cs",
-        "tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs",
-        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
+        "tests/VB6.Compiler.Tests/NamedArgumentExecutionTests.cs"
       ]
     },
     {
@@ -1335,7 +1332,7 @@
     },
     {
       "id": "l1-03-l-idispatch-lcid-propertyput-excepinfo",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "com-automation-types",
       "input": "IDispatch calls with LCID, named arguments, DISPID_VALUE/default members, PROPERTYPUT and EXCEPINFO",
       "expected": {
@@ -1344,10 +1341,12 @@
         "default": "DISPID_VALUE resolves the documented default member",
         "errors": "PROPERTYPUT and EXCEPINFO preserve HRESULT and error details"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
-        "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs"
+        "tests/VB6.Runtime.Tests/ComInteropRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/ComInteropExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/NamedArgumentExecutionTests.cs"
       ]
     },
     {
@@ -1487,7 +1486,7 @@
     },
     {
       "id": "l1-04-d-intrinsic-controls-events-menus-timers",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
       "input": "Intrinsic controls with documented properties, events, menus and timer callbacks",
       "expected": {
@@ -1496,15 +1495,14 @@
         "menus": "menu hierarchy and click dispatch are preserved",
         "timers": "timer interval/enabled behavior is deterministic"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
-        "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs"
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ]
     },
     {
       "id": "l1-04-e-control-array-dynamic-load-unload",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
       "input": "Control arrays and dynamic Load/Unload for controls, forms and menus",
       "expected": {
@@ -1513,10 +1511,9 @@
         "unload": "Unload releases the instance and invalidates its references",
         "errors": "duplicate, missing and invalid indices report documented errors"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ]
     },
     {
@@ -1538,7 +1535,7 @@
     },
     {
       "id": "l1-04-g-visible-paint-gdi-drawing",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "forms-drawing-and-mdi",
       "input": "Visible Paint contexts with PSet, Point, Line, Circle, PaintPicture, Cls and GDI/DIB clipping",
       "expected": {
@@ -1547,9 +1544,8 @@
         "bitmap": "PaintPicture composition preserves source and destination pixels",
         "clipping": "GDI/DIB bounds prevent writes outside the target"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Parser.Tests/GraphicsLineParserTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ]
     },
@@ -1572,7 +1568,7 @@
     },
     {
       "id": "l1-04-i-mdi-parent-child-window-state",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "forms-drawing-and-mdi",
       "input": "MDI parent/child forms with ActiveForm, Cascade, Tile, Arrange, WindowList and focus",
       "expected": {
@@ -1581,15 +1577,14 @@
         "layout": "Cascade/Tile/Arrange produce deterministic placement",
         "windowList": "WindowList entries and selection remain synchronized"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ]
     },
     {
       "id": "l1-04-j-stock-control-inventory-status",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "activex-stock-and-generic-host",
       "input": "Microsoft redistributable stock-control inventory with explicit installed/native verification status",
       "expected": {
@@ -1598,10 +1593,9 @@
         "fallback": "missing controls remain visibly non-native and diagnostic",
         "host": "managed host behavior does not claim native OCX success without an x86 run"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+        "tests/VB6.Runtime.WinForms.Tests/StockControlInventoryTests.cs"
       ]
     },
     {
@@ -1674,7 +1668,7 @@
     },
     {
       "id": "l1-04-o-msbuild-resolver-task",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "msbuild-headless-sdk",
       "input": "Packaged headless resolver task for exact VB6 sources, resources, references and outputs",
       "expected": {
@@ -1683,10 +1677,9 @@
         "outputs": "configured managed/COM outputs are declared to MSBuild",
         "headless": "DesignTimeBuild-compatible resolution does not emit unexpectedly"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
       ]
     },
     {
@@ -2379,5 +2372,219 @@
       ],
       "gap": "A separately packaged ProjectSystem resolver task plus complete Clean/Rebuild and TypeLib output orchestration remain open."
     }
-  ]
+  ],
+  "activeXStockControls": {
+    "description": "Microsoft-redistributable VB6 stock controls. 'support' says how this compiler serves the control, not whether the OCX happens to be installed. A native-only control needs a registered x86 OCX; without it the host leaves a placeholder, which is visible rather than silently wrong. No entry here is oracle-verified: that would need a VB6 SP6 run.",
+    "supportValues": [
+      "managed-adapter",
+      "native-only",
+      "not-implemented"
+    ],
+    "controls": [
+      {
+        "name": "TreeView",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "managed-adapter"
+      },
+      {
+        "name": "ImageList",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "managed-adapter"
+      },
+      {
+        "name": "ImageCombo",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "managed-adapter"
+      },
+      {
+        "name": "ListView",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "native-only"
+      },
+      {
+        "name": "Toolbar",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "native-only"
+      },
+      {
+        "name": "StatusBar",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "native-only"
+      },
+      {
+        "name": "ProgressBar",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "native-only"
+      },
+      {
+        "name": "Slider",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "native-only"
+      },
+      {
+        "name": "TabStrip",
+        "file": "MSCOMCTL.OCX",
+        "library": "MSComctlLib",
+        "support": "native-only"
+      },
+      {
+        "name": "RichTextBox",
+        "file": "RICHTX32.OCX",
+        "library": "RichTextLib",
+        "support": "managed-adapter"
+      },
+      {
+        "name": "CommonDialog",
+        "file": "COMDLG32.OCX",
+        "library": "MSComDlg",
+        "support": "managed-adapter"
+      },
+      {
+        "name": "Animation",
+        "file": "MSCOMCT2.OCX",
+        "library": "MSComCtl2",
+        "support": "not-implemented"
+      },
+      {
+        "name": "UpDown",
+        "file": "MSCOMCT2.OCX",
+        "library": "MSComCtl2",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MonthView",
+        "file": "MSCOMCT2.OCX",
+        "library": "MSComCtl2",
+        "support": "not-implemented"
+      },
+      {
+        "name": "DTPicker",
+        "file": "MSCOMCT2.OCX",
+        "library": "MSComCtl2",
+        "support": "not-implemented"
+      },
+      {
+        "name": "FlatScrollBar",
+        "file": "MSCOMCT2.OCX",
+        "library": "MSComCtl2",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MSFlexGrid",
+        "file": "MSFLXGRD.OCX",
+        "library": "MSFlexGridLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MSHFlexGrid",
+        "file": "MSHFLXGD.OCX",
+        "library": "MSHierarchicalFlexGridLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "Grid",
+        "file": "GRID32.OCX",
+        "library": "GridLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "SSTab",
+        "file": "TABCTL32.OCX",
+        "library": "TabDlg",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MaskEdBox",
+        "file": "MSMASK32.OCX",
+        "library": "MSMask",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MSChart",
+        "file": "MSCHRT20.OCX",
+        "library": "MSChart20Lib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MSComm",
+        "file": "MSCOMM32.OCX",
+        "library": "MSCommLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "Winsock",
+        "file": "MSWINSCK.OCX",
+        "library": "MSWinsockLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "Inet",
+        "file": "MSINET.OCX",
+        "library": "InetCtlsObjects",
+        "support": "not-implemented"
+      },
+      {
+        "name": "MMControl",
+        "file": "MCI32.OCX",
+        "library": "MCI",
+        "support": "not-implemented"
+      },
+      {
+        "name": "PictureClip",
+        "file": "PICCLP32.OCX",
+        "library": "PicClip",
+        "support": "not-implemented"
+      },
+      {
+        "name": "SysInfo",
+        "file": "SYSINFO.OCX",
+        "library": "SysInfoLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "Adodc",
+        "file": "MSADODC.OCX",
+        "library": "MSAdodcLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "DataGrid",
+        "file": "MSDATGRD.OCX",
+        "library": "MSDataGridLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "DataList",
+        "file": "MSDATLST.OCX",
+        "library": "MSDataListLib",
+        "support": "not-implemented"
+      },
+      {
+        "name": "DBGrid",
+        "file": "DBGRID32.OCX",
+        "library": "MSDBGrid",
+        "support": "not-implemented"
+      },
+      {
+        "name": "DBList",
+        "file": "DBLIST32.OCX",
+        "library": "MSDBCtls",
+        "support": "not-implemented"
+      },
+      {
+        "name": "ScriptControl",
+        "file": "MSSCRIPT.OCX",
+        "library": "MSScriptControl",
+        "support": "not-implemented"
+      }
+    ]
+  }
 }
