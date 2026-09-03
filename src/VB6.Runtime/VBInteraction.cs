@@ -1332,6 +1332,72 @@ public static class VBInteraction
 
     public static Action<VBGraphicsPoint>? GraphicsPSetSink { get; set; }
 
+    private static VBGraphicsCircle CreateCircle(
+        float x,
+        float y,
+        float radius,
+        object? color,
+        object? start,
+        object? end,
+        object? aspect,
+        bool isStep) =>
+        new(
+            x,
+            y,
+            radius,
+            color is null ? null : VBConversions.CLng(color),
+            start is null ? null : VBConversions.CSng(start),
+            end is null ? null : VBConversions.CSng(end),
+            aspect is null ? null : VBConversions.CSng(aspect),
+            isStep);
+
+    /// <summary>Draws a VB6 Circle, arc or segment on the active host surface.</summary>
+    public static void GraphicsCircle(
+        float x,
+        float y,
+        float radius,
+        object? color,
+        object? start,
+        object? end,
+        object? aspect,
+        bool isStep)
+    {
+        var circle = CreateCircle(x, y, radius, color, start, end, aspect, isStep);
+        if (Host is { } host)
+        {
+            host.GraphicsCircle(circle);
+        }
+        else
+        {
+            GraphicsCircleSink?.Invoke(circle);
+        }
+    }
+
+    /// <summary>Draws a Circle on a specific Form or control host target.</summary>
+    public static void GraphicsCircle(
+        object? target,
+        float x,
+        float y,
+        float radius,
+        object? color,
+        object? start,
+        object? end,
+        object? aspect,
+        bool isStep)
+    {
+        var circle = CreateCircle(x, y, radius, color, start, end, aspect, isStep);
+        if (Host is { } host)
+        {
+            host.GraphicsCircle(target, circle);
+        }
+        else
+        {
+            GraphicsCircleSink?.Invoke(circle);
+        }
+    }
+
+    public static Action<VBGraphicsCircle>? GraphicsCircleSink { get; set; }
+
     private static SettingKey MakeSettingKey(string appName, string section, string key) =>
         new(appName, section, key);
 
@@ -1455,6 +1521,20 @@ public sealed class VBApplication
 /// current drawing position, exactly as it does for <c>Line</c>; a null colour means the surface
 /// keeps its current ForeColor.
 /// </summary>
+/// <summary>
+/// A VB6 <c>Circle</c> operation. A null optional keeps the documented default: the current
+/// ForeColor, a full circle from 0 to two pi, and an aspect ratio of one.
+/// </summary>
+public sealed record VBGraphicsCircle(
+    float X,
+    float Y,
+    float Radius,
+    int? Color,
+    float? Start,
+    float? End,
+    float? Aspect,
+    bool IsStep);
+
 public sealed record VBGraphicsPoint(
     float X,
     float Y,

@@ -29,6 +29,17 @@ public interface IVB6Host
         GraphicsLine(line);
     }
 
+    /// <summary>Draws a VB6 Circle, arc or segment on the active host surface.</summary>
+    void GraphicsCircle(VBGraphicsCircle circle)
+    {
+    }
+
+    /// <summary>Draws a Circle on a specific Form or control target.</summary>
+    void GraphicsCircle(object? target, VBGraphicsCircle circle)
+    {
+        GraphicsCircle(circle);
+    }
+
     /// <summary>Sets a single VB6 PSet pixel on the active host surface.</summary>
     void GraphicsPSet(VBGraphicsPoint point)
     {
