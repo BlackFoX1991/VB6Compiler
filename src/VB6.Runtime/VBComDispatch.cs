@@ -31,6 +31,8 @@ internal static class VBComDispatch
     private const ushort VariantPointer = 0x001A;
     private const ushort VariantSafeArray = 0x001B;
     private const int DispIdPropertyPut = -3;
+    private const int DispatchException = unchecked((int)0x80020009);
+    private const int AutomationErrorNumber = 440;
     private const int VariantSize = 16;
     private const int VariantDataOffset = 8;
     private const uint InvariantComLocaleId = 1033;
@@ -85,7 +87,9 @@ internal static class VBComDispatch
                 flags,
                 argumentTypes,
                 byRefArguments,
-                out result);
+                out result,
+                out var error);
+            RaiseComException(hr, error);
             if (hr < 0 && byRefArguments is not null)
             {
                 // A type library can describe an [out] parameter while an individual server
@@ -97,7 +101,9 @@ internal static class VBComDispatch
                     flags,
                     argumentTypes,
                     null,
-                    out result);
+                    out result,
+                    out error);
+                RaiseComException(hr, error);
             }
             if (hr < 0 && setProperty)
             {
@@ -114,7 +120,9 @@ internal static class VBComDispatch
                     fallbackFlags,
                     argumentTypes,
                     null,
-                    out result);
+                    out result,
+                    out error);
+                RaiseComException(hr, error);
             }
 
             return hr >= 0;
@@ -711,9 +719,11 @@ internal static class VBComDispatch
         ushort flags,
         ushort?[]? argumentTypes,
         ushort?[]? byRefArguments,
-        out object? result)
+        out object? result,
+        out ComInvocationError? error)
     {
         result = null;
+        error = null;
         var variants = arguments.Length == 0
             ? IntPtr.Zero
             : Marshal.AllocCoTaskMem(VariantSize * arguments.Length);
@@ -833,8 +843,11 @@ internal static class VBComDispatch
             }
             finally
             {
-                // IDispatch owns EXCEPINFO's BSTR fields only until Invoke returns. Release them
-                // even when the call fails or ByRef result conversion throws.
+                // IDispatch owns EXCEPINFO's BSTR fields only until Invoke returns. Read the
+                // server's own error out of it before releasing them -- afterwards the strings
+                // are gone and only the bare HRESULT would be left. Release happens even when
+                // the call fails or ByRef result conversion throws.
+                error = ReadComError(ref exception);
                 ClearNativeExcepInfo(ref exception);
             }
         }
@@ -870,6 +883,107 @@ internal static class VBComDispatch
             }
         }
     }
+
+    /// <summary>
+    /// Reports a server-side failure as a VB6 error. Only DISP_E_EXCEPTION says that the server
+    /// itself raised something -- every other HRESULT describes the call shape, and those keep
+    /// their retries, because a wrong call shape is exactly what the fallbacks exist to correct.
+    /// Swallowing this one would turn a described error into a bare 438 from the reflection path.
+    /// </summary>
+    internal static void RaiseComException(int hr, ComInvocationError? error)
+    {
+        if (hr != DispatchException)
+        {
+            return;
+        }
+
+        var raised = error ?? new ComInvocationError(
+            AutomationErrorNumber,
+            string.Empty,
+            "Automation error",
+            string.Empty,
+            0);
+        VBErrors.Raise(
+            raised.Number,
+            raised.Source,
+            raised.Description,
+            raised.HelpFile,
+            raised.HelpContext);
+    }
+
+    /// <summary>
+    /// The server's own error, taken out of EXCEPINFO while its strings are still alive.
+    /// </summary>
+    internal sealed record ComInvocationError(
+        int Number,
+        string Source,
+        string Description,
+        string HelpFile,
+        int HelpContext);
+
+    [SupportedOSPlatform("windows")]
+    private static ComInvocationError? ReadComError(ref NativeExcepInfo exception)
+    {
+        var source = ReadNativeBstr(exception.Source);
+        var description = ReadNativeBstr(exception.Description);
+        var helpFile = ReadNativeBstr(exception.HelpFile);
+        if (exception.Code == 0 &&
+            exception.Scode == 0 &&
+            source.Length == 0 &&
+            description.Length == 0 &&
+            helpFile.Length == 0)
+        {
+            return null;
+        }
+
+        return MapComException(
+            exception.Code,
+            exception.Scode,
+            source,
+            description,
+            helpFile,
+            exception.HelpContext);
+    }
+
+    /// <summary>
+    /// Maps an EXCEPINFO onto the VB6 <c>Err</c> object. EXCEPINFO carries the error in exactly
+    /// one of two fields, so wCode wins whenever it is set. An scode in the FACILITY_CONTROL
+    /// range is a VB6 error number that travelled over COM -- a server raising <c>Err.Raise 9</c>
+    /// sends 0x800A0009, and the client has to see 9 again, not the raw HRESULT. Every other
+    /// scode stays what it is: VB6 reports an automation error by its full negative HRESULT,
+    /// which is what <c>vbObjectError</c> arithmetic in user code expects to find.
+    /// </summary>
+    internal static ComInvocationError MapComException(
+        ushort code,
+        int scode,
+        string source,
+        string description,
+        string helpFile,
+        uint helpContext)
+    {
+        var number = code != 0
+            ? code
+            : (scode & unchecked((int)0xFFFF0000)) == unchecked((int)0x800A0000)
+                ? scode & 0xFFFF
+                : scode;
+
+        // A server may fail without describing why. VB6 still needs a number, and 440 is its
+        // documented catch-all for an automation error.
+        if (number == 0)
+        {
+            number = AutomationErrorNumber;
+        }
+
+        return new ComInvocationError(
+            number,
+            source,
+            description.Length == 0 ? "Automation error" : description,
+            helpFile,
+            unchecked((int)helpContext));
+    }
+
+    private static string ReadNativeBstr(IntPtr value) =>
+        value == IntPtr.Zero ? string.Empty : Marshal.PtrToStringBSTR(value);
 
     internal static void ClearNativeExcepInfo(ref NativeExcepInfo exception)
     {
