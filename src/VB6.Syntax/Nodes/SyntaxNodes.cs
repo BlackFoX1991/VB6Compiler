@@ -633,6 +633,19 @@ public sealed record LineStatementSyntax(
     ExpressionSyntax? ColorExpression,
     ImmutableArray<ExpressionSyntax> Options,
     ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.LineStatement);
+
+/// <summary>
+/// VB6 graphics point syntax, such as <c>PSet (x, y), color</c>. It shares the coordinate shape
+/// with <c>Line</c>, including the <c>Step</c> prefix that makes the point relative to the current
+/// drawing position, and differs only in having a single point and no B/F options.
+/// </summary>
+public sealed record PSetStatementSyntax(
+    SyntaxToken PSetKeyword,
+    SyntaxToken? StepKeyword,
+    LinePointSyntax Point,
+    SyntaxToken? ColorCommaToken,
+    ExpressionSyntax? ColorExpression,
+    ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.PSetStatement);
 public sealed record EndStatementSyntax(SyntaxToken EndKeyword) : StatementSyntax(SyntaxKind.EndStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);

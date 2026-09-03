@@ -1163,6 +1163,9 @@ public sealed class Parser
                 ParseSkippedStatement(),
             SyntaxKind.IdentifierToken when LooksLikeProcedureModuleVariableDeclaration() =>
                 ParseSkippedStatement(),
+            SyntaxKind.IdentifierToken when LooksLikePSetStatement() => ParsePSetStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeQualifiedPSetStatement() =>
+                ParseQualifiedPSetStatement(),
             SyntaxKind.IdentifierToken when LooksLikeLineStatement() => ParseLineStatement(),
             SyntaxKind.IdentifierToken when LooksLikeQualifiedLineStatement() =>
                 ParseQualifiedLineStatement(),
@@ -1857,6 +1860,30 @@ public sealed class Parser
              Peek(2).Kind == SyntaxKind.OpenParenthesisToken);
     }
 
+    /// <summary>
+    /// <c>PSet (x, y)</c> and <c>PSet Step (x, y)</c>. The coordinate parenthesis is what separates
+    /// the statement from an ordinary call, exactly as it does for <c>Line</c>.
+    /// </summary>
+    private bool LooksLikePSetStatement()
+    {
+        if (!string.Equals(Current.Text, "PSet", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return Peek(1).Kind == SyntaxKind.OpenParenthesisToken ||
+            (string.Equals(Peek(1).Text, "Step", StringComparison.OrdinalIgnoreCase) &&
+             Peek(2).Kind == SyntaxKind.OpenParenthesisToken);
+    }
+
+    private bool LooksLikeQualifiedPSetStatement() =>
+        Current.Kind == SyntaxKind.IdentifierToken &&
+        Peek(1).Kind == SyntaxKind.DotToken &&
+        string.Equals(Peek(2).Text, "PSet", StringComparison.OrdinalIgnoreCase) &&
+        (Peek(3).Kind == SyntaxKind.OpenParenthesisToken ||
+         string.Equals(Peek(3).Text, "Step", StringComparison.OrdinalIgnoreCase) &&
+         Peek(4).Kind == SyntaxKind.OpenParenthesisToken);
+
     private bool LooksLikeQualifiedLineStatement() =>
         Current.Kind == SyntaxKind.IdentifierToken &&
         Peek(1).Kind == SyntaxKind.DotToken &&
@@ -2145,6 +2172,41 @@ public sealed class Parser
         var fileNumber = ParseFileNumber();
         MatchToken(SyntaxKind.CommaToken);
         return new LineInputStatementSyntax(lineKeyword, inputKeyword, fileNumber, ParseExpression());
+    }
+
+    private PSetStatementSyntax ParsePSetStatement()
+    {
+        var keyword = NextToken();
+        return ParsePSetStatement(keyword, target: null);
+    }
+
+    private PSetStatementSyntax ParseQualifiedPSetStatement()
+    {
+        var target = new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
+        _ = MatchToken(SyntaxKind.DotToken);
+        var keyword = MatchTypeMemberName();
+        return ParsePSetStatement(keyword, target);
+    }
+
+    private PSetStatementSyntax ParsePSetStatement(SyntaxToken keyword, ExpressionSyntax? target)
+    {
+        SyntaxToken? stepKeyword = null;
+        if (string.Equals(Current.Text, "Step", StringComparison.OrdinalIgnoreCase))
+        {
+            stepKeyword = NextToken();
+        }
+
+        var point = ParseLinePoint();
+
+        SyntaxToken? colorCommaToken = null;
+        ExpressionSyntax? colorExpression = null;
+        if (Current.Kind == SyntaxKind.CommaToken)
+        {
+            colorCommaToken = NextToken();
+            colorExpression = ParseExpression();
+        }
+
+        return new PSetStatementSyntax(keyword, stepKeyword, point, colorCommaToken, colorExpression, target);
     }
 
     private LineStatementSyntax ParseLineStatement()

@@ -197,5 +197,6 @@ public enum SyntaxKind
     WidthStatement,
     LineStatement,
     LinePoint,
+    PSetStatement,
     EndStatement
 }
