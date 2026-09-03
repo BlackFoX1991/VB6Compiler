@@ -29,6 +29,17 @@ public interface IVB6Host
         GraphicsLine(line);
     }
 
+    /// <summary>Sets a single VB6 PSet pixel on the active host surface.</summary>
+    void GraphicsPSet(VBGraphicsPoint point)
+    {
+    }
+
+    /// <summary>Sets a single PSet pixel on a specific Form or control target.</summary>
+    void GraphicsPSet(object? target, VBGraphicsPoint point)
+    {
+        GraphicsPSet(point);
+    }
+
     /// <summary>Draws a supported VB6 PaintPicture operation on the active host surface.</summary>
     void PaintPicture(VBPaintPicture picture)
     {
