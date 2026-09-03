@@ -5,8 +5,6 @@ using VB6.Emit.Llvm;
 using VB6.IR;
 using VB6.ProjectSystem;
 using VB6.Runtime;
-using System.Security.Cryptography;
-using System.Text;
 
 const string usage =
     "Usage: vb6c <source-file|project.vbp> [--emit-assembly <output-file> [--x86|--x64|--anycpu] [--compatibility deterministic|vb6-sp6] [--com-host] [--com-manifest] | --emit-llvm <output-file> [--x86|--x64] | --dump-ir [output-file] [--compatibility deterministic|vb6-sp6]]\n" +
@@ -350,129 +348,20 @@ static int HandleProjectGroup(string path, CommandLineOptions options)
 
 static int HandleInputManifest(string path, string outputPath)
 {
-    var fullOutputPath = Path.GetFullPath(outputPath);
-    var inputs = new List<string> { Path.GetFullPath(path) };
-    var success = true;
-
-    if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnoreCase))
+    var result = VBInputManifest.Write(path, outputPath);
+    foreach (var diagnostic in result.Diagnostics)
     {
-        var result = new VBProjectLoader().Load(path);
-        foreach (var diagnostic in result.Diagnostics)
-        {
-            Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
-        }
-
-        success = result.Success;
-        inputs.AddRange(CollectProjectInputs(result.Project));
-    }
-    else if (string.Equals(Path.GetExtension(path), ".vbg", StringComparison.OrdinalIgnoreCase))
-    {
-        var groupResult = new VBProjectGroupLoader().Load(path);
-        foreach (var diagnostic in groupResult.Diagnostics)
-        {
-            Console.Error.WriteLine($"{diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
-        }
-
-        success = groupResult.Success;
-        foreach (var project in groupResult.Group.Projects)
-        {
-            var projectPath = project.GetFullPath(groupResult.Group.ProjectDirectory);
-            inputs.Add(projectPath);
-            var projectResult = new VBProjectLoader().Load(projectPath);
-            foreach (var diagnostic in projectResult.Diagnostics)
-            {
-                Console.Error.WriteLine(
-                    $"{projectPath}: {diagnostic.Code} line {diagnostic.Line}: {diagnostic.Message}");
-            }
-
-            success &= projectResult.Success;
-            inputs.AddRange(CollectProjectInputs(projectResult.Project));
-        }
-    }
-    else
-    {
-        Console.Error.WriteLine("Input manifest generation requires a .vbp or .vbg file.");
-        return 1;
+        Console.Error.WriteLine(diagnostic);
     }
 
-    if (!success)
+    if (!result.Success)
     {
         return 1;
     }
 
-    var lines = inputs
-        .Where(pathValue => !string.Equals(pathValue, fullOutputPath, StringComparison.OrdinalIgnoreCase))
-        .Select(pathValue => Path.GetFullPath(pathValue))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(pathValue => pathValue, StringComparer.OrdinalIgnoreCase)
-        .Select(CreateInputManifestLine)
-        .ToArray();
-    Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? Directory.GetCurrentDirectory());
-    if (!File.Exists(fullOutputPath) ||
-        !lines.SequenceEqual(File.ReadAllLines(fullOutputPath), StringComparer.Ordinal))
-    {
-        File.WriteAllLines(fullOutputPath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-    }
-
-    Console.WriteLine($"Generated exact VB6 input manifest: {fullOutputPath}");
-    Console.WriteLine($"Inputs: {lines.Length}");
+    Console.WriteLine($"Generated exact VB6 input manifest: {result.OutputPath}");
+    Console.WriteLine($"Inputs: {result.InputCount}");
     return 0;
-}
-
-static IEnumerable<string> CollectProjectInputs(VBProject project)
-{
-    foreach (var item in project.Items)
-    {
-        var itemPath = item.GetFullPath(project.ProjectDirectory);
-        yield return itemPath;
-
-        if (item.Kind is VBProjectItemKind.Form or
-            VBProjectItemKind.UserControl or
-            VBProjectItemKind.PropertyPage or
-            VBProjectItemKind.UserDocument)
-        {
-            yield return Path.ChangeExtension(itemPath, ".frx");
-        }
-    }
-
-    foreach (var reference in project.References)
-    {
-        if (reference.Metadata.GetFullPath(project.ProjectDirectory) is { } referencePath)
-        {
-            yield return referencePath;
-        }
-    }
-
-    foreach (var component in project.Objects)
-    {
-        if (component.Metadata.GetFullPath(project.ProjectDirectory) is { } componentPath)
-        {
-            yield return componentPath;
-        }
-    }
-
-    foreach (var property in project.Properties)
-    {
-        if (property.Name.StartsWith("RESFILE", StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(property.Value))
-        {
-            yield return Path.GetFullPath(Path.Combine(
-                project.ProjectDirectory,
-                property.Value.Trim().Trim('"')));
-        }
-    }
-}
-
-static string CreateInputManifestLine(string path)
-{
-    var normalized = path.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
-    if (!File.Exists(path))
-    {
-        return $"{normalized}\tMISSING";
-    }
-
-    var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
-    return $"{normalized}\t{hash}";
 }
 
 static int HandleComRegistration(string path, string[] args)

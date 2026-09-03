@@ -3,6 +3,11 @@
 
   <PropertyGroup>
     <VB6CompilerPath Condition="'$(VB6CompilerPath)' == ''">vb6c</VB6CompilerPath>
+
+    <!-- Die Eingabeauflösung laeuft im MSBuild-Prozess. Wer die Task nicht laden kann oder will,
+         setzt das auf false und bekommt denselben Manifestinhalt ueber den CLI-Aufruf. -->
+    <VB6UseResolverTask Condition="'$(VB6UseResolverTask)' == ''">true</VB6UseResolverTask>
+    <VB6ResolverTaskAssembly Condition="'$(VB6ResolverTaskAssembly)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../tasks/net10.0/VB6.Compiler.Sdk.Tasks.dll'))</VB6ResolverTaskAssembly>
     <VB6TargetPlatform Condition="'$(VB6TargetPlatform)' == ''">x86</VB6TargetPlatform>
     <VB6CompatibilityProfile Condition="'$(VB6CompatibilityProfile)' == ''">deterministic</VB6CompatibilityProfile>
     <VB6EnableComHosting Condition="'$(VB6EnableComHosting)' == ''">false</VB6EnableComHosting>

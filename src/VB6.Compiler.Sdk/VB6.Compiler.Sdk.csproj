@@ -6,11 +6,33 @@
     <IsPackable>true</IsPackable>
     <PackageId>VB6.Compiler.Sdk</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- NU5100 meldet Assemblies ausserhalb von lib. Genau dort gehoert ein MSBuild-Task hin:
+         er wird geladen, nicht referenziert. -->
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
     <PackageOutputPath>$(MSBuildProjectDirectory)\..\..\artifacts</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="Sdk\**" Pack="true" PackagePath="Sdk" />
     <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <!-- Der Resolver-Task und das Projektsystem, das er benutzt, reisen im Paket mit. Fehlen sie,
+       faellt das SDK auf den CLI-Aufruf zurueck, der denselben Manifestinhalt erzeugt. -->
+  <ItemGroup>
+    <ProjectReference Include="..\VB6.Compiler.Sdk.Tasks\VB6.Compiler.Sdk.Tasks.csproj"
+                      PrivateAssets="all"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\VB6.Compiler.Sdk.Tasks\bin\$(Configuration)\net10.0\VB6.Compiler.Sdk.Tasks.dll"
+          Pack="true"
+          PackagePath="tasks/net10.0"
+          Visible="false" />
+    <None Include="..\VB6.Compiler.Sdk.Tasks\bin\$(Configuration)\net10.0\VB6.ProjectSystem.dll"
+          Pack="true"
+          PackagePath="tasks/net10.0"
+          Visible="false" />
   </ItemGroup>
 </Project>

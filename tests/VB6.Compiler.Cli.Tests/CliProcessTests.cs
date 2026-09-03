@@ -1543,6 +1543,79 @@ public sealed class CliProcessTests
         return new CliResult(process.ExitCode, standardOutput, standardError);
     }
 
+    [TestMethod]
+    public void MsBuildSdk_ResolvesInputsWithThePackedTaskAndFallsBackToTheCli()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            WriteExecutableProject(directory, "TaskSdk");
+            var packageDirectory = Path.Combine(directory, "packages");
+            var packageCache = Path.Combine(directory, "nuget");
+            var repositoryRoot = FindRepositoryRoot();
+            var packResult = RunDotNet(
+                "pack",
+                Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
+                "-c",
+                "Release",
+                "--no-build",
+                "--no-restore",
+                "--nologo",
+                "-p:PackageVersion=1.0.0-resolver-task-test",
+                "-p:PackageOutputPath=" + packageDirectory);
+            Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
+            File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{packageDirectory}" />
+                  </packageSources>
+                </configuration>
+                """);
+
+            // Der Compilerpfad zeigt bewusst ins Leere. Läuft die Eingabeauflösung trotzdem durch,
+            // hat sie kein Programm gestartet -- der Task hat sie im MSBuild-Prozess erledigt.
+            var projectPath = Path.Combine(directory, "TaskSdk.csproj");
+            File.WriteAllText(projectPath, $"""
+                <Project Sdk="VB6.Compiler.Sdk/1.0.0-resolver-task-test" DefaultTargets="Build">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Configuration>Release</Configuration>
+                    <OutputPath>bin\Release\</OutputPath>
+                    <VB6Project>{Path.Combine(directory, "TaskSdk.vbp")}</VB6Project>
+                    <VB6CompilerPath>{Path.Combine(directory, "kein-compiler-hier.exe")}</VB6CompilerPath>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var withTask = RunMsBuild(
+                projectPath,
+                restore: true,
+                nugetPackages: packageCache,
+                target: "ResolveVB6Project");
+            Assert.AreEqual(0, withTask.ExitCode, withTask.StandardError + withTask.StandardOutput);
+            var manifests = Directory.GetFiles(directory, "VB6Compile.stamp.inputs", SearchOption.AllDirectories);
+            Assert.AreEqual(1, manifests.Length);
+            Assert.IsTrue(File.ReadAllLines(manifests[0]).Length > 0);
+
+            // Ohne den Task bleibt der CLI-Aufruf -- und der scheitert an genau diesem Pfad. Das
+            // ist der Nachweis, dass die beiden Wege wirklich getrennt sind.
+            var withoutTask = RunMsBuild(
+                projectPath,
+                nugetPackages: packageCache,
+                target: "ResolveVB6Project",
+                properties: "VB6UseResolverTask=false");
+            Assert.AreNotEqual(0, withoutTask.ExitCode, withoutTask.StandardOutput);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static CliResult RunMsBuild(
         string projectPath,
         bool restore = false,
