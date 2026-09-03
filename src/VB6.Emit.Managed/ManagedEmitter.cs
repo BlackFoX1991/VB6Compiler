@@ -964,6 +964,9 @@ public sealed class ManagedEmitter
                 case IrEnsureLocalClassExpression ensureLocalClass:
                     EmitEnsureLocalClass(encoder, ensureLocalClass);
                     break;
+                case IrEnsureClassExpression ensureClass:
+                    EmitEnsureClass(encoder, procedure, ensureClass);
+                    break;
                 case IrTypeOfExpression typeOf:
                     EmitTypeOf(encoder, procedure, typeOf);
                     break;
@@ -2184,6 +2187,25 @@ public sealed class ManagedEmitter
             encoder.OpCode(ILOpCode.Dup);
             encoder.StoreLocal(expression.Local.Id);
             encoder.MarkLabel(initialized);
+        }
+
+        /// <summary>
+        /// Deferred creation for storage that is not a local. A field needs its receiver on the
+        /// stack before the value, which rules out the local variant's dup-and-store trick, so the
+        /// place is simply read again afterwards -- one extra load in exchange for working with
+        /// every place shape.
+        /// </summary>
+        private void EmitEnsureClass(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrEnsureClassExpression expression)
+        {
+            var initialized = encoder.DefineLabel();
+            EmitLoad(encoder, procedure, expression.Place);
+            encoder.Branch(ILOpCode.Brtrue, initialized);
+            EmitStore(encoder, procedure, expression.Place, new IrNewClassExpression(expression.ClassType));
+            encoder.MarkLabel(initialized);
+            EmitLoad(encoder, procedure, expression.Place);
         }
 
         private void EmitRaiseEvent(
