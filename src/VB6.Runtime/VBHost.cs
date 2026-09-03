@@ -29,6 +29,16 @@ public interface IVB6Host
         GraphicsLine(line);
     }
 
+    /// <summary>
+    /// Reads the colour of one pixel. Returning <see langword="false"/> keeps the documented VB6
+    /// answer for a point outside the surface, which is -1.
+    /// </summary>
+    bool TryGetGraphicsPoint(float x, float y, out int color)
+    {
+        color = -1;
+        return false;
+    }
+
     /// <summary>Draws a VB6 Circle, arc or segment on the active host surface.</summary>
     void GraphicsCircle(VBGraphicsCircle circle)
     {
