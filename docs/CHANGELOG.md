@@ -6076,3 +6076,29 @@ nicht als Fehler.
 
 Kanonischer Nachweis: **1527/1527** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## VarPtr sagt jetzt, warum es nicht antworten kann (03.09.2026)
+
+`VarPtr` und `StrPtr` waren unimplementierte Stubs, die eine `PlatformNotSupportedException`
+warfen. Beim Anwender kam davon nur **Fehler 5** an — der Sammelwert, den `CLAUDE.md` als „sieht wie
+ein Ergebnis aus" führt. `ObjPtr` und `LSet` funktionierten dagegen.
+
+Die Adresse einer verwalteten Speicherzelle gilt nur, solange die Zelle festgehalten wird, und ein
+**zurückgegebener** Zeiger überlebt genau das nicht: Der Sammler darf die Zelle danach verschieben.
+Unterstützt ist deshalb ausschließlich die Stelle, an der VB6 den Zeiger sofort weiterreicht — ein
+`ByVal … As Any`-Argument eines `Declare`, das der Lowerer direkt in eine Adresse übersetzt und das
+die Runtime nie erreicht. Diese Form funktioniert und ist getestet.
+
+**Ein Zwischenschritt, der zurückgenommen wurde, und warum.** Der erste Versuch meldete den
+allgemeinen Fall zur Übersetzungszeit über den Emitter-Kanal `VB6E0001` — die dokumentierte Art,
+„das kann das Backend noch nicht" zu sagen. Der kanonische Lauf hat das sofort abgelehnt: Der
+VISIA-Korpus benutzt `VarPtr(chars(0))` als Rückgabewert, und die Übersetzung brach ab. Damit
+verletzte die Meldung das oberste Kriterium des Projekts — ein altes `.vbp` übersetzt unverändert.
+Eine Übersetzungsmeldung ist hier also die falsche Antwort, so richtig sie im Allgemeinen wäre.
+
+Geblieben ist die Verbesserung, die beides einhält: Die Übersetzung läuft durch, und die Nummer
+bleibt VB6s 5 für einen ungültigen Aufruf — aber `Err.Description` sagt jetzt, **was** nicht ging
+und **wo** es ginge, statt den Sammelwert unerklärt zu lassen.
+
+Kanonischer Nachweis: **1529/1529** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

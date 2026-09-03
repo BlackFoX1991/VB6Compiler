@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1527 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1529 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -330,8 +330,10 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [x] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **91**, früh wie
       spät gebunden. Die Zuordnung ist bewusst breit: sie trifft jeden Null-Zugriff, weil VB6
       an dieser Stelle 91 meldet und der vorherige Sammelwert 5 dasselbe verdeckte.
-- [ ] Adressierbare x86-Speicherzellen schließen `VarPtr`, `StrPtr`, `ObjPtr`, `AddressOf`, `LSet`
-      und native ByRef-Übergaben, ohne alle Variablen pauschal zu pinnen.
+- [~] `ObjPtr`, `LSet`, `AddressOf` und native ByRef-Übergaben tragen. `VarPtr`/`StrPtr` gelten
+      dort, wo VB6 den Zeiger sofort weiterreicht — als `ByVal … As Any`-Argument eines `Declare`.
+      Ein Zeiger, den das Programm behalten könnte, bleibt offen: Er überlebt keinen Sammellauf,
+      und pauschales Pinnen aller Variablen ist die Antwort, die diese Zeile ausschließt.
 
 ### Etappe C — Runtime, Standardbibliothek, Datei-I/O und Projekte
 
