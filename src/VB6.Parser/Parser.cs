@@ -984,13 +984,19 @@ public sealed class Parser
             }
 
             var start = _position;
-            statements.Add(ParseStatement());
+            var statement = ParseStatement();
+            statements.Add(statement);
             if (_position == start)
             {
                 NextToken();
             }
 
-            ConsumeLineTerminator();
+            // Ein Label beendet die Zeile nicht: die beschriftete Anweisung folgt ihm dort,
+            // wie in 10 Debug.Print "x".
+            if (statement is not LabelStatementSyntax)
+            {
+                ConsumeLineTerminator();
+            }
         }
 
         return statements.ToImmutable();
@@ -1698,9 +1704,15 @@ public sealed class Parser
         Peek(1).Kind == SyntaxKind.ColonToken &&
         Peek(2).Kind is SyntaxKind.NewLineToken or SyntaxKind.EndOfFileToken;
 
+    /// <summary>
+    /// A line number labels the statement that follows it on the same line, as in
+    /// <c>10 Debug.Print "x"</c> - the classic BASIC form, and the one <c>Erl</c> reports. No
+    /// statement otherwise starts with an integer literal, so unlike a named label this needs no
+    /// line of its own to stay unambiguous.
+    /// </summary>
     private bool LooksLikeLineNumberLabel() =>
         Current.Kind == SyntaxKind.IntegerLiteralToken &&
-        Peek(1).Kind is SyntaxKind.NewLineToken or SyntaxKind.EndOfFileToken;
+        Peek(1).Kind is not SyntaxKind.ColonToken;
 
     private LabelStatementSyntax ParseLabelStatement()
     {

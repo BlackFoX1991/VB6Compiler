@@ -5032,3 +5032,28 @@ nicht geparst, wodurch `Erl` strukturell 0 bleibt.
 
 Kanonischer Nachweis: **1453/1453** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Zeilennummern und ein Erl, das etwas meldet (03.09.2026)
+
+`Erl` konnte strukturell nie etwas anderes als 0 liefern. Der Grund lag nicht dort, wo er zuerst
+vermutet wurde: Die Laufzeitkette ist vollständig — der Lowerer senkt für ein Label
+`ErrorSetLineNumber`, der Emitter bildet es auf `VBErrors.SetLineNumber` ab, die Runtime hält den
+Wert. Unerreichbar war allein die Syntax.
+
+Beide Labelprädikate im Parser verlangten, dass das Label allein auf seiner Zeile steht; der
+Kommentar dort nennt den Grund offen, nämlich dass der VISIA-Korpus jedes seiner 21 Label so
+schreibt. Damit war `10 Debug.Print "x"` — die klassische BASIC-Form, auf die sich `Erl` überhaupt
+bezieht — ein Parserfehler `VB6P0001`.
+
+Die Erweiterung gilt gezielt für **Zeilennummern**, nicht für benannte Label: Keine Anweisung
+beginnt sonst mit einem Integer-Literal, die Form ist also eindeutig. Bei einem benannten Label
+wäre `Foo: Bar` gegen einen parameterlosen Aufruf mehrdeutig; dort ebenfalls zu greifen hieße
+raten. Dazu verlangt die Anweisungsschleife nach einem Label kein Zeilenende mehr — die
+beschriftete Anweisung folgt ihm auf derselben Zeile.
+
+Gemessen: nummerierte Anweisungen laufen, `GoTo <Nummer>` springt, eine Nummer allein auf ihrer
+Zeile bleibt gültig, `Erl` meldet nach einem Fehler in Zeile 40 die 40 und bleibt ohne Fehler bei
+0. Ein Parsertest hält beide Formen fest, ein End-to-End-Fall die Wirkung auf `Erl`.
+
+Kanonischer Nachweis: **1455/1455** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
