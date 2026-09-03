@@ -190,6 +190,39 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_InvokesDeclareSubAndAsAnyArrayElement()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Private Type PunktListe
+                Werte(0 To 3) As Long
+            End Type
+
+            Private Declare Sub RtlZeroMemory Lib "kernel32" (ByRef Ziel As Any, ByVal Laenge As LongPtr)
+            Private Declare Sub Sleep Lib "kernel32" (ByVal Millis As Long)
+            Private Declare Function lstrlenA Lib "kernel32" (ByVal Text As String) As Long
+
+            Sub Main()
+                Dim liste As PunktListe
+                liste.Werte(0) = 5
+                liste.Werte(3) = 9
+
+                ' As Any auf ein Arrayelement eines UDT: die Adresse muss auf das Element zeigen,
+                ' nicht auf eine Kopie -- sonst bliebe die Liste unverändert.
+                RtlZeroMemory liste.Werte(0), 16
+                Debug.Print liste.Werte(0)
+                Debug.Print liste.Werte(3)
+
+                ' Ein Declare Sub hat keinen Rückgabewert und darf trotzdem nicht als Function
+                ' emittiert werden.
+                Sleep 0
+                Debug.Print lstrlenA("hallo")
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "0", "0", "5" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_MarshalsDeclareStringsAsAnsiEvenForAWideAlias()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeCharSetTests", Guid.NewGuid().ToString("N"));

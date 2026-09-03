@@ -1104,6 +1104,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ThrowIfDisposed();
 
+        // A menu array is a control array whose elements are not Controls. VB6 loads them the same
+        // way, so it is the same entry point -- only the container differs.
+        if (template is MenuProxy menuTemplate)
+        {
+            return LoadMenuArrayElement(owner, name, index, menuTemplate);
+        }
+
         if (template is not Control source)
         {
             return null;
@@ -1136,6 +1143,50 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return clone;
     }
 
+    /// <summary>
+    /// Loads one element of a menu array. VB6 puts the new item into the same drop-down as its
+    /// template, directly after it, so the array keeps its declared order in the menu. Like every
+    /// loaded array element it starts invisible -- the program decides when it appears.
+    /// </summary>
+    private object? LoadMenuArrayElement(object owner, string name, int index, MenuProxy template)
+    {
+        var binding = GetOrCreateBinding(owner);
+        var elementName = FormatControlArrayElementName(name, index);
+        if (binding.Components.TryGetValue(elementName, out var existing))
+        {
+            return existing;
+        }
+
+        var clone = new MenuProxy
+        {
+            Name = elementName,
+            Text = template.Text,
+            Enabled = template.Enabled,
+            Checked = template.Checked,
+            Shortcut = template.Shortcut,
+            VbIndex = index,
+            Visible = false
+        };
+
+        binding.Components.Add(elementName, clone);
+        if (template.OwnerItem is MenuProxy parent)
+        {
+            parent.DropDownItems.Insert(
+                Math.Min(parent.DropDownItems.IndexOf(template) + 1, parent.DropDownItems.Count),
+                clone);
+        }
+        else
+        {
+            var menuStrip = GetOrCreateMenuStrip(binding);
+            menuStrip.Items.Insert(
+                Math.Min(menuStrip.Items.IndexOf(template) + 1, menuStrip.Items.Count),
+                clone);
+        }
+
+        AttachGeneratedMenuEvents(owner, clone, elementName);
+        return clone;
+    }
+
     public void UnloadControlArrayElement(object owner, string name, int index, object? element)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -1146,6 +1197,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         if (_bindings.TryGetValue(owner, out var binding))
         {
             binding.Controls.Remove(elementName);
+            binding.Components.Remove(elementName);
+        }
+
+        if (element is MenuProxy menu)
+        {
+            menu.Owner?.Items.Remove(menu);
+            (menu.OwnerItem as MenuProxy)?.DropDownItems.Remove(menu);
+            menu.Dispose();
+            return;
         }
 
         if (element is Control control)
