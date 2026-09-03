@@ -5294,3 +5294,34 @@ ausdrücklich ausgenommen, weil sie gar keine Controls sind.
 
 Kanonischer Nachweis: **1483/1483** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Die CLI setzt jede Option nur noch einmal um (03.09.2026)
+
+`src/VB6.Compiler.Cli/Program.cs` implementierte die Optionsgrammatik dreimal — einmal im
+`.vbp`-Zweig, einmal im Einzeldatei-Zweig, einmal in `HandleProjectGroup` —, jeweils mit
+handgeschriebenen Aritätswächtern der Form `args.Length is >= 3 and <= 8`. Eine neue Option hieß
+drei Stellen ändern, und ein vergessener Zweig fiel nur über die langsamen Prozesstests auf. Das
+stand als Falle in `CLAUDE.md` und war die Vorab-Aufräumung, die dem gepackten Resolver-Task
+vorausgehen muss: eine Task, die aus einem dieser drei Zweige herausgelöst wird, würde sonst
+stillschweigend von den anderen beiden abweichen.
+
+Jetzt parst `CommandLineParser.TryParse` die ganze Grammatik **einmal**, vor der Verzweigung nach
+Eingabeart, und liefert ein `CommandLineOptions`. Die drei Zweige lesen daraus nur noch ihren
+Befehl. Sie bleiben getrennt — eine `.vbg` akzeptiert weiterhin kein `--dump-ir` —, aber sie
+entscheiden das jetzt über denselben geparsten Befehl statt über eine eigene Argumentanalyse.
+
+Drei Dinge sind dabei bewusst gleich geblieben:
+
+- **Der Plattform-Default hängt an der Eingabeart.** `.vbp` und `.vbg` sind x86, weil
+  Legacy-Projekte 32-Bit-ActiveX laden; eine einzelne Quelldatei bleibt AnyCPU. Das steht jetzt an
+  einer Stelle statt an dreien.
+- **`--compatibility` ohne Befehl ist selbst der Befehl.** Es analysiert mit diesem Profil, und der
+  Optionsdurchlauf muss deshalb auf ihm beginnen statt dahinter. Genau daran ist der erste Versuch
+  gescheitert — der bestehende Test hat es gefangen.
+- **VB6Sp6 wählt x86 und lehnt jede andere ausdrückliche Wahl ab.**
+
+Weggefallen sind die willkürlichen Aritätsobergrenzen. Eine unbekannte Option wird jetzt **beim
+Namen genannt**, statt dass eine zu lange Kommandozeile pauschal die Nutzung ausgibt.
+
+Kanonischer Nachweis: **1484/1484** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
