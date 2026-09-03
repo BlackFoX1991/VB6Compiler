@@ -3678,6 +3678,34 @@ public sealed class Binder
                             procedures));
                 }
 
+                // Eine parameterlose Property, die ein Array liefert, wird gerufen und ihr
+                // Ergebnis indiziert -- c.Nums(1) ist kein Aufruf mit einem Argument. Ohne diesen
+                // Weg meldete der Binder VB6S0006, weil er die Indizes für Argumente hielt.
+                if (accessor == PropertyAccessorKind.Get &&
+                    memberReceiver.Type is ClassTypeSymbol arrayPropertyClass &&
+                    arrayPropertyClass.TryGetProperty(
+                        memberAccess.MemberToken.Text,
+                        PropertyAccessorKind.Get,
+                        out var arrayProperty) &&
+                    arrayProperty.Parameters.IsEmpty &&
+                    arrayProperty.Type is ArrayTypeSymbol propertyArrayType &&
+
+                    // Eine falsche Zahl von Indizes bleibt ein Fehler und wird weiter unten
+                    // gemeldet -- sie hier stillschweigend zu übersetzen hieße, aus VB6S0027
+                    // einen Laufzeitfehler zu machen.
+                    (propertyArrayType.Rank is not int declaredRank ||
+                     declaredRank == syntax.Indices.Length))
+                {
+                    return new BoundElementAccessExpression(
+                        new BoundPropertyAccessExpression(memberReceiver, arrayProperty),
+                        syntax.Indices
+                            .Select(index => BindConversion(
+                                BindExpression(index, variables, procedures),
+                                TypeSymbol.Long))
+                            .ToImmutableArray(),
+                        propertyArrayType.ElementType);
+                }
+
                 // Ein spaet gebundenes Zuweisungsziel bleibt eine Property, auch mit Indizes:
                 // o.Nums(1) = 7 schickt den Index als Argument an den Dispatch. Ohne die
                 // Indexform entstand hier die Aufrufgestalt einer Funktion, die als
