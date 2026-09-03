@@ -457,6 +457,12 @@ public sealed record PropertySymbol(
     /// only it can receive a ByRef write-back.
     /// </summary>
     public bool IsFieldBacked { get; init; }
+
+    /// <summary>
+    /// False for a <c>Private</c> class module variable. It stays in the member surface so the
+    /// class can reach it through <c>Me</c>, and the binder refuses it from anywhere else.
+    /// </summary>
+    public bool IsPublic { get; init; } = true;
 }
 
 public sealed record EventSymbol(
