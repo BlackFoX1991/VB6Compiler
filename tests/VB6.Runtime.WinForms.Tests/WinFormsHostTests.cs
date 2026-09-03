@@ -1222,6 +1222,60 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostArrangesMdiChildrenAndReportsTheActiveForm()
+    {
+        using var host = new WinFormsHost();
+        var parent = new object();
+        var first = new object();
+        var second = new object();
+
+        host.Load(parent);
+        host.Load(first);
+        host.Load(second);
+        Assert.IsTrue(host.TrySetMember(parent, "MDIForm", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(first, "MDIChild", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(second, "MDIChild", Array.Empty<object?>(), true));
+
+        Assert.IsTrue(host.TryInvokeMember(parent, "Show", Array.Empty<object?>(), out _));
+        Assert.IsTrue(host.TryInvokeMember(first, "Show", Array.Empty<object?>(), out _));
+        Assert.IsTrue(host.TryInvokeMember(second, "Show", Array.Empty<object?>(), out _));
+
+        // ActiveForm antwortet mit dem VB6-Objekt, nicht mit dem Fenster dahinter.
+        Assert.IsTrue(host.TryGetMember(parent, "ActiveForm", Array.Empty<object?>(), out var active));
+        Assert.IsTrue(ReferenceEquals(active, first) || ReferenceEquals(active, second), "ActiveForm");
+
+        // Die vier VB6-Anordnungen; alles andere meldet 380 statt sich eine auszusuchen.
+        foreach (var arrangement in new[] { 0, 1, 2, 3 })
+        {
+            Assert.IsTrue(host.TryInvokeMember(parent, "Arrange", new object?[] { arrangement }, out _));
+        }
+
+        var raised = Assert.ThrowsExactly<VB6RaisedError>(() =>
+            host.TryInvokeMember(parent, "Arrange", new object?[] { 9 }, out _));
+        Assert.AreEqual(380, raised.Number);
+        VBErrors.Clear();
+    }
+
+    [STATestMethod]
+    public void HostMarksTheWindowListMenu()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TrySetMember(owner, "MDIForm", Array.Empty<object?>(), true));
+
+        var menu = host.CreateControl(owner, "mnuFenster", "Menu")!;
+        Assert.IsTrue(host.TrySetMember(menu, "Caption", Array.Empty<object?>(), "Fenster"));
+        Assert.IsTrue(host.TrySetMember(menu, "WindowList", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TryGetMember(menu, "WindowList", Array.Empty<object?>(), out var windowList));
+        Assert.AreEqual(true, windowList);
+
+        Assert.IsTrue(host.TrySetMember(menu, "WindowList", Array.Empty<object?>(), false));
+        Assert.IsTrue(host.TryGetMember(menu, "WindowList", Array.Empty<object?>(), out var cleared));
+        Assert.AreEqual(false, cleared);
+    }
+
+    [STATestMethod]
     public void HostLoadsAndUnloadsMenuArrayElements()
     {
         using var host = new WinFormsHost();
