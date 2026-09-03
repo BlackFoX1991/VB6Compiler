@@ -5839,3 +5839,37 @@ die Vorgaben, die er dort setzt, wandern über `WriteProperties` wieder hinaus.
 
 Kanonischer Nachweis: **1512/1512** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Das Abschlussgate prüft sich jetzt selbst (03.09.2026)
+
+Etappe H ist kein Bauabschnitt, sondern ein Nachweis — und ein Nachweis, den niemand nachrechnet,
+ist eine Behauptung. Drei seiner vier Zusagen lassen sich maschinell prüfen, und
+`CompatibilityMatrixTests` prüft sie jetzt:
+
+- **Jede Erwartung nennt Tests, und diese Tests existieren.** Verweise dürfen Muster sein
+  (`tests/VB6.Compiler.Tests/Variant*Tests.cs`) — auch ein Muster muss auf mindestens eine
+  vorhandene Datei zeigen. Eine umbenannte oder gelöschte Testdatei macht die Matrix damit rot
+  statt still ungenau.
+- **Die zitierten Zahlen sind die Zahlen der Datei.** Der Stand steht an drei Stellen — in der
+  Matrix, in `README.md` und in `docs/ROADMAP.md`. Laufen sie auseinander, ist die Matrix nicht
+  mehr die Quelle. Genau das fällt jetzt auf.
+- **`oracle-verified` bleibt leer.** Das ist die schärfste Regel des Projekts: Dieser Status darf
+  nur nach einem Lauf gegen einen echten VB6-SP6-Compiler stehen, und ein solches Orakel existiert
+  hier nicht. Der Test hält den Wert auf null. Wer ihn ändern will, muss diese Zusicherung löschen
+  — nicht eine Zahl hochschreiben.
+
+Dazu kommt eine ausdrückliche Liste in der Roadmap: **was bewusst `documented-verified` bleibt**,
+und warum. Fünf Punkte, jeder mit eigenem Grund — die locale-abhängigen Kalenderfälle mit ihrem
+offenen Zielkonflikt, die Fälle, in denen die Dokumentationsherleitung nachweislich falsch war,
+die exotischen Typbibliotheksformen ohne Windows SDK, die nativen OCX-Flächen hinter ihrem
+x86-Opt-in, und undokumentiertes controlspezifisches Verhalten. Ein späterer Leser kann damit
+„bewusst nicht geprüft" von „vergessen" unterscheiden.
+
+Zwei weitere Zeilen der Etappe H sind auf `[~]` gerückt, weil die Arbeit gemessen dasteht: Die
+Raw-COM-Probes laufen **in beide Richtungen** — generierter Code gegen echte Fremdserver, und
+unsere Klassen von einem Fremdprozess aus, in-process wie out-of-process. Und die Forms-Seite deckt
+Lifecycle, MDI, Control-Arrays samt Menü-Arrays und die Zeichenprimitive ab; die Pixeltests laufen
+allerdings bei der DPI des Testhosts, nicht bei einer festgeschriebenen.
+
+Kanonischer Nachweis: **1515/1515** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
