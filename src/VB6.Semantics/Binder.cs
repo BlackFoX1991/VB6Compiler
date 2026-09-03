@@ -16,6 +16,18 @@ public sealed class Binder
             IntrinsicTarget = "VBVariants.MissingValue"
         };
 
+    private static readonly ProcedureSymbol NamedArgumentProcedure =
+        new(
+            "NamedArgument",
+            ImmutableArray.Create(
+                new ParameterSymbol("Name", TypeSymbol.String, ParameterPassingMode.ByVal),
+                new ParameterSymbol("Value", TypeSymbol.Variant, ParameterPassingMode.ByVal)),
+            TypeSymbol.Variant)
+        {
+            IntrinsicKind = VBIntrinsicKind.NamedArgument,
+            IntrinsicTarget = "VBVariants.NamedArgument"
+        };
+
     private static readonly IReadOnlySet<string> EmptyModuleNames =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -4347,6 +4359,22 @@ public sealed class Binder
                     continue;
                 }
 
+                if (argumentSyntaxes[index] is NamedArgumentExpressionSyntax named)
+                {
+                    elements.Add(new BoundInvocationExpression(
+                        NamedArgumentProcedure,
+                        ImmutableArray.Create(
+                            new BoundArgument(
+                                NamedArgumentProcedure.Parameters[0],
+                                new BoundLiteralExpression(named.NameToken.Text, TypeSymbol.String)),
+                            new BoundArgument(
+                                NamedArgumentProcedure.Parameters[1],
+                                BindConversion(
+                                    BindExpression(named.Expression, variables, procedures),
+                                    TypeSymbol.Variant)))));
+                    continue;
+                }
+
                 elements.Add(BindConversion(
                     BindExpression(argumentSyntaxes[index], variables, procedures),
                     TypeSymbol.Variant));
@@ -4413,6 +4441,14 @@ public sealed class Binder
         ProcedureSymbol procedure)
     {
         if (!argumentSyntaxes.Any(argument => argument is NamedArgumentExpressionSyntax))
+        {
+            return argumentSyntaxes;
+        }
+
+        // A late-bound call has no signature to match the names against -- the target is only
+        // known at run time. The names travel to the dispatch layer instead of being turned into
+        // positions here, which is also how VB6 resolves them: through GetIDsOfNames.
+        if (procedure.IsLateBound)
         {
             return argumentSyntaxes;
         }

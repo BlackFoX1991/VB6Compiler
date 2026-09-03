@@ -384,7 +384,8 @@ public enum VBIntrinsicKind
     Print,
     PaintPicture,
     Cls,
-    Point
+    Point,
+    NamedArgument
 }
 
 public sealed record ProcedureSymbol(

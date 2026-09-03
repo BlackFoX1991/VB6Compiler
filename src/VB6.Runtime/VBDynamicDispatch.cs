@@ -357,9 +357,80 @@ public static class VBDynamicDispatch
     private static object? GetComObject(object? target) =>
         target is IVBComObjectProvider provider ? provider.ComObject : target;
 
+    /// <summary>
+    /// Puts named arguments of a late-bound call into their parameter positions. A COM target
+    /// resolves the names itself through GetIDsOfNames; a managed one has the parameter names
+    /// right there in its metadata, and this is where they get matched. A name the member does
+    /// not have is VB6 error 448, the same answer the COM path gives.
+    /// </summary>
+    private static object?[] ResolveNamedArguments(ParameterInfo[] parameters, object?[] arguments)
+    {
+        var hasNamed = false;
+        foreach (var argument in arguments)
+        {
+            if (argument is VBNamedArgument)
+            {
+                hasNamed = true;
+                break;
+            }
+        }
+
+        if (!hasNamed)
+        {
+            return arguments;
+        }
+
+        var slots = new object?[Math.Max(parameters.Length, arguments.Length)];
+        var filled = new bool[slots.Length];
+        var nextPositional = 0;
+        foreach (var argument in arguments)
+        {
+            if (argument is VBNamedArgument named)
+            {
+                var position = -1;
+                for (var index = 0; index < parameters.Length; index++)
+                {
+                    if (string.Equals(parameters[index].Name, named.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        position = index;
+                        break;
+                    }
+                }
+
+                if (position < 0)
+                {
+                    VBErrors.Raise(448, named.Name, "Named argument not found", string.Empty, 0);
+                }
+
+                slots[position] = named.Value;
+                filled[position] = true;
+                continue;
+            }
+
+            while (nextPositional < filled.Length && filled[nextPositional])
+            {
+                nextPositional++;
+            }
+
+            slots[nextPositional] = argument;
+            filled[nextPositional] = true;
+            nextPositional++;
+        }
+
+        var last = Array.FindLastIndex(filled, entry => entry);
+        var resolved = new object?[last + 1];
+        for (var index = 0; index <= last; index++)
+        {
+            resolved[index] = filled[index] ? slots[index] : VBVariants.MissingValue();
+        }
+
+        return resolved;
+    }
+
     private static object? InvokeMethod(object target, MethodInfo method, object?[] arguments)
     {
         var parameters = method.GetParameters();
+        arguments = ResolveNamedArguments(parameters, arguments);
         var converted = new object?[parameters.Length];
         var sourceIndexes = Enumerable.Repeat(-1, parameters.Length).ToArray();
         var argumentIndex = 0;
@@ -516,6 +587,7 @@ public static class VBDynamicDispatch
 
     private static object?[] ConvertPropertyArguments(PropertyInfo property, object?[] arguments)
     {
+        arguments = ResolveNamedArguments(property.GetIndexParameters(), arguments);
         var indexParameters = property.GetIndexParameters();
         if (indexParameters.Length != arguments.Length)
         {

@@ -31,6 +31,14 @@ public static class VBVariants
 
     public static object MissingValue() => MissingMarker;
 
+    /// <summary>
+    /// A named argument of a late-bound call. The name cannot be resolved when the call is
+    /// compiled -- the target is only known at run time -- so it travels with the value and the
+    /// dispatch layer turns it into a DISPID. Wrapping keeps the argument list a plain object
+    /// array, so nothing between the binder and the dispatcher has to learn a second shape.
+    /// </summary>
+    public static object NamedArgument(string name, object? value) => new VBNamedArgument(name, value);
+
     public static void ThrowIfMissing(object? value)
     {
         if (IsMissing(value))
@@ -265,4 +273,10 @@ public static class VBVariants
 /// A Tab or Spc item of a VB6 print output list. Both position the next item rather than
 /// producing a value, so they travel through the list as a marker every print path resolves.
 /// </summary>
-public sealed record VBPrintPosition(int Value, bool IsColumn);
+public sealed record VBPrintPosition(int Value, bool IsColumn);
+
+/// <summary>
+/// A named argument on its way to a late-bound call. It carries the name the source wrote next
+/// to the value, so <c>IDispatch::Invoke</c> can be given the matching DISPID.
+/// </summary>
+public sealed record VBNamedArgument(string Name, object? Value);
