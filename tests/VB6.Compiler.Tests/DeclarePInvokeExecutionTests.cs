@@ -190,6 +190,54 @@ public sealed class DeclarePInvokeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_MarshalsDeclareStringsAsAnsiEvenForAWideAlias()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeCharSetTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var assemblyPath = Path.Combine(directory, "Program.dll");
+
+        try
+        {
+            var result = VBCompilation.Create("""
+                Private Declare Function WideBox Lib "user32" Alias "MessageBoxW" (ByVal hWnd As Long, ByVal Text As String, ByVal Caption As String, ByVal Flags As Long) As Long
+
+                Sub Main()
+                    Debug.Print 1
+                End Sub
+                """).EmitManagedApplication(assemblyPath);
+
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+            using var stream = File.OpenRead(assemblyPath);
+            using var peReader = new PEReader(stream);
+            var metadata = peReader.GetMetadataReader();
+            var methodHandle = metadata.MethodDefinitions
+                .Single(handle => metadata.GetString(metadata.GetMethodDefinition(handle).Name) == "WideBox");
+            var import = metadata.GetMethodDefinition(methodHandle).GetImport();
+
+            // VB6 ist ANSI-only: es marshallt jeden Declare-String als LPSTR, ganz gleich worauf
+            // der Alias zeigt. Ein Alias auf "MessageBoxW" bekommt dort ANSI-Bytes und liefert
+            // Unsinn -- das ist beobachtbares VB6-Verhalten, kein Fehler dieses Compilers. Wer
+            // Unicode will, ruft die W-Funktion in VB6 über ein Bytearray auf.
+            Assert.AreEqual(
+                MethodImportAttributes.CharSetAnsi,
+                import.Attributes & MethodImportAttributes.CharSetMask);
+
+            // ExactSpelling haelt den Alias woertlich: kein stilles Anhaengen von A oder W.
+            Assert.AreEqual(
+                MethodImportAttributes.ExactSpelling,
+                import.Attributes & MethodImportAttributes.ExactSpelling);
+            Assert.AreEqual("MessageBoxW", metadata.GetString(import.Name));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_InvokesScalarDeclareFunction()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6CompilerPInvokeExecutionTests", Guid.NewGuid().ToString("N"));
