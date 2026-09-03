@@ -1222,6 +1222,37 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostLoadsAndUnloadsMenuArrayElements()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        var template = host.CreateControl(owner, "mnuDatei", "Menu")!;
+        Assert.IsTrue(host.TrySetMember(template, "Caption", Array.Empty<object?>(), "Datei"));
+
+        // Ein Menü-Array ist ein Control-Array, dessen Elemente keine Controls sind. Vorher gab
+        // dieser Weg still null zurück, und Load auf ein Menü tat schlicht nichts.
+        var element = host.LoadControlArrayElement(owner, "mnuDatei", 1, template);
+        Assert.IsNotNull(element);
+
+        // Das geladene Element erbt die Eigenschaften der Vorlage -- ausser der Sichtbarkeit.
+        Assert.IsTrue(host.TryGetMember(element!, "Caption", Array.Empty<object?>(), out var caption));
+        Assert.AreEqual("Datei", caption);
+        Assert.IsTrue(host.TryGetMember(element!, "Visible", Array.Empty<object?>(), out var visible));
+        Assert.AreEqual(false, visible);
+
+        Assert.IsTrue(host.TrySetMember(element!, "Caption", Array.Empty<object?>(), "Zuletzt"));
+        Assert.IsTrue(host.TryGetMember(element!, "Caption", Array.Empty<object?>(), out var renamed));
+        Assert.AreEqual("Zuletzt", renamed);
+
+        // Derselbe Index liefert dasselbe Element; erst nach Unload entsteht ein neues.
+        Assert.AreSame(element, host.LoadControlArrayElement(owner, "mnuDatei", 1, template));
+        host.UnloadControlArrayElement(owner, "mnuDatei", 1, element);
+        Assert.AreNotSame(element, host.LoadControlArrayElement(owner, "mnuDatei", 1, template));
+    }
+
+    [STATestMethod]
     public void HostCreatesScrollBarsAndMapsTheirVb6Range()
     {
         using var host = new WinFormsHost();
