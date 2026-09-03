@@ -177,6 +177,17 @@ public sealed class VBProjectCompilation
         {
             qualifiedEnumMembers.TryAdd(member.Key, member.Value);
         }
+        // Ein Modulname qualifiziert seine eigenen Member. Nur Standardmodule kommen infrage:
+        // bei einer Klasse benennt derselbe Bezeichner den Typ, nicht einen Bereich.
+        var moduleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parsedModule in parsedModules.Where(item => !IsClassModuleKind(item.Item.Kind)))
+        {
+            var moduleName = string.IsNullOrWhiteSpace(parsedModule.Item.Name)
+                ? Path.GetFileNameWithoutExtension(parsedModule.FilePath)
+                : parsedModule.Item.Name!;
+            moduleNames.Add(moduleName);
+        }
+
         var classTypeAliases = classTypes.ToDictionary(
             entry => entry.Key,
             entry => (TypeSymbol)entry.Value,
@@ -270,7 +281,7 @@ public sealed class VBProjectCompilation
             SemanticModel preliminaryModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                preliminaryModel = new Binder(module.Text, qualifiedEnumMembers)
+                preliminaryModel = new Binder(module.Text, qualifiedEnumMembers, moduleNames)
                     .BindCompilationUnit(
                         module.SemanticRoot,
                         availableProcedures,
@@ -283,7 +294,7 @@ public sealed class VBProjectCompilation
             SemanticModel semanticModel;
             using (UserDefinedTypeLookupScope.Push(GetTypeScope(moduleUserDefinedTypes)))
             {
-                semanticModel = new Binder(module.Text, qualifiedEnumMembers)
+                semanticModel = new Binder(module.Text, qualifiedEnumMembers, moduleNames)
                     .BindCompilationUnit(
                         forEachRoot,
                         availableProcedures,

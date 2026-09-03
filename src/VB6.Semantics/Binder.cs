@@ -16,8 +16,12 @@ public sealed class Binder
             IntrinsicTarget = "VBVariants.MissingValue"
         };
 
+    private static readonly IReadOnlySet<string> EmptyModuleNames =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
     private readonly SourceText _text;
     private readonly IReadOnlyDictionary<string, long> _qualifiedEnumMembers;
+    private readonly IReadOnlySet<string> _moduleNames;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly ImmutableArray<BoundModuleVariable>.Builder _staticVariables =
         ImmutableArray.CreateBuilder<BoundModuleVariable>();
@@ -39,11 +43,37 @@ public sealed class Binder
 
     public Binder(
         SourceText text,
-        IReadOnlyDictionary<string, long>? qualifiedEnumMembers = null)
+        IReadOnlyDictionary<string, long>? qualifiedEnumMembers = null,
+        IReadOnlySet<string>? moduleNames = null)
     {
         _text = text;
         _qualifiedEnumMembers = qualifiedEnumMembers ??
             ImmutableDictionary.Create<string, long>(StringComparer.OrdinalIgnoreCase);
+        _moduleNames = moduleNames ?? EmptyModuleNames;
+    }
+
+    /// <summary>
+    /// Drops a module qualification that only names where a member is declared, as in
+    /// <c>Modul.Wert()</c> or <c>Modul.Oeffentlich</c>. A public name is unique across the project
+    /// - VB6PRJ0003 and VB6PRJ0006 reject a second declaration of the same name - so the qualified
+    /// and the unqualified form always resolve to the same symbol, and the module name never has to
+    /// become a value. A variable of the same name wins: there the dot really is a member access.
+    /// </summary>
+    private ExpressionSyntax StripModuleQualification(
+        ExpressionSyntax syntax,
+        Dictionary<string, VariableSymbol> variables)
+    {
+        if (syntax is not MemberAccessExpressionSyntax { Receiver: NameExpressionSyntax moduleName } member)
+        {
+            return syntax;
+        }
+
+        var name = moduleName.IdentifierToken.Text;
+        return _moduleNames.Contains(name) &&
+               !variables.ContainsKey(name) &&
+               (_activeLocals is null || !_activeLocals.ContainsKey(name))
+            ? new NameExpressionSyntax(member.MemberToken)
+            : syntax;
     }
 
     public static ProcedureSymbol CreateProcedureSymbol(SubDeclarationSyntax declaration)
@@ -2414,7 +2444,7 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var target = syntax.Target switch
+        var target = StripModuleQualification(syntax.Target, variables) switch
         {
             MemberAccessExpressionSyntax memberAccess =>
                 BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Set),
@@ -2447,7 +2477,7 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
-        var target = syntax.Target switch
+        var target = StripModuleQualification(syntax.Target, variables) switch
         {
             MemberAccessExpressionSyntax memberAccess =>
                 BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Let),
@@ -3157,6 +3187,21 @@ public sealed class Binder
                     procedures));
         }
 
+        // Modul.Prozedur ist ein gewoehnlicher Aufruf, sobald die Qualifizierung entfaellt.
+        if (syntax.Target is MemberAccessExpressionSyntax &&
+            StripModuleQualification(syntax.Target, variables) is NameExpressionSyntax unqualifiedCall)
+        {
+            return BindInvocation(
+                new InvocationStatementSyntax(
+                    null,
+                    unqualifiedCall.IdentifierToken,
+                    null,
+                    syntax.Arguments,
+                    null),
+                variables,
+                procedures);
+        }
+
         MemberAccessExpressionSyntax? memberAccess = syntax.Target switch
         {
             MemberAccessExpressionSyntax member => member,
@@ -3334,6 +3379,11 @@ public sealed class Binder
             return new BoundLiteralExpression(enumValue, TypeSymbol.Long);
         }
 
+        if (StripModuleQualification(syntax, variables) is NameExpressionSyntax unqualifiedMember)
+        {
+            return BindName(unqualifiedMember, variables, procedures);
+        }
+
         var receiver = syntax.Receiver is WithReceiverExpressionSyntax
             ? BindWithReceiver(syntax.DotToken)
             : BindExpression(syntax.Receiver, variables, procedures);
@@ -3455,6 +3505,28 @@ public sealed class Binder
         IReadOnlyDictionary<string, ProcedureSymbol> procedures,
         PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
+        // Nur wenn wirklich eine Qualifizierung entfaellt -- sonst ruft sich die Bindung endlos
+        // selbst auf, weil ein einfacher Name unveraendert zurueckkommt. Modul.Funktion(...) ist
+        // danach ein Aufruf, kein Indexzugriff: die Klammern gehoeren zur Argumentliste.
+        if (syntax.Receiver is MemberAccessExpressionSyntax &&
+            StripModuleQualification(syntax.Receiver, variables) is NameExpressionSyntax unqualifiedReceiver)
+        {
+            return procedures.ContainsKey(unqualifiedReceiver.IdentifierToken.Text)
+                ? BindInvocationExpression(
+                    new InvocationExpressionSyntax(
+                        unqualifiedReceiver.IdentifierToken,
+                        syntax.OpenParenthesisToken,
+                        syntax.Indices,
+                        syntax.CloseParenthesisToken),
+                    variables,
+                    procedures)
+                : BindElementAccess(
+                    syntax with { Receiver = unqualifiedReceiver },
+                    variables,
+                    procedures,
+                    accessor);
+        }
+
         if (syntax.Receiver is MemberAccessExpressionSyntax memberAccess)
         {
             var memberReceiver = memberAccess.Receiver is WithReceiverExpressionSyntax
