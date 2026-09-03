@@ -1222,6 +1222,206 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostCreatesScrollBarsAndMapsTheirVb6Range()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        foreach (var typeName in new[] { "VScrollBar", "HScrollBar" })
+        {
+            var bar = host.CreateControl(owner, typeName + "1", typeName);
+            Assert.IsInstanceOfType<ScrollBar>(bar, typeName);
+
+            Assert.IsTrue(host.TrySetMember(bar!, "Min", Array.Empty<object?>(), 10));
+            Assert.IsTrue(host.TrySetMember(bar!, "Max", Array.Empty<object?>(), 20));
+            Assert.IsTrue(host.TrySetMember(bar!, "LargeChange", Array.Empty<object?>(), 5));
+            Assert.IsTrue(host.TrySetMember(bar!, "SmallChange", Array.Empty<object?>(), 2));
+
+            // VB6 erreicht sein Max; eine WinForms-Scrollbar erreicht ihr eigenes Maximum nicht,
+            // weil der Schieber LargeChange Einheiten der Bahn belegt.
+            Assert.IsTrue(host.TrySetMember(bar!, "Value", Array.Empty<object?>(), 20));
+            Assert.IsTrue(host.TryGetMember(bar!, "Value", Array.Empty<object?>(), out var atMaximum));
+            Assert.AreEqual(20, atMaximum, typeName);
+
+            Assert.IsTrue(host.TryGetMember(bar!, "Min", Array.Empty<object?>(), out var minimum));
+            Assert.IsTrue(host.TryGetMember(bar!, "Max", Array.Empty<object?>(), out var maximum));
+            Assert.IsTrue(host.TryGetMember(bar!, "LargeChange", Array.Empty<object?>(), out var largeChange));
+            Assert.IsTrue(host.TryGetMember(bar!, "SmallChange", Array.Empty<object?>(), out var smallChange));
+            Assert.AreEqual(10, minimum);
+            Assert.AreEqual(20, maximum);
+            Assert.AreEqual(5, largeChange);
+            Assert.AreEqual(2, smallChange);
+
+            // Ausserhalb von Min..Max meldet VB6 380 statt stillschweigend zu begrenzen.
+            var raised = Assert.ThrowsExactly<VB6RaisedError>(() =>
+                host.TrySetMember(bar!, "Value", Array.Empty<object?>(), 21));
+            Assert.AreEqual(380, raised.Number);
+            VBErrors.Clear();
+        }
+    }
+
+    [STATestMethod]
+    public void HostRaisesScrollBarChangeOnAssignment()
+    {
+        using var host = new WinFormsHost();
+        var owner = new EventRecorder();
+        host.Load(owner);
+
+        var bar = host.CreateControl(owner, "VScroll1", "VScrollBar");
+        Assert.IsTrue(host.TrySubscribeEvent(bar!, "Change", owner, nameof(EventRecorder.OnChange)));
+
+        Assert.IsTrue(host.TrySetMember(bar!, "Max", Array.Empty<object?>(), 100));
+        Assert.IsTrue(host.TrySetMember(bar!, "Value", Array.Empty<object?>(), 40));
+
+        // Change ist hier nicht TextChanged: der Wrapper trägt den VB6-Namen selbst, und der
+        // schlägt die Übersetzungstabelle.
+        Assert.AreEqual(1, owner.Changes);
+
+        Assert.IsTrue(host.TrySetMember(bar!, "Value", Array.Empty<object?>(), 40));
+        Assert.AreEqual(1, owner.Changes, "Ein unveränderter Wert löst kein Change aus.");
+    }
+
+    [STATestMethod]
+    public void HostListsDirectoriesAndFilesForTheFileSystemControls()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "VB6HostFileSystemControls", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "alpha"));
+        Directory.CreateDirectory(Path.Combine(root, "beta"));
+        File.WriteAllText(Path.Combine(root, "one.txt"), "1");
+        File.WriteAllText(Path.Combine(root, "two.txt"), "2");
+        File.WriteAllText(Path.Combine(root, "three.dat"), "3");
+
+        try
+        {
+            using var host = new WinFormsHost();
+            var owner = new EventRecorder();
+            host.Load(owner);
+
+            var directories = host.CreateControl(owner, "Dir1", "DirListBox")!;
+            Assert.IsTrue(host.TrySubscribeEvent(directories, "Change", owner, nameof(EventRecorder.OnChange)));
+            Assert.IsTrue(host.TrySetMember(directories, "Path", Array.Empty<object?>(), root));
+            Assert.AreEqual(1, owner.Changes);
+
+            Assert.IsTrue(host.TryGetMember(directories, "ListCount", Array.Empty<object?>(), out var directoryCount));
+            Assert.AreEqual(2, directoryCount);
+            Assert.IsTrue(host.TryGetMember(directories, "List", new object?[] { 0 }, out var firstDirectory));
+            Assert.AreEqual("alpha", firstDirectory);
+
+            // Der negative Index läuft die Vorfahren hoch -- List(-1) ist das Elternverzeichnis.
+            Assert.IsTrue(host.TryGetMember(directories, "List", new object?[] { -1 }, out var parent));
+            Assert.AreEqual(Path.GetDirectoryName(root), parent);
+
+            var files = host.CreateControl(owner, "File1", "FileListBox")!;
+            Assert.IsTrue(host.TrySetMember(files, "Path", Array.Empty<object?>(), root));
+            Assert.IsTrue(host.TryGetMember(files, "ListCount", Array.Empty<object?>(), out var allFiles));
+            Assert.AreEqual(3, allFiles);
+
+            Assert.IsTrue(host.TrySetMember(files, "Pattern", Array.Empty<object?>(), "*.txt"));
+            Assert.IsTrue(host.TryGetMember(files, "ListCount", Array.Empty<object?>(), out var textFiles));
+            Assert.AreEqual(2, textFiles);
+
+            // Ein qualifizierter FileName setzt den Pfad mit und wählt die Datei aus.
+            Assert.IsTrue(host.TrySetMember(files, "FileName", Array.Empty<object?>(), Path.Combine(root, "two.txt")));
+            Assert.IsTrue(host.TryGetMember(files, "FileName", Array.Empty<object?>(), out var selected));
+            Assert.AreEqual("two.txt", selected);
+
+            // Ein Pfad, den es nicht gibt, meldet 76 statt eine leere Liste zu zeigen.
+            var raised = Assert.ThrowsExactly<VB6RaisedError>(() =>
+                host.TrySetMember(files, "Path", Array.Empty<object?>(), Path.Combine(root, "missing")));
+            Assert.AreEqual(76, raised.Number);
+            VBErrors.Clear();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [STATestMethod]
+    public void HostListsTheAvailableDrives()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        var drives = host.CreateControl(owner, "Drive1", "DriveListBox")!;
+        Assert.IsTrue(host.TryGetMember(drives, "ListCount", Array.Empty<object?>(), out var count));
+        Assert.IsTrue((int)count! > 0);
+
+        // VB6 listet Laufwerke klein geschrieben als "c:", die Bezeichnung folgt in Klammern.
+        Assert.IsTrue(host.TryGetMember(drives, "Drive", Array.Empty<object?>(), out var current));
+        var expected = (Path.GetPathRoot(Environment.CurrentDirectory) ?? string.Empty)[..1].ToLowerInvariant() + ":";
+        StringAssert.StartsWith((string)current!, expected);
+
+        var raised = Assert.ThrowsExactly<VB6RaisedError>(() =>
+            host.TrySetMember(drives, "Drive", Array.Empty<object?>(), "§:"));
+        Assert.AreEqual(68, raised.Number);
+        VBErrors.Clear();
+    }
+
+    [STATestMethod]
+    public void HostCarriesTheDeferredDataAndOleSurfaces()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        var ole = host.CreateControl(owner, "OLE1", "OLE")!;
+        Assert.IsTrue(host.TrySetMember(ole, "Class", Array.Empty<object?>(), "Excel.Sheet"));
+        Assert.IsTrue(host.TryGetMember(ole, "Class", Array.Empty<object?>(), out var oleClass));
+        Assert.AreEqual("Excel.Sheet", oleClass);
+
+        // Ein Container ohne Objekt meldet vbOLENone.
+        Assert.IsTrue(host.TryGetMember(ole, "OLEType", Array.Empty<object?>(), out var oleType));
+        Assert.AreEqual(3, oleType);
+
+        // Die Verben hängen an der generischen ActiveX-Schicht. Sie melden, statt still nichts
+        // zu tun.
+        var verb = Assert.ThrowsExactly<VB6RaisedError>(() =>
+            host.TryInvokeMember(ole, "DoVerb", Array.Empty<object?>(), out _));
+        Assert.AreEqual(445, verb.Number);
+        VBErrors.Clear();
+
+        var data = host.CreateControl(owner, "Data1", "Data")!;
+        Assert.IsTrue(host.TrySetMember(data, "RecordSource", Array.Empty<object?>(), "Kunden"));
+        Assert.IsTrue(host.TryGetMember(data, "RecordSource", Array.Empty<object?>(), out var recordSource));
+        Assert.AreEqual("Kunden", recordSource);
+
+        var refresh = Assert.ThrowsExactly<VB6RaisedError>(() =>
+            host.TryInvokeMember(data, "Refresh", Array.Empty<object?>(), out _));
+        Assert.AreEqual(445, refresh.Number);
+        VBErrors.Clear();
+    }
+
+    [STATestMethod]
+    public void HostReportsAnUnknownIntrinsicControlInsteadOfShowingAPanel()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        // Die intrinsische Menge ist vollständig; ein Name ausserhalb davon ist ein Control, das
+        // auch VB6 nicht hätte erzeugen können.
+        var raised = Assert.ThrowsExactly<VB6RaisedError>(() =>
+            host.CreateControl(owner, "Ghost1", "SuperGrid"));
+        Assert.AreEqual(429, raised.Number);
+        VBErrors.Clear();
+
+        // Ein qualifizierter Name gehört einer Typbibliothek -- der Platzhalter bleibt, bis die
+        // generische ActiveX-Schicht steht.
+        var userControl = host.CreateControl(owner, "Tool1", "Visia.McToolBar");
+        Assert.IsInstanceOfType<Control>(userControl);
+    }
+
+    private sealed class EventRecorder
+    {
+        public int Changes { get; private set; }
+
+        public void OnChange() => Changes++;
+    }
+
+    [STATestMethod]
     public void HostReadsBackTheColourOfASinglePoint()
     {
         using var host = new WinFormsHost();
