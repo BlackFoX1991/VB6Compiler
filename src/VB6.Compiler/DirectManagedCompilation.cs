@@ -210,7 +210,8 @@ public static class DirectManagedCompilation
             {
                 ManagedAssemblyPath = artifacts.ManagedAssemblyPath,
                 WinFormsRuntimeAssemblyPath = artifacts.WinFormsRuntimeAssemblyPath,
-                ComManifestPath = artifacts.ComManifestPath
+                ComManifestPath = artifacts.ComManifestPath,
+                TypeLibraryPath = artifacts.TypeLibraryPath
             };
         }
         catch (ManagedArtifactException exception)
@@ -362,7 +363,8 @@ public static class DirectManagedCompilation
             {
                 ManagedAssemblyPath = artifacts.ManagedAssemblyPath,
                 WinFormsRuntimeAssemblyPath = artifacts.WinFormsRuntimeAssemblyPath,
-                ComManifestPath = artifacts.ComManifestPath
+                ComManifestPath = artifacts.ComManifestPath,
+                TypeLibraryPath = artifacts.TypeLibraryPath
             };
         }
         catch (ManagedArtifactException exception)
@@ -500,6 +502,9 @@ public sealed record ManagedApplicationEmitResult(
     /// <summary>The side-by-side activation manifest when COM hosting was requested.</summary>
     public string? ComManifestPath { get; init; }
 
+    /// <summary>The generated .tlb when COM hosting was requested.</summary>
+    public string? TypeLibraryPath { get; init; }
+
     public bool Success => Lowering.Success && BackendResult?.Success == true && AssemblyPath is not null;
     public ImmutableArray<Diagnostic> Diagnostics => Lowering.Diagnostics;
 }
@@ -520,6 +525,9 @@ public sealed record VBProjectManagedApplicationEmitResult(
 
     /// <summary>The side-by-side activation manifest when COM hosting was requested.</summary>
     public string? ComManifestPath { get; init; }
+
+    /// <summary>The generated .tlb when COM hosting was requested.</summary>
+    public string? TypeLibraryPath { get; init; }
 
     public bool Success => Lowering.Success && BackendResult?.Success == true && AssemblyPath is not null;
 }
@@ -616,9 +624,18 @@ internal static class ManagedArtifactWriter
         }
 
         string? comManifestPath = null;
+        string? typeLibraryPath = null;
         if (options.EnableComHosting)
         {
             var comHostPath = ManagedComHostWriter.Create(managedAssemblyPath, options.Platform);
+
+            // A late-bound client needs no type library; an early-bound one -- VB6, VBA, C++ --
+            // cannot see the classes without it, so it is written whenever COM hosting is on.
+            // COM hosting itself is already Windows-only, so this cannot be reached elsewhere.
+            if (OperatingSystem.IsWindows())
+            {
+                typeLibraryPath = ManagedTypeLibraryWriter.Create(managedAssemblyPath, options.Platform);
+            }
             if (options.EnableComManifest)
             {
                 comManifestPath = ManagedComManifestWriter.Create(
@@ -635,7 +652,8 @@ internal static class ManagedArtifactWriter
             runtimeOutputPath,
             runtimeConfigPath,
             comManifestPath,
-            winFormsRuntimeOutputPath);
+            winFormsRuntimeOutputPath,
+            typeLibraryPath);
     }
 
     /// <summary>
@@ -763,7 +781,8 @@ internal sealed record ManagedArtifactPaths(
     string RuntimeAssemblyPath,
     string RuntimeConfigPath,
     string? ComManifestPath,
-    string? WinFormsRuntimeAssemblyPath);
+    string? WinFormsRuntimeAssemblyPath,
+    string? TypeLibraryPath = null);
 
 internal sealed class ManagedArtifactException : Exception
 {
