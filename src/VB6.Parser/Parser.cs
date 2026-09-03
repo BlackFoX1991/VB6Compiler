@@ -1163,6 +1163,9 @@ public sealed class Parser
                 ParseSkippedStatement(),
             SyntaxKind.IdentifierToken when LooksLikeProcedureModuleVariableDeclaration() =>
                 ParseSkippedStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeCircleStatement() => ParseCircleStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeQualifiedCircleStatement() =>
+                ParseQualifiedCircleStatement(),
             SyntaxKind.IdentifierToken when LooksLikePSetStatement() => ParsePSetStatement(),
             SyntaxKind.IdentifierToken when LooksLikeQualifiedPSetStatement() =>
                 ParseQualifiedPSetStatement(),
@@ -1876,6 +1879,30 @@ public sealed class Parser
              Peek(2).Kind == SyntaxKind.OpenParenthesisToken);
     }
 
+    /// <summary>
+    /// <c>Circle (x, y), r</c> and <c>Circle Step (x, y), r</c>, qualified or not. As for
+    /// <c>Line</c> and <c>PSet</c>, the coordinate parenthesis separates the statement from a call.
+    /// </summary>
+    private bool LooksLikeCircleStatement()
+    {
+        if (!string.Equals(Current.Text, "Circle", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return Peek(1).Kind == SyntaxKind.OpenParenthesisToken ||
+            (string.Equals(Peek(1).Text, "Step", StringComparison.OrdinalIgnoreCase) &&
+             Peek(2).Kind == SyntaxKind.OpenParenthesisToken);
+    }
+
+    private bool LooksLikeQualifiedCircleStatement() =>
+        Current.Kind == SyntaxKind.IdentifierToken &&
+        Peek(1).Kind == SyntaxKind.DotToken &&
+        string.Equals(Peek(2).Text, "Circle", StringComparison.OrdinalIgnoreCase) &&
+        (Peek(3).Kind == SyntaxKind.OpenParenthesisToken ||
+         string.Equals(Peek(3).Text, "Step", StringComparison.OrdinalIgnoreCase) &&
+         Peek(4).Kind == SyntaxKind.OpenParenthesisToken);
+
     private bool LooksLikeQualifiedPSetStatement() =>
         Current.Kind == SyntaxKind.IdentifierToken &&
         Peek(1).Kind == SyntaxKind.DotToken &&
@@ -2172,6 +2199,55 @@ public sealed class Parser
         var fileNumber = ParseFileNumber();
         MatchToken(SyntaxKind.CommaToken);
         return new LineInputStatementSyntax(lineKeyword, inputKeyword, fileNumber, ParseExpression());
+    }
+
+    private CircleStatementSyntax ParseCircleStatement()
+    {
+        var keyword = NextToken();
+        return ParseCircleStatement(keyword, target: null);
+    }
+
+    private CircleStatementSyntax ParseQualifiedCircleStatement()
+    {
+        var target = new NameExpressionSyntax(MatchToken(SyntaxKind.IdentifierToken));
+        _ = MatchToken(SyntaxKind.DotToken);
+        var keyword = MatchTypeMemberName();
+        return ParseCircleStatement(keyword, target);
+    }
+
+    private CircleStatementSyntax ParseCircleStatement(SyntaxToken keyword, ExpressionSyntax? target)
+    {
+        SyntaxToken? stepKeyword = null;
+        if (string.Equals(Current.Text, "Step", StringComparison.OrdinalIgnoreCase))
+        {
+            stepKeyword = NextToken();
+        }
+
+        var center = ParseLinePoint();
+        _ = MatchToken(SyntaxKind.CommaToken);
+        var radius = ParseExpression();
+
+        // Colour, start, end and aspect may each be left out, including in the middle.
+        var optional = new ExpressionSyntax?[4];
+        for (var index = 0; index < optional.Length && Current.Kind == SyntaxKind.CommaToken; index++)
+        {
+            NextToken();
+            optional[index] = Current.Kind is SyntaxKind.CommaToken or SyntaxKind.NewLineToken
+                or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken
+                ? null
+                : ParseExpression();
+        }
+
+        return new CircleStatementSyntax(
+            keyword,
+            stepKeyword,
+            center,
+            radius,
+            optional[0],
+            optional[1],
+            optional[2],
+            optional[3],
+            target);
     }
 
     private PSetStatementSyntax ParsePSetStatement()

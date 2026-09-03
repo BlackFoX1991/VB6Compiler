@@ -646,6 +646,24 @@ public sealed record PSetStatementSyntax(
     SyntaxToken? ColorCommaToken,
     ExpressionSyntax? ColorExpression,
     ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.PSetStatement);
+
+/// <summary>
+/// VB6 graphics circle syntax:
+/// <c>[object.]Circle [Step] (x, y), radius, [color], [start], [end], [aspect]</c>. Everything
+/// after the radius may be left out, including in the middle - <c>Circle (x, y), r, , 0, 3.14</c>
+/// draws an arc in the current ForeColor - so the optional arguments are nullable rather than a
+/// list.
+/// </summary>
+public sealed record CircleStatementSyntax(
+    SyntaxToken CircleKeyword,
+    SyntaxToken? StepKeyword,
+    LinePointSyntax Center,
+    ExpressionSyntax Radius,
+    ExpressionSyntax? ColorExpression,
+    ExpressionSyntax? StartExpression,
+    ExpressionSyntax? EndExpression,
+    ExpressionSyntax? AspectExpression,
+    ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.CircleStatement);
 public sealed record EndStatementSyntax(SyntaxToken EndKeyword) : StatementSyntax(SyntaxKind.EndStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
