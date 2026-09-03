@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- Der Task laeuft im MSBuild-Prozess. Dessen eigene Build-Assemblies duerfen nicht
+         mitkopiert werden, sonst laedt er zwei Versionen derselben Bibliothek. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" ExcludeAssets="runtime" />
+    <ProjectReference Include="../VB6.ProjectSystem/VB6.ProjectSystem.csproj" />
+  </ItemGroup>
+</Project>
