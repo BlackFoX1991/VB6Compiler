@@ -5100,3 +5100,35 @@ Schreiben ausdrücklich nicht dazu: `ReDim Preserve` auf ein festes Array ist ko
 
 Kanonischer Nachweis: **1457/1457** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## PSet und die Zeichenposition des Hosts (03.09.2026)
+
+Der Plan führte `PSet`, `Circle` und `Point` als schnellen Gewinn — es fehle nur die
+Host-Umsetzung. Die Messung hat das widerlegt: `PSet (10, 20)` scheiterte bereits am **Parser**
+(`VB6P0001` auf dem Komma in der Koordinatenklammer), `Point` und `PaintPicture` unqualifiziert am
+Binder mit `VB6S0005`. Es war die volle Schichtkette, nicht ein Nachtrag im Host.
+
+Gebaut nach der vorhandenen `Line`-Vorlage: `LinePointSyntax` wiederverwendet, dazu das
+`Step`-Schlüsselwort, die optionale Farbe und die qualifizierte Form `Picture1.PSet`. Der
+WinForms-Host trifft dieselbe Dreiwegewahl der Zeichenfläche wie `Line`, einschließlich der
+Raster-Operation, wenn `DrawMode` nicht `CopyPen` ist und eine persistente `AutoRedraw`-Fläche
+existiert. Ohne UI-Host bleibt `PSet` ein deterministischer No-op wie `Line` und `Cls`.
+
+**Der Host führte bisher keine Zeichenposition.** `Line Step` rechnet relativ zum Startpunkt, für
+`PSet Step` gibt es aber keinen. Statt `Step` halb zu bauen, ist `CurrentX`/`CurrentY` jetzt
+vollständig da — als Zustand und über den Memberzugriff lesbar und schreibbar, sodass
+`Form.CurrentX` aus VB6-Code funktioniert. `PSet` lässt die Position auf dem gesetzten Punkt
+stehen; der Pixeltest prüft, dass der Punkt sitzt, der Nachbar frei bleibt und `Step` von dort misst.
+
+Zwei Nebenbefunde, nicht in dieser Karte behoben: Der Binder verwirft eine ihm unbekannte
+Anweisung **still** (`_ => null`) — nach der Parserschicht übersetzte `PSet` sauber und tat nichts.
+Und `Point` sowie `PaintPicture` sind unqualifiziert weiterhin nicht deklariert.
+
+Ein bestehender Test hat seine Form geändert: `Bind_CombinesWhitespaceSeparatedIndexed\
+MemberArguments` prüft die Regel, dass `obj.Member (a, b), c` zu einer Argumentliste verbindet,
+und benutzte dafür `form.PSet`. Die Regel gilt unverändert — nachgemessen mit einem anderen
+Membernamen —, nur das Beispiel taugte nicht: `PSet` ist keine spät gebundene Methode, und weil
+der Host kein solches Mitglied kennt, verpuffte genau dieser Pfad.
+
+Kanonischer Nachweis: **1462/1462** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

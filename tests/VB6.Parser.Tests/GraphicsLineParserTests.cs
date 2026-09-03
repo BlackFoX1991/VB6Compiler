@@ -60,4 +60,42 @@ public sealed class GraphicsLineParserTests
         Assert.AreEqual("Picture1", ((NameExpressionSyntax)statement.Target!).IdentifierToken.Text);
         Assert.AreEqual("Line", statement.LineKeyword.Text);
     }
+
+    [TestMethod]
+    public void Parse_RecognizesPSetCoordinateAndColor()
+    {
+        var result = new ParserType(SourceText.From("Sub Main()\nPSet (x, y), color\nEnd Sub")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(", ", result.Diagnostics.Select(d => d.Message)));
+        var statement = (PSetStatementSyntax)result.Root.Members
+            .OfType<SubDeclarationSyntax>()
+            .Single()
+            .Statements[0];
+
+        Assert.IsNull(statement.StepKeyword);
+        Assert.AreEqual("x", ((NameExpressionSyntax)statement.Point.XExpression).IdentifierToken.Text);
+        Assert.AreEqual("y", ((NameExpressionSyntax)statement.Point.YExpression).IdentifierToken.Text);
+        Assert.AreEqual("color", ((NameExpressionSyntax)statement.ColorExpression!).IdentifierToken.Text);
+    }
+
+    [TestMethod]
+    public void Parse_RecognizesSteppedAndQualifiedPSet()
+    {
+        var result = new ParserType(SourceText.From(
+            "Sub Main()\nPSet Step (1, 2)\nPicture1.PSet (3, 4)\nEnd Sub")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(", ", result.Diagnostics.Select(d => d.Message)));
+        var statements = result.Root.Members.OfType<SubDeclarationSyntax>().Single().Statements;
+
+        var stepped = (PSetStatementSyntax)statements[0];
+        Assert.IsNotNull(stepped.StepKeyword);
+        Assert.IsNull(stepped.Target);
+        Assert.IsNull(stepped.ColorExpression);
+
+        // Die Koordinatenklammer ist das einzige, was die Anweisungsform vom gewoehnlichen Aufruf
+        // trennt -- genau wie bei Line.
+        var qualified = (PSetStatementSyntax)statements[1];
+        Assert.AreEqual("Picture1", ((NameExpressionSyntax)qualified.Target!).IdentifierToken.Text);
+        Assert.AreEqual("PSet", qualified.PSetKeyword.Text);
+    }
 }

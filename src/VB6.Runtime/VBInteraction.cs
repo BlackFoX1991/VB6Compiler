@@ -1302,6 +1302,36 @@ public static class VBInteraction
     /// <summary>Host callback for drawing operations; null means a headless no-op backend.</summary>
     public static Action<VBGraphicsLine>? GraphicsLineSink { get; set; }
 
+    /// <summary>Sets a single pixel on the active host surface.</summary>
+    public static void GraphicsPSet(float x, float y, object? color, bool isStep)
+    {
+        var point = new VBGraphicsPoint(x, y, color is null ? null : VBConversions.CLng(color), isStep);
+        if (Host is { } host)
+        {
+            host.GraphicsPSet(point);
+        }
+        else
+        {
+            GraphicsPSetSink?.Invoke(point);
+        }
+    }
+
+    /// <summary>Sets a single pixel on a specific Form or control host target.</summary>
+    public static void GraphicsPSet(object? target, float x, float y, object? color, bool isStep)
+    {
+        var point = new VBGraphicsPoint(x, y, color is null ? null : VBConversions.CLng(color), isStep);
+        if (Host is { } host)
+        {
+            host.GraphicsPSet(target, point);
+        }
+        else
+        {
+            GraphicsPSetSink?.Invoke(point);
+        }
+    }
+
+    public static Action<VBGraphicsPoint>? GraphicsPSetSink { get; set; }
+
     private static SettingKey MakeSettingKey(string appName, string section, string key) =>
         new(appName, section, key);
 
@@ -1419,6 +1449,17 @@ public sealed class VBApplication
             version?.Revision ?? 0);
     }
 }
+
+/// <summary>
+/// A VB6 <c>PSet</c> operation. <paramref name="IsStep"/> makes the coordinates relative to the
+/// current drawing position, exactly as it does for <c>Line</c>; a null colour means the surface
+/// keeps its current ForeColor.
+/// </summary>
+public sealed record VBGraphicsPoint(
+    float X,
+    float Y,
+    int? Color,
+    bool IsStep);
 
 public sealed record VBGraphicsLine(
     float StartX,

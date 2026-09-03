@@ -129,7 +129,7 @@ public sealed class BinderTests
         var model = BindSource("""
             Sub Main()
                 Dim form As Form
-                form.PSet (1, 2), 0
+                form.Cells (1, 2), 0
             End Sub
             """);
 
@@ -137,7 +137,11 @@ public sealed class BinderTests
         var invocation = model.Procedures.Single().Body.Statements
             .OfType<BoundMemberInvocationStatement>()
             .Single();
-        Assert.AreEqual("PSet", invocation.Procedure.Name);
+
+        // Das Beispiel war frueher PSet. Das ist keine spaet gebundene Membermethode, sondern eine
+        // eigene Zeichenanweisung -- und weil der Host kein PSet-Mitglied kennt, lief dieser Pfad
+        // ins Leere. Die hier geprueffte Zusage ist die Argumentregel, nicht der Membername.
+        Assert.AreEqual("Cells", invocation.Procedure.Name);
         var dynamicArguments = invocation.Arguments.Single().Expression as BoundArrayLiteralExpression;
         Assert.IsNotNull(dynamicArguments);
         Assert.AreEqual(3, dynamicArguments.Elements.Length);
