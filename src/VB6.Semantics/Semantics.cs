@@ -503,6 +503,7 @@ public enum BoundNodeKind
     DebugAssertStatement,
     ErrorStatement,
     GraphicsLineStatement,
+    GraphicsPSetStatement,
     FilePrintStatement,
     FileWriteStatement,
     FileLockStatement,
@@ -693,6 +694,18 @@ public sealed record BoundDebugAssertStatement(BoundExpression Expression)
 
 public sealed record BoundErrorStatement(BoundExpression Number)
     : BoundStatement(BoundNodeKind.ErrorStatement);
+
+/// <summary>
+/// <c>PSet</c> with its bound coordinate pair. It carries the same Step and colour contract as
+/// <c>Line</c>; only the second point and the B/F options are missing.
+/// </summary>
+public sealed record BoundGraphicsPSetStatement(
+    BoundExpression X,
+    BoundExpression Y,
+    BoundExpression? Color,
+    bool IsStep,
+    BoundExpression? Target = null)
+    : BoundStatement(BoundNodeKind.GraphicsPSetStatement);
 
 public sealed record BoundGraphicsLineStatement(
     BoundExpression StartX,

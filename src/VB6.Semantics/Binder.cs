@@ -1475,6 +1475,7 @@ public sealed class Binder
                     BindExpression(debugAssert.Expression, variables, procedures),
                     TypeSymbol.Boolean)),
             LineStatementSyntax line => BindGraphicsLine(line, variables, procedures),
+            PSetStatementSyntax pset => BindGraphicsPSet(pset, variables, procedures),
             FilePrintStatementSyntax filePrint => BindFilePrint(filePrint, variables, procedures),
             FileWriteStatementSyntax fileWrite => new BoundFileWriteStatement(
                 BindFileNumber(fileWrite.FileNumber, variables, procedures),
@@ -1924,6 +1925,43 @@ public sealed class Binder
         return new BoundLineInputStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
             target);
+    }
+
+    private BoundStatement? BindGraphicsPSet(
+        PSetStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var x = BindLineCoordinate(syntax.Point.XExpression, variables, procedures, syntax.PSetKeyword.Span);
+        var y = BindLineCoordinate(syntax.Point.YExpression, variables, procedures, syntax.PSetKeyword.Span);
+
+        BoundExpression? color = null;
+        if (syntax.ColorExpression is not null)
+        {
+            color = BindExpression(syntax.ColorExpression, variables, procedures);
+            if (color.Type != TypeSymbol.Error && !IsNumericType(color.Type) && color.Type != TypeSymbol.Variant)
+            {
+                Report(
+                    "VB6S0060",
+                    "Graphics PSet color must be a numeric or Variant expression.",
+                    GetSpan(syntax.ColorExpression));
+            }
+        }
+
+        if (x.Type == TypeSymbol.Error || y.Type == TypeSymbol.Error || color?.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        var target = syntax.Target is null
+            ? null
+            : BindExpression(syntax.Target, variables, procedures);
+        if (target?.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        return new BoundGraphicsPSetStatement(x, y, color, syntax.StepKeyword is not null, target);
     }
 
     private BoundStatement? BindGraphicsLine(
