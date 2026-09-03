@@ -4996,3 +4996,39 @@ Datumsliteral in derselben Prozedur.
 
 Kanonischer Nachweis: **1452/1452** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Karte l1-02-a: Member über ihren Modulnamen ansprechen (03.09.2026)
+
+Der Breitendurchgang über `l1-02-a` hat die vier dokumentierten Klauseln bestätigt — `Public` und
+`Global` lösen unqualifiziert über Module hinweg auf, `Private` und `Dim` bleiben modullokal und
+melden von außen `VB6S0001` — und ebenso die gesamte Prozedur-/Blockgrammatik, die die Karte als
+Restfläche führt: prozedurweites `Const`, `Static` über Aufrufe hinweg, `Dim` in einem Block
+(bleibt prozedurweit gültig), Label mit `GoTo`, `With` einschließlich Verschachtelung,
+Doppelpunktketten und Zeilenfortsetzung.
+
+Gefehlt hat die **Qualifizierung über den Modulnamen**. `Deklarierend.Wert()` meldete
+`VB6S0001: Variable 'Deklarierend' is not declared`, und zwar für jede Form: Variable, `Global`,
+Konstante, Funktion mit und ohne Argument, Aufruf als Anweisung und Zuweisung. Der Modulname war
+schlicht kein auflösbarer Bereich.
+
+Den Entwurf hat eine Messung entschieden. Dieser Compiler **verbietet** gleichnamige öffentliche
+Member über Module hinweg: `VB6PRJ0003` für Prozeduren, `VB6PRJ0006` für Modulvariablen. Ein
+öffentlicher Name ist damit projektweit eindeutig, und die Qualifizierung kann nie auflösen,
+sondern nur benennen. Genau deshalb darf die Bindung sie abstreifen — beide Formen treffen
+beweisbar dasselbe Symbol. Ohne diesen Befund wäre das eine Näherung gewesen.
+
+Nur Standardmodule zählen: bei einer Klasse benennt derselbe Bezeichner den Typ, keinen Bereich.
+Eine Variable gleichen Namens gewinnt immer, sonst wäre der Punkt kein Memberzugriff mehr; eine
+Gegenprobe im Test hält das fest. `Modul.Funktion(...)` geht dabei ausdrücklich in den Aufruf- und
+nicht in den Indexpfad — die Klammern gehören zur Argumentliste.
+
+**Abweichung von VB6, bewusst so belassen:** Echtes VB6 erlaubt doppelte öffentliche Namen und
+braucht die Qualifizierung, um sie zu unterscheiden. Dieser Compiler lehnt den zweiten Träger ab.
+Das ist eine vorbestehende Entscheidung mit eigenen Diagnosen und wurde hier nicht angetastet —
+sie ist aber der Grund, warum das Abstreifen hier trägt und in VB6 selbst nicht tragen würde.
+
+Die Karte bleibt **`partial`** / `documented-verified`: numerische Zeilenlabels werden weiterhin
+nicht geparst, wodurch `Erl` strukturell 0 bleibt.
+
+Kanonischer Nachweis: **1453/1453** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
