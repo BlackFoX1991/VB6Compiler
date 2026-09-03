@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1522 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1524 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -304,9 +304,9 @@ Rückgabematrix bleibt in Etappe B/C offen.
       nicht faltet, meldet `VB6S0071`; eine Obergrenze unter der Untergrenze meldet `VB6S0072`.
       Vorher fiel jede nicht-literale Grenze **ohne Diagnose** durch und erzeugte ein Member ohne
       Speicher, das zur Laufzeit abstürzte.
-- [ ] Die Breite eines `String * n` folgt dieser Faltung noch nicht: eine benannte Konstante
-      meldet in beiden Deklarationsformen `VB6S0043`. Die beiden Prüfstellen müssen gemeinsam auf
-      den Falter umgestellt werden, sonst laufen UDT-Member und Deklarator auseinander.
+- [x] Die Breite eines `String * n` folgt derselben Faltung wie eine Arraygrenze. Der Falter liegt
+      als `VBIntegerConstantFolder` für sich; beide Prüfstellen — UDT-Member und Deklarator —
+      rufen ihn, sodass eine benannte Konstante überall dasselbe bedeutet.
 - [x] `String * n` gilt in allen vier Deklarationsformen — lokal, Modulvariable, Klassenfeld und
       UDT-Member — mit einheitlicher Breite: *n* Leerzeichen als Anfangswert, Abschneiden beim
       Überschreiten und Auffüllen beim Unterschreiten. Eine benannte Konstante als Länge bleibt

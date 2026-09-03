@@ -5998,3 +5998,32 @@ Altcode liest Datenbankfelder in Variants und verlässt sich darauf, dass Null d
 
 Kanonischer Nachweis: **1522/1522** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Eine benannte Konstante darf jetzt die Breite eines String * n sein (03.09.2026)
+
+Beide Deklarationsformen akzeptierten nur ein **Literal**:
+
+```
+Private Const BREITE As Long = 5
+Dim lokal As String * BREITE     ' VB6S0043
+Feld As String * BREITE          ' VB6S0043
+```
+
+Der UDT-Binder hatte längst einen vollwertigen Falter — für Arraygrenzen. Er kann Literale,
+Klammern, Vorzeichen, benannte Konstanten und ganzzahlige Operatoren, und er behandelt Überlauf
+als „faltet nicht", damit die Meldung an der Verwendungsstelle entsteht. Nur die beiden
+Breitenprüfungen liefen daran vorbei.
+
+Die Roadmap hatte die Bedingung schon benannt: **beide** Prüfstellen müssen gemeinsam umgestellt
+werden, sonst laufen UDT-Member und Deklarator auseinander. Der Falter liegt deshalb jetzt als
+`VBIntegerConstantFolder` für sich, und beide Stellen rufen ihn. Das ist keine Ordnungsliebe: Eine
+Breite, die im UDT-Member faltet und im `Dim` nicht, ließe denselben Quelltext je nach Fundort
+etwas anderes bedeuten.
+
+Gemessen sind alle drei Verhaltensweisen, wie es `CLAUDE.md` für diese Fläche verlangt, und zwar in
+beiden Formen: Anfangswert von *n* Leerzeichen, Abschneiden beim Überschreiten, Auffüllen beim
+Unterschreiten. Eine Laufzeitgröße bleibt `VB6S0043` — sie zu akzeptieren hieße, den Speicher erst
+zur Laufzeit festzulegen, und genau das kann ein festes Layout nicht.
+
+Kanonischer Nachweis: **1524/1524** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
