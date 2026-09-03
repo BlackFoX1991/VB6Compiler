@@ -427,4 +427,34 @@ public sealed class NestedErrorResumeExecutionTests
 
         CollectionAssert.AreEqual(new[] { "9 vorher" }, output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReportsTheLineNumberOfTheFailingStatementThroughErl()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim i As Long
+                On Error Resume Next
+            10  Debug.Print "eins"
+            20  i = 7
+            30  Debug.Print "zwei " & i
+                Debug.Print Erl
+            40  Err.Raise 5
+                Debug.Print Erl & " " & Err.Number
+                Err.Clear
+                GoTo 60
+            50  Debug.Print "nicht erreicht"
+            60  Debug.Print "gesprungen"
+            End Sub
+            """);
+
+        // Erl meldet die Nummer der zuletzt fehlgeschlagenen Anweisung. Die Laufzeitkette dafuer
+        // war vollstaendig -- der Lowerer senkt fuer ein Label ErrorSetLineNumber -- aber die
+        // Syntax war unerreichbar: beide Labelformen verlangten eine eigene Zeile, wodurch
+        // 10 Debug.Print "x" ein Parserfehler war und Erl strukturell 0 blieb. Ohne Fehler
+        // bleibt Erl 0, auch wenn nummerierte Anweisungen gelaufen sind.
+        CollectionAssert.AreEqual(
+            new[] { "eins", "zwei 7", "0", "40 5", "gesprungen" },
+            output);
+    }
 }
