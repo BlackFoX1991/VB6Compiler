@@ -3979,6 +3979,11 @@ public sealed class ManagedEmitter
                 typeof(bool),
                 typeof(bool),
                 typeof(bool));
+            if (m == IrRuntimeMethod.NamedArgument) return Static(
+                typeof(VBVariants),
+                nameof(VBVariants.NamedArgument),
+                typeof(string),
+                typeof(object));
             if (m == IrRuntimeMethod.GraphicsPoint) return Static(
                 typeof(VBInteraction),
                 nameof(VBInteraction.GraphicsPoint),
