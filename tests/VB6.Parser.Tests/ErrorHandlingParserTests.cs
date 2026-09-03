@@ -136,6 +136,33 @@ public sealed class ErrorHandlingParserTests
         Assert.IsInstanceOfType<InvocationStatementSyntax>(procedure.Statements[0]);
     }
 
+    [TestMethod]
+    public void Parse_LineNumberLabelsTheStatementOnItsLine()
+    {
+        var result = new ParserType(SourceText.From("""
+            Sub Main()
+            10  Debug.Print "x"
+            20
+            30  GoTo 10
+            End Sub
+            """)).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(", ", result.Diagnostics.Select(d => d.Message)));
+        var procedure = (SubDeclarationSyntax)result.Root.Members.Single();
+
+        // Die Zeilennummer beendet ihre Zeile nicht: die beschriftete Anweisung folgt ihr dort.
+        // Vorher verlangten beide Labelformen eine eigene Zeile, was 10 Debug.Print "x" -- die
+        // klassische BASIC-Form, auf die sich Erl bezieht -- zu einem Parserfehler machte.
+        var first = (LabelStatementSyntax)procedure.Statements[0];
+        Assert.AreEqual("10", first.Identifier.Text);
+        Assert.IsNull(first.ColonToken);
+        Assert.IsInstanceOfType<DebugPrintStatementSyntax>(procedure.Statements[1]);
+
+        // Eine Nummer allein auf ihrer Zeile bleibt gueltig.
+        Assert.AreEqual("20", ((LabelStatementSyntax)procedure.Statements[2]).Identifier.Text);
+        Assert.AreEqual("30", ((LabelStatementSyntax)procedure.Statements[3]).Identifier.Text);
+    }
+
     private static StatementSyntax ParseSingleStatement(string statement)
     {
         var source = $"""
