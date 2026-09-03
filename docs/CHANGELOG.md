@@ -5245,3 +5245,52 @@ Syntax, ohne bestehende `Declare`-Zeilen zu berühren.
 
 Kanonischer Nachweis: **1477/1477** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Die intrinsische Control-Menge ist vollständig — und der stille Panel-Rückfall ist weg (03.09.2026)
+
+VB6 kennt 21 intrinsische Controls. Vierzehn waren im Host nachgebaut, sieben fehlten:
+`VScrollBar`, `HScrollBar`, `DriveListBox`, `DirListBox`, `FileListBox`, `Data` und der
+`OLE`-Container. Sie fielen alle in denselben Zweig — `_ => new Panel()` — und wurden damit zu
+einem leeren Rechteck, ohne dass irgendetwas es gemeldet hätte.
+
+Warum sie überhaupt nachgebaut werden müssen, statt sie zu laden: ActiveX-Controls stehen im
+`.vbp` namentlich mit GUID und werden tatsächlich geladen. Intrinsische Controls haben dort
+**keinen Eintrag** — sie stecken in `MSVBVM60.DLL`, der VB6-Laufzeit selbst. Sie zu laden hieße,
+diese Laufzeit zu laden, und genau das schließt die Roadmap aus.
+
+**Scrollbars.** VB6 und WinForms sind hier zweimal verschieden, und beides ist beobachtbar. Eine
+WinForms-Scrollbar erreicht ihr eigenes `Maximum` nie, weil der Schieber `LargeChange` Einheiten
+der Bahn belegt — der Bereich muss also um diesen Betrag geweitet werden, damit `Value = Max`
+überhaupt erreichbar ist. Und VB6 trennt, was WinForms zusammenlegt: Ziehen am Schieber löst
+fortlaufend `Scroll` aus und `Change` genau einmal, beim Loslassen. Ein `Change`-Handler, der
+einen Datensatz nachlädt, darf nicht pro Mauspixel laufen. Ein Wert ausserhalb `Min..Max` meldet
+380 statt still begrenzt zu werden.
+
+**Dateisystem-Controls.** `Drive`, `Path`, `Pattern` und `FileName` tragen den Vertrag; ein
+qualifizierter `FileName` verschiebt den Pfad mit, wie es die VB6-Dateidialoge tun. Ein nicht
+vorhandener Pfad meldet 76, ein nicht vorhandenes Laufwerk 68. Die `DirListBox` ist die einzige
+Liste, deren gültige Indizes unter null reichen: `List(-1)` ist das Elternverzeichnis.
+
+**Ein Nebenbefund an der Ereignisübersetzung.** `FindEvent` bildete `Change` pauschal auf
+`TextChanged` ab. Für eine Scrollbar ist das falsch, und für `Scroll` hätte die WinForms-Bedeutung
+gewonnen. Die Regel lautet jetzt: ein Wrapper, der den VB6-Namen **selbst deklariert**, schlägt die
+Übersetzungstabelle. Nur selbst deklarierte Ereignisse — sonst hätte `GotFocus` still von `Enter`
+auf `Control.GotFocus` gewechselt, und das ist eine andere Semantik.
+
+**`Data` und `OLE` sind bewusst halb.** Ihre Entwurfsflächen sind vollständig da, damit Formulare
+mit ihnen laden und ihr Layout stimmt. Das Recordset kommt über DAO/ADO per COM, die Einbettung
+über die generische ActiveX-Schicht — beides sind spätere Etappen. Bis dahin melden die davon
+abhängigen Mitglieder 445, statt still nichts zu tun. Das ist ein Platzhalter mit Ansage, keine
+gemessene VB6-Antwort.
+
+**Erst danach der Rückfall.** Die Reihenfolge war der Punkt: Solange die dokumentierten Controls
+fehlten, hätte eine Diagnose „unbekannt" gesagt und „noch nicht gebaut" gemeint. Jetzt ist die
+Menge vollständig, und ein unqualifizierter Name ausserhalb davon meldet **429** — ein Control,
+das auch VB6 nicht hätte erzeugen können. Ein **qualifizierter** Name behält den Platzhalter: er
+gehört einer Typbibliothek, also einem Stock-OCX oder einem UserControl des Projekts, und wird von
+der generischen ActiveX-Schicht bedient. Damit bleiben die generierten `Visia.*`-UserControls des
+Korpus unberührt; die Containernamen `Form`, `MDIForm`, `UserControl` und `PropertyPage` sind
+ausdrücklich ausgenommen, weil sie gar keine Controls sind.
+
+Kanonischer Nachweis: **1483/1483** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
