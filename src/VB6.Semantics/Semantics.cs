@@ -383,7 +383,8 @@ public enum VBIntrinsicKind
     TextHeight,
     Print,
     PaintPicture,
-    Cls
+    Cls,
+    Point
 }
 
 public sealed record ProcedureSymbol(
