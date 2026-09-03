@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1510 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1512 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -426,7 +426,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [ ] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
       OLE-In-Place-Aktivierung, Ambient Properties, Property Pages, Persistence und Connection
       Points; undokumentiertes controlspezifisches Verhalten bleibt außerhalb des Vertrags.
-- [ ] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
+- [~] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
       PropertyBag-/Stream-Persistenz, Ambient Properties, Events, Property Pages und vollständigen
       Lifecycle.
 - [ ] DataEnvironment, DataReport, UserDocument und PropertyPage werden aus ihren persistierten
