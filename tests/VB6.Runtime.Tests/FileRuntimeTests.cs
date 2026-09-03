@@ -81,7 +81,12 @@ public sealed class FileRuntimeTests
             Assert.AreEqual(10, VBFiles.GetLong(1, 1));
             Assert.AreEqual(20, VBFiles.GetLong(1, null));
             Assert.AreEqual(3L, VBFiles.Position(1));
-            Assert.ThrowsException<InvalidOperationException>(() => VBFiles.Put(1, 3, "too long"));
+            // Ein Wert, den die Satzlaenge nicht fasst, ist VB6-Fehler 59. Vorher stand hier die
+            // generische InvalidOperationException -- sie traegt keine Nummer und fiel in
+            // VBErrors.Set in den Sammelwert 5.
+            var tooLong = Assert.ThrowsException<VB6RuntimeErrorException>(
+                () => VBFiles.Put(1, 3, "too long"));
+            Assert.AreEqual(59, tooLong.Number);
             VBFiles.Close(1);
         });
     }

@@ -216,4 +216,52 @@ public sealed class DocumentedErrorNumberExecutionTests
             new[] { "0", "62", "52", "52", "52", "52", "0" },
             output);
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReportsBadRecordLength()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Type Satz
+                Nummer As Long
+                Name As String * 6
+                Flag As Boolean
+            End Type
+
+            Sub Main()
+                Dim f As Integer
+                Dim s As Satz
+                Dim t As Satz
+
+                On Error Resume Next
+                s.Nummer = 7
+                s.Name = "abc"
+                s.Flag = True
+
+                f = FreeFile
+                Open "satz.dat" For Random As #f Len = 12
+                Put #f, 1, s
+                Get #f, 1, t
+                Debug.Print Err.Number & " " & LOF(f) & " " & t.Nummer & " [" & t.Name & "] " & t.Flag
+                Close #f
+
+                Err.Clear
+                f = FreeFile
+                Open "kurz.dat" For Random As #f Len = 4
+                Put #f, 1, s
+                Debug.Print Err.Number
+                Close #f
+
+                Kill "satz.dat"
+                Kill "kurz.dat"
+            End Sub
+            """);
+
+        // Eine Satzlaenge, die den Wert nicht fasst, ist VB6-Fehler 59. Vorher warf die Runtime
+        // dafuer eine generische Ausnahme ohne Nummer, die im Sammelwert 5 landete. Der passende
+        // Fall darueber zeigt, dass ein Satz mit genau passender Laenge unveraendert durchlaeuft
+        // -- einschliesslich der auf sechs Zeichen aufgefuellten festen Zeichenkette.
+        CollectionAssert.AreEqual(
+            new[] { "0 12 7 [abc   ] True", "59" },
+            output);
+    }
 }
