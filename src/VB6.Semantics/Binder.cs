@@ -638,14 +638,15 @@ public sealed class Binder
         var bound = ImmutableArray.CreateBuilder<BoundModuleVariable>();
         var noProcedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
 
-        ModuleVariableSymbol Declare(string name, TypeSymbol type, bool isPublic) =>
+        ModuleVariableSymbol Declare(string name, TypeSymbol type, bool isPublic, bool isAsNew = false) =>
             existingSymbols is not null &&
             existingSymbols.TryGetValue(name, out var existing) &&
             existing.Type == type
                 ? existing
                 : new ModuleVariableSymbol(name, type)
                 {
-                    IsPublic = isPublic
+                    IsPublic = isPublic,
+                    IsAsNew = isAsNew
                 };
 
         foreach (var member in root.Members)
@@ -662,7 +663,8 @@ public sealed class Binder
                         var symbol = Declare(
                             declarator.Identifier.Text,
                             type,
-                            IsPublicModuleDeclaration(declaration.VisibilityKeyword));
+                            IsPublicModuleDeclaration(declaration.VisibilityKeyword),
+                            declarator.NewKeyword is not null && type is ClassTypeSymbol);
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
                             availableScope[symbol.Name] = symbol;
