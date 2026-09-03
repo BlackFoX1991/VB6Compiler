@@ -1504,6 +1504,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (TryInvokeDeferredControlMember(resolved, memberName))
+        {
+            return true;
+        }
+
         if (resolved is RichTextBox richTextBox &&
             TryInvokeRichTextBoxMember(richTextBox, memberName, arguments, out result))
         {
@@ -2496,8 +2501,149 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         return _bindings.TryGetValue(source, out var binding) ? binding.Form : null;
     }
 
+    private static ScrollBarBridge? TryGetScrollBarBridge(Control control) => control switch
+    {
+        VScrollBarControl vertical => vertical.Bridge,
+        HScrollBarControl horizontal => horizontal.Bridge,
+        _ => null
+    };
+
+    private static bool TryReadScrollBarProperty(ScrollBarBridge bridge, string memberName, out object? value)
+    {
+        value = memberName switch
+        {
+            _ when string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase) => bridge.Value,
+            _ when string.Equals(memberName, "Min", StringComparison.OrdinalIgnoreCase) => bridge.Minimum,
+            _ when string.Equals(memberName, "Max", StringComparison.OrdinalIgnoreCase) => bridge.Maximum,
+            _ when string.Equals(memberName, "SmallChange", StringComparison.OrdinalIgnoreCase) => bridge.SmallChange,
+            _ when string.Equals(memberName, "LargeChange", StringComparison.OrdinalIgnoreCase) => bridge.LargeChange,
+            _ => null
+        };
+        return value is not null;
+    }
+
+    private static bool TryWriteScrollBarProperty(ScrollBarBridge bridge, string memberName, object? value)
+    {
+        if (string.Equals(memberName, "Value", StringComparison.OrdinalIgnoreCase)) bridge.Value = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "Min", StringComparison.OrdinalIgnoreCase)) bridge.Minimum = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "Max", StringComparison.OrdinalIgnoreCase)) bridge.Maximum = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "SmallChange", StringComparison.OrdinalIgnoreCase)) bridge.SmallChange = VBConversions.CLng(value);
+        else if (string.Equals(memberName, "LargeChange", StringComparison.OrdinalIgnoreCase)) bridge.LargeChange = VBConversions.CLng(value);
+        else return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// The members of the OLE container and the Data control that need layers this compiler has
+    /// not built yet. They answer rather than doing nothing silently.
+    /// </summary>
+    private static bool TryInvokeDeferredControlMember(Control control, string memberName)
+    {
+        var deferred = control switch
+        {
+            OleContainerControl => memberName is "CreateEmbed" or "CreateLink" or "DoVerb" or
+                "Update" or "Close" or "Copy" or "Paste" or "ReadFromFile" or "SaveToFile" or
+                "InsertObjDlg" or "PasteSpecialDlg" or "FetchVerbs",
+            DataControl => memberName is "Refresh" or "UpdateRecord" or "UpdateControls",
+            _ => false
+        };
+        if (!deferred)
+        {
+            return false;
+        }
+
+        OleContainerControl.RaiseUnsupportedAction(memberName);
+        return true;
+    }
+
+    private static bool TryReadFileSystemControlProperty(Control control, string memberName, out object? value)
+    {
+        value = control switch
+        {
+            OleContainerControl ole when string.Equals(memberName, "Class", StringComparison.OrdinalIgnoreCase) => ole.OleClass,
+            OleContainerControl ole when string.Equals(memberName, "SourceDoc", StringComparison.OrdinalIgnoreCase) => ole.SourceDoc,
+            OleContainerControl ole when string.Equals(memberName, "SizeMode", StringComparison.OrdinalIgnoreCase) => ole.SizeMode,
+            OleContainerControl ole when string.Equals(memberName, "OLEType", StringComparison.OrdinalIgnoreCase) => ole.OleType,
+            DataControl data when string.Equals(memberName, "DatabaseName", StringComparison.OrdinalIgnoreCase) => data.DatabaseName,
+            DataControl data when string.Equals(memberName, "RecordSource", StringComparison.OrdinalIgnoreCase) => data.RecordSource,
+            DataControl data when string.Equals(memberName, "Connect", StringComparison.OrdinalIgnoreCase) => data.Connect,
+            DataControl data when string.Equals(memberName, "RecordsetType", StringComparison.OrdinalIgnoreCase) => data.RecordsetType,
+            DataControl data when string.Equals(memberName, "EOFAction", StringComparison.OrdinalIgnoreCase) => data.EofAction,
+            DataControl data when string.Equals(memberName, "BOFAction", StringComparison.OrdinalIgnoreCase) => data.BofAction,
+            DriveListBoxControl drive when string.Equals(memberName, "Drive", StringComparison.OrdinalIgnoreCase) => drive.Drive,
+            DirListBoxControl directory when string.Equals(memberName, "Path", StringComparison.OrdinalIgnoreCase) => directory.DirectoryPath,
+            FileListBoxControl files when string.Equals(memberName, "Path", StringComparison.OrdinalIgnoreCase) => files.DirectoryPath,
+            FileListBoxControl files when string.Equals(memberName, "Pattern", StringComparison.OrdinalIgnoreCase) => files.Pattern,
+            FileListBoxControl files when string.Equals(memberName, "FileName", StringComparison.OrdinalIgnoreCase) => files.FileName,
+            _ => null
+        };
+        return value is not null;
+    }
+
+    private static bool TryWriteFileSystemControlProperty(Control control, string memberName, object? value)
+    {
+        switch (control)
+        {
+            case OleContainerControl ole when string.Equals(memberName, "Class", StringComparison.OrdinalIgnoreCase):
+                ole.OleClass = VBConversions.CStr(value);
+                return true;
+            case OleContainerControl ole when string.Equals(memberName, "SourceDoc", StringComparison.OrdinalIgnoreCase):
+                ole.SourceDoc = VBConversions.CStr(value);
+                return true;
+            case OleContainerControl ole when string.Equals(memberName, "SizeMode", StringComparison.OrdinalIgnoreCase):
+                ole.SizeMode = VBConversions.CLng(value);
+                return true;
+            case DataControl data when string.Equals(memberName, "DatabaseName", StringComparison.OrdinalIgnoreCase):
+                data.DatabaseName = VBConversions.CStr(value);
+                return true;
+            case DataControl data when string.Equals(memberName, "RecordSource", StringComparison.OrdinalIgnoreCase):
+                data.RecordSource = VBConversions.CStr(value);
+                return true;
+            case DataControl data when string.Equals(memberName, "Connect", StringComparison.OrdinalIgnoreCase):
+                data.Connect = VBConversions.CStr(value);
+                return true;
+            case DataControl data when string.Equals(memberName, "RecordsetType", StringComparison.OrdinalIgnoreCase):
+                data.RecordsetType = VBConversions.CLng(value);
+                return true;
+            case DataControl data when string.Equals(memberName, "EOFAction", StringComparison.OrdinalIgnoreCase):
+                data.EofAction = VBConversions.CLng(value);
+                return true;
+            case DataControl data when string.Equals(memberName, "BOFAction", StringComparison.OrdinalIgnoreCase):
+                data.BofAction = VBConversions.CLng(value);
+                return true;
+            case DriveListBoxControl drive when string.Equals(memberName, "Drive", StringComparison.OrdinalIgnoreCase):
+                drive.Drive = VBConversions.CStr(value);
+                return true;
+            case DirListBoxControl directory when string.Equals(memberName, "Path", StringComparison.OrdinalIgnoreCase):
+                directory.DirectoryPath = VBConversions.CStr(value);
+                return true;
+            case FileListBoxControl files when string.Equals(memberName, "Path", StringComparison.OrdinalIgnoreCase):
+                files.DirectoryPath = VBConversions.CStr(value);
+                return true;
+            case FileListBoxControl files when string.Equals(memberName, "Pattern", StringComparison.OrdinalIgnoreCase):
+                files.Pattern = VBConversions.CStr(value);
+                return true;
+            case FileListBoxControl files when string.Equals(memberName, "FileName", StringComparison.OrdinalIgnoreCase):
+                files.FileName = VBConversions.CStr(value);
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private static EventInfo? FindEvent(Type type, string name)
     {
+        // A wrapper that declares the VB6 name itself always wins. Change means TextChanged on a
+        // TextBox but a value change on a scroll bar, and Scroll carries VB6's own drag semantics
+        // rather than the merged WinForms one -- neither survives a blanket translation.
+        var declared = type.GetEvents(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .FirstOrDefault(@event => string.Equals(@event.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (declared is not null)
+        {
+            return declared;
+        }
+
         var normalized = name switch
         {
             "Change" => "TextChanged",
@@ -2916,7 +3062,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             if (string.Equals(memberName, "List", StringComparison.OrdinalIgnoreCase) &&
                 arguments.Length == 1)
             {
-                value = items[VBConversions.CLng(arguments[0])]?.ToString() ?? string.Empty;
+                var listIndex = VBConversions.CLng(arguments[0]);
+
+                // A DirListBox indexes its subdirectories from zero and its ancestors downwards,
+                // so it is the one list whose valid indices reach below zero.
+                value = control is DirListBoxControl directoryList
+                    ? directoryList.GetListEntry(listIndex)
+                    : items[listIndex]?.ToString() ?? string.Empty;
                 return true;
             }
         }
@@ -3305,6 +3457,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "Visible", StringComparison.OrdinalIgnoreCase)) value = control.Visible;
         else if (string.Equals(memberName, "Enabled", StringComparison.OrdinalIgnoreCase)) value = control is TimerControl timer ? timer.TimerEnabled : control.Enabled;
         else if (control is TimerControl timer && string.Equals(memberName, "Interval", StringComparison.OrdinalIgnoreCase)) value = timer.Interval;
+        else if (TryGetScrollBarBridge(control) is { } readBridge && TryReadScrollBarProperty(readBridge, memberName, out var scrollValue)) value = scrollValue;
+        else if (TryReadFileSystemControlProperty(control, memberName, out var fileSystemValue)) value = fileSystemValue;
         else if (string.Equals(memberName, "Name", StringComparison.OrdinalIgnoreCase)) value = control.Name;
         else if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase))
@@ -3404,6 +3558,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             }
         }
         else if (control is TimerControl timer && string.Equals(memberName, "Interval", StringComparison.OrdinalIgnoreCase)) timer.Interval = VBConversions.CLng(value);
+        else if (TryGetScrollBarBridge(control) is { } writeBridge && TryWriteScrollBarProperty(writeBridge, memberName, value)) { }
+        else if (TryWriteFileSystemControlProperty(control, memberName, value)) { }
         else if (string.Equals(memberName, "Caption", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) control.Text = VBConversions.CStr(value);
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) control.BackColor = ColorTranslator.FromOle(VBConversions.CLng(value));
@@ -4331,14 +4487,45 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             "COMBOBOX" => new ComboBox(),
             "LISTBOX" => new ListBox(),
             "TIMER" => new TimerControl(),
+            "VSCROLLBAR" => new VScrollBarControl(),
+            "HSCROLLBAR" => new HScrollBarControl(),
+            "DRIVELISTBOX" => new DriveListBoxControl(),
+            "DIRLISTBOX" => new DirListBoxControl(),
+            "FILELISTBOX" => new FileListBoxControl(),
+            "DATA" => new DataControl(),
+            "OLE" => new OleContainerControl(),
             "TREEVIEW" or "MSCOMCTLLIB.TREEVIEW" => new TreeView(),
             "RICHTEXTBOX" or "RICHTEXTLIB.RICHTEXTBOX" => new RichTextBox(),
             "COMMONDIALOG" or "MSCOMDLG.COMMONDIALOG" => new CommonDialogProxy(),
             "IMAGELIST" or "MSCOMCTLLIB.IMAGELIST" => new ImageListProxy(),
             "IMAGECOMBO" or "MSCOMCTLLIB.IMAGECOMBO" => new ImageComboControl(),
             "SHAPE" => new ShapeControl(),
-            _ => new Panel()
+
+            // Containers are not controls; they arrive here only as a placeholder for their own
+            // surface.
+            "FORM" or "MDIFORM" or "USERCONTROL" or "PROPERTYPAGE" => new Panel(),
+
+            // A qualified name belongs to a type library -- a stock OCX or a project's own
+            // UserControl. Those are resolved above when they are registered; the placeholder
+            // keeps the form's layout intact until the generic ActiveX layer exists.
+            _ when typeName.Contains('.', StringComparison.Ordinal) => new Panel(),
+
+            // Everything else claims to be an intrinsic control, and that set is complete. A name
+            // outside it is a control VB6 could not have created either, and VB6 says so with 429
+            // rather than showing an empty rectangle.
+            _ => CreateUnknownControl(typeName)
         };
+    }
+
+    private static Control CreateUnknownControl(string typeName)
+    {
+        VBErrors.Raise(
+            429,
+            typeName,
+            $"ActiveX component can't create object '{typeName}'",
+            string.Empty,
+            0);
+        return new Panel();
     }
 
     private static bool TryCreateNativeActiveX(string typeName, out Control? control)
@@ -4582,6 +4769,511 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
             base.Dispose(disposing);
         }
+    }
+
+    /// <summary>
+    /// The VB6 side of a scroll bar. VB6 and WinForms disagree twice, and both differences are
+    /// observable. First, a WinForms scroll bar cannot reach its own Maximum -- the thumb occupies
+    /// LargeChange units of the track -- so the VB6 range has to be widened by that amount for
+    /// <c>Value = Max</c> to be reachable at all. Second, VB6 splits what WinForms merges: dragging
+    /// the thumb raises <c>Scroll</c> continuously and <c>Change</c> only once, when the thumb is
+    /// released. A handler that reloads a record on Change must not run per pixel of the drag.
+    /// </summary>
+    private sealed class ScrollBarBridge
+    {
+        private readonly ScrollBar _bar;
+        private readonly Action _raiseChange;
+        private readonly Action _raiseScroll;
+        private bool _tracking;
+        private int _valueBeforeTracking;
+        private int _minimum;
+        private int _maximum = 32767;
+        private int _largeChange = 1;
+
+        public ScrollBarBridge(ScrollBar bar, Action raiseChange, Action raiseScroll)
+        {
+            _bar = bar;
+            _raiseChange = raiseChange;
+            _raiseScroll = raiseScroll;
+            _bar.Minimum = 0;
+            _bar.SmallChange = 1;
+            _bar.LargeChange = 1;
+            ApplyRange();
+            _bar.Scroll += OnScroll;
+            _bar.ValueChanged += OnValueChanged;
+        }
+
+        public int Minimum
+        {
+            get => _minimum;
+            set
+            {
+                _minimum = value;
+                ApplyRange();
+            }
+        }
+
+        public int Maximum
+        {
+            get => _maximum;
+            set
+            {
+                _maximum = value;
+                ApplyRange();
+            }
+        }
+
+        public int SmallChange
+        {
+            get => _bar.SmallChange;
+            set => _bar.SmallChange = Math.Max(1, value);
+        }
+
+        public int LargeChange
+        {
+            get => _largeChange;
+            set
+            {
+                _largeChange = Math.Max(1, value);
+                ApplyRange();
+            }
+        }
+
+        public int Value
+        {
+            get => _bar.Value;
+            set
+            {
+                // VB6 rejects a value outside Min..Max with 380 rather than clamping it. Clamping
+                // would leave a program reading back a number it never assigned.
+                var low = Math.Min(_minimum, _maximum);
+                var high = Math.Max(_minimum, _maximum);
+                if (value < low || value > high)
+                {
+                    VBErrors.Raise(380, "Value", "Invalid property value", string.Empty, 0);
+                }
+
+                _bar.Value = value;
+            }
+        }
+
+        /// <summary>
+        /// VB6 allows Min above Max, which reverses the bar. The reachable set of values is the
+        /// same either way, so the range is applied by extent; only the visual direction differs.
+        /// </summary>
+        private void ApplyRange()
+        {
+            var low = Math.Min(_minimum, _maximum);
+            var high = Math.Max(_minimum, _maximum);
+            var value = _bar.Value;
+            _bar.Minimum = low;
+            _bar.LargeChange = _largeChange;
+            _bar.Maximum = high + _largeChange - 1;
+            _bar.Value = Math.Clamp(value, low, high);
+        }
+
+        private void OnScroll(object? sender, ScrollEventArgs arguments)
+        {
+            switch (arguments.Type)
+            {
+                case ScrollEventType.ThumbTrack:
+                    if (!_tracking)
+                    {
+                        _tracking = true;
+                        _valueBeforeTracking = _bar.Value;
+                    }
+
+                    _raiseScroll();
+                    break;
+
+                case ScrollEventType.EndScroll:
+                    if (_tracking)
+                    {
+                        _tracking = false;
+                        if (_bar.Value != _valueBeforeTracking)
+                        {
+                            _raiseChange();
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        private void OnValueChanged(object? sender, EventArgs arguments)
+        {
+            if (!_tracking)
+            {
+                _raiseChange();
+            }
+        }
+    }
+
+    private sealed class VScrollBarControl : VScrollBar
+    {
+        public VScrollBarControl() =>
+            Bridge = new ScrollBarBridge(
+                this,
+                () => Change?.Invoke(this, EventArgs.Empty),
+                () => Scroll?.Invoke(this, EventArgs.Empty));
+
+        public event EventHandler? Change;
+
+        public new event EventHandler? Scroll;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal ScrollBarBridge Bridge { get; }
+    }
+
+    private sealed class HScrollBarControl : HScrollBar
+    {
+        public HScrollBarControl() =>
+            Bridge = new ScrollBarBridge(
+                this,
+                () => Change?.Invoke(this, EventArgs.Empty),
+                () => Scroll?.Invoke(this, EventArgs.Empty));
+
+        public event EventHandler? Change;
+
+        public new event EventHandler? Scroll;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal ScrollBarBridge Bridge { get; }
+    }
+
+    /// <summary>
+    /// VB6's DriveListBox: a drop-down of the available drives. VB6 lists them lower case as
+    /// <c>c:</c>, followed by the volume label when there is one, and that string is what
+    /// <c>Drive</c> reads back.
+    /// </summary>
+    private sealed class DriveListBoxControl : ComboBox
+    {
+        public DriveListBoxControl()
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList;
+            Reload();
+            SelectedIndexChanged += (_, _) => Change?.Invoke(this, EventArgs.Empty);
+        }
+
+        public event EventHandler? Change;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string Drive
+        {
+            get => SelectedIndex >= 0 ? Items[SelectedIndex]?.ToString() ?? string.Empty : string.Empty;
+            set
+            {
+                var requested = NormalizeDriveLetter(value);
+                for (var index = 0; index < Items.Count; index++)
+                {
+                    if (string.Equals(
+                            NormalizeDriveLetter(Items[index]?.ToString()),
+                            requested,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        SelectedIndex = index;
+                        return;
+                    }
+                }
+
+                // VB6 answers a drive that is not there with 68, not with a silent no-op.
+                VBErrors.Raise(68, "Drive", "Device unavailable", string.Empty, 0);
+            }
+        }
+
+        private static string NormalizeDriveLetter(string? value)
+        {
+            var text = value?.TrimStart() ?? string.Empty;
+            return text.Length == 0
+                ? string.Empty
+                : text[..1].ToLowerInvariant() + ":";
+        }
+
+        private void Reload()
+        {
+            Items.Clear();
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                var letter = drive.Name.Length > 0
+                    ? drive.Name[..1].ToLowerInvariant() + ":"
+                    : string.Empty;
+                if (letter.Length == 0)
+                {
+                    continue;
+                }
+
+                var label = string.Empty;
+                try
+                {
+                    label = drive.IsReady ? drive.VolumeLabel : string.Empty;
+                }
+                catch (IOException)
+                {
+                    // A drive can vanish between enumeration and query. It stays listed without
+                    // its label rather than taking the whole list down with it.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+
+                Items.Add(label.Length == 0 ? letter : $"{letter} [{label}]");
+            }
+
+            var current = Path.GetPathRoot(Environment.CurrentDirectory) ?? string.Empty;
+            var currentLetter = NormalizeDriveLetter(current);
+            for (var index = 0; index < Items.Count; index++)
+            {
+                if (string.Equals(
+                        NormalizeDriveLetter(Items[index]?.ToString()),
+                        currentLetter,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    SelectedIndex = index;
+                    return;
+                }
+            }
+
+            if (Items.Count > 0)
+            {
+                SelectedIndex = 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// VB6's DirListBox. <c>List</c> counts the subdirectories of <c>Path</c> from zero, while
+    /// negative indices walk up the ancestors -- <c>List(-1)</c> is the parent of the current
+    /// directory. That is why <c>ListCount</c> and the reachable index range disagree here.
+    /// </summary>
+    private sealed class DirListBoxControl : ListBox
+    {
+        private string _path = Environment.CurrentDirectory;
+
+        public DirListBoxControl() => Reload();
+
+        public event EventHandler? Change;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string DirectoryPath
+        {
+            get => _path;
+            set
+            {
+                var requested = value ?? string.Empty;
+                if (!Directory.Exists(requested))
+                {
+                    VBErrors.Raise(76, "Path", "Path not found", string.Empty, 0);
+                }
+
+                if (string.Equals(_path, requested, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _path = requested;
+                Reload();
+                Change?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        internal string GetListEntry(int index)
+        {
+            if (index >= 0)
+            {
+                return index < Items.Count ? Items[index]?.ToString() ?? string.Empty : string.Empty;
+            }
+
+            var directory = new DirectoryInfo(_path);
+            for (var step = 0; step > index && directory.Parent is { } parent; step--)
+            {
+                directory = parent;
+            }
+
+            return directory.FullName;
+        }
+
+        private void Reload()
+        {
+            Items.Clear();
+            try
+            {
+                foreach (var directory in Directory.GetDirectories(_path).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+                {
+                    Items.Add(Path.GetFileName(directory));
+                }
+            }
+            catch (DirectoryNotFoundException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// VB6's FileListBox. <c>Path</c> and <c>Pattern</c> have separate events because a program
+    /// commonly reacts to one without the other; assigning a qualified name to <c>FileName</c>
+    /// splits it and moves the path, which is how VB6's file dialogs were built.
+    /// </summary>
+    private sealed class FileListBoxControl : ListBox
+    {
+        private string _path = Environment.CurrentDirectory;
+        private string _pattern = "*.*";
+
+        public FileListBoxControl() => Reload();
+
+        public event EventHandler? PathChange;
+
+        public event EventHandler? PatternChange;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string DirectoryPath
+        {
+            get => _path;
+            set
+            {
+                var requested = value ?? string.Empty;
+                if (!Directory.Exists(requested))
+                {
+                    VBErrors.Raise(76, "Path", "Path not found", string.Empty, 0);
+                }
+
+                if (string.Equals(_path, requested, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _path = requested;
+                Reload();
+                PathChange?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string Pattern
+        {
+            get => _pattern;
+            set
+            {
+                var requested = string.IsNullOrEmpty(value) ? "*.*" : value;
+                if (string.Equals(_pattern, requested, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _pattern = requested;
+                Reload();
+                PatternChange?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string FileName
+        {
+            get => SelectedIndex >= 0 ? Items[SelectedIndex]?.ToString() ?? string.Empty : string.Empty;
+            set
+            {
+                var requested = value ?? string.Empty;
+                var directory = Path.GetDirectoryName(requested);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    DirectoryPath = directory;
+                }
+
+                var name = Path.GetFileName(requested);
+                for (var index = 0; index < Items.Count; index++)
+                {
+                    if (string.Equals(Items[index]?.ToString(), name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SelectedIndex = index;
+                        return;
+                    }
+                }
+
+                SelectedIndex = -1;
+            }
+        }
+
+        private void Reload()
+        {
+            Items.Clear();
+            try
+            {
+                foreach (var file in Directory.GetFiles(_path, _pattern).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+                {
+                    Items.Add(Path.GetFileName(file));
+                }
+            }
+            catch (DirectoryNotFoundException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+            catch (ArgumentException)
+            {
+                // An unusable Pattern leaves the list empty; VB6 does not fail the assignment.
+            }
+        }
+    }
+
+    /// <summary>
+    /// VB6's OLE container. The designer surface is carried in full so a form using it loads and
+    /// lays out; embedding and in-place activation belong to the generic ActiveX layer and are
+    /// not built yet. Until then the container is genuinely empty, and every verb answers 445 --
+    /// which is also what VB6 answers for a verb on a container holding no object.
+    /// </summary>
+    private sealed class OleContainerControl : Panel
+    {
+        public OleContainerControl() => BorderStyle = BorderStyle.Fixed3D;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string OleClass { get; set; } = string.Empty;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string SourceDoc { get; set; } = string.Empty;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal int SizeMode { get; set; }
+
+        /// <summary>VB6 reports 3 -- vbOLENone -- for a container holding no object.</summary>
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal int OleType => 3;
+
+        internal static void RaiseUnsupportedAction(string memberName) =>
+            VBErrors.Raise(
+                445,
+                memberName,
+                "Object doesn't support this action",
+                string.Empty,
+                0);
+    }
+
+    /// <summary>
+    /// VB6's Data control. Its designer properties are carried so bound forms load; the recordset
+    /// itself is consumed over COM through DAO/ADO and is not rebuilt here, so the members that
+    /// need it answer 445 rather than pretending to have data.
+    /// </summary>
+    private sealed class DataControl : Panel
+    {
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string DatabaseName { get; set; } = string.Empty;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string RecordSource { get; set; } = string.Empty;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal string Connect { get; set; } = string.Empty;
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal int RecordsetType { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal int EofAction { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        internal int BofAction { get; set; }
     }
 
     private sealed class NativeActiveXControl : AxHost, IVBComTypeInfoProvider
