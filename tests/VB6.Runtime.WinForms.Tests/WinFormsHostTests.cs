@@ -1222,6 +1222,74 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostReadsBackTheColourOfASinglePoint()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+            Assert.IsTrue(host.TrySetMember(owner, "BackColor", Array.Empty<object?>(), ColorTranslator.ToOle(Color.White)));
+
+            VBInteraction.GraphicsPSet(1440, 1440, ColorTranslator.ToOle(Color.Red), false);
+
+            var drawn = ColorTranslator.FromOle(VBInteraction.GraphicsPoint(1440, 1440));
+            Assert.IsTrue(drawn.R > 180 && drawn.G < 120 && drawn.B < 120);
+
+            // Ein Pixel, auf das nichts gezeichnet wurde, meldet die Hintergrundfarbe -- nicht das
+            // durchsichtige Schwarz der Zeichenflaeche.
+            var untouched = ColorTranslator.FromOle(VBInteraction.GraphicsPoint(0, 0));
+            Assert.AreEqual(Color.White.ToArgb(), untouched.ToArgb());
+
+            // Ausserhalb der Flaeche antwortet VB6 mit -1.
+            Assert.AreEqual(-1, VBInteraction.GraphicsPoint(100000, 100000));
+            Assert.AreEqual(-1, VBInteraction.GraphicsPoint(-15, 0));
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
+    public void HostReadsAPointFromAQualifiedTarget()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+
+            VBInteraction.GraphicsPSet(owner, 1440, 720, ColorTranslator.ToOle(Color.Lime), false);
+
+            Assert.IsTrue(host.TryInvokeMember(owner, "Point", new object?[] { 1440, 720 }, out var read));
+            var colour = ColorTranslator.FromOle(VBConversions.CLng(read));
+            Assert.IsTrue(colour.G > 180 && colour.R < 120 && colour.B < 120);
+
+            Assert.IsTrue(host.TryInvokeMember(owner, "Point", new object?[] { 100000, 0 }, out var outside));
+            Assert.AreEqual(-1, VBConversions.CLng(outside));
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostRendersGraphicsLineOnFormSurface()
     {
         using var host = new WinFormsHost();
