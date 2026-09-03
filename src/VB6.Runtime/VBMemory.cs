@@ -9,8 +9,30 @@ namespace VB6.Runtime;
 /// </summary>
 public static class VBMemory
 {
-    public static int VarPtr(object? value) =>
-        throw new PlatformNotSupportedException("VarPtr requires a native VB6 memory backend.");
+    /// <summary>
+    /// The address of a managed cell is valid only while the cell is held in place, and a returned
+    /// pointer does not survive that -- the collector may move the cell right after. Supported is
+    /// therefore exactly the position where VB6 passes the pointer straight on: a
+    /// <c>ByVal … As Any</c> argument of a Declare, which lowering turns into an address without
+    /// ever calling this method.
+    ///
+    /// Reaching here means the program asked for a pointer it could keep. Answering with a number
+    /// would be worse than refusing: it would point somewhere else after the next collection. The
+    /// number stays VB6's 5 for an invalid call, but the description says what actually happened
+    /// instead of leaving the catch-all unexplained.
+    /// </summary>
+    public static int VarPtr(object? value)
+    {
+        _ = value;
+        VBErrors.Raise(
+            5,
+            "VarPtr",
+            "VarPtr is supported only as a ByVal As Any argument of a Declare, where the address " +
+            "is consumed immediately.",
+            string.Empty,
+            0);
+        return 0;
+    }
 
     /// <summary>
     /// Returns the native identity pointer of an object. COM identity is represented by the
@@ -45,8 +67,19 @@ public static class VBMemory
         }
     }
 
-    public static int StrPtr(string? value) =>
-        throw new PlatformNotSupportedException("StrPtr requires a native string memory backend.");
+    /// <summary>Same contract as <see cref="VarPtr"/>: only the immediately consumed form.</summary>
+    public static int StrPtr(string? value)
+    {
+        _ = value;
+        VBErrors.Raise(
+            5,
+            "StrPtr",
+            "StrPtr is supported only as a ByVal As Any argument of a Declare, where the address " +
+            "is consumed immediately.",
+            string.Empty,
+            0);
+        return 0;
+    }
 
     /// <summary>
     /// Executes a managed raw record transfer without boxing the destination. The generic ref
