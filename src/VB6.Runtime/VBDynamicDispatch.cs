@@ -172,6 +172,24 @@ public static class VBDynamicDispatch
         return result;
     }
 
+    /// <summary>
+    /// Calls one event handler on a sink. A sink may be a real COM object or -- in a test, or when
+    /// the client lives in this process -- an ordinary managed one, and a sink that does not
+    /// implement the event is not an error: VB6 delivers what the sink is prepared to receive.
+    /// </summary>
+    internal static bool TryInvokeSink(object sink, string memberName, object?[] arguments)
+    {
+        try
+        {
+            InvokeMember(sink, memberName, arguments);
+            return true;
+        }
+        catch (MissingMemberException)
+        {
+            return false;
+        }
+    }
+
     private static object? InvokeMember(object? target, string memberName, object?[] arguments)
     {
         if (VBInteraction.TryGetHostMember(target, memberName, arguments, out var hostResult) ||

@@ -57,6 +57,53 @@ public sealed class ComInstancingExecutionTests
         }
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_DerivesOnlyComVisibleClassesFromTheEventSource()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6EventSource", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var projectPath = Path.Combine(directory, "Events.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name=Events
+                Class=Offen; Offen.cls
+                Class=Intern; Intern.cls
+                """);
+            WriteClass(directory, "Offen", exposed: true, creatable: true);
+            WriteClass(directory, "Intern", exposed: false, creatable: false);
+
+            var assemblyPath = Path.Combine(directory, "Events.dll");
+            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(
+                assemblyPath,
+                new VB6.Emit.Managed.ManagedEmitOptions(assemblyPath) { EnableComHosting = true });
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Lowering.Analysis.Diagnostics));
+
+            using var stream = File.OpenRead(assemblyPath);
+            using var peReader = new PEReader(stream);
+            var metadata = peReader.GetMetadataReader();
+
+            // Die Basis trägt den Connection Point. Sie gehört nur an eine Klasse, die COM
+            // überhaupt sieht -- sonst schleppt jede private Hilfsklasse COM-Ballast mit.
+            Assert.AreEqual("VBComEventSource", GetBaseTypeName(metadata, "__vb6_class_Offen"));
+            Assert.AreEqual("Object", GetBaseTypeName(metadata, "__vb6_class_Intern"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static string GetBaseTypeName(MetadataReader metadata, string typeName)
+    {
+        var baseType = FindType(metadata, typeName).BaseType;
+        return baseType.Kind == HandleKind.TypeReference
+            ? metadata.GetString(metadata.GetTypeReference((TypeReferenceHandle)baseType).Name)
+            : baseType.Kind.ToString();
+    }
+
     private static void WriteClass(string directory, string name, bool exposed, bool creatable) =>
         File.WriteAllText(
             Path.Combine(directory, name + ".cls"),

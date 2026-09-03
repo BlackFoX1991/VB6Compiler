@@ -391,6 +391,13 @@ public static class VBEvents
         {
             handler(arguments);
         }
+
+        // After the program's own handlers, the event leaves the process: a COM client that has
+        // advised a sink on this object receives it through the connection point.
+        if (source is VBComEventSource comSource && OperatingSystem.IsWindows())
+        {
+            comSource.RaiseToSinks(eventName, arguments);
+        }
     }
 
     private static string Mangle(string name) =>
