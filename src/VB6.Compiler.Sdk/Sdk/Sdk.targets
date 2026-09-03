@@ -1,6 +1,11 @@
 <Project>
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
 
+  <UsingTask
+    Condition="'$(VB6UseResolverTask)' == 'true' and Exists('$(VB6ResolverTaskAssembly)')"
+    TaskName="VB6.Compiler.Sdk.Tasks.WriteVB6InputManifest"
+    AssemblyFile="$(VB6ResolverTaskAssembly)" />
+
   <PropertyGroup>
     <VB6Project Condition="'$(VB6Project)' == '' and '$(VB6ProjectGroup)' == ''">$(MSBuildProjectDirectory)\$(MSBuildProjectName).vbp</VB6Project>
     <VB6ProjectFullPath Condition="'$(VB6Project)' != ''">$([System.IO.Path]::GetFullPath('$(VB6Project)'))</VB6ProjectFullPath>
@@ -76,7 +81,12 @@
     DependsOnTargets="ValidateVB6CompilerInput"
     Condition="'$(VB6ProjectGroup)' == '' and '$(VB6Project)' != '' and Exists('$(VB6ProjectFullPath)')">
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(VB6CompilerInputManifest)'))" />
+    <WriteVB6InputManifest
+      Condition="'$(VB6UseResolverTask)' == 'true' and Exists('$(VB6ResolverTaskAssembly)')"
+      ProjectPath="$(VB6ProjectFullPath)"
+      ManifestPath="$(VB6CompilerInputManifest)" />
     <Exec
+      Condition="'$(VB6UseResolverTask)' != 'true' or !Exists('$(VB6ResolverTaskAssembly)')"
       Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectFullPath)&quot; --write-input-manifest &quot;$(VB6CompilerInputManifest)&quot;" />
   </Target>
 
@@ -86,7 +96,12 @@
     DependsOnTargets="ValidateVB6CompilerInput"
     Condition="'$(VB6ProjectGroup)' != '' and Exists('$(VB6ProjectGroupFullPath)')">
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(VB6CompilerGroupInputManifest)'))" />
+    <WriteVB6InputManifest
+      Condition="'$(VB6UseResolverTask)' == 'true' and Exists('$(VB6ResolverTaskAssembly)')"
+      ProjectPath="$(VB6ProjectGroupFullPath)"
+      ManifestPath="$(VB6CompilerGroupInputManifest)" />
     <Exec
+      Condition="'$(VB6UseResolverTask)' != 'true' or !Exists('$(VB6ResolverTaskAssembly)')"
       Command="&quot;$(VB6CompilerPath)&quot; &quot;$(VB6ProjectGroupFullPath)&quot; --write-input-manifest &quot;$(VB6CompilerGroupInputManifest)&quot;" />
   </Target>
 
