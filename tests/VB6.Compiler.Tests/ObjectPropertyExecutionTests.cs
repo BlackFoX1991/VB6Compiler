@@ -9,6 +9,70 @@ namespace VB6.Compiler.Tests;
 public sealed class ObjectPropertyExecutionTests
 {
     [TestMethod]
+    public void Compile_RejectsAccessToAPrivateClassField()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6PrivateField", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var projectPath = Path.Combine(directory, "Sicht.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Sicht"
+                Class=Halter; Halter.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Halter.cls"), """
+                Option Explicit
+
+                Private m_geheim As Long
+                Public Offen As Long
+
+                Public Sub Setze()
+                    m_geheim = 5
+                    Offen = 6
+                End Sub
+
+                Public Function Eigen() As Long
+                    Eigen = Me.m_geheim
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim h As Halter
+                    Set h = New Halter
+                    h.Setze
+                    Debug.Print h.Offen
+                    Debug.Print h.m_geheim
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).AnalyzeForEmission();
+            var diagnostics = analysis.Units.SelectMany(unit => unit.Analysis.Diagnostics).ToArray();
+
+            // Von außen ist das Feld kein Mitglied. Vorher übersetzte der Zugriff und scheiterte
+            // erst zur Laufzeit an der CLR-Sichtbarkeit -- ohne Zeile, ohne Bezug zur Deklaration.
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(
+                diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0074"),
+                string.Join(", ", diagnostics.Select(diagnostic => diagnostic.Code)));
+
+            // Die Klasse selbst erreicht es weiterhin über Me -- sonst wäre die Meldung zu breit.
+            Assert.IsFalse(
+                diagnostics.Any(diagnostic =>
+                    diagnostic.Code == "VB6S0074" && diagnostic.ToString().Contains("Halter.cls", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_IndexesTheResultOfAnArrayReturningProperty()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6ArrayProperty", Guid.NewGuid().ToString("N"));

@@ -967,7 +967,8 @@ public sealed class VBProjectCompilation
                     variable.Name,
                     variable.Type,
                     isFieldBacked: true,
-                    allowObjectAssignment: !withEventsNames.Contains(variable.Name));
+                    allowObjectAssignment: !withEventsNames.Contains(variable.Name),
+                    isPublic: variable.IsPublic);
             }
 
             if (HasDesignerSurface(module.Item.Kind))
@@ -1144,7 +1145,8 @@ public sealed class VBProjectCompilation
             TypeSymbol type,
             bool isLateBound = false,
             bool isFieldBacked = false,
-            bool allowObjectAssignment = true)
+            bool allowObjectAssignment = true,
+            bool isPublic = true)
         {
             if (properties.Any(property =>
                     string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) &&
@@ -1160,7 +1162,8 @@ public sealed class VBProjectCompilation
                 ImmutableArray<ParameterSymbol>.Empty)
             {
                 IsLateBound = isLateBound,
-                IsFieldBacked = isFieldBacked
+                IsFieldBacked = isFieldBacked,
+                IsPublic = isPublic
             });
             properties.Add(new PropertySymbol(
                 name,
@@ -1169,7 +1172,8 @@ public sealed class VBProjectCompilation
                 ImmutableArray<ParameterSymbol>.Empty)
             {
                 IsLateBound = isLateBound,
-                IsFieldBacked = isFieldBacked
+                IsFieldBacked = isFieldBacked,
+                IsPublic = isPublic
             });
 
             // Ein Feld, das eine Objektreferenz tragen kann, wird in VB6 mit Set zugewiesen.
@@ -1184,7 +1188,8 @@ public sealed class VBProjectCompilation
                     ImmutableArray<ParameterSymbol>.Empty)
                 {
                     IsLateBound = isLateBound,
-                    IsFieldBacked = isFieldBacked
+                    IsFieldBacked = isFieldBacked,
+                    IsPublic = isPublic
                 });
             }
         }

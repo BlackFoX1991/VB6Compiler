@@ -3545,6 +3545,18 @@ public sealed class Binder
         {
             if (classType.TryGetProperty(syntax.MemberToken.Text, accessor, out var property))
             {
+                // Ein Private-Feld gehört der Klasse, nicht ihren Aufrufern. Ohne diese Meldung
+                // übersetzt der Zugriff und scheitert erst zur Laufzeit an der CLR-Sichtbarkeit --
+                // dort ohne Zeilenangabe und ohne Bezug zur Deklaration.
+                if (!property.IsPublic && !ReferenceEquals(classType, _containingClass))
+                {
+                    Report(
+                        "VB6S0074",
+                        $"{syntax.MemberToken.Text} is private to class {classType.Name}.",
+                        syntax.MemberToken.Span);
+                    return new BoundErrorExpression();
+                }
+
                 return new BoundPropertyAccessExpression(receiver, property);
             }
 

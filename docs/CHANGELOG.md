@@ -5954,3 +5954,25 @@ fällt weiter in die Diagnose.
 
 Kanonischer Nachweis: **1519/1519** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Ein privates Klassenfeld ist von außen kein Mitglied mehr (03.09.2026)
+
+`h.m_geheim` auf ein `Private`-Feld übersetzte anstandslos. Erst zur Laufzeit verweigerte die CLR
+den Zugriff — ohne Zeilenangabe, ohne Bezug zur Deklaration, und in der Messung schlicht als
+abgebrochene `Debug.Print`-Zeile sichtbar.
+
+Die Ursache lag beim Aufbau der Mitgliedsfläche: **jede** Modulvariable einer Klasse wurde als
+Property in die Fläche aufgenommen, unabhängig von ihrer Sichtbarkeit. Die Information war da —
+`ModuleVariableSymbol.IsPublic` — nur wurde sie nicht weitergereicht.
+
+Die Property trägt sie jetzt mit. Ein privates Feld **bleibt** dabei in der Fläche, damit die
+Klasse es weiterhin über `Me` erreicht; der Binder weist es nur von außerhalb ab, mit dem neuen
+Code **VB6S0074**. Das ist die schmalere und richtige Grenze: Es aus der Fläche zu entfernen hätte
+auch `Me.m_geheim` innerhalb der Klasse gebrochen, was VB6 erlaubt.
+
+Der kanonische Lauf hat die Ergänzung sofort eingefordert: `EveryProductionDiagnosticCodeIsCovered`
+schlug fehl, weil der neue Code keinen Test hatte — genau die Regel, für die diese Prüfung da ist.
+Der Test hält beide Seiten fest, den abgewiesenen Zugriff von außen und den erlaubten über `Me`.
+
+Kanonischer Nachweis: **1520/1520** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
