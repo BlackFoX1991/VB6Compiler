@@ -461,6 +461,126 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
+    public void GraphicsCircle(VBGraphicsCircle circle)
+    {
+        ThrowIfDisposed();
+        var target = _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(form => !form.IsDisposed);
+        if (target is not null)
+        {
+            RenderGraphicsCircle(target, circle);
+        }
+    }
+
+    public void GraphicsCircle(object? target, VBGraphicsCircle circle)
+    {
+        ThrowIfDisposed();
+        if (ResolveDrawingTarget(target) is { } control)
+        {
+            RenderGraphicsCircle(control, circle);
+        }
+    }
+
+    private void RenderGraphicsCircle(Control target, VBGraphicsCircle circle)
+    {
+        var state = GetDesignerControlState(target);
+        var scale = GetScaleFactors(target, state);
+
+        var centerX = (circle.IsStep ? state.CurrentX + circle.X : circle.X) * scale.X;
+        var centerY = (circle.IsStep ? state.CurrentY + circle.Y : circle.Y) * scale.Y;
+
+        // VB6 measures the radius along x and stretches the y axis by the aspect ratio.
+        var aspect = circle.Aspect is { } declared && declared > 0f ? declared : 1f;
+        var radiusX = circle.Radius * scale.X;
+        var radiusY = circle.Radius * scale.Y * aspect;
+
+        var color = Color.Black;
+        if (circle.Color is int oleColor)
+        {
+            try
+            {
+                color = ColorTranslator.FromOle(oleColor);
+            }
+            catch (ArgumentException)
+            {
+                color = Color.Black;
+            }
+        }
+
+        if (state.DrawMode != DrawModeCopyPen &&
+            state.AutoRedraw &&
+            state.ActivePaintGraphics is null)
+        {
+            var surface = GetDrawingSurface(target);
+            using var source = new Bitmap(surface.Width, surface.Height);
+            using (var sourceGraphics = Graphics.FromImage(source))
+            {
+                ConfigureRasterGraphics(sourceGraphics);
+                DrawGraphicsCircle(sourceGraphics, centerX, centerY, radiusX, radiusY, color, circle);
+            }
+
+            ApplyRasterOperation(surface, source, state.DrawMode);
+            target.Invalidate();
+        }
+        else
+        {
+            using var drawing = BeginDrawing(target);
+            DrawGraphicsCircle(drawing.Graphics, centerX, centerY, radiusX, radiusY, color, circle);
+        }
+
+        state.CurrentX = circle.IsStep ? state.CurrentX + circle.X : circle.X;
+        state.CurrentY = circle.IsStep ? state.CurrentY + circle.Y : circle.Y;
+    }
+
+    /// <summary>
+    /// Draws the full circle, or the arc between the two angles. VB6 measures angles in radians
+    /// counter-clockwise from three o'clock, while GDI+ measures degrees clockwise from there, so
+    /// the sweep is negated. A negative angle asks for the radius line as well, which turns the arc
+    /// into a pie segment.
+    /// </summary>
+    private static void DrawGraphicsCircle(
+        Graphics graphics,
+        float centerX,
+        float centerY,
+        float radiusX,
+        float radiusY,
+        Color color,
+        VBGraphicsCircle circle)
+    {
+        var bounds = new RectangleF(
+            centerX - radiusX,
+            centerY - radiusY,
+            radiusX * 2f,
+            radiusY * 2f);
+        using var pen = new Pen(color, 1f);
+
+        if (circle.Start is not { } start || circle.End is not { } end)
+        {
+            graphics.DrawEllipse(pen, bounds);
+            return;
+        }
+
+        const float FullTurn = (float)(Math.PI * 2);
+        var isSegment = start < 0f || end < 0f;
+        var startAngle = -Math.Abs(start) * 360f / FullTurn;
+        var endAngle = -Math.Abs(end) * 360f / FullTurn;
+        var sweep = endAngle - startAngle;
+        if (sweep > 0f)
+        {
+            sweep -= 360f;
+        }
+
+        if (isSegment)
+        {
+            graphics.DrawPie(pen, bounds, startAngle, sweep);
+        }
+        else
+        {
+            graphics.DrawArc(pen, bounds, startAngle, sweep);
+        }
+    }
+
     public void GraphicsPSet(VBGraphicsPoint point)
     {
         ThrowIfDisposed();
