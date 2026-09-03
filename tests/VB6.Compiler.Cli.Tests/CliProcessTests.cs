@@ -1475,6 +1475,49 @@ public sealed class CliProcessTests
         }
     }
 
+    [TestMethod]
+    public void Options_ParseTheSameWayForEveryInputKind()
+    {
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var sourcePath = Path.Combine(directory, "Profile.bas");
+            File.WriteAllText(sourcePath, "Sub Main()\nEnd Sub\n");
+
+            var projectPath = Path.Combine(directory, "Profile.vbp");
+            File.WriteAllText(
+                projectPath,
+                "Type=Exe\r\nModule=Module1; Profile.bas\r\nStartup=\"Sub Main\"\r\nName=\"Profile\"\r\n");
+
+            // Dieselbe Option, dieselbe Stelle, beide Eingabearten -- vorher war die Grammatik
+            // je Zweig eigenständig geschrieben und konnte auseinanderlaufen.
+            var sourceDump = RunCli(sourcePath, "--dump-ir", "--compatibility", "vb6-sp6");
+            Assert.AreEqual(0, sourceDump.ExitCode, sourceDump.StandardError);
+            StringAssert.StartsWith(sourceDump.StandardOutput, "profile VB6Sp6");
+
+            var projectDump = RunCli(projectPath, "--dump-ir", "--compatibility", "vb6-sp6");
+            Assert.AreEqual(0, projectDump.ExitCode, projectDump.StandardError);
+            StringAssert.StartsWith(projectDump.StandardOutput, "profile VB6Sp6");
+
+            // Der optionale Ausgabepfad von --dump-ir gilt ebenfalls für beide.
+            var dumpPath = Path.Combine(directory, "dump.ir");
+            var written = RunCli(projectPath, "--dump-ir", dumpPath);
+            Assert.AreEqual(0, written.ExitCode, written.StandardError);
+            Assert.IsTrue(File.Exists(dumpPath));
+
+            // Eine unbekannte Option wird beim Namen genannt, statt nur die Nutzung zu zeigen.
+            var unknown = RunCli(projectPath, "--report", "--nonsense");
+            Assert.AreEqual(1, unknown.ExitCode);
+            StringAssert.Contains(unknown.StandardError, "--nonsense");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static CliResult RunCli(string inputPath, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("dotnet")
