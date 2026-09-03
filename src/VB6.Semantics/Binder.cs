@@ -2568,11 +2568,16 @@ public sealed class Binder
                 BindMemberAccess(memberAccess, variables, procedures, PropertyAccessorKind.Set),
             ElementAccessExpressionSyntax elementAccess =>
                 BindElementAccess(elementAccess, variables, procedures, PropertyAccessorKind.Set),
-            NameExpressionSyntax name when TryGetContainingClassProperty(
-                name.IdentifierToken.Text,
-                PropertyAccessorKind.Set,
-                variables,
-                out var propertyTarget) => propertyTarget,
+            // Ein Name, den der lokale Gültigkeitsbereich kennt, gewinnt -- so wie im Let-Pfad und
+            // in beiden Lesepfaden. Ohne diese Reihenfolge bindet "Set Obj = m_obj" **innerhalb**
+            // von "Property Get Obj" an die gleichnamige Property Set der Klasse statt an den
+            // Rückgabewert: Das Get liefert dann Nothing, obwohl das Set korrekt gespeichert hat.
+            NameExpressionSyntax name when !variables.ContainsKey(name.IdentifierToken.Text) &&
+                TryGetContainingClassProperty(
+                    name.IdentifierToken.Text,
+                    PropertyAccessorKind.Set,
+                    variables,
+                    out var propertyTarget) => propertyTarget,
             _ => BindExpression(syntax.Target, variables, procedures)
         };
         var expression = BindExpression(syntax.Expression, variables, procedures);
