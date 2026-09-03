@@ -1166,7 +1166,8 @@ public static class VBFiles
             if (GetRecordLength(fileNumber) is int recordLength &&
                 checked(stream.Position - recordStart + count) > recordLength)
             {
-                throw new InvalidOperationException(
+                throw new VB6RuntimeErrorException(
+                    59,
                     $"The Variant payload exceeds the Random record length of {recordLength.ToString(CultureInfo.InvariantCulture)} bytes.");
             }
 
@@ -1661,7 +1662,10 @@ public static class VBFiles
     {
         if (GetRecordLength(fileNumber) is int recordLength && count > recordLength)
         {
-            throw new InvalidOperationException(
+            // 59 ist VB6s dokumentierte Nummer fuer eine Satzlaenge, die den Wert nicht fasst.
+            // Eine generische Ausnahme traegt keine und fiel in VBErrors.Set in den Sammelwert 5.
+            throw new VB6RuntimeErrorException(
+                59,
                 $"The value requires {count.ToString(CultureInfo.InvariantCulture)} bytes, but the " +
                 $"Random record length is only {recordLength.ToString(CultureInfo.InvariantCulture)}.");
         }
@@ -1678,7 +1682,8 @@ public static class VBFiles
         var consumed = checked(position - recordStart + count);
         if (consumed > recordLength)
         {
-            throw new InvalidOperationException(
+            throw new VB6RuntimeErrorException(
+                59,
                 $"The record requires {consumed.ToString(CultureInfo.InvariantCulture)} bytes, but the " +
                 $"Random record length is only {recordLength.ToString(CultureInfo.InvariantCulture)}.");
         }
