@@ -1276,6 +1276,26 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        // Ambient and Extender are the two objects a UserControl reaches its container through.
+        // Ambient carries what the container suggests -- font, colours, whether this is run mode --
+        // and Extender the properties the container owns, starting with the name it was given.
+        if (arguments.Length == 0 &&
+            _bindings.TryGetValue(target, out var userControlBinding) &&
+            userControlBinding.IsGeneratedUserControl)
+        {
+            if (string.Equals(memberName, "Ambient", StringComparison.OrdinalIgnoreCase))
+            {
+                value = userControlBinding.Ambient ??= new AmbientProxy(userControlBinding.Form);
+                return true;
+            }
+
+            if (string.Equals(memberName, "Extender", StringComparison.OrdinalIgnoreCase))
+            {
+                value = userControlBinding.Extender ??= new ExtenderProxy(userControlBinding.Form);
+                return true;
+            }
+        }
+
         if (target is ImageListProxy imageList && arguments.Length == 0)
         {
             if (string.Equals(memberName, "ImageWidth", StringComparison.OrdinalIgnoreCase))
@@ -4842,6 +4862,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         var generatedBinding = GetOrCreateBinding(generatedUserControl);
         generatedBinding.IsGeneratedUserControl = true;
         var hostedForm = generatedBinding.Form;
+
+        // The container names the control, and Extender.Name reports exactly that name. Without
+        // this the control would answer with its own type name, which is not what VB6 shows.
+        hostedForm.Name = logicalName;
         hostedForm.TopLevel = false;
         hostedForm.FormBorderStyle = FormBorderStyle.None;
         hostedForm.ShowInTaskbar = false;
@@ -4854,10 +4878,39 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         generatedBinding.UserControlPropertyBag = new VBPropertyBag();
         AttachGeneratedUserControlEvents(generatedUserControl);
         InvokeGeneratedUserControlLifecycle(generatedUserControl, "UserControl_Initialize");
-        InvokeGeneratedUserControlPropertyBagLifecycle(
-            generatedUserControl,
-            "UserControl_ReadProperties",
-            generatedBinding.UserControlPropertyBag);
+
+        // A control that has nothing stored is a new one, and VB6 gives it InitProperties to set
+        // its own defaults. ReadProperties belongs to a control being restored -- calling it on a
+        // new one hands the program an empty bag and calls that a restore.
+        if (generatedBinding.UserControlPropertyBag.IsEmpty)
+        {
+            InvokeGeneratedUserControlLifecycle(generatedUserControl, "UserControl_InitProperties");
+        }
+        else
+        {
+            InvokeGeneratedUserControlPropertyBagLifecycle(
+                generatedUserControl,
+                "UserControl_ReadProperties",
+                generatedBinding.UserControlPropertyBag);
+        }
+
+        // Show and Hide report a *change*. WinForms raises VisibleChanged while a hosted form is
+        // still being placed, so a control that was never shown would otherwise be told it was
+        // hidden -- repeatedly.
+        var lifecycleTarget = generatedUserControl;
+        var lastVisible = hostedForm.Visible;
+        hostedForm.VisibleChanged += (_, _) =>
+        {
+            if (hostedForm.Visible == lastVisible)
+            {
+                return;
+            }
+
+            lastVisible = hostedForm.Visible;
+            InvokeGeneratedUserControlLifecycle(
+                lifecycleTarget,
+                lastVisible ? "UserControl_Show" : "UserControl_Hide");
+        };
         hostedForm.Show();
         return true;
     }
@@ -4865,6 +4918,55 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    /// <summary>
+    /// What the container suggests to a UserControl. VB6 lets a control follow its container --
+    /// same font, same colours -- and tells it whether this is the running program or the
+    /// designer. Here it is always the running program: there is no designer.
+    /// </summary>
+    private sealed class AmbientProxy
+    {
+        private readonly Form _host;
+
+        public AmbientProxy(Form host) => _host = host;
+
+        public object Font => ToVBFont(_host.Font);
+
+        public bool UserMode => true;
+
+        public string DisplayName => _host.Name;
+
+        public int BackColor => ColorTranslator.ToOle(_host.BackColor);
+
+        public int ForeColor => ColorTranslator.ToOle(_host.ForeColor);
+    }
+
+    /// <summary>
+    /// The properties the **container** owns, not the control. A UserControl cannot name itself --
+    /// the form it sits on does -- and the same holds for its position and visibility.
+    /// </summary>
+    private sealed class ExtenderProxy
+    {
+        private readonly Form _host;
+
+        public ExtenderProxy(Form host) => _host = host;
+
+        public string Name => _host.Name;
+
+        public bool Visible
+        {
+            get => _host.Visible;
+            set => _host.Visible = value;
+        }
+
+        public int Left => ToTwips(_host.Left, 1440f / Math.Max(1, _host.DeviceDpi));
+
+        public int Top => ToTwips(_host.Top, 1440f / Math.Max(1, _host.DeviceDpi));
+
+        public int Width => ToTwips(_host.Width, 1440f / Math.Max(1, _host.DeviceDpi));
+
+        public int Height => ToTwips(_host.Height, 1440f / Math.Max(1, _host.DeviceDpi));
     }
 
     private sealed class TimerControl : Panel
@@ -5679,6 +5781,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public bool IsGeneratedUserControl { get; set; }
 
         public VBPropertyBag? UserControlPropertyBag { get; set; }
+
+        public object? Ambient { get; set; }
+
+        public object? Extender { get; set; }
 
         public bool IsMdiChild { get; set; }
 
