@@ -155,9 +155,9 @@ public abstract record VariableSymbol(string Name, TypeSymbol Type) : Symbol(Nam
     public bool IsConstant { get; init; }
 
     /// <summary>
-    /// Marks a local <c>As New</c> declarator.  Unlike an ordinary object initializer, VB6
-    /// creates the object only when the variable is first read (and creates it again after the
-    /// storage has been assigned <c>Nothing</c>).
+    /// Marks an <c>As New</c> declarator -- local, module-level or class field alike. Unlike an
+    /// ordinary object initializer, VB6 creates the object only when the variable is first read
+    /// (and creates it again after the storage has been assigned <c>Nothing</c>).
     /// </summary>
     public bool IsAsNew { get; init; }
 }

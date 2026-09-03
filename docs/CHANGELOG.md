@@ -5494,3 +5494,45 @@ generiertes UserControl, und der VISIA-Korpus wird analysiert, nicht ausgeführt
 
 Kanonischer Nachweis: **1494/1494** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## As New gab es nur für lokale Variablen (03.09.2026)
+
+Beim Nachmessen der Instancing-Zeile aus Etappe D fielen zwei **Sprachlücken** auf, die mit COM
+nichts zu tun haben und das Akzeptanzkriterium direkt betreffen:
+
+```
+Private g As New Zaehler      ' Modulvariable  -> Fehler 91
+Private inner As New Zaehler  ' Klassenfeld    -> Fehler 91
+Dim lokal As New Zaehler      ' lokal          -> richtig
+```
+
+Der Binder erzeugte für alle drei Formen brav einen `BoundNewExpression`-Initialisierer. Gesenkt
+wurde er aber nur für Locals: `NeedsModuleInitialization` kannte nur `String`, feste Zeichenketten
+und Arrays, und der Lesepfad des Lowerers verzweigte ausschließlich auf `LocalVariableSymbol`. Der
+Initialisierer stand also im gebundenen Baum und ist nie irgendwo angekommen — die Variable blieb
+`Nothing`, und der erste Zugriff meldete 91.
+
+Der Fix folgt dem lokalen Vorbild statt einer eigenen Mechanik: `IrEnsureClassExpression` trägt
+statt eines Locals einen **Place**, also Global oder Feld. Der Emitter kann dabei nicht den
+Dup-und-Store-Trick der lokalen Variante benutzen, weil ein Feld seinen Empfänger vor dem Wert auf
+dem Stack braucht; er liest den Place stattdessen nach dem Erzeugen noch einmal — ein zusätzlicher
+Ladebefehl gegen eine Form, die mit jedem Place funktioniert.
+
+Damit stimmt der VB6-Vertrag gegenständlich: `Class_Initialize` läuft beim **ersten Lesen**, nicht
+beim Laden des Moduls, und nach `Set g = Nothing` entsteht beim nächsten Lesen ein frisches Objekt.
+
+**Darauf aufbauend `Attribute VB_PredeclaredId = True`.** Eine Klasse mit diesem Attribut besitzt
+in VB6 eine globale Instanz ihres eigenen Namens — dasselbe, was ein Formular implizit hat. Das war
+bisher nicht umgesetzt; `Zaehler.Erhoehe` meldete `VB6S0001`. Da eine verzögert erzeugte globale
+Instanz genau das ist, was `As New` jetzt kann, ist die Default-Instanz eine gewöhnliche
+`As New`-Projektvariable und keine zweite Mechanik.
+
+Dabei kam ein dritter Befund heraus: `VBClassModuleSource.Normalize` **löscht jede
+`Attribute`-Zeile** eines Klassenmoduls und behält nur die Default-Property-Zeile. Das Attribut
+erreichte den Parser also gar nicht. Die Ausnahmeliste heißt jetzt `IsSemanticAttribute` und nennt
+beide Zeilen, die die Bedeutung des Codes ändern — wer eine dritte braucht, trägt sie dort ein.
+
+Eine Klasse **ohne** das Attribut bleibt weiterhin kein Wert; ein Test hält auch diese Seite fest.
+
+Kanonischer Nachweis: **1497/1497** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

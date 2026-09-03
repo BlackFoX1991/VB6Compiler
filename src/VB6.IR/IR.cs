@@ -285,6 +285,15 @@ public sealed record IrEnsureLocalClassExpression(
     ClassTypeSymbol ClassType)
     : IrExpression(ClassType);
 
+/// <summary>
+/// The deferred creation of an <c>As New</c> declaration whose storage is not a local -- a module
+/// variable or a class field. Reading it creates the instance if the storage is still Nothing.
+/// </summary>
+public sealed record IrEnsureClassExpression(
+    IrPlace Place,
+    ClassTypeSymbol ClassType)
+    : IrExpression(ClassType);
+
 public sealed record IrTypeOfExpression(
     IrExpression Expression,
     ClassTypeSymbol TargetType)
