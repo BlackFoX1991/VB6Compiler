@@ -6050,3 +6050,29 @@ lokale Variable wie für das UDT-Member.
 
 Kanonischer Nachweis: **1526/1526** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Class_Terminate feuert — nur nicht nach VB6s Uhr (03.09.2026)
+
+Die Roadmap führte: „`Dim x As New C` erzeugt eifrig statt bei der ersten Verwendung, und
+`Class_Terminate` feuert nie — weder bei `Set o = Nothing` noch beim Verlassen des
+Gültigkeitsbereichs."
+
+Beide Hälften stimmen so nicht mehr. Die erste ist mit der `As New`-Arbeit erledigt: Die Erzeugung
+ist verzögert, in allen drei Speicherformen. Für die zweite zeigt die Messung ein anderes Bild als
+„feuert nie": Nach genügend Allokationen erscheinen die `term`-Ausgaben sehr wohl. Der Emitter legt
+für eine Klasse mit `Class_Terminate` einen **Finalizer** an, und der läuft — nur eben, wenn der
+Sammler vorbeikommt, nicht wenn die letzte Referenz verschwindet.
+
+Der Unterschied bleibt beobachtbar und wird ausdrücklich **nicht** übertüncht. Eine halbe
+Referenzzählung wäre schlimmer als gar keine: Sie ließe `Class_Terminate` auf einem noch lebenden
+Objekt laufen, weil eine übersehene Referenz — in einem Variant, einem Array, einem UDT-Member,
+einem Klassenfeld — den Zähler zu früh auf null brächte. Zu spät aufzuräumen ist ärgerlich; zu früh
+aufzuräumen ruft Anwendercode auf einem Objekt auf, das noch benutzt wird.
+
+Festgehalten ist jetzt der Mechanismus, deterministisch prüfbar: Eine Klasse **mit**
+`Class_Terminate` bekommt einen Finalizer, eine ohne bekommt keinen. Die deterministische
+Lebensdauer bleibt die offene Architekturfrage, die sie war — und steht als solche in der Roadmap,
+nicht als Fehler.
+
+Kanonischer Nachweis: **1527/1527** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
