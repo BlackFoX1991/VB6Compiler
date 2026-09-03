@@ -5057,3 +5057,23 @@ Zeile bleibt gültig, `Erl` meldet nach einem Fehler in Zeile 40 die 40 und blei
 
 Kanonischer Nachweis: **1455/1455** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Random-Sätze nachgemessen und die Satzlänge benannt (03.09.2026)
+
+Der Breitendurchgang über die Random-/`Len`-Fläche von `l1-02-n` hat elf Proben gemessen, zehn
+davon korrekt: eine zum UDT passende Satzlänge, das Auffüllen auf eine größere `Len`, der Rundlauf
+mit fester Zeichenkette und Boolean, `LOF`, `Loc` und `Seek` nach Satzgrenzen, die VB6-Standardlänge
+128 ohne `Len`, skalare Sätze mit unbeschriebenen Lücken sowie das fortsetzende `Put #f, ,`.
+
+Falsch war die Nummer für eine Satzlänge, die den Wert nicht fasst: **5** statt der dokumentierten
+**59** („Bad record length"). Der Text stand in der Fehlertabelle bereits, erreichbar war er nicht —
+drei Stellen in `VBFiles` warfen dafür eine generische `InvalidOperationException`.
+
+Damit ist heute zum vierten Mal dasselbe Muster aufgetreten: eine korrekt implementierte Prüfung,
+deren Nummer auf dem Weg nach oben verloren geht, weil sie als .NET-Ausnahme ohne VB6-Nummer
+gemeldet wird. Und zum dritten Mal hat ein bestehender Test genau diese Form festgeschrieben und
+damit die Lücke abgesichert statt sie zu zeigen. Die Zusage der Tests blieb jeweils unberührt;
+geändert wurde nur die geprüfte Ausnahmeform, mit dem Grund im Test.
+
+Kanonischer Nachweis: **1456/1456** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
