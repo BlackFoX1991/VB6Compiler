@@ -26,6 +26,7 @@ internal static class VBComDispatch
     private const ushort VariantDate = 0x0007;
     private const ushort VariantCurrency = 0x0006;
     private const ushort VariantError = 0x000A;
+    private const int ParameterNotFound = unchecked((int)0x80020004);
     private const ushort VariantDispatch = 0x0009;
     private const ushort VariantUnknown = 0x000D;
     private const ushort VariantPointer = 0x001A;
@@ -952,6 +953,16 @@ internal static class VBComDispatch
                         _ = VariantClear(variant);
                         return unchecked((int)0x80070057); // E_INVALIDARG.
                     }
+                }
+                else if (VBVariants.IsMissing(arguments[sourceIndex]))
+                {
+                    // VB6 leaves a gap in an argument list -- Foo(a, , c) -- as a VARIANT of type
+                    // VT_ERROR carrying DISP_E_PARAMNOTFOUND. That is what tells the server the
+                    // argument was not supplied, as opposed to being supplied as Empty. Passing
+                    // the runtime marker instead reached the server as an object it could not
+                    // read, and a mid-list gap failed where a trailing one worked.
+                    Marshal.WriteInt16(variant, unchecked((short)VariantError));
+                    Marshal.WriteInt32(variant, VariantDataOffset, ParameterNotFound);
                 }
                 else
                 {

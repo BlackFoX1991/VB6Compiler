@@ -8,6 +8,53 @@ namespace VB6.Compiler.Tests;
 public sealed class ComInteropExecutionTests
 {
     [TestMethod]
+    public void EmitManagedApplication_LeavesAGapInAComArgumentList()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The COM interop measurement requires Windows.");
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6ComOptional", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var file = Path.Combine(directory, "gap.txt").Replace("\\", "\\\\", StringComparison.Ordinal);
+
+        try
+        {
+            // Eine Lücke mitten in der Argumentliste, nicht am Ende: VB6 überträgt sie als
+            // VT_ERROR mit DISP_E_PARAMNOTFOUND, und nur daran erkennt der Server, dass das
+            // Argument fehlt statt leer zu sein.
+            var source = string.Join(
+                Environment.NewLine,
+                "Sub Main()",
+                "    On Error Resume Next",
+                "    Dim fso As Object",
+                "    Set fso = CreateObject(\"Scripting.FileSystemObject\")",
+                "    Dim writer As Object",
+                "    Set writer = fso.CreateTextFile(\"" + file + "\")",
+                "    writer.WriteLine \"hallo\"",
+                "    writer.Close",
+                "    Debug.Print Err.Number",
+                "    Err.Clear",
+                "    Dim reader As Object",
+                "    Set reader = fso.OpenTextFile(\"" + file + "\", , False)",
+                "    Debug.Print Err.Number",
+                "    Debug.Print reader.ReadLine()",
+                "    reader.Close",
+                "End Sub");
+
+            CollectionAssert.AreEqual(
+                new[] { "0", "0", "hallo" },
+                VB6TestProgram.RunLines(source));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_CarriesComServerErrorNumbersIntoErr()
     {
         if (!OperatingSystem.IsWindows())

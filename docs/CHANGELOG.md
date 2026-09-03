@@ -5433,3 +5433,28 @@ Ergebnis; und gegen eine eigene Klasse über `As Object` ebenso.
 
 Kanonischer Nachweis: **1491/1491** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Eine Lücke in der Argumentliste ist kein leerer Wert (03.09.2026)
+
+Beim Nachmessen der letzten offenen Zeile von Etappe D — optionale Parameter — zeigte sich der
+Unterschied zwischen zwei Formen, die gleich aussehen. `fso.CreateTextFile(pfad)` mit zwei
+weggelassenen optionalen Argumenten am **Ende** funktionierte. `fso.OpenTextFile(pfad, , False)`
+mit einer Lücke **mittendrin** meldete 5.
+
+VB6 überträgt eine solche Lücke als VARIANT vom Typ `VT_ERROR` mit dem Code
+`DISP_E_PARAMNOTFOUND`. Genau daran erkennt ein Server, dass das Argument **nicht angegeben**
+wurde — im Unterschied dazu, dass es als `Empty` angegeben wurde. Beides ist beobachtbar
+verschieden: der Server setzt im einen Fall seinen dokumentierten Vorgabewert ein, im anderen
+nimmt er den leeren Wert.
+
+Der Marker `VBVariants.MissingValue()` reiste stattdessen unverändert bis zum Marshalling und kam
+dort als Objekt an, das der Server nicht lesen konnte. Am Ende der Liste fiel das nicht auf, weil
+dort gar kein Argument übertragen wird — die Lücke ist dann einfach ein kürzeres `rgvarg`.
+
+`VBComDispatch` schreibt jetzt für ein ausgelassenes Argument selbst ein `VT_ERROR` mit
+`DISP_E_PARAMNOTFOUND`. Damit ist die IDispatch-Zeile der Etappe D vollständig: LCID, benannte
+Argumente, `DISPID_VALUE`, `DISPID_PROPERTYPUT`, `EXCEPINFO`, optionale Parameter und
+Default-Properties sind alle gegenständlich gegen einen Fremdserver gemessen.
+
+Kanonischer Nachweis: **1492/1492** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
