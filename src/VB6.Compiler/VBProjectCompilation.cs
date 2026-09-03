@@ -229,6 +229,25 @@ public sealed class VBProjectCompilation
                 moduleVariableSymbols.TryAdd(name, new ModuleVariableSymbol(name, objectType));
             }
         }
+
+        // A class whose .cls declares VB_PredeclaredId owns a global instance named after itself,
+        // exactly like a form. VB6 creates it on first use, which is what As New already means
+        // here, so the default instance is an ordinary As New global rather than a second
+        // mechanism.
+        var predeclaredClassNames = parsedModules
+            .Where(module => module.Item.Kind == VBProjectItemKind.Class &&
+                             HasPredeclaredIdAttribute(module.SemanticRoot))
+            .Select(module => string.IsNullOrWhiteSpace(module.Item.Name)
+                ? Path.GetFileNameWithoutExtension(module.Item.RelativePath)
+                : module.Item.Name!)
+            .Where(classTypes.ContainsKey)
+            .ToImmutableArray();
+        foreach (var name in predeclaredClassNames)
+        {
+            moduleVariableSymbols.TryAdd(
+                name,
+                new ModuleVariableSymbol(name, classTypes[name]) { IsAsNew = true });
+        }
         var visibleEnumConstants = enumSymbols.AddMemberSymbols(moduleVariableSymbols);
         var visibleExternalConstants = externalTypeCatalog.AddMemberSymbols(moduleVariableSymbols);
         var visibleBuiltInConstants = VBBuiltInConstants.AddTo(moduleVariableSymbols);
@@ -238,6 +257,8 @@ public sealed class VBProjectCompilation
                 ? Path.GetFileNameWithoutExtension(item.RelativePath)
                 : item.Name!)
             .Where(moduleVariableSymbols.ContainsKey)
+            .Concat(predeclaredClassNames.Where(moduleVariableSymbols.ContainsKey))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(name => new BoundModuleVariable(
                 moduleVariableSymbols[name],
                 Initializer: null,
@@ -1350,6 +1371,27 @@ public sealed class VBProjectCompilation
                 .FirstOrDefault(type => type is not null &&
                     string.Equals(type.Name, itemName, StringComparison.OrdinalIgnoreCase));
             return startupForm is not null;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// <c>Attribute VB_PredeclaredId = True</c> in a .cls header. VB6 writes it for a class whose
+    /// Instancing gives it a global default instance.
+    /// </summary>
+    private static bool HasPredeclaredIdAttribute(CompilationUnitSyntax root)
+    {
+        foreach (var attribute in root.Members.OfType<AttributeSyntax>())
+        {
+            var tokens = attribute.Tokens;
+            if (tokens.Length >= 3 &&
+                string.Equals(tokens[0].Text, "VB_PredeclaredId", StringComparison.OrdinalIgnoreCase) &&
+                tokens[1].Kind == SyntaxKind.EqualsToken &&
+                string.Equals(tokens[2].Text, "True", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
 
         return false;

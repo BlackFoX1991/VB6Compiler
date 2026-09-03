@@ -37,7 +37,7 @@ internal static class VBClassModuleSource
                 attributesStarted = true;
             }
 
-            if (IsDefaultPropertyAttribute(trimmed))
+            if (IsSemanticAttribute(trimmed))
             {
                 builder.Append(line);
             }
@@ -75,10 +75,23 @@ internal static class VBClassModuleSource
         return builder.ToString();
     }
 
+    /// <summary>
+    /// The attribute lines that carry meaning for the compiler rather than for the IDE. Everything
+    /// else is blanked out so the parser never sees it -- but these two change what the code means,
+    /// so they have to survive: VB_UserMemId names the default property, and VB_PredeclaredId gives
+    /// the class a global instance named after itself.
+    /// </summary>
+    private static bool IsSemanticAttribute(string line) =>
+        IsDefaultPropertyAttribute(line) || IsPredeclaredIdAttribute(line);
+
     private static bool IsDefaultPropertyAttribute(string line) =>
         line.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase) &&
         line.Contains(".VB_UserMemId", StringComparison.OrdinalIgnoreCase) &&
         line.Contains("= 0", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPredeclaredIdAttribute(string line) =>
+        line.StartsWith("Attribute ", StringComparison.OrdinalIgnoreCase) &&
+        line.Contains("VB_PredeclaredId", StringComparison.OrdinalIgnoreCase);
 
     private static bool LooksLikeDesignerModule(string source)
     {
