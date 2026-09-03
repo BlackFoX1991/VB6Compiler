@@ -1987,4 +1987,84 @@ public sealed class ProjectCompilationTests
             Directory.Delete(directory, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void EmitManagedProject_ResolvesMembersQualifiedByTheirModuleName()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerModuleQualificationTests",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Qual.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Qual"
+                Module=Deklarierend; Deklarierend.bas
+                Module=Lesend; Lesend.bas
+                Class=Behaelter; Behaelter.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Deklarierend.bas"), """
+                Option Explicit
+                Public oeffentlich As Long
+                Global global2 As Long
+                Public Const KONST As Long = 7
+                Public Sub Fuellen()
+                    oeffentlich = 1
+                    global2 = 2
+                End Sub
+                Public Function Wert() As Long
+                    Wert = 42
+                End Function
+                Public Function Verdoppeln(ByVal n As Long) As Long
+                    Verdoppeln = n * 2
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Behaelter.cls"), """
+                Option Explicit
+                Public Feld As Long
+                """);
+            File.WriteAllText(Path.Combine(directory, "Lesend.bas"), """
+                Option Explicit
+                Sub Main()
+                    Deklarierend.Fuellen
+                    Debug.Print Deklarierend.oeffentlich
+                    Debug.Print Deklarierend.global2
+                    Debug.Print Deklarierend.Wert()
+                    Debug.Print Deklarierend.Verdoppeln(4)
+                    Debug.Print Deklarierend.KONST
+                    Deklarierend.oeffentlich = 9
+                    Debug.Print oeffentlich
+
+                    Dim Behaelter As Behaelter
+                    Set Behaelter = New Behaelter
+                    Behaelter.Feld = 3
+                    Debug.Print Behaelter.Feld
+
+                    Debug.Print Wert()
+                End Sub
+                """);
+
+            // Ein Modulname qualifiziert seine eigenen Member -- Variablen, Global, Konstanten,
+            // Funktionen mit und ohne Argument, der Aufruf als Anweisung und die Zuweisung.
+            // Vorher meldete jede dieser Formen VB6S0001 auf den Modulnamen. Die Qualifizierung
+            // muss dabei nichts aufloesen: VB6PRJ0003 und VB6PRJ0006 lassen einen zweiten
+            // oeffentlichen Traeger desselben Namens gar nicht zu. Eine Variable gleichen Namens
+            // gewinnt dagegen, sonst waere der Punkt kein Memberzugriff mehr.
+            CollectionAssert.AreEqual(
+                new[] { "1", "2", "42", "8", "7", "9", "3", "42" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
