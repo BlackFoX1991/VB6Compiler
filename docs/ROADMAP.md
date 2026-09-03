@@ -315,9 +315,11 @@ Rückgabematrix bleibt in Etappe B/C offen.
       mit Copy-in/Copy-out. Der Zielkonflikt zur bewusst typstrengen ByRef-Regel ist offen.
 - [ ] Eine deklarierte `Property Get` mit Array-Rückgabetyp kann nicht indiziert werden;
       `c.Nums(1)` meldet `VB6S0006`, statt die Property zu rufen und ihr Ergebnis zu indizieren.
-- [ ] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liefert aus dem
-      `Get` `Empty`. Das `Set` speichert nachweislich korrekt, ein `Get` ohne `Set` liefert
-      korrekt — nur die Kombination bricht, und sie ist die Normalform jeder Objekt-Property.
+- [x] Eine Klasse mit `Property Get` **und** `Property Set` gleichen Namens liest richtig
+      zurück. Ursache war die Namensauflösung im Set-Pfad: Ein blanker Name wurde gegen die
+      Set-Property der Klasse geprüft, bevor der lokale Gültigkeitsbereich befragt wurde — womit
+      `Set Obj = m_obj` **innerhalb** von `Property Get Obj` an die Property band statt an den
+      Rückgabewert.
 - [ ] Der Binder meldet den Zugriff auf ein **privates** Klassenfeld von aussen nicht; nur die
       CLR-Sichtbarkeit verhindert ihn zur Laufzeit.
 - [ ] `Dim x As New C` erzeugt eifrig statt bei der ersten Verwendung, und `Class_Terminate`
