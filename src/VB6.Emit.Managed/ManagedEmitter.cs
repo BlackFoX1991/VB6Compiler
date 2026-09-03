@@ -556,6 +556,20 @@ public sealed class ManagedEmitter
                 }
                 else
                 {
+                    // A class that derives from the runtime event source has to run its base
+                    // constructor before anything else -- the constructor is the only place the
+                    // base can be reached from.
+                    if (procedure.DeclaringClass is { } constructedClass &&
+                        procedure.IsCompilerGenerated &&
+                        string.Equals(procedure.Name, ".ctor", StringComparison.Ordinal) &&
+                        _options.EnableComHosting &&
+                        constructedClass.IsComExposed)
+                    {
+                        encoder.LoadArgument(0);
+                        encoder.OpCode(ILOpCode.Call);
+                        encoder.Token(GetComEventSourceConstructor());
+                    }
+
                     encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.EnterProcedure))));
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
@@ -3007,7 +3021,7 @@ public sealed class ManagedEmitter
                         _metadata.GetOrAddString(
                             (plan.Class.IsInterface ? "__vb6_interface_" : "__vb6_class_") +
                             Sanitize(plan.Class.Name)),
-                        plan.Class.IsInterface ? default : _systemObject,
+                        plan.Class.IsInterface ? default : GetClassBaseType(plan.Class),
                         plan.FirstField,
                         plan.FirstMethod);
                 }
@@ -3815,6 +3829,38 @@ public sealed class ManagedEmitter
                 });
             var handle = _metadata.AddMemberReference(
                 _vbArrayBound,
+                _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        /// <summary>
+        /// A COM-visible generated class derives from the runtime event source so that a client
+        /// can advise a sink on it. VB6 events are dispatched by name at run time rather than
+        /// through CLR events, so the CLR cannot build the connection point itself. Every other
+        /// class stays a plain object -- the base carries plumbing that has no meaning outside COM.
+        /// </summary>
+        private EntityHandle GetClassBaseType(IrClassDefinition classDefinition) =>
+            _options.EnableComHosting && classDefinition.Symbol.IsComExposed
+                ? GetReflectionTypeReference(typeof(VBComEventSource))
+                : _systemObject;
+
+        private MemberReferenceHandle GetComEventSourceConstructor()
+        {
+            const string key = "VBComEventSource::.ctor()";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                0,
+                returnType => returnType.Void(),
+                parameters => { });
+            var handle = _metadata.AddMemberReference(
+                GetReflectionTypeReference(typeof(VBComEventSource)),
                 _metadata.GetOrAddString(".ctor"),
                 _metadata.GetOrAddBlob(blob));
             _memberReferences.Add(key, handle);
