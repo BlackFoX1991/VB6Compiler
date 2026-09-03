@@ -1402,6 +1402,13 @@ public static class VBInteraction
     /// Reads the colour of one pixel of the active drawing surface. VB6 answers -1 for a point
     /// outside the surface, and that is also what a host without a drawing surface reports.
     /// </summary>
+    /// <summary>
+    /// The input-method state of the active window. VB6 answers 0 -- vbIMEModeNoControl -- on a
+    /// system without an East Asian IME, and that is the only answer this host can give: it never
+    /// installs one. Reporting an error instead would break code that merely asks.
+    /// </summary>
+    public static short IMEStatus() => 0;
+
     public static int GraphicsPoint(float x, float y) =>
         Host is { } host && host.TryGetGraphicsPoint(x, y, out var color) ? color : -1;
 

@@ -4868,6 +4868,8 @@ public static class IrLowerer
             "VBInteraction.Cls" => IrRuntimeMethod.InteractionCls,
             "VBInteraction.GraphicsPoint" => IrRuntimeMethod.GraphicsPoint,
             "VBVariants.NamedArgument" => IrRuntimeMethod.NamedArgument,
+            "VBFiles.FileAttr" => IrRuntimeMethod.FileAttr,
+            "VBInteraction.IMEStatus" => IrRuntimeMethod.IMEStatus,
             "VBMemory.VarPtr" => IrRuntimeMethod.MemoryVarPtr,
             "VBMemory.StrPtr" => IrRuntimeMethod.MemoryStrPtr,
             "VBMemory.ObjPtr" => IrRuntimeMethod.MemoryObjPtr,

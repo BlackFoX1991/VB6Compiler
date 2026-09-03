@@ -546,6 +546,8 @@ public enum IrRuntimeMethod
     GraphicsPoint,
     NamedArgument,
     ComLocalServerTryRun,
+    FileAttr,
+    IMEStatus,
     EndProgram,
 
     StringLen,

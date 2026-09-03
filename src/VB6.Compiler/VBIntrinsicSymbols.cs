@@ -531,6 +531,18 @@ internal static class VBIntrinsicSymbols
         Function("Minute", VBIntrinsicKind.Minute, "VBDateTime.Minute", TypeSymbol.Integer, Parameter("Time", TypeSymbol.Date)),
         Function("Second", VBIntrinsicKind.Second, "VBDateTime.Second", TypeSymbol.Integer, Parameter("Time", TypeSymbol.Date)),
         Function("Timer", VBIntrinsicKind.Timer, "VBDateTime.Timer", TypeSymbol.Single),
+        Function(
+            "FileAttr",
+            VBIntrinsicKind.FileAttr,
+            "VBFiles.FileAttr",
+            TypeSymbol.Long,
+            Parameter("FileNumber", TypeSymbol.Long),
+            OptionalParameter("ReturnType", TypeSymbol.Long, 1L)),
+        Function(
+            "IMEStatus",
+            VBIntrinsicKind.IMEStatus,
+            "VBInteraction.IMEStatus",
+            TypeSymbol.Integer),
         Function("DateSerial", VBIntrinsicKind.DateSerial, "VBDateTime.DateSerial", TypeSymbol.Date, Parameter("Year", TypeSymbol.Integer), Parameter("Month", TypeSymbol.Integer), Parameter("Day", TypeSymbol.Integer)),
         Function("TimeSerial", VBIntrinsicKind.TimeSerial, "VBDateTime.TimeSerial", TypeSymbol.Date, Parameter("Hour", TypeSymbol.Integer), Parameter("Minute", TypeSymbol.Integer), Parameter("Second", TypeSymbol.Integer)),
         Function("DateAdd", VBIntrinsicKind.DateAdd, "VBDateTime.DateAdd", TypeSymbol.Date, Parameter("Interval", TypeSymbol.String), Parameter("Number", TypeSymbol.Double), Parameter("Date", TypeSymbol.Date)),
