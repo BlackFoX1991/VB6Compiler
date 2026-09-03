@@ -5710,3 +5710,41 @@ gegen echtes VB6 SP6.
 
 Kanonischer Nachweis: **1507/1507** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Typbibliotheken über ICreateTypeLib2 (03.09.2026)
+
+Ein spät gebundener Client braucht keine Typbibliothek. Ein **früh** gebundener — VB6, VBA, C++ —
+sieht die Klassen ohne sie überhaupt nicht. Bis hierher gab es keine, und damit war eine erzeugte
+ActiveX-DLL für genau die Clients unbrauchbar, für die man sie baut.
+
+`ICreateTypeLib2` steckt in `oleaut32.dll` und braucht **kein** Windows SDK — anders als die
+IDL-Testkomponenten, die hier weiterhin nicht baubar sind. .NET liefert allerdings nur die
+lesende Hälfte der Typbibliotheks-API, die schreibende ist deshalb selbst deklariert. Dabei gilt:
+nur die Mitglieder, die dieser Schreiber wirklich ruft, tragen echte Signaturen; die übrigen halten
+ihren Platz in der vtable und nehmen bewusst kein einziges Argument, damit ein versehentlicher
+Aufruf nicht kompiliert.
+
+Die erzeugte Form ist die, die VB6 für ein Klassenmodul schreibt: eine **Dispinterface** mit
+führendem Unterstrich trägt die Mitglieder, eine **Coclass** mit dem blanken Namen nennt sie als
+Default. So schreibt ein Client `New Klasse` und nicht `New _Klasse`. Die GUIDs entstehen aus
+derselben Ableitung wie im Emitter, sodass Coclass und `GuidAttribute` übereinstimmen, ohne dass
+eine Seite die andere lesen muss. Und weil die Klassenliste aus dem `ComVisible`-Attribut kommt,
+bleibt eine `Private`-Klasse draußen — wie in VB6.
+
+Der Nachweis ist ein Rundlauf: schreiben, dann mit `LoadTypeLibEx` wieder laden und die Typen und
+Mitglieder auslesen. Eine `.tlb`, die niemand laden kann, ist nichts wert; erst der Leser beweist,
+dass der Schreiber eine echte erzeugt hat.
+
+Zwei Fehler auf dem Weg, beide lehrreich:
+
+- **Ein freigegebenes RCW weiterbenutzt.** Die Coclass verweist auf die Dispinterface, die aber
+  schon freigegeben war — „COM object that has been separated from its underlying RCW". Die
+  Freigabe gehört hinter den Verweis, nicht davor.
+- **Die Emission sperrte plötzlich ihre eigene Ausgabedatei.** Das Auslesen der COM-Klassen lädt
+  die Assembly, und ein entladbarer Ladekontext gibt seine Datei erst frei, wenn der Sammler
+  vorbeikommt. Zwei bestehende Tests fielen daran um — zu Recht: Wer eine DLL emittiert, darf sie
+  danach nicht sperren. Gelesen wird jetzt aus einer **Kopie** in `%TEMP%`; deren Sperre ist
+  gleichgültig, die der Ausgabe wäre es nicht.
+
+Kanonischer Nachweis: **1508/1508** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

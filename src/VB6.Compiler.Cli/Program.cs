@@ -156,6 +156,10 @@ if (string.Equals(Path.GetExtension(path), ".vbp", StringComparison.OrdinalIgnor
         {
             Console.WriteLine($"WinForms runtime support: {emitResult.WinFormsRuntimeAssemblyPath}");
         }
+        if (emitResult.TypeLibraryPath is not null)
+        {
+            Console.WriteLine($"Type library: {emitResult.TypeLibraryPath}");
+        }
         if (emitResult.ComManifestPath is not null)
         {
             Console.WriteLine($"COM manifest: {emitResult.ComManifestPath}");
@@ -236,6 +240,10 @@ if (options.Command == CliCommand.EmitAssembly)
     if (emitResult.WinFormsRuntimeAssemblyPath is not null)
     {
         Console.WriteLine($"WinForms runtime support: {emitResult.WinFormsRuntimeAssemblyPath}");
+    }
+    if (emitResult.TypeLibraryPath is not null)
+    {
+        Console.WriteLine($"Type library: {emitResult.TypeLibraryPath}");
     }
     if (emitResult.ComManifestPath is not null)
     {
@@ -331,6 +339,10 @@ static int HandleProjectGroup(string path, CommandLineOptions options)
                 if (project.Emit.WinFormsRuntimeAssemblyPath is not null)
                 {
                     Console.WriteLine($"WinForms runtime support: {project.Emit.WinFormsRuntimeAssemblyPath}");
+                }
+                if (project.Emit.TypeLibraryPath is not null)
+                {
+                    Console.WriteLine($"Type library: {project.Emit.TypeLibraryPath}");
                 }
                 if (project.Emit.ComManifestPath is not null)
                 {

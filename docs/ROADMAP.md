@@ -47,7 +47,7 @@ offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auc
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1507 Tests, alle grün** in 13
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1508 Tests, alle grün** in 13
 Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
 Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
 Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
@@ -401,7 +401,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [~] COM-Server erhalten vollständige Interfaces/Coclasses, `IUnknown`/`IDispatch`, Connection
       Points, Event-Source-Interfaces sowie Instancing-, Threading- und Binary-Compatibility-
       Verträge.
-- [ ] Typbibliotheken über `ICreateTypeLib2` als `.tlb` erzeugen und in Registrierung sowie
+- [~] Typbibliotheken über `ICreateTypeLib2` als `.tlb` erzeugen und in Registrierung sowie
       registry-free Manifest führen. ActiveX-DLLs verwenden den x86-`comhost`; ActiveX-EXEs
       erhalten einen Local Server mit `/Embedding`, `/Automation`, `CoRegisterClassObject`,
       Message Pump und sauberem Shutdown.
