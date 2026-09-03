@@ -534,6 +534,7 @@ public enum IrRuntimeMethod
     GraphicsPSetOnTarget,
     GraphicsCircle,
     GraphicsCircleOnTarget,
+    GraphicsPoint,
     EndProgram,
 
     StringLen,
