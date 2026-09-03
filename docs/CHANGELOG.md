@@ -5387,3 +5387,49 @@ frühgebundene vtable-Interfaces. Die braucht ein Windows SDK und ist hier nicht
 
 Kanonischer Nachweis: **1487/1487** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Benannte Argumente auf spät gebundenen Aufrufen (03.09.2026)
+
+Mit einem messbaren COM-Gegenüber ließ sich Etappe D Punkt 1 endlich prüfen. Das Ergebnis war
+knapp: Default-Property lesen (`d("a")`), Default-Property schreiben (`d("c") = 3`), indizierte
+Property schreiben (`d.Item("a") = 9`) und ein SAFEARRAY-Rückgabewert (`d.Keys()`) funktionierten
+alle bereits. Gefehlt hat genau eine Sache — **benannte Argumente**, und zwar schon im Binder:
+
+```
+VB6S0069  Named argument 'Key' is not a parameter of procedure 'Add'.
+```
+
+Der Befund ist folgerichtig: `NormalizeNamedArguments` löst Namen gegen die Signatur der Prozedur
+auf. Ein spät gebundener Aufruf **hat** keine Signatur — `CreateDynamicObjectProcedure` liefert nur
+ein einzelnes ParamArray, und gegen dessen einen Parameternamen passt kein Name der Welt.
+
+Der Weg ist deshalb ein anderer als bei einem gewöhnlichen Aufruf: Der Name wird **nicht** zur
+Übersetzungszeit in eine Position aufgelöst, sondern reist mit. Der Binder verpackt ihn in eine
+`VBVariants.NamedArgument(name, wert)`, die im ohnehin vorhandenen Variant-Array mitfährt — so muss
+zwischen Binder und Dispatcher keine Schicht eine zweite Argumentform lernen.
+
+Aufgelöst wird dann dort, wo das Ziel bekannt ist, und das ist an zwei Stellen verschieden:
+
+- **COM-Ziel:** `GetIDsOfNames` bekommt den Membernamen **und** die Parameternamen in einem
+  einzigen Aufruf und liefert die DISPIDs zurück — genau der Mechanismus, den VB6 benutzt. Dafür
+  musste die Interop-Deklaration korrigiert werden: `rgDispId` ist ein *Array*, ein
+  `out int` hätte für einen Namen funktioniert und für jeden weiteren den Stack beschädigt.
+- **Managed-Ziel:** die Parameternamen stehen in den Metadaten; `ResolveNamedArguments` ordnet dort
+  zu.
+
+Die DISPPARAMS-Reihenfolge ist die fehleranfällige Stelle. `rgvarg` muss mit den **benannten**
+Werten beginnen, in der Reihenfolge von `rgdispidNamedArgs`, danach folgen die positionellen in
+umgekehrter Reihenfolge. Da `Invoke` die Liste ohnehin von hinten nach vorn schreibt, heißt das:
+positionelle Argumente in Quellreihenfolge, benannte umgekehrt angehängt, und der Wert eines
+Property-Put ganz zuletzt — dort, wo das bestehende `DISPID_PROPERTYPUT` ihn erwartet.
+
+Ein Name, den das Ziel nicht kennt, meldet **448** — auf beiden Wegen dieselbe dokumentierte
+VB6-Antwort. Eine bekannte Signatur wird unverändert zur Übersetzungszeit aufgelöst; `VB6S0069`
+bleibt für sie in Kraft, und ein Test hält beide Seiten dieser Grenze fest.
+
+Gemessen gegen `Scripting.Dictionary`: `d.Add Key:="a", Item:=1`, dieselben Namen in umgekehrter
+Reihenfolge und `d.Add "c", Item:=3` gemischt mit einer Position liefern alle das richtige
+Ergebnis; und gegen eine eigene Klasse über `As Object` ebenso.
+
+Kanonischer Nachweis: **1491/1491** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
