@@ -545,6 +545,7 @@ public enum IrRuntimeMethod
     GraphicsCircleOnTarget,
     GraphicsPoint,
     NamedArgument,
+    ComLocalServerTryRun,
     EndProgram,
 
     StringLen,

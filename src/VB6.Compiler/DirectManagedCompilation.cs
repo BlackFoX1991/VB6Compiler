@@ -162,7 +162,11 @@ public static class DirectManagedCompilation
             assemblyName = "VB6Program";
         }
 
-        var outputKind = VBProjectCompilation.IsLibraryProjectType(lowering.Analysis.Project.ProjectType)
+        // An ActiveX EXE is a library by contract and an executable by form: COM starts it as a
+        // process. Every other library kind stays a library.
+        var isLocalServer = VBProjectCompilation.IsLocalServerProjectType(lowering.Analysis.Project.ProjectType);
+        var outputKind = VBProjectCompilation.IsLibraryProjectType(lowering.Analysis.Project.ProjectType) &&
+                         !isLocalServer
             ? ManagedOutputKind.Library
             : ManagedOutputKind.Application;
         var projectOptions = options is null
@@ -174,6 +178,11 @@ public static class DirectManagedCompilation
             CreateProjectSourceDocuments(lowering.Analysis),
             outputKind);
         var program = lowering.Program;
+        if (isLocalServer)
+        {
+            program = AddLocalServerEntryPoint(program);
+        }
+
         if (actualOptions.OutputKind == ManagedOutputKind.Application)
         {
             program = AddCommandLineInitialization(program);
@@ -279,6 +288,71 @@ public static class DirectManagedCompilation
         {
             Modules = updatedModules,
             EntryPoint = updatedEntryPoint
+        };
+    }
+
+    /// <summary>
+    /// Gives an ActiveX EXE the entry point VB6 gives it: one that first offers itself to COM.
+    ///
+    /// The same executable has two roles. Started by COM with <c>/Embedding</c>, it must register
+    /// its class objects and pump messages instead of running the program; started normally, it
+    /// runs <c>Sub Main</c> if there is one. The entry point is synthesized rather than taken from
+    /// the user's Sub Main precisely because an ActiveX EXE is allowed to have none -- its
+    /// executable exists for COM, not for a program to run.
+    /// </summary>
+    private static IrProgram AddLocalServerEntryPoint(IrProgram program)
+    {
+        var userMain = program.EntryPoint;
+        var serverBlock = new IrBasicBlock(
+            0,
+            "activex_entry",
+            ImmutableArray<IrInstruction>.Empty,
+            new IrConditionalTerminator(
+                new IrRuntimeCallExpression(
+                    IrRuntimeMethod.ComLocalServerTryRun,
+                    ImmutableArray<IrCallArgument>.Empty,
+                    TypeSymbol.Boolean),
+                TrueBlockId: 2,
+                FalseBlockId: 1));
+        var mainBlock = new IrBasicBlock(
+            1,
+            "activex_main",
+            userMain is null
+                ? ImmutableArray<IrInstruction>.Empty
+                : ImmutableArray.Create<IrInstruction>(new IrEvaluateInstruction(
+                    new IrSyntheticCallExpression(
+                        userMain,
+                        Receiver: null,
+                        ImmutableArray<IrCallArgument>.Empty,
+                        TypeSymbol.Error))),
+            new IrGotoTerminator(2));
+        var exitBlock = new IrBasicBlock(
+            2,
+            "activex_exit",
+            ImmutableArray<IrInstruction>.Empty,
+            new IrReturnTerminator(null));
+
+        var entryPoint = new IrProcedure(
+            null,
+            "__vb6_activex_main",
+            null,
+            ImmutableArray<IrParameter>.Empty,
+            ImmutableArray<IrLocal>.Empty,
+            ImmutableArray.Create(serverBlock, mainBlock, exitBlock),
+            IsStatic: true,
+            IsCompilerGenerated: true);
+
+        // The entry point gets its own module rather than joining an existing one: an ActiveX EXE
+        // may consist of nothing but class modules, and then there is no module to join.
+        var serverModule = new IrModule(
+            "__VB6LocalServer",
+            null,
+            ImmutableArray<IrGlobal>.Empty,
+            ImmutableArray.Create(entryPoint));
+        return program with
+        {
+            Modules = program.Modules.Add(serverModule),
+            EntryPoint = entryPoint
         };
     }
 
@@ -546,10 +620,15 @@ internal static class ManagedArtifactWriter
         {
             throw new InvalidOperationException("Cannot write unsuccessful managed emit result.");
         }
-        if (options.EnableComHosting && options.OutputKind != ManagedOutputKind.Library)
+        // An in-process COM server needs the native comhost loader, and that only makes sense for
+        // a library. An out-of-process one is an executable that registers its own class objects,
+        // so it needs no loader at all -- the guard would otherwise rule out the very shape VB6
+        // gives an ActiveX EXE.
+        var isLocalServer = options.EnableComHosting && options.OutputKind == ManagedOutputKind.Application;
+        if (options.EnableComManifest && isLocalServer)
         {
             throw new ManagedArtifactException(
-                "COM hosting requires ManagedOutputKind.Library output.");
+                "A COM local server registers through LocalServer32, not through an activation manifest.");
         }
         if (options.EnableComManifest && !options.EnableComHosting)
         {
@@ -625,7 +704,16 @@ internal static class ManagedArtifactWriter
 
         string? comManifestPath = null;
         string? typeLibraryPath = null;
-        if (options.EnableComHosting)
+        if (options.EnableComHosting && isLocalServer)
+        {
+            // The executable is the server. It still gets a type library: an early-bound client
+            // cannot see the classes without one, whether they live in-process or not.
+            if (OperatingSystem.IsWindows())
+            {
+                typeLibraryPath = ManagedTypeLibraryWriter.Create(managedAssemblyPath, options.Platform);
+            }
+        }
+        else if (options.EnableComHosting)
         {
             var comHostPath = ManagedComHostWriter.Create(managedAssemblyPath, options.Platform);
 

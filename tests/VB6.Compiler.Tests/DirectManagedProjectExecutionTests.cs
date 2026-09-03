@@ -172,16 +172,66 @@ public sealed class DirectManagedProjectExecutionTests
     }
 
     [TestMethod]
+    public void EmitManaged_GivesAnActiveXExeALocalServerEntryPoint()
+    {
+        foreach (var projectType in new[] { "OleExe", "ActiveX EXE" })
+        {
+            var projectDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "VB6CompilerLocalServer",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(projectDirectory);
+
+            try
+            {
+                var projectPath = Path.Combine(projectDirectory, "LegacyServer.vbp");
+                File.WriteAllText(projectPath, $"""
+                    Type={projectType}
+                    Name="LegacyServer"
+                    Module=Exports; Exports.bas
+                    """);
+                File.WriteAllText(Path.Combine(projectDirectory, "Exports.bas"), """
+                    Public Sub Register()
+                    End Sub
+                    """);
+
+                var result = DirectManagedCompilation.EmitManaged(
+                    VBProjectCompilation.Create(projectPath),
+                    Path.Combine(projectDirectory, "bin", "LegacyServer.exe"));
+
+                Assert.IsTrue(result.Success, projectType);
+                using var imageStream = new MemoryStream(result.BackendResult!.PeImage!);
+                using var peReader = new System.Reflection.PortableExecutable.PEReader(imageStream);
+
+                // Ohne Sub Main -- der Einstiegspunkt ist erzeugt, weil ein ActiveX EXE für COM
+                // existiert und nicht für ein Programm, das jemand startet.
+                Assert.AreNotEqual(
+                    0,
+                    peReader.PEHeaders.CorHeader!.EntryPointTokenOrRelativeVirtualAddress,
+                    projectType);
+            }
+            finally
+            {
+                if (Directory.Exists(projectDirectory))
+                {
+                    Directory.Delete(projectDirectory, recursive: true);
+                }
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManaged_EmitsAllSupportedLibraryProjectKindsWithoutSubMain()
     {
+        // OleExe und ActiveX EXE stehen bewusst nicht in dieser Liste: VB6 baut daraus eine
+        // ausführbare Datei, die COM mit /Embedding startet, und die hat einen Einstiegspunkt.
+        // Für sie gilt EmitManaged_GivesAnActiveXExeALocalServerEntryPoint.
         foreach (var projectType in new[]
                  {
                      "OleDll",
-                     "OleExe",
                      "Control",
                      "Dll",
                      "ActiveX DLL",
-                     "ActiveX EXE",
                      "ActiveX Control"
                  })
         {
