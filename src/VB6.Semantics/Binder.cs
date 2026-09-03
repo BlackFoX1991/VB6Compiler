@@ -1476,6 +1476,7 @@ public sealed class Binder
                     TypeSymbol.Boolean)),
             LineStatementSyntax line => BindGraphicsLine(line, variables, procedures),
             PSetStatementSyntax pset => BindGraphicsPSet(pset, variables, procedures),
+            CircleStatementSyntax circle => BindGraphicsCircle(circle, variables, procedures),
             FilePrintStatementSyntax filePrint => BindFilePrint(filePrint, variables, procedures),
             FileWriteStatementSyntax fileWrite => new BoundFileWriteStatement(
                 BindFileNumber(fileWrite.FileNumber, variables, procedures),
@@ -1924,6 +1925,71 @@ public sealed class Binder
 
         return new BoundLineInputStatement(
             BindFileNumber(syntax.FileNumber, variables, procedures),
+            target);
+    }
+
+    private BoundStatement? BindGraphicsCircle(
+        CircleStatementSyntax syntax,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+    {
+        var span = syntax.CircleKeyword.Span;
+        var centerX = BindLineCoordinate(syntax.Center.XExpression, variables, procedures, span);
+        var centerY = BindLineCoordinate(syntax.Center.YExpression, variables, procedures, span);
+        var radius = BindLineCoordinate(syntax.Radius, variables, procedures, span);
+
+        BoundExpression? BindOptional(ExpressionSyntax? optional)
+        {
+            if (optional is null)
+            {
+                return null;
+            }
+
+            var bound = BindExpression(optional, variables, procedures);
+            if (bound.Type != TypeSymbol.Error && !IsNumericType(bound.Type) && bound.Type != TypeSymbol.Variant)
+            {
+                Report(
+                    "VB6S0060",
+                    "Graphics Circle arguments must be numeric or Variant expressions.",
+                    GetSpan(optional));
+            }
+
+            return bound;
+        }
+
+        var color = BindOptional(syntax.ColorExpression);
+        var start = BindOptional(syntax.StartExpression);
+        var end = BindOptional(syntax.EndExpression);
+        var aspect = BindOptional(syntax.AspectExpression);
+
+        if (centerX.Type == TypeSymbol.Error ||
+            centerY.Type == TypeSymbol.Error ||
+            radius.Type == TypeSymbol.Error ||
+            color?.Type == TypeSymbol.Error ||
+            start?.Type == TypeSymbol.Error ||
+            end?.Type == TypeSymbol.Error ||
+            aspect?.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        var target = syntax.Target is null
+            ? null
+            : BindExpression(syntax.Target, variables, procedures);
+        if (target?.Type == TypeSymbol.Error)
+        {
+            return null;
+        }
+
+        return new BoundGraphicsCircleStatement(
+            centerX,
+            centerY,
+            radius,
+            color,
+            start,
+            end,
+            aspect,
+            syntax.StepKeyword is not null,
             target);
     }
 

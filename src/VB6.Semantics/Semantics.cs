@@ -504,6 +504,7 @@ public enum BoundNodeKind
     ErrorStatement,
     GraphicsLineStatement,
     GraphicsPSetStatement,
+    GraphicsCircleStatement,
     FilePrintStatement,
     FileWriteStatement,
     FileLockStatement,
@@ -699,6 +700,23 @@ public sealed record BoundErrorStatement(BoundExpression Number)
 /// <c>PSet</c> with its bound coordinate pair. It carries the same Step and colour contract as
 /// <c>Line</c>; only the second point and the B/F options are missing.
 /// </summary>
+/// <summary>
+/// <c>Circle</c> with its bound centre, radius and optional colour, arc angles and aspect ratio.
+/// A null optional means VB6 uses its documented default: the current ForeColor, a full circle,
+/// and an aspect ratio of one.
+/// </summary>
+public sealed record BoundGraphicsCircleStatement(
+    BoundExpression CenterX,
+    BoundExpression CenterY,
+    BoundExpression Radius,
+    BoundExpression? Color,
+    BoundExpression? Start,
+    BoundExpression? End,
+    BoundExpression? Aspect,
+    bool IsStep,
+    BoundExpression? Target = null)
+    : BoundStatement(BoundNodeKind.GraphicsCircleStatement);
+
 public sealed record BoundGraphicsPSetStatement(
     BoundExpression X,
     BoundExpression Y,
