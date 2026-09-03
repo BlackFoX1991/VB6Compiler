@@ -5799,3 +5799,43 @@ Test bekommen.
 
 Kanonischer Nachweis: **1510/1510** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## UserControls: Ambient, Extender und der richtige Anfang (03.09.2026)
+
+Die Nachmessung des UserControl-Vertrags fand vier Lücken auf einmal:
+
+```
+lifecycle = init, read      ' InitProperties fehlt, ReadProperties feuert für ein neues Control
+ambient   = NEIN
+extender  = NEIN
+show/hide = nie
+```
+
+**`InitProperties` statt `ReadProperties`.** VB6 unterscheidet ein **neues** Control von einem
+**wiederhergestellten**: Ist nichts gespeichert, bekommt es `UserControl_InitProperties` und setzt
+seine Vorgaben selbst; liegt etwas im PropertyBag, bekommt es `UserControl_ReadProperties`. Vorher
+lief immer `ReadProperties` — mit einem leeren Bag, was dem Programm eine Wiederherstellung
+vorspielte, die es nie gab. Der PropertyBag beantwortet die Frage jetzt selbst (`IsEmpty`).
+
+**`Ambient` und `Extender`** sind die beiden Objekte, über die ein UserControl seinen Container
+erreicht, und beide fehlten ganz. `Ambient` trägt, was der Container *vorschlägt* — Schriftart,
+Farben — und ob dies der laufende Modus ist; `UserMode` ist hier immer wahr, denn einen
+Entwurfsmodus gibt es in diesem Compiler nicht. `Extender` trägt, was der Container **besitzt**:
+ein UserControl benennt sich nicht selbst, und ebenso wenig bestimmt es seine Position.
+
+Dabei fiel ein zweiter Fehler auf: Das gehostete Fenster trug gar keinen Namen, `Extender.Name`
+hätte den **Typnamen** gemeldet statt `Widget1`. Der Container setzt ihn jetzt beim Anlegen.
+
+**`Show` und `Hide`** melden eine **Änderung**, nicht einen Zustand. Der erste Versuch hängte sich
+schlicht an `VisibleChanged` — und meldete dreimal „versteckt" für ein Control, das nie sichtbar
+war, weil WinForms dieses Ereignis auch beim Einhängen auslöst. Gemeldet wird jetzt nur ein echter
+Wechsel; zweimal derselbe Wert ist kein Ereignis.
+
+**Ein bestehender Test hat seine Zusage verloren.**
+`HostEmbedsGeneratedUserControlClassesAsDesignerComponents` prüfte, dass ein frisch angelegtes
+UserControl `ReadProperties` bekommt. Das war eine Herleitung aus dem vorhandenen Code, keine
+gemessene VB6-Eigenschaft — und sie ist falsch herum. Der Test prüft jetzt `InitProperties`, und
+die Vorgaben, die er dort setzt, wandern über `WriteProperties` wieder hinaus.
+
+Kanonischer Nachweis: **1512/1512** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

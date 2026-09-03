@@ -1030,6 +1030,54 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostGivesAUserControlItsAmbientAndExtenderObjects()
+    {
+        using var host = new WinFormsHost();
+        var owner = new UserControlOwner();
+        host.Load(owner);
+
+        var generated = host.CreateControl(owner, "Widget1", typeof(GeneratedUserControlStub).FullName!)!;
+
+        // Ambient trägt, was der Container vorschlägt. UserMode ist wahr -- es gibt keinen
+        // Entwurfsmodus, in dem dieser Code liefe.
+        Assert.IsTrue(host.TryGetMember(generated, "Ambient", Array.Empty<object?>(), out var ambient));
+        Assert.IsNotNull(ambient);
+        Assert.AreEqual(true, VBDynamicDispatch.GetMember(ambient, "UserMode"));
+        Assert.IsNotNull(VBDynamicDispatch.GetMember(ambient, "Font"));
+
+        // Extender trägt, was der Container besitzt -- ein UserControl benennt sich nicht selbst.
+        Assert.IsTrue(host.TryGetMember(generated, "Extender", Array.Empty<object?>(), out var extender));
+        Assert.IsNotNull(extender);
+        Assert.AreEqual("Widget1", VBDynamicDispatch.GetMember(extender, "Name"));
+    }
+
+    [STATestMethod]
+    public void HostReportsUserControlVisibilityChanges()
+    {
+        using var host = new WinFormsHost();
+        var owner = new UserControlOwner();
+        host.Load(owner);
+
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+        var generated = host.CreateControl(owner, "Widget1", typeof(GeneratedUserControlStub).FullName!)!;
+        var stub = (GeneratedUserControlStub)generated;
+
+        // Ein Control, das nie versteckt wurde, wird nicht für versteckt erklärt.
+        Assert.AreEqual(0, stub.HideCount);
+
+        Assert.IsTrue(host.TrySetMember(generated, "Visible", Array.Empty<object?>(), false));
+        Assert.AreEqual(1, stub.HideCount);
+
+        // Zweimal derselbe Wert ist keine Änderung und damit kein Ereignis.
+        Assert.IsTrue(host.TrySetMember(generated, "Visible", Array.Empty<object?>(), false));
+        Assert.AreEqual(1, stub.HideCount);
+
+        var shown = stub.ShowCount;
+        Assert.IsTrue(host.TrySetMember(generated, "Visible", Array.Empty<object?>(), true));
+        Assert.AreEqual(shown + 1, stub.ShowCount);
+    }
+
+    [STATestMethod]
     public void HostEmbedsGeneratedUserControlClassesAsDesignerComponents()
     {
         using var host = new WinFormsHost();
@@ -1043,8 +1091,12 @@ public sealed class WinFormsHostTests
         Assert.IsInstanceOfType<GeneratedUserControlStub>(generated);
         var generatedStub = (GeneratedUserControlStub)generated!;
         Assert.AreEqual(1, generatedStub.InitializeCount);
-        Assert.AreEqual(1, generatedStub.ReadPropertiesCount);
-        Assert.AreEqual("persisted", generatedStub.ReadPropertyValue);
+
+        // Ein frisch angelegtes UserControl bekommt InitProperties, nicht ReadProperties: Es hat
+        // nichts Gespeichertes, das wiederhergestellt werden könnte. Dieser Test hat das vorher
+        // andersherum behauptet -- eine Herleitung, keine gemessene VB6-Eigenschaft.
+        Assert.AreEqual(1, generatedStub.InitPropertiesCount);
+        Assert.AreEqual(0, generatedStub.ReadPropertiesCount);
         Assert.IsTrue(host.TryGetMember(owner, "Widget1", Array.Empty<object?>(), out var named));
         Assert.AreSame(generated, named);
         Assert.IsTrue(host.TrySetMember(generated!, "Width", Array.Empty<object?>(), 1440));
@@ -2854,7 +2906,26 @@ public sealed class WinFormsHostTests
         public object? ReadPropertyValue { get; private set; }
         public object? WritePropertyValue { get; private set; }
 
+        public int InitPropertiesCount { get; private set; }
+        public int ShowCount { get; private set; }
+        public int HideCount { get; private set; }
+
         private void UserControl_Initialize() => InitializeCount++;
+
+        private void UserControl_InitProperties()
+        {
+            InitPropertiesCount++;
+
+            // InitProperties ist die Stelle, an der ein neues Control seine Vorgaben setzt;
+            // WriteProperties schreibt sie beim Beenden weg.
+            Defaults["Caption"] = "persisted";
+        }
+
+        public Dictionary<string, object?> Defaults { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        private void UserControl_Show() => ShowCount++;
+
+        private void UserControl_Hide() => HideCount++;
 
         private void UserControl_ReadProperties(object propertyBag)
         {
@@ -2867,7 +2938,13 @@ public sealed class WinFormsHostTests
         private void UserControl_WriteProperties(object propertyBag)
         {
             WritePropertiesCount++;
-            WritePropertyValue = ((VBPropertyBag)propertyBag).ReadProperty("Caption");
+            var bag = (VBPropertyBag)propertyBag;
+            foreach (var entry in Defaults)
+            {
+                bag.WriteProperty(entry.Key, entry.Value);
+            }
+
+            WritePropertyValue = bag.ReadProperty("Caption");
         }
 
         private void UserControl_Terminate() => TerminateCount++;

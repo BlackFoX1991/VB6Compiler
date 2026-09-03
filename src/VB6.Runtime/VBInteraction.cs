@@ -1587,4 +1587,11 @@ public sealed class VBPropertyBag
         _ = defaultValue;
         _values[name] = value;
     }
+
+    /// <summary>
+    /// True while the bag holds nothing. VB6 decides on exactly this whether a UserControl gets
+    /// <c>InitProperties</c> -- it is new -- or <c>ReadProperties</c>, which restores a control
+    /// that was saved before.
+    /// </summary>
+    public bool IsEmpty => _values.Count == 0;
 }
