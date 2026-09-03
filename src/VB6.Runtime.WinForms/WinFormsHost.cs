@@ -461,6 +461,86 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
+    public void GraphicsPSet(VBGraphicsPoint point)
+    {
+        ThrowIfDisposed();
+        var target = _bindings.Values
+            .Select(binding => binding.Form)
+            .FirstOrDefault(form => !form.IsDisposed);
+        if (target is not null)
+        {
+            RenderGraphicsPSet(target, point);
+        }
+    }
+
+    public void GraphicsPSet(object? target, VBGraphicsPoint point)
+    {
+        ThrowIfDisposed();
+        if (ResolveDrawingTarget(target) is { } control)
+        {
+            RenderGraphicsPSet(control, point);
+        }
+    }
+
+    /// <summary>
+    /// Sets one pixel. The surface selection is the same three-way choice Line makes: a raster
+    /// operation other than CopyPen on a persistent AutoRedraw surface is merged through
+    /// <see cref="ApplyRasterOperation"/>, everything else draws directly.
+    /// </summary>
+    private void RenderGraphicsPSet(Control target, VBGraphicsPoint point)
+    {
+        var state = GetDesignerControlState(target);
+        var scale = GetScaleFactors(target, state);
+
+        // Step makes the coordinates relative to the current drawing position, exactly as for Line.
+        var x = (point.IsStep ? state.CurrentX + point.X : point.X) * scale.X;
+        var y = (point.IsStep ? state.CurrentY + point.Y : point.Y) * scale.Y;
+
+        var color = Color.Black;
+        if (point.Color is int oleColor)
+        {
+            try
+            {
+                color = ColorTranslator.FromOle(oleColor);
+            }
+            catch (ArgumentException)
+            {
+                color = Color.Black;
+            }
+        }
+
+        if (state.DrawMode != DrawModeCopyPen &&
+            state.AutoRedraw &&
+            state.ActivePaintGraphics is null)
+        {
+            var surface = GetDrawingSurface(target);
+            using var source = new Bitmap(surface.Width, surface.Height);
+            using (var sourceGraphics = Graphics.FromImage(source))
+            {
+                ConfigureRasterGraphics(sourceGraphics);
+                DrawGraphicsPoint(sourceGraphics, x, y, color);
+            }
+
+            ApplyRasterOperation(surface, source, state.DrawMode);
+            target.Invalidate();
+        }
+        else
+        {
+            using var drawing = BeginDrawing(target);
+            DrawGraphicsPoint(drawing.Graphics, x, y, color);
+        }
+
+        // VB6 leaves the current drawing position on the pixel that was just set.
+        state.CurrentX = point.IsStep ? state.CurrentX + point.X : point.X;
+        state.CurrentY = point.IsStep ? state.CurrentY + point.Y : point.Y;
+    }
+
+    private static void DrawGraphicsPoint(Graphics graphics, float x, float y, Color color)
+    {
+        using var brush = new SolidBrush(color);
+        graphics.FillRectangle(brush, x, y, 1f, 1f);
+    }
+
     private void RenderGraphicsLine(Control target, VBGraphicsLine line)
     {
         var state = GetDesignerControlState(target);
@@ -3481,6 +3561,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) value = state.FillStyle;
         else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) value = state.MousePointer;
         else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) value = state.ScaleMode;
+        else if (string.Equals(memberName, "CurrentX", StringComparison.OrdinalIgnoreCase)) value = state.CurrentX;
+        else if (string.Equals(memberName, "CurrentY", StringComparison.OrdinalIgnoreCase)) value = state.CurrentY;
         else if (string.Equals(memberName, "DrawMode", StringComparison.OrdinalIgnoreCase)) value = state.DrawMode;
         else
         {
@@ -3587,6 +3669,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "FillStyle", StringComparison.OrdinalIgnoreCase)) state.FillStyle = VBConversions.CLng(value);
         else if (string.Equals(memberName, "MousePointer", StringComparison.OrdinalIgnoreCase)) state.MousePointer = VBConversions.CLng(value);
         else if (string.Equals(memberName, "ScaleMode", StringComparison.OrdinalIgnoreCase)) state.ScaleMode = ValidateScaleMode(value);
+        else if (string.Equals(memberName, "CurrentX", StringComparison.OrdinalIgnoreCase)) state.CurrentX = VBConversions.CSng(value);
+        else if (string.Equals(memberName, "CurrentY", StringComparison.OrdinalIgnoreCase)) state.CurrentY = VBConversions.CSng(value);
         else if (string.Equals(memberName, "DrawMode", StringComparison.OrdinalIgnoreCase)) state.DrawMode = ValidateDrawMode(value);
         else return false;
 
@@ -4624,6 +4708,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public int MousePointer { get; set; }
 
         public int ScaleMode { get; set; } = 1;
+
+        /// <summary>
+        /// The VB6 drawing position in scale units. PSet leaves it on the pixel it set, and a Step
+        /// coordinate is measured from it.
+        /// </summary>
+        public float CurrentX { get; set; }
+
+        public float CurrentY { get; set; }
 
         public int DrawMode { get; set; } = DrawModeCopyPen;
 
