@@ -198,5 +198,6 @@ public enum SyntaxKind
     LineStatement,
     LinePoint,
     PSetStatement,
+    CircleStatement,
     EndStatement
 }

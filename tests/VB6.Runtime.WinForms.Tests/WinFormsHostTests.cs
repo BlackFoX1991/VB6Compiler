@@ -1115,6 +1115,65 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostDrawsACircleAndStretchesItByTheAspectRatio()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        var previousHost = VBInteraction.Host;
+
+        try
+        {
+            VBInteraction.Host = host;
+            host.Load(owner);
+            Assert.IsTrue(host.TrySetMember(owner, "Width", Array.Empty<object?>(), 4320));
+            Assert.IsTrue(host.TrySetMember(owner, "Height", Array.Empty<object?>(), 2880));
+            Assert.IsTrue(host.TrySetMember(owner, "AutoRedraw", Array.Empty<object?>(), true));
+
+            // Mittelpunkt bei Pixel 96/96, Radius 30 Pixel -- 15 Twips pro Pixel bei 96 DPI.
+            VBInteraction.GraphicsCircle(
+                1440,
+                1440,
+                450,
+                ColorTranslator.ToOle(Color.Red),
+                null,
+                null,
+                null,
+                false);
+
+            Assert.IsTrue(host.TryGetMember(owner, "Picture", Array.Empty<object?>(), out var image));
+            using var snapshot = new Bitmap((Bitmap)image!);
+
+            // Auf dem Rand rechts vom Mittelpunkt liegt Farbe, im Mittelpunkt nicht -- Circle
+            // zeichnet den Umriss, nicht die Flaeche.
+            var rim = snapshot.GetPixel(126, 96);
+            Assert.IsTrue(rim.R > 180 && rim.G < 120 && rim.B < 120);
+            var centre = snapshot.GetPixel(96, 96);
+            Assert.IsFalse(centre.R > 180 && centre.G < 120 && centre.B < 120);
+
+            // Das Seitenverhaeltnis streckt die y-Achse: mit 2.0 liegt der obere Rand doppelt so
+            // weit vom Mittelpunkt entfernt wie der rechte.
+            VBInteraction.GraphicsCircle(
+                1440,
+                1440,
+                450,
+                ColorTranslator.ToOle(Color.Blue),
+                null,
+                null,
+                2.0,
+                false);
+
+            using var stretched = new Bitmap((Bitmap)image!);
+            var stretchedRim = stretched.GetPixel(96, 36);
+            Assert.IsTrue(stretchedRim.B > 150 && stretchedRim.R < 120);
+        }
+        finally
+        {
+            VBInteraction.Host = previousHost;
+            host.Unload(owner);
+        }
+    }
+
+    [STATestMethod]
     public void HostSetsAPixelAndTracksTheDrawingPosition()
     {
         using var host = new WinFormsHost();

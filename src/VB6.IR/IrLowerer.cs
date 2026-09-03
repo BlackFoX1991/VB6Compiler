@@ -1305,6 +1305,31 @@ public static class IrLowerer
                     // bound expression for diagnostics while emitting no IR preserves that
                     // release behavior and avoids evaluating assertion side effects.
                     break;
+                case BoundGraphicsCircleStatement circle:
+                    IrExpression Optional(BoundExpression? value) => value is null
+                        ? new IrNullExpression(TypeSymbol.Variant)
+                        : LowerExpression(value);
+                    var circleArguments = new List<IrExpression>();
+                    if (circle.Target is not null)
+                    {
+                        circleArguments.Add(LowerExpression(circle.Target));
+                    }
+
+                    circleArguments.Add(LowerExpression(circle.CenterX));
+                    circleArguments.Add(LowerExpression(circle.CenterY));
+                    circleArguments.Add(LowerExpression(circle.Radius));
+                    circleArguments.Add(Optional(circle.Color));
+                    circleArguments.Add(Optional(circle.Start));
+                    circleArguments.Add(Optional(circle.End));
+                    circleArguments.Add(Optional(circle.Aspect));
+                    circleArguments.Add(new IrConstantExpression(circle.IsStep, TypeSymbol.Boolean));
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        circle.Target is null
+                            ? IrRuntimeMethod.GraphicsCircle
+                            : IrRuntimeMethod.GraphicsCircleOnTarget,
+                        TypeSymbol.Error,
+                        circleArguments.ToArray())));
+                    break;
                 case BoundGraphicsPSetStatement pset:
                     var psetColor = pset.Color is null
                         ? new IrNullExpression(TypeSymbol.Variant)

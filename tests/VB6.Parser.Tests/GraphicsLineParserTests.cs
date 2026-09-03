@@ -62,6 +62,48 @@ public sealed class GraphicsLineParserTests
     }
 
     [TestMethod]
+    public void Parse_RecognizesCircleWithItsOptionalArguments()
+    {
+        var result = new ParserType(SourceText.From(
+            "Sub Main()\nCircle (x, y), r, color, 0, 3.14, 0.5\nEnd Sub")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(", ", result.Diagnostics.Select(d => d.Message)));
+        var statement = (CircleStatementSyntax)result.Root.Members
+            .OfType<SubDeclarationSyntax>()
+            .Single()
+            .Statements[0];
+
+        Assert.IsNull(statement.StepKeyword);
+        Assert.AreEqual("x", ((NameExpressionSyntax)statement.Center.XExpression).IdentifierToken.Text);
+        Assert.AreEqual("r", ((NameExpressionSyntax)statement.Radius).IdentifierToken.Text);
+        Assert.AreEqual("color", ((NameExpressionSyntax)statement.ColorExpression!).IdentifierToken.Text);
+        Assert.IsNotNull(statement.StartExpression);
+        Assert.IsNotNull(statement.EndExpression);
+        Assert.IsNotNull(statement.AspectExpression);
+    }
+
+    [TestMethod]
+    public void Parse_KeepsOmittedCircleArgumentsApart()
+    {
+        var result = new ParserType(SourceText.From(
+            "Sub Main()\nCircle Step (x, y), r, , 0, 3.14\nEnd Sub")).ParseCompilationUnit();
+
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join(", ", result.Diagnostics.Select(d => d.Message)));
+        var statement = (CircleStatementSyntax)result.Root.Members
+            .OfType<SubDeclarationSyntax>()
+            .Single()
+            .Statements[0];
+
+        // Eine ausgelassene Farbe darf die folgenden Winkel nicht verschieben -- sonst zeichnete
+        // VB6 einen Vollkreis in der Farbe des Startwinkels.
+        Assert.IsNotNull(statement.StepKeyword);
+        Assert.IsNull(statement.ColorExpression);
+        Assert.IsNotNull(statement.StartExpression);
+        Assert.IsNotNull(statement.EndExpression);
+        Assert.IsNull(statement.AspectExpression);
+    }
+
+    [TestMethod]
     public void Parse_RecognizesPSetCoordinateAndColor()
     {
         var result = new ParserType(SourceText.From("Sub Main()\nPSet (x, y), color\nEnd Sub")).ParseCompilationUnit();

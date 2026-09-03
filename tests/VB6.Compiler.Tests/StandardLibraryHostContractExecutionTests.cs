@@ -436,6 +436,58 @@ public sealed class StandardLibraryHostContractExecutionTests
     }
 
     [TestMethod]
+    public void Lower_UsesGraphicsCircleHostContract()
+    {
+        var program = VB6TestIr.Lower("""
+            Sub Main()
+                Dim picture As Control
+                Circle (50, 50), 20
+                Circle Step (5, 5), 20, vbRed
+                Circle (50, 50), 20, , 0, 3.14
+                picture.Circle (50, 50), 20
+            End Sub
+            """);
+
+        var calls = VB6TestIr.RuntimeCalls(program)
+            .Where(method =>
+                method == VB6.IR.IrRuntimeMethod.GraphicsCircle ||
+                method == VB6.IR.IrRuntimeMethod.GraphicsCircleOnTarget)
+            .ToArray();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                VB6.IR.IrRuntimeMethod.GraphicsCircle,
+                VB6.IR.IrRuntimeMethod.GraphicsCircle,
+                VB6.IR.IrRuntimeMethod.GraphicsCircle,
+                VB6.IR.IrRuntimeMethod.GraphicsCircleOnTarget
+            },
+            calls);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RunsCircleWithoutAUiHost()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                Circle (50, 50), 20
+                Debug.Print Err.Number
+                Circle (50, 50), 20, vbRed
+                Debug.Print Err.Number
+                Circle Step (5, 5), 20
+                Debug.Print Err.Number
+                Circle (50, 50), 20, , 0, 3.14
+                Debug.Print Err.Number
+                Circle (50, 50), 20, vbRed, 0, 3.14, 0.5
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "0", "0", "0", "0", "0" }, output);
+    }
+
+    [TestMethod]
     public void Lower_UsesGraphicsPSetHostContract()
     {
         var program = VB6TestIr.Lower("""
