@@ -81,6 +81,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     /// tree that calls a static method, so an instance field would not be reachable from it. The
     /// entries are owner objects and therefore unique per program; a host removes the ones it still
     /// holds when it is disposed.
+    /// <summary>
+    /// Generated UserControls whose Init/ReadProperties decision waits for the designer envelope
+    /// to close, together with the binding that owns their property bag.
+    /// </summary>
+    private readonly List<(object Owner, object Control, FormBinding Binding)> _pendingUserControls = new();
+
     private static readonly HashSet<object> _openDesignerEnvelopes =
         new(ReferenceEqualityComparer.Instance);
     private readonly ToolTip _toolTip = new();
@@ -1346,6 +1352,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         _openDesignerEnvelopes.Remove(target);
 
+        foreach (var pending in _pendingUserControls.Where(entry => ReferenceEquals(entry.Owner, target)).ToArray())
+        {
+            _pendingUserControls.Remove(pending);
+            ApplyUserControlProperties(pending.Control, pending.Binding);
+        }
+
         var owned = _pendingDesignerState
             .Where(entry => ReferenceEquals(entry.Value.Owner, target))
             .ToArray();
@@ -1624,6 +1636,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             pending.Values[memberName] = value;
         }
 
+        // The same for a generated UserControl: what the container persisted for this instance is
+        // exactly what its ReadProperties has to see. Recorded, not diverted -- the ordinary
+        // assignment still happens, so a control that reads the property directly is unaffected.
+        if (arguments.Length == 0)
+        {
+            foreach (var userControl in _pendingUserControls)
+            {
+                if (ReferenceEquals(userControl.Control, target))
+                {
+                    userControl.Binding.UserControlPropertyBag?.WriteProperty(memberName, value);
+                    break;
+                }
+            }
+        }
+
         if (target is ImageListProxy designerImageList && arguments.Length == 0 &&
             TrySetImageListDesignerProperty(designerImageList, memberName, value))
         {
@@ -1822,8 +1849,22 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             if (resolved is Form form)
             {
-                form.Show();
-                AttachGeneratedNativeControlEvents(target);
+                // Show vbModal blocks until the form is unloaded -- that is the whole point of the
+                // argument, and ignoring it let a program continue past a dialog it was waiting on.
+                //
+                // The event hookup has to straddle that: a native OCX can only be connected once
+                // its window exists, so the modeless path attaches after Show; the modal path
+                // cannot wait, because ShowDialog does not return until the form is gone.
+                if (arguments.Length > 0 && VBConversions.CLng(arguments[0]) == 1)
+                {
+                    AttachGeneratedNativeControlEvents(target);
+                    form.ShowDialog();
+                }
+                else
+                {
+                    form.Show();
+                    AttachGeneratedNativeControlEvents(target);
+                }
             }
             else
             {
@@ -2760,6 +2801,22 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
+    /// <summary>
+    /// Hands a generated UserControl the state the container persisted for it, exactly once: a bag
+    /// with something in it means the control is being restored, an empty one means it is new.
+    /// </summary>
+    private static void ApplyUserControlProperties(object control, FormBinding binding)
+    {
+        var bag = binding.UserControlPropertyBag;
+        if (bag is null || bag.IsEmpty)
+        {
+            InvokeGeneratedUserControlLifecycle(control, "UserControl_InitProperties");
+            return;
+        }
+
+        InvokeGeneratedUserControlPropertyBagLifecycle(control, "UserControl_ReadProperties", bag);
+    }
+
     private static void InvokeBindingTermination(object target, FormBinding binding)
     {
         if (binding.IsGeneratedUserControl)
@@ -2776,7 +2833,52 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         else if (binding.FormInitialized)
         {
+            // VB6 ends a form in three steps: QueryUnload may still cancel, Unload runs the
+            // teardown, Terminate follows once the object goes. Only Terminate was raised here, so
+            // a Form_Unload handler -- the usual place for saving state -- never ran at all.
+            InvokeGeneratedFormUnload(target, "Form_QueryUnload");
+            InvokeGeneratedFormUnload(target, "Form_Unload");
             InvokeGeneratedUserControlLifecycle(target, "Form_Terminate");
+        }
+    }
+
+    /// <summary>
+    /// Raises Form_QueryUnload/Form_Unload. Both carry ByRef arguments in VB6 and a program may
+    /// declare them with or without, so the arity the handler actually has decides the call.
+    /// </summary>
+    private static void InvokeGeneratedFormUnload(object target, string methodName)
+    {
+        var method = target.GetType()
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(candidate.Name, "__vb6_" + methodName, StringComparison.OrdinalIgnoreCase));
+        if (method is null)
+        {
+            return;
+        }
+
+        var parameters = method.GetParameters();
+        var arguments = new object?[parameters.Length];
+        for (var index = 0; index < parameters.Length; index++)
+        {
+            var type = parameters[index].ParameterType;
+            if (type.IsByRef)
+            {
+                type = type.GetElementType()!;
+            }
+
+            arguments[index] = type.IsValueType ? Activator.CreateInstance(type) : null;
+        }
+
+        try
+        {
+            method.Invoke(target, arguments);
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
     }
 
@@ -5094,16 +5196,18 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         // A control that has nothing stored is a new one, and VB6 gives it InitProperties to set
         // its own defaults. ReadProperties belongs to a control being restored -- calling it on a
         // new one hands the program an empty bag and calls that a restore.
-        if (generatedBinding.UserControlPropertyBag.IsEmpty)
+        //
+        // Which of the two applies is only known once the designer envelope is closed: the values
+        // the container persisted for this instance arrive as property assignments after the
+        // control exists. Deciding at creation meant the bag was always empty and
+        // UserControl_ReadProperties never ran at all.
+        if (_openDesignerEnvelopes.Contains(owner))
         {
-            InvokeGeneratedUserControlLifecycle(generatedUserControl, "UserControl_InitProperties");
+            _pendingUserControls.Add((owner, generatedUserControl, generatedBinding));
         }
         else
         {
-            InvokeGeneratedUserControlPropertyBagLifecycle(
-                generatedUserControl,
-                "UserControl_ReadProperties",
-                generatedBinding.UserControlPropertyBag);
+            ApplyUserControlProperties(generatedUserControl, generatedBinding);
         }
 
         // Show and Hide report a *change*. WinForms raises VisibleChanged while a hosted form is

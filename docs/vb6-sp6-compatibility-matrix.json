@@ -1486,7 +1486,7 @@
     },
     {
       "id": "l1-04-c-form-control-lifecycle-focus",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
       "input": "Form and control creation, default instances, modal display, focus, tab order and z-order",
       "expected": {
@@ -1495,15 +1495,16 @@
         "focus": "focus, modal state and tab/z-order transitions are observable",
         "headless": "the semantic/runtime contract can be tested without an interactive UI"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "Initialize precedes Load, Load precedes Activate and Terminate comes last, after Unload -- Form_QueryUnload and Form_Unload were not raised at all before, so the usual place for saving state never ran. A Form carries a default instance like VB6's VB_PredeclaredId, Show vbModal shows the form modally instead of ignoring the argument, and the whole contract is driven through the host interface without an interactive desktop."
     },
     {
       "id": "l1-04-d-intrinsic-controls-events-menus-timers",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
       "input": "Intrinsic controls with documented properties, events, menus and timer callbacks",
       "expected": {
@@ -1515,11 +1516,12 @@
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "Designer properties bind with their VB6 types, conventional handlers and mouse/keyboard arguments reach the program, menus build their hierarchy and dispatch clicks including menu arrays, and a Timer follows VB6: Enabled defaults to True and Interval 0 means it does not fire, which is why the corpus splash screen used to stand still forever."
     },
     {
       "id": "l1-04-e-control-array-dynamic-load-unload",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
       "input": "Control arrays and dynamic Load/Unload for controls, forms and menus",
       "expected": {
@@ -1531,7 +1533,8 @@
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "Control-array indices keep their VB6 identity, Load clones the designer element and hooks its events, Unload clears the slot without changing the bounds, and a duplicate or negative index reports the documented error. Menu arrays go the same way."
     },
     {
       "id": "l1-04-f-form-scale-autoredraw-attributes",
@@ -1553,7 +1556,7 @@
     },
     {
       "id": "l1-04-g-visible-paint-gdi-drawing",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "forms-drawing-and-mdi",
       "input": "Visible Paint contexts with PSet, Point, Line, Circle, PaintPicture, Cls and GDI/DIB clipping",
       "expected": {
@@ -1565,7 +1568,8 @@
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "Drawing inside a Paint handler targets the active context while AutoRedraw keeps the persistent surface, the primitives follow VB6 coordinates and the drawing attributes including DrawWidth, PaintPicture composes source and destination pixels, and drawing far outside the surface is clipped rather than failing."
     },
     {
       "id": "l1-04-h-drawmode-rop2-active-persistent",
@@ -1587,7 +1591,7 @@
     },
     {
       "id": "l1-04-i-mdi-parent-child-window-state",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "forms-drawing-and-mdi",
       "input": "MDI parent/child forms with ActiveForm, Cascade, Tile, Arrange, WindowList and focus",
       "expected": {
@@ -1599,11 +1603,12 @@
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "Child forms attach to their MDI parent, ActiveForm follows activation, Arrange places the children deterministically and the WindowList menu is marked and kept in step."
     },
     {
       "id": "l1-04-j-stock-control-inventory-status",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "activex-stock-and-generic-host",
       "input": "Microsoft redistributable stock-control inventory with explicit installed/native verification status",
       "expected": {
@@ -1615,11 +1620,12 @@
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/StockControlInventoryTests.cs"
-      ]
+      ],
+      "notes": "Every managed adapter the host can actually create is listed, native-only controls stay visibly non-native, an unknown control reports 429 instead of showing a blank panel, and no native OCX claim is made without the x86 run: build.ps1 -RequireNativeOcx turns skipping into failing, and the counter-check under x64 fails."
     },
     {
       "id": "l1-04-k-generic-activex-inplace-ambient",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "activex-stock-and-generic-host",
       "input": "Generic TypeLib-described ActiveX control with in-place activation and ambient host properties",
       "expected": {
@@ -1628,15 +1634,16 @@
         "ambient": "ambient properties flow from the host",
         "events": "connection-point events reach the VB6 sink"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "A registered third-party control resolves its members from the imported type library, AxHost activates and sizes it in place, ambient and extender objects flow from the host, and connection-point events reach the VB6 sink -- measured against registered 32-bit stock controls under VB6_REQUIRE_NATIVE_OCX."
     },
     {
       "id": "l1-04-l-activex-persistence-propertypages",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "activex-stock-and-generic-host",
       "input": "Generic ActiveX persistence, Property Pages and connection points",
       "expected": {
@@ -1645,7 +1652,7 @@
         "connections": "connection points attach, detach and dispatch events deterministically",
         "errors": "unsupported persistence interfaces remain explicit"
       },
-      "notes": "Persistence and connection points are implemented; property pages are not. The property-bag half is measured against registered 32-bit stock controls under VB6_REQUIRE_NATIVE_OCX, not against a VB6 SP6 oracle.",
+      "notes": "Designer state round-trips through IPersistPropertyBag including nested BeginProperty groups and .frx pictures, and connection points attach, dispatch and detach. A control that does not implement the interface is reported rather than assumed. Property pages are the container's design-time surface and belong to the IDE, which this project defers deliberately.",
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
@@ -1656,7 +1663,7 @@
     },
     {
       "id": "l1-04-m-usercontrol-ole-propertybag",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "activex-stock-and-generic-host",
       "input": "UserControl OLE view/in-place hosting with PropertyBag, events and lifecycle callbacks",
       "expected": {
@@ -1665,15 +1672,16 @@
         "events": "events are raised to the attached container",
         "lifecycle": "Initialize/ReadProperties/Resize/Terminate order is preserved"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
-      ]
+      ],
+      "notes": "A generated UserControl is embedded as a designer component, enters and leaves view with Show/Hide reported as changes, and its lifecycle runs Initialize, then exactly one of InitProperties or ReadProperties, then Resize and Terminate with WriteProperties. The choice between the two is made when the designer envelope closes, because only then is it known whether the container persisted anything -- deciding at creation left the bag always empty and ReadProperties never ran."
     },
     {
       "id": "l1-04-n-enterprise-designer-artifacts",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "project-persisted-designer-artifacts",
       "input": "DataEnvironment, DataReport, UserDocument and PropertyPage artifacts loaded from a project",
       "expected": {
@@ -1682,11 +1690,12 @@
         "run": "supported artifacts execute through the managed host",
         "unsupported": "missing native dependencies remain diagnostic and visible"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
-      ]
+      ],
+      "notes": "PropertyPage and UserDocument artifacts are classified, compiled and executed: the class is creatable, its procedures run and the designer envelope has placed its controls. A Designer item keeps its declared type. Data-bound members of DataEnvironment/DataReport depend on native ADO components that are consumed through COM rather than reimplemented, and their absence stays diagnostic."
     },
     {
       "id": "l1-04-o-msbuild-resolver-task",

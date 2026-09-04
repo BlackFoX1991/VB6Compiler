@@ -6801,3 +6801,32 @@ Matrix: **101 implemented, 13 partial, 4 planned**; 114/118 documented-verified.
 
 Kanonischer Nachweis: **1576/1576** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Der Formularlebenszyklus brach bei `Unload` ab (04.09.2026)
+
+Ein Hosttest, der die Reihenfolge der Form-Ereignisse mitschreibt, ergab
+`Initialize | Load | Activate | Terminate` — **`Form_Unload` fehlte ganz**. VB6 beendet eine Form in
+drei Schritten: `QueryUnload` darf noch abbrechen, `Unload` räumt auf, `Terminate` folgt, wenn das
+Objekt geht. Der übliche Platz zum Sichern von Zustand lief damit nie.
+
+Zwei weitere Lücken derselben Karte:
+
+- **`Show vbModal` wurde ignoriert.** Das Argument fiel weg, die Form erschien nichtmodal, und ein
+  Programm lief an dem Dialog vorbei, auf den es wartete.
+- **`UserControl_ReadProperties` war toter Code.** Die Eigenschaftstüte wurde bei jeder Erzeugung
+  leer angelegt, also war sie beim Entscheiden immer leer und VB6s Wahl fiel stets auf
+  `InitProperties`. Welche der beiden gilt, steht aber erst fest, wenn die Designer-Hülle
+  geschlossen ist — die Werte, die der Container für diese Instanz abgelegt hat, treffen als
+  Zuweisungen **nach** der Erzeugung ein. Die Entscheidung ist dorthin verschoben, und die Werte
+  wandern unterwegs in die Tüte.
+
+**Ein Fehlgriff auf dem Weg**, vom x86-Lauf gefangen: Ich hatte für die modale Anzeige
+`AttachGeneratedNativeControlEvents` vor `Show` gezogen. Ein natives OCX lässt sich aber erst
+verbinden, wenn sein Fenster existiert — zwei native Ereignistests fielen sofort aus. Der modale
+Weg verbindet jetzt vorher (`ShowDialog` kehrt ja nicht zurück), der nichtmodale wie bisher danach.
+
+Damit sind zehn Karten der Etappe F geschlossen. Die Matrix führt **111 implemented, 7 partial,
+0 planned**. Die verbleibenden sieben sind Familienkarten der Etappen B und C.
+
+Kanonischer Nachweis: **1579/1579** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **80/80**.
