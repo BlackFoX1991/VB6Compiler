@@ -272,6 +272,53 @@ internal static class VBTypeLibraryImporter
         }
     }
 
+    /// <summary>
+    /// Reads the ARRAYDESC behind a VT_CARRAY. The bounds array follows the element TYPEDESC and a
+    /// dimension count, aligned to the four-byte SAFEARRAYBOUND -- so its offset is the size of a
+    /// TYPEDESC plus four on both architectures, not the managed size of a struct declaration.
+    /// </summary>
+    private static bool TryReadCArray(
+        TYPEDESC description,
+        ITypeInfo owner,
+        string libraryName,
+        IReadOnlyDictionary<string, TypeSymbol> types,
+        out TypeSymbol? elementType,
+        out ImmutableArray<UserDefinedTypeArrayBound> bounds)
+    {
+        elementType = null;
+        bounds = ImmutableArray<UserDefinedTypeArrayBound>.Empty;
+        if (description.lpValue == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var elementDescription = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+        var boundsOffset = Marshal.SizeOf<TYPEDESC>() + 4;
+        var dimensions = (int)(ushort)Marshal.ReadInt16(description.lpValue, Marshal.SizeOf<TYPEDESC>());
+        if (dimensions is <= 0 or > 60)
+        {
+            return false;
+        }
+
+        var declared = ImmutableArray.CreateBuilder<UserDefinedTypeArrayBound>(dimensions);
+        for (var dimension = 0; dimension < dimensions; dimension++)
+        {
+            var offset = boundsOffset + (dimension * 8);
+            var count = (uint)Marshal.ReadInt32(description.lpValue, offset);
+            var lower = Marshal.ReadInt32(description.lpValue, offset + 4);
+            if (count == 0)
+            {
+                return false;
+            }
+
+            declared.Add(new UserDefinedTypeArrayBound(lower, lower + count - 1));
+        }
+
+        elementType = ReadType(elementDescription, owner, libraryName, types);
+        bounds = declared.ToImmutable();
+        return true;
+    }
+
     private static string? GetVariableName(ITypeInfo typeInfo, int memberId)
     {
         var names = new string[1];
@@ -337,6 +384,25 @@ internal static class VBTypeLibraryImporter
                 var name = GetVariableName(typeInfo, variable.memid);
                 if (string.IsNullOrWhiteSpace(name))
                 {
+                    continue;
+                }
+
+                // A fixed C array is a record member with bounds, exactly like "a(0 To 7) As Byte"
+                // in a VB6 Type. Without them the member arrived as a bare Object and the first
+                // indexed read tore the program down with a NullReferenceException.
+                if ((variable.elemdescVar.tdesc.vt & VariantTypeMask) == VtCArray &&
+                    TryReadCArray(
+                        variable.elemdescVar.tdesc,
+                        typeInfo,
+                        libraryName,
+                        types,
+                        out var elementType,
+                        out var arrayBounds))
+                {
+                    members.Add(new UserDefinedTypeMemberSymbol(
+                        name,
+                        new ArrayTypeSymbol(elementType!, arrayBounds.Length),
+                        arrayBounds));
                     continue;
                 }
 
@@ -613,7 +679,12 @@ internal static class VBTypeLibraryImporter
 
         if (baseType == VtCArray)
         {
-            return VBStandardTypes.Object;
+            // A C array keeps its element type and its fixed bounds in an ARRAYDESC. The element
+            // type is enough for the type symbol; the bounds belong to the member that declares it
+            // and are read separately, because only there is there somewhere to put them.
+            return TryReadCArray(description, owner, libraryName, types, out var elementType, out _)
+                ? new ArrayTypeSymbol(elementType!, 1)
+                : VBStandardTypes.Object;
         }
 
         if (baseType == VtPtr)

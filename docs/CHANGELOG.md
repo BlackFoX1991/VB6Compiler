@@ -6327,3 +6327,33 @@ Das ist die nächste Karte.
 
 Kanonischer Nachweis: **1550/1550** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Ein festes C-Array in einem importierten Record ist jetzt ein Array (04.09.2026)
+
+`stdole.GUID.Data4` ist in VB6 `Data4(0 To 7) As Byte`. Bei uns kam es als blankes `Object` an, und
+`g.Data4(0)` wurde damit zu einem spät gebundenen indizierten Zugriff auf `Nothing` — das Programm
+brach mit einer `NullReferenceException` aus `VBDynamicDispatch.RequireTarget` ab. Keine Meldung,
+keine Zeile, kein Bezug zur Deklaration.
+
+Die Grenzen stehen in der `ARRAYDESC` hinter dem `VT_CARRAY`. Ihr Offset ist der wenig offensichtliche
+Teil: die Bounds folgen dem Element-`TYPEDESC` und einer Dimensionszahl, ausgerichtet auf die
+vier Byte einer `SAFEARRAYBOUND` — also `SizeOf(TYPEDESC) + 4` auf beiden Architekturen, **nicht**
+die verwaltete Größe einer nachgebauten Struktur. Ein Member mit Grenzen ist im Symbolmodell längst
+vorgesehen (`UserDefinedTypeMemberSymbol.ArrayBounds`); es fehlte nur der Weg dorthin.
+
+Gemessen gegen die registrierte `stdole2.tlb`:
+
+```
+TypeName(g.Data4(0))  ->  Byte
+LBound / UBound       ->  0 / 7
+h = g : h.Data4(3)=5  ->  g bleibt 200
+```
+
+Die letzte Zeile ist die wichtigere: Eine UDT-Wertkopie kopiert auch ihre Arrays, und das gilt jetzt
+auch für einen Record, dessen Grenzen aus einer Typbibliothek stammen.
+
+Ausdrücklich offen: `VT_PTR` kommt weiterhin als `Object` an, **ohne** Diagnose. Das verletzt
+„melden statt raten", und die Karte `l1-03-j` bleibt deshalb `partial`.
+
+Kanonischer Nachweis: **1551/1551** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **70/70**.

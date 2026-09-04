@@ -1298,7 +1298,7 @@
     },
     {
       "id": "l1-03-j-typelib-alias-record-pointer-import",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "com-automation-types",
       "input": "TypeLib declarations containing aliases, records, nested UDTs, pointers and C-style arrays",
       "expected": {
@@ -1307,7 +1307,8 @@
         "pointers": "x86 pointer width and unsupported pointer shapes remain explicit",
         "arrays": "C-array metadata is retained or diagnosed when it cannot be mapped"
       },
-      "verification": "not-yet-verified",
+      "notes": "Aliases, records and fixed C arrays are measured end to end against the registered stdole2.tlb. Pointer shapes still arrive as Object without a diagnostic, which is why the card stays partial.",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
         "tests/VB6.Compiler.Tests/RegisteredControlLibraryTests.cs",
