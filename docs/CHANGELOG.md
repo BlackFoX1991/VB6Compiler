@@ -6357,3 +6357,42 @@ Ausdrücklich offen: `VT_PTR` kommt weiterhin als `Object` an, **ohne** Diagnose
 
 Kanonischer Nachweis: **1551/1551** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **70/70**.
+
+## `New` auf einer importierten Coklasse legt jetzt ein Objekt an (04.09.2026)
+
+`Set d = New Scripting.Dictionary` — gewöhnlicheres VB6 gibt es kaum — scheiterte beim Emittieren
+mit `VB6E0001: Class 'Scripting.Dictionary' has no managed constructor`. Der Backend-Fehlerkanal
+hat dabei richtig gearbeitet: es gab wirklich keinen Konstruktor, weil die Klasse nicht von dieser
+Übersetzung stammt. Nur hatte ihm nie jemand gesagt, dass er stattdessen die registrierte Coklasse
+aktivieren soll. Jedes `New` auf eine importierte Klasse war damit ein Übersetzungsfehler.
+
+Der Weg liegt jetzt im Lowerer, nicht im Emitter: Trägt die importierte Klasse eine Klassen-Id, wird
+`New` zu einem Laufzeitaufruf `VBInteraction.CreateComInstance`. Der Emitter muss von
+COM-Aktivierung nichts wissen. Die Id kommt aus der Typbibliothek und wird nur für eine **erzeugbare**
+Coklasse gesetzt (`TYPEFLAG_FCANCREATE`); eine Schnittstelle bekommt keine, und `New` darauf bleibt
+abgewiesen. Schlägt die Aktivierung fehl, meldet die Runtime **429** statt einen Platzhalter
+zurückzugeben — sonst wandert der Fehler zum ersten Memberzugriff und verliert seine Ursache.
+
+Dahinter kam sofort der zweite Befund: `f.Size = 9` auf einem `StdFont` riss mit
+„Type 'VB6.Runtime.VBCurrency' cannot be marshalled to a Variant. Type library is not registered"
+ab. Die Meldung liest sich wie ein Registrierungsproblem und ist keines. `stdole.FONTSIZE` ist
+`VT_CY`, der Wert also ein `VBCurrency` — eine Struktur dieser Runtime, die so nicht in eine VARIANT
+passt. Gemessen an der Grenze: `VBComDispatch.TryInvoke` lieferte für das Setzen **False** und der
+Reflexionsweg dahinter warf. Wieder ein Ersatzweg, der eine Lücke im Hauptweg verdeckt hat.
+
+Beide Wege gehen jetzt durch `VBComValue.ToAutomation` — eine Stelle, an der `VBCurrency` zu
+`Decimal` und `VBDateValue` zu `DateTime` wird, statt an jedem Aufrufort einzeln.
+
+Gemessen gegen registrierte Komponenten:
+
+```
+New stdole.StdFont            -> Courier New / 9 / False
+New Scripting.Dictionary      -> Count 2, Item("b") 2, Exists("a") True
+New Scripting.FileSystemObject-> GetExtensionName(...) = txt
+```
+
+Noch offen und gemeldet, nicht still: `For Each` über eine COM-Collection (`d.Keys`) wird mit
+`VB6S0055` abgewiesen.
+
+Kanonischer Nachweis: **1553/1553** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **70/70**.
