@@ -6461,3 +6461,30 @@ Gemessen an einem registrierten ImageList: `Count = 1`, `Key = rot`, `Picture` i
 
 Kanonischer Nachweis: **1557/1557** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **71/71**.
+
+## Korrektur: `IPersistStreamInit` blockiert den RichTextBox-Text nicht (04.09.2026)
+
+Zwei Einträge weiter oben steht, der Text einer RichTextBox hänge an `IPersistStreamInit` und fehle
+deshalb. Das ist falsch, und die Herkunft des Irrtums ist lehrreich: In der ersten Messung hatte ich
+`Text` gesetzt und leer zurückbekommen. `Text` ist aber gar nicht die persistierte Eigenschaft — der
+Designer schreibt `TextRTF`, und in der `.frm` des Korpus steht genau das
+(`TextRTF = $"frmInfo.frx":2CFA`).
+
+Ein Protokoll der Lesewünsche zweier Stock-Controls klärt es:
+
+```
+RICHTEXT.RichtextCtrl.1   ... READ TextRTF   angefordert=null
+MSComctlLib.Toolbar.2     ... READ Buttons   angefordert=__ComObject
+                              READ Buttons.NumButtons  angefordert=Int16
+```
+
+Beide bieten ihren vollständigen Zustand über die Eigenschaftstüte an. Nachgemessen über den Host:
+`TextRTF` kommt an und überlebt die Übergabe des ganzen Zustands. Unter den elf gemessenen
+Stock-Controls braucht **keines** `IPersistStreamInit`; die Schnittstelle bleibt offen für Controls,
+die ihren Zustand ausschließlich als Strom führen, und das ist eine deutlich schmalere Aussage als
+die zurückgezogene.
+
+Roadmap und `CLAUDE.md` sind entsprechend berichtigt.
+
+Kanonischer Nachweis: **1558/1558** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **72/72**.

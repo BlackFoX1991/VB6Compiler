@@ -3174,6 +3174,45 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void NativeRichTextBoxKeepsItsDesignerTextAcrossTheEnvelopeInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("RICHTEXT.RichtextCtrl.1", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native property bag validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var richText = host.CreateControl(owner, "rtfTest", "RichTextLib.RichTextBox")!;
+        Assert.IsInstanceOfType<AxHost>(richText);
+
+        // So steht der Text im Korpus: TextRTF = $"frmInfo.frx":2CFA. Das Control fragt TextRTF
+        // ueber die Eigenschaftstuete ab -- die .frx-Seite braucht dafuer kein IPersistStreamInit.
+        Assert.IsTrue(host.TrySetMember(
+            richText,
+            "TextRTF",
+            Array.Empty<object?>(),
+            @"{tf1ansi Hallo aus der frxpar}"));
+
+        // Und die Uebergabe des ganzen Zustands darf ihn nicht wieder kosten.
+        host.CompleteDesignerInitialization(owner);
+
+        Assert.IsTrue(host.TryGetMember(richText, "Text", Array.Empty<object?>(), out var text));
+        StringAssert.Contains(Convert.ToString(text), "Hallo aus der frx", Convert.ToString(text));
+
+        host.Unload(owner);
+    }
+
     /// <summary>Nimmt entgegen, was ein Control ueber sich selbst zu sagen hat.</summary>
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]

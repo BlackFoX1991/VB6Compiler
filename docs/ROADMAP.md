@@ -433,8 +433,11 @@ Rückgabematrix bleibt in Etappe B/C offen.
       OLE-In-Place-Aktivierung, Ambient Properties, Property Pages, Persistence und Connection
       Points; undokumentiertes controlspezifisches Verhalten bleibt außerhalb des Vertrags.
       Stand: Persistenz über `IPersistPropertyBag` und Connection Points sind umgesetzt und gegen
-      registrierte 32-Bit-Stock-Controls gemessen; `IPersistStreamInit` — die `.frx`-Seite, an der
-      etwa der RichTextBox-Text hängt — und Property Pages fehlen.
+      registrierte 32-Bit-Stock-Controls gemessen — einschließlich verschachtelter Gruppen
+      (ImageList-Bilder, Toolbar-Buttons) und der `.frx`-Nutzlasten dahinter. Offen sind
+      Property Pages und Controls, die ihren Zustand **ausschließlich** über
+      `IPersistStreamInit` führen; unter den gemessenen Stock-Controls ist keines davon
+      betroffen.
 - [~] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
       PropertyBag-/Stream-Persistenz, Ambient Properties, Events, Property Pages und vollständigen
       Lifecycle.
