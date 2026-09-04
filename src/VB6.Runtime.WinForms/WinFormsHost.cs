@@ -1314,7 +1314,44 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         // A control that refuses its own state throws, and the exception travels the ordinary COM
         // path from here. Swallowing it would leave a control standing on its defaults with nobody
         // able to tell why -- and inventing a VB6 error number for it would be a guess.
-        VBComPersistence.TryApplyDesignerState(comObject, values);
+        VBComPersistence.TryApplyDesignerState(comObject, ToAutomationDesignerValues(values));
+    }
+
+    /// <summary>
+    /// Turns the designer envelope into values a native control can actually read.
+    ///
+    /// A picture arrives from the .frm/.frx as an encoded payload -- a host convention, not an
+    /// Automation value. Measured against a registered ImageList: at ListImage level the control
+    /// announces no type at all for Picture, Key and Tag alike, so the bag cannot tell which of
+    /// them wants an object. Handing the payload string to Picture made the control dereference it
+    /// as an interface pointer, and the process died with an access violation. VB6 never puts a
+    /// string there either; it stores the picture object.
+    ///
+    /// A value that cannot be turned into one is left out rather than passed on: the control then
+    /// keeps its default, which is a missing picture instead of a dead process.
+    /// </summary>
+    private static Dictionary<string, object?> ToAutomationDesignerValues(
+        IReadOnlyDictionary<string, object?> values)
+    {
+        var converted = new Dictionary<string, object?>(values.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in values)
+        {
+            if (pair.Value is string text && text.StartsWith(FrxResourcePrefix, StringComparison.Ordinal))
+            {
+                if (TryCreateImage(pair.Value, out var image) &&
+                    image is not null &&
+                    NativeActiveXControl.ToPictureDisp(image) is { } picture)
+                {
+                    converted[pair.Key] = picture;
+                }
+
+                continue;
+            }
+
+            converted[pair.Key] = pair.Value;
+        }
+
+        return converted;
     }
 
     public bool TryGetMember(
@@ -5588,6 +5625,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         public Guid ComClassId => _classId;
+
+        /// <summary>
+        /// Wraps a picture in the IPictureDisp a native control expects. The conversion lives on
+        /// AxHost and is protected, so it is reachable only from a type derived from it.
+        /// </summary>
+        public static object? ToPictureDisp(Image image) => GetIPictureDispFromPicture(image);
 
         public object? ComObject
         {

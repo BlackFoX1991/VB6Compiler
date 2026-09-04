@@ -3100,6 +3100,80 @@ public sealed class WinFormsHostTests
         }
     }
 
+    [STATestMethod]
+    public void NativeImageListTakesAPictureFromTheDesignerEnvelopeInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.ImageListCtrl.2", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native property bag validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var bitmap = new Bitmap(16, 16);
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.Clear(Color.Red);
+        }
+
+        using var stream = new MemoryStream();
+        bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Bmp);
+        var payload = "__VB6_FRX_BASE64__" + Convert.ToBase64String(stream.ToArray());
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var imageList = host.CreateControl(owner, "ilTest", "MSComctlLib.ImageList")!;
+        Assert.IsInstanceOfType<AxHost>(imageList);
+
+        // So schreibt der Designer eine ImageList: die Bilder liegen in der .frx und erreichen den
+        // Host als kodierte Nutzlast. Die als Zeichenkette weiterzureichen hat das Control die
+        // Zeichenkette als Schnittstellenzeiger lesen lassen -- der Prozess starb mit einer
+        // Zugriffsverletzung, nicht mit einem fehlenden Bild.
+        foreach (var (name, value) in new (string, object)[]
+        {
+            ("ImageWidth", 16),
+            ("ImageHeight", 16),
+            ("Images.NumListImages", 1),
+            ("Images.ListImage1.Key", "rot"),
+            ("Images.ListImage1.Picture", payload)
+        })
+        {
+            host.TrySetMember(imageList, name, Array.Empty<object?>(), value);
+        }
+
+        host.CompleteDesignerInitialization(owner);
+
+        var comObject = ((IVBComObjectProvider)imageList).ComObject!;
+        var listImages = comObject.GetType().InvokeMember(
+            "ListImages", BindingFlags.GetProperty, binder: null, comObject, args: null)!;
+        Assert.AreEqual(
+            1,
+            Convert.ToInt32(listImages.GetType().InvokeMember(
+                "Count", BindingFlags.GetProperty, binder: null, listImages, args: null)));
+
+        var entry = listImages.GetType().InvokeMember(
+            "Item",
+            BindingFlags.GetProperty | BindingFlags.InvokeMethod,
+            binder: null,
+            listImages,
+            new object[] { 1 })!;
+        Assert.AreEqual(
+            "rot",
+            entry.GetType().InvokeMember("Key", BindingFlags.GetProperty, binder: null, entry, args: null));
+        Assert.IsNotNull(
+            entry.GetType().InvokeMember("Picture", BindingFlags.GetProperty, binder: null, entry, args: null),
+            "Das Bild aus der .frx muss als Bildobjekt ankommen, nicht als Nutzlast.");
+
+        host.Unload(owner);
+    }
+
     /// <summary>Nimmt entgegen, was ein Control ueber sich selbst zu sagen hat.</summary>
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
