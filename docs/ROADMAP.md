@@ -297,9 +297,13 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Events und `WithEvents` erhalten den vollständigen Objektvertrag. Im `VB6Sp6`-Profil wird
       die Initialize-/Terminate-Lebensdauer explizit geführt und nicht dem GC überlassen.
       Stand: Der Objektvertrag ist geschlossen und gemessen (`l1-02-i`), einschließlich
-      `WithEvents` mit Umverdrahtung und Trennung. **Offen bleibt die deterministische
-      Lebensdauer**: `Class_Terminate` hängt am Finalizer, nicht an einem Referenzzähler — eine
-      Architekturfrage, keine Lücke im Vertrag.
+      `WithEvents` mit Umverdrahtung und Trennung. `Class_Terminate` **läuft** — das war bis
+      09/2026 nicht der Fall: Es hing allein am Finalizer, und die CLR führt beim Prozessende keine
+      ausstehenden Finalizer aus, weshalb eine Messung es in *keinem* Fall laufen sah. Ein schwaches
+      Register entleert es beim Herunterfahren, jüngstes zuerst. **Offen bleibt der Zeitpunkt**:
+      VB6 zählt Referenzen und beendet in dem Moment, in dem die letzte geht. Das ist eine
+      Architekturfrage — eine halbe Referenzzählung würde Terminate auf einem lebenden Objekt
+      auslösen, und das ist schlimmer als zu spät.
 - [x] Der Managed-IR-Fehlerautomat bildet die aktiven/inaktiven `On Error`-/`Resume`-Zustände
       im getesteten Managed-Pfad ab: `Err`, Fehlernummern, `Erl` für numerische Zeilenlabels,
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
@@ -336,12 +340,12 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Rückgabewert.
 - [x] Der Zugriff auf ein **privates** Klassenfeld von aussen meldet `VB6S0074`. Das Feld bleibt
       in der Mitgliedsfläche, damit die Klasse es über `Me` weiter erreicht.
-- [~] `Dim x As New C` erzeugt verzögert bei der ersten Verwendung — lokal, als Modulvariable,
+- [x] `Dim x As New C` erzeugt verzögert bei der ersten Verwendung — lokal, als Modulvariable,
       als Klassenfeld **und als Arrayelement**: `Dim a(1 To 3) As New C` gibt drei eigene Objekte,
       jedes bei seiner ersten Berührung erzeugt. Vorher wies der Binder die Deklaration mit
-      `VB6S0063` ab, weil er `As New` gegen den Arraytyp statt gegen den Elementtyp prüfte. `Class_Terminate` läuft über einen emittierten Finalizer und damit nach der
-      Uhr des Sammlers, nicht nach der letzten Referenz. Die deterministische Lebensdauer bleibt
-      offen: Eine halbe Referenzzählung würde Terminate auf einem lebenden Objekt auslösen.
+      `VB6S0063` ab, weil er `As New` gegen den Arraytyp statt gegen den Elementtyp prüfte.
+      `Class_Terminate` läuft garantiert, aber nach der Uhr des Abbaus statt nach der letzten
+      Referenz; der Zeitpunkt bleibt offen und ist dort beschrieben, wo der Objektvertrag steht.
 - [x] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **91**, früh wie
       spät gebunden. Die Zuordnung ist bewusst breit: sie trifft jeden Null-Zugriff, weil VB6
       an dieser Stelle 91 meldet und der vorherige Sammelwert 5 dasselbe verdeckte.
