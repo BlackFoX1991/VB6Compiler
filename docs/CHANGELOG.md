@@ -6292,3 +6292,38 @@ durchwinkt.
 
 Kanonischer Nachweis: **1549/1549** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Importierte Skalartypen sind wieder die, die VB6 hat (04.09.2026)
+
+Ein Wegwerfprogramm über `stdole2.tlb` — 26 Aliase, 3 Records, 5 vtable-Interfaces, alles
+registriert vorhanden — gab acht Zeilen aus, von denen drei falsch waren:
+
+```
+OLE_COLOR   UInt32  20      ' VB6: Long, 3
+OLE_HANDLE  Empty   0       ' VB6: Long, 3
+GUID.Data1  UInt32  20      ' VB6: Long, 3
+GUID.Data2  UInt16  18      ' VB6: Integer, 2
+```
+
+`OLE_HANDLE` ist `VT_INT`, und die Konstante fehlte im Importer schlicht — der Typ fiel auf
+Variant durch, `Debug.Print` gab eine leere Zeile aus. `VT_UINT` fehlte genauso.
+
+Der andere Fall ist der interessantere: `VT_UI4` wurde auf `UInteger` abgebildet, also auf eine
+**moderne Erweiterung dieses Projekts**. VB6 hat keinen vorzeichenlosen 32-Bit-Typ und bildet
+`VT_UI4` auf `Long` ab; so steht `stdole.GUID` auch im Objektkatalog. Der Unterschied ist nicht
+kosmetisch: `VarType` antwortete 20, und 20 ist in VB6 `vbLongLong`. Ein Altprogramm mit
+`If VarType(x) = vbLong` nahm den falschen Zweig. Damit verletzte die Abbildung genau die Regel,
+die alles andere schlägt — Erweiterungen kommen additiv dazu und verschieben nie die Semantik für
+alten Code. `Byte` bleibt die Ausnahme, denn `Byte` **ist** der vorzeichenlose 8-Bit-Typ von VB6.
+
+Ein bestehender Test hatte `UInteger`/`UShort` festgeschrieben. Er sprach damit keine VB6-Zusage
+aus, sondern unsere Abbildungsentscheidung — und pinnte einen Typ, den VB6 gar nicht kennt; das
+allein entscheidet die Frage. Der Test trägt die Begründung jetzt im Text.
+
+Offen und ausdrücklich notiert: `stdole.GUID.Data4` ist ein `VT_CARRAY` und kommt weiterhin als
+`Object` an. `g.Data4(0)` übersetzt deshalb als spät gebundener indizierter Zugriff und reißt zur
+Laufzeit mit einer `NullReferenceException` ab, statt einen Wert oder eine Meldung zu liefern.
+Das ist die nächste Karte.
+
+Kanonischer Nachweis: **1550/1550** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

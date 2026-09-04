@@ -83,6 +83,74 @@ public sealed class RegisteredControlLibraryTests
     }
 
     [TestMethod]
+    public void Analyze_MapsImportedScalarsToTheTypesVB6Has()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type-library import requires Windows.");
+            return;
+        }
+
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "System32",
+            "stdole2.tlb");
+        if (!File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The registered Windows stdole2.tlb fixture is not available.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6ImportedScalars",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Skalare.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Skalare"
+                Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#stdole2.tlb#stdole
+                Module=Main; Main.bas
+                """);
+
+            // OLE_HANDLE is VT_INT and used to arrive unmapped, so it answered VarType 0 and
+            // printed nothing at all. OLE_COLOR is VT_UI4; VB6 has no unsigned 32-bit type and
+            // maps it to Long. Arriving as the UInteger extension of this repository would
+            // answer VarType 20, which a VB6 program reads as vbLongLong.
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim color As stdole.OLE_COLOR
+                    Dim handle As stdole.OLE_HANDLE
+                    Dim size As stdole.FONTSIZE
+                    Dim cancel As stdole.OLE_CANCELBOOL
+                    Debug.Print VarType(color)
+                    Debug.Print VarType(handle)
+                    Debug.Print VarType(size)
+                    Debug.Print VarType(cancel)
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "3", "3", "6", "11" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Analyze_StillRejectsANameTheControlLibraryDoesNotDefine()
     {
         if (!OperatingSystem.IsWindows() ||

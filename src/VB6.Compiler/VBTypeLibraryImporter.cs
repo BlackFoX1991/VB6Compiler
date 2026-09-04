@@ -36,6 +36,8 @@ internal static class VBTypeLibraryImporter
     private const short VtUi2 = 18;
     private const short VtUi4 = 19;
     private const short VtUi8 = 21;
+    private const short VtInt = 22;
+    private const short VtUInt = 23;
     private const short VtR4 = 4;
     private const short VtR8 = 5;
     private const short VtBool = 11;
@@ -623,12 +625,19 @@ internal static class VBTypeLibraryImporter
         {
             VtEmpty or VtNull or VtVariant => TypeSymbol.Variant,
             VtI1 or VtI2 => TypeSymbol.Integer,
-            VtI4 => TypeSymbol.Long,
+            VtI4 or VtInt or VtUInt => TypeSymbol.Long,
             VtI8 => TypeSymbol.LongLong,
+
+            // VB6 has no unsigned types, and its own importer maps these to the signed VB6 type.
+            // Byte is the exception -- it really is the unsigned 8-bit VB6 type. The wider ones
+            // must not arrive as this projects modern extensions: stdole.GUID.Data1 would then
+            // answer VarType 20, which a VB6 program reads as vbLongLong, and "value = 2000 * 365"
+            // style range checks would shift with it. Extensions are additive; they never change
+            // what legacy code sees.
             VtUi1 => TypeSymbol.Byte,
-            VtUi2 => TypeSymbol.UShort,
-            VtUi4 => TypeSymbol.UInteger,
-            VtUi8 => TypeSymbol.ULong,
+            VtUi2 => TypeSymbol.Integer,
+            VtUi4 => TypeSymbol.Long,
+            VtUi8 => TypeSymbol.LongLong,
             VtR4 => TypeSymbol.Single,
             VtR8 => TypeSymbol.Double,
             VtBool => TypeSymbol.Boolean,
