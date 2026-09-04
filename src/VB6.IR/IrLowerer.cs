@@ -121,9 +121,9 @@ public static class IrLowerer
                                 containingClass,
                                 "Class_Terminate",
                                 null,
-                                out var terminator))
+                                out _))
                         {
-                            classProcedures.Add(LowerClassFinalizer(containingClass, terminator));
+                            classProcedures.Add(LowerClassFinalizer(containingClass));
                         }
                     }
                     var fields = !containingClass.IsInterfaceContract &&
@@ -448,6 +448,19 @@ public static class IrLowerer
                         new IrLoadExpression(new IrThisPlace(classType)))));
             }
 
+            // A class with a terminator joins the register that guarantees the terminator runs.
+            // This sits after Class_Initialize on purpose: an object whose initializer failed was
+            // never created in VB6 terms, and it gets no Terminate.
+            if (TryGetClassProcedure(classType, "Class_Terminate", null, out _))
+            {
+                instructions.Add(new IrEvaluateInstruction(
+                    new IrRuntimeCallExpression(
+                        IrRuntimeMethod.ObjectLifetimeRegister,
+                        ImmutableArray.Create(
+                            new IrCallArgument(new IrLoadExpression(new IrThisPlace(classType)))),
+                        TypeSymbol.Error)));
+            }
+
             return new IrProcedure(
                 null,
                 ".ctor",
@@ -586,9 +599,7 @@ public static class IrLowerer
                 DeclaringClass: containingClass);
         }
 
-        private static IrProcedure LowerClassFinalizer(
-            ClassTypeSymbol classType,
-            ProcedureSymbol terminator)
+        private static IrProcedure LowerClassFinalizer(ClassTypeSymbol classType)
         {
             return new IrProcedure(
                 null,
@@ -600,11 +611,11 @@ public static class IrLowerer
                     0,
                     "finalize_entry",
                     ImmutableArray.Create<IrInstruction>(
-                        new IrEvaluateInstruction(new IrProcedureCallExpression(
-                            terminator,
-                            ImmutableArray<IrCallArgument>.Empty,
-                            TypeSymbol.Error,
-                            new IrLoadExpression(new IrThisPlace(classType)))),
+                        new IrEvaluateInstruction(new IrRuntimeCallExpression(
+                            IrRuntimeMethod.ObjectLifetimeRunTerminator,
+                            ImmutableArray.Create(
+                                new IrCallArgument(new IrLoadExpression(new IrThisPlace(classType)))),
+                            TypeSymbol.Error)),
                         new IrBaseFinalizeInstruction()),
                     new IrReturnTerminator(null))),
                 IsStatic: false,

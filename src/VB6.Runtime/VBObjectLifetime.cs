@@ -22,7 +22,9 @@ namespace VB6.Runtime;
 /// </summary>
 public static class VBObjectLifetime
 {
-    private const string TerminatorName = "Class_Terminate";
+    // The emitted method carries the mangled name; the plain one is kept as a fallback so a
+    // change to the mangling shows up as a failing test rather than as silence.
+    private static readonly string[] TerminatorNames = ["__vb6_Class_Terminate", "Class_Terminate"];
 
     private static readonly object Gate = new();
     private static readonly List<WeakReference<object>> Live = [];
@@ -124,12 +126,21 @@ public static class VBObjectLifetime
             var type = instance.GetType();
             if (!Terminators.TryGetValue(type, out terminator))
             {
-                terminator = type.GetMethod(
-                    TerminatorName,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    binder: null,
-                    types: Type.EmptyTypes,
-                    modifiers: null);
+                terminator = null;
+                foreach (var name in TerminatorNames)
+                {
+                    terminator = type.GetMethod(
+                        name,
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                        binder: null,
+                        types: Type.EmptyTypes,
+                        modifiers: null);
+                    if (terminator is not null)
+                    {
+                        break;
+                    }
+                }
+
                 Terminators[type] = terminator;
             }
         }
