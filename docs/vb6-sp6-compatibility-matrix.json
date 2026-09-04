@@ -118,8 +118,11 @@
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
-        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs"
-      ]
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/FormatStringInputTests.cs",
+        "tests/VB6.Compiler.Tests/FormatStringInputExecutionTests.cs"
+      ],
+      "notes": "A breadth measurement over the named formats, the numeric and date pictures and the string masks found one defect: every string expression went to the string formatter regardless of the format, so Format(\"12\", \"0.00\") gave 0.00 -- the value disappeared -- and Format(\"abc\", \"#,##0\") gave back the picture itself. VB6 picks the formatter from the format, not from how the expression is stored. A string that carries no number is now returned unchanged rather than turned into a zero, which matters because Format(textbox.Text, \"0.00\") is everyday VB6."
     },
     {
       "id": "profile.strconv-width-kana",
@@ -306,6 +309,7 @@
         "named": "numeric, Boolean, date and time names are case-insensitive",
         "numericSections": "positive, negative, zero and Null sections",
         "stringMasks": "@, &, <, > and ! with quoted and escaped literals",
+        "expressionKind": "the format chooses the formatter, so a numeric string takes a numeric picture and a string that carries no number is returned unchanged",
         "dateTokens": "c, d through dddddd, w, ww, m through mmmm, q, y, yy, yyyy, h, n, s, ttttt and AM/PM variants",
         "locale": "VB6Sp6 uses active separators, patterns, names and currency; Deterministic is invariant"
       },

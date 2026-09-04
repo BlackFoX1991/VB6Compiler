@@ -360,9 +360,14 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-, Screen-,
       Printer- und Clipboard-Verträge implementieren.
       Stand: Die Host-Services sind geschlossen und gemessen (`l1-02-m`) — Screen, Printer,
-      Clipboard, Registry, MsgBox/InputBox laufen headless mit dokumentierten Vorgabewerten. Die
-      Familienzeile bleibt offen, weil `Format` und `Math` Flächen sind, deren Vollständigkeit
-      sich nicht abschließend behaupten lässt.
+      Clipboard, Registry, MsgBox/InputBox laufen headless mit dokumentierten Vorgabewerten.
+      Die `Format`-Fläche wurde in der Breite nachgemessen: 16 benannte Formate, numerische
+      Muster mit bis zu vier Abschnitten, 14 Datumsmuster und die Zeichenkettenmasken. Ein Defekt
+      dabei — jeder String ging unabhängig vom Muster in den Zeichenkettenformatierer, weshalb
+      `Format("12", "0.00")` den Wert verlor. Behoben und festgeschrieben.
+      Die Familienzeile bleibt trotzdem offen: `Format` und `Math` sind Flächen, deren
+      Vollständigkeit sich nicht abschließend behaupten lässt — eine Messung, die keinen Defekt
+      mehr findet, ist kein Beweis, dass keiner mehr da ist.
 - [x] `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
       `Partition`, `CallByName` und `QBColor` sind als Standard-Intrinsics deklariert und im
       Managed-Pfad implementiert. `CallByName` verwendet den vorhandenen dynamischen Dispatch.

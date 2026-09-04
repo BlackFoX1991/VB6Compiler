@@ -7003,3 +7003,39 @@ hält den emittierten Namen jetzt fest.
 
 Kanonischer Nachweis: **1674/1674** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Das Muster entscheidet, nicht der Speichertyp
+
+Die Roadmap führte `Format` und `Math` als Familienzeile mit der Begründung, ihre Vollständigkeit
+lasse sich nicht behaupten. Das ist richtig — aber es ist kein Grund, sie nicht zu *messen*. Ein
+Breitendurchgang über 16 benannte Formate, numerische Muster mit bis zu vier Abschnitten, 14
+Datumsmuster und die Zeichenkettenmasken lief durch. Fast alles stimmte. Drei Zeilen nicht:
+
+```
+abc/0.00   = [0.00]
+abc/#,##0  = [#,##0]
+12/0.00    = [0.00]
+```
+
+Die dritte ist der eigentliche Befund. `Format("12", "0.00")` muss `12.00` liefern — was aus einem
+Textfeld kommt, ist in VB6 eine Zeichenkette, und `Format(Text1.Text, "0.00")` ist Alltag. Der
+Wert verschwand still. Die zweite Zeile zeigt daneben, wie unsinnig das Ergebnis werden konnte:
+Zurück kam das *Muster*.
+
+Ursache war eine einzige Zeile in `FormatValue`: `if (expression is string text) return
+FormatString(text, format);`. Damit entschied der Speichertyp des Ausdrucks über den Formatierer.
+VB6 entscheidet umgekehrt — das **Muster** wählt den Formatierer, und der Ausdruck wird passend
+umgewandelt. Ein numerisches Muster auf einer numerischen Zeichenkette formatiert die Zahl; ein
+numerisches Muster auf `"abc"` gibt `"abc"` unverändert zurück, denn eine Null zu erfinden wäre
+schlimmer als nichts zu tun. Dasselbe für Datumsmuster.
+
+Die Unterscheidung braucht `IsStringFormat` neben den vorhandenen `IsNumericFormat` und
+`IsDateFormat`: Ein Muster aus `@`, `&`, `<`, `>` oder `!` adressiert Zeichen und behält seinen
+Weg — auch für eine numerische Zeichenkette. Literale Läufe werden dabei übersprungen, damit ein
+gequotetes `@` in `"0.00""@"""` die Frage nicht falsch entscheidet.
+
+Die Familienzeile bleibt offen. Eine Messung, die keinen Defekt mehr findet, ist kein Beweis, dass
+keiner mehr da ist.
+
+Kanonischer Nachweis: **1681/1681** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
