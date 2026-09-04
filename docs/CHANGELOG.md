@@ -6230,3 +6230,32 @@ Gegenprobe) ist damit fortgeschrieben.
 
 Kanonischer Nachweis: **1545/1545** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Eine verschachtelte Designer-Gruppe erreicht das Control jetzt als Objekt (04.09.2026)
+
+Der Designer schreibt die Bilder einer ImageList nicht als Eigenschaften, sondern als Struktur:
+`BeginProperty Images` und darin je ein `BeginProperty ListImageN`. Ein natives Control fragt beim
+Laden auch nicht nach diesen Namen — es erzeugt seine Sammlung selbst, reicht sie als Objekt in die
+Tüte hinein und erwartet, dass der Container sie füllt. Gemessen am Toolbar-OCX: der Lesewunsch kam
+als `Buttons [__ComObject]` herein.
+
+Zwei Dinge fehlten dafür.
+
+**Der Parser verlor den Elternnamen.** `VBDesignerParser` bildete den Eigenschaftsnamen aus der
+*innersten* Gruppe: aus `Images` → `ListImage1` → `Picture` wurde `ListImage1.Picture`, und die
+Zugehörigkeit zur Sammlung war weg. Im Korpus fiel das nie auf, weil die Namen dort zufällig
+eindeutig sind. Der Name trägt jetzt den ganzen Pfad. Der bestehende Parsertest hat die alte Form
+festgeschrieben — das ist keine VB6-Zusage, sondern unsere eigene Darstellung, und die alte war
+nachweislich verlustbehaftet; der Test ist entsprechend umgeschrieben.
+
+**Die Tüte kannte nur Werte.** `VBDesignerPropertyBag` baut den Punktpfad jetzt wieder zu
+Gruppen auf. Kommt ein Lesewunsch mit einem Objekt herein, das `IPersistPropertyBag` beherrscht,
+bekommt dieses Objekt eine Untertüte über die passende Gruppe. Reicht das Control stattdessen
+`null` — es erwartet, dass der Container das Objekt erzeugt —, bleibt die Gruppe ungelesen und das
+Control behält seinen Vorgabewert. Das ist gemeldet als „nicht gefunden", nicht als leerer Erfolg.
+
+Der Nachweis kommt wieder vom Control: ein registriertes `MSComctlLib.ImageListCtrl.2` meldet nach
+der Übergabe `ListImages.Count = 2`. Vorher war die Sammlung leer.
+
+Kanonischer Nachweis: **1547/1547** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **70/70**, Gegenprobe unter x64 lässt 9 hart fehlschlagen.

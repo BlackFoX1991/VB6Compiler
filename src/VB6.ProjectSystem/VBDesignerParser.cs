@@ -191,9 +191,15 @@ public static class VBDesignerParser
 
                 var resource = ParseResourceReference(StripInlineComment(rawValue), fullPath);
                 var resourceData = ReadResourceData(resource, fullPath, lineNumber, diagnostics);
+                // The whole path, not just the innermost group. An ImageList writes its pictures as
+                // Images -> ListImage1 -> Picture, and keeping only "ListImage1.Picture" loses which
+                // collection the entry belongs to -- which is exactly what a control needs in order
+                // to be handed its nested state back.
                 var propertyName = propertyGroups.Count == 0
                     ? propertyKey
-                    : propertyGroups.Peek().Name + "." + propertyKey;
+                    : string.Join(
+                        '.',
+                        propertyGroups.Reverse().Select(frame => frame.Name).Append(propertyKey));
                 nodes.Peek().Properties.Add(
                     new VBDesignerProperty(
                         propertyName,
