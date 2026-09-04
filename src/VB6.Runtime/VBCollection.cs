@@ -15,6 +15,19 @@ public sealed class VBCollection
     /// <summary>Returns the current Collection order as a Variant-compatible array.</summary>
     public static VBArray<object> EnumerateValues(VBCollection collection)
     {
+        if (collection is null)
+        {
+            // For Each over a Collection variable that was never Set is error 91, the same one any
+            // other access to an unset object answers. The ArgumentNullException below reached the
+            // program as the catch-all 5 instead, which reads like a result and is not one.
+            VBErrors.Raise(
+                91,
+                "For Each",
+                "Object variable or With block variable not set",
+                string.Empty,
+                0);
+        }
+
         ArgumentNullException.ThrowIfNull(collection);
         var values = new VBArray<object>(new VBArrayBound(0, collection._items.Count - 1));
         for (var index = 0; index < collection._items.Count; index++)

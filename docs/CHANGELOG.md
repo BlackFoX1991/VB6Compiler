@@ -6575,3 +6575,32 @@ eigenen Projekts — ist hiermit abgedeckt.
 
 Kanonischer Nachweis: **1560/1560** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **72/72**.
+
+## Eine nicht gesetzte Collection in `For Each` meldet 91 statt 5 (04.09.2026)
+
+Gemessen über die drei Quellformen einer nicht gesetzten Objektvariablen:
+
+```
+Dim c As Collection : For Each e In c   ->  Err 5    ' VB6: 91
+Dim o As Object     : For Each e In o   ->  Err 0    ' VB6: 91
+Dim v As Variant : Set v = Nothing      ->  Err 91   ' richtig
+```
+
+Die 5 ist der Sammelwert „nicht zugeordnet" — `VBCollection.EnumerateValues` warf eine
+`ArgumentNullException`, und `VBErrors.Set` bildet jede unbekannte Ausnahme darauf ab. Sie sieht wie
+ein Ergebnis aus und ist keines. Der Fall ist jetzt ausdrücklich 91.
+
+**Die `Object`-Quelle bleibt bewusst bei 0.** Der Versuch, sie mitzunehmen, riss den bestehenden
+Test `EmitManagedApplication_EnumeratesHostObjectWithObjectControlVariable`, der das Schweigen für
+den Controlsammlungs-Weg als Zusage festschreibt — und dort ist eine leere Antwort für einen Host
+ohne Controls legitim. Die Projektregel ist eindeutig: Ein bestehender Test, der eine Vertragszusage
+ausspricht, schlägt eine Herleitung; die Änderung wird zurückgenommen und die Frage notiert. Die
+Unstimmigkeit zu dem Variant-Fall, der 91 meldet, steht damit als offene Frage im Code statt als
+stille Entscheidung.
+
+Nebenbefund aus derselben Messung, vorbestehend und **nicht** von der `For Each`-Erweiterung
+verursacht: `Controls` und `Me.Controls` lösen ohne UI-Host überhaupt nicht auf und melden 438 —
+schon `TypeName(Controls)` tut es. Das ist eine Host-Frage, keine Schleifenfrage.
+
+Kanonischer Nachweis: **1561/1561** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **72/72**.
