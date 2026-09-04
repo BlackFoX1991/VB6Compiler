@@ -44,6 +44,11 @@ public sealed record ClassTypeSymbol : TypeSymbol
     /// VB6 rejects New on those, and so does the binder.
     /// </summary>
     public Guid? ComClassId { get; private set; }
+    /// <summary>
+    /// The interface id when this contract is an IUnknown-derived interface from a type library.
+    /// Its members are reached through the vtable rather than through IDispatch.
+    /// </summary>
+    public Guid? ComInterfaceId { get; private set; }
     public ImmutableArray<ProcedureSymbol> Procedures => _definition.Procedures;
     public ImmutableArray<PropertySymbol> Properties => _definition.Properties;
     public ImmutableArray<EventSymbol> Events => _definition.Events;
@@ -194,6 +199,8 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public void MarkAsControlContract() => IsControlContract = true;
 
     public void SetComClassId(Guid classId) => ComClassId = classId;
+
+    public void SetComInterfaceId(Guid interfaceId) => ComInterfaceId = interfaceId;
 
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
 

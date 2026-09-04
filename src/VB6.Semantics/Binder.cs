@@ -3416,6 +3416,22 @@ public sealed class Binder
                 memberAccess.MemberToken.Span);
         }
 
+        // A member of an IUnknown-derived interface is reached through its vtable slot. There is
+        // no IDispatch behind it, so the dynamic path below would answer 438 for a member that the
+        // type library describes -- stdole.IFont.Clone is the documented case.
+        if (TryGetVTableProcedure(classType, memberAccess.MemberToken.Text, out var vtableProcedure))
+        {
+            return new BoundMemberInvocationStatement(
+                receiver,
+                vtableProcedure!,
+                BindArguments(
+                    memberAccess.MemberToken,
+                    argumentSyntaxes,
+                    vtableProcedure!,
+                    variables,
+                    procedures));
+        }
+
         if (IsLateBoundObjectType(classType))
         {
             return new BoundMemberInvocationStatement(
@@ -4065,6 +4081,19 @@ public sealed class Binder
                     procedures));
         }
 
+        if (TryGetVTableProcedure(classType, target.MemberToken.Text, out var vtableProcedure))
+        {
+            return new BoundMemberInvocationExpression(
+                receiver,
+                vtableProcedure!,
+                BindArguments(
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    vtableProcedure!,
+                    variables,
+                    procedures));
+        }
+
         if (IsLateBoundObjectType(classType))
         {
             var dynamicProcedure = CreateDynamicObjectProcedure(target.MemberToken.Text, isFunction: true);
@@ -4179,6 +4208,27 @@ public sealed class Binder
             receiver,
             property,
             BindArguments(anchor, argumentSyntaxes, dynamicProcedure, variables, procedures));
+    }
+
+    /// <summary>
+    /// The member of an imported IUnknown-derived interface, when it has a vtable slot. Only such a
+    /// member takes the vtable route; everything else keeps the dispatch path it had.
+    /// </summary>
+    private static bool TryGetVTableProcedure(
+        ClassTypeSymbol classType,
+        string memberName,
+        out ProcedureSymbol? procedure)
+    {
+        procedure = null;
+        if (classType.ComInterfaceId is null ||
+            !classType.TryGetProcedure(memberName, out var candidate) ||
+            candidate.ComVTableSlot is null)
+        {
+            return false;
+        }
+
+        procedure = candidate;
+        return true;
     }
 
     private static bool IsLateBoundObjectType(ClassTypeSymbol type) =>

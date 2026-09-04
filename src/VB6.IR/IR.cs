@@ -724,6 +724,7 @@ public enum IrRuntimeMethod
     InteractionBeginDesignerInitialization,
     InteractionCompleteDesignerInitialization,
     InteractionCreateComInstance,
+    ComVTableInvoke,
     InteractionCreateObject,
     InteractionGetObject,
     InteractionShell,

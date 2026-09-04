@@ -417,8 +417,11 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Pointer, C-Arrays, vollständige Automationtypen und ByRef-Write-back erweitern.
       Stand: Aliase, Records, feste C-Arrays und die Automationtypen einschließlich `VT_INT`,
       `VT_ERROR` und wertständiger Zeiger sind umgesetzt und gegen die registrierte
-      `stdole2.tlb` gemessen (`l1-03-j`). Offen bleibt der **frühgebundene vtable-Aufruf**:
-      importierte Klassen tragen weiterhin den spät gebundenen Objektkontrakt.
+      `stdole2.tlb` gemessen (`l1-03-j`). Der **vtable-Aufruf** trägt ebenfalls: ein Member einer
+      IUnknown-abgeleiteten Schnittstelle wird über seinen Slot gerufen, nicht über IDispatch —
+      gemessen an `stdole.IFont.SetRatio`, das nur dort existiert. Offen bleibt ein Member mit
+      `[out]`-Parameter: Dort schreibt der Server in Speicher, den der Aufrufer stellt, und diese
+      Form nimmt den vtable-Weg bewusst nicht (`IFont.Clone` ist der gemessene Fall).
 - [x] `IDispatch` vollständig mit LCID, Named Arguments, `DISPID_VALUE`, `DISPID_PROPERTYPUT`,
       `EXCEPINFO`, optionalen Parametern und Default-Properties abbilden.
 - [x] `Declare` und `AddressOf` für die dokumentierten x86-Signatur-, Callback-, String-, Pointer-,
@@ -458,8 +461,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       beschreibt, kein anderes Verhalten.
 - [~] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
       WindowList-Menüs, Menüübernahme, Fokus und persistente Fensterzustände ergänzen.
-      Stand: Kindzuordnung, `ActiveForm`, Arrange und die WindowList-Markierung sind gemessen
-      (`l1-04-i`). **Persistente Fensterzustände sind nicht abgedeckt.**
+      Stand: Kindzuordnung, `ActiveForm`, Arrange, die WindowList-Markierung und der
+      Fensterzustand eines Kindes (`WindowState` mit 0/1/2) sind gemessen (`l1-04-i`).
 
 ### Etappe F — Stock-OCX, UserControls und Enterprise-Artefakte
 

@@ -147,6 +147,13 @@ internal static class VBTypeLibraryImporter
                     imported.SetComClassId(record.Attribute.guid);
                 }
 
+                // An IUnknown-derived interface answers no IDispatch, so its members live only in
+                // the vtable. The id is what a call has to QueryInterface for.
+                if (record.Kind == TYPEKIND.TKIND_INTERFACE)
+                {
+                    imported.SetComInterfaceId(record.Attribute.guid);
+                }
+
                 symbol = imported;
             }
 
@@ -373,6 +380,105 @@ internal static class VBTypeLibraryImporter
         return records.ToImmutable();
     }
 
+    /// <summary>
+    /// The VARIANT types of the arguments a vtable member takes, without the trailing retval. Every
+    /// method of such an interface returns an HRESULT and carries its value in that last parameter,
+    /// which is why it is split off here rather than at the call site.
+    /// </summary>
+    private static string ReadVTableParameterTypes(FUNCDESC function)
+    {
+        var count = HasRetValParameter(function) ? function.cParams - 1 : function.cParams;
+        if (count <= 0 || function.lprgelemdescParam == IntPtr.Zero)
+        {
+            return string.Empty;
+        }
+
+        var elementSize = Marshal.SizeOf<ELEMDESC>();
+        var types = new List<string>(count);
+        for (var index = 0; index < count; index++)
+        {
+            var element = Marshal.PtrToStructure<ELEMDESC>(
+                IntPtr.Add(function.lprgelemdescParam, index * elementSize));
+            types.Add(((short)(element.tdesc.vt & VariantTypeMask)).ToString(CultureInfo.InvariantCulture));
+        }
+
+        return string.Join(",", types);
+    }
+
+    /// <summary>The VARIANT type the retval parameter carries, or VT_VOID when there is none.</summary>
+    private static short ReadVTableReturnType(FUNCDESC function)
+    {
+        const short VtVoid = 24;
+        if (!HasRetValParameter(function))
+        {
+            return VtVoid;
+        }
+
+        var elementSize = Marshal.SizeOf<ELEMDESC>();
+        var element = Marshal.PtrToStructure<ELEMDESC>(
+            IntPtr.Add(function.lprgelemdescParam, (function.cParams - 1) * elementSize));
+        var description = element.tdesc;
+
+        // The retval is a pointer to where the value goes; the value's own type sits behind it.
+        if ((description.vt & VariantTypeMask) == VtPtr && description.lpValue != IntPtr.Zero)
+        {
+            description = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+        }
+
+        return (short)(description.vt & VariantTypeMask);
+    }
+
+    /// <summary>
+    /// Whether the last parameter carries the return value. The flag is read by offset rather than
+    /// through the marshalled struct: ELEMDESC ends in a union of IDLDESC and PARAMDESC, and
+    /// marshalling that union does not reliably land on wParamFlags -- the flag then read as zero,
+    /// the retval counted as an ordinary argument, and the call reached the server with a null
+    /// out-pointer (E_POINTER).
+    /// </summary>
+    /// <summary>
+    /// Whether every parameter is an input. A member with an [out] parameter hands a pointer to
+    /// storage that the server writes into, which the vtable path here does not model -- such a
+    /// member keeps the route it had rather than being called with something that looks like an
+    /// argument and is not. Measured: stdole.IFont.Clone is [out] without [retval], so its VB6 form
+    /// is "f.Clone g", not "Set g = f.Clone".
+    /// </summary>
+    private static bool HasOnlyInputParameters(FUNCDESC function)
+    {
+        const short ParamFlagOut = 0x2;
+        if (function.cParams <= 0 || function.lprgelemdescParam == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        var elementSize = Marshal.SizeOf<ELEMDESC>();
+        var flagOffset = Marshal.SizeOf<TYPEDESC>() + IntPtr.Size;
+        var last = HasRetValParameter(function) ? function.cParams - 1 : function.cParams;
+        for (var index = 0; index < last; index++)
+        {
+            var element = IntPtr.Add(function.lprgelemdescParam, index * elementSize);
+            if ((Marshal.ReadInt16(element, flagOffset) & ParamFlagOut) != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasRetValParameter(FUNCDESC function)
+    {
+        const short ParamFlagRetVal = 0x8;
+        if (function.cParams <= 0 || function.lprgelemdescParam == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var elementSize = Marshal.SizeOf<ELEMDESC>();
+        var element = IntPtr.Add(function.lprgelemdescParam, (function.cParams - 1) * elementSize);
+        var flags = Marshal.ReadInt16(element, Marshal.SizeOf<TYPEDESC>() + IntPtr.Size);
+        return (flags & ParamFlagRetVal) != 0;
+    }
+
     private static ImmutableArray<UserDefinedTypeMemberSymbol> ImportRecordMembers(
         TypeInfoRecord record,
         string libraryName,
@@ -482,7 +588,17 @@ internal static class VBTypeLibraryImporter
                             new ProcedureSymbol(name, parameters, returnType == TypeSymbol.Error ? null : returnType)
                             {
                                 IsLateBound = true,
-                                ComDispId = function.memid
+                                ComDispId = function.memid,
+                                ComVTableSlot = record.Kind == TYPEKIND.TKIND_INTERFACE &&
+                                    HasOnlyInputParameters(function)
+                                    ? function.oVft / IntPtr.Size
+                                    : null,
+                                ComParameterTypes = record.Kind == TYPEKIND.TKIND_INTERFACE
+                                    ? ReadVTableParameterTypes(function)
+                                    : null,
+                                ComReturnType = record.Kind == TYPEKIND.TKIND_INTERFACE
+                                    ? ReadVTableReturnType(function)
+                                    : null
                             });
                         break;
 

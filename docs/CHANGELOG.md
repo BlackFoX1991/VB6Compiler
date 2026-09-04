@@ -6886,3 +6886,36 @@ Damit ist die Roadmap-Zeile zu Formular-Arrays beantwortet: Ein Array von Formul
 
 Kanonischer Nachweis: **1583/1583** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **81/81**.
+
+## Der vtable-Aufruf: die letzte große Lücke der Etappe D (04.09.2026)
+
+Eine IUnknown-abgeleitete Schnittstelle hat kein `IDispatch`. Ihre Member existieren nur als
+vtable-Slots, und ein Aufruf meldete deshalb **438** — „Member nicht gefunden" —, obwohl die
+Typbibliothek den Member beschreibt. `stdole.IFont` ist der messbare Fall: Seine Eigenschaften haben
+in `IFontDisp` einen Dispatch-Zwilling, seine Methoden nicht.
+
+Der Weg ist jetzt gebaut: Der Importer merkt sich Interface-Id, **Slot-Index** und die deklarierten
+VARIANT-Typen; der Binder leitet genau solche Member auf den vtable-Weg um und lässt alles andere,
+wie es war; die Runtime baut den passenden Delegattyp und ruft den Slot. Der Index, nie der
+Byte-Offset — ein Offset hängt an der Zeigerbreite dessen, der die Bibliothek gelesen hat.
+
+Gemessen: `f.SetRatio 2540, 1440` auf einem `stdole.IFont` läuft mit `Err.Number = 0`. Vorher 438.
+
+**Drei Irrwege, alle durch Messen beendet:**
+
+1. `IntPtr.Zero` kam als `0.0` beim Server an. Ursache: Ein Switch-Ausdruck, dessen Arme alle Zahlen
+   sind, nimmt `double` als **natürlichen Typ** — und seit .NET 7 ist `IntPtr` gleich `nint` mit
+   impliziter Umwandlung dorthin. Die Zuweisung an `object?` ändert daran nichts. Jeder Arm wird
+   jetzt ausdrücklich geboxt.
+2. Der Retval-Marker wurde nicht erkannt. `ELEMDESC` endet in einer Union, die nicht verlässlich
+   marshallt; das Flag wird jetzt über seinen Offset gelesen.
+3. Und dann die eigentliche Lehre: `IFont.Clone` trägt `PARAMFLAG_FOUT`, **nicht** `FRETVAL`. Sein
+   letzter Parameter ist also gar kein Rückgabewert, sondern ein ByRef-Argument — die VB6-Form ist
+   `f.Clone g`, nicht `Set g = f.Clone`. Mein Testprogramm war falsch, nicht der Compiler.
+
+Ein Member mit `[out]`-Parameter nimmt den vtable-Weg deshalb **bewusst nicht**: Dort schreibt der
+Server in Speicher, den der Aufrufer stellt, und diese Form ist hier nicht modelliert. Sie behält
+den Weg, den sie hatte. Das steht so in der Roadmap.
+
+Kanonischer Nachweis: **1584/1584** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **81/81**.

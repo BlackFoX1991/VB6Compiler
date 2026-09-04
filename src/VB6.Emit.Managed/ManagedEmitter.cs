@@ -4232,6 +4232,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionBeginDesignerInitialization) return Static(typeof(VBInteraction), nameof(VBInteraction.BeginDesignerInitialization), typeof(object));
             if (m == IrRuntimeMethod.InteractionCompleteDesignerInitialization) return Static(typeof(VBInteraction), nameof(VBInteraction.CompleteDesignerInitialization), typeof(object));
             if (m == IrRuntimeMethod.InteractionCreateComInstance) return Static(typeof(VBInteraction), nameof(VBInteraction.CreateComInstance), typeof(string), typeof(string));
+            if (m == IrRuntimeMethod.ComVTableInvoke) return Static(typeof(VBComVTable), nameof(VBComVTable.Invoke), typeof(object), typeof(string), typeof(int), typeof(string), typeof(short), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.InteractionCreateObject) return Static(typeof(VBInteraction), nameof(VBInteraction.CreateObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionGetObject) return Static(typeof(VBInteraction), nameof(VBInteraction.GetObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));

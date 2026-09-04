@@ -264,6 +264,17 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   deshalb das Programm, während der Handler danebenstand. Der erste Reparaturversuch, eine
   generische Umklammerung in `LowerStatement`, verschachtelte sich mit genau diesem Helfer und
   riss den VISIA-Korpus mit „Nested error handling regions are not supported".
+- **Ein Switch-Ausdruck mit lauter Zahlarmen nimmt `double` als natürlichen Typ — auch wenn das
+  Ziel `object` ist.** Seit .NET 7 ist `IntPtr` gleich `nint` und hat eine **implizite**
+  Umwandlung nach `double`. In `VBComVTable.DefaultOf` wurde `IntPtr.Zero` dadurch still zu
+  `0.0`, und der vtable-Aufruf scheiterte mit „Object of type System.Double cannot be converted to
+  type System.IntPtr&". Ein natürlicher Typ schlägt die Zielzuweisung; wer Arme unterschiedlicher
+  Zahlbreiten in ein `object` gibt, boxt jeden Arm ausdrücklich.
+- **`ELEMDESC` endet in einer Union — `wParamFlags` nicht über die marshallte Struktur lesen.**
+  Und Vorsicht bei der Bedeutung: `stdole.IFont.Clone` trägt `PARAMFLAG_FOUT`, **nicht**
+  `FRETVAL`. Der letzte Parameter ist damit kein Rückgabewert, sondern ein ByRef-Argument — die
+  VB6-Form ist `f.Clone g`, nicht `Set g = f.Clone`. Wer die beiden verwechselt, ruft den Server
+  mit einem Null-Zeiger und bekommt `E_POINTER`.
 - **Die GUID auf einer `Object=`-Zeile ist eine TypeLib-Id, keine CLSID.** Ein installiertes OCX
   registriert sie unter `HKCR\TypeLib\{…}`; unter `HKCR\CLSID\{…}` steht sie nicht. Dazu kommt: die
   in der `.vbp` gepinnte Nebenversion muss nicht die installierte sein (`#2.0#` gegen registriertes

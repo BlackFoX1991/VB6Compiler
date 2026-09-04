@@ -1296,6 +1296,17 @@ public sealed class WinFormsHostTests
         Assert.IsTrue(host.TryGetMember(parent, "ActiveForm", Array.Empty<object?>(), out var active));
         Assert.IsTrue(ReferenceEquals(active, first) || ReferenceEquals(active, second), "ActiveForm");
 
+        // Der Fensterzustand eines Kindes bleibt erhalten und traegt die VB6-Konstanten:
+        // 0 Normal, 1 Minimized, 2 Maximized. Das ist die "persistente Fensterzustand"-Zusage
+        // der MDI-Karte.
+        Assert.IsTrue(host.TrySetMember(first, "WindowState", Array.Empty<object?>(), 2));
+        Assert.IsTrue(host.TryGetMember(first, "WindowState", Array.Empty<object?>(), out var maximized));
+        Assert.AreEqual(2, maximized);
+        Assert.IsTrue(host.TrySetMember(first, "WindowState", Array.Empty<object?>(), 1));
+        Assert.IsTrue(host.TryGetMember(first, "WindowState", Array.Empty<object?>(), out var minimized));
+        Assert.AreEqual(1, minimized);
+        Assert.IsTrue(host.TrySetMember(first, "WindowState", Array.Empty<object?>(), 0));
+
         // Die vier VB6-Anordnungen; alles andere meldet 380 statt sich eine auszusuchen.
         foreach (var arrangement in new[] { 0, 1, 2, 3 })
         {
