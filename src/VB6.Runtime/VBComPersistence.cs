@@ -110,6 +110,7 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
     public int Read(string propertyName, ref object? value, IntPtr errorLog)
     {
         _ = errorLog;
+        var requested = value;
         ReadProperties.Add(propertyName);
         if (!_values.TryGetValue(propertyName, out var stored))
         {
@@ -119,10 +120,28 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
         }
 
         // The caller passes the type it expects in value; converting to it is what the container
-        // owes the control, and it is the reason a bag is typed at all.
-        value = stored is null || value is null
-            ? stored
-            : Convert.ChangeType(stored, value.GetType(), System.Globalization.CultureInfo.InvariantCulture);
+        // owes the control, and it is the reason a bag is typed at all. Measured against the stock
+        // OCX: a control announces Int32, Int16, Single, Boolean -- and null wherever it wants an
+        // object, which is where there is nothing to convert to.
+        value = stored;
+        if (stored is not null && requested is not null && stored.GetType() != requested.GetType())
+        {
+            try
+            {
+                value = Convert.ChangeType(
+                    stored,
+                    requested.GetType(),
+                    System.Globalization.CultureInfo.InvariantCulture);
+            }
+            catch (Exception exception) when (
+                exception is InvalidCastException or FormatException or OverflowException)
+            {
+                // A designer value the control cannot use is its own decision to make. Failing the
+                // read here would abort the whole Load and cost every other property with it.
+                value = stored;
+            }
+        }
+
         return 0;
     }
 

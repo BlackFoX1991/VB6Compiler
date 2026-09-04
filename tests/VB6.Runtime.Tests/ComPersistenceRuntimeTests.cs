@@ -172,6 +172,33 @@ public sealed class ComPersistenceRuntimeTests
 
     [TestMethod]
     [SupportedOSPlatform("windows")]
+    public void TryApplyDesignerState_KeepsReadingAfterAValueThatDoesNotConvert()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Property-bag persistence is a Windows contract.");
+            return;
+        }
+
+        // A designer value the control cannot use is its own decision to make. Failing the read
+        // would abort the entire Load and cost every other property with it -- so the value is
+        // handed over as it stands and the control decides.
+        var control = new RecordingControl();
+
+        VBComPersistence.TryApplyDesignerState(
+            control,
+            new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Value"] = "keine Zahl",
+                ["Caption"] = "danach"
+            });
+
+        Assert.AreEqual(0, control.Value, "Der unbrauchbare Wert bleibt beim Vorgabewert.");
+        Assert.AreEqual("danach", control.Caption, "Die folgenden Eigenschaften kommen trotzdem an.");
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
     public void TryApplyDesignerState_ReportsThatAControlDoesNotUseTheContract()
     {
         if (!OperatingSystem.IsWindows())
