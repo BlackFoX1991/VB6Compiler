@@ -440,6 +440,13 @@ public sealed record ProcedureSymbol(
     /// <summary>The VARIANT type of the retval parameter, or VT_VOID when the member returns none.</summary>
     public short? ComReturnType { get; init; }
 
+    /// <summary>
+    /// True for a vtable member that writes into storage the caller provides. Such a member is not
+    /// modelled here, and a call to it is reported rather than routed somewhere that would answer
+    /// "member not found" for a member the library plainly describes.
+    /// </summary>
+    public bool ComVTableOutParameters { get; init; }
+
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {

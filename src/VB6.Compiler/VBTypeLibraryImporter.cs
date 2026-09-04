@@ -593,6 +593,8 @@ internal static class VBTypeLibraryImporter
                                     HasOnlyInputParameters(function)
                                     ? function.oVft / IntPtr.Size
                                     : null,
+                                ComVTableOutParameters = record.Kind == TYPEKIND.TKIND_INTERFACE &&
+                                    !HasOnlyInputParameters(function),
                                 ComParameterTypes = record.Kind == TYPEKIND.TKIND_INTERFACE
                                     ? ReadVTableParameterTypes(function)
                                     : null,
