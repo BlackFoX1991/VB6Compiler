@@ -6554,3 +6554,24 @@ Damit steht `l1-03-j-typelib-alias-record-pointer-import` auf `implemented`; die
 
 Kanonischer Nachweis: **1559/1559** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **72/72**.
+
+## `.pag` und `.dob` laufen jetzt nachweislich, nicht nur analysiert (04.09.2026)
+
+Für PropertyPage- und UserDocument-Artefakte gab es Tests, die das Projekt **analysieren**. Ob die
+Klassen sich erzeugen lassen und ihre Prozeduren laufen, stand nirgends. Sie tun es — wieder ein
+Fall, in dem die Umsetzung weiter war als ihre Absicherung; der Test hält es jetzt fest.
+
+Die erste Fassung des Tests behauptete zu viel: Sie prüfte den Designer-**Wert** eines Controls
+(`txtName.Text`) und schlug fehl. Die Gegenprobe mit einer Form im selben Programm zeigt, dass es
+nicht an den Artefakten liegt — ohne UI-Host verwirft `VBInteraction.SetMember` jeden
+Designer-Wert, und für eine Form gilt genau dasselbe. Headless ist das gewollt. Geprüft wird
+deshalb, was dort wahr ist: Die Klasse ist erzeugbar, ihre Prozedur läuft, und die Designer-Hülle
+hat ihre Controls angelegt. Der Wert gehört in einen Hosttest.
+
+Zur „Property Pages"-Zeile der Etappe F: Gemeint sind dort die Eigenschaftsseiten, die ein
+**Container zur Entwurfszeit** eines fremden OCX anzeigt. Das ist IDE-Fläche, und die IDE ist in
+diesem Projekt ausdrücklich zurückgestellt. Die kompilierbare Seite — das `.pag`-Artefakt des
+eigenen Projekts — ist hiermit abgedeckt.
+
+Kanonischer Nachweis: **1560/1560** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **72/72**.
