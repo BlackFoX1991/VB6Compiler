@@ -69,10 +69,31 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     /// </summary>
     private readonly Dictionary<object, PendingDesignerState> _pendingDesignerState =
         new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// The owners whose designer envelope is still being built. VB6 raises no event while it lays
+    /// out a form: the controls appear first, then the program runs. WinForms raises Resize as soon
+    /// as a size is assigned, so a handler ran while later controls did not exist yet -- in the
+    /// corpus, conInTab_Resize reached for a Line control that was created two lines further down
+    /// and died on Nothing.
+    /// </summary>
+    /// Static because the event callback is: the dispatch lambda is compiled from an expression
+    /// tree that calls a static method, so an instance field would not be reachable from it. The
+    /// entries are owner objects and therefore unique per program; a host removes the ones it still
+    /// holds when it is disposed.
+    private static readonly HashSet<object> _openDesignerEnvelopes =
+        new(ReferenceEqualityComparer.Instance);
     private readonly ToolTip _toolTip = new();
     private int _screenMousePointer;
     private VBPrinterState _printer = VBPrinterState.Headless;
     private bool _disposed;
+
+    /// <summary>
+    /// Non-null while the VB6 message loop runs. VB6 ends an application when its **last** form is
+    /// unloaded, not when the startup form is, so the loop is owned by a context rather than by
+    /// one form -- and the context is left when no binding is left.
+    /// </summary>
+    private ApplicationContext? _messageLoopContext;
 
     public WinFormsHost(
         bool preferNativeActiveX = false,
@@ -893,8 +914,36 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             form.Show();
         }
 
-        Application.Run(form);
+        // Application.Run(form) would end the program when *that* form closes. VB6 ends it when the
+        // last form is unloaded: the VISIA splash screen unloads itself after two seconds and shows
+        // the main form, and tying the loop to the splash ended the process right there -- silently
+        // and with exit code 0, which looks like an orderly finish.
+        using var context = new ApplicationContext();
+        _messageLoopContext = context;
+        try
+        {
+            Application.Run(context);
+        }
+        finally
+        {
+            _messageLoopContext = null;
+        }
+
         return 0;
+    }
+
+    /// <summary>Leaves the message loop once no form remains loaded.</summary>
+    private void ExitMessageLoopWhenNoFormRemains()
+    {
+        if (_messageLoopContext is null)
+        {
+            return;
+        }
+
+        if (!_bindings.Values.Any(binding => !binding.Form.IsDisposed))
+        {
+            _messageLoopContext.ExitThread();
+        }
     }
 
     public void Load(object target)
@@ -1003,6 +1052,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
 
         binding.Form.Hide();
         binding.Form.Dispose();
+        ExitMessageLoopWhenNoFormRemains();
     }
 
     public object? CreateControl(object owner, string name, string typeName)
@@ -1045,6 +1095,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         {
             _pendingDesignerState[hostObject] = new PendingDesignerState(owner);
         }
+
 
         if (hostObject is not Control control)
         {
@@ -1270,6 +1321,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         _ = GetOrCreateBinding(target);
     }
 
+    /// <summary>Opens the designer envelope. See <see cref="IVB6Host.BeginDesignerInitialization"/>.</summary>
+    public void BeginDesignerInitialization(object target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ThrowIfDisposed();
+        _openDesignerEnvelopes.Add(target);
+    }
+
     /// <summary>
     /// Closes the designer envelope: every native control that persists through a property bag now
     /// receives its designer state as a whole. A control that does not use that contract keeps the
@@ -1279,6 +1338,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
     {
         ArgumentNullException.ThrowIfNull(target);
         ThrowIfDisposed();
+
+        _openDesignerEnvelopes.Remove(target);
 
         var owned = _pendingDesignerState
             .Where(entry => ReferenceEquals(entry.Value.Owner, target))
@@ -1986,7 +2047,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            throw exception.InnerException;
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
         finally
         {
@@ -2068,6 +2130,11 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             state.Dispose();
         }
 
+        foreach (var owner in _bindings.Keys.ToArray())
+        {
+            _openDesignerEnvelopes.Remove(owner);
+        }
+
         _designerControlStates.Clear();
         _toolTip.Dispose();
     }
@@ -2089,6 +2156,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             Text = formName,
             StartPosition = FormStartPosition.Manual
         };
+
+        // A window the user closes ends the application only when it was the last one -- the same
+        // rule the Unload path follows.
+        form.FormClosed += (_, _) => ExitMessageLoopWhenNoFormRemains();
         binding = new FormBinding(form);
         _bindings.Add(target, binding);
         return binding;
@@ -2658,7 +2729,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            throw exception.InnerException;
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
     }
 
@@ -2707,7 +2779,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            throw exception.InnerException;
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
     }
 
@@ -2973,6 +3046,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object?[] eventArguments,
         int? controlArrayIndex)
     {
+        // While the designer envelope is still open, no user event runs. VB6 lays a form out first
+        // and runs the program afterwards; WinForms raises Resize the moment a size is assigned,
+        // and the handler then reaches for controls that the envelope has not created yet.
+        if (_openDesignerEnvelopes.Contains(target))
+        {
+            return;
+        }
+
         var sourceArguments = eventArguments;
         eventArguments = AdaptEventArguments(eventName, eventSource, sourceArguments, controlArrayIndex);
         var parameters = method.GetParameters();
@@ -2998,7 +3079,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            throw exception.InnerException;
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
     }
 
@@ -5071,14 +5153,27 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public int Height => ToTwips(_host.Height, 1440f / Math.Max(1, _host.DeviceDpi));
     }
 
+    /// <summary>
+    /// The VB6 Timer. Two of its defaults differ from a WinForms timer, and both are observable.
+    ///
+    /// <c>Enabled</c> is True in VB6 from the start -- a .frm that writes only <c>Interval</c>
+    /// gets a running timer. Leaving the WinForms timer disabled meant it never fired at all: the
+    /// VISIA splash screen stood still forever instead of handing over to the main form after two
+    /// seconds, and nothing was reported anywhere.
+    ///
+    /// <c>Interval = 0</c> means "does not fire" in VB6, while a WinForms timer refuses an interval
+    /// below one. The VB6 interval is therefore kept here rather than in the WinForms timer, and
+    /// the two states are combined when either changes.
+    /// </summary>
     private sealed class TimerControl : Panel
     {
         private readonly System.Windows.Forms.Timer _timer = new();
+        private int _interval;
+        private bool _enabled = true;
 
         public TimerControl()
         {
             Visible = false;
-            _timer.Interval = 100;
             _timer.Tick += (_, arguments) => Tick?.Invoke(this, arguments);
         }
 
@@ -5087,18 +5182,39 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         internal int Interval
         {
-            get => _timer.Interval;
-            set => _timer.Interval = value;
+            get => _interval;
+            set
+            {
+                _interval = value;
+                ApplyTimerState();
+            }
         }
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         internal bool TimerEnabled
         {
-            get => _timer.Enabled;
-            set => _timer.Enabled = value;
+            get => _enabled;
+            set
+            {
+                _enabled = value;
+                ApplyTimerState();
+            }
         }
 
+        /// <summary>Raises a tick without waiting for one. Used by the host tests.</summary>
         private void RaiseTick() => Tick?.Invoke(this, EventArgs.Empty);
+
+        private void ApplyTimerState()
+        {
+            if (_enabled && _interval > 0)
+            {
+                _timer.Interval = _interval;
+                _timer.Enabled = true;
+                return;
+            }
+
+            _timer.Enabled = false;
+        }
 
         protected override void Dispose(bool disposing)
         {

@@ -80,7 +80,14 @@ public static class VBInteraction
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            throw exception.InnerException;
+            // "throw exception.InnerException" restarts the stack here, so every failure inside the
+            // message loop arrived with three frames -- this bridge, its caller and Main -- and
+            // nothing about where it came from. Rethrowing through the dispatch info keeps the
+            // original stack, which is the only thing that makes such a failure diagnosable.
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo
+                .Capture(exception.InnerException)
+                .Throw();
+            throw;
         }
     }
 
@@ -210,6 +217,13 @@ public static class VBInteraction
         ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
         Host?.EnsureForm(target);
         Host?.TrySetMember(target, memberName, Array.Empty<object?>(), value);
+    }
+
+    /// <summary>Opens the designer envelope of a Form/UserControl. See the host contract.</summary>
+    public static void BeginDesignerInitialization(object target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        Host?.BeginDesignerInitialization(target);
     }
 
     /// <summary>Closes the designer envelope of a Form/UserControl. See the host contract.</summary>

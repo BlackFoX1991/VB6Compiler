@@ -3213,6 +3213,57 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void HostStartsATimerFromItsDesignerIntervalAlone()
+    {
+        using var host = new WinFormsHost();
+        var owner = new TimerEventSink();
+        host.Load(owner);
+
+        // Eine .frm schreibt fuer einen Timer haeufig nur das Interval; Enabled ist in VB6 von
+        // Haus aus True. Blieb der WinForms-Timer deshalb aus, feuerte er nie -- im Korpus stand
+        // das Splashfenster dadurch fuer immer still, statt nach zwei Sekunden zu uebergeben.
+        var timer = host.CreateControl(owner, "Timer1", "Timer")!;
+        Assert.IsTrue(host.TryGetMember(timer, "Enabled", Array.Empty<object?>(), out var enabled));
+        Assert.AreEqual(true, enabled);
+
+        // Interval 0 heisst in VB6 "feuert nicht", und ein WinForms-Timer nimmt keine 0 an. Die
+        // beiden Zustaende werden deshalb getrennt gehalten.
+        Assert.IsTrue(host.TryGetMember(timer, "Interval", Array.Empty<object?>(), out var interval));
+        Assert.AreEqual(0, interval);
+
+        Assert.IsTrue(host.TrySetMember(timer, "Interval", Array.Empty<object?>(), 250));
+        Assert.IsTrue(host.TryGetMember(timer, "Interval", Array.Empty<object?>(), out interval));
+        Assert.AreEqual(250, interval);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostRaisesNoEventWhileTheDesignerEnvelopeIsOpen()
+    {
+        using var host = new WinFormsHost();
+        var owner = new TimerEventSink();
+        host.Load(owner);
+
+        // VB6 legt eine Form zuerst aus und laesst das Programm danach laufen. WinForms meldet
+        // Resize, sobald eine Groesse zugewiesen wird -- im Korpus rief das conInTab_Resize auf,
+        // waehrend das Line-Control zwei Zeilen weiter unten noch nicht existierte.
+        host.BeginDesignerInitialization(owner);
+        var timer = host.CreateControl(owner, "Timer1", "Timer")!;
+        var raiseTick = timer.GetType().GetMethod("RaiseTick", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        raiseTick.Invoke(timer, null);
+        Assert.AreEqual(0, owner.TickCount, "Waehrend der Huelle laeuft kein Ereignis.");
+
+        host.CompleteDesignerInitialization(owner);
+
+        raiseTick.Invoke(timer, null);
+        Assert.AreEqual(1, owner.TickCount, "Danach schon.");
+
+        host.Unload(owner);
+    }
+
     /// <summary>Traegt den Namen, den der Emitter einer generierten Form gibt.</summary>
     private sealed class __vb6_class_frmProbe
     {

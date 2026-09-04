@@ -424,6 +424,12 @@ public static class IrLowerer
             // code runs: this is where VB6 hands an ActiveX control its persisted state as a whole.
             if (hasDesignerControls)
             {
+                instructions.Insert(0, new IrEvaluateInstruction(
+                    new IrRuntimeCallExpression(
+                        IrRuntimeMethod.InteractionBeginDesignerInitialization,
+                        ImmutableArray.Create(
+                            new IrCallArgument(new IrLoadExpression(new IrThisPlace(classType)))),
+                        TypeSymbol.Error)));
                 instructions.Add(new IrEvaluateInstruction(
                     new IrRuntimeCallExpression(
                         IrRuntimeMethod.InteractionCompleteDesignerInitialization,

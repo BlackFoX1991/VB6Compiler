@@ -721,6 +721,7 @@ public enum IrRuntimeMethod
     InteractionShow,
     InteractionCreateControl,
     InteractionSetMember,
+    InteractionBeginDesignerInitialization,
     InteractionCompleteDesignerInitialization,
     InteractionCreateComInstance,
     InteractionCreateObject,
