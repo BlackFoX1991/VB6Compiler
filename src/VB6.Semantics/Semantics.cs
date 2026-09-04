@@ -427,6 +427,19 @@ public sealed record ProcedureSymbol(
     /// <summary>DISPID imported from a COM automation/type-library member.</summary>
     public int? ComDispId { get; init; }
 
+    /// <summary>
+    /// Vtable slot index of a member imported from an IUnknown-derived interface. Such an interface
+    /// has no IDispatch, so the member exists only as a slot -- the index, never the byte offset,
+    /// because an offset depends on the pointer size of whoever read the library.
+    /// </summary>
+    public int? ComVTableSlot { get; init; }
+
+    /// <summary>The declared VARIANT types of the vtable parameters, comma separated.</summary>
+    public string? ComParameterTypes { get; init; }
+
+    /// <summary>The VARIANT type of the retval parameter, or VT_VOID when the member returns none.</summary>
+    public short? ComReturnType { get; init; }
+
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {

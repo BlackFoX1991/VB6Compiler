@@ -3190,6 +3190,33 @@ public static class IrLowerer
                 return LowerPrinterProcedure(requested, arguments);
             }
 
+            // A member of an IUnknown-derived interface has no IDispatch behind it; the call goes
+            // to its vtable slot. Everything the runtime needs is known here and travels as
+            // constants -- the interface id, the slot index and the declared VARIANT types.
+            if (requested.ComVTableSlot is int slot &&
+                receiver.Type is ClassTypeSymbol { ComInterfaceId: Guid interfaceId })
+            {
+                return ConvertDynamicResult(
+                    new IrRuntimeCallExpression(
+                        IrRuntimeMethod.ComVTableInvoke,
+                        ImmutableArray.Create(
+                            new IrCallArgument(LowerExpression(receiver)),
+                            new IrCallArgument(new IrConstantExpression(
+                                interfaceId.ToString("B", System.Globalization.CultureInfo.InvariantCulture),
+                                TypeSymbol.String)),
+                            new IrCallArgument(new IrConstantExpression(slot, TypeSymbol.Long)),
+                            new IrCallArgument(new IrConstantExpression(
+                                requested.ComParameterTypes ?? string.Empty,
+                                TypeSymbol.String)),
+                            new IrCallArgument(new IrConstantExpression(
+                                (int)(requested.ComReturnType ?? 24),
+                                TypeSymbol.Integer)),
+                            new IrCallArgument(LowerDynamicArguments(
+                                arguments.Select(argument => argument.Expression)))),
+                        TypeSymbol.Variant),
+                    requested.ReturnType ?? TypeSymbol.Variant);
+            }
+
             if (requested.IsLateBound || IsRuntimeObject(receiver))
             {
                 return LowerDynamicInvoke(
