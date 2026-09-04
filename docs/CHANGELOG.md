@@ -7116,3 +7116,26 @@ anders sieht, dreht die zwei Zeilen in `VBStrings.Replace` zurück; die Messung 
 
 Kanonischer Nachweis: **1693/1693** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## `Val` liest über Leerzeichen hinweg
+
+Weiter im Breitendurchgang: Datum/Zeit (26 Fälle) und die Information-Funktionen (17 Fälle) sind
+sauber — `DateSerial(2026, 3, 0)` gibt den 28. Februar, `DateAdd("m", 1, 31.01.)` den 28. Februar,
+`TypeName(Array(1))` gibt `Variant()`, und die Fehlernummern 6, 13 und 94 für Überlauf, `CDbl`
+auf Unsinn und `CInt(Null)` stimmen. Ein Defekt in der Konvertierungsfläche:
+
+```
+Val("  1 2  ")   vorher [1]   VB6 [12]
+```
+
+`Val` schnitt nur vorne ab. VB6 entfernt Leerzeichen, Tabulatoren und Zeilenvorschübe aus dem
+**ganzen** Argument, bevor es eine Zahl liest — und das ist Absicht, nicht Zufall: Die Funktion
+wurde gebaut, um Zahlen aus Text fester Breite zu lesen, in dem die Ziffern eines Feldes
+auseinanderstehen können. Das Beispiel der Dokumentation selbst, `Val("24 and 57") = 24`, gilt in
+beiden Lesarten und taugt deshalb nicht zur Unterscheidung; `Val("1 2 3") = 123` tut es.
+
+Die vorhandenen Assertions (`" -12.5 points"`, `"&HFF"`, `"&O10"`, `"not a number"`) bleiben davon
+unberührt — sie ergeben nach dem Entfernen dieselben Werte.
+
+Kanonischer Nachweis: **1698/1698** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

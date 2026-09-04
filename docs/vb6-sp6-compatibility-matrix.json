@@ -321,6 +321,24 @@
       ]
     },
     {
+      "id": "conversion.val-whitespace",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Val with blanks, tabs and line feeds inside the argument, with radix prefixes and with trailing text",
+      "expected": {
+        "whitespace": "blanks, tabs and line feeds are stripped from the whole argument before a number is read",
+        "stop": "reading still stops at the first character that is not part of a number",
+        "radix": "the &H and &O prefixes and an exponent survive the stripping"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ValWhitespaceTests.cs",
+        "tests/VB6.Compiler.Tests/ValWhitespaceExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs"
+      ],
+      "notes": "Val trimmed only the front, so a Val argument of one space, 1, space, 2, space answered 1 instead of 12. VB6 strips blanks, tabs and line feeds from the whole argument first, which is deliberate rather than incidental: the function reads numbers out of fixed-width text where the digits of one field can be spaced apart. The documentation own example -- 24 and 57 reads as 24 -- holds either way and is now pinned, as is the case where nothing but whitespace remains."
+    },
+    {
       "id": "string.result-shapes",
       "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
