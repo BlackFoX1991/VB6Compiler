@@ -57,7 +57,7 @@ public sealed class MathIntrinsicExecutionTests
                 Debug.Print Round(RATE(36, PMT(0.1 / 12, 36, 10000), 10000) * 1200, 4)
                 Debug.Print Round(PV(0, 3, 100, 600), 2)
                 Debug.Print Round(FV(0, 3, 100, 300), 2)
-                Debug.Print Round(NPV(0.1, 100, 100), 2)
+                Debug.Print Round(NPV(0.1, Array(100, 100)), 2)
                 Dim cashFlows As Variant
                 cashFlows = Array(-100, 60, 60)
                 Debug.Print Round(IRR(cashFlows) * 100, 4)

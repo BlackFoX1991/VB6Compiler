@@ -1293,10 +1293,18 @@ public sealed class ManagedEmitter
             TypeSymbol targetType)
         {
             EmitExpression(encoder, procedure, value);
+
+            // An array whose element type differs from the target's needs a real conversion. Left
+            // alone it was a type hole rather than a wrong value: VBArray<double> handed to a
+            // VBArray<object> parameter is not a cast the CLR can make, and it took the process
+            // down with an internal error inside the callee. Between two reference element types
+            // the shared generic instantiation hid the same mistake, so it looked like it worked.
+            // FromObject<T> copies element by element, which is what VB6 does here.
             if (targetType is ArrayTypeSymbol targetArray &&
-                value.Type is not ArrayTypeSymbol &&
-                (value.Type == TypeSymbol.Variant ||
-                 value.Type is ClassTypeSymbol valueClass && IsRuntimeObjectContract(valueClass)))
+                (value.Type is ArrayTypeSymbol sourceArray
+                    ? sourceArray.ElementType != targetArray.ElementType
+                    : value.Type == TypeSymbol.Variant ||
+                      value.Type is ClassTypeSymbol valueClass && IsRuntimeObjectContract(valueClass)))
             {
                 var hasElementDescriptor = targetArray.ElementType is ClassTypeSymbol;
                 if (hasElementDescriptor)
@@ -1394,6 +1402,22 @@ public sealed class ManagedEmitter
                     _ => "PutDynamicArrayDescriptorIfRandom"
                 };
                 encoder.Call(GetFileDynamicArrayReference(methodName, arrayType.ElementType));
+                return;
+            }
+
+            if (call.Method == IrRuntimeMethod.ArrayFromObject &&
+                call.ResultType is ArrayTypeSymbol convertedArray)
+            {
+                EmitExpression(encoder, procedure, call.Arguments[0].Expression);
+                var convertedHasDescriptor = convertedArray.ElementType is ClassTypeSymbol;
+                if (convertedHasDescriptor)
+                {
+                    EmitArrayElementDescriptor(encoder, convertedArray.ElementType);
+                }
+
+                encoder.Call(GetDynamicArrayConversionReference(
+                    convertedArray.ElementType,
+                    convertedHasDescriptor));
                 return;
             }
 
@@ -4467,9 +4491,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.FinancialPpmt) return Static(typeof(VBFinancial), nameof(VBFinancial.PPMT), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.FinancialNper) return Static(typeof(VBFinancial), nameof(VBFinancial.NPER), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.FinancialRate) return Static(typeof(VBFinancial), nameof(VBFinancial.RATE), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));
-            if (m == IrRuntimeMethod.FinancialNpv) return Static(typeof(VBFinancial), nameof(VBFinancial.NPV), typeof(double), typeof(VBArray<object>));
-            if (m == IrRuntimeMethod.FinancialIrr) return Static(typeof(VBFinancial), nameof(VBFinancial.IRR), typeof(VBArray<object>), typeof(double));
-            if (m == IrRuntimeMethod.FinancialMirr) return Static(typeof(VBFinancial), nameof(VBFinancial.MIRR), typeof(VBArray<object>), typeof(double), typeof(double));
+            if (m == IrRuntimeMethod.FinancialNpv) return Static(typeof(VBFinancial), nameof(VBFinancial.NPV), typeof(double), typeof(VBArray<double>));
+            if (m == IrRuntimeMethod.FinancialIrr) return Static(typeof(VBFinancial), nameof(VBFinancial.IRR), typeof(VBArray<double>), typeof(double));
+            if (m == IrRuntimeMethod.FinancialMirr) return Static(typeof(VBFinancial), nameof(VBFinancial.MIRR), typeof(VBArray<double>), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.FinancialSln) return Static(typeof(VBFinancial), nameof(VBFinancial.SLN), typeof(double), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.FinancialSyd) return Static(typeof(VBFinancial), nameof(VBFinancial.SYD), typeof(double), typeof(double), typeof(double), typeof(double));
             if (m == IrRuntimeMethod.FinancialDdb) return Static(typeof(VBFinancial), nameof(VBFinancial.DDB), typeof(double), typeof(double), typeof(double), typeof(double), typeof(double));

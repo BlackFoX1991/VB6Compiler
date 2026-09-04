@@ -7039,3 +7039,47 @@ keiner mehr da ist.
 
 Kanonischer Nachweis: **1681/1681** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Ein Array-Argument mit falschem Elementtyp war ein Typloch
+
+Die Messung der Financial-Fläche — Annuitäten, Abschreibung, Reihen — brachte nach vier korrekten
+Blöcken einen harten Abbruch:
+
+```
+Fatal error. Internal CLR error. (0x80131506)
+   at VB6.Runtime.VBArray`1[[System.__Canon, ...]].EnumerateValues()
+   at VB6.Runtime.VBFinancial.IRR(VB6.Runtime.VBArray`1<System.Object>, Double)
+```
+
+`IRR` mit einem `Double`-Array — genau die Signatur, die VB6 dokumentiert — riss den Prozess mit.
+Die Ursache lag nicht in `IRR`, sondern eine Schicht tiefer: Ein Array-Argument, dessen Elementtyp
+vom Parameter abweicht, wurde **ohne jede Konvertierung** emittiert. Der Lowerer ließ die
+Konvertierung fallen (`method is null` → `return operand`), und der Emitter schob den Wert
+unverändert weiter. Ein `VBArray<double>` landete dort, wo ein `VBArray<object>` deklariert war —
+kein Cast, den die CLR machen kann.
+
+Das Bösartige daran ist, wie unterschiedlich sich derselbe Fehler zeigt. Zwischen zwei
+**Referenz**-Elementtypen teilen sich die Instanziierungen über `__Canon` den Code, und der Fehler
+fällt gar nicht auf: `Join(variantArray, "-")` gegen ein `String()`-Parameter lieferte brav
+`a-b-c` und sah jahrelang richtig aus. Über einen **Wert**typ las der Aufgerufene den falschen
+Speicher — mal Nullen (`NPV` gab `0`, `IRR` gab schlicht seine Vermutung zurück), mal den Abbruch
+oben. Ein grüner Test über die Referenzseite war also kein Hinweis auf die Wertseite.
+
+Die Konvertierung sitzt jetzt im Lowerer, wo beide Typsymbole bekannt sind: `ArrayFromObject` über
+das vorhandene `VBArrayOperations.FromObject<T>`, das elementweise kopiert. Sie deckt beide
+Richtungen und auch einen Variant ab, der ein Array trägt.
+
+Daneben zwei VB6-Treue-Korrekturen an derselben Familie. `NPV` war als **ParamArray** modelliert,
+weshalb ein übergebenes Array zu einem einzigen Element wurde — VB6 deklariert dort ein Array
+(`NPV(Rate, ValueArray() As Double)`). Und alle drei Reihenfunktionen nehmen jetzt das
+`Double`-Array ihrer dokumentierten Signatur.
+
+Ein bestehender Test rief `NPV(0.1, 100, 100)`. Der ist angepasst worden, und zwar bewusst: Er
+sprach keine VB6-Zusage aus, sondern hing an unserer ParamArray-Modellierung — in echtem VB6 wäre
+diese Zeile ein Übersetzungsfehler.
+
+Die `Math`-Fläche wurde im selben Durchgang gemessen: 30 Fälle einschließlich der Fehlernummern
+für `Sqr(-1)`, `Log(0)` und `1/0` sowie der Variant-Zustände. Dort kein Defekt.
+
+Kanonischer Nachweis: **1686/1686** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
