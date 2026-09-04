@@ -6919,3 +6919,43 @@ den Weg, den sie hatte. Das steht so in der Roadmap.
 
 Kanonischer Nachweis: **1584/1584** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **81/81**.
+
+## Melden statt raten für den `[out]`-Parameter, und die Roadmap auf den gemessenen Stand
+
+Der vtable-Aufruf lässt einen Member mit `[out]`-Parameter bewusst liegen. Bisher fiel so ein
+Aufruf still auf den Dispatchweg zurück und endete dort mit **438**, „Member nicht gefunden" — für
+einen Member, den die Typbibliothek ausdrücklich beschreibt. Das zeigt auf die falsche Ursache.
+Der Binder meldet jetzt **VB6S0075** an der Aufrufstelle: Der Importer merkt sich die Form am
+Symbol (`ComVTableOutParameters`), `TryGetVTableProcedure` meldet sie. Gemessener Fall bleibt
+`IFont.Clone`.
+
+Danach die Roadmap gegen den gemessenen Stand geprüft — nicht gegen die Erinnerung. Vierzehn
+Zeilen der Etappen A–H trugen noch `[~]`, obwohl ihre Aussage inzwischen belegt ist; drei trugen
+Vermerke, die schlicht überholt waren:
+
+- **Ressourcen-Einbettung** stand als offen, ist aber gebaut: `ResFile32` wird geladen, in die
+  Assembly eingebettet und über `LoadResString`/`LoadResData`/`LoadResPicture` gelesen.
+- **Die Pixeltests** sollten an der DPI des Testhosts hängen. Tun sie nicht: Sie setzen
+  `ScaleMode = 3` und eine ausdrückliche Flächengröße, lesen also dieselben Bildpunkte
+  unabhängig von der Skalierung.
+- **Die exotischen Typbibliotheksformen** sollten eine aus IDL gebaute Komponente brauchen. Auch
+  das ist überholt — `stdole2.tlb`, `MSCOMCTL.OCX`, `scrrun.dll` und `msado15.dll` decken Aliase,
+  Records, feste C-Arrays, vtable-Schnittstellen, 42 Enums und 48 Coklassen ab.
+
+Zwei Zeilen wurden nicht abgehakt, sondern nachgemessen beziehungsweise umgehängt:
+
+- Das **UserControl-Array im Designer** galt als offen. Ein Probelauf zeigt das Gegenteil: Die
+  Designer-Hülle bündelt nach der `Index`-Eigenschaft, nicht nach der Art des Controls, weshalb
+  ein `.ctl` dieselbe Maschinerie nimmt wie ein intrinsisches Control. `UserControlArrayExecutionTests`
+  hält das jetzt fest, statt es weiter zu vermuten.
+- Die **Component-Package-Emission** gehört nicht in den Compiler. Ein Verteilpaket — CAB,
+  `setup.exe`, `.DEP` — ist die Ausgabe des Package-and-Deployment-Assistenten und setzt eine
+  Entscheidung über Zielmaschine und Laufzeitverteilung voraus, die ein Übersetzungslauf nicht
+  trifft. Sie steht jetzt bei Meilenstein 10 statt als offener Compilerpunkt.
+
+Damit tragen von den Etappen A–H noch sechs Zeilen `[~]`, und die sind es aus einem Grund: Es sind
+die bewusst offenen Familienzeilen (`l1-02-a`, die Standardbibliotheksfläche, die additive
+Wachstumszeile) und die eine benannte Architekturfrage — die deterministische Lebensdauer.
+
+Kanonischer Nachweis: **1666/1666** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

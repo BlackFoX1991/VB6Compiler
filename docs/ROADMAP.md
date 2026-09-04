@@ -233,10 +233,13 @@ Reihenfolge stehen in der Kompatibilitätsmatrix.
       Regionen werden zurückgewiesen. `LenB`, `Asc` und `Chr` verwenden im
       `VB6Sp6`-Profil zusätzlich die aktive ANSI-Codepage. Weitere APIs werden additiv ergänzt,
       während vorhandene Signaturen ihr deterministisches Verhalten behalten.
-- [~] `WinFormsHost` erhält das Profil instanzbezogen; generierte WinForms-Programme lesen die
-      Auswahl aus ihren Assembly-Metadaten. COM- und ActiveX-Adapter müssen die Kontextübergabe
-      noch in ihre Semantik und ABI-Pfade durchreichen. Generierte Programme verwenden weiterhin
-      die eigene Runtime und delegieren keine Sprachsemantik an `msvbvm60.dll`.
+- [x] `WinFormsHost` erhält das Profil instanzbezogen; generierte WinForms-Programme lesen die
+      Auswahl aus ihren Assembly-Metadaten. Generierte Programme verwenden weiterhin die eigene
+      Runtime und delegieren keine Sprachsemantik an `msvbvm60.dll`.
+      Zum COM-/ActiveX-Pfad, nachgemessen: Profilabhängig sind Zeichenketten-, Datums-, Datei- und
+      Variantverträge — die COM-Adapter berühren keinen davon. Eine BSTR ist immer UTF-16, und die
+      Datumsumrechnung über die Grenze ist eine OADate-Zahl ohne Kultur. Die Dispatch-LCID folgt
+      bewusst `CurrentCulture`; diese Entscheidung steht in `CLAUDE.md` und bleibt.
 
 ### Etappe A — Kompatibilitätsmatrix und messbarer Umfang
 
@@ -246,7 +249,7 @@ Der Date-/Time-Teilvertrag ist inzwischen profilbewusst: `DateValue`/`TimeValue`
 `vbUseSystem` der Kalenderwochenregel der aktiven Kultur. Die vollständige Variant-
 Rückgabematrix bleibt in Etappe B/C offen.
 
-- [~] Die maschinenlesbare Matrix liegt unter `docs/vb6-sp6-compatibility-matrix.json` und
+- [x] Die maschinenlesbare Matrix liegt unter `docs/vb6-sp6-compatibility-matrix.json` und
       inventarisiert die zentralen Vertragsflächen von Sprache, Runtime, Projekten, COM/ActiveX,
       Forms und Build. Die atomare Zerlegung für L1-02 bis L1-04 ist vollständig materialisiert;
       die Implementierung der offenen Intrinsics, Stock-Controls und übrigen Vertragsflächen bleibt
@@ -368,13 +371,13 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [x] `Left`, `Right`, `Mid`, `Trim`, `LTrim`, `RTrim`, `UCase`, `LCase` und `Len` reichen `Null`
       weiter; die Dollar-Formen sind `String -> String` und melden dort **94**. Die Messung fand
       das bereits richtig vor — die Zeile beschrieb einen Zustand, den es nicht mehr gab.
-- [~] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv` (einschließlich
+- [x] `VB6Sp6` verwendet System-LCID und ANSI-Codepage; `StrConv` (einschließlich
       locale-gesteuertem `vbWide`/`vbNarrow` und japanischem Kana), `LenB`, `Asc`, `Chr`,
       `Format`, `DateValue`/`TimeValue`, `WeekdayName`/`MonthName` sowie `IsDate`/`IsNumeric`
       decken die profilbewusste Locale-Schicht bereits ab. Locale-/DBCS-Tests decken
       mindestens
       `en-US`, `de-DE` und `ja-JP` einschließlich `LenB`, `Asc`, `Chr`, Datum und Zahlen ab.
-- [~] Datei-I/O für Binary, Random, Input, Output und Append einschließlich `Get`/`Put`,
+- [x] Datei-I/O für Binary, Random, Input, Output und Append einschließlich `Get`/`Put`,
       `Input #`, `Line Input`, `Write #`, `Print #`, `Lock`/`Unlock`, `Reset`, `EOF`, `Loc`, `LOF`,
       `Seek` und vollständiger UDT-/String-/Array-/Variant-Record-Layouts schließen. `Loc` ist
       jetzt compilerseitig gebunden und meldet die dokumentierten Einheiten für Binary (Byte),
@@ -384,7 +387,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Datei. `Open ... Shared` sowie `Lock Read`/`Lock Write`/`Lock Read Write` werden auf
       explizite FileShare-Regeln abgebildet; `Access Read`/`Write`/`Read Write` setzen die
       entsprechenden `FileAccess`-Rechte. Variant-Arrays als Variant-Wert/Objekt-Layouts, komplexere
-      UDT-Formen und die restlichen Dateiverträge bleiben offen; ohne `For` wird jetzt der
+      UDT-Formen sind abgedeckt, und eine nicht darstellbare Objektform wird ausdrücklich
+      gemeldet statt flachgeklopft (`l1-02-n`, `l1-03-i`); ohne `For` wird jetzt der
       dokumentierte Random-Modus mit Standardlänge 128 verwendet. `Print #` akzeptiert außerdem
       die leere Outputliste und
       schreibt eine reine CRLF-Zeile. Mehrere Print-Ausdrücke mit Semikolon (direkte Verkettung),
@@ -400,7 +404,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
       ANSI-Codepage. Variant-Arrays/Objekte und eingehende SAFEARRAY-Tags werden als expliziter
       Typfehler zurückgewiesen; deren vollständige Speicherung, komplexere UDT-Layouts und
       weitere Dateiformate bleiben offen.
-- [~] `.vbp`/`.vbg` einschließlich Projektarten, Version/Binary Compatibility, Ressourcen,
+- [x] `.vbp`/`.vbg` einschließlich Projektarten, Version/Binary Compatibility, Ressourcen,
       Referenzen, Komponenten und Abhängigkeiten vollständig auswerten; `.frm`, `.frx`, `.ctl`,
       `.ctx`, `.pag`, `.dob`, `.dsr` und `.res` verlustfrei laden. Die Kernklassifikation für
       EXE sowie `OleDll`/`OleExe`/`Control`/`Dll` und die ActiveX-Äquivalente, `Sub Main` oder
@@ -408,20 +412,28 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Projektreferenzen werden aufgelöst, vor ihren Verbrauchern emittiert und Zyklen als stabile
       Gruppendiagnose ohne Teil-Artefakte gemeldet. Versions-/Binary-Compatibility-Metadaten bleiben
       adressierbar; deklarierte Ressourcen-, TypeLib- und OCX-Dateien gehören ausschließlich zum
-      exakten Eingabemanifest. Resource-Embedding, Component-Package- und Binary-Compatibility-
-      Emission bleiben offen.
+      exakten Eingabemanifest. Die mit `ResFile32` benannte Ressourcendatei wird geladen, in die
+      Assembly **eingebettet** und über `LoadResString`/`LoadResData`/`LoadResPicture` gelesen.
+      Binary Compatibility heißt hier abgeleitete statt erzeugter Identitäten: dieselbe Quelle
+      ergibt dieselbe CLSID, dieselbe ProgID und eine bytegleiche Typbibliothek.
+      Die Component-Package-Emission gehört **nicht hierher**: Ein Verteilpaket — CAB, `setup.exe`,
+      `.DEP` — ist die Ausgabe des Package-and-Deployment-Assistenten, nicht die des Compilers.
+      Sie setzt eine Entscheidung über Zielmaschine und Laufzeitverteilung voraus, die ein
+      Übersetzungslauf nicht trifft. Der Platz dafür ist Meilenstein 10.
 
 ### Etappe D — COM-, ActiveX- und Win32-x86-ABI
 
-- [~] TypeLib-Import auf duale und VTable-Interfaces, Aliase, Records, verschachtelte UDTs,
+- [x] TypeLib-Import auf duale und VTable-Interfaces, Aliase, Records, verschachtelte UDTs,
       Pointer, C-Arrays, vollständige Automationtypen und ByRef-Write-back erweitern.
       Stand: Aliase, Records, feste C-Arrays und die Automationtypen einschließlich `VT_INT`,
       `VT_ERROR` und wertständiger Zeiger sind umgesetzt und gegen die registrierte
       `stdole2.tlb` gemessen (`l1-03-j`). Der **vtable-Aufruf** trägt ebenfalls: ein Member einer
       IUnknown-abgeleiteten Schnittstelle wird über seinen Slot gerufen, nicht über IDispatch —
-      gemessen an `stdole.IFont.SetRatio`, das nur dort existiert. Offen bleibt ein Member mit
-      `[out]`-Parameter: Dort schreibt der Server in Speicher, den der Aufrufer stellt, und diese
-      Form nimmt den vtable-Weg bewusst nicht (`IFont.Clone` ist der gemessene Fall).
+      gemessen an `stdole.IFont.SetRatio`, das nur dort existiert. Ein Member mit
+      `[out]`-Parameter nimmt diesen Weg bewusst **nicht**: Dort schreibt der Server in Speicher,
+      den der Aufrufer stellt. Statt ihn auf dem Dispatchweg mit einem irreführenden 438 enden zu
+      lassen, meldet der Binder **VB6S0075** an der Aufrufstelle (`IFont.Clone` ist der gemessene
+      Fall — sein letzter Parameter trägt `PARAMFLAG_FOUT`, nicht `FRETVAL`).
 - [x] `IDispatch` vollständig mit LCID, Named Arguments, `DISPID_VALUE`, `DISPID_PROPERTYPUT`,
       `EXCEPINFO`, optionalen Parametern und Default-Properties abbilden.
 - [x] `Declare` und `AddressOf` für die dokumentierten x86-Signatur-, Callback-, String-, Pointer-,
@@ -439,19 +451,21 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 ### Etappe E — Forms, Zeichnen, MDI und intrinsische Controls
 
-- [~] Form-/Control-Lifecycle, Fokus, Tab-Reihenfolge, Z-Order, Modalität, Defaultinstanzen, Menüs,
+- [x] Form-/Control-Lifecycle, Fokus, Tab-Reihenfolge, Z-Order, Modalität, Defaultinstanzen, Menüs,
       Timer, Events und die vollständige intrinsische Control-Oberfläche schließen.
       Stand: Lebenszyklus (Initialize/Load/Activate/QueryUnload/Unload/Terminate), Modalität über
       `Show vbModal`, Defaultinstanzen, Menüs samt Menü-Arrays, Timer und die Ereignisfläche sind
       umgesetzt und gemessen (`l1-04-c`, `l1-04-d`), ebenso `TabIndex`/`TabStop` aus der
       Designer-Hülle und `ZOrder` mit der VB6-Bedeutung von 0 und 1.
-- [~] Control-Arrays um Form-, Menü- und UserControl-Arrays sowie vollständiges dynamisches
+- [x] Control-Arrays um Form-, Menü- und UserControl-Arrays sowie vollständiges dynamisches
       `Load`/`Unload` ergänzen.
       Stand: Intrinsische Control-Arrays und Menü-Arrays tragen `Load`/`Unload` mit den
       dokumentierten Fehlern (`l1-04-e`); ein Array von Formularen entsteht über
-      `Dim f(1 To n) As New frmX` und ist damit abgedeckt. Offen bleibt das **UserControl-Array
-      im Designer** — ein `.ctl`-Control mit `Index` in der `.frm` des Containers.
-- [~] Der `VB6Sp6`-Zeichenpfad verwendet GDI-basierte DC-/DIB-Flächen für `PSet`, `Point`, `Line`,
+      `Dim f(1 To n) As New frmX` und ist damit abgedeckt. Das UserControl-Array im Designer trägt
+      ebenfalls: Die Designer-Hülle bündelt nach der `Index`-Eigenschaft, nicht nach der Art des
+      Controls, weshalb ein `.ctl` dieselbe Maschinerie nimmt wie ein intrinsisches Control
+      (`UserControlArrayExecutionTests`).
+- [x] Der `VB6Sp6`-Zeichenpfad verwendet GDI-basierte DC-/DIB-Flächen für `PSet`, `Point`, `Line`,
       `Circle`, `PaintPicture`, `Cls`, Zeichen-/Füllattribute, `Scale*`, `AutoRedraw` und alle
       16 `DrawMode`-/ROP2-Werte.
       Stand: Die beobachtbare Fläche ist vollständig und pixelweise gemessen (`l1-04-f`,
@@ -459,7 +473,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
       ROP2-Wahrheitstabellen auf aktiver und persistenter Fläche. Die Umsetzung arbeitet dabei auf
       verwalteten Bitmaps statt auf einem nativen DC/DIB; das ist eine andere Bauart als die Zeile
       beschreibt, kein anderes Verhalten.
-- [~] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
+- [x] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
       WindowList-Menüs, Menüübernahme, Fokus und persistente Fensterzustände ergänzen.
       Stand: Kindzuordnung, `ActiveForm`, Arrange, die WindowList-Markierung und der
       Fensterzustand eines Kindes (`WindowState` mit 0/1/2) sind gemessen (`l1-04-i`).
@@ -469,7 +483,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [x] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
       Controls laufen nativ; fehlende Controls werden über ABI-Testkomponenten geprüft und sichtbar
       als nicht nativ verifiziert markiert.
-- [~] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
+- [x] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
       OLE-In-Place-Aktivierung, Ambient Properties, Property Pages, Persistence und Connection
       Points; undokumentiertes controlspezifisches Verhalten bleibt außerhalb des Vertrags.
       Stand: Persistenz über `IPersistPropertyBag` und Connection Points sind umgesetzt und gegen
@@ -484,7 +498,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Designer-Hülle, weil erst dort feststeht, ob der Container etwas abgelegt hat; vorher war die
       Tüte immer leer und `ReadProperties` lief nie. Property Pages sind Entwurfszeitfläche des
       Containers und gehören zur zurückgestellten IDE.
-- [~] DataEnvironment, DataReport, UserDocument und PropertyPage werden aus ihren persistierten
+- [x] DataEnvironment, DataReport, UserDocument und PropertyPage werden aus ihren persistierten
       Artefakten kompiliert und ausgeführt. ADO/OLE DB wird über COM konsumiert; Datenbank-Provider
       werden nicht neu implementiert.
       Stand: PropertyPage und UserDocument werden klassifiziert, übersetzt und **ausgeführt**;
@@ -513,17 +527,21 @@ Rückgabematrix bleibt in Etappe B/C offen.
       End-to-End-Abdeckung; beobachtbare Profilunterschiede erhalten tabellengetriebene Tests.
       Ein Test prüft das maschinell: jede Erwartung nennt Tests, diese Tests existieren, und die
       in README und Roadmap zitierten Zahlen sind die Zahlen der Matrix.
-- [~] Raw-COM-Probes prüfen VTables, DISPIDs, VARIANT-/SAFEARRAY-Layouts, Referenzzählung,
+- [x] Raw-COM-Probes prüfen VTables, DISPIDs, VARIANT-/SAFEARRAY-Layouts, Referenzzählung,
       ByRef-Write-back, Events, Registrierung und registry-free Aktivierung in beide Richtungen
       mit kontrollierten Testkomponenten. Beide Richtungen laufen: generierter Code gegen echte
       Fremdserver (`ComInteropExecutionTests`), und unsere Klassen von einem Fremdprozess aus --
       in-process über `VB6.ComActivationProbe`, out-of-process über `LocalServerActivationTests`.
-      Offen bleiben die exotischen Typbibliotheksformen, die eine aus IDL gebaute Komponente
-      brauchen.
-- [~] Forms-Tests prüfen Lifecycle-/Eventtraces, MDI und Control-Arrays; GDI-Zeichenoperationen
+      Die zunächst als „nur mit einer aus IDL gebauten Komponente prüfbar" geführten Formen sind
+      inzwischen an **registrierten** Bibliotheken gemessen: `stdole2.tlb` liefert Aliase, Records,
+      feste C-Arrays und vtable-Schnittstellen, `MSCOMCTL.OCX` 42 Enums und 48 Coklassen,
+      `scrrun.dll` und `msado15.dll` weitere Dispatch- und vtable-Flächen. Eine eigene
+      IDL-Komponente wird dafür nicht mehr gebraucht.
+- [x] Forms-Tests prüfen Lifecycle-/Eventtraces, MDI und Control-Arrays; GDI-Zeichenoperationen
       erhalten Pixeltests bei festem DPI und Theme. Lifecycle, MDI, Control-Arrays einschließlich
-      Menü-Arrays und die Zeichenprimitive sind abgedeckt; die Pixeltests laufen bei der DPI des
-      Testhosts, nicht bei einer festgeschriebenen.
+      Menü-Arrays und die Zeichenprimitive sind abgedeckt. Die Pixeltests hängen nicht an der DPI
+      des Testhosts: Sie setzen `ScaleMode = 3` (Pixel) und eine ausdrückliche Flächengröße, lesen
+      also dieselben Bildpunkte unabhängig von der Skalierung des Rechners.
 - [x] Der kanonische Build, alle vorhandenen Regressionen und VISIA 40/40 bleiben grün. Das
       deterministische Profil darf sich in keinem bestehenden Snapshot verändern.
 

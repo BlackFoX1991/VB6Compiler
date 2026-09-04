@@ -3419,7 +3419,7 @@ public sealed class Binder
         // A member of an IUnknown-derived interface is reached through its vtable slot. There is
         // no IDispatch behind it, so the dynamic path below would answer 438 for a member that the
         // type library describes -- stdole.IFont.Clone is the documented case.
-        if (TryGetVTableProcedure(classType, memberAccess.MemberToken.Text, out var vtableProcedure))
+        if (TryGetVTableProcedure(classType, memberAccess.MemberToken.Text, memberAccess.MemberToken.Span, out var vtableProcedure))
         {
             return new BoundMemberInvocationStatement(
                 receiver,
@@ -4081,7 +4081,7 @@ public sealed class Binder
                     procedures));
         }
 
-        if (TryGetVTableProcedure(classType, target.MemberToken.Text, out var vtableProcedure))
+        if (TryGetVTableProcedure(classType, target.MemberToken.Text, target.MemberToken.Span, out var vtableProcedure))
         {
             return new BoundMemberInvocationExpression(
                 receiver,
@@ -4214,15 +4214,34 @@ public sealed class Binder
     /// The member of an imported IUnknown-derived interface, when it has a vtable slot. Only such a
     /// member takes the vtable route; everything else keeps the dispatch path it had.
     /// </summary>
-    private static bool TryGetVTableProcedure(
+    private bool TryGetVTableProcedure(
         ClassTypeSymbol classType,
         string memberName,
+        TextSpan span,
         out ProcedureSymbol? procedure)
     {
         procedure = null;
         if (classType.ComInterfaceId is null ||
-            !classType.TryGetProcedure(memberName, out var candidate) ||
-            candidate.ComVTableSlot is null)
+            !classType.TryGetProcedure(memberName, out var candidate))
+        {
+            return false;
+        }
+
+        if (candidate.ComVTableOutParameters)
+        {
+            // The member writes into storage the caller supplies. Leaving it on the dispatch route
+            // would answer 438 -- "member not found" -- for a member the type library describes,
+            // which points at the wrong thing entirely.
+            Report(
+                "VB6S0075",
+                $"Member '{memberName}' of interface '{classType.Name}' has an out parameter, " +
+                "which the vtable call contract does not model yet.",
+                span);
+            procedure = candidate;
+            return true;
+        }
+
+        if (candidate.ComVTableSlot is null)
         {
             return false;
         }

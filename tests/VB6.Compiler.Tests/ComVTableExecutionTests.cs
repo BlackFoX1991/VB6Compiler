@@ -12,6 +12,64 @@ public sealed class ComVTableExecutionTests
     private const string StdOleLibraryId = "{00020430-0000-0000-C000-000000000046}";
 
     [TestMethod]
+    public void Analyze_ReportsAVTableMemberWithAnOutParameter()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type-library import requires Windows.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6ComVTableOut",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Aus.vbp");
+            File.WriteAllText(projectPath, $"""
+                Type=Exe
+                Startup="Sub Main"
+                Name="Aus"
+                Reference=*\G{StdOleLibraryId}#2.0#0#stdole2.tlb#stdole
+                Module=Main; Main.bas
+                """);
+
+            // IFont.Clone traegt PARAMFLAG_FOUT, nicht FRETVAL: Sein letzter Parameter ist ein
+            // ByRef-Argument, in das der Server schreibt. Diese Form nimmt der vtable-Weg bewusst
+            // nicht -- und sie auf dem Dispatchweg zu lassen hiesse 438 zu melden, "Member nicht
+            // gefunden", fuer einen Member, den die Bibliothek beschreibt.
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim f As stdole.IFont
+                    Set f = New stdole.StdFont
+                    Dim g As stdole.IFont
+                    f.Clone g
+                End Sub
+                """);
+
+            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+            var diagnostics = analysis.Units.SelectMany(unit => unit.Analysis.Diagnostics).ToArray();
+
+            Assert.IsFalse(analysis.Success);
+            Assert.IsTrue(
+                diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0075"),
+                string.Join(" | ", diagnostics.Select(diagnostic => diagnostic.ToString())));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_CallsAVTableOnlyInterfaceMember()
     {
         if (!OperatingSystem.IsWindows() ||
