@@ -2797,6 +2797,19 @@ public static class IrLowerer
             {
                 BoundLiteralExpression literal => new IrConstantExpression(literal.Value, literal.LiteralType),
                 BoundAddressOfExpression addressOf => new IrAddressOfExpression(addressOf.Procedure, addressOf.Type),
+                // New on an imported coclass activates the registered class instead of building a
+                // CLR object -- the backend has no constructor for a contract it did not emit.
+                BoundNewExpression @new when @new.ClassType.ComClassId is Guid comClassId =>
+                    new IrRuntimeCallExpression(
+                        IrRuntimeMethod.InteractionCreateComInstance,
+                        ImmutableArray.Create(
+                            new IrCallArgument(new IrConstantExpression(
+                                comClassId.ToString("D", System.Globalization.CultureInfo.InvariantCulture),
+                                TypeSymbol.String)),
+                            new IrCallArgument(new IrConstantExpression(
+                                @new.ClassType.Name,
+                                TypeSymbol.String))),
+                        @new.ClassType),
                 BoundNewExpression @new => new IrNewClassExpression(@new.ClassType),
                 BoundTypeOfExpression typeOf => new IrTypeOfExpression(
                     LowerExpression(typeOf.Expression),

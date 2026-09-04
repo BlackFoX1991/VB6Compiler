@@ -38,6 +38,12 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public bool IsLateBoundObject { get; private set; }
     /// <summary>True when this host-provided object participates in the VB6 Control hierarchy.</summary>
     public bool IsControlContract { get; private set; }
+    /// <summary>
+    /// The registered coclass this contract activates, for an imported creatable COM class. Null
+    /// for every class the compilation emits itself and for a contract that cannot be created --
+    /// VB6 rejects New on those, and so does the binder.
+    /// </summary>
+    public Guid? ComClassId { get; private set; }
     public ImmutableArray<ProcedureSymbol> Procedures => _definition.Procedures;
     public ImmutableArray<PropertySymbol> Properties => _definition.Properties;
     public ImmutableArray<EventSymbol> Events => _definition.Events;
@@ -186,6 +192,8 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public void MarkAsLateBoundObject() => IsLateBoundObject = true;
 
     public void MarkAsControlContract() => IsControlContract = true;
+
+    public void SetComClassId(Guid classId) => ComClassId = classId;
 
     private readonly record struct PropertyKey(string Name, PropertyAccessorKind Accessor);
 

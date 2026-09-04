@@ -301,6 +301,11 @@ public static class VBDynamicDispatch
         out object? result)
     {
         target = GetComObject(target) ?? target;
+
+        // The reflection path below marshals the argument array itself, so the VB6 value structs
+        // have to be Automation values before it sees them -- otherwise a Currency argument turns
+        // into "cannot be marshalled to a Variant" from deep inside the CLR.
+        VBComValue.ToAutomation(arguments);
         if (VBComDispatch.TryInvoke(target, memberName, arguments, setProperty, out result))
         {
             return true;
