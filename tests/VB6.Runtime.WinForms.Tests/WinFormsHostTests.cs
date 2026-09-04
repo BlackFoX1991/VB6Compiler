@@ -3213,6 +3213,30 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    /// <summary>Traegt den Namen, den der Emitter einer generierten Form gibt.</summary>
+    private sealed class __vb6_class_frmProbe
+    {
+    }
+
+    [STATestMethod]
+    public void HostNamesAFormWithoutACaptionAfterItsVB6Name()
+    {
+        using var host = new WinFormsHost();
+        var owner = new __vb6_class_frmProbe();
+        host.Load(owner);
+
+        // Eine .frm ohne Caption -- ein randloses Splashfenster etwa -- bekam den emittierten
+        // Typnamen in den Titelbalken. Gemessen am Korpus stand dort "__vb6_class_frmSplash".
+        // Das Namensschema des Emitters darf nicht zu beobachtbarem Programmverhalten werden.
+        Assert.IsTrue(host.TryGetMember(owner, "Caption", Array.Empty<object?>(), out var caption));
+        Assert.AreEqual("frmProbe", Convert.ToString(caption));
+
+        Assert.IsTrue(host.TryGetMember(owner, "Name", Array.Empty<object?>(), out var name));
+        Assert.AreEqual("frmProbe", Convert.ToString(name));
+
+        host.Unload(owner);
+    }
+
     /// <summary>Nimmt entgegen, was ein Control ueber sich selbst zu sagen hat.</summary>
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]

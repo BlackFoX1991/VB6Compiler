@@ -2079,10 +2079,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return binding;
         }
 
+        // Der VB6-Name, nicht der emittierte. Eine Form ohne Caption in der .frm zeigt in VB6
+        // ihren eigenen Namen; hier stand stattdessen das Namensschema des Emitters im
+        // Titelbalken -- gemessen am VISIA-Splashfenster: "__vb6_class_frmSplash".
+        var formName = VBFunctions.Vb6TypeName(target.GetType());
         var form = new Form
         {
-            Name = target.GetType().Name,
-            Text = target.GetType().Name,
+            Name = formName,
+            Text = formName,
             StartPosition = FormStartPosition.Manual
         };
         binding = new FormBinding(form);
