@@ -241,6 +241,19 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
 - **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Die aktuelle Abdeckungsmessung findet keinen in `src/` definierten Diagnose-Code ohne Referenz in `tests/`; neue Codes müssen trotzdem mit einer Positivassertion in die zuständige Testsuite aufgenommen werden. Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
+- **Zwischen `BeginDesignerInitialization` und `CompleteDesignerInitialization` läuft kein
+  VB6-Ereignis.** VB6 legt eine Form zuerst aus und lässt das Programm danach laufen; WinForms
+  meldet `Resize`, sobald eine Größe zugewiesen wird. Im Korpus rief das `conInTab_Resize` auf,
+  während das `Line`-Control zwei Zeilen weiter unten noch nicht existierte — Absturz auf
+  `Nothing`. Beide Enden der Hülle sind **ausdrücklicher Vertrag** des erzeugten Programms, nicht
+  implizit: Der erste Entwurf öffnete sie beim ersten `CreateControl`, und jeder Hostkonsument,
+  der Controls selbst anlegt, verlor damit für immer jedes Ereignis (sechs Tests). Wer eine neue
+  Designer-Fläche ergänzt, emittiert beide Aufrufe.
+- **Eine Form hat eine Default-Instanz, ein UserControl nicht.** `frmMain.Show` ohne `New` ist die
+  übliche VB6-Art, ein zweites Fenster zu öffnen — die Form trägt `VB_PredeclaredId`, ihr Name ist
+  eine Instanz. Im Compiler ist das ein globales `As New` (`VBProjectCompilation`), genau wie bei
+  einer `.cls` mit demselben Attribut. Die Startform bleibt davon eine **eigene** Instanz; wer
+  `frmStart.Show` nach `Unload Me` schreibt, bekommt hier eine zweite. Offene Abweichung.
 - **Der Kopf einer Kontrollflussanweisung hat seine eigene Fehlerregion.**
   `CanProtectForErrorHandling` nimmt `If`, `For`, `For Each`, `While`, `Do`, `With` und
   `Select Case` von der Absicherung *als Anweisung* aus, weil eine geschützte Region keinen
