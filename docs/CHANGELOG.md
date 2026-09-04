@@ -6488,3 +6488,33 @@ Roadmap und `CLAUDE.md` sind entsprechend berichtigt.
 
 Kanonischer Nachweis: **1558/1558** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **72/72**.
+
+## Der Kopf einer `For Each` trägt jetzt seine Fehlerregion (04.09.2026)
+
+Aus der vorigen Karte blieb ein Befund offen: Ein 438 aus der Aufzählungsquelle beendete das
+Programm, obwohl ein Handler danebenstand. Ich hatte das als strukturelle Grenze notiert — eine
+geschützte Region darf keinen Basisblock überqueren, also seien Kontrollflussanweisungen ungeschützt.
+
+Das war zur Hälfte falsch. `LowerProtectedHeader` gibt es seit Langem und umschließt genau die
+Kopfinstruktionen, die im Ausgangsblock bleiben; `For`, `Do` und die Bedingung eines `If` benutzen
+es, und es beantwortet auch die Frage, die ich für offen hielt: Bei `Resume Next` wird am
+**Schleifenausgang** fortgesetzt. Nur `LowerForEach` benutzte es nicht.
+
+Der erste Versuch, es generisch in `LowerStatement` nachzurüsten, hat den Korpus mit „Nested error
+handling regions are not supported" zerlegt — die Umklammerung legte sich um die Regionen, die der
+Helfer bereits erzeugt. Der Emitter hat den Fehler dabei genau richtig gemeldet, mit Bezug auf die
+Ursache. Die Rücknahme und der Weg über den vorhandenen Helfer waren fünf Zeilen.
+
+Gemessen, beide Formen:
+
+```
+On Error Resume Next : 438, Schleife übersprungen, danach läuft eine gute Quelle weiter
+On Error GoTo        : Handler sieht 438
+Set n = Nothing      : 91
+```
+
+`CLAUDE.md` führte die Grenze seit heute Vormittag zu breit; der Eintrag ist berichtigt und nennt
+jetzt den Helfer samt der Falle, in die der generische Versuch lief.
+
+Kanonischer Nachweis: **1559/1559** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **72/72**.
