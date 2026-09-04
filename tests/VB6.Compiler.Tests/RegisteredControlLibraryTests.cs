@@ -134,11 +134,17 @@ public sealed class RegisteredControlLibraryTests
                     Debug.Print VarType(handle)
                     Debug.Print VarType(size)
                     Debug.Print VarType(cancel)
+
+                    ' EXCEPINFO.scode ist VT_ERROR und pvReserved ein Zeiger. Beide sind in VB6
+                    ' ein Long; unabgebildet antworteten sie VarType 0 beziehungsweise Nothing.
+                    Dim info As stdole.EXCEPINFO
+                    Debug.Print VarType(info.scode)
+                    Debug.Print VarType(info.pvReserved)
                 End Sub
                 """);
 
             CollectionAssert.AreEqual(
-                new[] { "3", "3", "6", "11" },
+                new[] { "3", "3", "6", "11", "3", "3" },
                 VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
         }
         finally

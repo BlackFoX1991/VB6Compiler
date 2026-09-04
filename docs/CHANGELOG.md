@@ -6518,3 +6518,39 @@ jetzt den Helfer samt der Falle, in die der generische Versuch lief.
 
 Kanonischer Nachweis: **1559/1559** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **72/72**.
+
+## Zeiger und SCODE in einem importierten Record (04.09.2026)
+
+Zwei weitere Automationstypen fehlten in der Abbildungstabelle, mit demselben Muster wie `VT_INT`
+vorher: Sie fielen durch und wurden still zu Variant beziehungsweise Object.
+
+```
+stdole.EXCEPINFO.scode       vt=10 (VT_ERROR)  ->  Empty,   VarType 0   ' VB6: Long, 3
+stdole.EXCEPINFO.pvReserved  vt=26 (VT_PTR)    ->  Nothing, VarType 9   ' VB6: Long, 3
+```
+
+Ein Zeiger, der dort steht, wo ein Wert steht, ist in VB6 ein `Long` — auf der 32-Bit-Zeigerbreite,
+die die Sprache hat. Als `Object` antwortete er beim Lesen `Nothing`, und `x.pvReserved = 0` boxte
+geräuschlos eine Zahl hinein.
+
+Zwei Fehlversuche auf dem Weg dorthin, beide vom kanonischen Lauf gefangen:
+
+1. `VT_PTR` **generell** auf `Long` abzubilden riss `font.Name = "Courier New"` mit einer
+   `FormatException`. Ein Zeiger steht in einer Typbibliothek auch für **ByRef** — der Getter von
+   `stdole.IFontDisp.Name` ist als `VT_PTR` auf BSTR beschrieben. Die Wertform wird deshalb dort
+   entschieden, wo sie als solche bekannt ist: in `ImportRecordMembers`.
+2. `VT_HRESULT` mitzunehmen riss denselben Fall erneut. `VT_HRESULT` ist der **Rückgabetyp jedes
+   Dispinterface-Getters**; sein Wert reist im retval-Parameter. Abgebildet wurde damit jede
+   Eigenschaft zur Zahl. `VT_ERROR` bleibt abgebildet, `VT_HRESULT` bewusst nicht.
+
+Zur Zeiger-auf-Zeiger-Form, die die Karte als „explizit" verlangt: Sie bleibt ein ausdrücklich
+gesetzter opaker Objektkontrakt **ohne** Diagnose. Die Messung über vier registrierte Bibliotheken
+begründet das — die Form kommt dort in 144 bis 838 Parametern vor, praktisch ausschließlich in der
+`QueryInterface`/`GetIDsOfNames`-Boilerplate, die VB6-Code nie aufruft. Eine Diagnose darauf wäre
+Rauschen, keine Warnung.
+
+Damit steht `l1-03-j-typelib-alias-record-pointer-import` auf `implemented`; die Matrix führt
+**89 implemented, 13 partial, 16 planned**.
+
+Kanonischer Nachweis: **1559/1559** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **72/72**.

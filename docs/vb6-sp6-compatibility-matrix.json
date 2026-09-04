@@ -1298,7 +1298,7 @@
     },
     {
       "id": "l1-03-j-typelib-alias-record-pointer-import",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "com-automation-types",
       "input": "TypeLib declarations containing aliases, records, nested UDTs, pointers and C-style arrays",
       "expected": {
@@ -1307,7 +1307,7 @@
         "pointers": "x86 pointer width and unsupported pointer shapes remain explicit",
         "arrays": "C-array metadata is retained or diagnosed when it cannot be mapped"
       },
-      "notes": "Aliases, records and fixed C arrays are measured end to end against the registered stdole2.tlb. Pointer shapes still arrive as Object without a diagnostic, which is why the card stays partial.",
+      "notes": "Aliases, records, fixed C arrays and pointer-valued record members are measured end to end against the registered stdole2.tlb: OLE_COLOR/OLE_HANDLE/FONTSIZE, GUID with its C array, EXCEPINFO.scode (VT_ERROR) and EXCEPINFO.pvReserved (VT_PTR, Long at the 32-bit pointer width VB6 has). A pointer in a parameter means ByRef and is resolved as that; a pointer to a pointer is represented deliberately as an opaque object contract and is not diagnosed -- measured against four registered libraries, the shape occurs almost only in the IUnknown/IDispatch boilerplate that VB6 code never calls, so a diagnostic would be noise rather than a warning.",
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
