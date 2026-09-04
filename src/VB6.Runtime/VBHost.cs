@@ -244,6 +244,12 @@ public interface IVB6Host
     }
 
     /// <summary>
+    /// Builds a picture object from the bytes of a resource entry, as LoadResPicture answers one.
+    /// A host without picture support returns null, which is reported as VB6 error 481.
+    /// </summary>
+    object? CreatePictureFromResource(VBArray<byte> data) => null;
+
+    /// <summary>
     /// Marks the start of the designer envelope of a Form/UserControl. VB6 lays a form out before
     /// the program runs and raises no event while doing so; a host that raises one anyway calls a
     /// handler that reaches for controls the envelope has not created yet.

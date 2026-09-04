@@ -36,6 +36,14 @@ public sealed record ManagedEmitOptions(
         ImmutableArray<ManagedSourceDocument>.Empty;
 
     /// <summary>
+    /// Resources linked into the emitted assembly. VB6 links a project resource file into the
+    /// executable itself, so LoadResString reads from the running image rather than from a file
+    /// that would have to be shipped and found beside it.
+    /// </summary>
+    public ImmutableArray<ManagedEmbeddedResource> EmbeddedResources { get; init; } =
+        ImmutableArray<ManagedEmbeddedResource>.Empty;
+
+    /// <summary>
     /// Emits COM-visible class identities and asks the artifact writer to produce the matching
     /// .NET COM host for library output. Application output cannot be exposed through comhost.
     /// </summary>
@@ -79,3 +87,6 @@ public sealed record ManagedEmitResult(
     public ImmutableDictionary<IrProcedure, ImmutableArray<ManagedSequencePoint>> SequencePoints { get; init; } =
         ImmutableDictionary.Create<IrProcedure, ImmutableArray<ManagedSequencePoint>>(ReferenceEqualityComparer.Instance);
 }
+
+/// <summary>One resource linked into the emitted assembly.</summary>
+public sealed record ManagedEmbeddedResource(string Name, ImmutableArray<byte> Content);

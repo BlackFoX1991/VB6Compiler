@@ -131,10 +131,26 @@ public sealed class ManagedEmitter
                 flags |= CorFlags.Requires32Bit;
             }
 
+            // A managed resource section is a sequence of length-prefixed blobs, each aligned to
+            // eight bytes; the manifest table holds the name and the offset into it.
+            var managedResources = new BlobBuilder();
+            foreach (var resource in _options.EmbeddedResources)
+            {
+                _metadata.AddManifestResource(
+                    ManifestResourceAttributes.Public,
+                    _metadata.GetOrAddString(resource.Name),
+                    implementation: default,
+                    offset: (uint)managedResources.Count);
+                managedResources.WriteInt32(resource.Content.Length);
+                managedResources.WriteBytes(resource.Content.ToArray());
+                managedResources.Align(8);
+            }
+
             var peBuilder = new ManagedPEBuilder(
                 header,
                 new MetadataRootBuilder(_metadata),
                 _ilStream,
+                managedResources: managedResources,
                 entryPoint: entryPoint,
                 flags: flags,
                 deterministicIdProvider: DeterministicContentId);
@@ -4220,6 +4236,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.InteractionGetObject) return Static(typeof(VBInteraction), nameof(VBInteraction.GetObject), typeof(string), typeof(string));
             if (m == IrRuntimeMethod.InteractionShell) return Static(typeof(VBInteraction), nameof(VBInteraction.Shell), typeof(string), typeof(short));
             if (m == IrRuntimeMethod.InteractionCommand) return Static(typeof(VBInteraction), nameof(VBInteraction.Command));
+            if (m == IrRuntimeMethod.LoadResString) return Static(typeof(VBResourceIntrinsics), nameof(VBResourceIntrinsics.LoadResString), typeof(int));
+            if (m == IrRuntimeMethod.LoadResData) return Static(typeof(VBResourceIntrinsics), nameof(VBResourceIntrinsics.LoadResData), typeof(int), typeof(object));
+            if (m == IrRuntimeMethod.LoadResPicture) return Static(typeof(VBResourceIntrinsics), nameof(VBResourceIntrinsics.LoadResPicture), typeof(int), typeof(object));
             if (m == IrRuntimeMethod.InteractionInitializeCommandLine) return Static(typeof(VBInteraction), nameof(VBInteraction.InitializeCommandLine));
             if (m == IrRuntimeMethod.InteractionEnviron) return Static(typeof(VBInteraction), nameof(VBInteraction.Environ), typeof(object));
             if (m == IrRuntimeMethod.InteractionApplication) return Static(typeof(VBInteraction), nameof(VBInteraction.Application));
