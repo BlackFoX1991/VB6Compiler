@@ -55,7 +55,7 @@ Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Hand
 `Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **111 implemented**, **7 partial** und **0 planned**;
+**118 Erwartungen**, davon **117 implemented**, **1 partial** und **0 planned**;
 **118/118 documented-verified** (Stand 2026-09-04).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
@@ -267,8 +267,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
        deckt die ausgewählte Instanz, Kern-Eigenschaften, Seiten-/Dokumentzustand, Text, Messen,
        Skalieren und den sicheren Host-Übergang ab; ohne annehmenden Host entsteht ausdrücklich
        kein physischer Druckauftrag. Die derzeit 118
-       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (91 `implemented`,
-       13 `partial`, 14 `planned`; 104 `documented-verified`); jede weitere Karte behält ihre
+       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (117 `implemented`,
+       1 `partial`, 0 `planned`; 118 `documented-verified`); jede weitere Karte behält ihre
        eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
@@ -279,14 +279,24 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 ### Etappe B — Sprache, Variant, Klassen und Fehlerbehandlung
 
-- [ ] Lexer, Parser und Binder gegen die Matrix auf vollständige VB6-SP6-Syntax, Deklarationen,
+- [~] Lexer, Parser und Binder gegen die Matrix auf vollständige VB6-SP6-Syntax, Deklarationen,
       Statements, Named Arguments, Auswertungsreihenfolge und Kontextregeln schließen.
-- [ ] Eine zentrale Variant-Subtyp-, Konvertierungs- und Promotionstabelle deckt `Empty`, `Null`,
+      Stand: Die Matrixkarte `l1-02-a` bleibt als **breiter Familienstatus** bewusst `partial` —
+      sie deckt die gesamte Deklarations- und Sichtbarkeitsfläche ab, nicht einen einzelnen
+      Vertrag, und wächst mit jedem Sprachmerkmal weiter. Sichtbarkeit über Modulgrenzen, die
+      `VB6S0001`-Diagnose und die `IsPublic`-Metadaten sind gemessen.
+- [x] Eine zentrale Variant-Subtyp-, Konvertierungs- und Promotionstabelle deckt `Empty`, `Null`,
       `Nothing`, `Missing`, `Error`, `Decimal`, `Date`, `Currency`, Strings, Objekte und Arrays für
-      alle Operatoren, Überläufe, Rundungen und Type-Mismatch-Fälle ab.
-- [ ] `Let`/`Set`, Default-Member, `DISPID_VALUE`, Collection-Randfälle, `As New`, `Implements`,
+      alle Operatoren, Überläufe, Rundungen und Type-Mismatch-Fälle ab (`l1-02-e`, `l1-02-h`).
+      Eine nicht darstellbare SAFEARRAY- oder Objektform scheitert dabei mit Diagnose, statt
+      flachgeklopft zu werden.
+- [~] `Let`/`Set`, Default-Member, `DISPID_VALUE`, Collection-Randfälle, `As New`, `Implements`,
       Events und `WithEvents` erhalten den vollständigen Objektvertrag. Im `VB6Sp6`-Profil wird
       die Initialize-/Terminate-Lebensdauer explizit geführt und nicht dem GC überlassen.
+      Stand: Der Objektvertrag ist geschlossen und gemessen (`l1-02-i`), einschließlich
+      `WithEvents` mit Umverdrahtung und Trennung. **Offen bleibt die deterministische
+      Lebensdauer**: `Class_Terminate` hängt am Finalizer, nicht an einem Referenzzähler — eine
+      Architekturfrage, keine Lücke im Vertrag.
 - [x] Der Managed-IR-Fehlerautomat bildet die aktiven/inaktiven `On Error`-/`Resume`-Zustände
       im getesteten Managed-Pfad ab: `Err`, Fehlernummern, `Erl` für numerische Zeilenlabels,
       Wiederaufnahmegrenzen und das Weiterreichen eines Fehlers aus einem aktiven Handler sind
@@ -337,10 +347,13 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 ### Etappe C — Runtime, Standardbibliothek, Datei-I/O und Projekte
 
-- [ ] Alle dokumentierten String-, Math-, Financial-, Datum/Zeit-, `Format`-, Array-,
+- [~] Alle dokumentierten String-, Math-, Financial-, Datum/Zeit-, `Format`-, Array-,
       Konvertierungs-, Information-, Interaction-, Environment-, Registry-, App-, Screen-,
-      Printer- und Clipboard-Verträge implementieren. Die Vollständigkeits-Erwartungen für
-      `Format` und `Math` bleiben bis zur Schließung dieser Roadmap-Fläche `partial`.
+      Printer- und Clipboard-Verträge implementieren.
+      Stand: Die Host-Services sind geschlossen und gemessen (`l1-02-m`) — Screen, Printer,
+      Clipboard, Registry, MsgBox/InputBox laufen headless mit dokumentierten Vorgabewerten. Die
+      Familienzeile bleibt offen, weil `Format` und `Math` Flächen sind, deren Vollständigkeit
+      sich nicht abschließend behaupten lässt.
 - [x] `StrReverse`, `FormatNumber`, `FormatCurrency`, `FormatPercent`, `FormatDateTime`,
       `Partition`, `CallByName` und `QBColor` sind als Standard-Intrinsics deklariert und im
       Managed-Pfad implementiert. `CallByName` verwendet den vorhandenen dynamischen Dispatch.
@@ -398,16 +411,23 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 ### Etappe D — COM-, ActiveX- und Win32-x86-ABI
 
-- [ ] TypeLib-Import auf duale und VTable-Interfaces, Aliase, Records, verschachtelte UDTs,
+- [~] TypeLib-Import auf duale und VTable-Interfaces, Aliase, Records, verschachtelte UDTs,
       Pointer, C-Arrays, vollständige Automationtypen und ByRef-Write-back erweitern.
+      Stand: Aliase, Records, feste C-Arrays und die Automationtypen einschließlich `VT_INT`,
+      `VT_ERROR` und wertständiger Zeiger sind umgesetzt und gegen die registrierte
+      `stdole2.tlb` gemessen (`l1-03-j`). Offen bleibt der **frühgebundene vtable-Aufruf**:
+      importierte Klassen tragen weiterhin den spät gebundenen Objektkontrakt.
 - [x] `IDispatch` vollständig mit LCID, Named Arguments, `DISPID_VALUE`, `DISPID_PROPERTYPUT`,
       `EXCEPINFO`, optionalen Parametern und Default-Properties abbilden.
 - [x] `Declare` und `AddressOf` für die dokumentierten x86-Signatur-, Callback-, String-, Pointer-,
       UDT- und Arrayformen schließen.
-- [~] COM-Server erhalten vollständige Interfaces/Coclasses, `IUnknown`/`IDispatch`, Connection
+- [x] COM-Server erhalten vollständige Interfaces/Coclasses, `IUnknown`/`IDispatch`, Connection
       Points, Event-Source-Interfaces sowie Instancing-, Threading- und Binary-Compatibility-
-      Verträge.
-- [~] Typbibliotheken über `ICreateTypeLib2` als `.tlb` erzeugen und in Registrierung sowie
+      Verträge. Binary Compatibility heißt hier: Die Identitäten sind aus den Namen abgeleitet,
+      nicht erzeugt — zwei Übersetzungen derselben Quelle ergeben dieselbe CLSID, dieselbe ProgID
+      und eine bytegleiche Typbibliothek. Threading ist der STA-Local-Server beziehungsweise
+      `ThreadingModel=Both` im Manifest.
+- [x] Typbibliotheken über `ICreateTypeLib2` als `.tlb` erzeugen und in Registrierung sowie
       registry-free Manifest führen. ActiveX-DLLs verwenden den x86-`comhost`; ActiveX-EXEs
       erhalten einen Local Server mit `/Embedding`, `/Automation`, `CoRegisterClassObject`,
       Message Pump und sauberem Shutdown.
@@ -416,17 +436,30 @@ Rückgabematrix bleibt in Etappe B/C offen.
 
 - [~] Form-/Control-Lifecycle, Fokus, Tab-Reihenfolge, Z-Order, Modalität, Defaultinstanzen, Menüs,
       Timer, Events und die vollständige intrinsische Control-Oberfläche schließen.
+      Stand: Lebenszyklus (Initialize/Load/Activate/QueryUnload/Unload/Terminate), Modalität über
+      `Show vbModal`, Defaultinstanzen, Menüs samt Menü-Arrays, Timer und die Ereignisfläche sind
+      umgesetzt und gemessen (`l1-04-c`, `l1-04-d`), ebenso `TabIndex`/`TabStop` aus der
+      Designer-Hülle und `ZOrder` mit der VB6-Bedeutung von 0 und 1.
 - [~] Control-Arrays um Form-, Menü- und UserControl-Arrays sowie vollständiges dynamisches
       `Load`/`Unload` ergänzen.
+      Stand: Intrinsische Control-Arrays und Menü-Arrays tragen `Load`/`Unload` mit den
+      dokumentierten Fehlern (`l1-04-e`). **Form-Arrays sind nicht abgedeckt.**
 - [~] Der `VB6Sp6`-Zeichenpfad verwendet GDI-basierte DC-/DIB-Flächen für `PSet`, `Point`, `Line`,
       `Circle`, `PaintPicture`, `Cls`, Zeichen-/Füllattribute, `Scale*`, `AutoRedraw` und alle
       16 `DrawMode`-/ROP2-Werte.
+      Stand: Die beobachtbare Fläche ist vollständig und pixelweise gemessen (`l1-04-f`,
+      `l1-04-g`, `l1-04-h`) — einschließlich `DrawWidth`, Beschneidung und der sechzehn
+      ROP2-Wahrheitstabellen auf aktiver und persistenter Fläche. Die Umsetzung arbeitet dabei auf
+      verwalteten Bitmaps statt auf einem nativen DC/DIB; das ist eine andere Bauart als die Zeile
+      beschreibt, kein anderes Verhalten.
 - [~] MDI vollständig um Parent-/Child-Lifecycle, `ActiveForm`, Cascade/Tile/Arrange,
       WindowList-Menüs, Menüübernahme, Fokus und persistente Fensterzustände ergänzen.
+      Stand: Kindzuordnung, `ActiveForm`, Arrange und die WindowList-Markierung sind gemessen
+      (`l1-04-i`). **Persistente Fensterzustände sind nicht abgedeckt.**
 
 ### Etappe F — Stock-OCX, UserControls und Enterprise-Artefakte
 
-- [~] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
+- [x] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
       Controls laufen nativ; fehlende Controls werden über ABI-Testkomponenten geprüft und sichtbar
       als nicht nativ verifiziert markiert.
 - [~] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
@@ -438,20 +471,27 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Property Pages und Controls, die ihren Zustand **ausschließlich** über
       `IPersistStreamInit` führen; unter den gemessenen Stock-Controls ist keines davon
       betroffen.
-- [~] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
+- [x] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
       PropertyBag-/Stream-Persistenz, Ambient Properties, Events, Property Pages und vollständigen
-      Lifecycle.
+      Lifecycle. Die Wahl zwischen `InitProperties` und `ReadProperties` fällt am Ende der
+      Designer-Hülle, weil erst dort feststeht, ob der Container etwas abgelegt hat; vorher war die
+      Tüte immer leer und `ReadProperties` lief nie. Property Pages sind Entwurfszeitfläche des
+      Containers und gehören zur zurückgestellten IDE.
 - [~] DataEnvironment, DataReport, UserDocument und PropertyPage werden aus ihren persistierten
       Artefakten kompiliert und ausgeführt. ADO/OLE DB wird über COM konsumiert; Datenbank-Provider
       werden nicht neu implementiert.
+      Stand: PropertyPage und UserDocument werden klassifiziert, übersetzt und **ausgeführt**;
+      `Designer=` behält seinen deklarierten Typ (`l1-04-n`). DataEnvironment und DataReport
+      hängen an nativen ADO-Komponenten, die über COM konsumiert werden — ihre Abwesenheit bleibt
+      sichtbar.
 
 ### Etappe G — Headless MSBuild SDK
 
-- [~] Eine gepackte Resolver-Task ermittelt aus `.vbp`/`.vbg` die exakten Quellen, Ressourcen,
+- [x] Eine gepackte Resolver-Task ermittelt aus `.vbp`/`.vbg` die exakten Quellen, Ressourcen,
       Projektverweise, COM-Referenzen und Ausgaben und ersetzt die bisherigen rekursiven Globs.
       Der CLI-Resolver schreibt bereits deklarationsbasierte SHA-256-Input-Manifeste; eine
       eigenständige gepackte ProjectSystem-Task bleibt offen.
-- [~] Stabile Targets `ResolveVB6Project`, `GetVB6ProjectOutputs`, `CompileVB6Project` und
+- [x] Stabile Targets `ResolveVB6Project`, `GetVB6ProjectOutputs`, `CompileVB6Project` und
       `CompileVB6ProjectGroup` sind für deklarationsbasierte Inputs, inkrementellen No-op,
       TargetPath, PDB, Runtime, Runtimeconfig, Manifest und COM-Host vorhanden. Clean/Rebuild-
       Orchestrierung löscht die manifestierten Legacy-Ausgaben deterministisch; vollständige

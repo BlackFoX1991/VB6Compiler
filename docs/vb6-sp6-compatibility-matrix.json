@@ -647,7 +647,8 @@
         "tests/VB6.Semantics.Tests/BinderTests.cs",
         "tests/VB6.Compiler.Tests/CompilationTests.cs",
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
-      ]
+      ],
+      "notes": "Deliberately kept partial as a broad family status, as CLAUDE.md records: the card covers the whole declaration and visibility surface rather than one contract, and closing it would claim completeness for a family that grows with every language feature. Public/Private resolution across modules, the VB6S0001 diagnostic and the IsPublic metadata are measured."
     },
     {
       "id": "l1-02-a-dim-withevents-declaration",
@@ -966,7 +967,7 @@
     },
     {
       "id": "l1-02-e-operator-dispatch",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "language-operators-and-variants",
       "input": "Typed and Variant arithmetic, logical, relational and concatenation operators under Option Compare Binary/Text",
       "expected": {
@@ -979,7 +980,8 @@
         "tests/VB6.Compiler.Tests/VariantEqualityExecutionTests.cs",
         "tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs",
         "tests/VB6.Semantics.Tests/DeferredComparisonOperatorBinderTests.cs"
-      ]
+      ],
+      "notes": "Statically compatible operands use the typed helpers while Variant and object operands go through the dynamic dispatch; Option Compare Text governs string relations, Like and Select Case matching alike; overflow is checked and reports the documented VB6 error rather than wrapping."
     },
     {
       "id": "l1-02-f-variant-state-conversions",
@@ -1020,7 +1022,7 @@
     },
     {
       "id": "l1-02-h-variant-object-array-dispatch",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-variant-and-conversions",
       "input": "Variant values containing objects, arrays and Automation dispatch members, including indexed and ByRef access",
       "expected": {
@@ -1034,11 +1036,12 @@
         "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs",
         "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs",
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"
-      ]
+      ],
+      "notes": "Object identity and the Nothing/Null/Empty distinctions survive assignment and comparison, default members and indexed dispatch resolve with the documented coercion, Variant array bounds and element subtypes survive access and write-back, and an unsupported SAFEARRAY or object shape fails with a diagnostic instead of being flattened."
     },
     {
       "id": "l1-02-i-object-members-lifecycle",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "language-operators-and-variants",
       "input": "Let/Set assignment, As New activation, Collection members, Implements contracts, Events and WithEvents handlers",
       "expected": {
@@ -1051,8 +1054,10 @@
         "tests/VB6.Compiler.Tests/CollectionExecutionTests.cs",
         "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs",
         "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
-        "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"
-      ]
+        "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs",
+        "tests/VB6.Compiler.Tests/WithEventsExecutionTests.cs"
+      ],
+      "notes": "Let and Set choose value versus object assignment and honour default members, As New creates on first use with a deterministic Initialize/Terminate order, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before."
     },
     {
       "id": "l1-02-j-nested-error-resume",
@@ -1108,7 +1113,7 @@
     },
     {
       "id": "l1-02-m-headless-host-services",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
       "input": "Interaction, Environment, Registry, App, Screen, Printer and Clipboard intrinsics with explicit headless host adapters",
       "expected": {
@@ -1123,11 +1128,12 @@
         "tests/VB6.Compiler.Tests/StandardLibraryHostContractExecutionTests.cs",
         "tests/VB6.Compiler.Tests/MsgBoxExecutionTests.cs",
         "tests/VB6.Compiler.Tests/InputBoxExecutionTests.cs"
-      ]
+      ],
+      "notes": "Host capabilities are injected through IVB6Host and never require an interactive desktop: Screen reports active objects, DPI-derived twips and MousePointer, Printer a virtual 96-DPI document with explicit output callbacks that never starts a physical print job, and MsgBox/InputBox/Clipboard/registry services answer documented values headless. The compatibility profile selects the locale and code-page behaviour."
     },
     {
       "id": "l1-02-n-file-io-remaining",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
       "input": "Remaining Binary, Random, Sequential and text file cases, including code pages, Variant states and composite layouts",
       "expected": {
@@ -1141,7 +1147,8 @@
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
-      ]
+      ],
+      "notes": "Open/Get/Put/Input/Print/Write/Lock keep their mode-aware positions and sharing, VB6Sp6 text transfers use the active ANSI code page while Deterministic stays stable, scalar, array, UDT and Variant records keep their descriptors, bounds and state tags, and EOF, channel, record-length and type errors report the documented numbers."
     },
     {
       "id": "l1-03-a-project-kinds-startup-bitness",
@@ -1282,7 +1289,7 @@
     },
     {
       "id": "l1-03-i-file-variant-object-composite-layout",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
       "input": "Variant arrays, object variants and composite Variant/UDT record layouts in file transfers",
       "expected": {
@@ -1294,7 +1301,8 @@
       "testRefs": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
-      ]
+      ],
+      "notes": "Variant arrays keep their subtype, bounds and state markers across a binary transfer, an object layout is refused explicitly instead of being flattened into something that reads back as data, and nested records keep their layout with deterministic ByRef write-back."
     },
     {
       "id": "l1-03-j-typelib-alias-record-pointer-import",

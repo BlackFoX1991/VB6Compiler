@@ -2918,6 +2918,40 @@ public sealed class WinFormsHostTests
     }
 
     [STATestMethod]
+    public void HostAppliesTabOrderAndZOrderFromTheDesigner()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        var first = (Control)host.CreateControl(owner, "txtEins", "TextBox")!;
+        var second = (Control)host.CreateControl(owner, "txtZwei", "TextBox")!;
+
+        // Der Korpus schreibt TabIndex und TabStop fuer fast jedes Control. Beide gab es im Host
+        // gar nicht, also stand die Tabulatorfolge in der Reihenfolge der Erzeugung.
+        Assert.IsTrue(host.TrySetMember(first, "TabIndex", Array.Empty<object?>(), 1));
+        Assert.IsTrue(host.TrySetMember(second, "TabIndex", Array.Empty<object?>(), 0));
+        Assert.IsTrue(host.TrySetMember(second, "TabStop", Array.Empty<object?>(), false));
+
+        Assert.IsTrue(host.TryGetMember(first, "TabIndex", Array.Empty<object?>(), out var firstIndex));
+        Assert.AreEqual(1, firstIndex);
+        Assert.IsTrue(host.TryGetMember(second, "TabIndex", Array.Empty<object?>(), out var secondIndex));
+        Assert.AreEqual(0, secondIndex);
+        Assert.IsTrue(host.TryGetMember(second, "TabStop", Array.Empty<object?>(), out var tabStop));
+        Assert.AreEqual(false, tabStop);
+
+        // ZOrder 0 holt nach vorn, ZOrder 1 schickt nach hinten -- das ist die VB6-Bedeutung.
+        Assert.IsTrue(host.TryInvokeMember(second, "ZOrder", [0], out _));
+        Assert.AreEqual(0, second.Parent!.Controls.GetChildIndex(second));
+        Assert.IsTrue(host.TryInvokeMember(second, "ZOrder", [1], out _));
+        Assert.AreEqual(
+            second.Parent!.Controls.Count - 1,
+            second.Parent!.Controls.GetChildIndex(second));
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
     public void HostShowsAFormModallyWhenTheStyleSaysSo()
     {
         using var host = new WinFormsHost();
