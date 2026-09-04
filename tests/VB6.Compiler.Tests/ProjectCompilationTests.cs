@@ -1005,21 +1005,25 @@ public sealed class ProjectCompilationTests
             Assert.IsInstanceOfType<UserDefinedTypeSymbol>(identifier.Type);
             var guid = (UserDefinedTypeSymbol)identifier.Type;
             Assert.AreEqual(4, guid.Members.Length);
-            Assert.AreEqual(TypeSymbol.UInteger, guid.Members.Single(member => member.Name == "Data1").Type);
-            Assert.AreEqual(TypeSymbol.UShort, guid.Members.Single(member => member.Name == "Data2").Type);
-            Assert.AreEqual(TypeSymbol.UShort, guid.Members.Single(member => member.Name == "Data3").Type);
+            // VB6 hat keine vorzeichenlosen Typen ausser Byte, und sein eigener Importer bildet
+            // VT_UI4/VT_UI2 auf Long/Integer ab -- so steht stdole.GUID auch im Objektkatalog.
+            // Vorher kamen hier UInteger/UShort an, also Typen, die es in VB6 gar nicht gibt:
+            // VarType(identifier.Data1) antwortete 20, was ein VB6-Programm als vbLongLong liest.
+            Assert.AreEqual(TypeSymbol.Long, guid.Members.Single(member => member.Name == "Data1").Type);
+            Assert.AreEqual(TypeSymbol.Integer, guid.Members.Single(member => member.Name == "Data2").Type);
+            Assert.AreEqual(TypeSymbol.Integer, guid.Members.Single(member => member.Name == "Data3").Type);
             Assert.AreSame(VBStandardTypes.Object, guid.Members.Single(member => member.Name == "Data4").Type);
 
             var color = main.Locals.Single(local =>
                 string.Equals(local.Name, "color", StringComparison.OrdinalIgnoreCase));
-            Assert.AreEqual(TypeSymbol.UInteger, color.Type);
+            Assert.AreEqual(TypeSymbol.Long, color.Type);
 
             var exceptionInfo = main.Locals.Single(local =>
                 string.Equals(local.Name, "exceptionInfo", StringComparison.OrdinalIgnoreCase));
             Assert.IsInstanceOfType<UserDefinedTypeSymbol>(exceptionInfo.Type);
             var excepInfo = (UserDefinedTypeSymbol)exceptionInfo.Type;
             Assert.AreEqual(TypeSymbol.String, excepInfo.Members.Single(member => member.Name == "bstrSource").Type);
-            Assert.AreEqual(TypeSymbol.UInteger, excepInfo.Members.Single(member => member.Name == "dwHelpContext").Type);
+            Assert.AreEqual(TypeSymbol.Long, excepInfo.Members.Single(member => member.Name == "dwHelpContext").Type);
 
             Assert.AreEqual("1", VB6TestProgram.RunProject(projectPath).Trim());
         }
