@@ -6762,3 +6762,42 @@ Matrix: **97 implemented, 13 partial, 8 planned**; 110/118 documented-verified.
 
 Kanonischer Nachweis: **1570/1570** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Die Projekt-Ressourcendatei fehlte ganz (04.09.2026)
+
+`ResFile32=` wurde vom Projektlader stillschweigend verworfen, und `LoadResString` gab es nicht —
+ein Altprojekt mit Ressourcendatei scheiterte an „Variable ist nicht deklariert", was auf den
+Aufruf zeigt statt auf die fehlende Fläche. Die Karte `l1-04-b` nennt `.res` samt Nutzlast
+ausdrücklich, also ist es gebaut, nicht nur gemeldet.
+
+Der Weg folgt VB6: Dort werden die Ressourcen in die ausführbare Datei **gelinkt**, nicht daneben
+gelegt. Der Emitter bettet die Bytes deshalb als verwaltete Ressource ein
+(`ManagedPEBuilder.managedResources`), und die Runtime liest sie aus der laufenden Assembly. Ein
+ausgeliefertes Programm braucht die `.res` damit nicht mehr.
+
+Die Adressierung ist der Teil, den man leicht falsch macht: `LoadResString(id)` benennt **keine**
+Zeichenkettenressource. Win32 legt Zeichenketten in Blöcken zu sechzehn ab; die Blockkennung ist
+`id \ 16 + 1`, die Position darin `id Mod 16`. Wer einen Block als eine Zeichenkette liest, bekommt
+die ganze Tabelle.
+
+Eine fehlende Kennung meldet **326**, keine leere Zeichenkette. Eine fehlende Ressourcendatei
+meldet der Compiler gegen die Projektzeile, statt jeden Aufruf im Programm mit 326 antworten zu
+lassen.
+
+Gemessen an einer von Hand gebauten `.res` mit einer Zeichenkettentabelle: `LoadResString(0)` →
+"Hallo", `LoadResString(1)` → "Welt", `LoadResString(500)` → 326.
+
+Damit sind vier weitere Karten geschlossen:
+
+- `l1-03-p` — Identitäten sind aus den Namen abgeleitet, nicht erzeugt: zwei Übersetzungen derselben
+  Quelle ergeben dieselbe CLSID, dieselbe ProgID und eine **bytegleiche** Typbibliothek.
+- `l1-03-q` — `.tlb`, reg-freies Manifest mit der Bitness der Ausgabe, und der Local Server.
+- `l1-04-a` — die Kodierungszusage war die letzte offene: `VB6TextFile` liest BOMs für UTF-8/16/32
+  und fällt sonst auf Windows-1252 zurück, wie VB6 es geschrieben hat. Vorhanden war das längst,
+  geprüft nicht.
+- `l1-04-b` — alle Designer-Artefaktarten plus die Ressourcendatei.
+
+Matrix: **101 implemented, 13 partial, 4 planned**; 114/118 documented-verified.
+
+Kanonischer Nachweis: **1576/1576** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

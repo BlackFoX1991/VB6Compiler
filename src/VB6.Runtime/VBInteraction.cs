@@ -219,6 +219,17 @@ public static class VBInteraction
         Host?.TrySetMember(target, memberName, Array.Empty<object?>(), value);
     }
 
+    /// <summary>
+    /// Builds a picture from resource bytes through the UI host. VB6 answers LoadResPicture with a
+    /// picture object; without a host there is nothing that could build one, and null says so
+    /// rather than pretending.
+    /// </summary>
+    public static object? CreatePictureFromResource(VBArray<byte> data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        return Host?.CreatePictureFromResource(data);
+    }
+
     /// <summary>Opens the designer envelope of a Form/UserControl. See the host contract.</summary>
     public static void BeginDesignerInitialization(object target)
     {

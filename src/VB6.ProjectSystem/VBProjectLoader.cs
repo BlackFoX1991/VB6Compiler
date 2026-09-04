@@ -31,6 +31,7 @@ public sealed class VBProjectLoader
         string? startupObject = null;
         string? executableName = null;
         string? conditionalCompilation = null;
+        string? resourceFile = null;
 
         using var reader = new StringReader(text);
         var lineNumber = 0;
@@ -79,6 +80,12 @@ public sealed class VBProjectLoader
 
                 case "CONDCOMP":
                     conditionalCompilation = Unquote(value);
+                    break;
+
+                // A VB6 project carries at most one Win32 resource script output. It is not a
+                // module and has no designer, so it is kept on the project rather than as an item.
+                case "RESFILE32":
+                    resourceFile = Unquote(value);
                     break;
 
                 case "MODULE":
@@ -130,7 +137,8 @@ public sealed class VBProjectLoader
             references.ToImmutable(),
             objects.ToImmutable(),
             properties.ToImmutable(),
-            conditionalCompilation);
+            conditionalCompilation,
+            resourceFile);
 
         return new VBProjectLoadResult(project, diagnostics.ToImmutable());
     }

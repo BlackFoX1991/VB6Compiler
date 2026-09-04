@@ -177,6 +177,7 @@ public static class DirectManagedCompilation
             assemblyName,
             CreateProjectSourceDocuments(lowering.Analysis),
             outputKind);
+        actualOptions = WithProjectResources(actualOptions, lowering.Analysis.Project);
         var program = lowering.Program;
         if (isLocalServer)
         {
@@ -456,6 +457,39 @@ public static class DirectManagedCompilation
                 null,
                 null);
         }
+    }
+
+    /// <summary>
+    /// Links the project resource file into the assembly. VB6 puts the contents of the file named
+    /// by <c>ResFile32=</c> into the executable itself, which is what makes LoadResString work in a
+    /// deployed program without shipping the .res beside it.
+    /// </summary>
+    private static ManagedEmitOptions WithProjectResources(
+        ManagedEmitOptions options,
+        VB6.ProjectSystem.VBProject project)
+    {
+        if (string.IsNullOrWhiteSpace(project.ResourceFile) ||
+            !options.EmbeddedResources.IsDefaultOrEmpty)
+        {
+            return options;
+        }
+
+        var path = Path.GetFullPath(Path.Combine(project.ProjectDirectory, project.ResourceFile));
+        if (!File.Exists(path))
+        {
+            // A missing resource file is not silently dropped: every LoadResString in the program
+            // would answer 326 instead, which points at the call rather than at the project line.
+            throw new ManagedArtifactException(
+                $"The project resource file {project.ResourceFile} was not found at {path}.");
+        }
+
+        return options with
+        {
+            EmbeddedResources = ImmutableArray.Create(
+                new ManagedEmbeddedResource(
+                    VBResourceIntrinsics.EmbeddedResourceName,
+                    ImmutableArray.Create(File.ReadAllBytes(path))))
+        };
     }
 
     private static ManagedEmitOptions PrepareOptions(

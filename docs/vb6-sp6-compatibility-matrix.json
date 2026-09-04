@@ -1409,7 +1409,7 @@
     },
     {
       "id": "l1-03-p-com-classfactory-activation",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "com-server-and-typelib-emission",
       "input": "Managed COM classes emitted with CLSID/ProgID metadata, ClassFactory, IUnknown/IDispatch and activation",
       "expected": {
@@ -1418,15 +1418,18 @@
         "dispatch": "IUnknown/IDispatch lifetime and member access are callable",
         "shutdown": "activation and clean shutdown release the COM server deterministically"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
-        "tests/VB6.ComActivationProbe"
-      ]
+        "tests/VB6.ComActivationProbe",
+        "tests/VB6.Compiler.Cli.Tests/LocalServerActivationTests.cs",
+        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs"
+      ],
+      "notes": "A generated ActiveX EXE is registered, activated out of process through its class factory, called through IDispatch and shuts down deterministically once the client releases it. The identities are derived from the names rather than generated, so a rebuild hands out the same CLSID, the same ProgID and a byte-identical type library -- an early-bound client keeps binding."
     },
     {
       "id": "l1-03-q-typelib-registration-localserver",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "com-server-and-typelib-emission",
       "input": "TypeLib output, registration-free manifests, registry metadata and ActiveX-EXE local-server artifacts",
       "expected": {
@@ -1435,15 +1438,18 @@
         "manifest": "manifest dependencies and bitness match the output",
         "localServer": "ActiveX-EXE local-server lifecycle is represented or diagnosed"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
-        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"
-      ]
+        "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
+        "tests/VB6.Compiler.Tests/ComArtifactArchitectureTests.cs",
+        "tests/VB6.Compiler.Tests/TypeLibraryWriterTests.cs"
+      ],
+      "notes": "The .tlb is written through ICreateTypeLib2 and reflects the emitted classes as a dispinterface plus coclass; the registry-free manifest names the comhost and the ProgID and carries the bitness of the output rather than of the compiler; the ActiveX EXE local server registers, serves and exits. Both artifact writers read the assembly as metadata, which is what makes them work at all for the x86 default of a legacy .vbp."
     },
     {
       "id": "l1-04-a-designer-form-frx-persistence",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "project-persisted-designer-artifacts",
       "input": ".frm/.frx designer files with BeginProperty blocks, binary offsets and source encodings",
       "expected": {
@@ -1452,14 +1458,16 @@
         "encoding": "source/resource encoding follows project metadata",
         "spans": "source offsets remain addressable for diagnostics"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs"
-      ]
+        "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs",
+        "tests/VB6.ProjectSystem.Tests/VB6TextFileTests.cs"
+      ],
+      "notes": "Nested BeginProperty blocks keep their whole group path, FRX offsets resolve to their length-prefixed payload, a truncated payload is diagnosed, and the encoding follows the file: byte order marks for UTF-8/16/32 and Windows ANSI (1252) as the fallback VB6 actually wrote. Designer diagnostics carry the source line."
     },
     {
       "id": "l1-04-b-designer-control-resource-artifacts",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "project-persisted-designer-artifacts",
       "input": ".ctl/.ctx/.pag/.dob/.dsr/.res artifacts and their persisted resource payloads",
       "expected": {
@@ -1468,11 +1476,13 @@
         "binding": "control/property metadata reaches the semantic host model",
         "errors": "malformed persistence produces stable diagnostics"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs",
-        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
-      ]
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ResourceFileExecutionTests.cs"
+      ],
+      "notes": "Every documented designer item kind is classified by the project loader -- Module, Class, Form, UserControl, PropertyPage, UserDocument, Designer -- and the Win32 resource file named by ResFile32 is now classified too, linked into the emitted assembly and readable through LoadResString/LoadResData/LoadResPicture. A missing resource file is reported against the project line instead of turning every call into error 326. Malformed designer envelopes produce stable diagnostics."
     },
     {
       "id": "l1-04-c-form-control-lifecycle-focus",
