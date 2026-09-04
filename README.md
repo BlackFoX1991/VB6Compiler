@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1693 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 120 expectations (120 implemented, 1 partial, 0 planned) with 121/121 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; no implementation card remains open; `l1-02-a-language-grammar-context` stays `partial` on purpose, as a broad family status rather than a task. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1698 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 121 expectations (120 implemented, 1 partial, 0 planned) with 121/121 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; no implementation card remains open; `l1-02-a-language-grammar-context` stays `partial` on purpose, as a broad family status rather than a task. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -133,11 +133,11 @@ Implemented so far:
 ## Current verification
 
 The canonical serial `build.ps1 -Configuration Release` run on 2026-09-04 reports
-**1693 test cases**, **1693 passed**, **0 failed** across 13 test projects, with a warning-free
+**1698 test cases**, **1698 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
 **121 expectations**: **120 implemented**, **1 partial**, **0 planned**, and **121/121
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
-With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **81/81 passed**, **0 skipped**. The counter-check on an x64 test host fails 9 of those cases, so the x86 result is a real measurement rather than a silently skipped one.
+With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **81/81 passed**, **0 skipped**. The counter-check on an x64 test host fails 11 of those cases, so the x86 result is a real measurement rather than a silently skipped one.
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. `Erase` on a `ByRef` array parameter now deallocates the caller's descriptor and is covered by semantic and generated-program tests. `StrConv` additionally handles profile-aware combined casing, East-Asian width, and Japanese Kana flags with locale validation. What is still guarded is narrower: `For Each` over arrays of user-defined types (`VB6S0056`) and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 

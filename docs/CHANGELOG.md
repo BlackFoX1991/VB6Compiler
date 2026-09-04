@@ -7139,3 +7139,33 @@ unberührt — sie ergeben nach dem Entfernen dieselben Werte.
 
 Kanonischer Nachweis: **1698/1698** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Die Dokumente gegen den gemessenen Stand geprüft
+
+Kein Codewechsel, sondern ein Abgleich — und er hat sich gelohnt, weil mehrere Zahlen
+auseinandergelaufen waren:
+
+- Die Roadmap nannte als Regressionssuite noch **1536 Tests (Stand 2026-09-02)**. Gemessen sind es
+  **1698**.
+- Die Erwartungszahlen widersprachen sich zwischen den drei Dokumenten (120 gegen 121, 119 gegen
+  120 `implemented`). Ursache war teils ein Synchronisierungsskript, dessen Muster auf `\n` prüfen,
+  während `CLAUDE.md` mit CRLF gespeichert ist — die Ersetzung lief dort still ins Leere. Genau
+  die Sorte Fehler, die eine Zahl unbemerkt altern lässt.
+- Der Absatz „Gewachsen ist die Suite zuletzt durch …" beschrieb noch die Messungen vom 31.08.
+  und 01.09.
+
+Zwei Messzusagen wurden nicht fortgeschrieben, sondern **nachgemessen**: Der native x86-OCX-Pfad
+bestätigt **81/81, 0 übersprungen**. Die Gegenprobe unter x64 schlägt heute mit **11** Fällen fehl,
+nicht mit den dokumentierten 9 — die Zahl ist auf den gemessenen Wert gezogen. VISIA bleibt
+**40 von 40** und hat eine eigene Zeile in der Messreihe bekommen.
+
+Der Abschlusspunkt der Etappen war so formuliert, dass er **nie** erfüllbar gewesen wäre: „keine
+Implementierungszeile mehr `[~]`". Fünf Zeilen tragen `[~]`, und keine davon ist eine Aufgabe —
+drei sind Familienzeilen, die eine Fläche messen statt eines Vertrags und deshalb per Konstruktion
+nie `[x]` werden, zwei sind benannte Architekturfragen (deterministische Lebensdauer, behaltbarer
+Zeiger). Der Punkt führt sie jetzt namentlich in einer Tabelle auf und sagt, dass er erst mit
+diesen beiden Entscheidungen abhakbar ist. Damit fällt auch auf, wenn eine sechste dazukommt.
+
+Zwei Befunde dieses Durchgangs sind zusätzlich in die Fallen-Liste von `CLAUDE.md` gewandert: das
+Typloch bei Array-Argumenten, das sich über Referenztypen unsichtbar macht, und die Regel, dass
+bei `Format` das Muster den Formatierer wählt.

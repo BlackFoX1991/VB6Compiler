@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H).
 Die offenen Karten und ihre Statusachsen stehen in `docs/vb6-sp6-compatibility-matrix.json`.
-Der aktuelle Matrixstand beträgt 120 Erwartungen (119 `implemented`,
-1 `partial`, 0 `planned`; 120 `documented-verified`). Es gibt keine offene
+Der aktuelle Matrixstand beträgt 121 Erwartungen (120 `implemented`,
+1 `partial`, 0 `planned`; 121 `documented-verified`). Es gibt keine offene
 Implementierungskarte mehr; `L1-02-A` bleibt als breiter Familienstatus bewusst `partial`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
@@ -206,7 +206,7 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung (2026-09-01): Der kanonische `build.ps1`-Lauf prüft alle 13 Testprojekte
+Stand der letzten Prüfung (2026-09-04): Der kanonische `build.ps1`-Lauf prüft alle 13 Testprojekte
 seriell; die genaue Testzahl steht im Roadmap-/README-Messwert und muss bei jeder Änderung neu
 erfasst werden.
 
@@ -377,4 +377,19 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   `Scripting.Dictionary.Add` lehnt die ByRef-Aufrufform ab, die seine eigene Typbibliothek
   beschreibt, mit `0x800A0005`; erst der ByVal-Rückfall gelingt. Ein COM-Fehler wird deshalb erst
   gemeldet, wenn **jede** Aufrufform durch ist — nicht beim ersten misslungenen `Invoke`.
+- **Ein Array-Argument mit falschem Elementtyp war lange ein Typloch, kein Rechenfehler.** Zwischen zwei
+  Referenz-Elementtypen teilen sich `VBArray<object>` und `VBArray<string>` über `__Canon` den Code — ein
+  fehlender Cast fällt dort **gar nicht** auf, und `Join(variantArray, "-")` sah jahrelang richtig aus.
+  Über einen Werttyp las der Aufgerufene denselben Fehler als falschen Speicher: `IRR` mit einem
+  `Double`-Array riss den Prozess mit `Internal CLR error (0x80131506)` ab. Die Konvertierung sitzt
+  deshalb im **Lowerer** (`ArrayFromObject` über `VBArrayOperations.FromObject<T>`), wo beide Typsymbole
+  bekannt sind — nicht im Emitter, der nur noch CLR-Typen sieht. Wer eine Intrinsic-Deklaration mit
+  Array-Parameter anfasst, prüft **beide** Elementarten; ein grüner Test über die Referenzseite sagt über
+  die Wertseite nichts.
+- **Bei `Format` entscheidet das Muster, nicht der Speichertyp des Ausdrucks.** `FormatValue` schickte
+  jeden String in den Zeichenkettenformatierer, weshalb `Format("12", "0.00")` den Wert verlor (`0.00`)
+  und `Format("abc", "#,##0")` das *Muster* zurückgab. VB6 wählt umgekehrt: numerisches Muster →
+  Zahl, Datumsmuster → Datum, `@`/`&`/`<`/`>`/`!` → Zeichen. Ein String ohne Zahl kommt unverändert
+  zurück — eine Null zu erfinden wäre schlimmer als nichts zu tun. `IsStringFormat` überspringt dabei
+  literale Läufe, damit ein gequotetes `@` die Frage nicht falsch entscheidet.
 - **Die CLI-Optionsgrammatik liegt an genau einer Stelle — dort halten.** `CommandLineParser.TryParse` in `src/VB6.Compiler.Cli/CommandLine.cs` parst sie einmal für alle drei Eingabearten; `Program.cs` verzweigt danach nur noch über `CommandLineOptions.Command`. Vorher stand dieselbe Grammatik dreimal da — im `.vbp`-Zweig, im Einzeldatei-Zweig und in `HandleProjectGroup` — mit handgeschriebenen Arity-Guards, und eine neue Option hieß drei Stellen ändern. Wer eine Option ergänzt, tut das im Parser, nicht im Zweig. Welche Befehle eine Eingabeart überhaupt zulässt, entscheidet weiterhin der Zweig — eine `.vbg` nimmt kein `--dump-ir`.

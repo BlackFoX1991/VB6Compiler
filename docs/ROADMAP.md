@@ -41,21 +41,24 @@ verschlechtern.
 |---|---|---|---|---|---|
 | 2026-08-25 | **0** | **0** | **0** | **0** | **40 von 40** |
 | 2026-09-01 | **0** | **0** | **0** | **0** | **40 von 40** |
+| 2026-09-04 | **0** | **0** | **0** | **0** | **40 von 40** |
 
 Alle 40 `.bas`-, `.cls`-, `.frm`- und `.ctl`-Quellen werden gelesen, Designer-Metadaten
 offsettreu ausgeblendet, typisiert und gebunden; das Gesamtprojekt emittiert auch durch
 (`--emit-assembly`). Zum Vergleich die Nulllinie: 3361 Fehler, 0 von 27 Dateien. Der Weg
 dorthin steht als Messreihe in `CHANGELOG.md`.
 
-**Regressionssuite** — `build.ps1 -Configuration Release`: **1536 Tests, alle grün** in 13
-Testprojekten (Stand 2026-09-02); der Lauf testet projektweise seriell.
-Gewachsen ist die Suite zuletzt durch die Konstrukt- und Projektmessungen vom 31.08. und 01.09.:
-Ausgabelisten für `Debug.Print`, `#…#`-Datumsliterale, Date-Arithmetik und -Darstellung,
-Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Handler mit allen
-`Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
+**Regressionssuite** — `build.ps1 -Configuration Release`: **1698 Tests, alle grün** in 13
+Testprojekten (Stand 2026-09-04); der Lauf testet projektweise seriell.
+Gewachsen ist die Suite zuletzt durch den Breitendurchgang über die Standardbibliothek vom
+02.–04.09.: `Format`, `Math`, Financial, String, Datum/Zeit, Konvertierung und Information.
+Er hat vier Defekte gemessen, die kein Unittest sah — das Muster statt des Speichertyps in
+`Format`, ein Typloch bei Array-Argumenten mit falschem Elementtyp, die Ergebnisformen von
+`Replace` und `Split` sowie `Val` über Leerzeichen hinweg — und dazu die Zusage, dass
+`Class_Terminate` überhaupt läuft.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**120 Erwartungen**, davon **120 implemented**, **1 partial** und **0 planned**;
+**121 Erwartungen**, davon **120 implemented**, **1 partial** und **0 planned**;
 **121/121 documented-verified** (Stand 2026-09-04).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
@@ -580,9 +583,25 @@ Flächen bleiben deshalb dauerhaft dokumentationsgestützt, jede aus einem eigen
 5. **Undokumentiertes controlspezifisches Verhalten.** Steht ausdrücklich außerhalb des Vertrags
    und soll dort bleiben.
 
-- [ ] Der Managed-Abschluss ist erreicht, wenn außerhalb der ausdrücklich ausgeschlossenen
+- [~] Der Managed-Abschluss ist erreicht, wenn außerhalb der ausdrücklich ausgeschlossenen
       LLVM-/LSP-/IDE-Flächen keine Implementierungszeile mehr `[~]` oder `[ ]` ist. Fehlende echte
       VB6-Gegenprüfung bleibt als Validierungsstatus sichtbar, blockiert diesen Abschluss aber nicht.
+
+      **Stand 2026-09-04: fünf Zeilen tragen noch `[~]`, und keine davon ist eine offene
+      Aufgabe.** Sie stehen hier namentlich, damit dieser Punkt nicht als Restliste missverstanden
+      wird — und damit auffällt, falls doch eine sechste dazukommt:
+
+      | Zeile | Was sie ist | Warum sie `[~]` bleibt |
+      | --- | --- | --- |
+      | Profil-Locale | Familienzeile | „Weitere APIs werden additiv ergänzt" — sie wächst mit jedem profilabhängigen Vertrag mit. |
+      | `l1-02-a` Syntax/Kontext | Familienzeile | Deckt die gesamte Deklarations- und Sichtbarkeitsfläche ab, nicht einen Vertrag. In `CLAUDE.md` ausdrücklich als bewusst `partial` geführt. |
+      | Objektvertrag | **Architekturfrage** | `Class_Terminate` läuft garantiert, aber nach der Uhr des Abbaus statt nach der letzten Referenz. Eine echte Referenzzählung ist eine Entscheidung, keine Lücke. |
+      | `VarPtr`/`StrPtr` | **Architekturfrage** | Ein behaltbarer Zeiger überlebt keinen Sammellauf; pauschales Pinnen schließt die Zeile selbst aus. |
+      | Standardbibliothek | Familienzeile | `Format` und `Math` sind Flächen; eine Messung ohne Fund ist kein Beweis der Vollständigkeit. |
+
+      Die drei Familienzeilen sind per Konstruktion nie `[x]` — sie messen eine Fläche, keinen
+      Vertrag. Abhaken ließe sich dieser Punkt also erst, wenn die **zwei Architekturfragen**
+      entschieden sind. Beide sind benannt, keine ist verdeckt.
 
 ---
 
