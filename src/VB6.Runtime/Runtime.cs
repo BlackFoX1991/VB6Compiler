@@ -547,6 +547,13 @@ public static class VBConversions
                 0,
                 VBCompatibilityProfile.Deterministic),
             decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
+
+            // VB6 zeigt einen Double mit 15 und einen Single mit 7 signifikanten Stellen. Die
+            // .NET-Vorgabe ist die kürzeste Zeichenkette, die den Wert exakt zurückliest -- also
+            // bis zu 17 Stellen, in denen die Umrechnungsreste sichtbar werden. Aus CStr(Atn(1)*4)
+            // wurde so 3.141592653589793 statt 3.14159265358979.
+            double doubleValue => doubleValue.ToString("G15", CultureInfo.InvariantCulture),
+            float singleValue => singleValue.ToString("G7", CultureInfo.InvariantCulture),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }
@@ -1119,7 +1126,11 @@ public static class VBDebug
             uint number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             ulong number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             IntPtr pointer => FormatNumeric(pointer.ToInt64().ToString(CultureInfo.InvariantCulture)),
-            float number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
+            // Ein Single trägt sieben signifikante Stellen, ein Double fünfzehn. Beide mit G15
+            // auszugeben zeigt beim Single genau die Stellen, die seine Genauigkeit gar nicht mehr
+            // deckt: Aus 1 / 3 -- in VB6 ein Single, weil beide Operanden Integer sind -- wurde
+            // 0.333333343267441 statt 0.3333333.
+            float number => FormatNumeric(number.ToString("G7", CultureInfo.InvariantCulture)),
             double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
             decimal number => FormatNumeric(number.ToString("G29", CultureInfo.InvariantCulture)),
             VBCurrency currency => FormatNumeric(currency.ToDecimal().ToString("G15", CultureInfo.InvariantCulture)),
