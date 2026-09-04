@@ -6830,3 +6830,33 @@ Damit sind zehn Karten der Etappe F geschlossen. Die Matrix führt **111 impleme
 
 Kanonischer Nachweis: **1579/1579** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **80/80**.
+
+## Die Sprachfamilienkarten sind belegt, Tab-Reihenfolge und Z-Order gebaut (04.09.2026)
+
+Die sieben verbliebenen `partial`-Karten der Etappen B und C waren fast durchweg belegt — mit zwei
+echten Lücken.
+
+**`WithEvents` hatte keinen Ausführungstest.** Der Parser nahm die Deklaration an, der Binder löste
+den Handler auf, aber ob ein Ereignis wirklich ankommt, stand nirgends. Es kommt an — und die
+Umverdrahtung auf eine neue Quelle sowie das Trennen über `Set … = Nothing` funktionieren
+ebenfalls. Gemessen und festgehalten.
+
+**`TabIndex`, `TabStop` und `ZOrder` gab es im Host überhaupt nicht.** Der Korpus schreibt die
+ersten beiden für fast jedes Control in seine `.frm`; ohne sie stand die Tabulatorfolge eines
+übersetzten Formulars in der Reihenfolge der Erzeugung statt in der des Designers. `ZOrder` trägt
+jetzt die VB6-Bedeutung: 0 nach vorn, 1 nach hinten.
+
+Nachgemessen und dadurch geschlossen: `Option Compare Text` steuert Zeichenkettenrelation, `Like`
+**und** `Select Case`; Screen, Printer, Clipboard und Registry antworten headless mit dokumentierten
+Vorgaben; nicht darstellbare SAFEARRAY- und Objektformen scheitern mit Diagnose statt flachgeklopft
+zu werden.
+
+`l1-02-a` bleibt **bewusst** `partial` — die Karte ist ein breiter Familienstatus über die gesamte
+Deklarations- und Sichtbarkeitsfläche, und sie als geschlossen zu führen hieße, Vollständigkeit für
+etwas zu behaupten, das mit jedem Sprachmerkmal weiterwächst. Der Grund steht jetzt in der Karte
+selbst statt nur in `CLAUDE.md`.
+
+Matrix: **117 implemented, 1 partial, 0 planned**.
+
+Kanonischer Nachweis: **1582/1582** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **81/81**.

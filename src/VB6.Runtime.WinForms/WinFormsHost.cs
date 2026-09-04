@@ -1886,6 +1886,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             return true;
         }
 
+        if (string.Equals(memberName, "ZOrder", StringComparison.OrdinalIgnoreCase))
+        {
+            // VB6: ZOrder 0 (the default) brings the control to the front, ZOrder 1 sends it back.
+            if (arguments.Length > 0 && VBConversions.CLng(arguments[0]) == 1)
+            {
+                resolved.SendToBack();
+            }
+            else
+            {
+                resolved.BringToFront();
+            }
+
+            return true;
+        }
+
         if (string.Equals(memberName, "Refresh", StringComparison.OrdinalIgnoreCase))
         {
             resolved.Refresh();
@@ -3935,6 +3950,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) value = ColorTranslator.ToOle(control.BackColor);
         else if (string.Equals(memberName, "ForeColor", StringComparison.OrdinalIgnoreCase)) value = ColorTranslator.ToOle(control.ForeColor);
+        else if (string.Equals(memberName, "TabIndex", StringComparison.OrdinalIgnoreCase)) value = control.TabIndex;
+        else if (string.Equals(memberName, "TabStop", StringComparison.OrdinalIgnoreCase)) value = control.TabStop;
         else if (string.Equals(memberName, "ScaleWidth", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(memberName, "ClientWidth", StringComparison.OrdinalIgnoreCase)) value = ToTwips(control.ClientSize.Width, twipsPerPixelX);
         else if (string.Equals(memberName, "ScaleHeight", StringComparison.OrdinalIgnoreCase) ||
@@ -4030,6 +4047,8 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
                  string.Equals(memberName, "Text", StringComparison.OrdinalIgnoreCase)) control.Text = VBConversions.CStr(value);
         else if (string.Equals(memberName, "BackColor", StringComparison.OrdinalIgnoreCase)) control.BackColor = ColorTranslator.FromOle(VBConversions.CLng(value));
         else if (string.Equals(memberName, "ForeColor", StringComparison.OrdinalIgnoreCase)) control.ForeColor = ColorTranslator.FromOle(VBConversions.CLng(value));
+        else if (string.Equals(memberName, "TabIndex", StringComparison.OrdinalIgnoreCase)) control.TabIndex = (int)VBConversions.CLng(value);
+        else if (string.Equals(memberName, "TabStop", StringComparison.OrdinalIgnoreCase)) control.TabStop = VBConversions.CBool(value);
         else if (control is ImageComboControl imageCombo && string.Equals(memberName, "ImageList", StringComparison.OrdinalIgnoreCase)) imageCombo.ImageList = value;
         else if (control is TreeView treeStyle && string.Equals(memberName, "Style", StringComparison.OrdinalIgnoreCase)) GetTreeViewState(treeStyle).Style = VBConversions.CLng(value);
         else if (control is TreeView treeLineStyle && string.Equals(memberName, "LineStyle", StringComparison.OrdinalIgnoreCase)) GetTreeViewState(treeLineStyle).LineStyle = VBConversions.CLng(value);

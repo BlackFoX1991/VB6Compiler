@@ -761,6 +761,10 @@ public sealed class VBProjectCompilation
         name.Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Icon", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Visible", StringComparison.OrdinalIgnoreCase) ||
+        // Der Korpus schreibt beide für fast jedes Control; ohne sie stand die Tabulatorfolge
+        // eines übersetzten Formulars in der Reihenfolge der Erzeugung statt in der des Designers.
+        name.Equals("TabIndex", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("TabStop", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Left", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("Top", StringComparison.OrdinalIgnoreCase) ||
