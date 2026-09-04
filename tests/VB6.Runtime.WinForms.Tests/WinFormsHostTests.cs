@@ -3040,6 +3040,66 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void NativeImageListTakesItsNestedDesignerImagesInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.ImageListCtrl.2", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native property bag validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        // So schreibt der Designer eine ImageList in die .frm: BeginProperty Images, darin je ein
+        // BeginProperty ListImageN. Als Einzelzuweisung erreicht das ein natives Control nicht --
+        // es fragt nach der Sammlung als Objekt, nicht nach ihren Namen.
+        var control = Activator.CreateInstance(
+            Type.GetTypeFromProgID("MSComctlLib.ImageListCtrl.2", throwOnError: true)!)!;
+        try
+        {
+            var applied = VBComPersistence.TryApplyDesignerState(
+                control,
+                new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["_ExtentX"] = 1005,
+                    ["_ExtentY"] = 1005,
+                    ["ImageWidth"] = 16,
+                    ["ImageHeight"] = 16,
+                    ["Images.NumListImages"] = 2,
+                    ["Images.ListImage1.Key"] = "Ordner",
+                    ["Images.ListImage2.Key"] = "Datei"
+                });
+
+            Assert.IsTrue(applied);
+
+            var listImages = control.GetType().InvokeMember(
+                "ListImages",
+                BindingFlags.GetProperty,
+                binder: null,
+                control,
+                args: null)!;
+            var count = listImages.GetType().InvokeMember(
+                "Count",
+                BindingFlags.GetProperty,
+                binder: null,
+                listImages,
+                args: null);
+
+            Assert.AreEqual(2, Convert.ToInt32(count));
+        }
+        finally
+        {
+            if (Marshal.IsComObject(control))
+            {
+                Marshal.FinalReleaseComObject(control);
+            }
+        }
+    }
+
     /// <summary>Nimmt entgegen, was ein Control ueber sich selbst zu sagen hat.</summary>
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]

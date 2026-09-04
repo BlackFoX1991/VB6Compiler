@@ -64,6 +64,119 @@ public sealed class ComPersistenceRuntimeTests
     {
     }
 
+    /// <summary>
+    /// A control with a nested collection. It creates the collection itself and passes it into the
+    /// read, which is how an ImageList gets its images and a Toolbar its buttons.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private sealed class CollectionControl : IVBPersistPropertyBag
+    {
+        public EntryCollection Images { get; } = new();
+
+        public void GetClassID(out Guid classId) => classId = Guid.Empty;
+
+        public void InitNew()
+        {
+        }
+
+        public void Load(IVBPropertyBag propertyBag, IntPtr errorLog)
+        {
+            object? images = Images;
+            propertyBag.Read("Images", ref images, IntPtr.Zero);
+        }
+
+        public void Save(IVBPropertyBag propertyBag, bool clearDirty, bool saveAllProperties) =>
+            throw new NotSupportedException();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private sealed class EntryCollection : IVBPersistPropertyBag
+    {
+        public int Count { get; private set; }
+
+        public List<string> Keys { get; } = new();
+
+        public void GetClassID(out Guid classId) => classId = Guid.Empty;
+
+        public void InitNew()
+        {
+        }
+
+        public void Load(IVBPropertyBag propertyBag, IntPtr errorLog)
+        {
+            object? count = 0;
+            if (propertyBag.Read("NumListImages", ref count, IntPtr.Zero) != 0)
+            {
+                return;
+            }
+
+            Count = Convert.ToInt32(count, System.Globalization.CultureInfo.InvariantCulture);
+            for (var index = 1; index <= Count; index++)
+            {
+                object? entry = new Entry();
+                if (propertyBag.Read("ListImage" + index, ref entry, IntPtr.Zero) == 0 &&
+                    entry is Entry loaded)
+                {
+                    Keys.Add(loaded.Key);
+                }
+            }
+        }
+
+        public void Save(IVBPropertyBag propertyBag, bool clearDirty, bool saveAllProperties) =>
+            throw new NotSupportedException();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private sealed class Entry : IVBPersistPropertyBag
+    {
+        public string Key { get; private set; } = string.Empty;
+
+        public void GetClassID(out Guid classId) => classId = Guid.Empty;
+
+        public void InitNew()
+        {
+        }
+
+        public void Load(IVBPropertyBag propertyBag, IntPtr errorLog)
+        {
+            object? key = string.Empty;
+            if (propertyBag.Read("Key", ref key, IntPtr.Zero) == 0)
+            {
+                Key = Convert.ToString(key, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            }
+        }
+
+        public void Save(IVBPropertyBag propertyBag, bool clearDirty, bool saveAllProperties) =>
+            throw new NotSupportedException();
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TryApplyDesignerState_HandsANestedGroupToTheObjectTheControlPassesIn()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Property-bag persistence is a Windows contract.");
+            return;
+        }
+
+        // A BeginProperty group is read as an object, not as a value. The dotted path is how the
+        // nesting survives the flat designer envelope; here it becomes sub-objects again.
+        var control = new CollectionControl();
+
+        VBComPersistence.TryApplyDesignerState(
+            control,
+            new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Images.NumListImages"] = 2,
+                ["Images.ListImage1.Key"] = "Ordner",
+                ["Images.ListImage2.Key"] = "Datei"
+            });
+
+        Assert.AreEqual(2, control.Images.Count);
+        CollectionAssert.AreEqual(new[] { "Ordner", "Datei" }, control.Images.Keys);
+    }
+
     [TestMethod]
     [SupportedOSPlatform("windows")]
     public void TryApplyDesignerState_HandsEveryDesignerValueToTheControl()

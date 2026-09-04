@@ -10,7 +10,9 @@ namespace VB6.Runtime;
 /// control and lets the control read what it knows — through <c>IPersistPropertyBag</c>, with the
 /// container supplying the bag. Most stock and third-party controls keep their state that way, so
 /// a container that only assigns the properties it happens to recognise loses everything else: the
-/// control comes up with its defaults, silently.
+/// control comes up with its defaults, silently. Measured against the registered stock controls,
+/// three values are not reachable any other way at all: <c>_ExtentX</c>, <c>_ExtentY</c> and
+/// <c>_Version</c> stand in every <c>.frm</c> and are refused by every control over IDispatch.
 ///
 /// The container half is this file's job, and it is the half that can be tested here. A control
 /// that does not implement the interface is not an error — it simply keeps its state elsewhere,
@@ -23,6 +25,10 @@ public static class VBComPersistence
     /// Gives a control its persisted designer state. Returns <see langword="false"/> when the
     /// control does not use property-bag persistence, which leaves the caller free to fall back
     /// to assigning the properties it knows.
+    ///
+    /// Names carry their <c>BeginProperty</c> nesting as a dotted path
+    /// (<c>Images.ListImage1.Picture</c>); the bag turns that back into the sub-objects the
+    /// control asks for.
     /// </summary>
     public static bool TryApplyDesignerState(
         object control,
@@ -44,7 +50,7 @@ public static class VBComPersistence
             return true;
         }
 
-        persist.Load(new VBDesignerPropertyBag(values), IntPtr.Zero);
+        persist.Load(new VBDesignerPropertyBag(VBDesignerStateGroup.Build(values)), IntPtr.Zero);
         return true;
     }
 }
@@ -93,6 +99,43 @@ public interface IVBPersistPropertyBag
         [MarshalAs(UnmanagedType.Bool)] bool saveAllProperties);
 }
 
+/// <summary>
+/// One level of the designer envelope: the values written directly at this level, and the
+/// <c>BeginProperty</c> groups nested inside it.
+/// </summary>
+internal sealed class VBDesignerStateGroup
+{
+    public Dictionary<string, object?> Values { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, VBDesignerStateGroup> Groups { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Turns the dotted paths back into the nesting the designer wrote.</summary>
+    public static VBDesignerStateGroup Build(IReadOnlyDictionary<string, object?> values)
+    {
+        var root = new VBDesignerStateGroup();
+        foreach (var pair in values)
+        {
+            var segments = pair.Key.Split('.');
+            var group = root;
+            for (var index = 0; index < segments.Length - 1; index++)
+            {
+                if (!group.Groups.TryGetValue(segments[index], out var nested))
+                {
+                    nested = new VBDesignerStateGroup();
+                    group.Groups[segments[index]] = nested;
+                }
+
+                group = nested;
+            }
+
+            group.Values[segments[^1]] = pair.Value;
+        }
+
+        return root;
+    }
+}
+
 [ComVisible(true)]
 [ClassInterface(ClassInterfaceType.None)]
 [SupportedOSPlatform("windows")]
@@ -100,9 +143,9 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
 {
     private const int ErrorNotFound = unchecked((int)0x80070490); // E_PROP_ID_UNSUPPORTED shape
 
-    private readonly IReadOnlyDictionary<string, object?> _values;
+    private readonly VBDesignerStateGroup _state;
 
-    public VBDesignerPropertyBag(IReadOnlyDictionary<string, object?> values) => _values = values;
+    public VBDesignerPropertyBag(VBDesignerStateGroup state) => _state = state;
 
     /// <summary>Every property the control actually asked for.</summary>
     public List<string> ReadProperties { get; } = new();
@@ -112,11 +155,10 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
         _ = errorLog;
         var requested = value;
         ReadProperties.Add(propertyName);
-        if (!_values.TryGetValue(propertyName, out var stored))
+
+        if (!_state.Values.TryGetValue(propertyName, out var stored))
         {
-            // A control asks for everything it might have saved. A name the designer never wrote
-            // is not an error -- the control keeps the default it already has.
-            return ErrorNotFound;
+            return TryLoadNestedObject(propertyName, requested);
         }
 
         // The caller passes the type it expects in value; converting to it is what the container
@@ -152,5 +194,28 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
 
         // Saving belongs to a designer. This host runs programs; there is nothing to write back to.
         return unchecked((int)0x80004001); // E_NOTIMPL
+    }
+
+    /// <summary>
+    /// A BeginProperty group is read as an object, not as a value: the control creates the
+    /// collection or sub-object itself, passes it in, and expects the container to fill it from
+    /// the nested state. That is how an ImageList gets its images and a Toolbar its buttons.
+    ///
+    /// A control that passes null instead expects the container to create the object. There is no
+    /// general way to do that from a designer envelope, so the group stays unread and the control
+    /// keeps its default — reported as not-found rather than as an empty success.
+    /// </summary>
+    private int TryLoadNestedObject(string propertyName, object? requested)
+    {
+        if (requested is not IVBPersistPropertyBag nested ||
+            !_state.Groups.TryGetValue(propertyName, out var group))
+        {
+            // A control asks for everything it might have saved. A name the designer never wrote
+            // is not an error — the control keeps the default it already has.
+            return ErrorNotFound;
+        }
+
+        nested.Load(new VBDesignerPropertyBag(group), IntPtr.Zero);
+        return 0;
     }
 }
