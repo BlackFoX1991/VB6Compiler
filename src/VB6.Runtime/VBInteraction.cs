@@ -212,6 +212,13 @@ public static class VBInteraction
         Host?.TrySetMember(target, memberName, Array.Empty<object?>(), value);
     }
 
+    /// <summary>Closes the designer envelope of a Form/UserControl. See the host contract.</summary>
+    public static void CompleteDesignerInitialization(object target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        Host?.CompleteDesignerInitialization(target);
+    }
+
     /// <summary>
     /// Creates a COM object through the host hook or Windows ProgID activation. Unknown ProgIDs
     /// remain a deterministic placeholder so headless compiler tests do not require a COM server.

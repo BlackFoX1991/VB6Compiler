@@ -243,6 +243,17 @@ public interface IVB6Host
     {
     }
 
+    /// <summary>
+    /// Marks the end of the designer envelope of a Form/UserControl: every control exists and has
+    /// received the properties the designer wrote. VB6 hands an ActiveX control its persisted state
+    /// as a whole at this point rather than property by property, and a control that keeps its
+    /// state in its own blob has no other way to get it back. A host without ActiveX controls has
+    /// nothing to do here.
+    /// </summary>
+    void CompleteDesignerInitialization(object target)
+    {
+    }
+
     bool TryGetMember(
         object target,
         string memberName,
