@@ -55,8 +55,8 @@ Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Hand
 `Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **89 implemented**, **13 partial** und **16 planned**;
-**102/118 documented-verified** (Stand 2026-09-04).
+**118 Erwartungen**, davon **91 implemented**, **13 partial** und **14 planned**;
+**104/118 documented-verified** (Stand 2026-09-04).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
 offenen Punkte daraus sind unten in den Etappen B und C als eigene Zeilen geführt. Das
@@ -267,8 +267,8 @@ Rückgabematrix bleibt in Etappe B/C offen.
        deckt die ausgewählte Instanz, Kern-Eigenschaften, Seiten-/Dokumentzustand, Text, Messen,
        Skalieren und den sicheren Host-Übergang ab; ohne annehmenden Host entsteht ausdrücklich
        kein physischer Druckauftrag. Die derzeit 118
-       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (89 `implemented`,
-       13 `partial`, 16 `planned`; 102 `documented-verified`); jede weitere Karte behält ihre
+       Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (91 `implemented`,
+       13 `partial`, 14 `planned`; 104 `documented-verified`); jede weitere Karte behält ihre
        eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,

@@ -1520,7 +1520,7 @@
     },
     {
       "id": "l1-04-f-form-scale-autoredraw-attributes",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "forms-drawing-and-mdi",
       "input": "Scale*, coordinate conversion, drawing attributes and persistent AutoRedraw surfaces",
       "expected": {
@@ -1529,7 +1529,8 @@
         "autoredraw": "persistent surfaces survive repaint and activation",
         "clipping": "drawing is clipped to the target surface"
       },
-      "verification": "not-yet-verified",
+      "notes": "ScaleMode, the drawing attributes (ForeColor, DrawWidth, DrawMode, FillStyle/FillColor), the persistent AutoRedraw surface and clipping are covered by host tests that read pixels back. DrawWidth was the gap: the pen was fixed at one pixel and setting the property was not answered at all.",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
@@ -1553,7 +1554,7 @@
     },
     {
       "id": "l1-04-h-drawmode-rop2-active-persistent",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "forms-drawing-and-mdi",
       "input": "All sixteen DrawMode/ROP2 values on active Paint contexts and persistent AutoRedraw surfaces",
       "expected": {
@@ -1562,7 +1563,8 @@
         "persistent": "AutoRedraw stores the merged result",
         "invalid": "values outside 1..16 report error 380"
       },
-      "verification": "not-yet-verified",
+      "notes": "All sixteen ROP2 modes are checked per colour channel against a reference truth table, on the active Paint context and on the persistent AutoRedraw surface; DrawMode 17 reports 380.",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
         "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"
