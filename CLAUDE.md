@@ -241,13 +241,16 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
 - **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Die aktuelle Abdeckungsmessung findet keinen in `src/` definierten Diagnose-Code ohne Referenz in `tests/`; neue Codes müssen trotzdem mit einer Positivassertion in die zuständige Testsuite aufgenommen werden. Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
-- **`On Error` schützt keine Kontrollflussanweisung.** `CanProtectForErrorHandling` nimmt `If`,
-  `For`, `For Each`, `While`, `Do`, `With` und `Select Case` aus, weil eine geschützte Region
-  keinen Basisblock überqueren darf. Ein Fehler, der im *Kopf* einer solchen Anweisung entsteht —
-  etwa 438 aus der Aufzählungsquelle einer `For Each` —, erreicht den Handler deshalb nicht und
-  beendet das Programm; in VB6 fängt `On Error Resume Next` ihn. Wer Laufzeitfehlernummern in
-  solchen Köpfen misst, misst sie aus einer **gerufenen Prozedur** heraus: die Aufrufanweisung
-  selbst trägt eine Region. Offene Lücke, keine Entscheidung.
+- **Der Kopf einer Kontrollflussanweisung hat seine eigene Fehlerregion.**
+  `CanProtectForErrorHandling` nimmt `If`, `For`, `For Each`, `While`, `Do`, `With` und
+  `Select Case` von der Absicherung *als Anweisung* aus, weil eine geschützte Region keinen
+  Basisblock überqueren darf. Das heißt **nicht**, dass ihr Kopf ungeschützt ist: dafür gibt es
+  `LowerProtectedHeader`, das die Kopfinstruktionen einzeln umschließt und im Fehlerfall bei
+  `Resume Next` am Schleifenausgang fortsetzt. Wer eine neue Kontrollflussform ergänzt, muss ihn
+  benutzen — `For Each` tat es lange nicht, und ein 438 aus der Aufzählungsquelle beendete
+  deshalb das Programm, während der Handler danebenstand. Der erste Reparaturversuch, eine
+  generische Umklammerung in `LowerStatement`, verschachtelte sich mit genau diesem Helfer und
+  riss den VISIA-Korpus mit „Nested error handling regions are not supported".
 - **Die GUID auf einer `Object=`-Zeile ist eine TypeLib-Id, keine CLSID.** Ein installiertes OCX
   registriert sie unter `HKCR\TypeLib\{…}`; unter `HKCR\CLSID\{…}` steht sie nicht. Dazu kommt: die
   in der `.vbp` gepinnte Nebenversion muss nicht die installierte sein (`#2.0#` gegen registriertes

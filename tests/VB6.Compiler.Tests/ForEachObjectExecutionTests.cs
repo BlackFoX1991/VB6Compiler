@@ -45,40 +45,66 @@ public sealed class ForEachObjectExecutionTests
     public void EmitManagedApplication_ReportsThatAValueHasNoEnumerator()
     {
         // Nothing similar, nothing silent: a value with no enumerator is 438, and Nothing is 91.
-        // The loop stands in a called procedure because a For Each header is not itself inside an
-        // error region -- no control-flow statement is, since a protected region may not cross a
-        // basic block. The call that reaches it is an ordinary statement and does carry one.
+        // The loop header carries its own protected region, so the number reaches the handler in
+        // the same procedure -- and the loop is skipped, which is where the other loop headers
+        // continue too. A good source afterwards still runs.
         var output = VB6TestProgram.RunLines("""
             Sub Main()
                 On Error Resume Next
+                Dim e As Variant
+                Dim n As Variant
 
+                n = 5
                 Err.Clear
-                Zaehle 5
+                For Each e In n
+                    Debug.Print "nie"
+                Next
+                Debug.Print Err.Number
+
+                Set n = Nothing
+                Err.Clear
+                For Each e In n
+                    Debug.Print "nie"
+                Next
                 Debug.Print Err.Number
 
                 Err.Clear
-                ZaehleNichts
+                n = Array(7)
+                For Each e In n
+                    Debug.Print e
+                Next
                 Debug.Print Err.Number
-            End Sub
-
-            Sub Zaehle(ByVal wert As Variant)
-                Dim e As Variant
-                For Each e In wert
-                    Debug.Print "nie"
-                Next
-            End Sub
-
-            Sub ZaehleNichts()
-                Dim leer As Variant
-                Set leer = Nothing
-                Dim e As Variant
-                For Each e In leer
-                    Debug.Print "nie"
-                Next
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "438", "91" }, output, string.Join(" | ", output));
+        CollectionAssert.AreEqual(
+            new[] { "438", "91", "7", "0" },
+            output,
+            string.Join(" | ", output));
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_RoutesAForEachSourceErrorToAnOnErrorGoToHandler()
+    {
+        // Die GoTo-Form desselben Vertrags: der Fehler aus dem Schleifenkopf erreicht den Handler,
+        // statt das Programm zu beenden, waehrend der Handler danebensteht.
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error GoTo Handler
+                Dim e As Variant
+                Dim n As Variant
+                n = 5
+                For Each e In n
+                    Debug.Print "nie"
+                Next
+                Debug.Print "nicht erreicht"
+                Exit Sub
+            Handler:
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "438" }, output, string.Join(" | ", output));
     }
 
     [TestMethod]

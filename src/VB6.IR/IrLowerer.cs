@@ -2483,42 +2483,52 @@ public static class IrLowerer
                 ? NewLocal($"__foreach_values_{statement.LoopId}", statement.ArrayType, true)
                 : collection;
             var index = NewLocal($"__foreach_index_{statement.LoopId}", TypeSymbol.Long, true);
-            Emit(new IrStoreInstruction(new IrLocalPlace(collection), LowerExpression(statement.Collection)));
-            if (statement.IsCollection)
-            {
-                Emit(new IrStoreInstruction(
-                    new IrLocalPlace(values),
-                    Runtime(
-                        IrRuntimeMethod.CollectionEnumerateValues,
-                        statement.ArrayType,
-                        new IrLoadExpression(new IrLocalPlace(collection)))));
-            }
-            else if (statement.IsHostCollection)
-            {
-                Emit(new IrStoreInstruction(
-                    new IrLocalPlace(values),
-                    Runtime(
-                        IrRuntimeMethod.ControlEnumerateValues,
-                        statement.ArrayType,
-                        new IrLoadExpression(new IrLocalPlace(collection)))));
-            }
-            else if (statement.IsLateBoundEnumerable)
-            {
-                Emit(new IrStoreInstruction(
-                    new IrLocalPlace(values),
-                    Runtime(
-                        IrRuntimeMethod.ObjectEnumerateValues,
-                        statement.ArrayType,
-                        new IrLoadExpression(new IrLocalPlace(collection)))));
-            }
-
-            Emit(new IrStoreInstruction(new IrLocalPlace(index), new IrConstantExpression(0, TypeSymbol.Long)));
 
             var test = NewBlock($"foreach_test_{statement.LoopId}");
             var body = NewBlock($"foreach_body_{statement.LoopId}");
             var increment = NewBlock($"foreach_increment_{statement.LoopId}");
             var exit = NewBlock($"foreach_exit_{statement.LoopId}");
             _loopExits[statement.LoopId] = exit.Id;
+
+            // Reading the source is part of the loop header, and a header carries a protected
+            // region like every other one -- For and Do already did. Without it an error from the
+            // enumeration source, such as 438 for a value with no enumerator, ended the program
+            // while a handler stood right there. On error the loop is skipped, which is where the
+            // other headers continue too.
+            LowerProtectedHeader(exit.Id, () =>
+            {
+                Emit(new IrStoreInstruction(new IrLocalPlace(collection), LowerExpression(statement.Collection)));
+                if (statement.IsCollection)
+                {
+                    Emit(new IrStoreInstruction(
+                        new IrLocalPlace(values),
+                        Runtime(
+                            IrRuntimeMethod.CollectionEnumerateValues,
+                            statement.ArrayType,
+                            new IrLoadExpression(new IrLocalPlace(collection)))));
+                }
+                else if (statement.IsHostCollection)
+                {
+                    Emit(new IrStoreInstruction(
+                        new IrLocalPlace(values),
+                        Runtime(
+                            IrRuntimeMethod.ControlEnumerateValues,
+                            statement.ArrayType,
+                            new IrLoadExpression(new IrLocalPlace(collection)))));
+                }
+                else if (statement.IsLateBoundEnumerable)
+                {
+                    Emit(new IrStoreInstruction(
+                        new IrLocalPlace(values),
+                        Runtime(
+                            IrRuntimeMethod.ObjectEnumerateValues,
+                            statement.ArrayType,
+                            new IrLoadExpression(new IrLocalPlace(collection)))));
+                }
+
+                Emit(new IrStoreInstruction(new IrLocalPlace(index), new IrConstantExpression(0, TypeSymbol.Long)));
+            });
+
             Terminate(new IrGotoTerminator(test.Id));
 
             _current = test;
