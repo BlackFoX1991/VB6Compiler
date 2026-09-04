@@ -132,7 +132,8 @@ public sealed class StringFunctionTests
     public void Replace_SupportsStartCountAndTextComparison()
     {
         Assert.AreEqual("a-x-x", VBStrings.Replace("a-b-b", "b", "x", 1, -1, 0));
-        Assert.AreEqual("a-x-B", VBStrings.Replace("a-b-B", "b", "x", 3, 1, 1));
+        // Das Ergebnis beginnt bei Start -- "a-" gehört nicht mehr dazu.
+        Assert.AreEqual("x-B", VBStrings.Replace("a-b-B", "b", "x", 3, 1, 1));
         Assert.AreEqual("a-b-b", VBStrings.Replace("a-b-b", "b", "x", 1, 0, 0));
     }
 
