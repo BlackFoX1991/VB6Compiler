@@ -2110,17 +2110,23 @@ public static class VBStrings
             throw new ArgumentOutOfRangeException(nameof(start), "VB6 Replace uses one-based start positions.");
         }
 
-        if (count == 0 || find.Length == 0 || start > expression.Length)
+        // The result of VB6 Replace begins at Start -- what stood before it is not part of the
+        // return value. That is the whole meaning of the argument, and it surprises often enough
+        // that the documentation leads with it. Keeping the prefix made Replace(s, f, r, 3) look
+        // like an in-place edit of the whole string.
+        if (start > expression.Length)
         {
-            return expression;
+            return string.Empty;
         }
 
-        var prefixLength = start - 1;
-        var prefix = expression[..prefixLength];
-        var suffix = expression[prefixLength..];
+        var suffix = expression[(start - 1)..];
+        if (count == 0 || find.Length == 0)
+        {
+            return suffix;
+        }
+
         var comparison = compare == 1 ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var builder = new System.Text.StringBuilder(expression.Length);
-        builder.Append(prefix);
+        var builder = new System.Text.StringBuilder(suffix.Length);
         var cursor = 0;
         var replacements = 0;
         while (cursor < suffix.Length)
@@ -2136,12 +2142,6 @@ public static class VBStrings
             builder.Append(replacement);
             cursor = match + find.Length;
             replacements++;
-        }
-
-        if (cursor == suffix.Length)
-        {
-            // The loop consumed the entire suffix through its final match.
-            return builder.ToString();
         }
 
         return builder.ToString();
@@ -2164,6 +2164,14 @@ public static class VBStrings
         ArgumentNullException.ThrowIfNull(expression);
         ArgumentNullException.ThrowIfNull(delimiter);
         if (limit == 0)
+        {
+            return new VBArray<string>(new VBArrayBound(0, -1));
+        }
+
+        // A zero-length expression splits into no elements at all, not into one empty one. VB6
+        // says so plainly, and the difference is the one every caller writes next:
+        // For i = 0 To UBound(parts) then runs zero times instead of once on an empty string.
+        if (expression.Length == 0)
         {
             return new VBArray<string>(new VBArrayBound(0, -1));
         }

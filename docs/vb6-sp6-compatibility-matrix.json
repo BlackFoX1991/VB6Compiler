@@ -321,6 +321,24 @@
       ]
     },
     {
+      "id": "string.result-shapes",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "Replace with a Start position and Split with a zero-length expression",
+      "expected": {
+        "replaceStart": "the returned string begins at Start; what stood before it is not part of the result",
+        "replacePastEnd": "a Start beyond the expression returns a zero-length string",
+        "splitEmpty": "a zero-length expression splits into no elements at all, so UBound is LBound minus one"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ReplaceAndSplitShapeTests.cs",
+        "tests/VB6.Compiler.Tests/ReplaceAndSplitShapeExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs"
+      ],
+      "notes": "Both came out of a breadth measurement of the string surface, and both are about the shape of the result rather than the computation. Replace kept the prefix before Start, which made it look like an in-place edit of the whole string; Start means the result itself begins there. Split(\"\") returned one empty element instead of none, so the For i = 0 To UBound(parts) that every caller writes next ran once on an empty string. An existing assertion pinned the old Replace result; its test claims that Start, Count and Compare are supported, not what Start means, so it was corrected rather than treated as a contract."
+    },
+    {
       "id": "financial.array-series",
       "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",
