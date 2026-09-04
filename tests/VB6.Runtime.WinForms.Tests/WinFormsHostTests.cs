@@ -2885,6 +2885,119 @@ public sealed class WinFormsHostTests
         }
     }
 
+    [STATestMethod]
+    public void HostGivesAUserControlThePropertiesTheContainerPersisted()
+    {
+        using var host = new WinFormsHost();
+        var owner = new UserControlOwner();
+        host.Load(owner);
+
+        // Innerhalb der Designer-Huelle: genau so erreicht ein UserControl die Werte, die der
+        // Container in seiner .frm fuer diese Instanz abgelegt hat.
+        host.BeginDesignerInitialization(owner);
+        var generated = (GeneratedUserControlStub)host.CreateControl(
+            owner,
+            "Widget1",
+            typeof(GeneratedUserControlStub).FullName!)!;
+
+        // Vor dem Schliessen faellt die Entscheidung noch nicht: welche der beiden Prozeduren VB6
+        // ruft, haengt daran, ob etwas gespeichert war -- und das steht erst am Ende fest.
+        Assert.AreEqual(0, generated.InitPropertiesCount);
+        Assert.AreEqual(0, generated.ReadPropertiesCount);
+
+        host.TrySetMember(generated, "Beschriftung", Array.Empty<object?>(), "aus dem Designer");
+        host.CompleteDesignerInitialization(owner);
+
+        // Ein Control mit gespeichertem Zustand wird wiederhergestellt, nicht neu angelegt. Vorher
+        // war die Tuete bei jeder Erzeugung leer, und UserControl_ReadProperties lief nie.
+        Assert.AreEqual(1, generated.ReadPropertiesCount);
+        Assert.AreEqual(0, generated.InitPropertiesCount);
+        Assert.AreEqual("aus dem Designer", generated.DesignerValue);
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostShowsAFormModallyWhenTheStyleSaysSo()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        // Show vbModal blockiert in VB6 bis zum Entladen; das Argument wurde hier verworfen, und
+        // ein Programm lief an dem Dialog vorbei, auf den es wartete. Der Test schliesst das
+        // Fenster aus dem Shown-Ereignis heraus, damit der modale Aufruf zurueckkehren kann.
+        using var form = new Form { Text = "Modal" };
+        host.Register(owner, form);
+
+        var beobachtet = false;
+        form.Shown += (sender, _) =>
+        {
+            beobachtet = ((Form)sender!).Modal;
+            ((Form)sender!).Close();
+        };
+
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", [1], out _));
+        Assert.IsTrue(beobachtet, "Show vbModal muss die Form modal anzeigen.");
+
+        host.Unload(owner);
+    }
+
+    /// <summary>Schreibt mit, in welcher Reihenfolge die Form-Lebenszyklusereignisse eintreffen.</summary>
+    private sealed class FormLifecycleSink
+    {
+        public List<string> Trace { get; } = new();
+
+        private void Form_Initialize() => Trace.Add("Initialize");
+
+        private void Form_Load() => Trace.Add("Load");
+
+        private void Form_Activate() => Trace.Add("Activate");
+
+        private void Form_Deactivate() => Trace.Add("Deactivate");
+
+        private void Form_Unload(ref short cancel) => Trace.Add("Unload");
+
+        private void Form_Terminate() => Trace.Add("Terminate");
+    }
+
+    [STATestMethod]
+    public void HostRaisesTheFormLifecycleInTheVb6Order()
+    {
+        using var host = new WinFormsHost();
+        var owner = new FormLifecycleSink();
+
+        // VB6 ordnet fest: Initialize kommt vor Load, Load vor Activate, und Terminate zuletzt --
+        // nach Unload. Ein Handler, der sich auf diese Reihenfolge verlaesst, ist der Normalfall.
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+        host.Unload(owner);
+
+        var trace = owner.Trace;
+        Assert.IsTrue(trace.Count > 0, "Kein Lebenszyklusereignis erreicht die Form.");
+        CollectionAssert.Contains(trace, "Initialize", string.Join(" | ", trace));
+        CollectionAssert.Contains(trace, "Load");
+        CollectionAssert.Contains(trace, "Unload");
+        CollectionAssert.Contains(trace, "Terminate");
+
+        Assert.IsTrue(
+            trace.IndexOf("Initialize") < trace.IndexOf("Load"),
+            string.Join(" ", trace));
+        Assert.IsTrue(
+            trace.IndexOf("Load") < trace.IndexOf("Unload"),
+            string.Join(" ", trace));
+        Assert.IsTrue(
+            trace.IndexOf("Unload") < trace.IndexOf("Terminate"),
+            string.Join(" ", trace));
+
+        if (trace.Contains("Activate"))
+        {
+            Assert.IsTrue(
+                trace.IndexOf("Load") < trace.IndexOf("Activate"),
+                string.Join(" ", trace));
+        }
+    }
+
     private sealed class TimerEventSink
     {
         public int TickCount { get; private set; }
@@ -2927,10 +3040,14 @@ public sealed class WinFormsHostTests
 
         private void UserControl_Hide() => HideCount++;
 
+        /// <summary>Was der Container fuer diese Instanz abgelegt hatte, sofern etwas da war.</summary>
+        public object? DesignerValue { get; private set; }
+
         private void UserControl_ReadProperties(object propertyBag)
         {
             ReadPropertiesCount++;
             var bag = (VBPropertyBag)propertyBag;
+            DesignerValue = bag.ReadProperty("Beschriftung");
             bag.WriteProperty("Caption", "persisted");
             ReadPropertyValue = bag.ReadProperty("Caption");
         }
