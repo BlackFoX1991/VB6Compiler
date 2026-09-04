@@ -436,10 +436,29 @@ public static class VBStrings
     }
 
     /// <summary>Parses the numeric prefix accepted by the VB6 Val intrinsic.</summary>
+    private static string StripValWhitespace(string value)
+    {
+        var builder = new System.Text.StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            if (character is not (' ' or '\t' or '\n' or '\r'))
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+
     public static double Val(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        var text = value.TrimStart();
+
+        // VB6 strips blanks, tabs and line feeds from the whole argument before it reads a
+        // number -- not just from the front. Val(" 1 2 ") is 12, not 1, and that is the documented
+        // behaviour rather than an accident: the function was built to read numbers out of
+        // fixed-width text where the digits of one field are spaced apart.
+        var text = StripValWhitespace(value);
         if (text.Length == 0)
         {
             return 0d;
