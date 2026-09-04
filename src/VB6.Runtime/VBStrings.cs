@@ -641,6 +641,41 @@ public static class VBStrings
 
         if (expression is string text)
         {
+            // VB6 picks the formatter from the format, not from how the expression is stored.
+            // A numeric picture applied to "12" yields 12.00 -- routing every string to the
+            // string formatter turned it into 0.00 instead, and "abc" with "#,##0" came back as
+            // the picture itself. A string that carries no number is handed back untouched;
+            // inventing a zero for it would be worse than doing nothing.
+            if (format.Length > 0 && !IsStringFormat(format))
+            {
+                if (IsNumericFormat(format))
+                {
+                    return IsNumeric(text, profile)
+                        ? FormatNumber(
+                            double.Parse(
+                                text.Trim(),
+                                System.Globalization.NumberStyles.Float |
+                                    System.Globalization.NumberStyles.AllowThousands,
+                                FormatCulture(profile)),
+                            text,
+                            format,
+                            profile)
+                        : text;
+                }
+
+                if (IsDateFormat(format))
+                {
+                    return VBVariants.IsDate(text, profile)
+                        ? FormatDate(
+                            new VBDateValue(VBConversions.CDate(text)),
+                            format,
+                            firstDayOfWeek,
+                            firstWeekOfYear,
+                            profile)
+                        : text;
+                }
+            }
+
             return FormatString(text, format);
         }
 
@@ -1445,6 +1480,43 @@ public static class VBStrings
             if (format.AsSpan(index).StartsWith("AM/PM", StringComparison.OrdinalIgnoreCase) ||
                 format.AsSpan(index).StartsWith("A/P", StringComparison.OrdinalIgnoreCase) ||
                 format.AsSpan(index).StartsWith("AMPM", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True for a format that addresses the characters of a string rather than the value of a
+    /// number or a date: the placeholders <c>@</c> and <c>&amp;</c>, the case switches
+    /// <c>&lt;</c> and <c>&gt;</c>, and the left-alignment marker <c>!</c>. Literal runs are
+    /// skipped so a quoted or escaped placeholder does not decide the question.
+    /// </summary>
+    private static bool IsStringFormat(string format)
+    {
+        for (var index = 0; index < format.Length; index++)
+        {
+            if (format[index] is '\'' or '"')
+            {
+                var end = format.IndexOf(format[index], index + 1);
+                if (end < 0)
+                {
+                    return false;
+                }
+
+                index = end;
+                continue;
+            }
+
+            if (format[index] == '\\')
+            {
+                index++;
+                continue;
+            }
+
+            if (format[index] is '@' or '&' or '<' or '>' or '!')
             {
                 return true;
             }
