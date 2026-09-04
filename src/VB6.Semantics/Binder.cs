@@ -2870,11 +2870,20 @@ public sealed class Binder
         ArrayTypeSymbol arrayType;
         var isCollection = ReferenceEquals(collection.Type, VBStandardTypes.Collection);
         var isHostCollection = IsHostCollectionType(collection.Type);
+
+        // A Variant or an imported COM class carries whatever it carries: an array, a Collection,
+        // or an object with _NewEnum. Which one it is cannot be decided here, and VB6 does not
+        // decide it here either -- it asks the value at run time and answers 438 when the value
+        // has no enumerator.
+        var isLateBoundEnumerable = !isCollection &&
+            !isHostCollection &&
+            collection.Type is not ArrayTypeSymbol &&
+            (collection.Type == TypeSymbol.Variant || IsLateBoundEnumerableType(collection.Type));
         if (collection.Type is ArrayTypeSymbol boundArrayType)
         {
             arrayType = boundArrayType;
         }
-        else if (isCollection || isHostCollection)
+        else if (isCollection || isHostCollection || isLateBoundEnumerable)
         {
             arrayType = new ArrayTypeSymbol(TypeSymbol.Variant);
         }
@@ -2894,7 +2903,8 @@ public sealed class Binder
         // Not a compiler gap: For Each requires a Variant control variable, and VB6 coerces a
         // user-defined type into a Variant only for public types declared in public object
         // modules. A Type in a standard module never qualifies.
-        if (!isCollection && !isHostCollection && arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
+        if (!isCollection && !isHostCollection && !isLateBoundEnumerable &&
+            arrayType.ElementType is UserDefinedTypeSymbol elementUserDefinedType)
         {
             Report(
                 "VB6S0056",
@@ -2925,8 +2935,13 @@ public sealed class Binder
             arrayType,
             isCollection,
             isHostCollection,
-            body);
+            body,
+            isLateBoundEnumerable);
     }
+
+    private static bool IsLateBoundEnumerableType(TypeSymbol type) =>
+        type is ClassTypeSymbol classType &&
+        (classType.IsLateBoundObject || classType.IsRuntimeObjectContract);
 
     private static bool IsHostCollectionType(TypeSymbol type) =>
         ReferenceEquals(type, VBStandardTypes.Object) ||

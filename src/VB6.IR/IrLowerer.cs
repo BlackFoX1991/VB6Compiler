@@ -2475,11 +2475,11 @@ public static class IrLowerer
         {
             var collection = NewLocal(
                 $"__foreach_collection_{statement.LoopId}",
-                statement.IsCollection || statement.IsHostCollection
+                statement.IsCollection || statement.IsHostCollection || statement.IsLateBoundEnumerable
                     ? statement.Collection.Type
                     : statement.ArrayType,
                 true);
-            var values = statement.IsCollection || statement.IsHostCollection
+            var values = statement.IsCollection || statement.IsHostCollection || statement.IsLateBoundEnumerable
                 ? NewLocal($"__foreach_values_{statement.LoopId}", statement.ArrayType, true)
                 : collection;
             var index = NewLocal($"__foreach_index_{statement.LoopId}", TypeSymbol.Long, true);
@@ -2499,6 +2499,15 @@ public static class IrLowerer
                     new IrLocalPlace(values),
                     Runtime(
                         IrRuntimeMethod.ControlEnumerateValues,
+                        statement.ArrayType,
+                        new IrLoadExpression(new IrLocalPlace(collection)))));
+            }
+            else if (statement.IsLateBoundEnumerable)
+            {
+                Emit(new IrStoreInstruction(
+                    new IrLocalPlace(values),
+                    Runtime(
+                        IrRuntimeMethod.ObjectEnumerateValues,
                         statement.ArrayType,
                         new IrLoadExpression(new IrLocalPlace(collection)))));
             }
