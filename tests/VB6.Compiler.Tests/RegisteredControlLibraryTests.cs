@@ -151,6 +151,79 @@ public sealed class RegisteredControlLibraryTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_UsesAFixedCArrayOfAnImportedRecord()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type-library import requires Windows.");
+            return;
+        }
+
+        var typeLibraryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "System32",
+            "stdole2.tlb");
+        if (!File.Exists(typeLibraryPath))
+        {
+            Assert.Inconclusive("The registered Windows stdole2.tlb fixture is not available.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6ImportedCArray",
+            Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Feld.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Feld"
+                Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#stdole2.tlb#stdole
+                Module=Main; Main.bas
+                """);
+
+            // stdole.GUID.Data4 is Data4(0 To 7) As Byte -- a fixed C array. It used to arrive as
+            // a bare Object, so the first indexed read tore the program down with a
+            // NullReferenceException instead of answering a value.
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim g As stdole.GUID
+                    Debug.Print TypeName(g.Data4(0))
+                    Debug.Print LBound(g.Data4)
+                    Debug.Print UBound(g.Data4)
+                    g.Data4(3) = 200
+                    Debug.Print g.Data4(3)
+
+                    ' Eine UDT-Wertkopie kopiert auch ihre Arrays -- auch bei einem importierten
+                    ' Record, dessen Grenzen aus der Typbibliothek stammen.
+                    Dim h As stdole.GUID
+                    h = g
+                    h.Data4(3) = 5
+                    Debug.Print g.Data4(3)
+                    Debug.Print h.Data4(3)
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "Byte", "0", "7", "200", "200", "5" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Analyze_StillRejectsANameTheControlLibraryDoesNotDefine()
     {
         if (!OperatingSystem.IsWindows() ||

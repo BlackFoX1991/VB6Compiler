@@ -1012,7 +1012,15 @@ public sealed class ProjectCompilationTests
             Assert.AreEqual(TypeSymbol.Long, guid.Members.Single(member => member.Name == "Data1").Type);
             Assert.AreEqual(TypeSymbol.Integer, guid.Members.Single(member => member.Name == "Data2").Type);
             Assert.AreEqual(TypeSymbol.Integer, guid.Members.Single(member => member.Name == "Data3").Type);
-            Assert.AreSame(VBStandardTypes.Object, guid.Members.Single(member => member.Name == "Data4").Type);
+            // Data4 ist ein VT_CARRAY. Es kam vorher als blankes Object an, und der erste
+            // indizierte Zugriff riss das Programm mit einer NullReferenceException ab; jetzt ist
+            // es ein Byte-Array mit den Grenzen aus der ARRAYDESC -- wie "Data4(0 To 7) As Byte".
+            var data4 = guid.Members.Single(member => member.Name == "Data4");
+            Assert.IsInstanceOfType<ArrayTypeSymbol>(data4.Type);
+            Assert.AreEqual(TypeSymbol.Byte, ((ArrayTypeSymbol)data4.Type).ElementType);
+            Assert.AreEqual(1, data4.ArrayBounds.Length);
+            Assert.AreEqual(0L, data4.ArrayBounds[0].Lower);
+            Assert.AreEqual(7L, data4.ArrayBounds[0].Upper);
 
             var color = main.Locals.Single(local =>
                 string.Equals(local.Name, "color", StringComparison.OrdinalIgnoreCase));
