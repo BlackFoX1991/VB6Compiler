@@ -1012,6 +1012,15 @@ public static class VBStrings
         ":" +
         (upper is null ? new string(' ', width) : upper.Value.ToString(CultureInfo.InvariantCulture).PadLeft(width));
 
+    /// <summary>
+    /// Wie viele Stellen „General Number" zeigt. Dieselbe Trennung, die auch `Debug.Print` und
+    /// `CStr` benutzen: Gleitkomma und Currency mit 15 signifikanten Stellen, der Decimal-Subtyp
+    /// mit 29. Pauschal G29 zeigt für einen Double die Umrechnungsreste — aus 1234.567 wird
+    /// 1234.5670000000000072759576142, was VB6 nie ausgibt.
+    /// </summary>
+    private static string GeneralNumberFormat(object? originalValue) =>
+        originalValue is decimal ? "G29" : "G15";
+
     private static string FormatNumber(
         IFormattable number,
         object? originalValue,
@@ -1025,7 +1034,7 @@ public static class VBStrings
                 return boolean ? "True" : "False";
             }
 
-            return number.ToString("G29", FormatCulture(profile)) ?? string.Empty;
+            return number.ToString(GeneralNumberFormat(originalValue), FormatCulture(profile)) ?? string.Empty;
         }
 
         var normalizedFormat = format.ToUpperInvariant();
@@ -1042,7 +1051,7 @@ public static class VBStrings
 
         var numericFormat = normalizedFormat switch
         {
-            "GENERAL NUMBER" => "G29",
+            "GENERAL NUMBER" => GeneralNumberFormat(originalValue),
             "CURRENCY" when profile == VBCompatibilityProfile.VB6Sp6 => "C2",
             "CURRENCY" => "$#,##0.00;($#,##0.00)",
             "FIXED" => "0.00",
