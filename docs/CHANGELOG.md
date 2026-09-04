@@ -6158,3 +6158,34 @@ vermuten.
 
 Kanonischer Nachweis: **1533/1533** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Wie viele Stellen VB6 zeigt (04.09.2026)
+
+Der Breitendurchgang über die Math-Fläche fand die Rechenverträge durchgehend richtig: `Int` und
+`Fix` unterscheiden sich nur bei negativen Werten, `Sgn`, `Abs`, `Sqr`, `Log`, `Exp`, die
+Ganzzahldivision, `Mod` mit vorheriger Rundung seiner Operanden, `^` mit negativem Exponenten, und
+die Fehlernummern 5 für ein ungültiges Argument und 11 für die Division durch null.
+
+Falsch war etwas anderes — die **Stellenzahl**:
+
+```
+CStr(Atn(1) * 4)   ->  3.141592653589793     ' VB6: 3.14159265358979
+Debug.Print 1 / 3  ->  0.333333343267441     ' VB6: 0.3333333
+```
+
+Zwei verschiedene Ursachen mit derselben Wirkung.
+
+`CStr` ging für Gleitkommazahlen über `Convert.ToString`, und dessen Vorgabe ist die **kürzeste
+Zeichenkette, die den Wert exakt zurückliest** — bis zu 17 Stellen, in denen genau die
+Umrechnungsreste sichtbar werden. VB6 zeigt einen Double mit 15 und einen Single mit 7
+signifikanten Stellen; beide Fälle sind jetzt ausdrücklich benannt.
+
+Der zweite Fall ist lehrreicher: `1 / 3` ist in VB6 ein **Single**, weil beide Operanden Integer
+sind — das ist die dokumentierte Regel des `/`-Operators, und der Binder setzt sie richtig um. Die
+Ausgabe druckte den Single aber mit `G15` und zeigte damit Stellen, die seine Genauigkeit gar nicht
+mehr deckt. `CLAUDE.md` führte bisher pauschal „G15 für Gleitkomma"; die Trennung nach Single und
+Double fehlte.
+
+Kanonischer Nachweis: **1536/1536** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems. Bemerkenswert: Eine Änderung an der Zahlenausgabe hat **keinen** bestehenden
+Test bewegt — die vorherige Genauigkeit war nirgends festgeschrieben.
