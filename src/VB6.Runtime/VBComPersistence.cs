@@ -165,7 +165,6 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
         // owes the control, and it is the reason a bag is typed at all. Measured against the stock
         // OCX: a control announces Int32, Int16, Single, Boolean -- and null wherever it wants an
         // object, which is where there is nothing to convert to.
-        value = stored;
         if (stored is not null && requested is not null && stored.GetType() != requested.GetType())
         {
             try
@@ -174,16 +173,21 @@ internal sealed class VBDesignerPropertyBag : IVBPropertyBag
                     stored,
                     requested.GetType(),
                     System.Globalization.CultureInfo.InvariantCulture);
+                return 0;
             }
             catch (Exception exception) when (
                 exception is InvalidCastException or FormatException or OverflowException)
             {
-                // A designer value the control cannot use is its own decision to make. Failing the
-                // read here would abort the whole Load and cost every other property with it.
-                value = stored;
+                // Answering S_OK with a value of another shape is not a smaller failure than
+                // answering nothing -- it is a larger one. A native control reads the VARIANT as
+                // the type it asked for: handing a string where it expects an interface pointer
+                // dereferences the string as one, and the process dies with an access violation
+                // rather than with a missing property. Measured against a registered ImageList.
+                return ErrorNotFound;
             }
         }
 
+        value = stored;
         return 0;
     }
 

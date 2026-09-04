@@ -6429,3 +6429,35 @@ antwortet leer statt mit 438. Ohne Orakel wird das nicht auf Verdacht umgestellt
 
 Kanonischer Nachweis: **1556/1556** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **70/70**.
+
+## Ein Bild aus der `.frx` erreicht ein natives Control als Bild (04.09.2026)
+
+Die Untertüten aus der vorigen Karte haben eine Lücke sichtbar gemacht, die vorher unerreichbar war:
+`Images.ListImage1.Picture` kam beim Control an — als **Base64-Zeichenkette**. Das Ergebnis war kein
+fehlendes Bild, sondern `0xC0000005`: Das Control las die Zeichenkette als Schnittstellenzeiger, und
+der Prozess starb.
+
+Die Messung zeigte, warum die Tüte das nicht selbst abfangen kann. Ein registriertes ImageList
+fordert auf ListImage-Ebene für **alle drei** Eigenschaften denselben Typ an:
+
+```
+READ Images.ListImage1.Picture  angefordert=null
+READ Images.ListImage1.Key      angefordert=null
+READ Images.ListImage1.Tag      angefordert=null
+```
+
+`null` heißt „gib mir, was du hast". Für `Key` ist eine Zeichenkette richtig, für `Picture` tödlich,
+und der Container kann die beiden nicht unterscheiden. VB6 legt dort auch nie eine Zeichenkette ab —
+es speichert das Bildobjekt. Die Wandlung gehört also vor die Tüte, in den Host: eine `.frx`-Nutzlast
+wird über `AxHost.GetIPictureDispFromPicture` zu einem `IPictureDisp`. Was sich nicht wandeln lässt,
+wird **weggelassen** statt weitergereicht — dann fehlt ein Bild, statt dass ein Prozess stirbt.
+
+Die Runtime hat zusätzlich eine Regel bekommen, die für sich richtig ist: Schlägt die Wandlung auf
+den angeforderten Typ fehl, meldet die Tüte „nicht gefunden" statt `S_OK` mit einem Wert anderer
+Form. Ein `S_OK` mit falscher Form ist kein kleineres Scheitern als gar keine Antwort, sondern ein
+größeres.
+
+Gemessen an einem registrierten ImageList: `Count = 1`, `Key = rot`, `Picture` ist ein Bildobjekt.
+
+Kanonischer Nachweis: **1557/1557** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **71/71**.
