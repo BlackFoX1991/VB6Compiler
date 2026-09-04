@@ -38,6 +38,7 @@ internal static class VBTypeLibraryImporter
     private const short VtUi8 = 21;
     private const short VtInt = 22;
     private const short VtUInt = 23;
+    private const short VtError = 10;
     private const short VtR4 = 4;
     private const short VtR8 = 5;
     private const short VtBool = 11;
@@ -397,6 +398,15 @@ internal static class VBTypeLibraryImporter
                     continue;
                 }
 
+                // A pointer standing where a value stands is a Long in VB6, at the 32-bit pointer
+                // width the language has -- EXCEPINFO.pvReserved is the documented example. As an
+                // Object it answered Nothing on read and boxed a number on write, silently.
+                if ((variable.elemdescVar.tdesc.vt & VariantTypeMask) == VtPtr)
+                {
+                    members.Add(new UserDefinedTypeMemberSymbol(name, TypeSymbol.Long));
+                    continue;
+                }
+
                 // A fixed C array is a record member with bounds, exactly like "a(0 To 7) As Byte"
                 // in a VB6 Type. Without them the member arrived as a bare Object and the first
                 // indexed read tore the program down with a NullReferenceException.
@@ -699,6 +709,11 @@ internal static class VBTypeLibraryImporter
 
         if (baseType == VtPtr)
         {
+            // Only a member declaration is decided here to be a value. A property getter of a
+            // dispinterface is described with VT_PTR too -- stdole.IFontDisp.Name is VT_PTR to
+            // BSTR -- and turning that into a Long made "font.Name = ..." try to parse the string
+            // as a number. The value case is handled where it is known to be one, in
+            // ImportRecordMembers.
             return VBStandardTypes.Object;
         }
 
@@ -706,7 +721,11 @@ internal static class VBTypeLibraryImporter
         {
             VtEmpty or VtNull or VtVariant => TypeSymbol.Variant,
             VtI1 or VtI2 => TypeSymbol.Integer,
-            VtI4 or VtInt or VtUInt => TypeSymbol.Long,
+            // SCODE is a Long in VB6 -- EXCEPINFO.scode is the one every VB6 programmer has seen.
+            // Unmapped, it fell through and answered VarType 0. VT_HRESULT deliberately stays out:
+            // it is the *return* type of every dispinterface getter, whose value travels in a
+            // retval parameter, and mapping it here turned every property into a number.
+            VtI4 or VtInt or VtUInt or VtError => TypeSymbol.Long,
             VtI8 => TypeSymbol.LongLong,
 
             // VB6 has no unsigned types, and its own importer maps these to the signed VB6 type.
