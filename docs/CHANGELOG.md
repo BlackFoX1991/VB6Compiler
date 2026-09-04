@@ -7083,3 +7083,36 @@ für `Sqr(-1)`, `Log(0)` und `1/0` sowie der Variant-Zustände. Dort kein Defekt
 
 Kanonischer Nachweis: **1686/1686** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Zwei Ergebnisformen, die VB6 anders schneidet
+
+Der Breitendurchgang ging nach `Format`, `Math` und Financial weiter über die String-Fläche: 31
+Fälle plus sechs Fehlerfälle. Die Fehlernummern stimmten alle — `Mid("abc", 0)`, `Left("abc", -1)`,
+`Space(-1)`, `String(-1, "x")`, `Asc("")` und `Chr(65536)` melden korrekt 5. Zwei Ergebnisse nicht,
+und beide betreffen nicht den berechneten Wert, sondern seine **Form**.
+
+**`Replace` mit `Start`.** Das Ergebnis beginnt in VB6 bei `Start`; was davor stand, gehört nicht
+dazu. Wir hatten den Anfang behalten:
+
+```
+Replace("aXbXc", "X", "-", 3)   vorher [aXb-c]   VB6 [b-c]
+Replace("aXbXc", "X", "-", 6)   vorher [aXbXc]   VB6 []
+```
+
+Das ist keine Kleinigkeit der Randfälle: Mit erhaltenem Anfang sieht `Replace` aus wie eine
+Änderung an Ort und Stelle, und genau so würde man den Rückgabewert weiterverwenden.
+
+**`Split("")`.** Eine leere Zeichenkette zerfällt in **kein** Element, nicht in ein leeres. Wir
+lieferten `UBound = 0`, VB6 liefert `UBound = -1`. Auch das wirkt sich sofort auf die nächste
+Zeile aus, die jeder Anrufer schreibt: `For i = 0 To UBound(parts)` lief einmal statt gar nicht,
+mit einer leeren Zeichenkette als Schleifenwert.
+
+Ein bestehender Test schrieb die alte `Replace`-Form mit fest: `Replace_SupportsStartCountAndText
+Comparison` erwartete `"a-x-B"`. Er ist angepasst worden, und die Begründung gehört hierher, weil
+die Regel „ein bestehender Test schlägt eine Herleitung aus der Dokumentation" sonst greifen
+würde: Sein Name sagt zu, dass `Start`, `Count` und `Compare` **unterstützt** werden — nicht, was
+`Start` bedeutet. Der konkrete Wert war Beiwerk der Zusage, nicht die Zusage selbst. Wer das
+anders sieht, dreht die zwei Zeilen in `VBStrings.Replace` zurück; die Messung steht oben.
+
+Kanonischer Nachweis: **1693/1693** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
