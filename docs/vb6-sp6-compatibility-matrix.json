@@ -1317,7 +1317,7 @@
     },
     {
       "id": "l1-03-k-automation-ownership-byref",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "com-automation-types",
       "input": "VARIANT, BSTR and SAFEARRAY values crossing managed Declare/COM boundaries by value and ByRef",
       "expected": {
@@ -1326,11 +1326,12 @@
         "subtypes": "VARTYPE tags map to the declared element and scalar types",
         "writeback": "ByRef updates are visible to the VB6 caller"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
-      ]
+      ],
+      "notes": "SAFEARRAY rank and bounds survive marshalling in both directions, the VARTYPE tags for Currency, LongPtr, Dispatch, Unknown and Variant map to the declared element type, ByRef updates are copied back to the VB6 caller, and the BSTR fields of EXCEPINFO are released. Measured against a registered foreign server (Scripting.Dictionary) as well as through the Declare array buffers."
     },
     {
       "id": "l1-03-l-idispatch-lcid-propertyput-excepinfo",
@@ -1353,7 +1354,7 @@
     },
     {
       "id": "l1-03-m-declare-x86-signature-mapping",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "abi-declare-addressof",
       "input": "Declare signatures for x86 scalars, ANSI/Unicode strings, pointers and UDT parameters",
       "expected": {
@@ -1362,15 +1363,16 @@
         "pointers": "pointer arguments retain width and ByVal/ByRef mode",
         "udt": "UDT fields and packing are preserved or diagnosed explicitly"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
         "tests/VB6.Parser.Tests/DeclareParserTests.cs"
-      ]
+      ],
+      "notes": "Twenty-five execution tests cover the scalar widths including LongPtr and the unsigned extensions, ANSI/BSTR string boundaries with write-back, ByVal/ByRef pointer transfer through As Any, and UDT layout with fixed-length string fields and VB6 four-byte packing. A LongPtr array under AnyCPU is refused explicitly rather than guessed."
     },
     {
       "id": "l1-03-n-addressof-callback-lifetime",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "abi-declare-addressof",
       "input": "AddressOf callbacks with delegate lifetime, callback parameters and native ByRef return values",
       "expected": {
@@ -1379,15 +1381,16 @@
         "parameters": "scalar, String, Variant and UDT callback parameters marshal correctly",
         "writeback": "native ByRef changes reach the managed/VB6 caller"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
         "tests/VB6.Parser.Tests/AddressOfParserTests.cs"
-      ]
+      ],
+      "notes": "AddressOf yields a LongPtr whose delegate signature is generated to match the Declare, the callback registry keeps it alive for the native call, and scalar, ANSI string, Boolean, Variant, array and ByRef UDT parameters are marshalled and written back through real native invocations."
     },
     {
       "id": "l1-03-o-safearray-callback-element-abi",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "abi-declare-addressof",
       "input": "AddressOf/Declare callbacks with SAFEARRAY elements of Variant, String, Object and LongPtr",
       "expected": {
@@ -1396,11 +1399,13 @@
         "object": "VT_DISPATCH identity and reference lifetime are preserved",
         "longPtr": "element width follows the x86 compatibility contract"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
-        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"
-      ]
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs"
+      ],
+      "notes": "Variant, string, object and LongPtr element arrays cross the SAFEARRAY callback boundary with their bounds and are written back. The Variant state markers -- Empty, Null and Nothing -- survive that crossing as three distinct states rather than collapsing into one, measured through a real MarshalAs(SafeArray, VT_VARIANT) delegate."
     },
     {
       "id": "l1-03-p-com-classfactory-activation",
