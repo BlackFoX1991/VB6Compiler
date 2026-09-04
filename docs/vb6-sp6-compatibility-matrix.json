@@ -321,6 +321,25 @@
       ]
     },
     {
+      "id": "financial.array-series",
+      "implementation": "implemented",
+      "matrixEntry": "runtime-standard-library",
+      "input": "NPV, IRR and MIRR with the documented Double array, with a Variant array and with a Variant holding an array",
+      "expected": {
+        "signature": "the value series is an array parameter as VB6 declares it, not an argument list",
+        "conversion": "an array argument whose element type differs from the parameter's is converted element by element",
+        "values": "IRR solves the cash-flow root, NPV discounts from the first period and MIRR separates finance and reinvestment rates"
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayArgumentConversionExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayArgumentConversionLoweringTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
+      ],
+      "notes": "A breadth measurement over the financial surface crashed the process: IRR with the Double array VB6 documents ended in an internal CLR error. An array argument whose element type differed from the parameter's was emitted with no conversion at all, so a VBArray<double> arrived where a VBArray<object> was declared. Between two reference element types the shared generic instantiation hid the same mistake, which is why Join with a Variant array looked correct. The conversion now happens in the lowering phase, where both type symbols are known. NPV was additionally modelled as a ParamArray, so a passed array became a single element; VB6 declares an array there."
+    },
+    {
       "id": "math.complete-surface",
       "implementation": "implemented",
       "matrixEntry": "runtime-standard-library",

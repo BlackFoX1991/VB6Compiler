@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1681 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (117 implemented, 1 partial, 0 planned) with 118/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next narrow partial managed card is `l1-02-h-variant-object-array-dispatch`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1686 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 119 expectations (118 implemented, 1 partial, 0 planned) with 119/119 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; no implementation card remains open; `l1-02-a-language-grammar-context` stays `partial` on purpose, as a broad family status rather than a task. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -133,9 +133,9 @@ Implemented so far:
 ## Current verification
 
 The canonical serial `build.ps1 -Configuration Release` run on 2026-09-04 reports
-**1681 test cases**, **1681 passed**, **0 failed** across 13 test projects, with a warning-free
+**1686 test cases**, **1686 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
-**118 expectations**: **117 implemented**, **1 partial**, **0 planned**, and **118/118
+**119 expectations**: **118 implemented**, **1 partial**, **0 planned**, and **119/119
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
 With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **81/81 passed**, **0 skipped**. The counter-check on an x64 test host fails 9 of those cases, so the x86 result is a real measurement rather than a silently skipped one.
 
