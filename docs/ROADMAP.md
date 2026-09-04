@@ -55,8 +55,8 @@ Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Hand
 `Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **88 implemented**, **12 partial** und **18 planned**;
-**100/118 documented-verified** (Stand 2026-09-03).
+**118 Erwartungen**, davon **88 implemented**, **13 partial** und **17 planned**;
+**101/118 documented-verified** (Stand 2026-09-04).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
 offenen Punkte daraus sind unten in den Etappen B und C als eigene Zeilen geführt. Das
@@ -268,7 +268,7 @@ Rückgabematrix bleibt in Etappe B/C offen.
        Skalieren und den sicheren Host-Übergang ab; ohne annehmenden Host entsteht ausdrücklich
        kein physischer Druckauftrag. Die derzeit 118
        Erwartungen tragen getrennte, maschinenprüfbare Statusachsen (88 `implemented`,
-       12 `partial`, 18 `planned`; 100 `documented-verified`); jede weitere Karte behält ihre
+       13 `partial`, 17 `planned`; 101 `documented-verified`); jede weitere Karte behält ihre
        eindeutige Erwartungs-ID.
 - [x] Die Quellenrangfolge ist fest: offizielle VB6-Dokumentation, veröffentlichte
       Windows-/OLE-/COM-Spezifikationen, beobachtbares Verhalten installierter Binärkomponenten,
@@ -429,9 +429,12 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [~] Alle Microsoft-redistributablen VB6-Stock-Controls werden in der Matrix geführt. Installierte
       Controls laufen nativ; fehlende Controls werden über ABI-Testkomponenten geprüft und sichtbar
       als nicht nativ verifiziert markiert.
-- [ ] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
+- [~] Die generische ActiveX-Schicht unterstützt TypeLib-beschriebene Drittanbieter-Controls mit
       OLE-In-Place-Aktivierung, Ambient Properties, Property Pages, Persistence und Connection
       Points; undokumentiertes controlspezifisches Verhalten bleibt außerhalb des Vertrags.
+      Stand: Persistenz über `IPersistPropertyBag` und Connection Points sind umgesetzt und gegen
+      registrierte 32-Bit-Stock-Controls gemessen; `IPersistStreamInit` — die `.frx`-Seite, an der
+      etwa der RichTextBox-Text hängt — und Property Pages fehlen.
 - [~] Generierte UserControls erhalten echte ActiveX-/OLE-View-/In-Place-Verträge,
       PropertyBag-/Stream-Persistenz, Ambient Properties, Events, Property Pages und vollständigen
       Lifecycle.

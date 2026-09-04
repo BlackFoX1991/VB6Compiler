@@ -326,6 +326,9 @@ public static class IrLowerer
         private IrProcedure LowerClassConstructor(ClassTypeSymbol classType)
         {
             var instructions = ImmutableArray.CreateBuilder<IrInstruction>();
+
+            // Only a class that actually placed controls has a designer envelope to close.
+            var hasDesignerControls = false;
             if (_classVariables.TryGetValue(classType, out var fields))
             {
                 foreach (var variable in fields)
@@ -366,6 +369,8 @@ public static class IrLowerer
                                     variable.DesignerTypeName)));
                             AddDesignerInitializers(instructions, elementTarget, variable.DesignerInitializers);
                         }
+
+                        hasDesignerControls = true;
                     }
                     else if (variable.IsDesignerControl && variable.Symbol.Type is ClassTypeSymbol controlType)
                     {
@@ -378,6 +383,7 @@ public static class IrLowerer
                                 variable.DesignerParentName,
                                 variable.DesignerTypeName)));
                         AddDesignerInitializers(instructions, target, variable.DesignerInitializers);
+                        hasDesignerControls = true;
                     }
                     else if (variable.Symbol.Type is FixedLengthStringTypeSymbol fixedStringField)
                     {
@@ -412,6 +418,18 @@ public static class IrLowerer
                     instructions,
                     new IrThisPlace(classType),
                     designerInitializers);
+            }
+
+            // After every control exists and carries its designer properties, and before any user
+            // code runs: this is where VB6 hands an ActiveX control its persisted state as a whole.
+            if (hasDesignerControls)
+            {
+                instructions.Add(new IrEvaluateInstruction(
+                    new IrRuntimeCallExpression(
+                        IrRuntimeMethod.InteractionCompleteDesignerInitialization,
+                        ImmutableArray.Create(
+                            new IrCallArgument(new IrLoadExpression(new IrThisPlace(classType)))),
+                        TypeSymbol.Error)));
             }
 
             if (TryGetClassProcedure(classType, "Class_Initialize", null, out var initializer))

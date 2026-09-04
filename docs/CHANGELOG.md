@@ -6189,3 +6189,44 @@ Double fehlte.
 Kanonischer Nachweis: **1536/1536** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems. Bemerkenswert: Eine Änderung an der Zahlenausgabe hat **keinen** bestehenden
 Test bewegt — die vorherige Genauigkeit war nirgends festgeschrieben.
+
+## Ein ActiveX-Control bekommt seinen Designer-Zustand jetzt am Stück (04.09.2026)
+
+VB6 setzt die Eigenschaften eines OCX nicht einzeln. Es reicht dem Control den ganzen persistierten
+Zustand über `IPersistPropertyBag` und lässt es lesen, was es kennt. Im Repo gab es diesen Vertrag
+nirgends — `grep` fand weder `IPersistPropertyBag` noch `IPersistStreamInit` in `src/`. Der
+Designer-Zustand erreichte ein Control ausschließlich als Folge von Einzelzuweisungen über
+`TrySetMember`, und `VBInteraction.SetMember` verwirft deren Rückgabewert.
+
+Weil die OCX auf dieser Maschine inzwischen registriert sind, ließ sich der Befund zum ersten Mal
+**messen** statt herleiten. Ein Wegwerfprogramm unter x86 gegen elf Stock-Controls:
+
+- Alle elf implementieren `IPersistPropertyBag` **und** `IPersistStreamInit`.
+- Der Slider fragt beim Laden 18 Eigenschaften ab, das MSFlexGrid 41 — beginnend mit `_ExtentX`.
+- `_ExtentX`, `_ExtentY` und `_Version` stehen für jedes OCX in der `.frm`, sind über IDispatch
+  aber **nicht setzbar**: das Control weist sie mit einer `COMException` ab. Im Host kam
+  entsprechend dreimal `TrySetMember -> False` zurück, ohne dass irgendwo etwas gemeldet wurde.
+
+Die Werte waren also schlicht verloren. Ergänzt sind drei Schichten: `VBComPersistence` mit der
+Container-Tüte, ein Host-Haken `CompleteDesignerInitialization`, und im Lowerer der Aufruf, der die
+Designer-Hülle schließt — nach der letzten Designer-Eigenschaft, vor `Class_Initialize`. Eine Klasse
+ohne Designer-Controls bekommt ihn nicht.
+
+Der Nachweis kommt vom Control selbst: nach der Übergabe wird `IPersistPropertyBag.Save` in eine
+mitschreibende Tüte gerufen, und dort stehen `_ExtentX = 4657` und `_ExtentY = 873` — genau die
+Werte, die der Einzelzugriff verweigert hatte. Der Fall ist damit **nativ gemessen**, nicht
+dokumentiert hergeleitet.
+
+Zwei Zusagen sind bewusst schwächer, als es aussieht. Erstens ist die Reihenfolge nicht die von
+VB6: dort lädt das Control seinen Zustand bei der Erzeugung, hier erst am Ende der Hülle. Weil
+jeder Einzelwert mitgeschrieben und mitgereicht wird, ist das Ergebnis dasselbe; die Zwischenzeit
+ist es nicht. Zweitens bleibt `IPersistStreamInit` offen — der Text einer RichTextBox hängt dort
+und kam in der Messung erwartungsgemäß leer zurück.
+
+Nebenbefund aus demselben Lauf: Die native OCX-Fläche ist jetzt vollständig prüfbar.
+`build.ps1 -RequireNativeOcx` meldet unter x86 **69/69** bestanden, **0** übersprungen; die
+Gegenprobe unter x64 lässt 8 davon hart fehlschlagen. Der bisherige Messwert (50/50, 7 in der
+Gegenprobe) ist damit fortgeschrieben.
+
+Kanonischer Nachweis: **1545/1545** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

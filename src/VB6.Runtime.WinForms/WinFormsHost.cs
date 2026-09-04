@@ -61,6 +61,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Control, DesignerControlState> _designerControlStates =
         new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// Designer values on their way to a control that persists through a property bag. VB6 hands
+    /// such a control its state as a whole, not property by property, so the values are collected
+    /// until the designer envelope closes.
+    /// </summary>
+    private readonly Dictionary<object, PendingDesignerState> _pendingDesignerState =
+        new(ReferenceEqualityComparer.Instance);
     private readonly ToolTip _toolTip = new();
     private int _screenMousePointer;
     private VBPrinterState _printer = VBPrinterState.Headless;
@@ -1029,6 +1037,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         var hostObject = CreateControlInstance(typeName);
+
+        // Only a native control can persist through a property bag; a managed adapter carries its
+        // state in its own properties. The COM object itself is resolved when the envelope closes,
+        // because asking for it here would force the window handle before the parent is set.
+        if (hostObject is IVBComObjectProvider)
+        {
+            _pendingDesignerState[hostObject] = new PendingDesignerState(owner);
+        }
+
         if (hostObject is not Control control)
         {
             if (hostObject is MenuProxy menu)
@@ -1253,6 +1270,53 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         _ = GetOrCreateBinding(target);
     }
 
+    /// <summary>
+    /// Closes the designer envelope: every native control that persists through a property bag now
+    /// receives its designer state as a whole. A control that does not use that contract keeps the
+    /// properties it already got assigned one by one.
+    /// </summary>
+    public void CompleteDesignerInitialization(object target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ThrowIfDisposed();
+
+        var owned = _pendingDesignerState
+            .Where(entry => ReferenceEquals(entry.Value.Owner, target))
+            .ToArray();
+        foreach (var entry in owned)
+        {
+            _pendingDesignerState.Remove(entry.Key);
+            ApplyPersistedDesignerState(entry.Key, entry.Value.Values);
+        }
+    }
+
+    private static void ApplyPersistedDesignerState(
+        object hostObject,
+        IReadOnlyDictionary<string, object?> values)
+    {
+        object? comObject;
+        try
+        {
+            comObject = (hostObject as IVBComObjectProvider)?.ComObject;
+        }
+        catch (COMException)
+        {
+            // A control that cannot be brought up has no state to restore either. The properties
+            // assigned one by one already reported whatever went wrong.
+            return;
+        }
+
+        if (comObject is null)
+        {
+            return;
+        }
+
+        // A control that refuses its own state throws, and the exception travels the ordinary COM
+        // path from here. Swallowing it would leave a control standing on its defaults with nobody
+        // able to tell why -- and inventing a VB6 error number for it would be a guess.
+        VBComPersistence.TryApplyDesignerState(comObject, values);
+    }
+
     public bool TryGetMember(
         object target,
         string memberName,
@@ -1448,6 +1512,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         object? value)
     {
         ThrowIfDisposed();
+
+        // Recorded, not diverted: the property is still assigned the ordinary way. A control that
+        // exposes it takes it from there, and one that only knows it from its persisted blob gets
+        // it when the envelope closes.
+        if (arguments.Length == 0 && _pendingDesignerState.TryGetValue(target, out var pending))
+        {
+            pending.Values[memberName] = value;
+        }
+
         if (target is ImageListProxy designerImageList && arguments.Length == 0 &&
             TrySetImageListDesignerProperty(designerImageList, memberName, value))
         {
@@ -5791,6 +5864,16 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public bool FormInitialized { get; set; }
 
         public MenuStrip? MenuStrip { get; set; }
+    }
+
+    /// <summary>Designer values collected for one native control, and the form they belong to.</summary>
+    private sealed class PendingDesignerState
+    {
+        public PendingDesignerState(object owner) => Owner = owner;
+
+        public object Owner { get; }
+
+        public Dictionary<string, object?> Values { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class TreeViewState

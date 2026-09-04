@@ -2988,4 +2988,72 @@ public sealed class WinFormsHostTests
         Assert.AreEqual(8160, Convert.ToInt32(scaleWidth));
         Assert.AreEqual(5280, Convert.ToInt32(scaleHeight));
     }
+
+    [STATestMethod]
+    public void HostLoadsPersistedDesignerStateIntoANativeActiveXControlInX86()
+    {
+        if (Environment.Is64BitProcess ||
+            Type.GetTypeFromProgID("MSComctlLib.Slider.2", throwOnError: false) is null)
+        {
+            if (RequireNativeOcx)
+            {
+                Assert.Fail("Native property bag validation requires a registered 32-bit control.");
+            }
+
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var slider = host.CreateControl(owner, "sldWert", "MSComctlLib.Slider")!;
+        Assert.IsInstanceOfType<AxHost>(slider);
+
+        // Genau die Werte, die der Designer in die .frm schreibt. _ExtentX und _ExtentY stehen dort
+        // fuer jedes OCX -- und der Einzelzugriff kann sie nicht setzen: das Control weist sie ab.
+        // Vor dieser Karte waren sie damit verloren, ohne dass irgendwo etwas gemeldet wurde.
+        Assert.IsFalse(host.TrySetMember(slider, "_ExtentX", Array.Empty<object?>(), 4657));
+        Assert.IsFalse(host.TrySetMember(slider, "_ExtentY", Array.Empty<object?>(), 873));
+        Assert.IsTrue(host.TrySetMember(slider, "Min", Array.Empty<object?>(), 0));
+        Assert.IsTrue(host.TrySetMember(slider, "Max", Array.Empty<object?>(), 50));
+        Assert.IsTrue(host.TrySetMember(slider, "Value", Array.Empty<object?>(), 17));
+        Assert.IsTrue(host.TrySetMember(slider, "TickFrequency", Array.Empty<object?>(), 5));
+
+        host.CompleteDesignerInitialization(owner);
+
+        // Das Control nach seinem eigenen Zustand fragen. Was es zurueckschreibt, hat es
+        // uebernommen -- eine Zusage, die keine Herleitung ersetzt.
+        var persisted = (IVBPersistPropertyBag)((IVBComObjectProvider)slider).ComObject!;
+        var saved = new RecordingPropertyBag();
+        persisted.Save(saved, clearDirty: true, saveAllProperties: true);
+
+        Assert.AreEqual(4657, Convert.ToInt32(saved.Written["_ExtentX"]));
+        Assert.AreEqual(873, Convert.ToInt32(saved.Written["_ExtentY"]));
+
+        // Und die Uebergabe darf nicht kosten, was der Einzelzugriff schon gesetzt hat.
+        Assert.AreEqual(50, Convert.ToInt32(saved.Written["Max"]));
+        Assert.AreEqual(17, Convert.ToInt32(saved.Written["Value"]));
+        Assert.AreEqual(5, Convert.ToInt32(saved.Written["TickFrequency"]));
+
+        host.Unload(owner);
+    }
+
+    /// <summary>Nimmt entgegen, was ein Control ueber sich selbst zu sagen hat.</summary>
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    public sealed class RecordingPropertyBag : IVBPropertyBag
+    {
+        public Dictionary<string, object?> Written { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public int Read(string propertyName, ref object? value, IntPtr errorLog) =>
+            unchecked((int)0x80070490);
+
+        public int Write(string propertyName, ref object? value)
+        {
+            Written[propertyName] = value;
+            return 0;
+        }
+    }
 }
