@@ -17,7 +17,7 @@ entschieden wird; alles andere ordnet sich unter.
 Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H).
 Die offenen Karten und ihre Statusachsen stehen in `docs/vb6-sp6-compatibility-matrix.json`.
 Der aktuelle Matrixstand beträgt 118 Erwartungen (88 `implemented`,
-12 `partial`, 18 `planned`; 100 `documented-verified`); die nächste offene
+13 `partial`, 17 `planned`; 101 `documented-verified`); die nächste offene
 Implementierungskarte ist `l1-03-q-typelib-registration-localserver`. `L1-02-A` bleibt als breiter
 Familienstatus bewusst `partial`.
 
@@ -241,6 +241,15 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
 - **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Die aktuelle Abdeckungsmessung findet keinen in `src/` definierten Diagnose-Code ohne Referenz in `tests/`; neue Codes müssen trotzdem mit einer Positivassertion in die zuständige Testsuite aufgenommen werden. Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
+- **Ein Teil des Designer-Zustands eines OCX ist über IDispatch gar nicht erreichbar.** `_ExtentX`,
+  `_ExtentY` und `_Version` stehen für jedes ActiveX-Control in der `.frm`, und jedes gemessene
+  Stock-Control weist sie beim Einzelzugriff mit einer `COMException` ab — `TrySetMember` liefert
+  `False`, und `VBInteraction.SetMember` verwirft das. Der Weg dorthin ist ausschließlich
+  `IPersistPropertyBag`, den VB6 ohnehin für den ganzen persistierten Zustand benutzt
+  (`VBComPersistence`, geschlossen durch `CompleteDesignerInitialization` am Ende der Designer-
+  Hülle). Wer Designer-Eigenschaften anfasst, darf deshalb nicht davon ausgehen, dass die
+  Einzelzuweisung die vollständige Fläche ist. Die `.frx`-Seite (`IPersistStreamInit`, dort hängt
+  etwa der RichTextBox-Text) fehlt weiterhin.
 - **Ein VB6-Event auf einem ActiveX-Control hat zwei mögliche Quellen.** Die Events des OCX kommen über den COM-Connection-Point und verlangen den **VB6-Namen** — ein WinForms-Name wie `TextChanged` sagt einem OCX nichts, und die Übersetzung in `FindEvent` gilt nur dem managed Adapter. Fokus-Events dagegen sind in VB6 **Extender-Events**: Sie stammen vom Container, fehlen im Event-Interface des Controls und kommen nur über das `AxHost`-Wrapper-Event. Wer nur einen der beiden Wege bedient, bekommt einen Pfad, der stillschweigend nie feuert. Beim Ergänzen von Events immer beide durchdenken und nativ nachmessen, nicht herleiten — für `GotFocus` war die Namensregel schlicht die falsche Erklärung.
 - **Die Umsetzung ist hier meist weiter als ihre Absicherung — erst messen, dann bauen.** Bei
   `l1-02-f` und `l1-02-g` lautete der Befund zweimal hintereinander „das Verhalten war bereits

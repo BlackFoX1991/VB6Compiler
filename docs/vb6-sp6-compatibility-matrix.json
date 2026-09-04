@@ -1617,7 +1617,7 @@
     },
     {
       "id": "l1-04-l-activex-persistence-propertypages",
-      "implementation": "planned",
+      "implementation": "partial",
       "matrixEntry": "activex-stock-and-generic-host",
       "input": "Generic ActiveX persistence, Property Pages and connection points",
       "expected": {
@@ -1626,9 +1626,12 @@
         "connections": "connection points attach, detach and dispatch events deterministically",
         "errors": "unsupported persistence interfaces remain explicit"
       },
-      "verification": "not-yet-verified",
+      "notes": "Persistence and connection points are implemented; property pages are not. The property-bag half is measured against registered 32-bit stock controls under VB6_REQUIRE_NATIVE_OCX, not against a VB6 SP6 oracle.",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/ComPersistenceRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/DesignerEnvelopeLoweringTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ]
     },
