@@ -6959,3 +6959,47 @@ Wachstumszeile) und die eine benannte Architekturfrage — die deterministische 
 
 Kanonischer Nachweis: **1666/1666** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## `Class_Terminate` läuft überhaupt
+
+Die Roadmap führte die deterministische Lebensdauer als Architekturfrage: `Class_Terminate` hänge
+am Finalizer und laufe deshalb nach der Uhr des Sammlers statt nach der letzten Referenz. Das
+Wegwerfprogramm vor der Arbeit sagte etwas anderes — es lief **gar nicht**. Nicht bei
+`Set x = Nothing`, nicht beim Verlassen des Gültigkeitsbereichs, nicht beim Überschreiben und auch
+nicht beim Programmende:
+
+```
+nach Set Nothing
+nach Fall2
+nach Ueberschreiben
+Ende
+```
+
+Vier Objekte mit Terminator, vier Ausgaben, keine davon aus einem Terminator. Der Grund ist keine
+Compilerlücke, sondern eine Eigenschaft der Plattform: Die CLR führt beim Prozessende **keine**
+ausstehenden Finalizer aus. Ein Programm, dessen Aufräumcode in `Class_Terminate` steht — das ist
+in VB6 der übliche Ort —, hat ihn nie ausgeführt. Der bestehende Test sicherte nur, dass der
+Finalizer *emittiert* wird; seine Beschreibung „Terminate läuft, nur nach der Uhr des Sammlers"
+war die Herleitung, nicht die Messung.
+
+`VBObjectLifetime` schließt jetzt den Unterschied zwischen „zu spät" und „nie". Eine Klasse mit
+Terminator meldet sich im Konstruktor in einem **schwachen** Register an; beim Herunterfahren wird
+es entleert, jüngstes zuerst, weil Verschachtelung meist der Erzeugungsreihenfolge folgt. Finalizer
+und Entleerung laufen durch dieselbe Schleuse, damit ein Terminator genau einmal läuft. Die
+Anmeldung steht **nach** `Class_Initialize`: Ein Objekt, dessen Initialisierer einen Fehler
+auslöst, gilt in VB6 als nie erzeugt und bekommt kein Terminate.
+
+Was hier ausdrücklich **nicht** zugesagt wird, ist der Zeitpunkt. VB6 zählt Referenzen und beendet
+in dem Moment, in dem die letzte geht. Das nachzubauen hieße, jede Objektzuweisung zu zählen — das
+IR hat mit `IrStoreInstruction` zwar genau einen Engpass dafür, aber Rückgabewerte und Temporaries
+brauchten dann eine Ownership-Analyse. Eine halbe Referenzzählung löst Terminate auf einem
+lebenden Objekt aus, und das ist schlimmer als zu spät. Die Frage bleibt offen und steht als
+solche in der Roadmap.
+
+Eine Falle am Rand, die dieselbe Klasse von Fehler ist wie der Befund selbst: Der Terminator heißt
+emittiert `__vb6_Class_Terminate`, nicht `Class_Terminate`. Die erste Fassung suchte den ungemangelten
+Namen, fand nichts und **schwieg** — dieselbe Stille, gegen die die Karte antritt. `ObjectLifetimeTests`
+hält den emittierten Namen jetzt fest.
+
+Kanonischer Nachweis: **1674/1674** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

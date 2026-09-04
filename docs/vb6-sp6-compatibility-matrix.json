@@ -1046,7 +1046,7 @@
       "input": "Let/Set assignment, As New activation, Collection members, Implements contracts, Events and WithEvents handlers",
       "expected": {
         "assignment": "Let and Set choose value versus object assignment and honor default members",
-        "lifecycle": "As New creates lazily and class initialization/termination order is deterministic",
+        "lifecycle": "As New creates lazily, Class_Initialize runs in a deterministic order, and Class_Terminate is guaranteed to run",
         "contracts": "Implements and WithEvents enforce declared members and event hookup"
       },
       "verification": "documented-verified",
@@ -1055,9 +1055,11 @@
         "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs",
         "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
         "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs",
-        "tests/VB6.Compiler.Tests/WithEventsExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/WithEventsExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs"
       ],
-      "notes": "Let and Set choose value versus object assignment and honour default members, As New creates on first use with a deterministic Initialize/Terminate order, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before."
+      "notes": "Let and Set choose value versus object assignment and honour default members, As New creates on first use, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before. Class_Terminate is guaranteed to run: it used to hang on a finalizer alone, and since the CLR runs no pending finalizers at process exit, a measurement found it never ran at all -- not on Set x = Nothing, not at scope exit, not at program end. A weak register drains it at shutdown, newest first, and an object whose Class_Initialize failed is not registered because VB6 gives it no Terminate either. The timing is deliberately not claimed to match VB6: that needs a reference count, and half a reference count would fire Terminate on a live object."
     },
     {
       "id": "l1-02-j-nested-error-resume",
