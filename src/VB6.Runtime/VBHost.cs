@@ -244,6 +244,18 @@ public interface IVB6Host
     }
 
     /// <summary>
+    /// Marks the start of the designer envelope of a Form/UserControl. VB6 lays a form out before
+    /// the program runs and raises no event while doing so; a host that raises one anyway calls a
+    /// handler that reaches for controls the envelope has not created yet.
+    ///
+    /// Explicit rather than implied by the first control: a host consumer that creates controls
+    /// on its own never opens an envelope, and would otherwise never see an event again.
+    /// </summary>
+    void BeginDesignerInitialization(object target)
+    {
+    }
+
+    /// <summary>
     /// Marks the end of the designer envelope of a Form/UserControl: every control exists and has
     /// received the properties the designer wrote. VB6 hands an ActiveX control its persisted state
     /// as a whole at this point rather than property by property, and a control that keeps its

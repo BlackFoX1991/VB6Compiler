@@ -30,6 +30,13 @@ public static class WinFormsApplicationHost
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+
+        // VB6 does not offer to continue after an unhandled error -- it reports and ends. The
+        // WinForms default catches the exception on the UI thread and shows a dialog with a
+        // "Continue" button, which invents a choice VB6 never gives and hides the diagnosis behind
+        // a "Details" button. The mode can only be set before the first control exists, which is
+        // why it belongs to application startup and not to the message loop.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         _previousHost = VBInteraction.Host;
         var compatibilityProfile = VBCompatibilityProfileAttribute.FromAssembly(
             Assembly.GetEntryAssembly());

@@ -6628,3 +6628,50 @@ minimalen Programm hat ihn entlarvt, bevor daraus eine Karte wurde.
 Kanonischer Nachweis: **1562/1562** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **73/73**. Zusätzlich: `Visia.exe` startet und zeigt sein
 Splashfenster.
+
+## Der Korpus zeigt jetzt seine Oberfläche (04.09.2026)
+
+Nachdem `Visia.exe` das erste Mal startete, blieb es dauerhaft auf dem Splashfenster stehen. Die
+Kette dahinter hatte fünf Glieder, und jedes einzelne war ein eigener Defekt.
+
+**1. Der Timer feuerte nie.** `TimerControl` startete mit `Enabled = false`; in VB6 ist die Vorgabe
+**True**, und eine `.frm` schreibt oft nur `Interval`. Dazu kommt: `Interval = 0` heißt in VB6
+„feuert nicht", während ein WinForms-Timer keine 0 annimmt. Der VB6-Zustand wird deshalb getrennt
+gehalten und beim Ändern beider Werte zusammengesetzt.
+
+**2. Das Programm endete beim Entladen der Startform.** `Application.Run(form)` bindet die
+Nachrichtenschleife an *diese* Form. VB6 endet, wenn die **letzte** Form entladen ist. Die Schleife
+gehört jetzt einem `ApplicationContext`, der verlassen wird, sobald keine Bindung mehr steht — aus
+dem `Unload`-Pfad und aus `FormClosed` gleichermaßen.
+
+**3. Ein unbehandelter Fehler bot „Weiter" an.** Der WinForms-Standard fängt die Ausnahme auf dem
+UI-Thread ab und zeigt einen Dialog mit einer Wahl, die VB6 nie gibt — und versteckt die Diagnose
+hinter „Details". Die Anwendung meldet und endet jetzt, wie VB6 es tut.
+
+**4. Jeder Fehler verlor seine Herkunft.** Fünf Stellen taten `throw exception.InnerException`,
+was den Stack an Ort und Stelle neu beginnt. Ein Fehler aus der Nachrichtenschleife kam mit drei
+Rahmen an — der Brücke, ihrem Aufrufer und `Main` — und sagte nichts darüber, woher er stammte.
+Über `ExceptionDispatchInfo` bleibt der Ursprungsstack erhalten; erst damit war der nächste Punkt
+überhaupt auffindbar.
+
+**5. Die Default-Instanz einer Form fehlte.** `frmMain.Show` ist die übliche VB6-Art, ein zweites
+Fenster zu öffnen: Eine Form trägt `VB_PredeclaredId`, ihr Name *ist* eine Instanz. Diese Behandlung
+gab es nur für `.cls`-Klassen; die globale Variable einer Form blieb `Nothing`. Ein UserControl hat
+in VB6 keine Default-Instanz und bekommt hier auch keine.
+
+**6. Designer-Ereignisse feuerten während des Aufbaus.** Danach starb `frmMain` in
+`conInTab_Resize`: WinForms meldet `Resize`, sobald eine Größe zugewiesen wird, und der Handler griff
+auf ein `Line`-Control zu, das die Designer-Hülle zwei Zeilen weiter unten erst noch anlegen wollte.
+VB6 legt eine Form zuerst aus und lässt das Programm danach laufen. Die Hülle hat jetzt beide Enden
+als ausdrücklichen Vertrag — `BeginDesignerInitialization` und `CompleteDesignerInitialization` —,
+und dazwischen läuft kein Ereignis.
+
+Der erste Entwurf öffnete die Hülle **implizit** beim ersten `CreateControl`. Das riss sechs
+Hosttests: Wer Controls direkt anlegt, schließt nie und verlöre damit für immer jedes Ereignis.
+Beide Enden gehören dem erzeugten Programm.
+
+Ergebnis: `Visia.exe` startet, zeigt zwei Sekunden den Splash, übergibt an „Visia Compiler" und
+stellt dessen Oberfläche her — Menü, Project View, Properties, Toolbox.
+
+Kanonischer Nachweis: **1565/1565** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **75/75**.

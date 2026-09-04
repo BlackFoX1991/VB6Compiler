@@ -226,7 +226,17 @@ public sealed class VBProjectCompilation
                 : item.Name!;
             if (classTypes.TryGetValue(name, out var objectType))
             {
-                moduleVariableSymbols.TryAdd(name, new ModuleVariableSymbol(name, objectType));
+                // A Form carries VB_PredeclaredId, so its own name is a default instance that VB6
+                // creates on first use -- "frmMain.Show" is how nearly every VB6 program opens its
+                // second window. Without As New the global stayed Nothing, and the call died with
+                // "Object member access requires a non-empty object reference" in a WinForms
+                // exception dialog. A UserControl has no default instance in VB6 and gets none here.
+                moduleVariableSymbols.TryAdd(
+                    name,
+                    new ModuleVariableSymbol(name, objectType)
+                    {
+                        IsAsNew = item.Kind == VBProjectItemKind.Form
+                    });
             }
         }
 

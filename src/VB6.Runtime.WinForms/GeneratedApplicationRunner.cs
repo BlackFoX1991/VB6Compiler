@@ -117,7 +117,8 @@ public static class GeneratedApplicationRunner
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            throw exception.InnerException;
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
         finally
         {
