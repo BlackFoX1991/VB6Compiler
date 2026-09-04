@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.Loader;
 using System.Runtime.InteropServices;
 using System.Xml;
 using VB6.Emit.Managed;
@@ -111,8 +110,18 @@ internal static class ManagedComManifestWriter
     private static System.Collections.Immutable.ImmutableArray<ComClassIdentity> ReadComClasses(
         string assemblyPath)
     {
-        var context = new ManifestAssemblyLoadContext(assemblyPath);
-        try
+        // Metadata, never an execution load: a legacy .vbp defaults to x86 while vb6c runs as x64,
+        // and loading such an assembly for execution fails outright with "The assembly architecture
+        // is not compatible with the current process architecture". Every ActiveX DLL asking for a
+        // manifest died there, with an unhandled exception rather than a diagnostic.
+        var resolver = new PathAssemblyResolver(
+            Directory.EnumerateFiles(Path.GetDirectoryName(assemblyPath)!, "*.dll")
+                .Concat(Directory.EnumerateFiles(
+                    Path.GetDirectoryName(typeof(object).Assembly.Location)!,
+                    "*.dll"))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        using var context = new MetadataLoadContext(resolver);
         {
             var assembly = context.LoadFromAssemblyPath(assemblyPath);
             Type[] types;
@@ -137,28 +146,35 @@ internal static class ManagedComManifestWriter
                                         type.Namespace == "VB6.Generated")
                          .OrderBy(type => type.FullName, StringComparer.Ordinal))
             {
-                var comVisible = type.GetCustomAttribute<ComVisibleAttribute>();
-                if (comVisible?.Value != true)
+                // Attribute *data*, not attribute instances: a MetadataLoadContext never runs the
+                // assembly, so it cannot construct one.
+                var attributes = CustomAttributeData.GetCustomAttributes(type);
+                var comVisible = attributes.FirstOrDefault(attribute =>
+                    attribute.AttributeType.FullName == typeof(ComVisibleAttribute).FullName);
+                if (comVisible?.ConstructorArguments is not [{ Value: true }])
                 {
                     continue;
                 }
 
-                var guid = type.GetCustomAttribute<GuidAttribute>();
-                if (guid is null || !Guid.TryParse(guid.Value, out var classId))
+                var guid = attributes.FirstOrDefault(attribute =>
+                    attribute.AttributeType.FullName == typeof(GuidAttribute).FullName);
+                if (guid?.ConstructorArguments is not [{ Value: string guidText }] ||
+                    !Guid.TryParse(guidText, out var classId))
                 {
                     throw new ManagedArtifactException(
                         $"ComVisible class '{type.FullName}' does not have a valid GuidAttribute.");
                 }
 
-                var progId = type.GetCustomAttribute<ProgIdAttribute>()?.Value;
+                var progId = attributes
+                    .FirstOrDefault(attribute =>
+                        attribute.AttributeType.FullName == typeof(ProgIdAttribute).FullName)
+                    ?.ConstructorArguments is [{ Value: string progIdText }]
+                    ? progIdText
+                    : null;
                 identities.Add(new ComClassIdentity(classId, progId));
             }
 
             return identities.ToImmutable();
-        }
-        finally
-        {
-            context.Unload();
         }
     }
 
@@ -173,26 +189,4 @@ internal static class ManagedComManifestWriter
     }
 
     private sealed record ComClassIdentity(Guid ClassId, string? ProgId);
-
-    private sealed class ManifestAssemblyLoadContext : AssemblyLoadContext
-    {
-        private readonly string _directory;
-
-        public ManifestAssemblyLoadContext(string assemblyPath)
-            : base("VB6CompilerManifest-" + Guid.NewGuid().ToString("N"), isCollectible: true)
-        {
-            _directory = Path.GetDirectoryName(assemblyPath)!;
-        }
-
-        protected override Assembly? Load(AssemblyName assemblyName)
-        {
-            if (assemblyName.Name is null)
-            {
-                return null;
-            }
-
-            var candidate = Path.Combine(_directory, assemblyName.Name + ".dll");
-            return File.Exists(candidate) ? LoadFromAssemblyPath(candidate) : null;
-        }
-    }
 }

@@ -6734,3 +6734,31 @@ Matrix: **93 implemented, 13 partial, 12 planned**; 106/118 documented-verified.
 
 Kanonischer Nachweis: **1568/1568** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Auch der Manifest-Schreiber lud die Assembly (04.09.2026)
+
+Derselbe Defekt wie beim TypeLib-Schreiber, eine Datei weiter: `ManagedComManifestWriter` las die
+COM-Klassen ebenfalls über einen ausführenden Ladekontext, und `--com-manifest` auf einem
+Legacy-`.vbp` endete deshalb mit derselben unbehandelten `FileLoadException`. Beide lesen jetzt
+Metadaten; die eigenen `AssemblyLoadContext`-Klassen sind entfallen.
+
+Der Test dazu deckt genau die Architekturgrenze ab, an der beide scheiterten: eine ActiveX-DLL,
+ausdrücklich für **x86** emittiert, mit `.tlb` **und** Manifest. Das Manifest nennt dabei
+`processorArchitecture="x86"` — die Bitness folgt der Ausgabe, nicht dem Compilerprozess.
+
+Damit sind vier weitere Karten belegt und geschlossen:
+
+- `l1-03-m` — 25 Ausführungstests über Skalarbreiten, ANSI/BSTR-Grenzen mit Rückschreiben,
+  As-Any-Zeiger und UDT-Layout samt Vier-Byte-Packung.
+- `l1-03-n` — AddressOf liefert einen LongPtr mit passend erzeugter Delegatsignatur, und die
+  Callback-Registry hält ihn über den nativen Aufruf am Leben.
+- `l1-03-o` — neu gemessen: Die Variant-Zustandsmarker **Empty**, **Null** und **Nothing**
+  überstehen eine echte `MarshalAs(SafeArray, VT_VARIANT)`-Grenze als drei verschiedene Zustände,
+  statt zu einem „nichts" zu verschmelzen. Das war die einzige Zusage der Karte ohne Nachweis.
+- `l1-03-k` — Bounds, Rückschreiben und die VARTYPE-Zuordnung für Currency, LongPtr, Dispatch und
+  Unknown sind über die Dispatch- und Declare-Puffertests abgedeckt.
+
+Matrix: **97 implemented, 13 partial, 8 planned**; 110/118 documented-verified.
+
+Kanonischer Nachweis: **1570/1570** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

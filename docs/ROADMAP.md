@@ -55,8 +55,8 @@ Designer-Formulargröße, spät gebundene numerische Member, verschachtelte Hand
 `Resume`-Formen sowie `AscB`/`ChrB`/`CLngLng`/`Error`/`Tab`/`Spc`.
 
 **Kompatibilitätsmatrix** — `node -e "const d=require('./docs/vb6-sp6-compatibility-matrix.json'); console.log(d.expectations.length)"`:
-**118 Erwartungen**, davon **93 implemented**, **13 partial** und **12 planned**;
-**106/118 documented-verified** (Stand 2026-09-04).
+**118 Erwartungen**, davon **97 implemented**, **13 partial** und **8 planned**;
+**110/118 documented-verified** (Stand 2026-09-04).
 
 Ein Breitendurchgang am 2026-08-30 hat elf Defekte gemessen, die kein Unittest sah; die noch
 offenen Punkte daraus sind unten in den Etappen B und C als eigene Zeilen geführt. Das
