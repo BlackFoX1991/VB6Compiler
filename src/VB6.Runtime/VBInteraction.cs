@@ -220,6 +220,48 @@ public static class VBInteraction
     }
 
     /// <summary>
+    /// Activates a registered coclass by class id, as VB6 does for New on an imported class. The
+    /// ProgID path below cannot serve this: a coclass need not have one, and the type library
+    /// names the class by GUID.
+    /// </summary>
+    public static object CreateComInstance(string classId, string typeName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(classId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            VBErrors.Raise(429, typeName, $"ActiveX component cannot create object: {typeName}", string.Empty, 0);
+            return new VBComObject(typeName, string.Empty);
+        }
+
+        var comType = Type.GetTypeFromCLSID(Guid.Parse(classId), throwOnError: false);
+        object? instance = null;
+        try
+        {
+            instance = comType is null ? null : Activator.CreateInstance(comType);
+        }
+        catch (COMException)
+        {
+            instance = null;
+        }
+        catch (TargetInvocationException)
+        {
+            instance = null;
+        }
+
+        if (instance is null)
+        {
+            // VB6 reports 429 when the component cannot be created -- a registration that is
+            // missing, or in the other process architecture. Answering a placeholder instead would
+            // move the failure to the first member access and hide its cause.
+            VBErrors.Raise(429, typeName, $"ActiveX component cannot create object: {typeName}", string.Empty, 0);
+        }
+
+        return instance!;
+    }
+
+    /// <summary>
     /// Creates a COM object through the host hook or Windows ProgID activation. Unknown ProgIDs
     /// remain a deterministic placeholder so headless compiler tests do not require a COM server.
     /// </summary>

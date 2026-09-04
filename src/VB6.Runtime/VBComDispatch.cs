@@ -532,7 +532,7 @@ internal static class VBComDispatch
     private static object? UnwrapComValue(object? value) =>
         value is IVBComObjectProvider provider && provider.ComObject is { } comObject
             ? comObject
-            : value;
+            : VBComValue.ToAutomation(value);
 
     [SupportedOSPlatform("windows")]
     private static ushort?[]? TryGetByValArrayArgumentTypes(

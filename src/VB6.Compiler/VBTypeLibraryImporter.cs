@@ -136,6 +136,16 @@ internal static class VBTypeLibraryImporter
                     imported.MarkAsControlContract();
                 }
 
+                // New on an imported coclass activates the registered class. Without the id the
+                // backend had nothing to build and reported VB6E0001 -- which made every
+                // "New Scripting.Dictionary" a compile failure. Only a creatable coclass gets it;
+                // an interface or a non-creatable one has nothing for New to do.
+                if (record.Kind == TYPEKIND.TKIND_COCLASS &&
+                    (record.Attribute.wTypeFlags & TYPEFLAGS.TYPEFLAG_FCANCREATE) != 0)
+                {
+                    imported.SetComClassId(record.Attribute.guid);
+                }
+
                 symbol = imported;
             }
 
