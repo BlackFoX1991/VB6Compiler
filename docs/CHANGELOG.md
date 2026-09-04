@@ -6697,3 +6697,40 @@ Matrix: **91 implemented, 13 partial, 14 planned**; 104/118 documented-verified.
 
 Kanonischer Nachweis: **1567/1567** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## Jede ActiveX-DLL mit COM-Hosting riss den Compiler ab (04.09.2026)
+
+Beim Schließen der MSBuild-Karten fiel auf, dass die erzeugte `.tlb` nicht im Zielgraphen steht:
+`Clean` ließ sie liegen, und ein früh gebundener Client band danach weiter gegen eine veraltete
+Bibliothek. Der Test dafür deckte etwas Schwereres auf.
+
+```
+vb6c ComSdk.vbp --emit-assembly out\ComSdk.dll --com-host
+-> Unhandled exception. System.IO.FileLoadException:
+   The assembly architecture is not compatible with the current process architecture.
+```
+
+`ManagedTypeLibraryWriter` **lud** die eben emittierte Assembly, um ihre COM-Klassen zu lesen. Ein
+Legacy-`.vbp` defaultet auf x86, `vb6c` läuft als x64 — der Ladevorgang scheitert grundsätzlich.
+**Jede** VB6-ActiveX-DLL mit COM-Hosting endete so, mit einer unbehandelten Ausnahme statt einer
+Diagnose. Der bestehende Test emittierte offenbar nie mit `--com-host` aus einem `.vbp`.
+
+Gelesen wird jetzt über einen `MetadataLoadContext`: Metadaten statt Ausführung, unabhängig von der
+Architektur. Das erledigt nebenbei den Grund für den bisherigen Umweg — die Datei wurde vorher in
+ein `%TEMP%`-Verzeichnis kopiert, weil ein ausführender Ladekontext sie bis zur nächsten
+Speicherbereinigung gesperrt hält. Die Kopie und der eigene `AssemblyLoadContext` sind entfallen.
+Attribute werden dabei als `CustomAttributeData` gelesen, denn ein Kontext, der nichts ausführt,
+kann kein Attributobjekt bauen.
+
+Gegenprobe an der erzeugten Datei: `LoadTypeLibEx` meldet `S_OK`, die Bibliothek heißt `ComSdk` und
+trägt das Dispinterface `_Rechner` mit `Verdopple` und die Coklasse `Rechner` — inhaltlich dasselbe
+wie über den Reflexionsweg vorher.
+
+Damit stehen `l1-04-p` und `l1-04-q` auf `implemented`: Inkrementalität, Clean, Rebuild,
+Ausgabenabgleich und die `.tlb` laufen gegen echte `dotnet msbuild`-Aufrufe des gepackten SDK, und
+`DesignTimeBuild` wertet aus, ohne zu emittieren.
+
+Matrix: **93 implemented, 13 partial, 12 planned**; 106/118 documented-verified.
+
+Kanonischer Nachweis: **1568/1568** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

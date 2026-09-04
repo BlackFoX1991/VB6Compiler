@@ -19,6 +19,12 @@
     <VB6CompilerComHostOutput Condition="('$(VB6EnableComHosting)' == 'true' or '$(VB6EnableComManifest)' == 'true') and '$(VB6CompilerOutputFullPath)' != ''">$(VB6CompilerOutputDirectory)\$([System.IO.Path]::GetFileNameWithoutExtension('$(VB6CompilerOutputFullPath)')).comhost.dll</VB6CompilerComHostOutput>
     <VB6CompilerComHostArgument Condition="'$(VB6EnableComHosting)' == 'true'"> --com-host</VB6CompilerComHostArgument>
     <VB6CompilerComManifestOutput Condition="'$(VB6EnableComManifest)' == 'true' and '$(VB6CompilerOutputFullPath)' != ''">$(VB6CompilerOutputDirectory)\$([System.IO.Path]::GetFileNameWithoutExtension('$(VB6CompilerOutputFullPath)')).manifest</VB6CompilerComManifestOutput>
+    <!--
+      COM hosting writes a real .tlb next to the assembly, named after it. It belongs to the target
+      graph like every other generated output: it has to be reported, removed by Clean and recreated
+      by Rebuild, or an early-bound client keeps binding against a stale library.
+    -->
+    <VB6CompilerTypeLibraryOutput Condition="'$(VB6EnableComHosting)' == 'true' and '$(VB6CompilerOutputFullPath)' != ''">$([System.IO.Path]::ChangeExtension('$(VB6CompilerOutputFullPath)', 'tlb'))</VB6CompilerTypeLibraryOutput>
     <VB6CompilerComManifestArgument Condition="'$(VB6EnableComManifest)' == 'true'"> --com-manifest</VB6CompilerComManifestArgument>
     <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == '' and '$(TargetDir)' != ''">$(TargetDir)</VB6CompilerGroupOutputDirectory>
     <VB6CompilerGroupOutputDirectory Condition="'$(VB6CompilerGroupOutputDirectory)' == '' and '$(OutputPath)' != ''">$(MSBuildProjectDirectory)\$(OutputPath)</VB6CompilerGroupOutputDirectory>
@@ -116,6 +122,7 @@
       <VB6ProjectOutput Include="$(VB6CompilerRuntimeOutput)" Condition="'$(VB6CompilerRuntimeOutput)' != ''" />
       <VB6ProjectOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
       <VB6ProjectOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
+      <VB6ProjectOutput Include="$(VB6CompilerTypeLibraryOutput)" Condition="'$(VB6CompilerTypeLibraryOutput)' != ''" />
     </ItemGroup>
   </Target>
 
@@ -184,6 +191,7 @@
       <_VB6CompilerGeneratedOutput Include="$(VB6CompilerRuntimeOutput)" Condition="'$(VB6CompilerRuntimeOutput)' != ''" />
       <_VB6CompilerGeneratedOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
       <_VB6CompilerGeneratedOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
+      <_VB6CompilerGeneratedOutput Include="$(VB6CompilerTypeLibraryOutput)" Condition="'$(VB6CompilerTypeLibraryOutput)' != ''" />
     </ItemGroup>
     <ItemGroup>
       <_VB6CompilerStaleOutput Include="@(_VB6CompilerPreviousOutput)" />
@@ -253,6 +261,7 @@
       <_VB6CompilerCleanOutput Include="$(VB6CompilerRuntimeOutput)" Condition="'$(VB6CompilerRuntimeOutput)' != ''" />
       <_VB6CompilerCleanOutput Include="$(VB6CompilerComHostOutput)" Condition="'$(VB6CompilerComHostOutput)' != ''" />
       <_VB6CompilerCleanOutput Include="$(VB6CompilerComManifestOutput)" Condition="'$(VB6CompilerComManifestOutput)' != ''" />
+      <_VB6CompilerCleanOutput Include="$(VB6CompilerTypeLibraryOutput)" Condition="'$(VB6CompilerTypeLibraryOutput)' != ''" />
     </ItemGroup>
     <Delete
       Files="@(_VB6CompilerCleanOutput);$(VB6CompilerStamp);$(VB6CompilerManifest);$(VB6CompilerInputManifest)"
