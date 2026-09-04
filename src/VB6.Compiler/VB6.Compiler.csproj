@@ -1,5 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <!--
+      Reads an emitted assembly as metadata instead of loading it for execution. A legacy .vbp
+      defaults to x86 while vb6c runs as x64, and an execution load fails outright with "The
+      assembly architecture is not compatible with the current process architecture" - every
+      ActiveX DLL built with COM hosting died there.
+    -->
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../VB6.Emit.Managed/VB6.Emit.Managed.csproj" />
     <ProjectReference Include="../VB6.IR/VB6.IR.csproj" />
     <ProjectReference Include="../VB6.Parser/VB6.Parser.csproj" />

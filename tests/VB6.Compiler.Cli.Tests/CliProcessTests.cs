@@ -1723,6 +1723,102 @@ public sealed class CliProcessTests
         return peReader.PEHeaders.CorHeader is null;
     }
 
+    [TestMethod]
+    public void MsBuildSdk_TracksTheGeneratedTypeLibraryAsAProjectOutput()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("COM hosting and the type library are a Windows contract.");
+            return;
+        }
+
+        var directory = CreateTemporaryDirectory();
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+
+            // Eine ActiveX-DLL mit COM-Hosting: der Compiler schreibt dafuer eine echte .tlb neben
+            // die Assembly. Sie stand nicht im Zielgraphen -- Clean liess sie liegen, und ein
+            // frueh gebundener Client band danach weiter gegen eine veraltete Bibliothek.
+            File.WriteAllText(
+                Path.Combine(directory, "ComSdk.vbp"),
+                "Type=OleDll\nName=\"ComSdk\"\nClass=Rechner; Rechner.cls\n");
+            File.WriteAllText(Path.Combine(directory, "Rechner.cls"), """
+                VERSION 1.0 CLASS
+                Attribute VB_Name = "Rechner"
+                Attribute VB_Creatable = True
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Public Function Verdopple(ByVal wert As Long) As Long
+                    Verdopple = wert * 2
+                End Function
+                """);
+
+            var packageDirectory = Path.Combine(directory, "packages");
+            var packageCache = Path.Combine(directory, "nuget");
+            var repositoryRoot = FindRepositoryRoot();
+            const string packageVersion = "1.0.0-typelib-output-test";
+            var packResult = RunDotNet(
+                "pack",
+                Path.Combine(repositoryRoot, "src", "VB6.Compiler.Sdk", "VB6.Compiler.Sdk.csproj"),
+                "-c",
+                "Release",
+                "--no-build",
+                "--no-restore",
+                "--nologo",
+                "-p:PackageVersion=" + packageVersion,
+                "-p:PackageOutputPath=" + packageDirectory);
+            Assert.AreEqual(0, packResult.ExitCode, packResult.StandardError + packResult.StandardOutput);
+            File.WriteAllText(Path.Combine(directory, "NuGet.config"), $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <configuration>
+                  <packageSources>
+                    <clear />
+                    <add key="local" value="{packageDirectory}" />
+                  </packageSources>
+                </configuration>
+                """);
+
+            var projectPath = Path.Combine(directory, "ComSdk.csproj");
+            var outputPath = Path.Combine(directory, "bin", "Release", "legacy", "ComSdk.dll");
+            var typeLibraryPath = Path.ChangeExtension(outputPath, ".tlb");
+            File.WriteAllText(projectPath, $"""
+                <Project Sdk="VB6.Compiler.Sdk/{packageVersion}" DefaultTargets="Build">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Configuration>Release</Configuration>
+                    <OutputPath>bin\Release\</OutputPath>
+                    <VB6Project>{Path.Combine(directory, "ComSdk.vbp")}</VB6Project>
+                    <VB6CompilerPath>{Path.Combine(AppContext.BaseDirectory, "vb6c.exe")}</VB6CompilerPath>
+                    <VB6CompilerOutput>{outputPath}</VB6CompilerOutput>
+                    <VB6EnableComHosting>true</VB6EnableComHosting>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var build = RunMsBuild(projectPath, restore: true, nugetPackages: packageCache);
+            Assert.AreEqual(0, build.ExitCode, build.StandardError + build.StandardOutput);
+            Assert.IsTrue(File.Exists(outputPath), build.StandardOutput);
+            Assert.IsTrue(File.Exists(typeLibraryPath), "Die .tlb wird beim Bauen erzeugt.");
+
+            var clean = RunMsBuild(projectPath, target: "Clean", nugetPackages: packageCache);
+            Assert.AreEqual(0, clean.ExitCode, clean.StandardError + clean.StandardOutput);
+            Assert.IsFalse(File.Exists(outputPath));
+            Assert.IsFalse(File.Exists(typeLibraryPath), "Clean entfernt die .tlb mit.");
+
+            var rebuild = RunMsBuild(projectPath, target: "Rebuild", nugetPackages: packageCache);
+            Assert.AreEqual(0, rebuild.ExitCode, rebuild.StandardError + rebuild.StandardOutput);
+            Assert.IsTrue(File.Exists(outputPath));
+            Assert.IsTrue(File.Exists(typeLibraryPath), "Rebuild stellt die .tlb wieder her.");
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static void WriteExecutableProject(string directory, string name)
     {
         File.WriteAllText(

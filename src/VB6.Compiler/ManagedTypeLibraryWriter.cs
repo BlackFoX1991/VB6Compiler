@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
@@ -201,32 +202,34 @@ internal static class ManagedTypeLibraryWriter
     }
 
     /// <summary>
-    /// Reads the COM surface of the emitted assembly -- from a **copy**. Loading the file itself
-    /// would keep it locked well past this method: an unloadable load context releases its file
-    /// only once the collector gets to it, and until then the caller cannot move, replace or
-    /// delete its own build output.
+    /// Reads the COM surface of the emitted assembly as **metadata**, never by loading it for
+    /// execution. Two reasons, and the second is fatal on its own: an execution load keeps the file
+    /// locked past this method, so the caller cannot replace its own build output; and a legacy
+    /// <c>.vbp</c> defaults to x86 while <c>vb6c</c> runs as x64, which makes such a load fail
+    /// outright with "The assembly architecture is not compatible with the current process
+    /// architecture". Every ActiveX DLL built with COM hosting died there, with an unhandled
+    /// exception rather than a diagnostic.
     /// </summary>
     private static List<ComClass> ReadComClasses(string assemblyPath)
     {
-        var scratch = Path.Combine(
-            Path.GetTempPath(),
-            "VB6Compiler-typelib-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(scratch);
-        var inspectionPath = Path.Combine(scratch, Path.GetFileName(assemblyPath));
-        File.Copy(assemblyPath, inspectionPath);
+        var resolver = new PathAssemblyResolver(
+            Directory.EnumerateFiles(Path.GetDirectoryName(assemblyPath)!, "*.dll")
+                .Concat(Directory.EnumerateFiles(
+                    Path.GetDirectoryName(typeof(object).Assembly.Location)!,
+                    "*.dll"))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
 
-        var context = new TypeLibraryAssemblyLoadContext(inspectionPath);
-        try
+        using var context = new MetadataLoadContext(resolver);
         {
-            var assembly = context.LoadFromAssemblyPath(inspectionPath);
+            var assembly = context.LoadFromAssemblyPath(assemblyPath);
             var classes = new List<ComClass>();
             foreach (var type in assembly.GetTypes()
                          .Where(type => type.IsClass && !type.IsAbstract && type.Namespace == "VB6.Generated")
                          .OrderBy(type => type.FullName, StringComparer.Ordinal))
             {
-                if (type.GetCustomAttribute<ComVisibleAttribute>()?.Value != true ||
-                    type.GetCustomAttribute<GuidAttribute>() is not { } guid ||
-                    !Guid.TryParse(guid.Value, out var classId))
+                // Metadata, not instantiated attributes: a MetadataLoadContext never runs the
+                // assembly, so an attribute object cannot be constructed from it.
+                if (!TryReadComIdentity(type, out var classId))
                 {
                     continue;
                 }
@@ -275,23 +278,28 @@ internal static class ManagedTypeLibraryWriter
 
             return classes;
         }
-        finally
-        {
-            context.Unload();
+    }
 
-            // The copy stays locked for the same reason; it is a temporary file, so leaving it
-            // behind is harmless where leaving the build output locked is not.
-            try
-            {
-                Directory.Delete(scratch, recursive: true);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
+    /// <summary>
+    /// Reads ComVisible and Guid from the type's metadata. <see cref="MetadataLoadContext"/> hands
+    /// out attribute *data*, never an attribute instance, because it never runs the assembly.
+    /// </summary>
+    private static bool TryReadComIdentity(Type type, out Guid classId)
+    {
+        classId = Guid.Empty;
+        var attributes = CustomAttributeData.GetCustomAttributes(type);
+
+        var comVisible = attributes.FirstOrDefault(attribute =>
+            attribute.AttributeType.FullName == typeof(ComVisibleAttribute).FullName);
+        if (comVisible?.ConstructorArguments is not [{ Value: true }])
+        {
+            return false;
         }
+
+        var guid = attributes.FirstOrDefault(attribute =>
+            attribute.AttributeType.FullName == typeof(GuidAttribute).FullName);
+        return guid?.ConstructorArguments is [{ Value: string text }] &&
+               Guid.TryParse(text, out classId);
     }
 
     /// <summary>

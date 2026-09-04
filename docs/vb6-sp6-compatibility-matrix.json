@@ -1691,7 +1691,7 @@
     },
     {
       "id": "l1-04-p-msbuild-incremental-clean-rebuild",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "msbuild-headless-sdk",
       "input": "MSBuild single-project and project-group targets with incremental manifests, Clean/Rebuild and TypeLib outputs",
       "expected": {
@@ -1700,15 +1700,16 @@
         "rebuild": "all configured outputs are recreated deterministically",
         "typelib": "TypeLib/COM outputs participate in the target graph"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
         "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs"
-      ]
+      ],
+      "notes": "Incremental builds, Clean, Rebuild and output reconciliation run against real dotnet msbuild invocations of the packed SDK, for a single .vbp and for a .vbg group. The generated .tlb now participates in that graph; it was missing from the outputs, so Clean left it behind and an early-bound client kept binding against a stale library."
     },
     {
       "id": "l1-04-q-msbuild-designtime-package-validation",
-      "implementation": "planned",
+      "implementation": "implemented",
       "matrixEntry": "msbuild-headless-sdk",
       "input": "DesignTimeBuild, NuGet packaging and declarative SDK validation without Visual Studio CPS",
       "expected": {
@@ -1717,11 +1718,12 @@
         "declarative": "invalid metadata fails with actionable MSBuild diagnostics",
         "cps": "no Visual-Studio-CPS dependency is required"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
-      ]
+      ],
+      "notes": "DesignTimeBuild evaluates and validates without emitting, the SDK is consumed from a packed NuGet package in every SDK test, a missing .vbp fails with an actionable MSBuild diagnostic, and nothing in the targets depends on Visual Studio CPS."
     },
     {
       "id": "l1-02-a-procedure-visibility",
