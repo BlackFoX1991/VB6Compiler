@@ -778,6 +778,7 @@ public enum IrRuntimeMethod
     CollectionCreate,
     CollectionEnumerateValues,
     ControlEnumerateValues,
+    ObjectEnumerateValues,
     CollectionCount,
     CollectionItem,
     CollectionAdd,

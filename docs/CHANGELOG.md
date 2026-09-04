@@ -6396,3 +6396,36 @@ Noch offen und gemeldet, nicht still: `For Each` über eine COM-Collection (`d.K
 
 Kanonischer Nachweis: **1553/1553** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **70/70**.
+
+## `For Each` über einen Variant oder ein COM-Objekt (04.09.2026)
+
+`For Each k In d.Keys` auf einem `Scripting.Dictionary` meldete `VB6S0055 – For Each collection type
+'Variant' is not an array or Collection in the current compiler subset`. Der Binder wollte die Art
+der Quelle zur Übersetzungszeit kennen. VB6 will das nicht: Ein Variant trägt, was er trägt — ein
+Array, eine `Collection` oder ein Objekt mit `_NewEnum` —, und VB6 fragt den Wert zur Laufzeit.
+
+Die Laufzeit konnte das längst. `VBInteraction.EnumerateControls` zählt eine COM-Collection über
+den RCW bereits auf, samt der Sonderbehandlung für IEnumVARIANT-Implementierungen mit einem
+überzähligen VT_EMPTY-Eintrag. Es fehlte nur der Weg dorthin — wieder der Fall „die Umsetzung ist
+weiter als ihre Absicherung".
+
+Der neue Weg hat trotzdem eine eigene Laufzeitfunktion bekommen, denn er braucht ein anderes
+Fehlerverhalten: Für die Controlsammlung ist eine leere Antwort ein zulässiges Ergebnis — headless
+gibt es keine Controls. Für einen Variant ist sie es nicht. `EnumerateObjectValues` meldet deshalb
+**438**, wenn der Wert keinen Enumerator hat, und **91** für `Nothing`.
+
+Gemessen (Array-Variant, Collection-Variant, `Dictionary.Keys`, `Dictionary` selbst über
+`_NewEnum`) — alle vier zählen jetzt auf.
+
+**Vorbestehender Befund, hier sichtbar geworden:** `On Error Resume Next` schützt den Kopf einer
+`For Each`-Schleife nicht. Das gilt für jede Kontrollflussanweisung — `If`, `For`, `While`,
+`Select Case`, `With` —, weil eine geschützte Region keinen Basisblock überqueren darf und der
+Lowerer sie deshalb ausnimmt (`CanProtectForErrorHandling`). Der Fehler erreicht den Handler erst
+über die aufrufende Anweisung. Der Test misst die Nummern deshalb aus einer gerufenen Prozedur
+heraus. Das ist eine offene Lücke, keine Entscheidung — sie steht jetzt in `CLAUDE.md`.
+
+Unverändert bleibt die Quelle vom Typ `Object`: Sie geht weiter den Controlsammlungs-Weg und
+antwortet leer statt mit 438. Ohne Orakel wird das nicht auf Verdacht umgestellt.
+
+Kanonischer Nachweis: **1556/1556** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **70/70**.

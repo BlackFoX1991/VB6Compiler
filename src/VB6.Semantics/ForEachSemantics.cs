@@ -12,5 +12,6 @@ public sealed record BoundForEachStatement(
     ArrayTypeSymbol ArrayType,
     bool IsCollection,
     bool IsHostCollection,
-    BoundBlockStatement Body)
+    BoundBlockStatement Body,
+    bool IsLateBoundEnumerable = false)
     : BoundStatement(BoundNodeKind.ForStatement);

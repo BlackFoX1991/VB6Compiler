@@ -1179,6 +1179,50 @@ public static class VBInteraction
         return result;
     }
 
+    /// <summary>
+    /// Enumerates whatever a Variant or a late-bound object turns out to hold: an array, a
+    /// Collection, or a COM object with _NewEnum. Unlike the control snapshot above, an empty
+    /// answer is not a legitimate outcome here -- a value with no enumerator is error 438, and a
+    /// Nothing is 91, exactly as VB6 answers them.
+    /// </summary>
+    public static VBArray<object> EnumerateObjectValues(object? target)
+    {
+        if (target is null || VBVariants.IsNothing(target))
+        {
+            VBErrors.Raise(91, "For Each", "Object variable or With block variable not set", string.Empty, 0);
+        }
+
+        switch (target)
+        {
+            case VBArray<object> variantArray:
+                return variantArray;
+            case VBCollection collection:
+                return VBCollection.EnumerateValues(collection);
+        }
+
+        var values = target is System.Collections.IEnumerable enumerable
+            ? EnumerateHostValues(enumerable, OperatingSystem.IsWindows() && Marshal.IsComObject(target))
+            : null;
+        if (values is null)
+        {
+            VBErrors.Raise(
+                438,
+                "For Each",
+                "Object does not support this property or method",
+                string.Empty,
+                0);
+            values = Array.Empty<object?>();
+        }
+
+        var result = new VBArray<object>(new VBArrayBound(0, values.Length - 1));
+        for (var index = 0; index < values.Length; index++)
+        {
+            result[index] = values[index]!;
+        }
+
+        return result;
+    }
+
     private static object?[] EnumerateHostValues(
         System.Collections.IEnumerable enumerable,
         bool isComCollection)
