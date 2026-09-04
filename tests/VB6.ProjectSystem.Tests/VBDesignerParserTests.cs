@@ -50,8 +50,11 @@ public sealed class VBDesignerParserTests
         var resource = button.Properties.Single(property => property.Name == "Picture");
         Assert.AreEqual(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(filePath)!, "Main.frx")), resource.ResourcePath);
         Assert.AreEqual(16, resource.ResourceOffset);
-        Assert.AreEqual(32, button.Properties.Single(property => property.Name == "ListImage1.Picture").ResourceOffset);
-        Assert.AreEqual("Folder", button.Properties.Single(property => property.Name == "ListImage1.Key").Value);
+        // Der ganze Gruppenpfad, nicht nur die innerste Gruppe. Vorher hiess der Eintrag
+        // "ListImage1.Picture" und verlor damit, zu welcher Sammlung er gehoert -- genau die
+        // Angabe, die ein Control braucht, um seinen verschachtelten Zustand zurueckzubekommen.
+        Assert.AreEqual(32, button.Properties.Single(property => property.Name == "Images.ListImage1.Picture").ResourceOffset);
+        Assert.AreEqual("Folder", button.Properties.Single(property => property.Name == "Images.ListImage1.Key").Value);
     }
 
     [TestMethod]

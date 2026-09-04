@@ -4489,19 +4489,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         string memberName,
         object? value)
     {
-        const string prefix = "ListImage";
-        var separator = memberName.IndexOf('.');
-        if (separator <= prefix.Length ||
-            !memberName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            !int.TryParse(memberName.AsSpan(prefix.Length, separator - prefix.Length), out var index) ||
-            index <= 0)
-        {
-            return false;
-        }
-
-        var propertyName = memberName[(separator + 1)..];
-        if (!propertyName.Equals("Picture", StringComparison.OrdinalIgnoreCase) &&
-            !propertyName.Equals("Key", StringComparison.OrdinalIgnoreCase))
+        if (!VBDesignerPropertyPath.TryReadListImageEntry(memberName, out var index, out var propertyName))
         {
             return false;
         }

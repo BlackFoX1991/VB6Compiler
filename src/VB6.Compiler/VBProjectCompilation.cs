@@ -801,17 +801,8 @@ public sealed class VBProjectCompilation
         name.Equals("ImageHeight", StringComparison.OrdinalIgnoreCase) ||
         IsImageListDesignerProperty(name);
 
-    private static bool IsImageListDesignerProperty(string name)
-    {
-        const string prefix = "ListImage";
-        var separator = name.IndexOf('.');
-        return separator > prefix.Length &&
-               name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-               int.TryParse(name.AsSpan(prefix.Length, separator - prefix.Length), out var index) &&
-               index > 0 &&
-               (name[(separator + 1)..].Equals("Picture", StringComparison.OrdinalIgnoreCase) ||
-                name[(separator + 1)..].Equals("Key", StringComparison.OrdinalIgnoreCase));
-    }
+    private static bool IsImageListDesignerProperty(string name) =>
+        VBDesignerPropertyPath.TryReadListImageEntry(name, out _, out _);
 
     /// <summary>Lowers every module of the project to the IR the managed backend emits from.</summary>
     public VBProjectLoweringResult Lower() => DirectManagedCompilation.Lower(this);
