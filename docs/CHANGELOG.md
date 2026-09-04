@@ -6675,3 +6675,25 @@ stellt dessen Oberfläche her — Menü, Project View, Properties, Toolbox.
 
 Kanonischer Nachweis: **1565/1565** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **75/75**.
+
+## Zeichenbreite und Beschneidung schließen die Zeichenkarten (04.09.2026)
+
+`l1-04-h` war vollständig da, nur nicht als erfüllt geführt: Alle sechzehn ROP2-Modi werden pro
+Farbkanal gegen eine Referenztabelle geprüft, auf dem aktiven Paint-Kontext **und** auf der
+persistenten AutoRedraw-Fläche, und `DrawMode = 17` meldet 380.
+
+`l1-04-f` hatte eine echte Lücke: **`DrawWidth` gab es im Host überhaupt nicht.** Beide Stifte
+standen fest auf einem Pixel, und das Setzen der Eigenschaft wurde nicht einmal beantwortet — ein
+Programm, das eine dicke Linie zeichnen wollte, bekam eine haarfeine, ohne Hinweis. Jetzt trägt der
+Zeichenzustand die Breite, `Line`, `Circle` und `PSet` benutzen sie, und ein Wert außerhalb
+1..32767 meldet 380 statt sich stillschweigend etwas Nahes auszusuchen. `PSet` setzt dabei wie in
+VB6 ein Quadrat von `DrawWidth` Pixeln um den Punkt.
+
+Die Zusage „clipping" war bereits erfüllt und ist jetzt gemessen: Eine Linie von -500 bis +500 auf
+einer 20-Pixel-Fläche wird beschnitten, ein Punkt weit außerhalb hinterlässt nichts und reißt
+nichts ab.
+
+Matrix: **91 implemented, 13 partial, 14 planned**; 104/118 documented-verified.
+
+Kanonischer Nachweis: **1567/1567** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.

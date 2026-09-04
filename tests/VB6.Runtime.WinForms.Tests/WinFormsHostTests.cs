@@ -3264,6 +3264,73 @@ public sealed class WinFormsHostTests
         host.Unload(owner);
     }
 
+    [STATestMethod]
+    public void HostDrawsWithTheConfiguredDrawWidth()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var pictureBox = (PictureBox)host.CreateControl(owner, "picCanvas", "PictureBox")!;
+        pictureBox.Size = new Size(40, 40);
+        Assert.IsTrue(host.TrySetMember(pictureBox, "AutoRedraw", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(pictureBox, "ScaleMode", Array.Empty<object?>(), 3));
+
+        // VB6 gibt DrawWidth mit 1 vor, und der Stift war hier fest auf einem Pixel -- ein
+        // Programm, das DrawWidth setzte, zeichnete trotzdem haarfein, und das Setzen selbst
+        // wurde nicht einmal beantwortet.
+        Assert.IsTrue(host.TryGetMember(pictureBox, "DrawWidth", Array.Empty<object?>(), out var width));
+        Assert.AreEqual(1, width);
+
+        Assert.IsTrue(host.TrySetMember(pictureBox, "DrawWidth", Array.Empty<object?>(), 5));
+        Assert.IsTrue(host.TryGetMember(pictureBox, "DrawWidth", Array.Empty<object?>(), out width));
+        Assert.AreEqual(5, width);
+
+        host.GraphicsPSet(pictureBox, new VBGraphicsPoint(20f, 20f, Color: 255, IsStep: false));
+
+        var surface = (Bitmap)pictureBox.Image!;
+
+        // Ein PSet mit DrawWidth 5 setzt ein Quadrat von fuenf Pixeln um den Punkt, nicht einen.
+        Assert.AreEqual(Color.FromArgb(255, 255, 0, 0).ToArgb(), surface.GetPixel(20, 20).ToArgb());
+        Assert.AreEqual(Color.FromArgb(255, 255, 0, 0).ToArgb(), surface.GetPixel(21, 21).ToArgb());
+        Assert.AreEqual(Color.FromArgb(255, 255, 0, 0).ToArgb(), surface.GetPixel(19, 19).ToArgb());
+
+        var error = Assert.ThrowsException<VB6RaisedError>(() =>
+            host.TrySetMember(pictureBox, "DrawWidth", Array.Empty<object?>(), 0));
+        Assert.AreEqual(380, error.Number, "VB6 meldet Invalid property value fuer DrawWidth 0.");
+
+        host.Unload(owner);
+    }
+
+    [STATestMethod]
+    public void HostClipsDrawingToTheTargetSurface()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+        var pictureBox = (PictureBox)host.CreateControl(owner, "picCanvas", "PictureBox")!;
+        pictureBox.Size = new Size(20, 20);
+        Assert.IsTrue(host.TrySetMember(pictureBox, "AutoRedraw", Array.Empty<object?>(), true));
+        Assert.IsTrue(host.TrySetMember(pictureBox, "ScaleMode", Array.Empty<object?>(), 3));
+
+        // Eine Linie, die weit ueber die Flaeche hinauslaeuft, wird beschnitten -- sie darf weder
+        // scheitern noch ausserhalb wirken. Das ist die Zusage "clipping" der Karte.
+        host.GraphicsLine(
+            pictureBox,
+            new VBGraphicsLine(-500f, 10f, 500f, 10f, IsStep: false, Color: 255, DrawBox: false, Fill: false));
+
+        var surface = (Bitmap)pictureBox.Image!;
+        Assert.AreEqual(20, surface.Width);
+        Assert.AreEqual(20, surface.Height);
+        Assert.AreEqual(Color.FromArgb(255, 255, 0, 0).ToArgb(), surface.GetPixel(0, 10).ToArgb());
+        Assert.AreEqual(Color.FromArgb(255, 255, 0, 0).ToArgb(), surface.GetPixel(19, 10).ToArgb());
+
+        // Ein Punkt weit ausserhalb hinterlaesst nichts und reisst nichts ab.
+        host.GraphicsPSet(pictureBox, new VBGraphicsPoint(400f, 400f, Color: 65280, IsStep: false));
+        Assert.AreEqual(20, surface.Width);
+
+        host.Unload(owner);
+    }
+
     /// <summary>Traegt den Namen, den der Emitter einer generierten Form gibt.</summary>
     private sealed class __vb6_class_frmProbe
     {

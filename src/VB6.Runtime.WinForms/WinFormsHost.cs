@@ -584,7 +584,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             using (var sourceGraphics = Graphics.FromImage(source))
             {
                 ConfigureRasterGraphics(sourceGraphics);
-                DrawGraphicsCircle(sourceGraphics, centerX, centerY, radiusX, radiusY, color, circle);
+                DrawGraphicsCircle(sourceGraphics, centerX, centerY, radiusX, radiusY, color, circle, state.DrawWidth);
             }
 
             ApplyRasterOperation(surface, source, state.DrawMode);
@@ -593,7 +593,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else
         {
             using var drawing = BeginDrawing(target);
-            DrawGraphicsCircle(drawing.Graphics, centerX, centerY, radiusX, radiusY, color, circle);
+            DrawGraphicsCircle(drawing.Graphics, centerX, centerY, radiusX, radiusY, color, circle, state.DrawWidth);
         }
 
         state.CurrentX = circle.IsStep ? state.CurrentX + circle.X : circle.X;
@@ -613,14 +613,15 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         float radiusX,
         float radiusY,
         Color color,
-        VBGraphicsCircle circle)
+        VBGraphicsCircle circle,
+        int drawWidth)
     {
         var bounds = new RectangleF(
             centerX - radiusX,
             centerY - radiusY,
             radiusX * 2f,
             radiusY * 2f);
-        using var pen = new Pen(color, 1f);
+        using var pen = new Pen(color, Math.Max(1, drawWidth));
 
         if (circle.Start is not { } start || circle.End is not { } end)
         {
@@ -705,7 +706,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             using (var sourceGraphics = Graphics.FromImage(source))
             {
                 ConfigureRasterGraphics(sourceGraphics);
-                DrawGraphicsPoint(sourceGraphics, x, y, color);
+                DrawGraphicsPoint(sourceGraphics, x, y, color, state.DrawWidth);
             }
 
             ApplyRasterOperation(surface, source, state.DrawMode);
@@ -714,7 +715,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else
         {
             using var drawing = BeginDrawing(target);
-            DrawGraphicsPoint(drawing.Graphics, x, y, color);
+            DrawGraphicsPoint(drawing.Graphics, x, y, color, state.DrawWidth);
         }
 
         // VB6 leaves the current drawing position on the pixel that was just set.
@@ -722,10 +723,13 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         state.CurrentY = point.IsStep ? state.CurrentY + point.Y : point.Y;
     }
 
-    private static void DrawGraphicsPoint(Graphics graphics, float x, float y, Color color)
+    private static void DrawGraphicsPoint(Graphics graphics, float x, float y, Color color, int drawWidth)
     {
+        // VB6 draws PSet as a square of DrawWidth pixels centred on the point.
         using var brush = new SolidBrush(color);
-        graphics.FillRectangle(brush, x, y, 1f, 1f);
+        var size = Math.Max(1, drawWidth);
+        var offset = (size - 1) / 2f;
+        graphics.FillRectangle(brush, x - offset, y - offset, size, size);
     }
 
     private void RenderGraphicsLine(Control target, VBGraphicsLine line)
@@ -758,7 +762,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
             using (var sourceGraphics = Graphics.FromImage(source))
             {
                 ConfigureRasterGraphics(sourceGraphics);
-                DrawGraphicsLine(sourceGraphics, startX, startY, endX, endY, color, line.DrawBox, line.Fill);
+                DrawGraphicsLine(sourceGraphics, startX, startY, endX, endY, color, line.DrawBox, line.Fill, state.DrawWidth);
             }
 
             ApplyRasterOperation(surface, source, state.DrawMode);
@@ -767,7 +771,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         using var drawing = BeginDrawing(target);
-        DrawGraphicsLine(drawing.Graphics, startX, startY, endX, endY, color, line.DrawBox, line.Fill);
+        DrawGraphicsLine(drawing.Graphics, startX, startY, endX, endY, color, line.DrawBox, line.Fill, state.DrawWidth);
     }
 
     private static void DrawGraphicsLine(
@@ -778,9 +782,10 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         float endY,
         Color color,
         bool drawBox,
-        bool fill)
+        bool fill,
+        int drawWidth)
     {
-        using var pen = new Pen(color, 1f);
+        using var pen = new Pen(color, Math.Max(1, drawWidth));
         if (drawBox)
         {
             var rectangle = RectangleF.FromLTRB(
@@ -2333,6 +2338,27 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
 
         return drawMode;
+    }
+
+    /// <summary>
+    /// VB6 accepts a DrawWidth of 1..32767 and rejects anything else with 380. The pen was fixed
+    /// at one pixel here, so a program that set DrawWidth drew a hairline anyway -- and setting it
+    /// was not even answered.
+    /// </summary>
+    private static int ValidateDrawWidth(object? value)
+    {
+        var drawWidth = VBConversions.CLng(value);
+        if (drawWidth is < 1 or > 32767)
+        {
+            VBErrors.Raise(
+                380,
+                "DrawWidth",
+                "Invalid property value",
+                string.Empty,
+                0);
+        }
+
+        return drawWidth;
     }
 
     private static (float X, float Y) GetScaleFactors(Control target, DesignerControlState state)
@@ -4245,6 +4271,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "CurrentX", StringComparison.OrdinalIgnoreCase)) value = state.CurrentX;
         else if (string.Equals(memberName, "CurrentY", StringComparison.OrdinalIgnoreCase)) value = state.CurrentY;
         else if (string.Equals(memberName, "DrawMode", StringComparison.OrdinalIgnoreCase)) value = state.DrawMode;
+        else if (string.Equals(memberName, "DrawWidth", StringComparison.OrdinalIgnoreCase)) value = state.DrawWidth;
         else
         {
             value = null;
@@ -4353,6 +4380,7 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         else if (string.Equals(memberName, "CurrentX", StringComparison.OrdinalIgnoreCase)) state.CurrentX = VBConversions.CSng(value);
         else if (string.Equals(memberName, "CurrentY", StringComparison.OrdinalIgnoreCase)) state.CurrentY = VBConversions.CSng(value);
         else if (string.Equals(memberName, "DrawMode", StringComparison.OrdinalIgnoreCase)) state.DrawMode = ValidateDrawMode(value);
+        else if (string.Equals(memberName, "DrawWidth", StringComparison.OrdinalIgnoreCase)) state.DrawWidth = ValidateDrawWidth(value);
         else return false;
 
         return true;
@@ -6063,6 +6091,12 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         public float CurrentY { get; set; }
 
         public int DrawMode { get; set; } = DrawModeCopyPen;
+
+        /// <summary>
+        /// The pen width in pixels for Line, Circle and PSet. VB6 defaults it to 1 and accepts
+        /// 1..32767; a value outside that is error 380, not a silently clamped one.
+        /// </summary>
+        public int DrawWidth { get; set; } = 1;
 
         public Bitmap? DrawingSurface { get; set; }
 
