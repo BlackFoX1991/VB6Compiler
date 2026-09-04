@@ -193,7 +193,7 @@ public static class VBFinancial
         return (bracketLower + bracketUpper) / 2d;
     }
 
-    public static double NPV(double rate, VBArray<object> values)
+    public static double NPV(double rate, VBArray<double> values)
     {
         ArgumentNullException.ThrowIfNull(values);
         if (double.IsNaN(rate) || double.IsInfinity(rate) || rate <= -1d)
@@ -215,7 +215,7 @@ public static class VBFinancial
         return result;
     }
 
-    public static double IRR(VBArray<object> values, double guess)
+    public static double IRR(VBArray<double> values, double guess)
     {
         ArgumentNullException.ThrowIfNull(values);
         var cashFlows = values.EnumerateValues()
@@ -293,7 +293,7 @@ public static class VBFinancial
         return (lower + upper) / 2d;
     }
 
-    public static double MIRR(VBArray<object> values, double financeRate, double reinvestRate)
+    public static double MIRR(VBArray<double> values, double financeRate, double reinvestRate)
     {
         ArgumentNullException.ThrowIfNull(values);
         ValidateDiscountRate(financeRate, nameof(financeRate), "MIRR FinanceRate");

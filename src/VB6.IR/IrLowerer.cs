@@ -4456,6 +4456,20 @@ public static class IrLowerer
                 return Runtime(IrRuntimeMethod.ObjectToVariant, TypeSymbol.Variant, operand);
             }
 
+            // Two arrays with different element types need a real element-by-element conversion.
+            // Dropping it here left the emitter pushing a VBArray<object> where a VBArray<double>
+            // was declared -- not a cast the CLR can make. Between reference element types the
+            // shared generic instantiation hid it; over a value type the callee read the wrong
+            // storage and answered with zeros, or took the process down outright.
+            if (conversion.TargetType is ArrayTypeSymbol targetArray &&
+                (conversion.Expression.Type is ArrayTypeSymbol sourceArray
+                    ? sourceArray.ElementType != targetArray.ElementType
+                    : conversion.Expression.Type == TypeSymbol.Variant ||
+                      conversion.Expression.Type is ClassTypeSymbol))
+            {
+                return Runtime(IrRuntimeMethod.ArrayFromObject, targetArray, operand);
+            }
+
             var method = conversion.TargetType == TypeSymbol.Variant && conversion.Expression.Type == TypeSymbol.Date
                 ? IrRuntimeMethod.DateToVariant
                 : conversion.TargetType == TypeSymbol.Boolean && conversion.Expression.Type == TypeSymbol.Variant

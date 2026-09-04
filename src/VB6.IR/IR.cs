@@ -712,6 +712,7 @@ public enum IrRuntimeMethod
     InteractionDoEvents,
     InteractionMsgBox,
     InteractionInputBox,
+    ArrayFromObject,
     ObjectLifetimeRegister,
     ObjectLifetimeRunTerminator,
     InteractionStartWinForms,

@@ -54,7 +54,7 @@ public sealed class FinancialIntrinsicTests
     [TestMethod]
     public void NetPresentValueDiscountsParamArrayFromTheFirstPeriod()
     {
-        var values = new VBArray<object>(new VBArrayBound(0, 1));
+        var values = new VBArray<double>(new VBArrayBound(0, 1));
         values[0] = 100d;
         values[1] = 100d;
 
@@ -64,7 +64,7 @@ public sealed class FinancialIntrinsicTests
     [TestMethod]
     public void InternalRateOfReturnSolvesCashFlowRoot()
     {
-        var values = new VBArray<object>(new VBArrayBound(0, 2));
+        var values = new VBArray<double>(new VBArrayBound(0, 2));
         values[0] = -100d;
         values[1] = 60d;
         values[2] = 60d;
@@ -75,7 +75,7 @@ public sealed class FinancialIntrinsicTests
     [TestMethod]
     public void ModifiedInternalRateOfReturnUsesSeparateFinanceAndReinvestmentRates()
     {
-        var values = new VBArray<object>(new VBArrayBound(0, 2));
+        var values = new VBArray<double>(new VBArrayBound(0, 2));
         values[0] = -100d;
         values[1] = 60d;
         values[2] = 60d;
@@ -91,7 +91,7 @@ public sealed class FinancialIntrinsicTests
         Assert.ThrowsException<ArgumentOutOfRangeException>(() => VBFinancial.IPMT(0.1d, 0d, 12d, 1d, 0d, 0d));
         Assert.ThrowsException<DivideByZeroException>(() => VBFinancial.NPER(0d, 0d, 1d, 0d, 0d));
 
-        var oneSidedValues = new VBArray<object>(new VBArrayBound(0, 1));
+        var oneSidedValues = new VBArray<double>(new VBArrayBound(0, 1));
         oneSidedValues[0] = 100d;
         oneSidedValues[1] = 200d;
         Assert.ThrowsException<ArgumentException>(() => VBFinancial.MIRR(oneSidedValues, 0.1d, 0.1d));

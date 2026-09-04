@@ -315,23 +315,20 @@ internal static class VBIntrinsicSymbols
             "VBFinancial.NPV",
             TypeSymbol.Double,
             Parameter("Rate", TypeSymbol.Double),
-            new ParameterSymbol("Values", new ArrayTypeSymbol(TypeSymbol.Variant), ParameterPassingMode.ByVal)
-            {
-                IsParamArray = true
-            }),
+            Parameter("Values", new ArrayTypeSymbol(TypeSymbol.Double))),
         Function(
             "IRR",
             VBIntrinsicKind.IRR,
             "VBFinancial.IRR",
             TypeSymbol.Double,
-            Parameter("Values", new ArrayTypeSymbol(TypeSymbol.Variant)),
+            Parameter("Values", new ArrayTypeSymbol(TypeSymbol.Double)),
             OptionalParameter("Guess", TypeSymbol.Double, 0.1d)),
         Function(
             "MIRR",
             VBIntrinsicKind.MIRR,
             "VBFinancial.MIRR",
             TypeSymbol.Double,
-            Parameter("Values", new ArrayTypeSymbol(TypeSymbol.Variant)),
+            Parameter("Values", new ArrayTypeSymbol(TypeSymbol.Double)),
             Parameter("FinanceRate", TypeSymbol.Double),
             Parameter("ReinvestRate", TypeSymbol.Double)),
         Function(
