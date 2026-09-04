@@ -1162,6 +1162,11 @@ public static class VBInteraction
     /// </summary>
     public static VBArray<object> EnumerateControls(object? target)
     {
+        // Deliberately no 91 for a null target here, although For Each over an unset object
+        // answers 91 everywhere else in this runtime. EnumeratesHostObjectWithObjectControlVariable
+        // writes the silence down as a contract for the host-collection path, and an existing test
+        // that states a promise outranks a derivation. The inconsistency with the Variant-carrying-
+        // Nothing case is noted rather than resolved on suspicion -- there is no oracle for it.
         var isComCollection = target is not null && Marshal.IsComObject(target);
         var values = ControlEnumerationSink?.Invoke(target)?.ToArray() ??
             Host?.EnumerateControls(target)?.ToArray() ??

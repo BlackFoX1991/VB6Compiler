@@ -84,6 +84,37 @@ public sealed class ForEachObjectExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ReportsAnUnsetCollectionSourceAs91()
+    {
+        // Eine nie gesetzte Collection lieferte den Sammelwert 5 -- "nicht zugeordnet", der wie
+        // ein Ergebnis aussieht und keines ist. VB6 meldet dort 91 wie bei jedem anderen Zugriff
+        // auf ein nicht gesetztes Objekt.
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                Dim e As Variant
+                Dim c As Collection
+
+                Err.Clear
+                For Each e In c
+                    Debug.Print "nie"
+                Next
+                Debug.Print Err.Number
+
+                Set c = New Collection
+                c.Add 7
+                Err.Clear
+                For Each e In c
+                    Debug.Print e
+                Next
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "91", "7", "0" }, output, string.Join(" | ", output));
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_RoutesAForEachSourceErrorToAnOnErrorGoToHandler()
     {
         // Die GoTo-Form desselben Vertrags: der Fehler aus dem Schleifenkopf erreicht den Handler,
