@@ -109,8 +109,12 @@ public static class VBFunctions
     /// Der Emitter praefixt jeden erzeugten Typ ("__vb6_class_Box"), damit VB6-Namen im
     /// gemeinsamen Namensraum nicht kollidieren. TypeName muss den VB6-Namen zurueckgeben,
     /// sonst wird das Namensschema des Emitters zu beobachtbarem Programmverhalten.
+    ///
+    /// Oeffentlich, weil ein Host dieselbe Frage hat: Der Fenstertitel und der Form.Name einer
+    /// Form ohne Caption stammen von hier, und ohne diese Aufloesung stand im Titelbalken des
+    /// VISIA-Splashfensters "__vb6_class_frmSplash".
     /// </summary>
-    private static string Vb6TypeName(Type type)
+    public static string Vb6TypeName(Type type)
     {
         var name = type.Name;
         foreach (var prefix in EmittedTypePrefixes)

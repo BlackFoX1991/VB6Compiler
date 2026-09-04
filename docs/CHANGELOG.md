@@ -6604,3 +6604,27 @@ schon `TypeName(Controls)` tut es. Das ist eine Host-Frage, keine Schleifenfrage
 
 Kanonischer Nachweis: **1561/1561** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **72/72**.
+
+## Das emittierte VISIA läuft — und zeigte den falschen Fenstertitel (04.09.2026)
+
+Der Korpus wurde bisher analysiert und emittiert. Ob er **läuft**, stand nirgends. Er tut es: Der
+emittierte `Visia.exe` startet, hält die Nachrichtenschleife, legt neun Fenster an, zwei davon
+sichtbar, und schreibt nichts auf `stderr`.
+
+Im Titelbalken des Splashfensters stand dabei `__vb6_class_frmSplash`. `WinFormsHost` setzte
+`Name` und `Text` einer Form aus `target.GetType().Name` — also aus dem Namen, den der **Emitter**
+vergibt. `VBFunctions` trägt für genau diese Frage schon einen Helfer, samt Begründung im Kommentar:
+„sonst wird das Namensschema des Emitters zu beobachtbarem Programmverhalten". Der Host benutzte ihn
+nur nicht; er ist jetzt öffentlich und wird benutzt. Eine `.frm` ohne Caption — ein randloses
+Splashfenster etwa — zeigt damit `frmSplash`, wie in VB6.
+
+**Eine Fehlmessung auf dem Weg dorthin, der Vollständigkeit halber:** Zwischendurch schien jeder
+Fenstertitel auf ein einzelnes Zeichen verkürzt zu sein (`'H'` statt `'Hallo Welt'`). Das lag an
+meinem Messprogramm: `GetWindowTextW` ohne `CharSet.Unicode` marshallt den `StringBuilder` als ANSI,
+und aus einer UTF-16-Zeichenkette wird so das erste Zeichen. Mit korrektem Marshalling stimmten die
+Titel. Ein Messfehler sieht einem Compilerfehler zum Verwechseln ähnlich — die Gegenprobe mit einem
+minimalen Programm hat ihn entlarvt, bevor daraus eine Karte wurde.
+
+Kanonischer Nachweis: **1562/1562** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **73/73**. Zusätzlich: `Visia.exe` startet und zeigt sein
+Splashfenster.
