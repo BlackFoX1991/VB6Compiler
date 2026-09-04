@@ -671,7 +671,8 @@ public sealed class Binder
                             declarator.Identifier.Text,
                             type,
                             IsPublicModuleDeclaration(declaration.VisibilityKeyword),
-                            declarator.NewKeyword is not null && type is ClassTypeSymbol);
+                            declarator.NewKeyword is not null &&
+                                type is ClassTypeSymbol or ArrayTypeSymbol { ElementType: ClassTypeSymbol });
                         if (TryDeclareModuleVariable(scope, symbol, declarator.Identifier))
                         {
                             availableScope[symbol.Name] = symbol;
@@ -827,6 +828,15 @@ public sealed class Binder
 
     private TypeSymbol ValidateImplicitObjectType(VariableDeclaratorSyntax declarator, TypeSymbol type)
     {
+        // "Dim a(1 To 3) As New C" is an array of objects, each created on first use -- the
+        // As New applies to the element, not to the array. Checking the array type itself refused
+        // the declaration outright with VB6S0063.
+        if (declarator.NewKeyword is not null &&
+            type is ArrayTypeSymbol { ElementType: ClassTypeSymbol })
+        {
+            return type;
+        }
+
         if (declarator.NewKeyword is not null && type is not ClassTypeSymbol)
         {
             Report(
@@ -841,6 +851,8 @@ public sealed class Binder
     private static BoundExpression? BindImplicitObjectInitializer(
         VariableDeclaratorSyntax declarator,
         TypeSymbol type) =>
+        // An As New *array* gets no initializer: its elements are created one by one on first use,
+        // which is what the element read emits.
         declarator.NewKeyword is not null && type is ClassTypeSymbol classType
             ? new BoundNewExpression(classType)
             : null;
@@ -1219,7 +1231,10 @@ public sealed class Binder
             var type = ResolveVariableDeclaratorType(declarator);
             var variable = new LocalVariableSymbol(declarator.Identifier.Text, type)
             {
-                IsAsNew = declarator.NewKeyword is not null && type is ClassTypeSymbol
+                // An array declared As New is As New too -- its elements are the objects, and each
+                // is created on first use.
+                IsAsNew = declarator.NewKeyword is not null &&
+                    type is ClassTypeSymbol or ArrayTypeSymbol { ElementType: ClassTypeSymbol }
             };
             if (!TryDeclareInProcedureScope(variables, variable.Name, variable))
             {

@@ -333,8 +333,10 @@ Rückgabematrix bleibt in Etappe B/C offen.
       Rückgabewert.
 - [x] Der Zugriff auf ein **privates** Klassenfeld von aussen meldet `VB6S0074`. Das Feld bleibt
       in der Mitgliedsfläche, damit die Klasse es über `Me` weiter erreicht.
-- [~] `Dim x As New C` erzeugt verzögert bei der ersten Verwendung — lokal, als Modulvariable und
-      als Klassenfeld. `Class_Terminate` läuft über einen emittierten Finalizer und damit nach der
+- [~] `Dim x As New C` erzeugt verzögert bei der ersten Verwendung — lokal, als Modulvariable,
+      als Klassenfeld **und als Arrayelement**: `Dim a(1 To 3) As New C` gibt drei eigene Objekte,
+      jedes bei seiner ersten Berührung erzeugt. Vorher wies der Binder die Deklaration mit
+      `VB6S0063` ab, weil er `As New` gegen den Arraytyp statt gegen den Elementtyp prüfte. `Class_Terminate` läuft über einen emittierten Finalizer und damit nach der
       Uhr des Sammlers, nicht nach der letzten Referenz. Die deterministische Lebensdauer bleibt
       offen: Eine halbe Referenzzählung würde Terminate auf einem lebenden Objekt auslösen.
 - [x] Ein Mitgliedsaufruf auf einer nicht gesetzten Objektvariablen meldet **91**, früh wie
@@ -443,7 +445,9 @@ Rückgabematrix bleibt in Etappe B/C offen.
 - [~] Control-Arrays um Form-, Menü- und UserControl-Arrays sowie vollständiges dynamisches
       `Load`/`Unload` ergänzen.
       Stand: Intrinsische Control-Arrays und Menü-Arrays tragen `Load`/`Unload` mit den
-      dokumentierten Fehlern (`l1-04-e`). **Form-Arrays sind nicht abgedeckt.**
+      dokumentierten Fehlern (`l1-04-e`); ein Array von Formularen entsteht über
+      `Dim f(1 To n) As New frmX` und ist damit abgedeckt. Offen bleibt das **UserControl-Array
+      im Designer** — ein `.ctl`-Control mit `Index` in der `.frm` des Containers.
 - [~] Der `VB6Sp6`-Zeichenpfad verwendet GDI-basierte DC-/DIB-Flächen für `PSet`, `Point`, `Line`,
       `Circle`, `PaintPicture`, `Cls`, Zeichen-/Füllattribute, `Scale*`, `AutoRedraw` und alle
       16 `DrawMode`-/ROP2-Werte.

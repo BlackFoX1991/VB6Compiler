@@ -2840,12 +2840,7 @@ public static class IrLowerer
                     LowerExpression(typeOf.Expression),
                     typeOf.TargetType),
                 BoundVariableExpression variable => LowerVariableRead(variable.Variable),
-                BoundArrayAccessExpression array => LowerFixedStringRead(
-                    array.ElementType,
-                    new IrLoadExpression(new IrArrayElementPlace(
-                        new IrLoadExpression(LowerVariablePlace(array.Array)),
-                        array.Indices.Select(LowerExpression).ToImmutableArray(),
-                        array.ElementType))),
+                BoundArrayAccessExpression array => LowerArrayElementRead(array),
                 BoundArrayLiteralExpression array => LowerArrayLiteral(array),
                 BoundElementAccessExpression element => LowerFixedStringRead(
                     element.ElementType,
@@ -2911,6 +2906,33 @@ public static class IrLowerer
 
             return new IrLoadExpression(new IrLocalPlace(storage));
         }
+
+        /// <summary>
+        /// Reads one array element. An element of an As New array is created on first use, exactly
+        /// as a scalar As New variable is -- "Dim a(1 To 3) As New C" gives three objects, each
+        /// born when it is first touched, not three references to one.
+        /// </summary>
+        private IrExpression LowerArrayElementRead(BoundArrayAccessExpression array)
+        {
+            var place = new IrArrayElementPlace(
+                new IrLoadExpression(LowerVariablePlace(array.Array)),
+                array.Indices.Select(LowerExpression).ToImmutableArray(),
+                array.ElementType);
+
+            if (IsAsNewVariable(array.Array) && array.ElementType is ClassTypeSymbol elementClass)
+            {
+                return new IrEnsureClassExpression(place, elementClass);
+            }
+
+            return LowerFixedStringRead(array.ElementType, new IrLoadExpression(place));
+        }
+
+        private static bool IsAsNewVariable(VariableSymbol symbol) => symbol switch
+        {
+            LocalVariableSymbol { IsAsNew: true } => true,
+            ModuleVariableSymbol { IsAsNew: true, IsConstant: false } => true,
+            _ => false
+        };
 
         private IrPlace LowerPlace(BoundExpression expression) => expression switch
         {
