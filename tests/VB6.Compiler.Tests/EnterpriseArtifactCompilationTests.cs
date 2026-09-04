@@ -127,4 +127,79 @@ public sealed class EnterpriseArtifactCompilationTests
             Directory.Delete(directory, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_RunsAPropertyPageAndAUserDocumentArtifact()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6ArtifactRun", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var projectPath = Path.Combine(directory, "Lauf.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Lauf"
+                PropertyPage=Seite.pag
+                UserDocument=Dok.dob
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Seite.pag"), """
+                VERSION 5.00
+                Begin VB.PropertyPage Seite
+                   Caption = "Seite"
+                   Begin VB.TextBox txtName
+                      Text = "aus dem Designer"
+                   End
+                End
+                Attribute VB_Name = "Seite"
+                Option Explicit
+
+                Public Function Kennung() As String
+                    Kennung = "Seite:" & CStr(txtName Is Nothing)
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Dok.dob"), """
+                VERSION 5.00
+                Begin VB.UserDocument Dok
+                   Begin VB.Label lblTitel
+                      Caption = "Titel"
+                   End
+                End
+                Attribute VB_Name = "Dok"
+                Option Explicit
+
+                Public Function Kennung() As String
+                    Kennung = "Dok:" & CStr(lblTitel Is Nothing)
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim s As Seite
+                    Set s = New Seite
+                    Debug.Print s.Kennung
+
+                    Dim d As Dok
+                    Set d = New Dok
+                    Debug.Print d.Kennung
+                End Sub
+                """);
+
+            // Analysiert wurden diese Artefakte laengst; dass sie auch laufen, stand nirgends.
+            // Geprueft wird, was ohne UI-Host wahr ist: die Klasse ist erzeugbar, ihre Prozedur
+            // laeuft, und die Designer-Huelle hat ihre Controls angelegt. Die Designer-*Werte*
+            // gehen headless bewusst verloren -- ohne Host verwirft VBInteraction.SetMember sie,
+            // und das gilt fuer eine Form genauso. Das gehoert in einen Hosttest, nicht hierher.
+            CollectionAssert.AreEqual(
+                new[] { "Seite:False", "Dok:False" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }
