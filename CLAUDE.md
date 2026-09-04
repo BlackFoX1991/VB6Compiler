@@ -263,8 +263,12 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   `IPersistPropertyBag`, den VB6 ohnehin für den ganzen persistierten Zustand benutzt
   (`VBComPersistence`, geschlossen durch `CompleteDesignerInitialization` am Ende der Designer-
   Hülle). Wer Designer-Eigenschaften anfasst, darf deshalb nicht davon ausgehen, dass die
-  Einzelzuweisung die vollständige Fläche ist. Die `.frx`-Seite (`IPersistStreamInit`, dort hängt
-  etwa der RichTextBox-Text) fehlt weiterhin.
+  Einzelzuweisung die vollständige Fläche ist. Umgekehrt gilt: Eine `.frx`-Nutzlast ist **keine**
+  Automationswert. Ein Bild muss vor der Übergabe zu einem `IPictureDisp` werden — auf
+  ListImage-Ebene fordert das Control für `Picture`, `Key` und `Tag` gleichermaßen `null` an, die
+  Tüte kann sie also nicht unterscheiden, und eine durchgereichte Zeichenkette wird als
+  Schnittstellenzeiger gelesen: `0xC0000005`. `IPersistStreamInit` braucht keines der gemessenen
+  Stock-Controls — `TextRTF` und `Buttons` bietet die Tüte selbst an.
 - **Ein VB6-Event auf einem ActiveX-Control hat zwei mögliche Quellen.** Die Events des OCX kommen über den COM-Connection-Point und verlangen den **VB6-Namen** — ein WinForms-Name wie `TextChanged` sagt einem OCX nichts, und die Übersetzung in `FindEvent` gilt nur dem managed Adapter. Fokus-Events dagegen sind in VB6 **Extender-Events**: Sie stammen vom Container, fehlen im Event-Interface des Controls und kommen nur über das `AxHost`-Wrapper-Event. Wer nur einen der beiden Wege bedient, bekommt einen Pfad, der stillschweigend nie feuert. Beim Ergänzen von Events immer beide durchdenken und nativ nachmessen, nicht herleiten — für `GotFocus` war die Namensregel schlicht die falsche Erklärung.
 - **Die Umsetzung ist hier meist weiter als ihre Absicherung — erst messen, dann bauen.** Bei
   `l1-02-f` und `l1-02-g` lautete der Befund zweimal hintereinander „das Verhalten war bereits
