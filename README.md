@@ -6,7 +6,7 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1547 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (88 implemented, 13 partial, 17 planned) with 101/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next narrow partial managed card is `l1-02-h-variant-object-array-dispatch`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The managed/.NET compiler path is green on the canonical gate: 1549 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 118 expectations (88 implemented, 13 partial, 17 planned) with 101/118 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; the next narrow partial managed card is `l1-02-h-variant-object-array-dispatch`. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
 
 Implemented so far:
 
@@ -133,7 +133,7 @@ Implemented so far:
 ## Current verification
 
 The canonical serial `build.ps1 -Configuration Release` run on 2026-09-04 reports
-**1547 test cases**, **1547 passed**, **0 failed** across 13 test projects, with a warning-free
+**1549 test cases**, **1549 passed**, **0 failed** across 13 test projects, with a warning-free
 Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
 **118 expectations**: **88 implemented**, **13 partial**, **17 planned**, and **101/118
 documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
