@@ -41,9 +41,22 @@ internal static class VBRegisteredInteropPathResolver
             return projectPath;
         }
 
-        return OperatingSystem.IsWindows() && metadata.ClassId is Guid classId
-            ? ResolveClassServer(classId)
-            : projectPath;
+        if (!OperatingSystem.IsWindows() || metadata.ClassId is not Guid componentId)
+        {
+            return projectPath;
+        }
+
+        // The GUID on an Object= line is the component's **type library** id, not a CLSID -- an
+        // installed OCX registers it under TypeLib, and HKCRCLSID{that guid} does not exist.
+        // Looking only under CLSID meant the real type library of every referenced OCX was never
+        // found, and the project fell back to the handful of control names catalogued by hand.
+        return ResolveTypeLibrary(
+                   componentId,
+                   metadata.MajorVersion,
+                   metadata.MinorVersion,
+                   metadata.LocaleId)
+               ?? ResolveClassServer(componentId)
+               ?? projectPath;
     }
 
     [SupportedOSPlatform("windows")]
@@ -122,16 +135,26 @@ internal static class VBRegisteredInteropPathResolver
         if (majorVersion is int major && minorVersion is int minor)
         {
             yield return $"{major}.{minor}";
-            yield break;
         }
 
-        foreach (var version in typeLibraryKey.GetSubKeyNames()
-                     .Select(name => (Name: name, Parsed: Version.TryParse(name, out var value) ? value : null))
-                     .Where(entry => entry.Parsed is not null)
-                     .OrderByDescending(entry => entry.Parsed)
-                     .Select(entry => entry.Name))
+        // A minor version is upward compatible in COM, so a project pinned to #2.0# binds to an
+        // installed 2.1 -- which is exactly what MSCOMCTL.OCX registers. Stopping at the exact
+        // match left every such reference unresolved. Same major version first, because a
+        // different major version is a different contract and only a last resort.
+        var installed = typeLibraryKey.GetSubKeyNames()
+            .Select(name => (Name: name, Parsed: Version.TryParse(name, out var value) ? value : null))
+            .Where(entry => entry.Parsed is not null)
+            .OrderByDescending(entry => entry.Parsed)
+            .ToArray();
+
+        foreach (var entry in installed.Where(entry => entry.Parsed!.Major == majorVersion))
         {
-            yield return version;
+            yield return entry.Name;
+        }
+
+        foreach (var entry in installed.Where(entry => entry.Parsed!.Major != majorVersion))
+        {
+            yield return entry.Name;
         }
     }
 

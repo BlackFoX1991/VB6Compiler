@@ -241,6 +241,14 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
 - **ByRef ist vollständig, aber typstreng.** Literale, Ausdrücke und Funktionsergebnisse laufen über `VBByRef.Temp` (Rückschreiben verworfen), Klammern erzwingen ByVal. Eine *Variable* falschen Typs bleibt `VB6S0008` — wie in VB6, weil das Rückschreiben dort ein Ziel hätte. Nicht „hilfsbereit" konvertieren.
 - **Ein neuer Diagnose-Code braucht einen Test.** Die Diagnostik ist das Sicherheitsnetz der „lieber melden als raten"-Regel — ein ungetesteter Diagnosepfad ist ein Loch darin. Die aktuelle Abdeckungsmessung findet keinen in `src/` definierten Diagnose-Code ohne Referenz in `tests/`; neue Codes müssen trotzdem mit einer Positivassertion in die zuständige Testsuite aufgenommen werden. Die semantischen Codes liegen in `UncoveredDiagnosticTests`; dort prüfen die Fälle den **Code, nicht den Meldungstext**, damit die Formulierung frei bleibt.
+- **Die GUID auf einer `Object=`-Zeile ist eine TypeLib-Id, keine CLSID.** Ein installiertes OCX
+  registriert sie unter `HKCR\TypeLib\{…}`; unter `HKCR\CLSID\{…}` steht sie nicht. Dazu kommt: die
+  in der `.vbp` gepinnte Nebenversion muss nicht die installierte sein (`#2.0#` gegen registriertes
+  `2.1` bei MSCOMCTL) — eine Nebenversion ist in COM aufwärtskompatibel. Beides zusammen ließ die
+  Auflösung immer `null` liefern, und `VBExternalTypeCatalog` fiel auf eine **von Hand gepflegte
+  Liste von neun Controlnamen** zurück. Weil die band, sah der Import funktionsfähig aus. Wer hier
+  etwas ändert, prüft immer mit einem Namen gegen, den die Bibliothek *nicht* definiert — sonst
+  wird aus dem Gewinn ein Bibliothekspräfix, das jeden Tippfehler durchwinkt.
 - **Ein Teil des Designer-Zustands eines OCX ist über IDispatch gar nicht erreichbar.** `_ExtentX`,
   `_ExtentY` und `_Version` stehen für jedes ActiveX-Control in der `.frm`, und jedes gemessene
   Stock-Control weist sie beim Einzelzugriff mit einer `COMException` ab — `TrySetMember` liefert

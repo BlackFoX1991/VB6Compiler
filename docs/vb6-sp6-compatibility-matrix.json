@@ -1310,6 +1310,7 @@
       "verification": "not-yet-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
+        "tests/VB6.Compiler.Tests/RegisteredControlLibraryTests.cs",
         "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs"
       ]
     },

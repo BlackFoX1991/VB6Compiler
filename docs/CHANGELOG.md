@@ -6259,3 +6259,36 @@ der Übergabe `ListImages.Count = 2`. Vorher war die Sammlung leer.
 
 Kanonischer Nachweis: **1547/1547** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **70/70**, Gegenprobe unter x64 lässt 9 hart fehlschlagen.
+
+## Ein `Object=`-OCX bringt jetzt seine ganze Typbibliothek mit (04.09.2026)
+
+`Dim o As MSComctlLib.OrientationConstants` meldete `VB6S0003`, `ccOrientationVertical` meldete
+`VB6S0001` — obwohl das Projekt `MSCOMCTL.OCX` ordnungsgemäß über `Object=` referenziert. Ein altes
+`.vbp`, das eine dieser Konstanten benutzt, übersetzte damit nicht; das verletzt das
+Akzeptanzkriterium des Projekts unmittelbar.
+
+Die Messung zeigte zuerst etwas Irreführendes: `MSComctlLib.ListView` band anstandslos, ein
+erfundener Name wurde abgewiesen. Es sah also nach einem funktionierenden Import mit einer Lücke
+bei Enums aus. Tatsächlich war überhaupt nichts importiert — die neun bindenden Namen stammten aus
+einer **von Hand gepflegten Liste** in `VBExternalTypeCatalog`. Ein funktionierender Ersatzweg, der
+den toten Hauptweg verdeckt; dasselbe Muster wie beim IDispatch-Rückfall.
+
+Zwei Ursachen lagen darunter, beide im Pfadresolver:
+
+1. **Die GUID auf einer `Object=`-Zeile ist eine TypeLib-Id, keine CLSID.** Gesucht wurde unter
+   `HKCR\CLSID\{…}`; ein installiertes OCX registriert sich unter `HKCR\TypeLib\{…}`. Der Schlüssel
+   existiert dort schlicht nicht, und die Auflösung lieferte immer `null`.
+2. **Die Versionsauswahl brach nach dem exakten Treffer ab.** Das Projekt pinnt `#2.0#`,
+   registriert ist `2.1`. Eine Nebenversion ist in COM aufwärtskompatibel, VB6 bindet daran. Die
+   Suche geht jetzt exakt, dann gleiche Hauptversion absteigend, dann der Rest.
+
+Danach kommen aus MSCOMCTL.OCX 131 Typinformationen an — 42 Enums mit ihren Konstanten, 41
+Dispinterfaces, 48 Coklassen — statt neun handgeschriebener Namen. Die expliziten Kontrakte für die
+bekannten Controls behalten Vorrang: `MergeImportedTypeLibrary` fügt nur mit `TryAdd` hinzu.
+
+Die Gegenprobe steht als eigener Test: `MSComctlLib.GibtsNicht` muss weiterhin `VB6S0003` melden.
+Sonst wäre der Gewinn ein unbemerkter Verlust — ein Bibliothekspräfix, das jeden Tippfehler
+durchwinkt.
+
+Kanonischer Nachweis: **1549/1549** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
