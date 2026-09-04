@@ -6860,3 +6860,29 @@ Matrix: **117 implemented, 1 partial, 0 planned**.
 
 Kanonischer Nachweis: **1582/1582** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems; nativ unter x86 **81/81**.
+
+## `Dim a(1 To 3) As New C` war überhaupt nicht deklarierbar (04.09.2026)
+
+Ein Array von Objekten — in VB6 die übliche Art, mehrere Formulare oder Klasseninstanzen zu halten —
+wurde vom Binder mit `VB6S0063 – As New requires an object type, but 'frmK()' is not an object type`
+abgewiesen. Der Grund steht in der Meldung: geprüft wurde der **Array**typ, nicht der Elementtyp.
+`As New` gehört aber zum Element.
+
+Die Maschinerie dafür war fertig. `IrEnsureClassExpression` erzeugt ein Objekt beim ersten Zugriff
+auf einen beliebigen *Place*, und ein Arrayelement ist ein Place wie jeder andere. Es fehlte nur der
+Weg dorthin: Der Elementlesepfad ging pauschal über `IrLoadExpression`.
+
+Gemessen, lokal wie auf Modulebene:
+
+```
+g(1) Is Nothing   ->  False     ' beim ersten Zugriff entstanden
+g(1) Is g(2)      ->  False     ' jedes Element ein eigenes Objekt
+Set f(1) = Nothing : f(1)       ' wird neu angelegt, wie bei einer skalaren As-New-Variablen
+```
+
+Damit ist die Roadmap-Zeile zu Formular-Arrays beantwortet: Ein Array von Formularen entsteht über
+`Dim f(1 To n) As New frmX`. Offen bleibt das **UserControl-Array im Designer**, also ein
+`.ctl`-Control mit `Index` in der `.frm` des Containers.
+
+Kanonischer Nachweis: **1583/1583** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems; nativ unter x86 **81/81**.
