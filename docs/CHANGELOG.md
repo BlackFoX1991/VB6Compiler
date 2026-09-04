@@ -6132,3 +6132,29 @@ dokumentierte Eingabe richtig beantwortet.
 
 Kanonischer Nachweis: **1531/1531** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
 VISIA-Projektitems.
+
+## General Number zeigte die Umrechnungsreste eines Double (04.09.2026)
+
+Ein Breitendurchgang über die dokumentierten `Format`-Masken fand 16 von 17 Fällen richtig — und
+einen falsch, dafür deutlich:
+
+```
+Format(1234.567, "General Number")  ->  1234.5670000000000072759576142
+```
+
+Das ist der exakte Decimal-Wert des Double 1234.567, und VB6 gibt ihn nie aus. Die Ursache war eine
+feste Zuordnung `"GENERAL NUMBER" => "G29"`: 29 signifikante Stellen zeigen bei einem Double genau
+die Reste, die die Umrechnung hinterlässt.
+
+Die richtige Regel steht schon in `CLAUDE.md`, nur an anderer Stelle — `Debug.Print` und `CStr`
+benutzen **G15 für Gleitkomma und Currency, G29 für den Decimal-Subtyp**. `General Number` folgt ihr
+jetzt ebenfalls, und die formatlose Form `Format(1234.567)` gleich mit, denn sie hatte denselben
+Fehler.
+
+Alles andere stimmte auf Anhieb: `Currency`, `Fixed`, `Standard`, `Percent`, `Scientific`, die drei
+booleschen Paare, die Abschnittssyntax `0;(0)`, die Platzhalter `@`, `>` und `<` sowie
+`#,##0.00`, `0.0`, `0%` und `00000`. Zwei Tests halten die Fläche jetzt fest, statt sie zu
+vermuten.
+
+Kanonischer Nachweis: **1533/1533** Tests, **0** Fehler, Release ohne Warnungen, **40/40**
+VISIA-Projektitems.
