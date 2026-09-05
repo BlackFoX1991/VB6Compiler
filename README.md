@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 153 expectations (128 implemented, 0 partial, 25 planned) with 128/153 documented-verified.
+The compatibility matrix contains 155 expectations (129 implemented, 0 partial, 26 planned) with 129/155 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -89,6 +89,10 @@ Implemented so far:
   it is not lexed; an identifier that merely begins with `Rem` stays an identifier
 - the explicit `Let x = 1` assignment on every assignable form, while a `Let` without a top-level
   `=` stays an ordinary call
+- `Property Get`/`Let` declared in a standard module: a bare reference calls the Get and an
+  assignment calls the Let, a declared variable of the same name still wins, and a property may be
+  used above its declaration. Previously such a reference reported `VB6S0001` under `Option
+  Explicit` and silently became an implicit local without it
 - the everyday statement shapes covered by executing tests: `Call` with and without parentheses,
   single-line and block `If`, `Select Case` with comma lists, `To` ranges and `Is` comparisons,
   every `Do`/`Loop` form including post-test bodies and `Exit Do`, the `:` separator, and numeric
@@ -185,8 +189,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **153 expectations**: **128 implemented**, **0 partial**, **25 planned**;
-**128 documented-verified**, **25 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **155 expectations**: **129 implemented**, **0 partial**, **26 planned**;
+**129 documented-verified**, **26 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

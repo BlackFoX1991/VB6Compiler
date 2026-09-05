@@ -39,7 +39,8 @@
     "windows-code-pages": "https://learn.microsoft.com/en-us/windows/win32/intl/code-pages",
     "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi",
     "vba-get": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/get-statement",
-    "vba-put": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/put-statement"
+    "vba-put": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/put-statement",
+    "vba-array": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/array-function"
   },
   "expectationSchema": {
     "required": [
@@ -739,6 +740,46 @@
         "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
       ],
       "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
+      "id": "r1-grammar-module-properties",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Property Get and Property Let declared in a standard module, read and assigned by name, with and without Option Explicit, with a same-named local, and used above their declaration",
+      "expected": {
+        "read": "a bare reference calls the Get accessor of the module",
+        "assign": "an assignment calls the Let accessor with the assigned value",
+        "precedence": "a declared variable of the same name still wins over the property",
+        "order": "a property may be used above its declaration"
+      },
+      "implementationNotes": "Previously unresolvable: with Option Explicit the reference reported VB6S0001, and without it an implicit local shadowed the property, so the program ran and printed a value that had never been through the accessor. Module accessors are now collected before any body is bound and bound as ordinary procedure calls.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ModulePropertyExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
+      "id": "r1-grammar-array-option-base",
+      "matrixEntry": "language-declarations-and-statements",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Array(10, 20) under Option Base 1, compared with Split, which is documented as always zero-based",
+      "expected": {
+        "array": "LBound is the Option Base value, so Array(10, 20) under Option Base 1 spans 1 to 2",
+        "qualified": "VBA.Array stays zero-based even under Option Base 1",
+        "split": "Split stays zero-based regardless of Option Base"
+      },
+      "implementationNotes": "Measured deviation: Array currently returns a zero-based array under Option Base 1, while Dim, ReDim and UDT member arrays all follow the directive correctly and Split is correctly zero-based. VBFunctions.Array returns its ParamArray container unchanged, and the Option Base value never reaches the intrinsic. Fixing it needs a way to carry the compile-time base into the intrinsic call, which the ParamArray signature does not currently allow.",
+      "sourceRefs": [
+        "vba-array"
+      ],
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"
+      ],
+      "notes": "The expectation rests on the documented Array function contract, named as a VBA-language-reference source rather than an observed VB6 SP6 run. Planned work: the testRef is the existing Array baseline, not evidence for this contract."
     },
     {
       "id": "r1-grammar-rem-and-let",

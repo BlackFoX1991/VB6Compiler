@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **153 Erwartungen**, davon **128 implemented**, **0 partial** und **25 planned**;
-**128/153 documented-verified**, 25 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **155 Erwartungen**, davon **129 implemented**, **0 partial** und **26 planned**;
+**129/155 documented-verified**, 26 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -145,7 +145,7 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 
 ## Aktive Restliste
 
-Die 25 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+Die 26 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
 abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -161,6 +161,7 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 | Karte | Ziel und Abnahme |
 | --- | --- |
 | `managed-r1-grammar` | **Grammatik und Kontext inventarisieren:** Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren. |
+| `r1-grammar-array-option-base` | **`Array` an `Option Base` binden:** `Array(10, 20)` unter `Option Base 1` beginnt bei 1, `VBA.Array` bleibt nullbasiert, `Split` bleibt nullbasiert. Gemessene Abweichung aus dem Grammatikinventar; Beleg ist der dokumentierte `Array`-Vertrag der VBA-Sprachreferenz, kein VB6-SP6-Lauf. |
 | `managed-r1-udt-shapes` | **Array- und UDT-Grenzen prüfen:** Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests. |
 | `managed-r1-operators` | **Operator- und Default-Member-Tabelle schließen:** Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen. |
 | `managed-r1-conversions` | **Konvertierungen und Promotionsmatrix prüfen:** Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen. |

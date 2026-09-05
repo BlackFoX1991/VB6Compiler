@@ -7350,3 +7350,39 @@ Die Matrix steht bei **153 Erwartungen: 128 implemented, 0 partial, 25 planned**
 **128 documented-verified, 25 not-yet-verified, 0 oracle-verified**. Neu sind
 `r1-grammar-rem-and-let` und `r1-grammar-statement-shapes`. `managed-r1-grammar` bleibt offen für
 Sichtbarkeit und Shadowing sowie die verbleibende Deklarationsfläche.
+
+## 2026-09-05 — R1, Schnitt 3: Modul-Properties und eine offen gelassene Abweichung
+
+Dritter Durchgang durch `managed-r1-grammar`. Der Anlass war ein Messwert, der zunächst harmlos
+aussah: ein `Property Get`/`Let`-Paar in einem Standardmodul lieferte 5, wo 10 herauskommen musste.
+
+**Modul-Properties.** Ein Standardmodul darf `Property Get/Let/Set` deklarieren wie eine Klasse,
+hat aber keine Instanz, an der sie hängen könnten — der Klassenpfad konnte für sie nie antworten,
+weil er `Me` braucht. Der Ausfall war schlimmer als eine Ablehnung: Mit `Option Explicit` meldete
+die Referenz `VB6S0001`, ohne `Option Explicit` entstand stattdessen eine implizite lokale Variable
+gleichen Namens. `Value = 5` schrieb also in ein Local und `Debug.Print Value` las es zurück; das
+Programm lief und druckte eine plausible Zahl, die nie durch die Property gelaufen war. Genau
+dieses stille Verdecken hat den Befund beim ersten Messdurchgang fast verborgen — erst die
+Gegenprobe mit `Option Explicit` machte daraus eine Diagnose statt einer falschen Zahl.
+
+Ein Modul-Accessor ist eine gewöhnliche Prozedur dieses Moduls, deshalb bindet ein Lesezugriff
+jetzt auf einen Aufruf des Get und eine Zuweisung auf einen Aufruf des Let. Unterhalb des Binders
+muss nichts Neues gelernt werden — kein IR-Knoten, kein Emitterpfad. Die Accessoren werden vor dem
+Binden aller Rümpfe eingesammelt, aus zwei Gründen: Das Symbol, auf das eine Aufrufstelle
+auflöst, muss dieselbe Instanz sein, an die der Rumpf gebunden wird, und eine Property darf
+oberhalb ihrer Deklaration verwendet werden. Eine deklarierte Variable schlägt weiterhin eine
+gleichnamige Property — dieselbe Rangfolge, die eine Variable in `BindName` ohnehin schon hatte.
+
+**Eine Abweichung bleibt offen, mit Begründung.** `Array(10, 20)` liefert unter `Option Base 1`
+weiterhin einen nullbasierten Bereich. `Dim`, `ReDim` und UDT-Member-Arrays folgen der Direktive
+korrekt, `Split` ist korrekt immer nullbasiert — nur `Array` nicht. Die dokumentierte Erwartung
+stammt aus der VBA-Sprachreferenz zur `Array`-Funktion, ausdrücklich als solche benannt und nicht
+aus einem VB6-SP6-Lauf. `VBFunctions.Array` gibt seinen ParamArray-Container unverändert zurück,
+und der `Option Base`-Wert erreicht das Intrinsic nie; ihn dorthin zu tragen, lässt die
+ParamArray-Signatur derzeit nicht zu. Die Abweichung bekommt deshalb eine eigene offene Karte
+`r1-grammar-array-option-base`, statt sie in diesem Schnitt halb zu reparieren. Kein bestehender
+Test schrieb das jetzige Verhalten fest; es war schlicht ungeprüft.
+
+Die Matrix steht bei **155 Erwartungen: 129 implemented, 0 partial, 26 planned**;
+**129 documented-verified, 26 not-yet-verified, 0 oracle-verified**. Neu sind
+`r1-grammar-module-properties` (geschlossen) und `r1-grammar-array-option-base` (offen).
