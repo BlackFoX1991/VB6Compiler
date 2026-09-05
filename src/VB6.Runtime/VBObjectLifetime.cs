@@ -33,6 +33,7 @@ public static class VBObjectLifetime
     private static readonly Dictionary<Type, FieldInfo[]> InstanceFields = [];
 
     private static bool _drainInstalled;
+    private static int _suppressPendingTerminators;
     private static int _pruneThreshold = 64;
 
     /// <summary>
@@ -187,6 +188,11 @@ public static class VBObjectLifetime
     /// </summary>
     public static void RunPendingTerminators()
     {
+        if (Volatile.Read(ref _suppressPendingTerminators) != 0)
+        {
+            return;
+        }
+
         List<object> pending = [];
         lock (Gate)
         {
@@ -295,6 +301,13 @@ public static class VBObjectLifetime
             return field;
         }
     }
+
+    /// <summary>
+    /// Prevents the process-exit fallback from running class terminators after VB6's abrupt
+    /// <c>End</c> statement. Normal scope cleanup remains responsible for orderly termination.
+    /// </summary>
+    public static void SuppressPendingTerminatorsForEnd() =>
+        Interlocked.Exchange(ref _suppressPendingTerminators, 1);
 
     private static void ReleaseInstanceFields(object instance)
     {

@@ -942,4 +942,53 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_DoesNotRunClassTerminateAfterEnd()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateEnd", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "End.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="End"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim value As C
+                    Set value = New C
+                    Debug.Print "Vor End"
+                    End
+                End Sub
+                """);
+
+            // End ends the process, so the execution helper observes the actual ProcessExit
+            // path rather than an in-process host approximation.
+            CollectionAssert.AreEqual(
+                new[] { "Vor End" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

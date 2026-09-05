@@ -11,6 +11,10 @@ public static class VBControlFlow
     /// </summary>
     public static void EndProgram()
     {
+        // End destroys objects but deliberately skips Class_Terminate. Mark this before a host
+        // or Environment.Exit can execute the process-exit fallback registered by a class.
+        VBObjectLifetime.SuppressPendingTerminatorsForEnd();
+
         if (EndProgramSink is { } sink)
         {
             sink();
