@@ -219,15 +219,16 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-05 auf `df2abd0`: 1617 Standardfälle in 13 Projekten,
-1616 bestanden und ein COM-Test am verweigerten Registry-Zugriff der Sandbox gescheitert.
-Die gezielte Wiederholung außerhalb der Sandbox bestand (1/1); der ursprüngliche Gesamtlauf
-bleibt fehlgeschlagen. Zusätzlich bestand der erzwungene native x86-Lauf mit 81/81.
+Stand der Prüfung 2026-09-05 auf `2ff6a00`: 1625 Standardfälle in 13 Projekten,
+1625 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 81/81 bestanden, 0 übersprungen.
+VISIA: 40/40 Projektitems, 0 Diagnosen.
+Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
 
-1698 ist nur die Summe aus Standardfällen und zusätzlichen x86-Ausführungen, keine Standardtestzahl.
-Diese Messwertblöcke schreibt `build.ps1 -UpdateVerificationDocs` aus dem Laufbericht; ein
-gewöhnlicher Build fasst kein Dokument an. Standardlauf, x86 und Wiederholungen bleiben getrennt.
+Standardlauf, x86-Lauf und Wiederholungen werden nie addiert — die früher genannte 1698 war genau
+so eine Summe und wurde als Testzahl gelesen. Diese Messwertblöcke schreibt
+`build.ps1 -UpdateVerificationDocs` aus `artifacts/verification-report.json`; ein gewöhnlicher
+Build fasst kein Dokument an. Zahlen hier nicht von Hand fortschreiben.
 
 Zweite Messung neben der Suite ist die Korpusparität — sie fängt Regressionen, die kein
 Unittest sieht:
@@ -250,6 +251,20 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 
 ## Fallen
 
+- **`build.ps1` braucht sein BOM.** Die Datei enthält deutsche Zeichenketten, und Windows
+  PowerShell 5.1 liest ein `.ps1` **ohne** Byte Order Mark als Windows-1252: aus `Fälle` wird
+  `FÃ¤lle` — und zwar erst in der *erzeugten* Datei, nicht im Skript. Weil die handgeschriebene
+  Prosa daneben intakt bleibt, sieht das nach einem Tippfehler im Dokument aus. Umgekehrt schreibt
+  `Set-Content -Encoding UTF8` unter 5.1 ein BOM, das die Markdown-Dateien nie hatten. Wer eine
+  Datei erzeugt, die beide Shells gleich behandeln sollen, nimmt
+  `[IO.File]::WriteAllText(..., (New-Object Text.UTF8Encoding($false)))`. CI läuft auf pwsh 7 und
+  sieht keinen der beiden Effekte — lokal aufgefallen, nicht im Build.
+- **PowerShell-Variablennamen sind case-insensitiv, und ein typisierter Parameter zwingt jede
+  Zuweisung in seinen Typ.** In `build.ps1` war die Schleifenvariable `$project` dieselbe wie der
+  Parameter `[string[]] $Project`; die Zuweisung eines `FileInfo` machte daraus ein String-Array,
+  `$project.Name` wurde `$null`, jede Ergebnisdatei hieß `.trx`, und jeder der dreizehn Durchläufe
+  testete die ganze Solution. Die Frischeprüfung des Laufberichts schlug **nicht** an — die Datei
+  existierte und war frisch. Verraten hat es allein der Dateiname.
 - **`Debug.Print` ist inzwischen VB6-nah formatiert** — führendes Vorzeichen-Leerzeichen über `FormatNumeric`, **`G7` für Single**, `G15` für Double/Currency, `G29` für den Decimal-Subtype (`Runtime.cs`). Dieselbe Staffelung gilt für `CStr` und für `Format(…, "General Number")`: Ein Single trägt sieben signifikante Stellen, und ihn mit fünfzehn auszugeben zeigt seine Umrechnungsreste als wären sie Werte — `1 / 3` ist in VB6 ein Single. Weiterhin gilt: die E2E-Helfer trimmen bewusst, Spalten-/Plattformformat ist damit *nicht* abgedeckt. Beim Anfassen von Zahlenausgabe mitdenken.
 - **Locale-Verträge sind profilabhängig.** Bestehende deterministische Signaturen bleiben invariant; `VB6Sp6` verwendet an den implementierten Grenzen System-LCID und ANSI-Codepage. Profilzustand reist über IR/Assembly und explizite Runtime-Verträge, nicht über einen globalen Schalter. Weitere Locale-/DBCS- und Ausgabeabnahme gehört zu R1.
 - **`vbUseSystem` bleibt in beiden Profilen systemabhängig.** Kalenderparameter mit Wert 0 verwenden `CurrentCulture`; das ist eine entschiedene Ausnahme. Die COM-Dispatch-LCID folgt ebenfalls bewusst `CurrentCulture`. Diese Entscheidung nicht erneut als offenen Determinismuskonflikt führen.

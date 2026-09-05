@@ -61,6 +61,18 @@ jobs:
           path: artifacts/test-results/**/*.trx
           if-no-files-found: error
 
+      # The run report is what separates standard, native and repeated runs and names the source
+      # state they were measured on. Keeping only the raw TRX files throws that accounting away.
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report
+          path: |
+            artifacts/verification-report.json
+            artifacts/test-results/verification-report-*.json
+          if-no-files-found: error
+
       - name: Upload VISIA report
         if: always()
         uses: actions/upload-artifact@v4

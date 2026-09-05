@@ -148,22 +148,23 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `df2abd0`, before this documentation update:
+Measured on 2026-09-05 at `2ff6a00` on `main`, run `20260905T120734Z-7d720f97`:
 
-| Check | Result |
-| --- | --- |
-| Release build | 0 warnings, 0 errors |
-| Standard serial run, 13 test projects | 1617 cases: 1616 passed, 1 failed because the sandbox denied the COM test's registry write |
-| Targeted COM rerun outside the sandbox | 1/1 passed; the original full run remains failed |
-| Additional required native x86 OCX run | 81/81 passed, 0 skipped |
-| VISIA analysis | 40/40 project items, 0 diagnostics |
-| VISIA assembly/PDB emission | Passed; full application behavior is not established by this test |
+| Check | Result | What it does not establish |
+| --- | --- | --- |
+| Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
+| Standard serial run, 13 test projects | 1625 cases: 1625 passed, 0 failed | Serial run across every test project |
+| Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
+| VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
+
+Complete gate (standard run and native x86 run on the same source state): **True**.
+The run report is written to `artifacts/verification-report.json` and is not versioned.
 <!-- verification:readme-measurements:end -->
 
-The previously reported **1698** combines **1617 standard cases and 81 additional x86
-executions**. It is not the standard-suite count or a count of distinct tests.
-Local evidence is in `artifacts/status-review-20260905` (not versioned).
-Standard runs, native runs and targeted reruns must be reported separately.
+Standard runs, native runs and targeted reruns are reported separately and never added together.
+The **1698** once quoted here was exactly such a sum — 1617 standard cases plus 81 additional x86
+executions — and it was read as a test count for a long time. Since R0 the table above is written
+from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
 The matrix reports **148 expectations**: **123 implemented**, **0 partial**, **25 planned**;

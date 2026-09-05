@@ -7213,3 +7213,60 @@ Eine zusätzliche einmalige Konsistenzprüfung bestätigt eindeutige IDs, vorhan
 Abhängigkeiten, vollständige Roadmap-Zuordnung aller 27 Restkarten sowie passende Bereichsstatus.
 Diese einmalige Prüfung ist noch keine neue automatisierte Build-Funktion. Ein erneuter
 vollständiger Compiler-/OCX-Lauf wurde für die reinen Dokumentationsänderungen nicht behauptet.
+
+## 2026-09-05 — R0 geschlossen: getrennte Laufauswertung und maschinelle Statusprüfung
+
+Die erste Etappe der R0–R7-Roadmap ist abgeschlossen. Sie ändert keinen Compiler-, Runtime- oder
+Emittercode; sie ändert, was eine Messung überhaupt behaupten darf.
+
+**`managed-r0-reporting` — Messläufe getrennt auswerten.** `build.ps1` zählte vorher nichts. Es
+las Exitcodes, und ein Prozess, der stirbt, bevor er seine Ergebnisdatei schreibt, sieht so aus
+wie ein bestandener; eine Ergebnisdatei aus einem früheren Lauf ebenfalls. Jeder Lauf liest jetzt
+seine eigene TRX, weist eine Datei zurück, die älter ist als der Lauf, der sie erzeugt haben soll,
+und nennt bei Prozessfehlern, fehlenden Dateien und leeren Läufen den Grund. Standardlauf,
+nativer x86-Lauf und Wiederholungen sind getrennte Einträge; nur die ersten beiden entscheiden das
+Gate. Eine bestandene Wiederholung macht einen fehlgeschlagenen Gesamtlauf nicht grün, und ein
+nicht ausgeführter nativer Lauf wird als fehlend berichtet, nicht als bestanden.
+`artifacts/verification-report.json` hält Quellstand samt Dirty-Kennzeichen, Zeitpunkt,
+Projektzähler, VISIA und Matrixzählung fest und wird jetzt auch von CI als Artefakt gesichert.
+`-Project` schränkt auf benannte Testprojekte ein; `-Filter` und `-Project` markieren den Lauf als
+Teillauf, der das Gate nicht schließen kann.
+
+**`managed-r0-status-checks` — Statusprüfung automatisieren.** Die Statusregeln aus `CLAUDE.md`
+wurden bisher durch Lesen geprüft. `CompatibilityMatrixStatusTests` prüft jetzt: unbekannte und
+zyklische Abhängigkeiten, Karten, die auf eine spätere Etappe warten, offene Karten ohne Etappe
+oder Roadmap-Eintrag, und Bereichsstatus, die nicht aus ihren Erwartungen folgen.
+`CompatibilityMatrixTests` vergleicht zusätzlich die in ROADMAP, README und `CLAUDE.md`
+dokumentierten Zahlen mit der Datei, `VerificationDocumentTests` die Marker, in die der
+Messwertschreiber schreibt. Alle Regeln hielten schon vorher — was genau der Grund ist, sie zu
+mechanisieren: eine Regel, die nur von Hand bestätigt wird, driftet am ersten Tag, an dem niemand
+hinsieht. Jede Regel wurde durch einmaliges Brechen gegengeprüft: unbekannte Abhängigkeit,
+entfernte Etappe, Zyklus, hochgezogener Bereichsstatus und eine auf `implemented` umgeklappte
+Karte lassen je genau den zuständigen Test fehlschlagen.
+
+`-UpdateVerificationDocs` schreibt die markierten Messwertblöcke aus dem Laufbericht und verweigert
+das für einen Teillauf; ein gewöhnlicher Build fasst kein Dokument an. Generiert werden die Zahlen
+und ihre Aussagegrenzen, nicht die Prosa darum.
+
+**Zwei eigene Fehler auf dem Weg, beide vom neuen Werkzeug nicht gefangen.** Der Parameter
+`-Project` kollidierte mit der Schleifenvariablen `$project` — PowerShell-Variablennamen sind
+case-insensitiv, und der `[string[]]`-Typ des Parameters zwang das `FileInfo`-Objekt zu einem
+String-Array. Jede Ergebnisdatei hieß `.trx`, und jeder der dreizehn Durchläufe testete die ganze
+Solution. Die neue Frischeprüfung schlug dabei **nicht** an, weil `.trx` existierte und frisch war;
+verraten hat es der Dateiname. Zweitens hatte `build.ps1` kein BOM, weshalb Windows PowerShell 5.1
+seine deutschen Literale als Windows-1252 las und `FÃ¤lle` in die erzeugten Tabellen schrieb,
+während `Set-Content -Encoding UTF8` den drei Dokumenten ein BOM verpasste, das sie nie hatten.
+Beides steht jetzt in den Fallen von `CLAUDE.md`.
+
+**Messung.** Lauf `20260905T120734Z-7d720f97` auf `2ff6a00`, sauberer Arbeitsbaum:
+Release-Build **0 Warnungen, 0 Fehler**; Standardlauf **1625 Fälle in 13 Projekten, 1625
+bestanden, 0 fehlgeschlagen**; zusätzlicher nativer x86-Lauf **81/81 bestanden, 0 übersprungen**;
+VISIA **40/40 Projektitems, 0 Diagnosen**; vollständiges Gate **True**. Die 1625 sind die 1617 des
+Vortags plus die acht neuen Status- und Markertests; der zuvor einzelne fehlgeschlagene COM-Test
+bestand außerhalb der Sandbox. Standardlauf und x86-Lauf werden getrennt gezählt und nie addiert.
+
+Die Matrix steht bei **148 Erwartungen: 123 implemented, 0 partial, 25 planned**;
+**123 documented-verified, 25 not-yet-verified, 0 oracle-verified**. Die Roadmap führt R0 jetzt
+unter „Abgeschlossene Etappen": eine geschlossene Karte behält ihre Etappe als Historie, verlässt
+aber die aktive Restliste — genau das prüft der angepasste Statustest. Nächste Karte ist
+`managed-r1-grammar`.

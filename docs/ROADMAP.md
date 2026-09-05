@@ -21,22 +21,24 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-05 auf `main` / `df2abd0`, vor diesem Dokumentationsupdate:
+Messung vom 2026-09-05 auf `main` / `2ff6a00`, Lauf `20260905T120734Z-7d720f97`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
-| Release-Build | 0 Warnungen, 0 Fehler | Build erfolgreich |
-| Standardlauf, 13 Testprojekte | 1617 Fälle: 1616 bestanden, 1 fehlgeschlagen | COM-Test scheitert am Registry-Zugriff der Sandbox |
-| Gezielte COM-Wiederholung außerhalb der Sandbox | 1/1 bestanden | Macht den ursprünglichen Gesamtlauf nicht rückwirkend grün |
-| Zusätzlicher nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter Lauf der WinForms-Tests |
-| VISIA-Analyse | 40/40 Projektitems fehlerfrei, 0 Diagnosen | Analyse/Binden |
-| VISIA-Assembly-Erzeugung | Test bestanden, Assembly und PDB erzeugt | Keine vollständige Laufzeitabnahme der Anwendung |
+| Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
+| Standardlauf, 13 Testprojekte | 1625 Fälle: 1625 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
+| VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
+
+Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
+Der Laufbericht liegt unter `artifacts/verification-report.json` und wird nicht versioniert.
 <!-- verification:roadmap-measurements:end -->
 
-Die bisher genannte Zahl **1698** ist die Summe von **1617 Standardfällen und 81 zusätzlichen
-x86-Ausführungen**. Sie ist keine Standardtestzahl und keine Aussage über 1698 unterschiedliche
-Tests. Die lokale Messung liegt unter `artifacts/status-review-20260905`; Artefakte werden nicht
-versioniert. Neue Messungen sind mit Datum, Quellstand und getrennten Ergebnissen einzutragen.
+Standardlauf und nativer x86-Lauf stehen getrennt in der Tabelle und werden nie addiert. Die
+früher genannte **1698** war genau so eine Summe — aus damals 1617 Standardfällen und 81
+zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Seit R0 schreibt
+`build.ps1 -UpdateVerificationDocs` diese Tabelle aus `artifacts/verification-report.json`, statt
+sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
 **Kompatibilitätsmatrix nach der Restplanung:** **148 Erwartungen**, davon **123 implemented**, **0 partial** und **25 planned**;
@@ -127,7 +129,7 @@ macht einen fehlgeschlagenen Gesamtlauf nicht grün, und ein nicht ausgeführter
 als fehlend berichtet statt als bestanden. `artifacts/verification-report.json` hält Quellstand
 samt Dirty-Kennzeichen, Zeitpunkt, Projektzähler, VISIA und Matrixzählung fest.
 
-Die Statusregeln prüfen jetzt Maschinen statt Leser: unbekannte und zyklische Abhängigkeiten,
+Die Statusregeln prüft jetzt eine Maschine, nicht mehr ein Leser: unbekannte und zyklische Abhängigkeiten,
 Karten, die auf eine spätere Etappe warten, offene Karten ohne Etappe oder Roadmap-Eintrag,
 Bereichsstatus, die nicht aus ihren Erwartungen folgen, und die in ROADMAP, README und CLAUDE.md
 dokumentierten Zahlen. Jede Regel wurde durch einmaliges Brechen gegengeprüft.
