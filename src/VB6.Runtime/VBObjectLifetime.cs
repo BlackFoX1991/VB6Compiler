@@ -260,6 +260,19 @@ public static class VBObjectLifetime
             // the process outright, which no VB6 program does.
         }
 
+        // An event connection owns its sink. Once either end terminates, detach every matching
+        // subscription before fields are released so a stale handler cannot retain or invoke a
+        // terminated generated class.
+        try
+        {
+            VBEvents.UnsubscribeObject(instance);
+        }
+        catch (Exception)
+        {
+            // A host or an already-released COM wrapper may reject detaching during shutdown;
+            // object teardown still has to complete.
+        }
+
         // VB6 keeps member references alive while Class_Terminate executes and releases them
         // afterwards. This also handles a class that is itself the final owner of another class.
         ReleaseInstanceFields(instance);

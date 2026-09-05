@@ -759,4 +759,86 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_KeepsAWithEventsSinkAliveUntilItsSourceDetaches()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateWithEvents", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "WithEvents.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="WithEvents"
+                Class=Quelle; Quelle.cls
+                Class=Senke; Senke.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Quelle.cls"), """
+                Option Explicit
+
+                Public Event Signal()
+
+                Public Sub Ausloesen()
+                    RaiseEvent Signal
+                End Sub
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate Quelle"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Senke.cls"), """
+                Option Explicit
+
+                Private WithEvents aktuelleQuelle As Quelle
+
+                Public Sub Verbinde(ByVal value As Quelle)
+                    Set aktuelleQuelle = value
+                End Sub
+
+                Private Sub aktuelleQuelle_Signal()
+                    Set aktuelleQuelle = aktuelleQuelle
+                    Debug.Print "Signal"
+                End Sub
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate Senke"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim quelle As Quelle
+                    Dim senke As Senke
+                    Set quelle = New Quelle
+                    Set senke = New Senke
+                    senke.Verbinde quelle
+
+                    Set senke = Nothing
+                    Debug.Print "Nur Ereignis besitzt Senke"
+                    quelle.Ausloesen
+                    Debug.Print "Vor Programmende"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Nur Ereignis besitzt Senke", "Signal", "Vor Programmende",
+                    "Terminate Senke", "Terminate Quelle"
+                },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

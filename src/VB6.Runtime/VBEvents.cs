@@ -115,8 +115,7 @@ public static class VBEvents
                              string.Equals(subscription.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
                          .ToArray())
             {
-                RemoveSubscriptionLocked(existing);
-                MethodSubscriptions.Remove(existing);
+                RemoveTrackedSubscriptionLocked(existing);
             }
         }
     }
@@ -138,8 +137,7 @@ public static class VBEvents
                              ReferenceEquals(subscription.Target, sourceOrTarget))
                          .ToArray())
             {
-                RemoveSubscriptionLocked(existing);
-                MethodSubscriptions.Remove(existing);
+                RemoveTrackedSubscriptionLocked(existing);
             }
         }
     }
@@ -184,8 +182,7 @@ public static class VBEvents
                 }
 
                 RemoveHandlerLocked(existing.Source, existing.EventName, fallbackHandler);
-                MethodSubscriptions.Remove(existing);
-                MethodSubscriptions.Add(new MethodSubscription(
+                MethodSubscriptions[MethodSubscriptions.IndexOf(existing)] = new MethodSubscription(
                     existing.Source,
                     existing.EventName,
                     existing.Target,
@@ -196,7 +193,7 @@ public static class VBEvents
                     @delegate,
                     interfaceId,
                     dispId,
-                    comSource: comSource));
+                    comSource: comSource);
             }
         }
     }
@@ -221,15 +218,23 @@ public static class VBEvents
 
         lock (Sync)
         {
-            foreach (var existing in MethodSubscriptions
+            var replacements = MethodSubscriptions
                          .Where(subscription =>
                              ReferenceEquals(subscription.Target, target) &&
                              string.Equals(subscription.EventName, eventName, StringComparison.OrdinalIgnoreCase) &&
                              string.Equals(subscription.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
-                         .ToArray())
+                         .ToArray();
+            var preservesTarget = source is not null && replacements.Length > 0;
+            if (preservesTarget)
             {
-                RemoveSubscriptionLocked(existing);
-                MethodSubscriptions.Remove(existing);
+                // Rewiring the same WithEvents member may be a self-assignment while the event
+                // subscription is its last owner. Keep it alive across the remove/add pair.
+                VBObjectLifetime.Retain(target);
+            }
+
+            foreach (var existing in replacements)
+            {
+                RemoveTrackedSubscriptionLocked(existing);
             }
 
             if (source is null)
@@ -242,19 +247,20 @@ public static class VBEvents
                 host is not null &&
                 host.TrySubscribeEvent(source, eventName, target, methodName))
             {
-                MethodSubscriptions.Add(new MethodSubscription(
+                AddTrackedSubscriptionLocked(new MethodSubscription(
                     source,
                     eventName,
                     target,
                     methodName,
                     handler: null,
                     host: host));
+                if (preservesTarget) VBObjectLifetime.Release(target);
                 return;
             }
 
             if (TrySubscribeClrEvent(source, eventName, target, method, out var eventInfo, out var @delegate))
             {
-                MethodSubscriptions.Add(new MethodSubscription(
+                AddTrackedSubscriptionLocked(new MethodSubscription(
                     source,
                     eventName,
                     target,
@@ -263,6 +269,7 @@ public static class VBEvents
                     host: null,
                     eventInfo,
                     @delegate));
+                if (preservesTarget) VBObjectLifetime.Release(target);
                 return;
             }
 
@@ -278,7 +285,7 @@ public static class VBEvents
                     out @delegate,
                     out var comSource))
             {
-                MethodSubscriptions.Add(new MethodSubscription(
+                AddTrackedSubscriptionLocked(new MethodSubscription(
                     source,
                     eventName,
                     target,
@@ -290,11 +297,12 @@ public static class VBEvents
                     comInterfaceGuid,
                     comEventDispId,
                     comSource));
+                if (preservesTarget) VBObjectLifetime.Release(target);
                 return;
             }
 
             AddHandlerLocked(source, eventName, handler);
-            MethodSubscriptions.Add(new MethodSubscription(
+            AddTrackedSubscriptionLocked(new MethodSubscription(
                 source,
                 eventName,
                 target,
@@ -305,6 +313,7 @@ public static class VBEvents
                 @delegate: null,
                 comInterfaceId: hasImportedIdentity ? importedInterfaceGuid : null,
                 comDispId: importedDispId));
+            if (preservesTarget) VBObjectLifetime.Release(target);
         }
     }
 
@@ -329,15 +338,21 @@ public static class VBEvents
 
         lock (Sync)
         {
-            foreach (var existing in MethodSubscriptions
+            var replacements = MethodSubscriptions
                          .Where(subscription =>
                              ReferenceEquals(subscription.Target, target) &&
                              string.Equals(subscription.EventName, eventName, StringComparison.OrdinalIgnoreCase) &&
                              string.Equals(subscription.MethodName, methodName, StringComparison.OrdinalIgnoreCase))
-                         .ToArray())
+                         .ToArray();
+            var preservesTarget = source is not null && replacements.Length > 0;
+            if (preservesTarget)
             {
-                RemoveSubscriptionLocked(existing);
-                MethodSubscriptions.Remove(existing);
+                VBObjectLifetime.Retain(target);
+            }
+
+            foreach (var existing in replacements)
+            {
+                RemoveTrackedSubscriptionLocked(existing);
             }
 
             if (source is null ||
@@ -353,10 +368,11 @@ public static class VBEvents
                     out var @delegate,
                     out var comSource))
             {
+                if (preservesTarget) VBObjectLifetime.Release(target);
                 return false;
             }
 
-            MethodSubscriptions.Add(new MethodSubscription(
+            AddTrackedSubscriptionLocked(new MethodSubscription(
                 source,
                 eventName,
                 target,
@@ -368,6 +384,7 @@ public static class VBEvents
                 comInterfaceId,
                 comDispId,
                 comSource));
+            if (preservesTarget) VBObjectLifetime.Release(target);
             return true;
         }
     }
@@ -494,6 +511,24 @@ public static class VBEvents
         {
             RemoveHandlerLocked(subscription.Source, subscription.EventName, subscription.Handler);
         }
+    }
+
+    /// <summary>
+    /// An advised sink is an owner just like a COM connection point owns its callback. The helper
+    /// centralizes the counter update so every CLR, host and COM subscription path has identical
+    /// lifetime behaviour.
+    /// </summary>
+    private static void AddTrackedSubscriptionLocked(MethodSubscription subscription)
+    {
+        VBObjectLifetime.Retain(subscription.Target);
+        MethodSubscriptions.Add(subscription);
+    }
+
+    private static void RemoveTrackedSubscriptionLocked(MethodSubscription subscription)
+    {
+        RemoveSubscriptionLocked(subscription);
+        MethodSubscriptions.Remove(subscription);
+        VBObjectLifetime.Release(subscription.Target);
     }
 
     private static bool TrySubscribeClrEvent(
