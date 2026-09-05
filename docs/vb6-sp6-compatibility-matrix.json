@@ -721,6 +721,62 @@
       "notes": "Existing ID retained for its concrete Public/Global versus Private/Dim expectation; no indefinitely partial language-family claim."
     },
     {
+      "id": "r1-grammar-deftype-defaults",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "DefByte/DefInt/DefLng/DefSng/DefDbl/DefCur/DefStr/DefBool/DefDate/DefObj/DefVar over ranges, comma lists and single letters, with and without a type suffix on the variable",
+      "expected": {
+        "typing": "an undeclared variable takes the type its initial letter is mapped to; TypeName and VarType agree with an explicitly declared variable of that type",
+        "default": "an undeclared String starts as the empty string with VarType 8, not as an uninitialized Variant",
+        "precedence": "an identifier type suffix outranks the directive",
+        "diagnostic": "overlapping letter ranges report VB6S0070 rather than silently keeping one"
+      },
+      "implementationNotes": "Measured across all eleven directives. Only String deviated: the procedure prologue initialized declared variables only, so an implicit String stayed null and reported VarType 0 / TypeName Empty while still concatenating like an empty string. Fixed in IrLowerer.InitializeUndeclaredLocals.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ImplicitTypeDefaultExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ImplicitLocalPrologueIrTests.cs",
+        "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
+      "id": "r1-grammar-evaluation-order",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "And/Or with side-effecting operands, a For header whose limit and step are function calls, and a With whose selector is a function call",
+      "expected": {
+        "operators": "And and Or evaluate both operands, left first; VB6 has no short-circuit operator",
+        "loopHeader": "the For limit and step are evaluated once, before the first iteration",
+        "with": "the With selector is evaluated once and member writes reach the element it selected"
+      },
+      "implementationNotes": "Measured correct before the tests existed: And/Or lower to a runtime call with both operands already evaluated, so no branch exists to skip one. The risk this pins is a later optimization introducing one.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/EvaluationOrderExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
+      "id": "r1-grammar-while-wend-and-justification",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "While ... Wend with an entry-false condition, and LSet/RSet into a String * 6",
+      "expected": {
+        "while": "the body runs while the condition holds and zero times when it is false on entry",
+        "lset": "LSet left-justifies within the fixed width and pads with spaces",
+        "rset": "RSet right-justifies within the fixed width and pads with spaces",
+        "overflow": "a value wider than the field is truncated to the declared width"
+      },
+      "implementationNotes": "All three had parser coverage and no executing test. Measured correct on first run; the deliverable was the test, not a code change.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/LoopAndJustificationExecutionTests.cs",
+        "tests/VB6.Parser.Tests/LSetParserTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
       "id": "l1-02-a-dim-withevents-declaration",
       "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",

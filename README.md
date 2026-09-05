@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 148 expectations (123 implemented, 0 partial, 25 planned) with 123/148 documented-verified.
+The compatibility matrix contains 151 expectations (126 implemented, 0 partial, 25 planned) with 126/151 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -75,6 +75,15 @@ Implemented so far:
 - module- and procedure-level `Const` declarations, typed or inferred from the value
 - line continuation with a trailing underscore
 - identifier type suffixes `$ % & ! # @`
+- `DefBool`/`DefByte`/`DefCur`/`DefDate`/`DefDbl`/`DefInt`/`DefLng`/`DefObj`/`DefSng`/`DefStr`/`DefVar`
+  over letter ranges, comma lists and single letters, typing variables that were never declared;
+  an identifier type suffix outranks the directive, overlapping ranges report `VB6S0070`, and an
+  undeclared `String` starts as the empty string with `VarType` 8 rather than as an unset Variant
+- VB6 evaluation order: `And` and `Or` evaluate both operands with no short-circuit, a `For`
+  header evaluates its limit and step once before the first iteration, and a `With` evaluates its
+  selector once and writes through to the element it selected
+- `While ... Wend`, and `LSet`/`RSet` justification inside a `String * n` field including
+  truncation of a wider value
 - `Exit Sub` and `Exit Function`
 - `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; scalar signatures and blittable UDT records now lower to real Managed P/Invoke imports, including native `ByRef` UDT write-back and fixed `String * n` fields, and direct `AddressOf` procedure targets lower to function addresses, while variable-length string marshalling, typed UDT/raw-pointer arrays and the remaining callback ABI stay in the interop milestone
 - `Enum ... End Enum` with optional visibility plus explicit or implicit member values, bound as Long-backed constants
@@ -167,8 +176,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **148 expectations**: **123 implemented**, **0 partial**, **25 planned**;
-**123 documented-verified**, **25 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **151 expectations**: **126 implemented**, **0 partial**, **25 planned**;
+**126 documented-verified**, **25 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

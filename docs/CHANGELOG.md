@@ -7270,3 +7270,49 @@ Die Matrix steht bei **148 Erwartungen: 123 implemented, 0 partial, 25 planned**
 unter „Abgeschlossene Etappen": eine geschlossene Karte behält ihre Etappe als Historie, verlässt
 aber die aktive Restliste — genau das prüft der angepasste Statustest. Nächste Karte ist
 `managed-r1-grammar`.
+
+## 2026-09-05 — R1 beginnt: Deftype, implizite Defaults und Auswertungsreihenfolge
+
+Erster Schnitt durch `managed-r1-grammar`. Vorgehen nach der verbindlichen Regel: erst messen,
+dann bauen. Eine Wegwerfsonde über `VB6TestProgram.RunLines` hat die Formen ausgegeben, statt sie
+aus dem Quelltext herzuleiten — und das war nötig, denn drei von vier Verdachtsfällen waren falsch.
+
+**Was schon stimmte.** `Deftype` ist vollständig da: alle elf Direktiven, Bereiche, Kommalisten
+und Einzelbuchstaben, und ein Typsuffix schlägt die Direktive. `GoSub`/`Return` und das berechnete
+`On expr GoTo` sind implementiert. `While … Wend` sowie `LSet`/`RSet` mit Auffüllen und Abschneiden
+im `String * n`-Feld waren auf Anhieb korrekt — sie hatten Parser-Abdeckung und kein Programm, das
+sie ausführt. `And` und `Or` werten beide Operanden aus; VB6 kennt keinen Kurzschluss, und der
+Lowerer ruft eine Runtime-Operation mit beiden Operanden auf, es gibt also keinen Sprung zum
+Überspringen. Der `For`-Kopf wertet Grenze und Schritt einmal aus, `With` seinen Selektor einmal.
+Für all das war die Lieferung der ausführende Test, keine Codeänderung.
+
+**Die eine echte Abweichung.** Ohne `Option Explicit` entsteht eine Variable bei ihrer ersten
+Verwendung und läuft damit an keiner Deklarationsanweisung vorbei — genau die Liste, über die
+`EmitProcedurePrologue` iterierte. Für jeden Typ, dessen VB6-Default dem CLR-Default entspricht,
+ist das unsichtbar; für `String` nicht. Als `null` belassen verkettete die Variable weiterhin wie
+der leere String und lieferte `Len` 0, nur ihr *gemeldeter* Typ verriet sie: `VarType` antwortete
+0 und `TypeName` `Empty`, wo VB6 8 und `String` antwortet. Ein `DefStr` macht daraus den Normalfall
+statt einer Kuriosität. `IrLowerer.InitializeUndeclaredLocals` schließt die Lücke; gemessen über
+alle elf Direktiven war `String` der einzige betroffene Typ.
+
+Der Befund war beim Lesen des Quelltexts **nicht** sichtbar: Die Deftype-Abbildung ist an allen
+drei Stellen — Parser, `ImplicitVariantSyntaxLowerer`, `Binder.GetDefaultType` — korrekt, und der
+erste Verdacht („nur harte Keywords funktionieren") wurde durch die Messung widerlegt, weil
+`Currency`, `Boolean`, `Date` und `Object` ebenfalls funktionieren, obwohl sie keine harten
+Keywords sind. Erst die Gegenüberstellung mit der deklarierten Zwillingsvariablen hat die Stelle
+benannt.
+
+Die Tests stellen jede implizite Variable neben ihre deklarierte Entsprechung: Beide müssen
+übereinstimmen, und ein Test, der nur die implizite Seite prüft, kann einen echten Default nicht
+von einem gemeinsamen Fehler unterscheiden. Zusätzlich hält ein IR-Test fest, *wo* der leere String
+geschrieben wird — im Prozedurprolog, vor dem Nutzerkontrollfluss —, damit eine Reparatur, die
+`VarType` anders zufriedenstellt, dort auffällt. Für ein numerisches Local entsteht bewusst kein
+Prolog-Store: die CLR nullt es bereits, und ohne `Option Explicit` wäre das Rauschen in jeder
+Prozedur.
+
+Die Matrix steht bei **151 Erwartungen: 126 implemented, 0 partial, 25 planned**;
+**126 documented-verified, 25 not-yet-verified, 0 oracle-verified**. Die drei neuen Erwartungen
+`r1-grammar-deftype-defaults`, `r1-grammar-evaluation-order` und
+`r1-grammar-while-wend-and-justification` sind Teilverträge des Inventars;
+`managed-r1-grammar` bleibt offen für die restliche Deklarations-, Statement- und
+Sichtbarkeitsfläche.
