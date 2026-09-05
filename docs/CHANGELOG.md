@@ -7444,3 +7444,45 @@ warnt: Ein Test darf nicht aufgrund einer Vermutung über die erwartete Meldung 
 Die Matrix steht bei **157 Erwartungen: 131 implemented, 0 partial, 26 planned**;
 **131 documented-verified, 26 not-yet-verified, 0 oracle-verified**. Neu ist
 `r1-grammar-cross-module-visibility`.
+
+## 2026-09-05 — R1, Schnitt 6: ungültiges IL bei Return ohne GoSub
+
+Sechster Durchgang durch `managed-r1-grammar`, diesmal mit der zweiten Hälfte der Abnahmebedingung
+im Blick: nicht nur gültige Formen ausführen, sondern ungültige gezielt diagnostizieren.
+
+**Der schwerste Befund bisher.** Ein `Return` in einer Prozedur ohne `GoSub` hat keine Sprungtabelle.
+Der erzeugte Block ließ dann den von `Pop` gepushten Index ohne Abnehmer stehen und endete ohne
+Terminator — die CLR wies die **ganze Methode** zurück. Das Programm starb mit
+`InvalidProgramException`, bevor es eine einzige Zeile ausgeführt hatte, und die zutreffende
+Meldung der Runtime („Return executed without an active GoSub") war damit unerreichbar. Ein Aufruf
+einer Methode, die zufällig wirft, ist für die CLR kein Terminator; `InvalidReturn` liefert die
+Ausnahme jetzt zurück, damit der Block mit einem echten `throw` enden kann, und der Index wird
+verworfen, wenn es nichts zu schalten gibt.
+
+Die Gegenprobe hat dabei zuerst **meinen Testentwurf** widerlegt: Ein unerreichbarer `Return` nach
+`Exit Sub` lief auch ohne den Fix, weil der Lowerer den toten Block entfernt. Erst ein erreichbarer
+`Return` reproduziert den Fehler. Von den drei neuen Tests scheitert deshalb genau einer ohne die
+Änderung — der Fall ohne Sprungtabelle; die beiden anderen haben eine und waren schon gültig.
+
+Damit ein abstürzendes Programm überhaupt prüfbar ist, hat `VB6TestProgram` ein
+`RunExpectingFailure` bekommen. Der Harness forderte bisher unbedingt Exitcode 0, sodass ein
+untrappter VB6-Laufzeitfehler — ein reales, beobachtbares Ergebnis — nur durch Nachbau der
+Prozesslogik im Testfile zu prüfen gewesen wäre, genau das, was die Klasse verhindern soll.
+
+**Zwei Diagnoselücken bleiben offen, benannt.** `Exit Sub` innerhalb einer `Function` und ein
+`Property Get`/`Let`-Paar mit unterschiedlichen Werttypen werden heute **ohne jede Diagnose**
+angenommen. Doppelte Prozeduren (`VB6S0004`) und `Next` ohne `For` (`VB6P0001`) werden korrekt
+gemeldet, die Lücke ist also auf diese beiden Formen begrenzt: `r1-grammar-invalid-form-diagnostics`.
+
+**Und eine dritte offene Karte.** Der jetzt korrekte Laufzeitfehler ist noch nicht abfangbar:
+`On Error Resume Next` läuft nicht weiter, und `VBErrors` hat keine Zuordnung, würde also selbst
+nach einer Absicherung den Sammelwert 5 statt der VB6-Nummer 3 melden. Die Absicherung muss über
+`LowerProtectedHeader` laufen — eine pauschale Umklammerung in `LowerStatement` hat den
+VISIA-Korpus schon einmal gerissen. Das steht als `r1-grammar-return-error-number`.
+
+**Was schon stimmte.** `Global` und `Friend`, geklammerte reservierte Wörter wie `[Select]`,
+implizite `Enum`-Werte, `Type` mit `String * n`-Member, `ParamArray` mit und ohne Argumente sowie
+`Optional`-Defaults.
+
+Die Matrix steht bei **161 Erwartungen: 133 implemented, 0 partial, 28 planned**;
+**133 documented-verified, 28 not-yet-verified, 0 oracle-verified**.

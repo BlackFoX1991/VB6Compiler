@@ -762,6 +762,81 @@
       "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
     },
     {
+      "id": "r1-grammar-gosub-return",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "GoSub returning to its call site twice, a Return in a procedure with no GoSub, and a Return after the GoSub stack is empty",
+      "expected": {
+        "gosub": "control returns to the statement after each GoSub",
+        "noGoSub": "a Return with nothing to return to ends the program with the runtime's 'Return executed without an active GoSub'",
+        "validIl": "the emitted method is valid IL in every case, so the runtime error is reached rather than the CLR rejecting the method"
+      },
+      "implementationNotes": "A Return in a procedure containing no GoSub has no jump table; the block left the index Pop pushes with no consumer and ended without a terminator, so the CLR rejected the whole method with InvalidProgramException before Main ran a line. The index is now discarded when there is nothing to switch on, and InvalidReturn returns the exception so the block ends with a real throw.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/GoSubReturnExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory. The VB6 error number and trappability of this case are tracked separately by r1-grammar-return-error-number."
+    },
+    {
+      "id": "r1-grammar-return-error-number",
+      "matrixEntry": "language-declarations-and-statements",
+      "milestone": "R1",
+      "dependsOn": [
+        "r1-grammar-gosub-return"
+      ],
+      "implementation": "planned",
+      "input": "On Error Resume Next followed by a Return with no active GoSub",
+      "expected": {
+        "number": "Err.Number is 3, 'Return without GoSub'",
+        "trappable": "On Error Resume Next continues past it instead of the process ending"
+      },
+      "implementationNotes": "Measured deviation: the failure escapes On Error entirely and ends the process with an unmapped InvalidOperationException. BoundGoSubReturnStatement is excluded from error-handling protection, and VBErrors has no mapping for the exception, so even once protected it would report the catch-all 5 rather than 3. CLAUDE.md records that a generic wrapper in LowerStatement broke the VISIA corpus, so the protection has to go through LowerProtectedHeader rather than a blanket change.",
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/GoSubReturnExecutionTests.cs"
+      ],
+      "notes": "Planned work: the testRef is the existing GoSub baseline, not evidence for this contract."
+    },
+    {
+      "id": "r1-grammar-invalid-form-diagnostics",
+      "matrixEntry": "language-declarations-and-statements",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Exit Sub inside a Function, and a Property Get/Let pair whose value types disagree",
+      "expected": {
+        "exitSub": "Exit Sub in a Function or Property is rejected with a diagnostic",
+        "propertyMismatch": "a Property Get and Let of the same name with different value types is rejected with a diagnostic"
+      },
+      "implementationNotes": "Measured deviation: both are accepted today with no diagnostic at all. Duplicate procedures (VB6S0004) and Next without For (VB6P0001) are correctly diagnosed, so the gap is specific to these two forms.",
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
+      ],
+      "notes": "Planned work: the testRef is the existing diagnostic suite, not evidence for this contract. Closes the 'diagnose invalid forms' half of managed-r1-grammar."
+    },
+    {
+      "id": "r1-grammar-remaining-declarations",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Global and Friend declarations, a bracketed identifier that is a reserved word, Enum with implicit member values, Type with a fixed-length string member, ParamArray with and without arguments, and an Optional parameter with a default",
+      "expected": {
+        "visibility": "Global declares a project-wide variable and Friend a callable function",
+        "bracketed": "[Select] is an ordinary identifier",
+        "enum": "an implicit member value continues from the previous one",
+        "type": "a String * n member keeps its declared width",
+        "paramArray": "arguments arrive as a Variant array, and an empty call yields an empty one",
+        "optional": "an omitted argument takes the declared default"
+      },
+      "implementationNotes": "All measured correct on first run; the deliverable was the executing coverage.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/RemainingDeclarationExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory."
+    },
+    {
       "id": "r1-grammar-cross-module-visibility",
       "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",

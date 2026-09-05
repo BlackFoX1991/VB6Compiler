@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **157 Erwartungen**, davon **131 implemented**, **0 partial** und **26 planned**;
-**131/157 documented-verified**, 26 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **161 Erwartungen**, davon **133 implemented**, **0 partial** und **28 planned**;
+**133/161 documented-verified**, 28 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -145,7 +145,7 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 
 ## Aktive Restliste
 
-Die 26 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+Die 28 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
 abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -162,6 +162,8 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 | --- | --- |
 | `managed-r1-grammar` | **Grammatik und Kontext inventarisieren:** Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren. |
 | `r1-grammar-array-option-base` | **`Array` an `Option Base` binden:** `Array(10, 20)` unter `Option Base 1` beginnt bei 1, `VBA.Array` bleibt nullbasiert, `Split` bleibt nullbasiert. Gemessene Abweichung aus dem Grammatikinventar; Beleg ist der dokumentierte `Array`-Vertrag der VBA-Sprachreferenz, kein VB6-SP6-Lauf. |
+| `r1-grammar-return-error-number` | **`Return` ohne `GoSub` abfangbar machen:** `Err.Number` 3 statt eines unzugeordneten Prozessabbruchs; `On Error Resume Next` läuft weiter. Die Absicherung muss über `LowerProtectedHeader` laufen — eine pauschale Umklammerung in `LowerStatement` hat den VISIA-Korpus schon einmal gerissen. |
+| `r1-grammar-invalid-form-diagnostics` | **Zwei ungültige Formen melden:** `Exit Sub` in einer `Function` und ein `Property Get`/`Let`-Paar mit unterschiedlichen Werttypen werden derzeit ohne jede Diagnose angenommen. |
 | `managed-r1-udt-shapes` | **Array- und UDT-Grenzen prüfen:** Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests. |
 | `managed-r1-operators` | **Operator- und Default-Member-Tabelle schließen:** Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen. |
 | `managed-r1-conversions` | **Konvertierungen und Promotionsmatrix prüfen:** Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen. |
