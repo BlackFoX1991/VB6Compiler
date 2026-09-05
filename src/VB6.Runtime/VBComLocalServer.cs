@@ -20,6 +20,7 @@ public static class VBComLocalServer
     private const uint ClsCtxLocalServer = 0x4;
     private const uint RegClsMultipleUse = 1;
     private const uint RegClsSuspended = 4;
+    private const uint CoInitApartmentThreaded = 0x2;
 
     private static readonly object Sync = new();
     private static int _objectCount;
@@ -76,44 +77,59 @@ public static class VBComLocalServer
 
     private static void Run(Assembly? entryAssembly)
     {
-        var factories = new List<(Guid ClassId, VBComClassFactory Factory, uint Cookie)>();
-        foreach (var (classId, type) in ReadComClasses(entryAssembly))
-        {
-            var factory = new VBComClassFactory(type);
-            var hresult = CoRegisterClassObject(
-                ref System.Runtime.CompilerServices.Unsafe.AsRef(in classId),
-                factory,
-                ClsCtxLocalServer,
-                RegClsMultipleUse | RegClsSuspended,
-                out var cookie);
-            Marshal.ThrowExceptionForHR(hresult);
-            factories.Add((classId, factory, cookie));
-        }
-
-        if (factories.Count == 0)
-        {
-            // Silently exiting here is the failure that leaves a client waiting for a server that
-            // will never answer. Say so instead.
-            Console.Error.WriteLine(
-                "VB6 local server: no COM classes found in " +
-                (entryAssembly?.GetName().Name ?? "<no entry assembly>") + ".");
-            return;
-        }
-
-        // Registering suspended and resuming afterwards closes the window in which a client could
-        // reach one class object while another is not registered yet.
-        Marshal.ThrowExceptionForHR(CoResumeClassObjects());
-
+        // An emitted entry point is an ordinary managed method, not a C# Main decorated with
+        // [STAThread]. CoRegisterClassObject therefore has no apartment unless the runtime makes
+        // one explicitly. Without it the server process exits with CO_E_NOTINITIALIZED before COM
+        // can activate the class, which the client only sees as the misleading REGDB_E_CLASSNOTREG.
+        var initialization = CoInitializeEx(IntPtr.Zero, CoInitApartmentThreaded);
+        Marshal.ThrowExceptionForHR(initialization);
         try
         {
-            PumpUntilIdle();
+            var factories = new List<(Guid ClassId, VBComClassFactory Factory, uint Cookie)>();
+            foreach (var (classId, type) in ReadComClasses(entryAssembly))
+            {
+                var factory = new VBComClassFactory(type);
+                var hresult = CoRegisterClassObject(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in classId),
+                    factory,
+                    ClsCtxLocalServer,
+                    RegClsMultipleUse | RegClsSuspended,
+                    out var cookie);
+                Marshal.ThrowExceptionForHR(hresult);
+                factories.Add((classId, factory, cookie));
+            }
+
+            if (factories.Count == 0)
+            {
+                // Silently exiting here is the failure that leaves a client waiting for a server
+                // that will never answer. Say so instead.
+                Console.Error.WriteLine(
+                    "VB6 local server: no COM classes found in " +
+                    (entryAssembly?.GetName().Name ?? "<no entry assembly>") + ".");
+                return;
+            }
+
+            // Registering suspended and resuming afterwards closes the window in which a client
+            // could reach one class object while another is not registered yet.
+            Marshal.ThrowExceptionForHR(CoResumeClassObjects());
+
+            try
+            {
+                PumpUntilIdle();
+            }
+            finally
+            {
+                foreach (var entry in factories)
+                {
+                    _ = CoRevokeClassObject(entry.Cookie);
+                }
+            }
         }
         finally
         {
-            foreach (var entry in factories)
-            {
-                _ = CoRevokeClassObject(entry.Cookie);
-            }
+            // CoInitializeEx returns S_OK or S_FALSE when this call acquired one reference, and
+            // either result must be balanced on the same thread.
+            CoUninitialize();
         }
     }
 
@@ -242,6 +258,12 @@ public static class VBComLocalServer
         public int x;
         public int y;
     }
+
+    [DllImport("ole32.dll")]
+    private static extern int CoInitializeEx(IntPtr reserved, uint coInit);
+
+    [DllImport("ole32.dll")]
+    private static extern void CoUninitialize();
 
     [DllImport("ole32.dll")]
     private static extern int CoRegisterClassObject(
