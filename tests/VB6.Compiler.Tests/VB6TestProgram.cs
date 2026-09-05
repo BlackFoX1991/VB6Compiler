@@ -17,6 +17,8 @@ namespace VB6.Compiler.Tests;
 /// </summary>
 internal static class VB6TestProgram
 {
+    private const int ExpectedFailureExitTimeoutMilliseconds = 2_000;
+
     /// <summary>
     /// Selects the .NET host matching the test process. An x86 test build can reference an x86
     /// runtime support assembly, which a 64-bit host cannot load even though the resulting error
@@ -161,9 +163,25 @@ internal static class VB6TestProgram
 
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException($"Failed to start '{assemblyPath}'.");
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
+            var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+            var standardErrorTask = process.StandardError.ReadToEndAsync();
+
+            if (expectSuccess)
+            {
+                process.WaitForExit();
+            }
+            else if (!process.WaitForExit(ExpectedFailureExitTimeoutMilliseconds))
+            {
+                // The program has already reported its unhandled VB6 error by this point. Some
+                // Windows compatibility diagnostics keep that failing child alive afterwards,
+                // which would otherwise deadlock the test host while it waits for closed pipes.
+                // A successful program never takes this path.
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+            }
+
+            var standardOutput = standardOutputTask.GetAwaiter().GetResult();
+            var standardError = standardErrorTask.GetAwaiter().GetResult();
 
             if (expectSuccess)
             {
