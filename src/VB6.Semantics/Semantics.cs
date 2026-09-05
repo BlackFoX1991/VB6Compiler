@@ -493,6 +493,38 @@ public sealed class ModulePropertySymbol
         _ => Set
     };
 
+    /// <summary>
+    /// Makes a module-local view of the exported accessors without changing the project table.
+    /// </summary>
+    /// <remarks>
+    /// A binder augments its view with the private accessors declared in its own module. Reusing
+    /// the project-wide container for that would publish those accessors to binders that run
+    /// later, merely because the names happen to match.
+    /// </remarks>
+    public ModulePropertySymbol Clone() => new()
+    {
+        Get = Get,
+        Let = Let,
+        Set = Set
+    };
+
+    /// <summary>Assigns the accessor in a module-local view.</summary>
+    public void SetAccessor(PropertyAccessorKind accessor, ProcedureSymbol procedure)
+    {
+        switch (accessor)
+        {
+            case PropertyAccessorKind.Get:
+                Get = procedure;
+                break;
+            case PropertyAccessorKind.Let:
+                Let = procedure;
+                break;
+            default:
+                Set = procedure;
+                break;
+        }
+    }
+
     public void Add(PropertyAccessorKind accessor, ProcedureSymbol procedure)
     {
         switch (accessor)

@@ -571,13 +571,35 @@ public sealed class Binder
 
         foreach (var member in root.Members.OfType<PropertyDeclarationSyntax>())
         {
+            var kind = GetAccessorKind(member);
             if (!_moduleProperties.TryGetValue(member.Identifier.Text, out var accessors))
             {
                 accessors = new ModulePropertySymbol();
-                _moduleProperties[member.Identifier.Text] = accessors;
+            }
+            else
+            {
+                // The project map is shared between every binder. A local Property must receive
+                // a copy before it contributes a private accessor, otherwise a later module can
+                // resolve that private member as if it had been exported.
+                accessors = accessors.Clone();
             }
 
-            accessors.Add(GetAccessorKind(member), CreatePropertyProcedureSymbol(member));
+            _moduleProperties[member.Identifier.Text] = accessors;
+            var localAccessor = CreatePropertyProcedureSymbol(member);
+            if (localAccessor.IsPublic &&
+                availableModuleProperties is not null &&
+                availableModuleProperties.TryGetValue(member.Identifier.Text, out var exported) &&
+                exported.For(kind) is { } exportedAccessor)
+            {
+                // The project collector made this symbol before any body was bound. Retaining it
+                // makes the declaring body and callers in other modules point at the same body.
+                accessors.SetAccessor(kind, exportedAccessor);
+            }
+            else
+            {
+                // A private declaration shadows only in this binder's module-local view.
+                accessors.SetAccessor(kind, localAccessor);
+            }
         }
     }
 

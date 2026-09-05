@@ -219,7 +219,7 @@ public sealed class VBProjectCompilation
             parsedModules,
             userDefinedTypesByPath,
             projectDiagnostics);
-        var modulePropertySymbols = DeclareProjectModuleProperties(parsedModules);
+        var modulePropertySymbols = DeclareProjectModuleProperties(parsedModules, projectDiagnostics);
         foreach (var item in loadResult.Project.Items.Where(item => IsHostModuleKind(item.Kind)))
         {
             var name = string.IsNullOrWhiteSpace(item.Name)
@@ -1226,11 +1226,39 @@ public sealed class VBProjectCompilation
     /// symbol a call in another module resolves to is the one the declaring body is bound to.
     /// </remarks>
     private static Dictionary<string, ModulePropertySymbol> DeclareProjectModuleProperties(
-        IEnumerable<ParsedProjectModule> modules)
+        IEnumerable<ParsedProjectModule> modules,
+        ImmutableArray<VBProjectCompilationDiagnostic>.Builder projectDiagnostics)
     {
         var properties = new Dictionary<string, ModulePropertySymbol>(StringComparer.OrdinalIgnoreCase);
+        var origins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var reportedDuplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules.Where(module => module.Item.Kind == VBProjectItemKind.Module))
         {
+            // Get, Let and Set form one module-level property name. A second public declaration
+            // in another module would otherwise be silently merged into the first property's
+            // symbol, so it must follow the same project-wide uniqueness rule as public methods.
+            foreach (var property in module.SemanticRoot.Members.OfType<PropertyDeclarationSyntax>())
+            {
+                if (string.Equals(property.VisibilityKeyword?.Text, "Private", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (origins.TryGetValue(property.Identifier.Text, out var origin) &&
+                    !string.Equals(origin, module.Item.RelativePath, StringComparison.OrdinalIgnoreCase) &&
+                    reportedDuplicates.Add(property.Identifier.Text))
+                {
+                    projectDiagnostics.Add(new VBProjectCompilationDiagnostic(
+                        "VB6PRJ0003",
+                        $"Property '{property.Identifier.Text}' is declared in both '{origin}' and '{module.Item.RelativePath}'.",
+                        module.FilePath));
+                }
+                else
+                {
+                    origins.TryAdd(property.Identifier.Text, module.Item.RelativePath);
+                }
+            }
+
             Binder.AddModuleProperties(module.SemanticRoot, properties);
         }
 
