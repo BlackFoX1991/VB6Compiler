@@ -868,6 +868,10 @@ public sealed class ManagedEmitter
                     encoder.Branch(ILOpCode.Br, labels[goSub.TargetBlockId]);
                     break;
                 case IrGoSubReturnTerminator goSubReturn:
+                    // Pop reports "Return without an active GoSub" at runtime, which is the VB6
+                    // behavior. Getting there needs a well-formed block: without a jump table the
+                    // index Pop pushes has no consumer, and a call that throws is not a terminator,
+                    // so the method used to be rejected as invalid IL before Pop could ever run.
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
                         nameof(VBGoSub.Pop))));
@@ -879,9 +883,15 @@ public sealed class ManagedEmitter
                             switchEncoder.Branch(labels[target]);
                         }
                     }
+                    else
+                    {
+                        encoder.OpCode(ILOpCode.Pop);
+                    }
+
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
                         nameof(VBGoSub.InvalidReturn))));
+                    encoder.OpCode(ILOpCode.Throw);
                     break;
                 case IrOnGoToTerminator onGoTo:
                     EmitExpression(encoder, procedure, onGoTo.Index);

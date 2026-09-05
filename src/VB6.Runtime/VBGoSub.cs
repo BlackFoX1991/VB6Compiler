@@ -37,6 +37,13 @@ public static class VBGoSub
         return returnIndex;
     }
 
-    public static void InvalidReturn() =>
-        throw new InvalidOperationException("VB6 GoSub return index is invalid.");
+    /// <summary>Builds the exception for a return index no jump table can serve.</summary>
+    /// <remarks>
+    /// It returns the exception instead of throwing it so the emitter can end the block with a
+    /// real <c>throw</c>. A call to a method that happens to throw is not a terminator as far as
+    /// the CLR is concerned: the block would fall off its end, and with the index still on the
+    /// evaluation stack the whole method is rejected before it ever runs.
+    /// </remarks>
+    public static Exception InvalidReturn() =>
+        new InvalidOperationException("VB6 GoSub return index is invalid.");
 }
