@@ -21,7 +21,7 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-05 auf `main` / `dc06a7b` mit nicht committeten Änderungen, Lauf `20260905T183847Z-0c3ae27e`:
+Messung vom 2026-09-05 auf `main` / `8c6997f` mit nicht committeten Änderungen, Lauf `20260905T185246Z-e6e3c52d`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **161 Erwartungen**, davon **136 implemented**, **0 partial** und **25 planned**;
-**136/161 documented-verified**, 25 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **161 Erwartungen**, davon **137 implemented**, **0 partial** und **24 planned**;
+**137/161 documented-verified**, 24 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -98,7 +98,8 @@ Die Quelle für Karten, Status und Abhängigkeiten ist
   `oracle-verified` verlangt einen echten Lauf gegen den Originalcompiler.
 - Neue Restkarten besitzen `milestone` und `dependsOn`. IDs bestehender Erwartungen bleiben
   stabil. Die Karte `l1-02-a-language-grammar-context` bezeichnet jetzt ausschließlich ihren
-  gemessenen Modul-Sichtbarkeitsvertrag; der weitere Sprachumfang steht in `managed-r1-grammar`.
+  gemessenen Modul-Sichtbarkeitsvertrag; der abgegrenzte R1-Sprachumfang ist in
+  `managed-r1-grammar` inventarisiert.
 - Ein Bereich ist umgesetzt, wenn alle zugeordneten Erwartungen umgesetzt sind; vollständig
   geplante Bereiche sind `planned`, gemischte Bereiche `partial`. Nicht verifizierte
   Kinder verhindern die Verifikationszusage für den Gesamtbereich. `gap` nennt offene IDs.
@@ -145,7 +146,7 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 
 ## Aktive Restliste
 
-Die 25 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+Die 24 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
 abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -160,7 +161,6 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r1-grammar` | **Grammatik und Kontext inventarisieren:** Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren. |
 | `managed-r1-udt-shapes` | **Array- und UDT-Grenzen prüfen:** Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests. |
 | `managed-r1-operators` | **Operator- und Default-Member-Tabelle schließen:** Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen. |
 | `managed-r1-conversions` | **Konvertierungen und Promotionsmatrix prüfen:** Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen. |

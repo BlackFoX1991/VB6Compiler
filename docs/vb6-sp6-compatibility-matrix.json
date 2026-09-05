@@ -739,7 +739,7 @@
         "tests/VB6.Compiler.Tests/ImplicitLocalPrologueIrTests.cs",
         "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-module-properties",
@@ -759,7 +759,7 @@
         "tests/VB6.Compiler.Tests/ModulePropertyExecutionTests.cs",
         "tests/VB6.Compiler.Tests/DeclarationShapeExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-gosub-return",
@@ -776,7 +776,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/GoSubReturnExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory. The VB6 error number and trappability are covered by the implemented r1-grammar-return-error-number contract."
+      "notes": "Part of the completed managed-r1-grammar inventory. The VB6 error number and trappability are covered by the r1-grammar-return-error-number contract."
     },
     {
       "id": "r1-grammar-return-error-number",
@@ -814,7 +814,7 @@
       "testRefs": [
         "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
       ],
-      "notes": "UncoveredDiagnosticTests separately rejects Exit Sub inside Function and Property with VB6S0077, accepts matching exit forms, rejects a mismatched concrete Property Get/Let pair with VB6S0078, and accepts equal value types plus a Variant Let value. Closes the 'diagnose invalid forms' half of managed-r1-grammar."
+      "notes": "UncoveredDiagnosticTests separately rejects Exit Sub inside Function and Property with VB6S0077, accepts matching exit forms, rejects a mismatched concrete Property Get/Let pair with VB6S0078, and accepts equal value types plus a Variant Let value. Completes the diagnostic portion of the managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-remaining-declarations",
@@ -834,7 +834,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/RemainingDeclarationExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-cross-module-visibility",
@@ -855,7 +855,7 @@
         "tests/VB6.Compiler.Tests/CrossModuleVisibilityExecutionTests.cs",
         "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration and statement surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-declaration-shapes",
@@ -876,7 +876,7 @@
         "tests/VB6.Compiler.Tests/DeclarationShapeExecutionTests.cs",
         "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-array-option-base",
@@ -918,7 +918,7 @@
         "tests/VB6.Parser.Tests/LetAssignmentParserTests.cs",
         "tests/VB6.Compiler.Tests/RemAndLetStatementExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-statement-shapes",
@@ -937,7 +937,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/StatementShapeExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-evaluation-order",
@@ -954,7 +954,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/EvaluationOrderExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "r1-grammar-while-wend-and-justification",
@@ -973,7 +973,7 @@
         "tests/VB6.Compiler.Tests/LoopAndJustificationExecutionTests.cs",
         "tests/VB6.Parser.Tests/LSetParserTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+      "notes": "Part of the completed managed-r1-grammar inventory."
     },
     {
       "id": "l1-02-a-dim-withevents-declaration",
@@ -2393,16 +2393,29 @@
       "dependsOn": [
         "managed-r0-status-checks"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Grammatik und Kontext inventarisieren",
       "expected": {
         "acceptance": "Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren."
       },
-      "verification": "not-yet-verified",
+      "implementationNotes": "The finite inventory is now covered by the documented r1-grammar-deftype-defaults, r1-grammar-module-properties, r1-grammar-gosub-return, r1-grammar-return-error-number, r1-grammar-invalid-form-diagnostics, r1-grammar-remaining-declarations, r1-grammar-cross-module-visibility, r1-grammar-declaration-shapes, r1-grammar-array-option-base, r1-grammar-rem-and-let, r1-grammar-statement-shapes, r1-grammar-evaluation-order and r1-grammar-while-wend-and-justification contracts. Each has a concrete input, expected execution or diagnostic, and dedicated test evidence.",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+        "tests/VB6.Compiler.Tests/CompilationTests.cs",
+        "tests/VB6.Compiler.Tests/ImplicitTypeDefaultExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ModulePropertyExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/GoSubReturnExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs",
+        "tests/VB6.Compiler.Tests/RemainingDeclarationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/CrossModuleVisibilityExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DeclarationShapeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/RemAndLetStatementExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/StatementShapeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/EvaluationOrderExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/LoopAndJustificationExecutionTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "The listed individual grammar contracts form the finite inventory; they are all implemented and documented-verified. This aggregate is not a claim of unrestricted VB6 grammar compatibility.",
       "title": "Grammatik und Kontext inventarisieren"
     },
     {
@@ -2878,8 +2891,8 @@
         "bitness": "agnostic",
         "com": "none"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Parser.Tests/ParserTests.cs",
         "tests/VB6.Semantics.Tests/BinderTests.cs",
@@ -2895,8 +2908,7 @@
         "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
         "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs",
         "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"
-      ],
-      "gap": "managed-r1-grammar: Grammatik und Kontext inventarisieren"
+      ]
     },
     {
       "id": "language-arrays-and-udts",

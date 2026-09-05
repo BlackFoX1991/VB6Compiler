@@ -7595,3 +7595,16 @@ als aufnahmefähiger Let-Parameter bleiben zulässig.
 Die Matrix steht bei **161 Erwartungen: 136 implemented, 0 partial, 25 planned**;
 `r1-grammar-invalid-form-diagnostics` ist jetzt `documented-verified`. `managed-r1-grammar`
 bleibt für die übrige inventarisierte Grammatik- und Kontextfläche offen.
+
+## 2026-09-05 — R1, Schnitt 11: Grammatik- und Kontextinventur abgeschlossen
+
+Mit den Diagnoseformen aus Schnitt 10 sind alle dreizehn endlichen Einzelverträge der
+`managed-r1-grammar`-Inventur umgesetzt und dokumentiert verifiziert: Typdefaults,
+Modul-Properties, GoSub/Return, Exit-/Property-Diagnosen, Deklarations- und Statementformen,
+Sichtbarkeit, Auswertungsreihenfolge sowie `Option Base`. Die übergeordnete Karte ist deshalb
+kein verbleibender Sammelpunkt mehr; ihre Testreferenzen verweisen auf die konkreten
+Ausführungs- und Diagnosenachweise der Einzelkarten.
+
+Die Matrix steht bei **161 Erwartungen: 137 implemented, 0 partial, 24 planned**;
+`managed-r1-grammar` ist jetzt `documented-verified`. Als nächste Karte folgt
+`managed-r1-udt-shapes`.
