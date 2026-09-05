@@ -7695,3 +7695,24 @@ abgenommen, statt einen SAFEARRAY- oder Objektbesitzvertrag zu erfinden.
 Die Matrix steht bei **162 Erwartungen: 143 implemented, 0 partial, 19 planned**;
 `managed-r1-file-layout` und die Datei-I/O-Fläche sind jetzt `documented-verified`. Als nächste
 Karte folgt `managed-r1-profiles`.
+
+## 2026-09-05 — R1, Schnitt 17: Profilgrenzen abgenommen
+
+Die Profilabnahme bündelt die drei gestützten Locale-Familien en-US, de-DE und ja-JP. Der
+`Deterministic`-Pfad behält invariant formatierte Skalare, während `VB6Sp6` die aktive
+Systemkultur gezielt für locale-sensitive Operationen übernimmt. `vbUseSystem` bleibt die
+ausdrückliche Ausnahme: Wochentag und Kalenderwoche folgen dort der Systemkultur, explizite
+VB-Konstanten nicht.
+
+Die Bytepfade vergleichen `LenB`/`Asc` und sequenzielles Text-I/O mit der tatsächlich aktiven
+Windows-ANSI-Codepage. Das deckt ein DBCS-System ab, wenn es als Systemcodepage aktiv ist, ohne
+eine Änderung von `CurrentCulture` fälschlich als Codepagewechsel auszugeben. Japanische
+Breiten-/Kana-Konversionen bleiben als getrennte locale-gebundene Fälle festgeschrieben.
+
+Zwei erzeugte Programme — eines `Deterministic`, eines `VB6Sp6` — geben dieselben
+Debug-/Financial-Skalare aus. Damit ist festgehalten, dass der Profilwert mit jeder Assembly
+reist, aber gemeinsame Sprachsemantik nicht in eine globale Locale-Einstellung übergeht.
+
+Die Matrix steht bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**;
+`managed-r1-profiles` und die Profil-/Provenienzfläche sind jetzt `documented-verified`. Als
+nächste Karte folgt `managed-r2-lifetime`.

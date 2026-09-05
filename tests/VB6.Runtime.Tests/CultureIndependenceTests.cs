@@ -259,6 +259,44 @@ public sealed class CultureIndependenceTests
             "Explicit vbSunday/vbFirstJan1 must produce the same week everywhere.");
     }
 
+    /// <summary>
+    /// The selected profile owns locale-sensitive operations, not the language semantics shared
+    /// by generated programs. Keep the three supported culture families together here: it is easy
+    /// to prove de-DE formatting in isolation while accidentally letting the system week setting,
+    /// the Japanese locale path, or Debug/financial scalar output leak across the boundary.
+    /// </summary>
+    [TestMethod]
+    public void ProfileBoundaries_KeepLocaleAndSharedScalarContractsSeparate()
+    {
+        const double thursday = 43832d; // Thursday, 2 January 2020.
+        const double amount = 1234.5d;
+
+        foreach (var name in new[] { "en-US", "de-DE", "ja-JP" })
+        {
+            var culture = CultureInfo.GetCultureInfo(name);
+            UnderCulture(name, () =>
+            {
+                Assert.AreEqual(
+                    "1,234.50",
+                    VBStrings.FormatValue(amount, "Standard", 1, 1),
+                    $"Deterministic formatting must not inherit {name}.");
+                Assert.AreEqual(
+                    amount.ToString("N2", culture),
+                    VBStrings.FormatValue(amount, "Standard", 1, 1, VBCompatibilityProfile.VB6Sp6),
+                    $"VB6Sp6 formatting must use {name}.");
+
+                var expectedSystemWeekday =
+                    (short)(((int)DateTime.FromOADate(thursday).DayOfWeek -
+                             (int)culture.DateTimeFormat.FirstDayOfWeek + 7) % 7 + 1);
+                Assert.AreEqual(expectedSystemWeekday, VBDateTime.Weekday(thursday, 0));
+                Assert.AreEqual((short)4, VBDateTime.Weekday(thursday, 2));
+
+                Assert.AreEqual(" 1234.5", VBDebug.Format(amount));
+                Assert.AreEqual(-200d, VBFinancial.PMT(0d, 3d, 600d, 0d, 0d), 1e-12);
+            });
+        }
+    }
+
     private static void UnderCommaDecimalCulture(Action action) =>
         UnderCulture(CommaDecimalCulture, action);
 

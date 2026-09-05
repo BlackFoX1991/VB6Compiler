@@ -2623,16 +2623,23 @@
         "managed-r1-intrinsics",
         "managed-r1-file-layout"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Profilgrenzen absichern",
       "expected": {
-        "acceptance": "en-US/de-DE/ja-JP, ANSI/DBCS, vbUseSystem und Debug-/Financial-Ausgabe in gemischten Assemblies prüfen; gemeinsame Sprachsemantik und explizite Locale-Grenzen erhalten."
+        "cultures": "Deterministic keeps invariant scalar formatting while VB6Sp6 consumes en-US, de-DE and ja-JP for its locale-sensitive surface; Japanese width/kana flags stay explicitly locale-gated.",
+        "ansiDbcs": "VB6Sp6 byte strings and sequential text use the active Windows ANSI code page, including a DBCS code page when that is the system setting; the test compares against Encoding.GetEncoding(0) instead of simulating a different operating-system setting.",
+        "vbUseSystem": "vbUseSystem uses the active culture's first day of week and calendar-week rule, while explicit VB constants remain culture-independent.",
+        "sharedSemantics": "Debug scalar formatting and financial results remain invariant; generated Deterministic and VB6Sp6 assemblies produce the same Debug/PMT output."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "The profile-boundary test iterates en-US/de-DE/ja-JP and keeps deterministic Format, explicit weekday constants, Debug formatting and the PMT result separate from VB6Sp6 locale selection. Existing runtime and emitted-program tests compare LenB/Asc and sequential text bytes to the actual active Windows ANSI code page; this exercises a DBCS system when one is active without treating a temporary CurrentCulture change as an ACP change. Two generated profile assemblies execute the same Debug/Financial program and retain identical shared scalar output. This is documented verification, not an original VB6-SP6 oracle run.",
       "title": "Profilgrenzen absichern"
     },
     {
@@ -3439,7 +3446,8 @@
       "surface": "VBCompatibilityProfile, CLI/SDK selection, x86 validation and output provenance",
       "sourceRefs": [
         "vb6-docs",
-        "vb6-support"
+        "vb6-support",
+        "windows-code-pages"
       ],
       "contract": {
         "compile": "Deterministic is the default; VB6Sp6 selects the documented x86 contract",
@@ -3448,8 +3456,8 @@
         "bitness": "VB6Sp6 rejects x64 and AnyCpu",
         "com": "hosts receive profile context additively"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/CompilationTests.cs",
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
@@ -3461,9 +3469,9 @@
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs",
-        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
-      ],
-      "gap": "managed-r1-profiles: Profilgrenzen absichern"
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs"
+      ]
     },
     {
       "id": "msbuild-headless-sdk",

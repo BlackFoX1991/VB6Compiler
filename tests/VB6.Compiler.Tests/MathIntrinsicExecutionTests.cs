@@ -1,5 +1,7 @@
 namespace VB6.Compiler.Tests;
 
+using VB6.Runtime;
+
 [TestClass]
 public sealed class MathIntrinsicExecutionTests
 {
@@ -75,6 +77,30 @@ public sealed class MathIntrinsicExecutionTests
                 "13.0662", "12.783", "180", "300", "400"
             },
             output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplications_KeepDebugAndFinancialOutputStableAcrossProfiles()
+    {
+        const string source = """
+            Sub Main()
+                Debug.Print 1234.5
+                Debug.Print PMT(0, 3, 600)
+            End Sub
+            """;
+
+        var deterministic = VBCompilation.Create(source, "Deterministic.bas");
+        var vb6Sp6 = VBCompilation.Create(
+            source,
+            "VB6Sp6.bas",
+            new VBCompilationOptions
+            {
+                CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
+            });
+
+        var expected = new[] { "1234.5", "-200" };
+        CollectionAssert.AreEqual(expected, VB6TestProgram.SplitLines(VB6TestProgram.Run(deterministic)));
+        CollectionAssert.AreEqual(expected, VB6TestProgram.SplitLines(VB6TestProgram.Run(vb6Sp6)));
     }
 
     [TestMethod]
