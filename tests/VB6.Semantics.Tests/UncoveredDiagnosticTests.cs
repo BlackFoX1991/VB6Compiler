@@ -278,6 +278,80 @@ public sealed class UncoveredDiagnosticTests
             """);
     }
 
+    [TestMethod]
+    public void Bind_ReportsExitSubInsideAFunction()
+    {
+        AssertDiagnostic("VB6S0077", """
+            Function Calculate() As Long
+                Exit Sub
+            End Function
+            """);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsExitSubInsideAProperty()
+    {
+        AssertDiagnostic("VB6S0077", """
+            Property Get Value() As Long
+                Exit Sub
+            End Property
+            """);
+    }
+
+    [TestMethod]
+    public void Bind_AllowsExitThatMatchesItsProcedure()
+    {
+        AssertNoDiagnostic("VB6S0077", """
+            Sub WriteValue()
+                Exit Sub
+            End Sub
+
+            Function Calculate() As Long
+                Exit Function
+            End Function
+
+            Property Get Value() As Long
+                Exit Property
+            End Property
+            """);
+    }
+
+    [TestMethod]
+    public void Bind_ReportsMismatchedPropertyGetAndLetValueTypes()
+    {
+        AssertDiagnostic("VB6S0078", """
+            Property Get Title() As Long
+            End Property
+
+            Property Let Title(ByVal value As String)
+            End Property
+            """);
+    }
+
+    [TestMethod]
+    public void Bind_AllowsMatchingPropertyGetAndLetValueTypes()
+    {
+        AssertNoDiagnostic("VB6S0078", """
+            Property Get Title() As Long
+            End Property
+
+            Property Let Title(ByVal value As Long)
+            End Property
+            """);
+    }
+
+    [TestMethod]
+    public void Bind_AllowsVariantPropertyLetValueType()
+    {
+        AssertNoDiagnostic("VB6S0078", """
+            Property Get Title(ByVal index As Long) As String
+            End Property
+
+            Property Let Title(ByVal index As Long, ByVal value As Variant)
+            End Property
+            """);
+    }
+
     private static void AssertDiagnostic(string code, string source)
     {
         var text = SourceText.From(source, "test.bas");
@@ -292,6 +366,23 @@ public sealed class UncoveredDiagnosticTests
             $"Expected {code}, got: " +
             (diagnostics.Length == 0
                 ? "no diagnostics at all"
+                : string.Join(", ", diagnostics.Select(diagnostic => diagnostic.Code))));
+    }
+
+    private static void AssertNoDiagnostic(string code, string source)
+    {
+        var text = SourceText.From(source, "test.bas");
+        var parseResult = new ParserType(text).ParseCompilationUnit();
+        var model = new Binder(text).BindCompilationUnit(parseResult.Root);
+        var diagnostics = parseResult.Diagnostics
+            .Concat(model.Diagnostics)
+            .ToArray();
+
+        Assert.IsFalse(
+            diagnostics.Any(diagnostic => diagnostic.Code == code),
+            $"Did not expect {code}, got: " +
+            (diagnostics.Length == 0
+                ? "no diagnostics"
                 : string.Join(", ", diagnostics.Select(diagnostic => diagnostic.Code))));
     }
 }

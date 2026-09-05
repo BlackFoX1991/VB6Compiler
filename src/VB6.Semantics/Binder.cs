@@ -50,6 +50,7 @@ public sealed class Binder
     private ClassTypeSymbol? _containingClass;
     private Dictionary<string, LocalVariableSymbol>? _activeLocals;
     private Dictionary<string, BoundExpression>? _activeConstantInitializers;
+    private ProcedureSymbol? _activeProcedure;
     private bool _optionExplicit;
     private int _nextLoopId;
     private int _nextSelectId;
@@ -249,6 +250,7 @@ public sealed class Binder
                 case PropertyDeclarationSyntax declaration:
                 {
                     var property = CreatePropertySymbol(declaration);
+                    ReportMismatchedPropertyValueType(property, properties, declaration.Identifier);
                     var propertyProcedure = ResolveModulePropertyAccessor(declaration);
                     properties.Add(property);
                     if (propertyProcedure.ReturnType == TypeSymbol.Error && declaration.ReturnTypeToken is not null)
@@ -562,6 +564,37 @@ public sealed class Binder
                 : PropertyAccessorKind.Set,
             type,
             parameters);
+    }
+
+    private void ReportMismatchedPropertyValueType(
+        PropertySymbol property,
+        ImmutableArray<PropertySymbol>.Builder declaredProperties,
+        SyntaxToken identifier)
+    {
+        foreach (var existing in declaredProperties)
+        {
+            var isGetLetPair =
+                (property.Accessor == PropertyAccessorKind.Get && existing.Accessor == PropertyAccessorKind.Let) ||
+                (property.Accessor == PropertyAccessorKind.Let && existing.Accessor == PropertyAccessorKind.Get);
+            if (!isGetLetPair ||
+                !string.Equals(property.Name, existing.Name, StringComparison.OrdinalIgnoreCase) ||
+                property.Type == existing.Type ||
+                // Variant is an intentionally permissive property value carrier, including for
+                // indexed properties such as the VISIA cString replacement accessors.
+                property.Type == TypeSymbol.Variant ||
+                existing.Type == TypeSymbol.Variant)
+            {
+                continue;
+            }
+
+            var getter = property.Accessor == PropertyAccessorKind.Get ? property : existing;
+            var setter = property.Accessor == PropertyAccessorKind.Let ? property : existing;
+            Report(
+                "VB6S0078",
+                $"Property '{property.Name}' has incompatible Get type '{getter.Type.Name}' and Let value type '{setter.Type.Name}'.",
+                identifier.Span);
+            return;
+        }
     }
 
     /// <summary>
@@ -1138,7 +1171,9 @@ public sealed class Binder
         bool isStaticProcedure)
     {
         var previousStaticProcedure = _activeStaticProcedure;
+        var previousProcedure = _activeProcedure;
         _activeStaticProcedure = isStaticProcedure;
+        _activeProcedure = symbol;
         var variables = new Dictionary<string, VariableSymbol>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var moduleVariable in moduleVariables)
@@ -1275,6 +1310,7 @@ public sealed class Binder
         }
         finally
         {
+            _activeProcedure = previousProcedure;
             _activeStaticProcedure = previousStaticProcedure;
         }
     }
@@ -3277,6 +3313,20 @@ public sealed class Binder
         if (syntax.TargetKeyword.Kind is SyntaxKind.SubKeyword or SyntaxKind.FunctionKeyword ||
             string.Equals(syntax.TargetKeyword.Text, "Property", StringComparison.OrdinalIgnoreCase))
         {
+            var isValidTarget = syntax.TargetKeyword.Kind switch
+            {
+                SyntaxKind.SubKeyword => _activeProcedure is { IsFunction: false, PropertyAccessor: null },
+                SyntaxKind.FunctionKeyword => _activeProcedure is { IsFunction: true, PropertyAccessor: null },
+                _ => _activeProcedure?.PropertyAccessor is not null
+            };
+            if (!isValidTarget)
+            {
+                Report(
+                    "VB6S0077",
+                    $"Exit {syntax.TargetKeyword.Text} does not match the active procedure declaration.",
+                    syntax.TargetKeyword.Span);
+            }
+
             return new BoundReturnStatement();
         }
 
