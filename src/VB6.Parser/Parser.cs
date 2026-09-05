@@ -1182,6 +1182,7 @@ public sealed class Parser
             SyntaxKind.IdentifierToken when IsRSetAssignmentStart() => ParseRSetAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsMidAssignmentStart() => ParseMidAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsSetAssignmentStart() => ParseSetAssignmentStatement(),
+            SyntaxKind.IdentifierToken when IsLetAssignmentStart() => ParseLetAssignmentStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Open") => ParseOpenStatement(),
             SyntaxKind.IdentifierToken when LooksLikeNameStatement() => ParseNameStatement(),
             SyntaxKind.IdentifierToken when IsFileStatementKeyword("Close") => ParseCloseStatement(),
@@ -1276,6 +1277,72 @@ public sealed class Parser
                 return false;
             }
         }
+    }
+
+    /// <summary>
+    /// Recognizes the explicit <c>Let x = 1</c> form of an ordinary assignment.
+    /// </summary>
+    /// <remarks>
+    /// The scan mirrors <see cref="IsSetAssignmentStart"/>: an assignable target followed by a
+    /// top-level <c>=</c> before the statement ends. Without it, <c>Let</c> reads as a call to an
+    /// undeclared procedure and reports VB6S0005.
+    /// </remarks>
+    private bool IsLetAssignmentStart()
+    {
+        if (!IsIdentifier(Current, "Let") ||
+            Peek(1).Kind != SyntaxKind.IdentifierToken &&
+            Peek(1).Kind != SyntaxKind.DotToken)
+        {
+            return false;
+        }
+
+        var depth = 0;
+        for (var offset = 2; ; offset++)
+        {
+            var kind = Peek(offset).Kind;
+            if (kind == SyntaxKind.OpenParenthesisToken)
+            {
+                depth++;
+                continue;
+            }
+
+            if (kind == SyntaxKind.CloseParenthesisToken)
+            {
+                if (depth == 0)
+                {
+                    return false;
+                }
+
+                depth--;
+                continue;
+            }
+
+            if (depth == 0 && kind == SyntaxKind.EqualsToken)
+            {
+                return true;
+            }
+
+            if (depth == 0 && kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or
+                SyntaxKind.EndOfFileToken)
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parses <c>Let</c> by consuming the keyword and letting the ordinary dispatch handle what
+    /// follows.
+    /// </summary>
+    /// <remarks>
+    /// <c>Let</c> is legal in front of every assignable form -- a variable, an array element, a
+    /// member, a bracketed name. Re-entering the dispatcher reuses all of them instead of growing
+    /// a second assignment parser that would have to be kept in step with the first.
+    /// </remarks>
+    private StatementSyntax ParseLetAssignmentStatement()
+    {
+        _ = MatchIdentifier("Let");
+        return ParseStatement();
     }
 
     private bool IsLSetAssignmentStart()
