@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 161 expectations (134 implemented, 0 partial, 27 planned) with 134/161 documented-verified.
+The compatibility matrix contains 161 expectations (135 implemented, 0 partial, 26 planned) with 135/161 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -32,9 +32,8 @@ Implemented so far:
 - named arguments with `name:=value`, case-insensitive parameter binding, signature-order normalization,
   declaration-order evaluation for side-effecting expressions, optional defaults, and deterministic
   `VB6S0069` diagnostics for duplicate/out-of-order forms
-- `Array(...)` as a Variant-array intrinsic, including empty calls and mixed values. It is
-  currently always zero-based; under `Option Base 1` the documented contract is a one-based result,
-  tracked as the open card `r1-grammar-array-option-base`
+- `Array(...)` as a Variant-array intrinsic, including empty calls and mixed values: its
+  unqualified form uses `Option Base`, while `VBA.Array(...)` remains explicitly zero-based
 - `Choose` with rounded one-based selection, eager Variant choices, and Null for out-of-range indexes
 - `Switch` with eager condition/value evaluation and Variant Null when no condition matches
 - `Str` with invariant numeric formatting and VB6's leading sign space
@@ -183,12 +182,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `ec8b334` on `main` with uncommitted changes, run `20260905T173903Z-355a8a01`:
+Measured on 2026-09-05 at `76b273e` on `main` with uncommitted changes, run `20260905T180928Z-bc425e6d`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1680 cases: 1680 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1681 cases: 1681 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
@@ -202,8 +201,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **161 expectations**: **134 implemented**, **0 partial**, **27 planned**;
-**134 documented-verified**, **27 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **161 expectations**: **135 implemented**, **0 partial**, **26 planned**;
+**135 documented-verified**, **26 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

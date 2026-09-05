@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-05 auf `main` / `ec8b334` mit nicht committeten Änderungen, Lauf `20260905T173903Z-355a8a01`:
+Messung vom 2026-09-05 auf `main` / `76b273e` mit nicht committeten Änderungen, Lauf `20260905T180928Z-bc425e6d`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1680 Fälle: 1680 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1681 Fälle: 1681 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **161 Erwartungen**, davon **134 implemented**, **0 partial** und **27 planned**;
-**134/161 documented-verified**, 27 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **161 Erwartungen**, davon **135 implemented**, **0 partial** und **26 planned**;
+**135/161 documented-verified**, 26 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -145,7 +145,7 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 
 ## Aktive Restliste
 
-Die 27 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+Die 26 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
 abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -161,7 +161,6 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 | Karte | Ziel und Abnahme |
 | --- | --- |
 | `managed-r1-grammar` | **Grammatik und Kontext inventarisieren:** Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren. |
-| `r1-grammar-array-option-base` | **`Array` an `Option Base` binden:** `Array(10, 20)` unter `Option Base 1` beginnt bei 1, `VBA.Array` bleibt nullbasiert, `Split` bleibt nullbasiert. Gemessene Abweichung aus dem Grammatikinventar; Beleg ist der dokumentierte `Array`-Vertrag der VBA-Sprachreferenz, kein VB6-SP6-Lauf. |
 | `r1-grammar-invalid-form-diagnostics` | **Zwei ungültige Formen melden:** `Exit Sub` in einer `Function` und ein `Property Get`/`Let`-Paar mit unterschiedlichen Werttypen werden derzeit ohne jede Diagnose angenommen. |
 | `managed-r1-udt-shapes` | **Array- und UDT-Grenzen prüfen:** Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests. |
 | `managed-r1-operators` | **Operator- und Default-Member-Tabelle schließen:** Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen. |

@@ -883,22 +883,22 @@
       "matrixEntry": "language-declarations-and-statements",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Array(10, 20) under Option Base 1, compared with Split, which is documented as always zero-based",
       "expected": {
         "array": "LBound is the Option Base value, so Array(10, 20) under Option Base 1 spans 1 to 2",
         "qualified": "VBA.Array stays zero-based even under Option Base 1",
         "split": "Split stays zero-based regardless of Option Base"
       },
-      "implementationNotes": "Measured deviation: Array currently returns a zero-based array under Option Base 1, while Dim, ReDim and UDT member arrays all follow the directive correctly and Split is correctly zero-based. VBFunctions.Array returns its ParamArray container unchanged, and the Option Base value never reaches the intrinsic. Fixing it needs a way to carry the compile-time base into the intrinsic call, which the ParamArray signature does not currently allow.",
+      "implementationNotes": "The bound ParamArray literal now carries a lower bound. Unqualified Array supplies the module's Option Base and the IR uses that bound for both allocation and element stores. VBA.Array is recognized as the qualified intrinsic rather than a late-bound call on an implicit VBA variable, and explicitly supplies zero; Split and every other ParamArray construction retain zero.",
       "sourceRefs": [
         "vba-array"
       ],
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs"
       ],
-      "notes": "The expectation rests on the documented Array function contract, named as a VBA-language-reference source rather than an observed VB6 SP6 run. Planned work: the testRef is the existing Array baseline, not evidence for this contract."
+      "notes": "ArrayExecutionTests executes Option Base 1 with unqualified Array, qualified VBA.Array and Split: their lower bounds are respectively 1, 0 and 0. The expectation remains documented-verified from the named VBA-language-reference source, not oracle-verified by a VB6 SP6 run."
     },
     {
       "id": "r1-grammar-rem-and-let",

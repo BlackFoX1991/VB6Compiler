@@ -7556,3 +7556,24 @@ kann.
 Die Matrix steht bei **161 Erwartungen: 134 implemented, 0 partial, 27 planned**;
 `r1-grammar-return-error-number` ist jetzt `documented-verified`. `managed-r1-grammar` bleibt
 offen für die restliche, einzeln inventarisierte Grammatik- und Kontextfläche.
+
+## 2026-09-05 — R1, Schnitt 9: `Array` übernimmt die Modul-Untergrenze
+
+`Option Base` galt bereits für deklarierte Arrays, `ReDim` und UDT-Mitglieder, nicht aber für die
+unqualifizierte Funktion `Array`: Ihr ParamArray wurde im Lowerer immer als 0-basiertes temporäres
+Array erzeugt. Der gebundene Array-Literalwert enthält deshalb jetzt seine Untergrenze. Nur die
+unqualifizierte `Array`-Intrinsic trägt die wirksame Moduloption ein; Allocation und Elementstores
+verwenden denselben Wert.
+
+Die Schreibweise `VBA.Array(...)` wird als qualifizierte Standardbibliotheksfunktion gebunden statt
+als Late-Binding auf einer stillschweigend angelegten Variable namens `VBA`. Sie setzt die
+Untergrenze ausdrücklich auf 0. `Split` und sonstige ParamArray-Erzeugungen bleiben ebenfalls
+unverändert nullbasiert.
+
+Der Ausführungstest prüft unter `Option Base 1` die drei Formen und erhält für `Array`,
+`VBA.Array` und `Split` die Untergrenzen 1, 0 und 0. Das ist der benannte VBA-Dokumentationsvertrag,
+kein Lauf gegen einen originalen VB6-SP6-Compiler.
+
+Die Matrix steht bei **161 Erwartungen: 135 implemented, 0 partial, 26 planned**;
+`r1-grammar-array-option-base` ist jetzt `documented-verified`. `managed-r1-grammar` bleibt für
+die verbleibenden einzeln inventarisierten Deklarations-, Statement- und Diagnosekarten offen.
