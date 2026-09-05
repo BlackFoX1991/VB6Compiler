@@ -1,5 +1,9 @@
 [CmdletBinding()]
 param(
+    # Only -Configuration is positional. Giving it an explicit position makes every other
+    # parameter named-only, so a stray positional argument fails loudly instead of silently
+    # binding to whichever string parameter happens to come next in this list.
+    [Parameter(Position = 0)]
     [ValidateSet('Debug', 'Release')]
     [string] $Configuration = 'Release',
     [switch] $NoRestore,
