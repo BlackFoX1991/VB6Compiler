@@ -7417,3 +7417,30 @@ Die Matrix steht bei **156 Erwartungen: 130 implemented, 0 partial, 26 planned**
 `r1-grammar-module-properties` deckt jetzt auch `Set` ab, neu ist
 `r1-grammar-declaration-shapes`. `managed-r1-grammar` bleibt offen; die noch nicht inventarisierte
 Fläche ist vor allem die projektweite Sichtbarkeit über mehrere Module.
+
+## 2026-09-05 — R1, Schnitt 5: Modul-Properties werden projektweit sichtbar
+
+Fünfter Durchgang durch `managed-r1-grammar`, und die Fortsetzung eines Befunds, den die vorigen
+Schnitte halb gelassen hatten: Ein `Public Property Get` in einer `.bas` gilt in VB6 projektweit,
+genau wie eine `Public Function` — und war es nicht. Die Messung über ein Zweimodulprojekt zeigte
+öffentliche Variable, öffentliche Funktion und modulqualifizierten Aufruf korrekt, nur die
+Property meldete `VB6S0001`.
+
+Der Grund liegt im Aufbau der projektweiten Tabelle: Sie ist namensbasiert, und `Get`, `Let` und
+`Set` teilen sich einen Namen — Properties waren dort deshalb nie aufgenommen worden.
+`ModulePropertySymbol` fasst die drei Accessoren unter einem Namen zusammen, und das Projekt baut
+sie einmal für alle Standardmodule. Das löst beide Hälften: Sie werden sichtbar, und sie behalten
+**eine** Identität. Die zweite Hälfte ist die unauffällige: Zwei getrennte Instanzen hätten den
+Aufrufer auf eine Prozedur ohne Rumpf zeigen lassen, und das wäre erst zur Laufzeit aufgefallen.
+Private Accessoren bleiben aus der Projekttabelle heraus, ein privater Modulhelfer ist also
+weiterhin von außen unerreichbar.
+
+Ein Nebenbefund aus dem Test: Die beiden Negativfälle melden **verschiedene** Codes. Ein bloßer
+Name, der ins Leere läuft, ist eine Variablenreferenz und ergibt `VB6S0001`; ein Aufruf mit
+Klammern ist eine Prozedurreferenz und ergibt `VB6S0005`. Der erste Testentwurf forderte für beide
+`VB6S0001` und scheiterte an einem Compiler, der recht hatte — dieselbe Falle, vor der `CLAUDE.md`
+warnt: Ein Test darf nicht aufgrund einer Vermutung über die erwartete Meldung geschrieben werden.
+
+Die Matrix steht bei **157 Erwartungen: 131 implemented, 0 partial, 26 planned**;
+**131 documented-verified, 26 not-yet-verified, 0 oracle-verified**. Neu ist
+`r1-grammar-cross-module-visibility`.

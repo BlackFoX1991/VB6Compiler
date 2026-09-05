@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 156 Erwartungen: 130 `implemented`, 0 `partial`, 26 `planned`;
-130 `documented-verified`, 26 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 157 Erwartungen: 131 `implemented`, 0 `partial`, 26 `planned`;
+131 `documented-verified`, 26 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
