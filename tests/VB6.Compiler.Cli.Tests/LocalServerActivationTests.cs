@@ -1,21 +1,20 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using Microsoft.Win32;
 using VB6.Compiler;
 using VB6.Emit.Managed;
 
 namespace VB6.Compiler.Cli.Tests;
 
 /// <summary>
-/// The out-of-process half of Etappe D: an emitted ActiveX EXE is registered as a local server,
-/// activated by COM in its own process, called, and released. Registration goes under HKCU, so the
-/// test needs no elevation and leaves nothing behind for other users.
+/// The out-of-process half of Etappe D: an emitted ActiveX EXE starts in its COM embedding role,
+/// registers class objects, serves a foreign process through IDispatch, and exits after release.
 /// </summary>
 [TestClass]
 public sealed class LocalServerActivationTests
 {
+    private const int ClassNotRegistered = unchecked((int)0x80040154);
+
     [TestMethod]
     [SupportedOSPlatform("windows")]
     public void ActiveXExe_ServesAClassToAnOutOfProcessClient()
@@ -27,17 +26,18 @@ public sealed class LocalServerActivationTests
         }
 
         var directory = Path.Combine(Path.GetTempPath(), "VB6LocalServer", Guid.NewGuid().ToString("N"));
+        var applicationName = "Rechner_" + Guid.NewGuid().ToString("N")[..12];
         Directory.CreateDirectory(directory);
-        Guid? registeredClassId = null;
+        Process? server = null;
 
         try
         {
-            var projectPath = Path.Combine(directory, "Rechner.vbp");
-            File.WriteAllText(projectPath, """
-                Type=ActiveX EXE
-                Name="Rechner"
-                Class=Addierer; Addierer.cls
-                """);
+            var projectPath = Path.Combine(directory, applicationName + ".vbp");
+            File.WriteAllText(
+                projectPath,
+                "Type=ActiveX EXE" + Environment.NewLine +
+                "Name=\"" + applicationName + "\"" + Environment.NewLine +
+                "Class=Addierer; Addierer.cls" + Environment.NewLine);
             File.WriteAllText(Path.Combine(directory, "Addierer.cls"), """
                 VERSION 1.0 CLASS
                 BEGIN
@@ -54,7 +54,7 @@ public sealed class LocalServerActivationTests
                 End Function
                 """);
 
-            var exePath = Path.Combine(directory, "bin", "Rechner.exe");
+            var exePath = Path.Combine(directory, "bin", applicationName + ".exe");
             var result = DirectManagedCompilation.EmitManaged(
                 VBProjectCompilation.Create(projectPath),
                 exePath,
@@ -69,49 +69,102 @@ public sealed class LocalServerActivationTests
                             diagnostic.Code + ": " + diagnostic.Message) ?? Array.Empty<string>())));
             Assert.IsTrue(File.Exists(exePath), exePath);
 
-            var classId = ReadClassId(Path.Combine(directory, "bin", "Rechner.dll"), "Addierer");
-            RegisterLocalServer(classId, exePath);
-            registeredClassId = classId;
+            var classId = ReadClassId(Path.Combine(directory, "bin", applicationName + ".dll"), "Addierer");
+            server = StartLocalServer(exePath, directory);
 
-            var comType = Type.GetTypeFromCLSID(classId, throwOnError: true)!;
-            object? instance = null;
-            try
-            {
-                instance = Activator.CreateInstance(comType);
-                Assert.IsNotNull(instance);
-
-                // Der Aufruf geht über die Prozessgrenze: ein echter COM-Proxy, kein In-Process-Objekt.
-                Assert.IsTrue(Marshal.IsComObject(instance!));
-                // Spät gebunden über IDispatch -- genau der Weg, den ein VB6- oder VBA-Client geht.
-                var sum = comType.InvokeMember(
-                    "Summe",
-                    System.Reflection.BindingFlags.InvokeMethod,
-                    binder: null,
-                    instance,
-                    new object?[] { 20, 22 });
-                Assert.AreEqual(42, Convert.ToInt32(sum, System.Globalization.CultureInfo.InvariantCulture));
-            }
-            finally
-            {
-                if (instance is not null)
-                {
-                    Marshal.ReleaseComObject(instance);
-                }
-            }
+            // Ein getrennter Prozess ist Teil des Vertrags: Der Probe spricht den externen
+            // Server über rohes IDispatch an, wie ein spät gebundener VB6-/VBA-Client und nicht
+            // über einen .NET-spezifischen RCW-Importpfad.
+            var activation = WaitForExternalActivation(server, classId, directory);
+            Assert.AreEqual(0, activation.ExitCode, activation.StandardError);
+            Assert.AreEqual("42", activation.StandardOutput.Trim());
 
             // Nach der Freigabe beendet sich der Server von selbst -- das ist der Teil des
             // Vertrags, an dem ein Local Server sonst als Zombie im Speicher bleibt.
-            var stopped = WaitForServerExit(TimeSpan.FromSeconds(30));
+            var stopped = WaitForServerExit(server, TimeSpan.FromSeconds(30));
             Assert.IsTrue(stopped, "Der Local Server hat sich nach der Freigabe nicht beendet.");
         }
         finally
         {
-            if (registeredClassId is { } toRemove)
+            if (server is not null)
             {
-                UnregisterLocalServer(toRemove);
+                try
+                {
+                    if (!server.HasExited)
+                    {
+                        server.Kill(entireProcessTree: true);
+                        server.WaitForExit(5000);
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                }
+                finally
+                {
+                    server.Dispose();
+                }
             }
 
             TryDeleteDirectory(directory);
+        }
+    }
+
+    private static Process StartLocalServer(string exePath, string workingDirectory)
+    {
+        var startInfo = new ProcessStartInfo(exePath)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("/Embedding");
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start the ActiveX EXE server.");
+    }
+
+    private static (int ExitCode, string StandardOutput, string StandardError) RunLocalServerProbe(
+        Guid classId,
+        string workingDirectory)
+    {
+        var probePath = Path.Combine(AppContext.BaseDirectory, "VB6.ComActivationProbe.exe");
+        Assert.IsTrue(File.Exists(probePath), probePath);
+        var startInfo = new ProcessStartInfo(probePath)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("--local-server");
+        startInfo.ArgumentList.Add(classId.ToString("D"));
+        using var probe = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start the local-server activation probe.");
+        var standardOutput = probe.StandardOutput.ReadToEnd();
+        var standardError = probe.StandardError.ReadToEnd();
+        probe.WaitForExit();
+        return (probe.ExitCode, standardOutput, standardError);
+    }
+
+    private static (int ExitCode, string StandardOutput, string StandardError) WaitForExternalActivation(
+        Process server,
+        Guid classId,
+        string workingDirectory)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (true)
+        {
+            var activation = RunLocalServerProbe(classId, workingDirectory);
+            if (activation.ExitCode != ClassNotRegistered || server.HasExited || DateTime.UtcNow >= deadline)
+            {
+                return activation;
+            }
+
+            // The executable is already running; this bounded retry only waits for its
+            // CoRegisterClassObject call to become visible, not for SCM registry activation.
+            Thread.Sleep(100);
         }
     }
 
@@ -130,34 +183,12 @@ public sealed class LocalServerActivationTests
         return new Guid(bytes);
     }
 
-    [SupportedOSPlatform("windows")]
-    private static void RegisterLocalServer(Guid classId, string exePath)
-    {
-        using var key = Registry.CurrentUser.CreateSubKey(
-            $@"Software\Classes\CLSID\{{{classId:D}}}\LocalServer32");
-        key.SetValue(null, "\"" + exePath + "\"");
-    }
-
-    [SupportedOSPlatform("windows")]
-    private static void UnregisterLocalServer(Guid classId)
-    {
-        try
-        {
-            Registry.CurrentUser.DeleteSubKeyTree(
-                $@"Software\Classes\CLSID\{{{classId:D}}}",
-                throwOnMissingSubKey: false);
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-    }
-
-    private static bool WaitForServerExit(TimeSpan timeout)
+    private static bool WaitForServerExit(Process server, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            if (Process.GetProcessesByName("Rechner").Length == 0)
+            if (server.HasExited)
             {
                 return true;
             }
@@ -165,15 +196,16 @@ public sealed class LocalServerActivationTests
             Thread.Sleep(200);
         }
 
-        foreach (var process in Process.GetProcessesByName("Rechner"))
+        try
         {
-            try
+            if (!server.HasExited)
             {
-                process.Kill();
+                server.Kill(entireProcessTree: true);
+                server.WaitForExit(5000);
             }
-            catch (InvalidOperationException)
-            {
-            }
+        }
+        catch (InvalidOperationException)
+        {
         }
 
         return false;
