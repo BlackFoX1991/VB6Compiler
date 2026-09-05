@@ -1342,11 +1342,37 @@ public sealed class ManagedEmitter
                     encoder.Token(_fieldHandles[field.Field]);
                     break;
                 case IrArrayElementPlace element:
+                    if (TracksObjectLifetime(element.ElementType))
+                    {
+                        EmitExpression(encoder, procedure, element.Array);
+                        EmitInt32Array(encoder, procedure, element.Indices);
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
+                        encoder.Call(GetArrayReferenceStoreReference(
+                            ((ArrayTypeSymbol)element.Array.Type).ElementType,
+                            OwnsLifetimeReference(value)
+                                ? nameof(VBArray<object>.TransferReference)
+                                : nameof(VBArray<object>.ReplaceReference),
+                            flatIndex: false));
+                        break;
+                    }
                     EmitArrayElementAddress(encoder, procedure, element);
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
                     EmitStoreIndirect(encoder, element.ElementType);
                     break;
                 case IrArrayFlatElementPlace element:
+                    if (TracksObjectLifetime(element.ElementType))
+                    {
+                        EmitExpression(encoder, procedure, element.Array);
+                        EmitExpression(encoder, procedure, element.Index);
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
+                        encoder.Call(GetArrayReferenceStoreReference(
+                            ((ArrayTypeSymbol)element.Array.Type).ElementType,
+                            OwnsLifetimeReference(value)
+                                ? nameof(VBArray<object>.TransferReferenceAtFlatIndex)
+                                : nameof(VBArray<object>.ReplaceReferenceAtFlatIndex),
+                            flatIndex: true));
+                        break;
+                    }
                     EmitArrayFlatElementAddress(encoder, procedure, element);
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
                     EmitStoreIndirect(encoder, element.ElementType);
@@ -3732,6 +3758,38 @@ public sealed class ManagedEmitter
                     {
                         EncodeReflectionType(parameters.AddParameter().Type(), parameterType);
                     }
+                });
+            var handle = _metadata.AddMemberReference(
+                GetArrayTypeSpecification(new ArrayTypeSymbol(elementType)),
+                _metadata.GetOrAddString(name),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        /// <summary>
+        /// References VBArray&lt;T&gt;'s ownership-aware element stores. The element parameter is
+        /// the constructed array's generic T, so it must be encoded as !0 rather than as the
+        /// CLR type used while planning this particular array.
+        /// </summary>
+        private MemberReferenceHandle GetArrayReferenceStoreReference(
+            TypeSymbol elementType,
+            string name,
+            bool flatIndex)
+        {
+            var parameterType = flatIndex ? typeof(int) : typeof(int[]);
+            var key = "VBArray<" + elementType.Name + ">::" + name + "(" +
+                      parameterType.FullName + ",!0)";
+            if (_memberReferences.TryGetValue(key, out var cached)) return cached;
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                2,
+                returnType => returnType.Void(),
+                parameters =>
+                {
+                    EncodeReflectionType(parameters.AddParameter().Type(), parameterType);
+                    parameters.AddParameter().Type().GenericTypeParameter(0);
                 });
             var handle = _metadata.AddMemberReference(
                 GetArrayTypeSpecification(new ArrayTypeSymbol(elementType)),

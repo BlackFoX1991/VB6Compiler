@@ -125,6 +125,26 @@ public sealed class VBArray<T> : IVBArray
     /// </summary>
     public ref T GetReferenceAtFlatIndex(int index) => ref _items[index];
 
+    /// <summary>
+    /// Stores a borrowed generated-class reference in an array slot. Retaining before releasing
+    /// is the array counterpart of a normal <c>Set left = right</c> assignment and keeps a
+    /// self-assignment alive.
+    /// </summary>
+    public void ReplaceReference(int[] indices, T value) =>
+        ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: false);
+
+    /// <summary>Moves an already-owned generated-class reference into an array slot.</summary>
+    public void TransferReference(int[] indices, T value) =>
+        ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
+
+    /// <summary>Flat-index version used by compiler paths that already resolved VB6 bounds.</summary>
+    public void ReplaceReferenceAtFlatIndex(int index, T value) =>
+        ReplaceReferenceAtOffset(index, value, transferOwnership: false);
+
+    /// <summary>Flat-index version that adopts a New/function-result reference.</summary>
+    public void TransferReferenceAtFlatIndex(int index, T value) =>
+        ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+
     object? IVBArray.GetObjectValue(int[] indices) => this[indices];
 
     void IVBArray.SetObjectValue(int[] indices, object? value)
@@ -141,6 +161,7 @@ public sealed class VBArray<T> : IVBArray
     /// </summary>
     public void Clear()
     {
+        ReleaseElements();
         Array.Clear(_items);
         InitializeElements();
     }
@@ -167,12 +188,14 @@ public sealed class VBArray<T> : IVBArray
         if (elementCloner is null)
         {
             Array.Copy(_items, clone._items, _items.Length);
+            clone.RetainElements();
             return clone;
         }
 
         for (var index = 0; index < _items.Length; index++)
         {
             clone._items[index] = elementCloner(_items[index]);
+            VBObjectLifetime.Retain(clone._items[index]);
         }
 
         return clone;
@@ -265,6 +288,34 @@ public sealed class VBArray<T> : IVBArray
 
     private static T ConvertElement(object? value) =>
         (T)VBArrayOperations.ConvertArrayElement(value, typeof(T))!;
+
+    private void ReplaceReferenceAtOffset(int offset, T value, bool transferOwnership)
+    {
+        var current = _items[offset];
+        if (!transferOwnership)
+        {
+            VBObjectLifetime.Retain(value);
+        }
+
+        _items[offset] = value;
+        VBObjectLifetime.Release(current);
+    }
+
+    private void RetainElements()
+    {
+        foreach (var item in _items)
+        {
+            VBObjectLifetime.Retain(item);
+        }
+    }
+
+    private void ReleaseElements()
+    {
+        foreach (var item in _items)
+        {
+            VBObjectLifetime.Release(item);
+        }
+    }
 
     private VBArrayBound GetBound(int dimension)
     {

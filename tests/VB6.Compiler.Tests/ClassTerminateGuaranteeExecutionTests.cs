@@ -379,4 +379,54 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_TracksTypedClassArrayElements()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateArray", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Array.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Array"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim values() As C
+                    ReDim values(1 To 1)
+                    Set values(1) = New C
+                    Set values(1) = values(1)
+                    Debug.Print "Array besitzt"
+                    Set values(1) = Nothing
+                    Debug.Print "Array geloescht"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "Array besitzt", "Terminate", "Array geloescht" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
