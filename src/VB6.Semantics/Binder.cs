@@ -2686,6 +2686,20 @@ public sealed class Binder
             return new BoundAssignmentStatement(variable, expression);
         }
 
+        // A constant has no storage, so an assignment to one cannot be lowered at all -- it used
+        // to reach the lowerer and fail there with "Global was not declared before lowering",
+        // which reads like a compiler defect rather than the source error it is.
+        if (variable.IsConstant)
+        {
+            Report(
+                "VB6S0076",
+                $"Constant '{syntax.Identifier.Text}' cannot be assigned to.",
+                syntax.Identifier.Span);
+            return new BoundAssignmentStatement(
+                new LocalVariableSymbol(syntax.Identifier.Text, TypeSymbol.Error),
+                expression);
+        }
+
         return new BoundAssignmentStatement(variable, BindConversion(expression, variable.Type));
     }
 
@@ -2694,6 +2708,38 @@ public sealed class Binder
         Dictionary<string, VariableSymbol> variables,
         IReadOnlyDictionary<string, ProcedureSymbol> procedures)
     {
+        // A module-level Property Set is a procedure taking the object, so the assignment is its
+        // call. It has to be answered before the switch below: the target of a module property is
+        // not an addressable place, and letting the read path answer would put an invocation where
+        // an assignment target belongs.
+        if (StripModuleQualification(syntax.Target, variables) is NameExpressionSyntax moduleName &&
+            !variables.ContainsKey(moduleName.IdentifierToken.Text) &&
+            _containingClass is null &&
+            _moduleProperties.ContainsKey(moduleName.IdentifierToken.Text))
+        {
+            if (!TryGetModulePropertyAccessor(
+                    moduleName.IdentifierToken.Text,
+                    PropertyAccessorKind.Set,
+                    out var moduleSetter))
+            {
+                Report(
+                    "VB6S0064",
+                    $"Module property '{moduleName.IdentifierToken.Text}' has no Set accessor.",
+                    moduleName.IdentifierToken.Span);
+                return new BoundInvocationStatement(
+                    new ProcedureSymbol(moduleName.IdentifierToken.Text),
+                    ImmutableArray<BoundArgument>.Empty);
+            }
+
+            var setValue = BindExpression(syntax.Expression, variables, procedures);
+            var setParameter = moduleSetter.Parameters.Length > 0 ? moduleSetter.Parameters[^1] : null;
+            return new BoundInvocationStatement(
+                moduleSetter,
+                ImmutableArray.Create(new BoundArgument(
+                    setParameter,
+                    setParameter is null ? setValue : BindConversion(setValue, setParameter.Type))));
+        }
+
         var target = StripModuleQualification(syntax.Target, variables) switch
         {
             MemberAccessExpressionSyntax memberAccess =>
