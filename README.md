@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 161 expectations (135 implemented, 0 partial, 26 planned) with 135/161 documented-verified.
+The compatibility matrix contains 161 expectations (136 implemented, 0 partial, 25 planned) with 136/161 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -109,7 +109,9 @@ Implemented so far:
   single-line and block `If`, `Select Case` with comma lists, `To` ranges and `Is` comparisons,
   every `Do`/`Loop` form including post-test bodies and `Exit Do`, the `:` separator, and numeric
   and named labels as jump targets
-- `Exit Sub` and `Exit Function`
+- procedure exits that match their declaration (`Exit Sub`, `Exit Function`, `Exit Property`),
+  with a diagnostic for a mismatched exit form; incompatible concrete `Property Get`/`Let` value
+  types are likewise rejected before emission, while a `Variant` Let value stays permissive
 - `Declare Function` and `Declare Sub` syntax with `Lib`, optional `Alias`, `ByVal`/default-`ByRef` parameters, and `As Any`; scalar signatures and blittable UDT records now lower to real Managed P/Invoke imports, including native `ByRef` UDT write-back and fixed `String * n` fields, and direct `AddressOf` procedure targets lower to function addresses, while variable-length string marshalling, typed UDT/raw-pointer arrays and the remaining callback ABI stay in the interop milestone
 - `Enum ... End Enum` with optional visibility plus explicit or implicit member values, bound as Long-backed constants
 - `Function` declarations without an `As` clause, which return Variant as they do in VB6
@@ -182,12 +184,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `76b273e` on `main` with uncommitted changes, run `20260905T180928Z-bc425e6d`:
+Measured on 2026-09-05 at `dc06a7b` on `main` with uncommitted changes, run `20260905T183847Z-0c3ae27e`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1681 cases: 1681 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1687 cases: 1687 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
@@ -201,8 +203,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **161 expectations**: **135 implemented**, **0 partial**, **26 planned**;
-**135 documented-verified**, **26 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **161 expectations**: **136 implemented**, **0 partial**, **25 planned**;
+**136 documented-verified**, **25 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

@@ -7577,3 +7577,21 @@ kein Lauf gegen einen originalen VB6-SP6-Compiler.
 Die Matrix steht bei **161 Erwartungen: 135 implemented, 0 partial, 26 planned**;
 `r1-grammar-array-option-base` ist jetzt `documented-verified`. `managed-r1-grammar` bleibt für
 die verbleibenden einzeln inventarisierten Deklarations-, Statement- und Diagnosekarten offen.
+
+## 2026-09-05 — R1, Schnitt 10: Ungültige Prozedurformen werden vor dem Lowering abgelehnt
+
+Ein `Exit Sub` innerhalb einer `Function` oder Property wurde bis dahin genau wie ein passender
+Prozeduraustritt in ein Return übersetzt. Der Binder merkt sich nun für die Dauer des Body-Bindings
+das aktive `ProcedureSymbol` und meldet `VB6S0077`, wenn die Exit-Form nicht zur deklarierten
+Prozedur gehört. Die positiven Gegenproben für `Exit Sub`, `Exit Function` und `Exit Property`
+bleiben ohne diese Diagnose.
+
+Bei Properties entstand ein zweites, unabhängiges Typenloch: `Property Get Title() As Long` und
+`Property Let Title(value As String)` wurden als zwei gültige Accessoren gesammelt, obwohl ihre
+Werttypen nicht vereinbar sind. Beim Sammeln der Deklarationen vergleicht der Binder gleichnamige
+Get/Let-Paare und meldet die Abweichung mit `VB6S0078`; gleiche Werttypen und ein `Variant`-Wert
+als aufnahmefähiger Let-Parameter bleiben zulässig.
+
+Die Matrix steht bei **161 Erwartungen: 136 implemented, 0 partial, 25 planned**;
+`r1-grammar-invalid-form-diagnostics` ist jetzt `documented-verified`. `managed-r1-grammar`
+bleibt für die übrige inventarisierte Grammatik- und Kontextfläche offen.

@@ -803,18 +803,18 @@
       "matrixEntry": "language-declarations-and-statements",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
-      "input": "Exit Sub inside a Function, and a Property Get/Let pair whose value types disagree",
+      "implementation": "implemented",
+      "input": "Exit Sub inside a Function, and a Property Get/Let pair whose concrete value types disagree",
       "expected": {
         "exitSub": "Exit Sub in a Function or Property is rejected with a diagnostic",
-        "propertyMismatch": "a Property Get and Let of the same name with different value types is rejected with a diagnostic"
+        "propertyMismatch": "a Property Get and Let of the same name with different concrete (non-Variant) value types is rejected with a diagnostic"
       },
-      "implementationNotes": "Measured deviation: both are accepted today with no diagnostic at all. Duplicate procedures (VB6S0004) and Next without For (VB6P0001) are correctly diagnosed, so the gap is specific to these two forms.",
-      "verification": "not-yet-verified",
+      "implementationNotes": "Binder tracks the active ProcedureSymbol while binding its body, so Exit Sub, Exit Function and Exit Property are checked against the declared procedure shape before lowering. Each Property Get/Let pair is compared by case-insensitive name and concrete value type while declarations are collected; concrete mismatches report before either accessor can be emitted, while Variant remains a permissive value carrier.",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
       ],
-      "notes": "Planned work: the testRef is the existing diagnostic suite, not evidence for this contract. Closes the 'diagnose invalid forms' half of managed-r1-grammar."
+      "notes": "UncoveredDiagnosticTests separately rejects Exit Sub inside Function and Property with VB6S0077, accepts matching exit forms, rejects a mismatched concrete Property Get/Let pair with VB6S0078, and accepts equal value types plus a Variant Let value. Closes the 'diagnose invalid forms' half of managed-r1-grammar."
     },
     {
       "id": "r1-grammar-remaining-declarations",
