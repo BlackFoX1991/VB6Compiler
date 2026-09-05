@@ -112,7 +112,32 @@ internal static class VB6TestProgram
     /// directory and returns the assembly to start, which lets a test assert on the emit result
     /// itself - artifact paths, diagnostics - while the process handling and cleanup stay here.
     /// </summary>
-    public static string RunEmitted(Func<string, string> emit)
+    public static string RunEmitted(Func<string, string> emit) =>
+        RunEmitted(emit, expectSuccess: true).StandardOutput;
+
+    /// <summary>
+    /// Runs a program that is expected to fail and returns what it wrote to standard error.
+    /// </summary>
+    /// <remarks>
+    /// Some VB6 contracts end the process: an untrapped runtime error is a real, observable
+    /// outcome and needs a test like any other. Without this the only way to cover one is to
+    /// rebuild the process handling in the test file, which is exactly what this class exists to
+    /// prevent.
+    /// </remarks>
+    public static string RunExpectingFailure(string source, string fileName = "Module1.bas")
+    {
+        var compilation = VBCompilation.Create(source, fileName);
+        var result = RunEmitted(directory => Emit(compilation, directory), expectSuccess: false);
+        Assert.AreNotEqual(
+            0,
+            result.ExitCode,
+            "Das Programm sollte fehlschlagen, lief aber durch: " + result.StandardOutput);
+        return result.StandardError;
+    }
+
+    private static (string StandardOutput, string StandardError, int ExitCode) RunEmitted(
+        Func<string, string> emit,
+        bool expectSuccess)
     {
         ArgumentNullException.ThrowIfNull(emit);
         var directory = Path.Combine(
@@ -140,8 +165,12 @@ internal static class VB6TestProgram
             var standardError = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
-            Assert.AreEqual(0, process.ExitCode, standardError);
-            return standardOutput;
+            if (expectSuccess)
+            {
+                Assert.AreEqual(0, process.ExitCode, standardError);
+            }
+
+            return (standardOutput, standardError, process.ExitCode);
         }
         finally
         {
