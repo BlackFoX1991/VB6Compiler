@@ -951,10 +951,22 @@ public sealed class ManagedEmitter
                     }
                     break;
                 case IrReturnTerminator ret:
+                    var returnsTrackedObject = ret.Value is not null && TracksObjectLifetime(ret.Value.Type);
                     if (ret.Value is not null)
                     {
                         EmitExpression(encoder, procedure, ret.Value);
+                        if (returnsTrackedObject)
+                        {
+                            // A function result leaves with its own reference. The function local
+                            // is released below, so this is a transfer rather than a leak.
+                            encoder.OpCode(ILOpCode.Dup);
+                            encoder.Call(GetRuntimeMethodReference(Static(
+                                typeof(VBObjectLifetime),
+                                nameof(VBObjectLifetime.Retain),
+                                typeof(object))));
+                        }
                     }
+                    EmitProcedureLifetimeCleanup(encoder, procedure);
                     if (ret.ClearsActiveErrorHandler)
                     {
                         encoder.Call(GetRuntimeMethodReference(Static(
@@ -971,6 +983,20 @@ public sealed class ManagedEmitter
                     break;
                 default:
                     throw new NotSupportedException($"Managed emit does not support IR terminator '{terminator.GetType().Name}'.");
+            }
+        }
+
+        private void EmitProcedureLifetimeCleanup(InstructionEncoder encoder, IrProcedure procedure)
+        {
+            // ByVal parameters are caller-owned at the current call boundary. Until calls create
+            // their own counted ownership, only procedure locals are released here.
+            foreach (var local in procedure.Locals.Where(local => TracksObjectLifetime(local.Type)))
+            {
+                encoder.LoadLocal(local.Id);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBObjectLifetime),
+                    nameof(VBObjectLifetime.Release),
+                    typeof(object))));
             }
         }
 
@@ -1208,10 +1234,32 @@ public sealed class ManagedEmitter
             switch (place)
             {
                 case IrLocalPlace local:
+                    if (TracksObjectLifetime(local.Type))
+                    {
+                        EmitLifetimeAwareStore(
+                            encoder,
+                            procedure,
+                            local.Type,
+                            value,
+                            () => encoder.LoadLocal(local.Local.Id),
+                            () => encoder.StoreLocal(local.Local.Id));
+                        break;
+                    }
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, local.Type);
                     encoder.StoreLocal(local.Local.Id);
                     break;
                 case IrParameterPlace parameter when parameter.Parameter.PassingMode == ParameterPassingMode.ByVal:
+                    if (TracksObjectLifetime(parameter.Type))
+                    {
+                        EmitLifetimeAwareStore(
+                            encoder,
+                            procedure,
+                            parameter.Type,
+                            value,
+                            () => encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index)),
+                            () => encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index)));
+                        break;
+                    }
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
                     encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     break;
@@ -1221,6 +1269,25 @@ public sealed class ManagedEmitter
                     EmitStoreIndirect(encoder, parameter.Type);
                     break;
                 case IrGlobalPlace global:
+                    if (TracksObjectLifetime(global.Type))
+                    {
+                        EmitLifetimeAwareStore(
+                            encoder,
+                            procedure,
+                            global.Type,
+                            value,
+                            () =>
+                            {
+                                encoder.OpCode(ILOpCode.Ldsfld);
+                                encoder.Token(_globalHandles[global.Global]);
+                            },
+                            () =>
+                            {
+                                encoder.OpCode(ILOpCode.Stsfld);
+                                encoder.Token(_globalHandles[global.Global]);
+                            });
+                        break;
+                    }
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, global.Type);
                     encoder.OpCode(ILOpCode.Stsfld);
                     encoder.Token(_globalHandles[global.Global]);
@@ -1255,6 +1322,40 @@ public sealed class ManagedEmitter
                 default:
                     throw new NotSupportedException($"Managed store does not support place '{place.GetType().Name}'.");
             }
+        }
+
+        /// <summary>
+        /// Emits a local, ByVal-parameter or global replacement without asking the collector to
+        /// infer ownership. The old value and the converted incoming value stay on the evaluation
+        /// stack until the runtime has retained/released them in the only safe order.
+        /// </summary>
+        private void EmitLifetimeAwareStore(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            TypeSymbol targetType,
+            IrExpression value,
+            Action loadCurrent,
+            Action storeResult)
+        {
+            loadCurrent();
+            EmitExpressionWithAssignmentConversion(encoder, procedure, value, targetType);
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBObjectLifetime),
+                OwnsLifetimeReference(value)
+                    ? nameof(VBObjectLifetime.Transfer)
+                    : nameof(VBObjectLifetime.Replace),
+                typeof(object),
+                typeof(object))));
+            EmitLifetimeReferenceCast(encoder, targetType);
+            storeResult();
+        }
+
+        private void EmitLifetimeReferenceCast(InstructionEncoder encoder, TypeSymbol type)
+        {
+            // Replace/Transfer use object so one runtime helper covers every generated class.
+            // The destination remains strongly typed in emitted IL.
+            encoder.OpCode(ILOpCode.Castclass);
+            encoder.Token(GetTypeEntityHandle(type));
         }
 
         private void EmitAddress(InstructionEncoder encoder, IrProcedure procedure, IrPlace place)
@@ -4739,6 +4840,24 @@ public sealed class ManagedEmitter
         private static bool IsReferenceType(TypeSymbol type) =>
             type == TypeSymbol.String || type == TypeSymbol.Variant || type is ArrayTypeSymbol ||
             type is ClassTypeSymbol;
+
+        /// <summary>
+        /// Only generated VB6 classes participate in this counter. Runtime contracts and imported
+        /// COM classes retain their existing ownership mechanisms, while a generated interface is
+        /// still a valid typed view over a counted generated instance.
+        /// </summary>
+        private static bool TracksObjectLifetime(TypeSymbol type) =>
+            type is ClassTypeSymbol classType &&
+            !classType.IsRuntimeObjectContract &&
+            classType.ExternalAssemblyName is null;
+
+        /// <summary>
+        /// New and generated class-return calls yield a reference that the destination adopts.
+        /// A load is borrowed and therefore uses Replace, which retains before releasing.
+        /// </summary>
+        private static bool OwnsLifetimeReference(IrExpression expression) =>
+            expression is IrNewClassExpression ||
+            expression is IrProcedureCallExpression { ResultType: ClassTypeSymbol };
 
         private static bool IsValueType(TypeSymbol type) => !IsReferenceType(type) && type != TypeSymbol.Error;
 

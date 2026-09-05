@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace VB6.Runtime;
 
 /// <summary>
-/// Makes the promise that <c>Class_Terminate</c> runs at all.
+/// Coordinates the lifetime of generated classes that carry <c>Class_Terminate</c>.
 ///
 /// VB6 counts references and terminates the moment the last one goes. This runtime has a collector
 /// instead, so the emitted class carries a finalizer — and a finalizer is not a promise: the CLR
@@ -13,12 +13,11 @@ namespace VB6.Runtime;
 /// prints stayed silent for every case — explicit <c>Set x = Nothing</c>, scope exit, reassignment
 /// and program end alike.
 ///
-/// So this type keeps a weak register of every instance that has a terminator and drains it when
-/// the process ends, newest first. What it deliberately does <b>not</b> do is guess when a
-/// reference was the last one. Firing Terminate early runs a program's cleanup on a live object,
-/// and that is far worse than firing it late; the deterministic timing needs a real reference
-/// count, which is an architecture decision rather than a gap here. The register only closes the
-/// difference between "late" and "never".
+/// Generated stores now report their ownership changes here: a newly constructed or returned
+/// object transfers its one reference into its destination, while an alias retains the source
+/// before it releases the old destination. The weak register remains the last line of defence for
+/// an object that escaped an uninstrumented boundary, and drains such instances at process exit.
+/// It is deliberately not used as evidence that an uninstrumented storage form has VB6 timing.
 /// </summary>
 public static class VBObjectLifetime
 {
@@ -28,7 +27,7 @@ public static class VBObjectLifetime
 
     private static readonly object Gate = new();
     private static readonly List<WeakReference<object>> Live = [];
-    private static readonly ConditionalWeakTable<object, StrongBox<int>> States = [];
+    private static readonly ConditionalWeakTable<object, LifetimeState> States = [];
     private static readonly Dictionary<Type, MethodInfo?> Terminators = [];
 
     private static bool _drainInstalled;
@@ -47,7 +46,9 @@ public static class VBObjectLifetime
 
         lock (Gate)
         {
-            States.GetValue(instance, static _ => new StrongBox<int>(0));
+            // Construction creates one owned reference. The generated New/store sequence moves
+            // it into the first destination; copying an existing reference calls Replace instead.
+            States.GetValue(instance, static _ => new LifetimeState());
             Live.Add(new WeakReference<object>(instance));
 
             if (Live.Count >= _pruneThreshold)
@@ -83,6 +84,62 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
+    /// Records another owner for an instance that was registered by a generated constructor.
+    /// Runtime and external COM objects are intentionally ignored: their ownership is governed by
+    /// their own contracts, not by a managed Class_Terminate counter.
+    /// </summary>
+    public static void Retain(object? instance)
+    {
+        if (instance is null || !States.TryGetValue(instance, out var state) ||
+            Volatile.Read(ref state.Terminating) != 0)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref state.References);
+    }
+
+    /// <summary>
+    /// Drops one generated storage owner. Reaching zero calls Class_Terminate synchronously,
+    /// which makes alias and Set ... = Nothing timing observable instead of leaving it to the GC.
+    /// </summary>
+    public static void Release(object? instance)
+    {
+        if (instance is null || !States.TryGetValue(instance, out var state))
+        {
+            return;
+        }
+
+        var remaining = Interlocked.Decrement(ref state.References);
+        if (remaining == 0)
+        {
+            RunTerminator(instance);
+        }
+    }
+
+    /// <summary>
+    /// Replaces one borrowed source value in a storage slot. The incoming value is retained before
+    /// the outgoing one is released, so <c>Set value = value</c> never terminates a live object.
+    /// The result is the value that the emitter writes into its typed destination.
+    /// </summary>
+    public static object? Replace(object? current, object? replacement)
+    {
+        Retain(replacement);
+        Release(current);
+        return replacement;
+    }
+
+    /// <summary>
+    /// Replaces a slot with an already-owned value, such as <c>New C</c> or a generated function
+    /// return. Its reference moves into the destination instead of being retained a second time.
+    /// </summary>
+    public static object? Transfer(object? current, object? replacement)
+    {
+        Release(current);
+        return replacement;
+    }
+
+    /// <summary>
     /// Runs the terminators still outstanding, most recently created first. Nesting usually
     /// follows creation order, so the reverse order tears an object down before the objects it
     /// was built from.
@@ -114,8 +171,8 @@ public static class VBObjectLifetime
 
     private static bool TryBeginTerminate(object instance)
     {
-        var state = States.GetValue(instance, static _ => new StrongBox<int>(0));
-        return Interlocked.Exchange(ref state.Value, 1) == 0;
+        var state = States.GetValue(instance, static _ => new LifetimeState());
+        return Interlocked.Exchange(ref state.Terminating, 1) == 0;
     }
 
     private static void InvokeTerminator(object instance)
@@ -161,5 +218,12 @@ public static class VBObjectLifetime
             // has stopped running -- and on the finalizer thread an escaping exception would kill
             // the process outright, which no VB6 program does.
         }
+    }
+
+    private sealed class LifetimeState
+    {
+        // The constructor's result has one owner until New transfers it into generated storage.
+        public int References = 1;
+        public int Terminating;
     }
 }

@@ -91,6 +91,37 @@ public sealed class ObjectLifetimeTests
         VBObjectLifetime.RunTerminator(null);
     }
 
+    [TestMethod]
+    public void Replace_KeepsAnAliasAliveUntilItsLastStorageOwnerLeaves()
+    {
+        var instance = new Terminable();
+        VBObjectLifetime.Register(instance);
+
+        // The constructor reference moves into the first slot. Copying it into alias retains
+        // before the original slot is released, which is the order a Set assignment needs.
+        object? first = VBObjectLifetime.Transfer(null, instance);
+        object? alias = VBObjectLifetime.Replace(null, first);
+        first = VBObjectLifetime.Transfer(first, null);
+        Assert.AreEqual(0, instance.Runs);
+
+        alias = VBObjectLifetime.Transfer(alias, null);
+        Assert.AreEqual(1, instance.Runs);
+    }
+
+    [TestMethod]
+    public void Replace_RetainsBeforeReleasingASelfAssignment()
+    {
+        var instance = new Terminable();
+        VBObjectLifetime.Register(instance);
+
+        object? slot = VBObjectLifetime.Transfer(null, instance);
+        slot = VBObjectLifetime.Replace(slot, slot);
+        Assert.AreEqual(0, instance.Runs);
+
+        slot = VBObjectLifetime.Transfer(slot, null);
+        Assert.AreEqual(1, instance.Runs);
+    }
+
     private sealed class Ordered(string name, List<string> order)
     {
         private void __vb6_Class_Terminate() => order.Add(name);

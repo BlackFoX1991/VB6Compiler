@@ -1,14 +1,9 @@
 namespace VB6.Compiler.Tests;
 
 /// <summary>
-/// <c>Class_Terminate</c> runs. Before this card it did not — not on <c>Set x = Nothing</c>, not at
-/// scope exit, not on reassignment, and not at program end either: the emitted class carried a
-/// finalizer, and the CLR does not run pending finalizers when a process ends. A program whose
-/// cleanup code lives in Terminate simply never ran it.
-///
-/// What is guaranteed here is that it runs, not when. VB6 counts references and terminates the
-/// moment the last one goes; deriving that moment without a real reference count would fire
-/// Terminate on a live object, which is worse than firing it late.
+/// <c>Class_Terminate</c> must follow the ownership of generated local storage rather than the
+/// collector's schedule. The shutdown register remains a fallback for boundaries not yet counted,
+/// but a normal Set-to-Nothing and a procedure return are observable at their actual boundaries.
 /// </summary>
 [TestClass]
 public sealed class ClassTerminateGuaranteeExecutionTests
@@ -45,7 +40,14 @@ public sealed class ClassTerminateGuaranteeExecutionTests
                     Dim x As C
                     Set x = New C
                     x.Etikett = "eins"
+
+                    Dim alias As C
+                    Set alias = x
                     Set x = Nothing
+                    Debug.Print "Alias lebt"
+                    Set alias = alias
+                    Debug.Print "Selbst lebt"
+                    Set alias = Nothing
 
                     Dim y As C
                     Set y = New C
@@ -57,10 +59,10 @@ public sealed class ClassTerminateGuaranteeExecutionTests
 
             var lines = VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath));
 
-            // Beide Terminatoren laufen, und zwar nach dem Programmtext -- die Reihenfolge ist die
-            // des Abbaus, nicht die von VB6. Genau das ist die Zusage: dass sie laufen.
+            // The alias keeps x alive after its first slot is cleared; self-assignment must also
+            // retain before release. y remains alive until Main releases its local storage.
             CollectionAssert.AreEqual(
-                new[] { "Ende", "Terminate zwei", "Terminate eins" },
+                new[] { "Alias lebt", "Selbst lebt", "Terminate eins", "Ende", "Terminate zwei" },
                 lines);
         }
         finally
