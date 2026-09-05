@@ -741,6 +741,45 @@
       "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
     },
     {
+      "id": "r1-grammar-rem-and-let",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Rem on its own line, after a colon and after a line number, with an apostrophe and an unpaired quote in the comment text; Let over a variable, an array element and a UDT member",
+      "expected": {
+        "rem": "Rem starts a comment wherever a statement can start and its text is taken verbatim, producing no lexer diagnostic and no string literal",
+        "remBoundary": "an identifier that merely begins with Rem stays an identifier, and a Rem that is not at a statement start is not a comment",
+        "let": "Let x = 1 assigns exactly like x = 1 on every assignable form",
+        "letBoundary": "Let without a top-level equals sign before the end of the statement stays a call"
+      },
+      "implementationNotes": "Both forms were rejected before this card: Rem reached the parser as an identifier and reported VB6P0001, Let was bound as an undeclared procedure and reported VB6S0005. Rem is recognised in the lexer because comment text is prose -- an unpaired quote would already have been lexed by the time a parser could react. Let consumes the keyword and re-enters the ordinary statement dispatch, so no parallel assignment node exists.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Lexer.Tests/RemCommentLexerTests.cs",
+        "tests/VB6.Parser.Tests/LetAssignmentParserTests.cs",
+        "tests/VB6.Compiler.Tests/RemAndLetStatementExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
+      "id": "r1-grammar-statement-shapes",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Call with and without parentheses, single-line and block If, Select Case with comma lists, To ranges and Is comparisons, every Do/Loop form, the colon separator, line continuation, and numeric and named labels",
+      "expected": {
+        "call": "a Sub runs with and without parentheses and with or without a leading Call",
+        "if": "the single-line form with Else, the block form and ElseIf all select the same branch as VB6",
+        "select": "comma lists, To ranges, Is comparisons and Case Else select in declaration order",
+        "doLoop": "pre-test forms may run the body zero times and post-test forms run it at least once; Exit Do leaves immediately",
+        "layout": "a colon separates statements, a trailing underscore continues a line, and numeric and named labels are jump targets"
+      },
+      "implementationNotes": "Measured correct on first run; the deliverable was the executing coverage, not a code change.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/StatementShapeExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
       "id": "r1-grammar-evaluation-order",
       "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",

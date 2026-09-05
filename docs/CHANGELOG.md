@@ -7316,3 +7316,37 @@ Die Matrix steht bei **151 Erwartungen: 126 implemented, 0 partial, 25 planned**
 `r1-grammar-while-wend-and-justification` sind Teilverträge des Inventars;
 `managed-r1-grammar` bleibt offen für die restliche Deklarations-, Statement- und
 Sichtbarkeitsfläche.
+
+## 2026-09-05 — R1, Schnitt 2: Rem-Kommentare und die explizite Let-Zuweisung
+
+Zweiter Durchgang durch `managed-r1-grammar`, wieder nach dem Muster erst messen, dann bauen.
+Von den gemessenen Statementformen waren zwei nicht implementiert.
+
+**`Rem`.** BASICs ältere Kommentareinleitung, häufig in Code, der dem Apostroph vorausgeht. Sie
+erreichte den Parser als Bezeichner und erzeugte `VB6P0001`. Die Erkennung gehört in den **Lexer**,
+nicht in den Parser: Kommentartext ist gewöhnliche Prosa, und ein Apostroph oder ein unpaariges
+Anführungszeichen darin wäre längst gelext, bevor ein Parser reagieren könnte — ein unpaariges
+Anführungszeichen kann der Parser nicht zurücknehmen. Der Preis ist, dass `Rem` nicht in jeder
+Position ein Schlüsselwort ist; der Lexer führt deshalb mit, ob er an einem Anweisungsanfang steht:
+nach Zeilenumbruch, nach Doppelpunkt und nach einer Zeilennummer, womit auch `20 Rem note` ein
+Kommentar ist. `Remainder` bleibt ein Bezeichner, und ein `Rem` hinter einem `=` ist keiner.
+
+**`Let`.** Die explizite Form der gewöhnlichen Zuweisung, das Gegenstück zu `Set`. Sie wurde als
+Aufruf einer nicht deklarierten Prozedur gebunden und meldete `VB6S0005`. Das Schlüsselwort wird
+konsumiert, die folgende Anweisung läuft durch die gewöhnliche Dispatch-Tabelle — damit behält
+jede zuweisbare Form (Variable, Arrayelement, Member) den Knoten, den sie ohne das Schlüsselwort
+hätte. Ein paralleler `Let`-Knoten müsste Binder, Lowerer und Emitter einzeln beigebracht werden.
+Die Erkennung spiegelt `IsSetAssignmentStart`: zuweisbares Ziel und ein `=` auf oberster Ebene vor
+Anweisungsende. Ohne diese Bedingung würde ein Aufruf einer Prozedur namens `Let` eingefangen.
+
+**Was schon stimmte.** `Call` mit und ohne Klammern, einzeilige und Blockform von `If`,
+`Select Case` mit Kommalisten, `To`-Bereichen und `Is`-Vergleichen, sämtliche `Do`/`Loop`-Formen
+einschließlich der nachprüfenden Varianten, die den Rumpf mindestens einmal ausführen, `Exit Do`,
+der `:`-Separator, Zeilenfortsetzung sowie numerische und benannte Labels. Alles auf Anhieb
+korrekt; die Lieferung ist die ausführende Abdeckung, keine Codeänderung. Sie schützt gegen einen
+späteren Umbau, der eine der selteneren Schreibweisen still fallen lässt.
+
+Die Matrix steht bei **153 Erwartungen: 128 implemented, 0 partial, 25 planned**;
+**128 documented-verified, 25 not-yet-verified, 0 oracle-verified**. Neu sind
+`r1-grammar-rem-and-let` und `r1-grammar-statement-shapes`. `managed-r1-grammar` bleibt offen für
+Sichtbarkeit und Shadowing sowie die verbleibende Deklarationsfläche.
