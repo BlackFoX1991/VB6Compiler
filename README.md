@@ -166,12 +166,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `c82639c` on `main`, run `20260905T122539Z-0498127b`:
+Measured on 2026-09-05 at `6f6a17f` on `main`, run `20260905T124015Z-18ebd28a`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1636 cases: 1636 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1654 cases: 1654 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
