@@ -44,6 +44,8 @@ public interface IVBArray
     object? GetObjectValue(int[] indices);
     void SetObjectValue(int[] indices, object? value);
     void TransferObjectValue(int[] indices, object? value);
+    void RetainObjectReferences();
+    void ReleaseObjectReferences();
 
     /// <summary>
     /// Creates independent storage with the same bounds and element descriptor. The generic
@@ -153,6 +155,10 @@ public sealed class VBArray<T> : IVBArray
 
     void IVBArray.TransferObjectValue(int[] indices, object? value) =>
         ReplaceReferenceAtOffset(GetOffset(indices), ConvertElement(value), transferOwnership: true);
+
+    void IVBArray.RetainObjectReferences() => RetainElements();
+
+    void IVBArray.ReleaseObjectReferences() => ReleaseElements();
 
     IVBArray IVBArray.CloneStorage() => Clone();
 

@@ -1321,7 +1321,11 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
-                    if (TracksLifetimeStorage(field.Type))
+                    // A field in a UDT is addressed through a managed pointer, which cannot be
+                    // passed to the reflection-based class-field helper. UDT members have their
+                    // own deep-copy machinery; object and array ownership is only tracked here
+                    // for reference receivers (generated class instances).
+                    if (TracksLifetimeStorage(field.Type) && IsReferenceType(field.Receiver.Type))
                     {
                         EmitFieldReceiver(encoder, procedure, field.Receiver);
                         encoder.LoadString(_metadata.GetOrAddUserString(field.Field.Name));
@@ -4976,18 +4980,28 @@ public sealed class ManagedEmitter
         /// as a concrete generated-class slot.
         /// </summary>
         private static bool TracksLifetimeStorage(TypeSymbol type) =>
-            TracksObjectLifetime(type) || type == TypeSymbol.Variant;
+            TracksObjectLifetime(type) || type == TypeSymbol.Variant || type is ArrayTypeSymbol;
 
         /// <summary>
-        /// New and generated class-return calls yield a reference that the destination adopts.
-        /// A load is borrowed and therefore uses Replace, which retains before releasing.
+        /// Newly allocated arrays and generated procedure results yield an ownership that the
+        /// destination adopts. A load is borrowed and therefore uses Replace, which retains
+        /// before releasing.
         /// </summary>
         private static bool OwnsLifetimeReference(IrExpression expression)
         {
-            if (expression is IrNewClassExpression ||
-                expression is IrProcedureCallExpression { ResultType: ClassTypeSymbol })
+            if (expression is IrNewClassExpression or IrNewVBArrayExpression or
+                IrReDimPreserveExpression or IrCopyArrayExpression)
             {
                 return true;
+            }
+
+            if (expression is IrProcedureCallExpression call)
+            {
+                // A generated Variant result can carry a counted generated class or an array.
+                // Transferring scalar results is harmless, while retaining such a class here
+                // would orphan the function-return ownership.
+                return call.ResultType is ClassTypeSymbol or ArrayTypeSymbol ||
+                       call.ResultType == TypeSymbol.Variant;
             }
 
             // A Set assignment into Variant boxes Nothing, but preserves an existing object
@@ -4995,7 +5009,9 @@ public sealed class ManagedEmitter
             // transfer its construction owner into the Variant slot.
             return expression is IrRuntimeCallExpression
                    {
-                       Method: IrRuntimeMethod.ObjectToVariant or IrRuntimeMethod.ObjectRequireOperand,
+                       Method: IrRuntimeMethod.ObjectToVariant or
+                           IrRuntimeMethod.ObjectRequireOperand or
+                           IrRuntimeMethod.ArrayCopyAssignedValue,
                        Arguments.Length: 1
                    } conversion &&
                    OwnsLifetimeReference(conversion.Arguments[0].Expression);

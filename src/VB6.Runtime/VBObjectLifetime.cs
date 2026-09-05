@@ -86,12 +86,19 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
-    /// Records another owner for an instance that was registered by a generated constructor.
-    /// Runtime and external COM objects are intentionally ignored: their ownership is governed by
-    /// their own contracts, not by a managed Class_Terminate counter.
+    /// Records another generated storage owner. An array retains the objects in all of its
+    /// elements for a copied descriptor; a generated class increments its own counter. Runtime
+    /// and external COM objects are intentionally ignored because their ownership is governed by
+    /// their own contracts, not by a managed <c>Class_Terminate</c> counter.
     /// </summary>
     public static void Retain(object? instance)
     {
+        if (instance is IVBArray array)
+        {
+            array.RetainObjectReferences();
+            return;
+        }
+
         if (instance is null || !States.TryGetValue(instance, out var state) ||
             Volatile.Read(ref state.Terminating) != 0)
         {
@@ -102,11 +109,18 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
-    /// Drops one generated storage owner. Reaching zero calls Class_Terminate synchronously,
-    /// which makes alias and Set ... = Nothing timing observable instead of leaving it to the GC.
+    /// Drops one generated storage owner. Array storage releases its elements; for a generated
+    /// class, reaching zero calls <c>Class_Terminate</c> synchronously. This makes alias and
+    /// <c>Set ... = Nothing</c> timing observable instead of leaving it to the GC.
     /// </summary>
     public static void Release(object? instance)
     {
+        if (instance is IVBArray array)
+        {
+            array.ReleaseObjectReferences();
+            return;
+        }
+
         if (instance is null || !States.TryGetValue(instance, out var state))
         {
             return;
@@ -288,7 +302,8 @@ public static class VBObjectLifetime
         foreach (var field in fields)
         {
             var value = field.GetValue(instance);
-            if (value is null || !States.TryGetValue(value, out _))
+            if (value is null ||
+                (value is not IVBArray && !States.TryGetValue(value, out _)))
             {
                 continue;
             }

@@ -122,6 +122,24 @@ public sealed class ObjectLifetimeTests
         Assert.AreEqual(1, instance.Runs);
     }
 
+    [TestMethod]
+    public void Release_ReleasesTheReferencesOwnedByAnArrayStorage()
+    {
+        var instance = new Terminable();
+        var values = new VBArray<object?>(new VBArrayBound(0, 0));
+        VBObjectLifetime.Register(instance);
+        ((IVBArray)values).TransferObjectValue([0], instance);
+
+        // A copied array descriptor is another owner of every reference in the array. The first
+        // descriptor leaving is therefore not enough to terminate its element.
+        VBObjectLifetime.Retain(values);
+        VBObjectLifetime.Release(values);
+        Assert.AreEqual(0, instance.Runs);
+
+        VBObjectLifetime.Release(values);
+        Assert.AreEqual(1, instance.Runs);
+    }
+
     private sealed class Ordered(string name, List<string> order)
     {
         private void __vb6_Class_Terminate() => order.Add(name);
