@@ -2512,16 +2512,31 @@
       "dependsOn": [
         "managed-r1-operators"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Konvertierungen und Promotionsmatrix prüfen",
       "expected": {
-        "acceptance": "Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen."
+        "acceptance": "Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen.",
+        "explicit": "Explizite Konvertierungen bilden Error und Missing auf ihre dokumentierte Zahl ab und propagieren Null nur bei Variant-wertigen Formen.",
+        "implicit": "Implizite Zuweisungen an konkrete Ziele weisen Null, Missing und Error mit der dokumentierten VB-Fehlernummer zurück.",
+        "numeric": "Decimal, Date und Currency behalten Subtyp, Banker's Rounding, Promotion und Overflow-Grenze über den Managed-Pfad."
       },
-      "verification": "not-yet-verified",
-      "testRefs": [
-        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+      "verification": "documented-verified",
+      "sourceRefs": [
+        "vb6-docs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs",
+        "tests/VB6.Runtime.Tests/VariantArithmeticTests.cs",
+        "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs",
+        "tests/VB6.Runtime.Tests/CurrencyRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DateArithmeticExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
+      ],
+      "notes": "65 direkte Runtime-Tests und 39 Managed-Ausführungstests messen die endliche Zustands- und Promotionsmatrix. Der ergänzte Managed-Test trennt den expliziten CInt(Missing)-Wert 448 von der impliziten Long-Zuweisung, die Fehler 448 setzt. Die geprüften Alt-Tests stimmen mit den konkreten Vertragswerten überein; es bleibt kein strittiger Nachweis in diesem Managed-Umfang. Die Verifikation ist dokumentationsbasiert, nicht oracle-verified.",
       "title": "Konvertierungen und Promotionsmatrix prüfen"
     },
     {
@@ -3068,8 +3083,8 @@
         "bitness": "agnostic except LongPtr",
         "com": "Automation VARTYPE mapping is preserved"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Runtime.Tests/VariantStateTests.cs",
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
@@ -3080,9 +3095,13 @@
         "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs",
         "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs",
         "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs",
-        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"
-      ],
-      "gap": "managed-r1-conversions: Konvertierungen und Promotionsmatrix prüfen"
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/CurrencyRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DateArithmeticExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
+      ]
     },
     {
       "id": "runtime-standard-library",

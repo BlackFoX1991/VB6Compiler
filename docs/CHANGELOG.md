@@ -7645,3 +7645,20 @@ originalen VB6-SP6-Compiler.
 Die Matrix steht bei **162 Erwartungen: 140 implemented, 0 partial, 22 planned**;
 `managed-r1-operators` ist jetzt `documented-verified`. Als nächste Karte folgt
 `managed-r1-conversions`.
+
+## 2026-09-05 — R1, Schnitt 14: Konvertierungs- und Promotionsmatrix geschlossen
+
+Die Abnahme ordnet `Missing`, `Error`, `Decimal`, `Date` und `Currency` nun jeweils einem
+konkreten expliziten oder impliziten Konvertierungspfad, einer Rundungs-/Promotionsregel oder
+einer Fehlergrenze zu. 65 Runtime-Tests messen die Hilfsmethoden direkt; 39 Managed-E2E-Tests
+führen dieselben Formen durch Binder, IR und Emitter. Die vorhandenen Alt-Tests stimmen mit den
+dokumentierten Vertragswerten überein und bleiben daher kein offener, strittiger Nachweis.
+
+Eine Lücke im Beleg wurde ergänzt: Für ein ausgelassenes `Optional Variant` liefert `CInt` den
+expliziten Wert 448, während die implizite Zuweisung an `Long` den Fehler 448 setzt. Damit sind
+die zwei VB6-Pfade getrennt ausführbar festgeschrieben, neben Null 94, implizitem Error 13,
+Banker's Rounding und den Decimal-/Date-/Currency-Grenzen.
+
+Die Matrix steht bei **162 Erwartungen: 141 implemented, 0 partial, 21 planned**;
+`managed-r1-conversions` und die Variant-/Konvertierungsfläche sind jetzt
+`documented-verified`. Als nächste Karte folgt `managed-r1-intrinsics`.

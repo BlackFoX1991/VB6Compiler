@@ -247,11 +247,16 @@ public sealed class VariantStateExecutionTests
     {
         var output = VB6TestProgram.RunLines("""
             Private Sub Inspect(Optional value)
+                Dim number As Long
+
                 Debug.Print IsMissing(value)
                 Debug.Print TypeName(value)
                 Debug.Print CInt(value)
 
                 On Error Resume Next
+                number = value
+                Debug.Print Err.Number
+                Err.Clear
                 Debug.Print value + 1
                 Debug.Print Err.Number
                 Err.Clear
@@ -272,7 +277,7 @@ public sealed class VariantStateExecutionTests
             """);
 
         CollectionAssert.AreEqual(
-            new[] { "True", "Error", "448", "448", "448", "448", "448" },
+            new[] { "True", "Error", "448", "448", "448", "448", "448", "448" },
             output);
     }
 
