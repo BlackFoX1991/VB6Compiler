@@ -266,6 +266,31 @@ public sealed class FileRuntimeTests
     }
 
     [TestMethod]
+    public void BinaryVariantTransfers_WriteDocumentedTagsAndPayloadBytes()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenBinary(1, path);
+            VBFiles.PutVariant(1, 1, 42);
+            VBFiles.PutVariant(1, null, "Hi");
+            VBFiles.PutVariant(1, null, new VBErrorValue(2001));
+            VBFiles.Close(1);
+
+            // Get/Put document the two-byte VarType followed by the payload: a Long is six
+            // bytes, and a String has its two-byte character count between tag and UTF-16 data.
+            // These literals deliberately do not reuse the encoder under test.
+            CollectionAssert.AreEqual(
+                new byte[]
+                {
+                    3, 0, 42, 0, 0, 0,
+                    8, 0, 2, 0, 72, 0, 105, 0,
+                    10, 0, 209, 7, 0, 0
+                },
+                File.ReadAllBytes(path));
+        });
+    }
+
+    [TestMethod]
     public void BinaryVariantTransfers_RejectArrayAndObjectLayoutsExplicitly()
     {
         WithTemporaryFile(path =>
@@ -420,6 +445,19 @@ public sealed class FileRuntimeTests
                 VBFiles.PutRaw(1, value);
             }
             VBFiles.Close(1);
+
+            // 2 + 8 * rank bytes describe the dynamic array before the four Long elements.
+            // Assert the disk bytes, rather than reusing the descriptor reader as an oracle.
+            CollectionAssert.AreEqual(
+                new byte[]
+                {
+                    2, 0,
+                    1, 0, 0, 0, 2, 0, 0, 0,
+                    255, 255, 255, 255, 0, 0, 0, 0,
+                    10, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 40, 0, 0, 0
+                },
+                File.ReadAllBytes(path));
 
             VBFiles.OpenBinary(1, path);
             var readBack = VBFiles.GetDynamicArray<int>(1);

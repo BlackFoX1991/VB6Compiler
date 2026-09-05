@@ -7678,3 +7678,20 @@ Native ABI, COM-Binärvertrag und Anwendungsabläufe behalten ihre separaten R3�
 Die Matrix steht bei **162 Erwartungen: 142 implemented, 0 partial, 20 planned**;
 `managed-r1-intrinsics` und die Standardbibliotheksfläche sind jetzt
 `documented-verified`. Als nächste Karte folgt `managed-r1-file-layout`.
+
+## 2026-09-05 — R1, Schnitt 16: Datei-Layouts mit Rohbytes abgenommen
+
+Die vorhandenen Datei-Tests hatten die meisten Formen bereits durch `Put`/`Get` gerundet, aber
+nicht jeden Layoutvertrag unabhängig vom Leser geprüft. Neue Runtime-Nachweise vergleichen deshalb
+die tatsächlichen Bytes eines Long-, String- und Error-Variants (zweibyteiger `VarType` plus
+Payload) sowie eines zweidimensionalen dynamischen UDT-Arraydeskriptors mit den fest vorgegebenen
+Rang- und Grenzenbytes. Sie verwenden keine Encoder- oder Descriptor-Hilfsmethode als Oracle.
+
+Ein Managed-Random-Record ergänzt die fehlende positive Grenze für ein deklariertes `Variant()`-
+Array mit Integer- und Stringelementen. Das bleibt bewusst getrennt von einem skalaren Variant,
+das ein Array enthält: Diese Form sowie Objektwerte werden mit der dokumentierten Ablehnung
+abgenommen, statt einen SAFEARRAY- oder Objektbesitzvertrag zu erfinden.
+
+Die Matrix steht bei **162 Erwartungen: 143 implemented, 0 partial, 19 planned**;
+`managed-r1-file-layout` und die Datei-I/O-Fläche sind jetzt `documented-verified`. Als nächste
+Karte folgt `managed-r1-profiles`.

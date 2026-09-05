@@ -459,6 +459,44 @@ public sealed class FileIoExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_WritesAndReadsTopLevelVariantArrayInRandomMode()
+    {
+        Run("""
+            Sub Main()
+                Dim written() As Variant
+                Dim readBack() As Variant
+
+                ReDim written(1 To 2)
+                written(1) = CInt(7)
+                written(2) = "two"
+
+                Open "dynamic-top-level-variants.dat" For Random As #1 Len = 64
+                Put #1, 1, written
+                Debug.Print LOF(1)
+                Close #1
+
+                Open "dynamic-top-level-variants.dat" For Random As #1 Len = 64
+                Get #1, 1, readBack
+                Close #1
+
+                Debug.Print LBound(readBack)
+                Debug.Print UBound(readBack)
+                Debug.Print VarType(readBack(1))
+                Debug.Print readBack(1)
+                Debug.Print TypeName(readBack(2))
+                Debug.Print readBack(2)
+            End Sub
+            """,
+            "64",
+            "1",
+            "2",
+            "2",
+            "7",
+            "String",
+            "two");
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsDynamicUdtArrayMembers()
     {
         Run("""

@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 162 expectations (142 implemented, 0 partial, 20 planned) with 142/162 documented-verified.
+The compatibility matrix contains 162 expectations (143 implemented, 0 partial, 19 planned) with 143/162 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -184,12 +184,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `e8b43ed` on `main` with uncommitted changes, run `20260905T193638Z-a2ccc37d`:
+Measured on 2026-09-05 at `f3be453` on `main` with uncommitted changes, run `20260905T194545Z-aad19448`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1690 cases: 1690 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1692 cases: 1692 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
@@ -203,8 +203,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **162 expectations**: **142 implemented**, **0 partial**, **20 planned**;
-**142 documented-verified**, **20 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **162 expectations**: **143 implemented**, **0 partial**, **19 planned**;
+**143 documented-verified**, **19 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

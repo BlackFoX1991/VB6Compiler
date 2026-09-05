@@ -2591,16 +2591,28 @@
       "dependsOn": [
         "managed-r1-udt-shapes"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Datei-Layouts bytegenau abnehmen",
       "expected": {
-        "acceptance": "Binary/Random-Strings, Variant(), skalare Variants, UDTs, Deskriptoren und Record-Grenzen gegen unabhängige Bytes prüfen; Objektwerte und skalare Variants mit Array-Inhalt von erlaubten Arrays trennen."
+        "acceptance": "Binary/Random-Strings, Variant(), skalare Variants, UDTs, Deskriptoren und Record-Grenzen gegen unabhängige Bytes prüfen; Objektwerte und skalare Variants mit Array-Inhalt von erlaubten Arrays trennen.",
+        "scalarVariant": "Long, String und Error tragen den zweibyteigen VarType und ihre dokumentierte Payload im Binary-Record.",
+        "arrays": "Dynamische UDT-Arraymitglieder schreiben den Rang sowie je Dimension zwei 32-Bit-Grenzen; top-level Variant()-Arrays schreiben im Random-Modus ihren Deskriptor und Element-Tags.",
+        "records": "Feste und variable Strings, skalare Variants, UDTs und Random-Records behalten Feldfolge, Deskriptoren, Längen und Grenzen.",
+        "unsupported": "Objekte und skalare Variants mit Array-Inhalt werden nicht als erfundenes Layout persistiert, während deklarierte Variant()-Arrays zulässig bleiben."
       },
-      "verification": "not-yet-verified",
-      "testRefs": [
-        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"
+      "verification": "documented-verified",
+      "sourceRefs": [
+        "vba-get",
+        "vba-put"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FileStatementGuardTests.cs",
+        "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs"
+      ],
+      "notes": "28 Runtime-Tests und 45 Managed-Datei-Tests sind gezielt grün. Neue unabhängige File.ReadAllBytes-Erwartungen prüfen Long/String/Error-Variant-Tags und Payloads sowie einen zweidimensionalen UDT-Arraydeskriptor bytegenau. Ein Managed-Random-Record rundet ein deklariertes Variant()-Array mit Integer- und String-Elementen, während ein skalares Variant mit Array-Inhalt und Objektwerte weiterhin explizit abgewiesen werden. Die Quellen sind dokumentationsbasiert, nicht ein Original-VB6-SP6-Bytevergleich.",
       "title": "Datei-Layouts bytegenau abnehmen"
     },
     {
@@ -3188,8 +3200,8 @@
         "bitness": "agnostic",
         "com": "none"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
@@ -3199,8 +3211,7 @@
         "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs",
         "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
         "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
-      ],
-      "gap": "managed-r1-file-layout: Datei-Layouts bytegenau abnehmen"
+      ]
     },
     {
       "id": "project-vbp-vbg",
