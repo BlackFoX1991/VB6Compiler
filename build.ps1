@@ -444,13 +444,13 @@ try {
     $runs = [Collections.Generic.List[object]]::new()
     $standardKind = if ($Rerun) { 'rerun' } else { 'standard' }
 
-    foreach ($project in $testProjects) {
-        $projectName = [IO.Path]::GetFileNameWithoutExtension($project.Name)
+    foreach ($projectFile in $testProjects) {
+        $projectName = [IO.Path]::GetFileNameWithoutExtension($projectFile.Name)
         Write-Host "Testing $projectName"
 
         $trxName = "$projectName.trx"
         $arguments = @(
-            'test', $project.FullName,
+            'test', $projectFile.FullName,
             '--configuration', $Configuration, '--no-build', '--no-restore',
             '--logger', "trx;LogFileName=$trxName",
             '--results-directory', $resultsPath)
