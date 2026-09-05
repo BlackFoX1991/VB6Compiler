@@ -261,6 +261,23 @@ public sealed class UncoveredDiagnosticTests
                 : string.Join(", ", diagnostics.Select(diagnostic => diagnostic.Code))));
     }
 
+    /// <summary>
+    /// A constant has no storage, so an assignment to one cannot be lowered at all. Before this
+    /// code existed the statement reached the lowerer and failed there with "Global was not
+    /// declared before lowering" -- a message that reads like a compiler defect rather than the
+    /// source error it is, which is the outcome the report-rather-than-guess rule exists to stop.
+    /// </summary>
+    [TestMethod]
+    public void Bind_ReportsAnAssignmentToAConstant()
+    {
+        AssertDiagnostic("VB6S0076", """
+            Private Const Fixed As Long = 10
+            Sub Main()
+                Fixed = 20
+            End Sub
+            """);
+    }
+
     private static void AssertDiagnostic(string code, string source)
     {
         var text = SourceText.From(source, "test.bas");
