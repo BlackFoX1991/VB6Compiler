@@ -236,6 +236,35 @@ public sealed class ArrayExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_AppliesOptionBaseOnlyToUnqualifiedArray()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Option Base 1
+
+            Sub Main()
+                Dim values As Variant
+
+                values = Array(10, 20)
+                Debug.Print LBound(values)
+                Debug.Print UBound(values)
+                Debug.Print values(1)
+
+                values = VBA.Array(30, 40)
+                Debug.Print LBound(values)
+                Debug.Print values(0)
+
+                values = Split("left,right", ",")
+                Debug.Print LBound(values)
+                Debug.Print values(0)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "1", "2", "10", "0", "30", "0", "left" },
+            output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesVariantArrayElements()
     {
         var output = VB6TestProgram.RunLines("""

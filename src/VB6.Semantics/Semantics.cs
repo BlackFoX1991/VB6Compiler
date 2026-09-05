@@ -1040,7 +1040,8 @@ public sealed record BoundArrayAccessExpression(
 
 public sealed record BoundArrayLiteralExpression(
     ArrayTypeSymbol ArrayType,
-    ImmutableArray<BoundExpression> Elements)
+    ImmutableArray<BoundExpression> Elements,
+    long LowerBound = 0)
     : BoundExpression(BoundNodeKind.ArrayLiteralExpression, ArrayType);
 
 public sealed record BoundArrayBoundExpression(

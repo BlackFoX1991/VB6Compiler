@@ -2957,13 +2957,13 @@ public static class IrLowerer
         private IrExpression LowerArrayLiteral(BoundArrayLiteralExpression array)
         {
             var storage = NewLocal("__array_literal", array.ArrayType, true);
-            var upperBound = array.Elements.Length - 1L;
+            var upperBound = array.LowerBound + array.Elements.Length - 1L;
             Emit(new IrStoreInstruction(
                 new IrLocalPlace(storage),
                 new IrNewVBArrayExpression(
                     array.ArrayType,
                     ImmutableArray.Create(new IrArrayBound(
-                        new IrConstantExpression(0L, TypeSymbol.Long),
+                        new IrConstantExpression(array.LowerBound, TypeSymbol.Long),
                         new IrConstantExpression(upperBound, TypeSymbol.Long))))));
 
             for (var index = 0; index < array.Elements.Length; index++)
@@ -2972,7 +2972,7 @@ public static class IrLowerer
                     new IrArrayElementPlace(
                         new IrLoadExpression(new IrLocalPlace(storage)),
                         ImmutableArray.Create<IrExpression>(
-                            new IrConstantExpression((long)index, TypeSymbol.Long)),
+                            new IrConstantExpression(array.LowerBound + index, TypeSymbol.Long)),
                         array.ArrayType.ElementType),
                     LowerValueCopy(array.Elements[index])));
             }

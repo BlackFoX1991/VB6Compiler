@@ -102,6 +102,32 @@ public sealed class Binder
             : syntax;
     }
 
+    /// <summary>
+    /// The <c>VBA</c> library name explicitly selects a language intrinsic. It is not an object
+    /// receiver, so <c>VBA.Array(...)</c> must not enter the late-bound member path. A declared
+    /// variable named VBA still wins, as it does for ordinary module qualification.
+    /// </summary>
+    private bool TryGetVbaIntrinsic(
+        MemberAccessExpressionSyntax target,
+        Dictionary<string, VariableSymbol> variables,
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        out ProcedureSymbol procedure)
+    {
+        procedure = null!;
+        if (target.Receiver is not NameExpressionSyntax namespaceName ||
+            !string.Equals(namespaceName.IdentifierToken.Text, "VBA", StringComparison.OrdinalIgnoreCase) ||
+            variables.ContainsKey(namespaceName.IdentifierToken.Text) ||
+            (_activeLocals is not null && _activeLocals.ContainsKey(namespaceName.IdentifierToken.Text)) ||
+            !procedures.TryGetValue(target.MemberToken.Text, out var candidate) ||
+            candidate.IntrinsicKind is null)
+        {
+            return false;
+        }
+
+        procedure = candidate;
+        return true;
+    }
+
     public static ProcedureSymbol CreateProcedureSymbol(SubDeclarationSyntax declaration)
     {
         ArgumentNullException.ThrowIfNull(declaration);
@@ -3894,6 +3920,32 @@ public sealed class Binder
         IReadOnlyDictionary<string, ProcedureSymbol> procedures,
         PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
+        // The grammar represents VBA.Array(...) as an element access whose receiver is the
+        // qualified member. Recognize the library qualification before treating it as a dynamic
+        // object expression.
+        if (syntax.Receiver is MemberAccessExpressionSyntax vbaTarget &&
+            TryGetVbaIntrinsic(vbaTarget, variables, procedures, out var vbaIntrinsic))
+        {
+            if (!vbaIntrinsic.IsFunction)
+            {
+                Report(
+                    "VB6S0010",
+                    $"Sub '{vbaIntrinsic.Name}' cannot be used as an expression.",
+                    vbaTarget.MemberToken.Span);
+                return new BoundErrorExpression();
+            }
+
+            return new BoundInvocationExpression(
+                vbaIntrinsic,
+                BindArguments(
+                    vbaTarget.MemberToken,
+                    syntax.Indices,
+                    vbaIntrinsic,
+                    variables,
+                    procedures,
+                    paramArrayLowerBound: 0));
+        }
+
         // Nur wenn wirklich eine Qualifizierung entfaellt -- sonst ruft sich die Bindung endlos
         // selbst auf, weil ein einfacher Name unveraendert zurueckkommt. Modul.Funktion(...) ist
         // danach ein Aufruf, kein Indexzugriff: die Klammern gehoeren zur Argumentliste.
@@ -4215,6 +4267,28 @@ public sealed class Binder
         IReadOnlyDictionary<string, ProcedureSymbol> procedures,
         PropertyAccessorKind accessor = PropertyAccessorKind.Get)
     {
+        if (TryGetVbaIntrinsic(target, variables, procedures, out var vbaIntrinsic))
+        {
+            if (!vbaIntrinsic.IsFunction)
+            {
+                Report(
+                    "VB6S0010",
+                    $"Sub '{vbaIntrinsic.Name}' cannot be used as an expression.",
+                    target.MemberToken.Span);
+                return new BoundErrorExpression();
+            }
+
+            return new BoundInvocationExpression(
+                vbaIntrinsic,
+                BindArguments(
+                    target.MemberToken,
+                    argumentSyntaxes,
+                    vbaIntrinsic,
+                    variables,
+                    procedures,
+                    paramArrayLowerBound: 0));
+        }
+
         var receiver = target.Receiver is WithReceiverExpressionSyntax
             ? BindWithReceiver(target.DotToken)
             : BindExpression(target.Receiver, variables, procedures);
@@ -4539,7 +4613,8 @@ public sealed class Binder
         ImmutableArray<ExpressionSyntax> argumentSyntaxes,
         ProcedureSymbol procedure,
         Dictionary<string, VariableSymbol> variables,
-        IReadOnlyDictionary<string, ProcedureSymbol> procedures)
+        IReadOnlyDictionary<string, ProcedureSymbol> procedures,
+        long? paramArrayLowerBound = null)
     {
         argumentSyntaxes = NormalizeNamedArguments(invocationIdentifier, argumentSyntaxes, procedure);
 
@@ -4752,7 +4827,10 @@ public sealed class Binder
                 parameter,
                 new BoundArrayLiteralExpression(
                     (ArrayTypeSymbol)parameter.Type,
-                    elements.ToImmutable())));
+                    elements.ToImmutable(),
+                    procedure.IntrinsicKind == VBIntrinsicKind.Array
+                        ? paramArrayLowerBound ?? _optionBase
+                        : 0)));
         }
 
         // Fill in the Optional parameters the call site left out. A missing default means the
