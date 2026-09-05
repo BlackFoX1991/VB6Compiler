@@ -467,6 +467,49 @@ public enum PropertyAccessorKind
     Set
 }
 
+/// <summary>
+/// The accessors of a <c>Property</c> declared at module level, held together under one name.
+/// </summary>
+/// <remarks>
+/// A standard module has no instance, so its properties are ordinary procedures of that module and
+/// a call site binds to a call rather than to a property access. They cannot live in the name-keyed
+/// procedure table because Get, Let and Set share a single name -- which is exactly what this type
+/// exists to carry. Public accessors are also project-wide, so the instance held here is the one a
+/// call in another module resolves to and the one the declaring body is bound to; two separate
+/// instances would leave the caller pointing at a procedure with no body.
+/// </remarks>
+public sealed class ModulePropertySymbol
+{
+    public ProcedureSymbol? Get { get; set; }
+
+    public ProcedureSymbol? Let { get; set; }
+
+    public ProcedureSymbol? Set { get; set; }
+
+    public ProcedureSymbol? For(PropertyAccessorKind accessor) => accessor switch
+    {
+        PropertyAccessorKind.Get => Get,
+        PropertyAccessorKind.Let => Let,
+        _ => Set
+    };
+
+    public void Add(PropertyAccessorKind accessor, ProcedureSymbol procedure)
+    {
+        switch (accessor)
+        {
+            case PropertyAccessorKind.Get:
+                Get ??= procedure;
+                break;
+            case PropertyAccessorKind.Let:
+                Let ??= procedure;
+                break;
+            default:
+                Set ??= procedure;
+                break;
+        }
+    }
+}
+
 public sealed record PropertySymbol(
     string Name,
     PropertyAccessorKind Accessor,

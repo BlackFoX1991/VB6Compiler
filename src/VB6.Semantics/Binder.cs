@@ -64,24 +64,8 @@ public sealed class Binder
     // procedures of the module, and binding them as calls means the IR and the emitter need to
     // know nothing new. The table exists because Get, Let and Set share one name and therefore
     // cannot all live in the name-keyed procedure table.
-    private readonly Dictionary<string, ModuleProperty> _moduleProperties =
+    private readonly Dictionary<string, ModulePropertySymbol> _moduleProperties =
         new(StringComparer.OrdinalIgnoreCase);
-
-    private sealed class ModuleProperty
-    {
-        public ProcedureSymbol? Get { get; set; }
-
-        public ProcedureSymbol? Let { get; set; }
-
-        public ProcedureSymbol? Set { get; set; }
-
-        public ProcedureSymbol? For(PropertyAccessorKind accessor) => accessor switch
-        {
-            PropertyAccessorKind.Get => Get,
-            PropertyAccessorKind.Let => Let,
-            _ => Set
-        };
-    }
 
     public Binder(
         SourceText text,
@@ -165,13 +149,14 @@ public sealed class Binder
         CompilationUnitSyntax root,
         IReadOnlyDictionary<string, ProcedureSymbol> availableProcedures,
         IReadOnlyDictionary<string, ModuleVariableSymbol>? availableModuleVariables = null,
-        ClassTypeSymbol? containingClass = null)
+        ClassTypeSymbol? containingClass = null,
+        IReadOnlyDictionary<string, ModulePropertySymbol>? availableModuleProperties = null)
     {
         ArgumentNullException.ThrowIfNull(availableProcedures);
 
         _containingClass = containingClass;
         ApplyModuleOptions(root);
-        DeclareModuleProperties(root, containingClass);
+        DeclareModuleProperties(root, containingClass, availableModuleProperties);
         var declared = DeclareModuleVariables(root, availableModuleVariables);
         var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(
             declared.Scope,
@@ -563,7 +548,10 @@ public sealed class Binder
     /// above its declaration would otherwise not be found. Class members keep their own path and
     /// are skipped here.
     /// </remarks>
-    private void DeclareModuleProperties(CompilationUnitSyntax root, ClassTypeSymbol? containingClass)
+    private void DeclareModuleProperties(
+        CompilationUnitSyntax root,
+        ClassTypeSymbol? containingClass,
+        IReadOnlyDictionary<string, ModulePropertySymbol>? availableModuleProperties)
     {
         _moduleProperties.Clear();
         if (containingClass is not null)
@@ -571,27 +559,61 @@ public sealed class Binder
             return;
         }
 
+        // Public accessors from every module of the project come in already built, so the symbol a
+        // call in another module resolved to is the one this module's body is bound to.
+        if (availableModuleProperties is not null)
+        {
+            foreach (var entry in availableModuleProperties)
+            {
+                _moduleProperties[entry.Key] = entry.Value;
+            }
+        }
+
         foreach (var member in root.Members.OfType<PropertyDeclarationSyntax>())
         {
             if (!_moduleProperties.TryGetValue(member.Identifier.Text, out var accessors))
             {
-                accessors = new ModuleProperty();
+                accessors = new ModulePropertySymbol();
                 _moduleProperties[member.Identifier.Text] = accessors;
             }
 
+            accessors.Add(GetAccessorKind(member), CreatePropertyProcedureSymbol(member));
+        }
+    }
+
+    private static PropertyAccessorKind GetAccessorKind(PropertyDeclarationSyntax declaration) =>
+        declaration.IsGet
+            ? PropertyAccessorKind.Get
+            : declaration.IsLet
+            ? PropertyAccessorKind.Let
+            : PropertyAccessorKind.Set;
+
+    /// <summary>
+    /// Collects the public module-level property accessors of one parsed module for the
+    /// project-wide table.
+    /// </summary>
+    public static void AddModuleProperties(
+        CompilationUnitSyntax root,
+        IDictionary<string, ModulePropertySymbol> properties)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(properties);
+
+        foreach (var member in root.Members.OfType<PropertyDeclarationSyntax>())
+        {
             var accessor = CreatePropertyProcedureSymbol(member);
-            if (member.IsGet)
+            if (!accessor.IsPublic)
             {
-                accessors.Get ??= accessor;
+                continue;
             }
-            else if (member.IsLet)
+
+            if (!properties.TryGetValue(member.Identifier.Text, out var accessors))
             {
-                accessors.Let ??= accessor;
+                accessors = new ModulePropertySymbol();
+                properties[member.Identifier.Text] = accessors;
             }
-            else
-            {
-                accessors.Set ??= accessor;
-            }
+
+            accessors.Add(GetAccessorKind(member), accessor);
         }
     }
 
@@ -628,7 +650,8 @@ public sealed class Binder
             property.Parameters,
             declaration.IsGet ? property.Type : null)
         {
-            PropertyAccessor = property.Accessor
+            PropertyAccessor = property.Accessor,
+            IsPublic = IsPublicProcedureDeclaration(declaration.VisibilityKeyword)
         };
     }
 

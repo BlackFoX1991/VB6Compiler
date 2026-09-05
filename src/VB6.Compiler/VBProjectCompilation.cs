@@ -219,6 +219,7 @@ public sealed class VBProjectCompilation
             parsedModules,
             userDefinedTypesByPath,
             projectDiagnostics);
+        var modulePropertySymbols = DeclareProjectModuleProperties(parsedModules);
         foreach (var item in loadResult.Project.Items.Where(item => IsHostModuleKind(item.Kind)))
         {
             var name = string.IsNullOrWhiteSpace(item.Name)
@@ -317,7 +318,8 @@ public sealed class VBProjectCompilation
                         module.SemanticRoot,
                         availableProcedures,
                         moduleVariablesForBinding,
-                        containingClass);
+                        containingClass,
+                        modulePropertySymbols);
             }
 
             var forEachRoot = ForEachArraySyntaxLowerer.Lower(module.SemanticRoot, preliminaryModel);
@@ -330,7 +332,8 @@ public sealed class VBProjectCompilation
                         forEachRoot,
                         availableProcedures,
                         moduleVariablesForBinding,
-                        containingClass);
+                        containingClass,
+                        modulePropertySymbols);
             }
             if (containingClass is not null && HasDesignerSurface(module.Item.Kind))
             {
@@ -1211,6 +1214,27 @@ public sealed class VBProjectCompilation
             properties.Add(property);
         }
 
+    }
+
+    /// <summary>
+    /// Collects the public module-level property accessors of the whole project.
+    /// </summary>
+    /// <remarks>
+    /// A <c>Public Property Get</c> in a standard module is project-wide, exactly like a
+    /// <c>Public Function</c>. It cannot ride along in the procedure table because Get, Let and Set
+    /// share one name. Building the accessors once here also gives them a single identity: the
+    /// symbol a call in another module resolves to is the one the declaring body is bound to.
+    /// </remarks>
+    private static Dictionary<string, ModulePropertySymbol> DeclareProjectModuleProperties(
+        IEnumerable<ParsedProjectModule> modules)
+    {
+        var properties = new Dictionary<string, ModulePropertySymbol>(StringComparer.OrdinalIgnoreCase);
+        foreach (var module in modules.Where(module => module.Item.Kind == VBProjectItemKind.Module))
+        {
+            Binder.AddModuleProperties(module.SemanticRoot, properties);
+        }
+
+        return properties;
     }
 
     private static Dictionary<string, ProcedureSymbol> DeclareProjectProcedures(
