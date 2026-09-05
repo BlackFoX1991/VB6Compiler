@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 161 expectations (137 implemented, 0 partial, 24 planned) with 137/161 documented-verified.
+The compatibility matrix contains 162 expectations (139 implemented, 0 partial, 23 planned) with 139/162 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -144,9 +144,9 @@ Implemented so far:
 - `ReDim` and `ReDim Preserve` for dynamic arrays, including bounds checks, value preservation when the last dimension grows, and generated-program execution
 - `Erase`, `LBound`, and `UBound`; `Erase` resets fixed arrays to their VB6 initial values and deallocates dynamic ones
 - `For Each` over fixed, multidimensional, and dynamic arrays plus the standard `Collection`, including an implicit Variant control variable; arrays of user-defined types are rejected because VB6 rejects them too - the Variant control variable cannot hold a user-defined type declared in a standard module
-- `Type ... End Type` with visibility, scalar and fixed array members, nested type names, keyword member names, and `String * n`
+- `Type ... End Type` with visibility, scalar plus fixed and dynamic array members, nested type names, keyword member names, scalar `Variant` fields, and `String * n`; dynamic `Variant()` members remain an explicit `VB6S0046` boundary
 - `UserDefinedTypeSymbol` with case-insensitive member lookup, forward references, and Public project-wide versus Private module-local scope
-- user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, managed value-copy semantics at every value boundary - assignment, array element, member, ByVal argument and function result - including the arrays a copied value owns
+- user-defined type values as locals, parameters, and module variables, including member reads and writes, member arrays, and managed value-copy semantics at assignment, array-element, member, ByVal-argument, and function-result boundaries; fixed arrays owned by nested UDT elements are independently copied too
 - `With` blocks with implicit `.Member` access, bound through a receiver alias
 - `Variant` as a semantic type with storage and explicit conversions; the current scalar runtime covers numeric `+`, `-`, `*`, `/`, `\`, `Mod`, `^`, logical operators, comparisons, `&` concatenation, VB6 string/Variant `+`, Date-Subtype-Arithmetik, Empty/Null/Missing/Error state preservation, and Decimal promotion. Object/array Variant dispatch and its remaining Automation ABI forms stay on the roadmap
 - late-bound `Variant`/`Object` member dispatch for generated Managed classes, including Property Get/Let/Set and method calls, with optional arguments, `ParamArray`, typed CLR property/indexer conversion, and ByRef write-back for Managed/CLR targets; real COM default access uses `DISPID_VALUE`, COM RCW identity uses `IUnknown`, and EventInfo-backed CLR/COM-RCW events can connect VB6 handlers with ByRef write-back; raw COM `IDispatch`/connection-point ABI edge cases remain open
@@ -184,12 +184,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `8c6997f` on `main` with uncommitted changes, run `20260905T185246Z-e6e3c52d`:
+Measured on 2026-09-05 at `42173f3` on `main` with uncommitted changes, run `20260905T191016Z-9f63f9b5`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1687 cases: 1687 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1690 cases: 1690 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
@@ -203,8 +203,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **161 expectations**: **137 implemented**, **0 partial**, **24 planned**;
-**137 documented-verified**, **24 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **162 expectations**: **139 implemented**, **0 partial**, **23 planned**;
+**139 documented-verified**, **23 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

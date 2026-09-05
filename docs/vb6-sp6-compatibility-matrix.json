@@ -40,7 +40,8 @@
     "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi",
     "vba-get": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/get-statement",
     "vba-put": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/put-statement",
-    "vba-array": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/array-function"
+  "vba-array": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/array-function",
+  "vba-type": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/type-statement"
   },
   "expectationSchema": {
     "required": [
@@ -1176,6 +1177,27 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs"
       ]
+    },
+    {
+      "id": "r1-udt-nested-array-value-copy",
+      "matrixEntry": "language-arrays-and-udts",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "implemented",
+      "input": "A Parent UDT with a fixed Children() As Child member, where Child itself owns a fixed Values() array, copied by value",
+      "expected": {
+        "source": "writing a nested array field through the copied Parent leaves the source Child value unchanged",
+        "copy": "the copied Child retains its independently written nested array value"
+      },
+      "implementationNotes": "IrLowerer previously cloned the outer Children array only. Its Child structs still referenced their original Values arrays, so a write through the copy also changed the source. After cloning a fixed UDT-element array, the lowerer now traverses its declared indexes and gives every element's fixed array members independent storage.",
+      "sourceRefs": [
+        "vba-type"
+      ],
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs"
+      ],
+      "notes": "FixedUdtArrayExecutionTests first reproduces the shared nested Values array and then verifies source 10 versus copied 20 after the value assignment."
     },
     {
       "id": "l1-02-c-redim-preserve-multidimensional",
@@ -2425,16 +2447,29 @@
       "dependsOn": [
         "managed-r1-grammar"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Array- und UDT-Grenzen prüfen",
       "expected": {
         "acceptance": "Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests."
       },
-      "verification": "not-yet-verified",
-      "testRefs": [
-        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      "implementationNotes": "The finite shape inventory is covered by the lower-bound, Erase/ByRef, fixed/nested UDT-array, multidimensional ReDim Preserve, rank/type/parameter/For Each diagnostics and dynamic UDT-member contracts. This pass adds the formerly missing deep copy for a fixed UDT-element array, executes scalar Variant fields, and verifies that unsupported dynamic Variant-array members are rejected rather than lowered with an invented layout.",
+      "sourceRefs": [
+        "vba-type"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayLibraryExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/UdtShapeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DynamicUserDefinedTypeArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ReDimExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ArrayBinderGuardTests.cs",
+        "tests/VB6.Semantics.Tests/UserDefinedTypeMemberArrayBindingTests.cs",
+        "tests/VB6.Semantics.Tests/ReDimBinderTests.cs",
+        "tests/VB6.Compiler.Tests/ForEachSyntaxGuardTests.cs"
+      ],
+      "notes": "The listed contracts cover rank and bounds, fixed and dynamic members, value copying, scalar Variant fields and their explicit unsupported dynamic-array boundary. This aggregate is not a claim about native pointer-field or Automation SAFEARRAY layout, which remain in R3/R4.",
       "title": "Array- und UDT-Grenzen prüfen"
     },
     {
@@ -2925,8 +2960,8 @@
         "bitness": "x86 for native pointer fields",
         "com": "SAFEARRAY-compatible where exposed"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
         "tests/VB6.Semantics.Tests/ArrayLibraryBinderTests.cs",
@@ -2941,9 +2976,9 @@
         "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs",
         "tests/VB6.Compiler.Tests/ForEachSyntaxGuardTests.cs",
         "tests/VB6.Compiler.Tests/DynamicUserDefinedTypeArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/UdtShapeExecutionTests.cs",
         "tests/VB6.Compiler.Tests/CompilationTests.cs"
-      ],
-      "gap": "managed-r1-udt-shapes: Array- und UDT-Grenzen prüfen"
+      ]
     },
     {
       "id": "language-control-flow-and-errors",

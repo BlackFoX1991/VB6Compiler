@@ -7608,3 +7608,21 @@ Ausführungs- und Diagnosenachweise der Einzelkarten.
 Die Matrix steht bei **161 Erwartungen: 137 implemented, 0 partial, 24 planned**;
 `managed-r1-grammar` ist jetzt `documented-verified`. Als nächste Karte folgt
 `managed-r1-udt-shapes`.
+
+## 2026-09-05 — R1, Schnitt 12: Array- und UDT-Grenzen geschlossen
+
+Die Abnahme bündelt die vorhandenen Ausführungs- und Diagnosenachweise für Ränge, explizite
+Bounds, `ReDim Preserve`, feste und dynamische UDT-Arraymitglieder sowie die ByRef-/Parameter-
+Grenzen. Skalarer `Variant`-Speicher in einem UDT läuft durch die erzeugte Anwendung; ein
+dynamisches `Variant()`-Mitglied wird dagegen ausdrücklich mit `VB6S0046` abgelehnt, statt eine
+nicht repräsentierbare Managed-Anordnung zu erfinden.
+
+Dabei fand der neue Wertkopietest einen echten Fehler: Das äußere feste Array eines kopierten UDT
+wurde geklont, aber die darin enthaltenen UDT-Elemente teilten weiterhin ihre eigenen festen
+Arrayfelder mit dem Quellwert. Der Lowerer durchläuft jetzt nach dem äußeren Klon die erklärten
+Indizes und klont diese inneren Felder ebenfalls. Die neue Einzelkarte
+`r1-udt-nested-array-value-copy` hält Quelle und Abnahme (10 bleibt 10, die Kopie wird 20) fest.
+
+Die Matrix steht bei **162 Erwartungen: 139 implemented, 0 partial, 23 planned**;
+`managed-r1-udt-shapes` und die Array-/UDT-Fläche sind jetzt `documented-verified`. Als nächste
+Karte folgt `managed-r1-operators`.

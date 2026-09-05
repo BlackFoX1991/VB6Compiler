@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-05 auf `main` / `8c6997f` mit nicht committeten Änderungen, Lauf `20260905T185246Z-e6e3c52d`:
+Messung vom 2026-09-05 auf `main` / `42173f3` mit nicht committeten Änderungen, Lauf `20260905T191016Z-9f63f9b5`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1687 Fälle: 1687 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1690 Fälle: 1690 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **161 Erwartungen**, davon **137 implemented**, **0 partial** und **24 planned**;
-**137/161 documented-verified**, 24 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **162 Erwartungen**, davon **139 implemented**, **0 partial** und **23 planned**;
+**139/162 documented-verified**, 23 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -146,7 +146,7 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 
 ## Aktive Restliste
 
-Die 24 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+Die 23 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
 abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -161,7 +161,6 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r1-udt-shapes` | **Array- und UDT-Grenzen prüfen:** Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests. |
 | `managed-r1-operators` | **Operator- und Default-Member-Tabelle schließen:** Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen. |
 | `managed-r1-conversions` | **Konvertierungen und Promotionsmatrix prüfen:** Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen. |
 | `managed-r1-intrinsics` | **Standardbibliothek abschließend inventarisieren:** String, Math, Financial, Datum/Zeit, Format, Information und Host-Intrinsics einschließlich Rückgabetyp, Dollar-Form, optionalen Argumenten und Fehlergrenzen messen. |
