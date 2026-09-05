@@ -14,11 +14,17 @@ VB6-kompatibler Compiler in C#, der bestehende VB6-Projekte nach .NET 10 überse
 Die Priorisierung ist **.NET-first**. Der Managed-Pfad ist der Zielpfad, an dem Kompatibilität
 entschieden wird; alles andere ordnet sich unter.
 
-Aktuelle Arbeitsfront ist der verbindliche Managed-Abschlussplan in `docs/ROADMAP.md` (Etappen A–H).
-Die offenen Karten und ihre Statusachsen stehen in `docs/vb6-sp6-compatibility-matrix.json`.
-Der aktuelle Matrixstand beträgt 121 Erwartungen (120 `implemented`,
-1 `partial`, 0 `planned`; 121 `documented-verified`). Es gibt keine offene
-Implementierungskarte mehr; `L1-02-A` bleibt als breiter Familienstatus bewusst `partial`.
+Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
+Die Matrix enthält 148 Erwartungen: 121 `implemented`, 0 `partial`, 27 `planned`;
+121 `documented-verified`, 27 `not-yet-verified`, 0 `oracle-verified`.
+Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
+Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
+Sprachsemantische Korrekturen gelten in beiden Profilen. Locale, Plattformvorgaben und
+erlaubte Erweiterungen bleiben profilabhängig.
+
+Dieses Dokumentationspaket ändert keinen Compiler-, Runtime-, Build- oder Testcode.
+Automatische Status-/Abhängigkeitsprüfungen, getrennte JSON-Laufberichte und der geplante
+`-UpdateVerificationDocs`-Schalter bleiben offene R0-Karten.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
 
@@ -28,7 +34,7 @@ Implementierungskarte mehr; `L1-02-A` bleibt als breiter Familienstatus bewusst 
   auf dem erzeugten LLVM-IR abgesichert** — nichts wird assembliert, gelinkt oder ausgeführt.
   Also genau das Prüfmuster, das für das C#-Backend abgeschafft wurde. Aussagen über native
   Korrektheit sind entsprechend schwach gedeckt.
-- **IDE und LSP** (`VB6.LanguageServer`, M10). Ein erster Slice steht (Diagnosen, Completion,
+- **IDE und LSP** (`VB6.LanguageServer`, nach R7). Ein erster Slice steht (Diagnosen, Completion,
   Definition, Dokumentsymbole); bewusst nach dem Compiler-Kern eingeordnet.
 
 Die Plattformentscheidung ist umgesetzt: Legacy-`.vbp`/`.vbg`-Projekte defaulten in CLI und
@@ -40,10 +46,9 @@ Default, damit die Projektgrenze die Legacy-Kompatibilität bestimmt.
 
 Zwei getrennte Dokumente — die Trennung bitte halten:
 
-- **`docs/ROADMAP.md`** ist **Ist-Stand und Offenes**: Produktziel, die drei
- aktuellen Messwerte, Korpus-Frequenzen, „Entschiedene Weichenstellungen" und die Meilensteine
- 0–10 mit `[x]`/`[~]`/`[ ]`-Listen. `[~]` heißt „begonnen, teilweise ausgabefähig" — der
- häufigste Zustand. Hier steht, was zu tun ist.
+- **`docs/ROADMAP.md`** ist **Ist-Stand und Offenes**: gemessene Baseline,
+  verbindliche Entscheidungen und R0–R7 mit Karten und Abnahmebedingungen. Alte A–H-/M0–M10-
+  Verweise werden durch die Zuordnungstabelle aufgelöst; keine zweite aktive Restliste führen.
 - **`docs/CHANGELOG.md`** ist das **chronologische Arbeitsjournal**, älteste
  Einträge zuerst. Hier steht, was getan wurde.
 
@@ -56,8 +61,12 @@ Die Kompatibilitätsmatrix `docs/vb6-sp6-compatibility-matrix.json` hat **zwei u
 Statusachsen** — `implementation` (`planned`/`partial`/`implemented`) und `verification`
 (`not-yet-verified`/`documented-verified`/`oracle-verified`). Sie werden nie vermischt und nie
 optimistisch gefüllt. `oracle-verified` darf nie ohne echten Lauf gegen einen VB6-SP6-
-Originalcompiler gesetzt werden. Steht eine Achse auf 100 %,
-während die Roadmap offene Punkte führt, ist das ein Fehler und kein Erfolg.
+Originalcompiler gesetzt werden. Geplante Karten bleiben `not-yet-verified`; ihre
+`testRefs` nennen vorhandene Baseline-Dateien und sind kein Nachweis des geplanten Vertrags.
+Bereichsstatus werden aus den Erwartungen abgeleitet: alle umgesetzt = `implemented`,
+alle geplant = `planned`, sonst `partial`. Nicht verifizierte Kinder verhindern eine
+Verifikationszusage für den Gesamtbereich. Offene `gap`-Texte nennen konkrete Karten.
+Die bisherigen Tests prüfen noch nicht alle diese Regeln; ihre Erweiterung ist R0.
 
 ## Die eine Regel, die alles andere schlägt
 
@@ -206,9 +215,12 @@ lokale Testläufe schlicht nicht aussagekräftig; Devcontainer oder CI als Refer
 Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite vollständig durch.
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
-Stand der letzten Prüfung (2026-09-04): Der kanonische `build.ps1`-Lauf prüft alle 13 Testprojekte
-seriell; die genaue Testzahl steht im Roadmap-/README-Messwert und muss bei jeder Änderung neu
-erfasst werden.
+Stand der Prüfung 2026-09-05 auf `df2abd0`: 1617 Standardfälle in 13 Projekten,
+1616 bestanden und ein COM-Test am verweigerten Registry-Zugriff der Sandbox gescheitert.
+Die gezielte Wiederholung außerhalb der Sandbox bestand (1/1); der ursprüngliche Gesamtlauf
+bleibt fehlgeschlagen. Zusätzlich bestand der erzwungene native x86-Lauf mit 81/81.
+1698 ist nur die Summe aus Standardfällen und zusätzlichen x86-Ausführungen, keine Standardtestzahl.
+Messungen mit Datum/Quellstand eintragen und Standardlauf, x86 sowie Wiederholungen getrennt zählen.
 
 Zweite Messung neben der Suite ist die Korpusparität — sie fängt Regressionen, die kein
 Unittest sieht:
@@ -232,9 +244,9 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 ## Fallen
 
 - **`Debug.Print` ist inzwischen VB6-nah formatiert** — führendes Vorzeichen-Leerzeichen über `FormatNumeric`, **`G7` für Single**, `G15` für Double/Currency, `G29` für den Decimal-Subtype (`Runtime.cs`). Dieselbe Staffelung gilt für `CStr` und für `Format(…, "General Number")`: Ein Single trägt sieben signifikante Stellen, und ihn mit fünfzehn auszugeben zeigt seine Umrechnungsreste als wären sie Werte — `1 / 3` ist in VB6 ein Single. Weiterhin gilt: die E2E-Helfer trimmen bewusst, Spalten-/Plattformformat ist damit *nicht* abgedeckt. Beim Anfassen von Zahlenausgabe mitdenken.
-- **`VB6.Runtime` konvertiert ausschließlich mit `CultureInfo.InvariantCulture`.** Kompilierte Programme sollen auf jeder Maschine dieselben Werte liefern; mit `CurrentCulture` ergab `"2.5" * 2` unter `de-DE` den Wert 50 statt 5. Klassisches VB6 war hier locale-abhängig — dagegen wurde bewusst entschieden. `Debug.Print` läuft deshalb über `VBConversions.CStr` statt direkt über `Console.WriteLine`. `CultureIndependenceTests` prüft das unter `de-DE`, weil CI auf `en-US` einen Rückfall nicht sehen würde.
-- **Von dieser Regel gibt es genau zwei Ausnahmen — keine dritte ohne Entscheidung.** `VBComDispatch` leitet die Dispatch-LCID aus `CurrentCulture` ab (bewusst, siehe Roadmap „culture-aware COM dispatch LCIDs"). `VBStrings.ToFirstDayOfWeek`/`ToCalendarWeekRule` lösen `vbUseSystem` (Wert 0) über `CurrentCulture.DateTimeFormat` auf. Letzteres ist VB6-treu, verletzt aber die Determinismus-Entscheidung: `Weekday(d, vbUseSystemDayOfWeek)` und `Format(d, "ww")` liefern unter `de-DE` andere Werte als unter `en-US`, und **kein Test deckt das ab**. Der Zielkonflikt ist offen — nicht einfach in eine Richtung auflösen.
-- **Vergleiche boxen**: `VBOperators.Equal(object?, object?)` für jeden Vergleich, obwohl der Binder beide Seiten bereits auf denselben Typ konvertiert hat.
+- **Locale-Verträge sind profilabhängig.** Bestehende deterministische Signaturen bleiben invariant; `VB6Sp6` verwendet an den implementierten Grenzen System-LCID und ANSI-Codepage. Profilzustand reist über IR/Assembly und explizite Runtime-Verträge, nicht über einen globalen Schalter. Weitere Locale-/DBCS- und Ausgabeabnahme gehört zu R1.
+- **`vbUseSystem` bleibt in beiden Profilen systemabhängig.** Kalenderparameter mit Wert 0 verwenden `CurrentCulture`; das ist eine entschiedene Ausnahme. Die COM-Dispatch-LCID folgt ebenfalls bewusst `CurrentCulture`. Diese Entscheidung nicht erneut als offenen Determinismuskonflikt führen.
+- **Skalare Vergleiche verwenden typisierte Helfer.** Variant-/Objektvergleiche behalten ihren dynamischen Runtime-Vertrag; die frühere Behauptung, jeder Vergleich boxe, ist überholt.
 - **Der Emitter hat genau einen Fehlerkanal.** `NotSupportedException` heißt „diese IR-Form kann das Backend noch nicht" und wird als `VB6E0001` mit der genannten Konstruktion gemeldet; jede andere Ausnahme ist ein Emitter-Defekt und wird als `VB6E0003` samt Typ und Stacktrace gemeldet. Beim Ergänzen von Emit-Code diese Trennung halten — sonst sieht ein NullReference wie eine Sprachlücke aus.
 - **Typnamen im IR sind eindeutig, Symbole sind es nicht.** Ein `Private Type` verdeckt ein gleichnamiges `Public Type`; beide sind verschiedene Symbole und brauchen verschiedene Speichernamen (`__vb6_udt_Point`, `__vb6_udt_Point_2`), sonst lehnt die Runtime die Assembly wegen doppelten Typs ab.
 - **Eine UDT-Wertkopie kopiert auch ihre Arrays.** Der CLR-Structcopy dupliziert nur die Referenz. `IrLowerer.LowerValueCopy` legt deshalb für jedes feste Array-Member eine eigene Kopie an — an jeder Wertgrenze: Zuweisung, Array-Element, Member, ByVal-Argument, Funktionsergebnis.
@@ -305,13 +317,10 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   `VB6TestProgram.RunLines`, das `VarType`, `Err.Number` und Ergebniswert über die ganze
   Vertragsfläche ausgibt, kostet Minuten und verhindert, dass funktionierender Code umgebaut
   wird. Das ist verbindlich: erst messen, dann bauen.
-- **Ein bestehender Test, dessen Name eine Vertragszusage ausspricht, schlägt eine Herleitung
-  aus der VB6-Dokumentation.** Ohne installiertes Orakel ist er der bessere Zeuge. Zweimal
-  belegt: `CDec(Null)` soll laut Doku 94 melden, liefert aber korrekt Null, weil ein Variant mit
-  Decimal-Subtyp Null tragen kann; `CInt(CVErr(5))` soll laut Doku 13 melden, hängt aber über
-  `CInt(Missing) = 448` an der Missing-Argument-Mechanik. In beiden Fällen war die Herleitung
-  plausibel und falsch. Reißt eine Änderung so einen Test, wird die Änderung zurückgenommen und
-  die Frage notiert — nicht der Test angepasst.
+- **Bestehende Tests sind Regressionsnachweise, kein Original-VB6-Orakel.** Widersprüche zwischen
+  dokumentiertem Vertrag und Testwert erst gezielt messen und mit Quellen/Begründung festhalten.
+  Ein Test darf weder allein aufgrund einer Vermutung geändert noch allein aufgrund seines
+  Namens als endgültiger VB6-Beleg behandelt werden. Strittige Konvertierungsfälle bleiben R1.
 - **Ein `Public`-Feld einer Klasse ist keine Variable, sondern eine Property.** `Binder.cs`
   löst `c.N` über `classType.TryGetProperty(...)` auf. Diese Modellierung hat vier Symptome
   erzeugt: `Bump c.N` mit `ByRef` verlor **still** das Rückschreiben, `Set c.ObjFeld = …` meldete

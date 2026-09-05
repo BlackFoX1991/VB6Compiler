@@ -6,7 +6,17 @@ The long-term goal is a modern, highly compatible VB6 compiler with one language
 
 ## Current status
 
-The managed/.NET compiler path is green on the canonical gate: 1698 tests pass without Release warnings or errors, and all 40 VISIA project items analyze successfully. The compatibility matrix currently contains 121 expectations (120 implemented, 1 partial, 0 planned) with 121/121 documented-verified. The binding status and the remaining implementation work are tracked by the managed completion plan in `docs/ROADMAP.md` (Etappen A–H) and the expectation matrix in `docs/vb6-sp6-compatibility-matrix.json`; no implementation card remains open; `l1-02-a-language-grammar-context` stays `partial` on purpose, as a broad family status rather than a task. LLVM, LSP and IDE work remain deliberately on hold until the managed target is complete.
+The Managed/.NET compiler has a broad executable feature set, but full VB6 compatibility is
+not yet complete. The remaining work is defined by R0–R7 in [the roadmap](docs/ROADMAP.md):
+language/runtime conformance, deterministic object lifetime, stable pointers, complete native
+ABI and COM binary compatibility, external ActiveX contracts, and application-level acceptance.
+LLVM, LSP, the IDE and visual designer remain deferred.
+
+The compatibility matrix contains 148 expectations (121 implemented, 0 partial, 27 planned) with 121/148 documented-verified.
+The new expectations make previously untracked completion work explicit. These counts describe
+specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
+broad grammar card now describes its measured module-visibility contract, with the remaining
+language inventory tracked separately.
 
 Implemented so far:
 
@@ -132,12 +142,27 @@ Implemented so far:
 
 ## Current verification
 
-The canonical serial `build.ps1 -Configuration Release` run on 2026-09-04 reports
-**1698 test cases**, **1698 passed**, **0 failed** across 13 test projects, with a warning-free
-Release build and **40/40** VISIA project items analyzed. The compatibility matrix reports
-**121 expectations**: **120 implemented**, **1 partial**, **0 planned**, and **121/121
-documented-verified**. Feature-level verification history is kept in `docs/CHANGELOG.md`.
-With `-RequireNativeOcx`, the same script additionally verifies the native x86 OCX path: **81/81 passed**, **0 skipped**. The counter-check on an x64 test host fails 11 of those cases, so the x86 result is a real measurement rather than a silently skipped one.
+Measured on 2026-09-05 at `df2abd0`, before this documentation update:
+
+| Check | Result |
+| --- | --- |
+| Release build | 0 warnings, 0 errors |
+| Standard serial run, 13 test projects | 1617 cases: 1616 passed, 1 failed because the sandbox denied the COM test's registry write |
+| Targeted COM rerun outside the sandbox | 1/1 passed; the original full run remains failed |
+| Additional required native x86 OCX run | 81/81 passed, 0 skipped |
+| VISIA analysis | 40/40 project items, 0 diagnostics |
+| VISIA assembly/PDB emission | Passed; full application behavior is not established by this test |
+
+The previously reported **1698** combines **1617 standard cases and 81 additional x86
+executions**. It is not the standard-suite count or a count of distinct tests.
+Local evidence is in `artifacts/status-review-20260905` (not versioned).
+Standard runs, native runs and targeted reruns must be reported separately.
+
+The matrix reports **148 expectations**: **121 implemented**, **0 partial**, **27 planned**;
+**121 documented-verified**, **27 not-yet-verified**, **0 oracle-verified**.
+No original VB6 compiler comparison has been performed. Automatic run summaries, dependency
+checks and an explicit documentation-update switch are planned in R0; they are not implemented
+by this documentation change. Historical measurements remain in [the changelog](docs/CHANGELOG.md).
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. `Erase` on a `ByRef` array parameter now deallocates the caller's descriptor and is covered by semantic and generated-program tests. `StrConv` additionally handles profile-aware combined casing, East-Asian width, and Japanese Kana flags with locale validation. What is still guarded is narrower: `For Each` over arrays of user-defined types (`VB6S0056`) and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
@@ -284,7 +309,7 @@ Project emission currently supports standard `.bas` modules with a single `Sub M
 
 For library projects, `--com-host` adds stable COM class identities and emits a directly activatable native .NET `comhost.dll`; the CLI regression invokes `DllGetClassObject`, `IClassFactory` and `IDispatch` in a separate process. `--register-com` and `--unregister-com` invoke the matching silent x86/x64 `regsvr32` for that generated host, so classic COM clients can install or remove the server from the command line. The raw bridge now reads TypeInfo `[out]` descriptors and emits typed `VT_BYREF` storage for supported Automation scalars, `DATE`, `CURRENCY` and compatible SAFEARRAYs, with `VariantChangeType` conversion and a ByVal fallback. Internal `VBArray<T>` values crossing a typed SAFEARRAY ByRef boundary are materialized as CLR arrays with their rank and lower bounds preserved, and compatible returned arrays are copied back into the existing VB6 container. Connection-Point event arrays and `AddressOf` callbacks now use typed SAFEARRAY contracts with explicit element `VARTYPE`s and ByRef replacement write-back. `ObjPtr` now returns the native-width controlling `IUnknown` pointer for COM objects and zero for `Nothing`; direct `VarPtr`/`StrPtr` storage and Type-library UDT/pointer marshalling remain separate native ABI tasks.
 
-The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, implicit `Item` and `VB_UserMemId`-named default-property Get/Let dispatch, `Class_Initialize`/`Class_Terminate` (the terminator is guaranteed to run: a class that declares one joins a weak register drained at shutdown, newest first, because a finalizer alone never ran it -- the CLR runs no pending finalizers at process exit; the timing still follows teardown rather than VB6's reference count), events, simple `WithEvents` sinks with reassignment cleanup, `Implements` as CLR interfaces with virtual method/property dispatch, and the standard `Collection` object with one-based/keyed lookup. EXE projects with a `Startup="FormName"` object now receive a generated entry point that constructs and initializes designer controls on the generated form, preserves nested designer-control containers, applies supported scalar designer values (including root Form window state, common control style state, and decoded `TextRTF`, `Picture`, and `Icon` `.frx` payloads) through the host, then calls the runtime host's `Load` and `Show` hooks. `VB6.Runtime.WinForms` supplies the optional concrete WinForms host; standard controls, a nonvisual `MSComDlg.CommonDialog` adapter, a managed `MSComctlLib.TreeView` node adapter, and managed `MSComctlLib.ImageList`/`ImageCombo` collection adapters are available. Managed WinForms `KeyDown`/`KeyUp` and `KeyPress` handlers now preserve ByRef writeback where the native event model exposes a writable equivalent; the host maps changed key codes to suppression and changed key characters back to `KeyPressEventArgs`. The x86 `VB6.Runtime.WinForms.Runner` can additionally activate registered `MSComctlLib` visual OCX controls without managed adapters and falls back cleanly when the control is unavailable or has the wrong bitness. Invalid managed-DLL-as-`.exe` fallback output is rejected with a compiler diagnostic instead of producing the `System.Private.CoreLib` startup failure. `Type=OleDll`, `Type=Control`, and equivalent library project types emit DLLs without requiring `Sub Main`; unsupported startup objects still produce a project diagnostic. Imported `FSOURCE` type-library events now retain their source-interface IID and DISPID and use the Windows `ComEventsHelper` bridge for generated `WithEvents` subscriptions, while raw `IDispatch` ABI invocation, custom COM server registration, and native ABI marshalling remain open. The .NET/Managed path is now the primary completion target; LLVM remains an optional native x86/x64 backend and is intentionally deferred while the managed Variant/Object/COM contracts are completed. The MSBuild SDK and diagnostic/navigation LSP are available as compiler-facing integration layers. The SDK tracks `.vbp` source/designer inputs and emitted assembly/runtime outputs for incremental MSBuild builds; package it with `dotnet pack src/VB6.Compiler.Sdk` and point `VB6CompilerPath` at a published `vb6c` executable.
+The current managed project emitter supports standard modules with a single `Sub Main` and emits the managed class core: class instances, instance fields, `New`, `Set`, `TypeOf`, Properties, implicit `Item` and `VB_UserMemId`-named default-property Get/Let dispatch, `Class_Initialize`/`Class_Terminate` (the terminator is guaranteed to run: a class that declares one joins a weak register drained at shutdown, newest first, because a finalizer alone never ran it -- the CLR runs no pending finalizers at process exit; the timing still follows teardown rather than VB6's reference count), events, simple `WithEvents` sinks with reassignment cleanup, `Implements` as CLR interfaces with virtual method/property dispatch, and the standard `Collection` object with one-based/keyed lookup. EXE projects with a `Startup="FormName"` object now receive a generated entry point that constructs and initializes designer controls on the generated form, preserves nested designer-control containers, applies supported scalar designer values (including root Form window state, common control style state, and decoded `TextRTF`, `Picture`, and `Icon` `.frx` payloads) through the host, then calls the runtime host's `Load` and `Show` hooks. `VB6.Runtime.WinForms` supplies the optional concrete WinForms host; standard controls, a nonvisual `MSComDlg.CommonDialog` adapter, a managed `MSComctlLib.TreeView` node adapter, and managed `MSComctlLib.ImageList`/`ImageCombo` collection adapters are available. Managed WinForms `KeyDown`/`KeyUp` and `KeyPress` handlers now preserve ByRef writeback where the native event model exposes a writable equivalent; the host maps changed key codes to suppression and changed key characters back to `KeyPressEventArgs`. The x86 `VB6.Runtime.WinForms.Runner` can additionally activate registered `MSComctlLib` visual OCX controls without managed adapters and falls back cleanly when the control is unavailable or has the wrong bitness. Invalid managed-DLL-as-`.exe` fallback output is rejected with a compiler diagnostic instead of producing the `System.Private.CoreLib` startup failure. `Type=OleDll`, `Type=Control`, and equivalent library project types emit DLLs without requiring `Sub Main`; unsupported startup objects still produce a project diagnostic. Imported `FSOURCE` type-library events now retain their source-interface IID and DISPID and use the Windows `ComEventsHelper` bridge for generated `WithEvents` subscriptions, while the remaining raw ABI, complete server contracts and compatibility with a declared older binary remain open in R3/R4. The .NET/Managed path is now the primary completion target; LLVM remains an optional native x86/x64 backend and is intentionally deferred while the managed Variant/Object/COM contracts are completed. The MSBuild SDK and diagnostic/navigation LSP are available as compiler-facing integration layers. The SDK tracks `.vbp` source/designer inputs and emitted assembly/runtime outputs for incremental MSBuild builds; package it with `dotnet pack src/VB6.Compiler.Sdk` and point `VB6CompilerPath` at a published `vb6c` executable.
 
 For a machine-level native OCX check, run the WinForms test project as x86 with `VB6_REQUIRE_NATIVE_OCX=1`; missing registrations or a 64-bit test process then fail instead of silently skipping the native activation checks.
 
@@ -298,9 +323,8 @@ The MSBuild SDK also accepts `VB6ProjectGroup` for `.vbg` files and delegates gr
 `vb6c --emit-assembly <output-directory>`. The group file, declared `.vbp` projects, source files
 and designer resources participate in incremental input tracking. The SDK also reconciles its
 previous output manifest before a changed group is emitted, so removed projects or renamed
-`ExeName32` outputs do not leave stale assemblies in the group output directory. Local
-`.ocx`/`.tlb`/`.olb` files and TypeLib-bearing `.dll`/`.exe` files below the project or group
-directory also invalidate the build; generated output directories are excluded from that scan.
+`ExeName32` outputs do not leave stale assemblies in the group output directory. Declared `.ocx`/`.tlb`/`.olb` and TypeLib-bearing `.dll`/`.exe` references participate in the
+exact input manifest. Unrelated files are ignored; there is no recursive reference-directory scan.
 For a single `VB6Project`, the SDK project file itself participates in input tracking and the
 target reconciles its own output manifest as well, so changing `VB6CompilerOutput` removes the
 previous assembly/runtime set before the renamed output is emitted.
@@ -322,18 +346,19 @@ bounds and replacement write-back. Native-width `LongPtr()` arrays are supported
 
 ## Next milestones
 
-The detailed, measured plan lives in `docs/ROADMAP.md`; the chronological work journal is
-`docs/CHANGELOG.md`. The open cards and their status axes live in
-`docs/vb6-sp6-compatibility-matrix.json`:
+The single active completion plan is [R0–R7](docs/ROADMAP.md). Open expectations and dependencies
+live in [the compatibility matrix](docs/vb6-sp6-compatibility-matrix.json). The old A–H and
+M0–M10 sections are mapped to these milestones in the roadmap.
 
-1. Etappe A: Matrix, Statusachsen und messbare Abnahme
-2. Etappe B: Sprache, Variant, Klassen und Fehlerbehandlung
-3. Etappe C: Runtime, Standardbibliothek, Datei-I/O und Projekte
-4. Etappe D: Win32-, TypeLib- und COM-ABI
-5. Etappe E: Forms, Zeichnen und MDI
-6. Etappe F: ActiveX, UserControls und Enterprise
-7. Etappe G: SDK und Abschlussgate
-8. Etappe H: Abschlussgate und Dokumentationsstatus
+1. R0: independent run accounting and automatic status/documentation checks.
+2. R1: finite language/runtime inventory and conformance, including file layouts and locale.
+3. R2: last-reference object termination throughout the generated program and runtime.
+4. R3: GC-stable addressable storage, pointers and complete Declare/callback ABI.
+5. R4: COM output parameters, Automation layouts, real binary compatibility and server contracts.
+6. R5: Forms, external ActiveX/OLE hosting, persistence, PropertyPages and enterprise artifacts.
+7. R6: VISIA workflows, a business-logic reference project and joint SDK/deployment acceptance.
+8. R7: complete Managed acceptance on one source state with standard, native and application checks.
 
-The LSP/IDE work and the optional LLVM backend are deliberately on hold until the Managed/.NET
-target is complete; neither blocks it.
+Planned language-semantic corrections apply to both profiles. Locale, platform defaults and
+allowed extensions remain profile-specific. LLVM, LSP, the IDE and visual designer follow the
+Managed gate; LLVM first needs actual native assemble/link/execution tests.

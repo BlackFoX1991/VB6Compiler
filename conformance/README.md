@@ -25,11 +25,14 @@ what a real `.vbp` looks like.
 vb6c conformance/VISIA/4.8.7.1/prjVisia.vbp --report
 ```
 
-`ConformanceCorpusTests` runs the same analysis in CI. It asserts that the compiler survives the
-input, that the number of cleanly analyzed files never drops, and that parser errors never rise
-above their current baseline — see the comments there for why the total error count is
-deliberately not asserted.
+`ConformanceCorpusTests` runs the same analysis in CI. The measured baseline on 2026-09-05 is
+**40/40 project items, 0 diagnostics**: 27 modules, 6 forms, 4 UserControls and 3 classes. These
+are the declared project items; the corpus directory contains additional source files.
+The tests assert this baseline, including zero total diagnostics, and also emit an assembly and
+Portable PDB for the complete project. Historical parser-error measurements remain in the changelog.
 
-Clean files are the honest long-term metric but sit at zero until whole dependency chains parse,
-so parser errors carry the ratchet in the meantime. They have fallen at every slice so far: 3183
-at M0, 1758 at the M2 closeout, 1214 after the UDT type space, 480 after `With` and member access.
+Successful analysis and emission do not establish that the complete application behaves correctly.
+R6 in [the roadmap](../docs/ROADMAP.md) adds explicit runtime scenarios: startup, opening a project,
+central windows/controls, file operations and shutdown, with fixed output/file/event expectations.
+VISIA remains unchanged. A planned repo-owned VB6 business-logic reference project will complement
+it with Forms, classes, file I/O and ADO; that fixture will not be described as third-party corpus.

@@ -7169,3 +7169,47 @@ diesen beiden Entscheidungen abhakbar ist. Damit fällt auch auf, wenn eine sech
 Zwei Befunde dieses Durchgangs sind zusätzlich in die Fallen-Liste von `CLAUDE.md` gewandert: das
 Typloch bei Array-Argumenten, das sich über Referenztypen unsichtbar macht, und die Regel, dass
 bei `Format` das Muster den Formatierer wählt.
+
+## 2026-09-05 — Eine aktive Managed-Roadmap und korrigierte Messwerte
+
+Die Roadmap führt jetzt R0–R7 als einzige aktive Restliste. Die bisherigen Etappen A–H und
+Meilensteine M0–M10 bleiben über eine Zuordnungstabelle nachvollziehbar; die historische
+Verlaufsdarstellung bleibt hier im Changelog. LLVM, LSP, IDE und visueller Designer sind weiter
+nachgelagert. Der Managed-Abschluss schließt bekannte Semantik-/ABI-Lücken ausdrücklich ein.
+Lebensdauer und gespeicherte Zeiger sind offene Umsetzung, keine ausgenommenen Architekturfragen.
+Die geplanten Sprachkorrekturen gelten in beiden Profilen; Locale und Erweiterungen bleiben
+profilabhängig.
+
+Die Nachzählung der Messung auf `df2abd0` korrigiert frühere Angaben in diesem Journal:
+**1617 Standardfälle**, davon **1616 bestanden**, ein COM-Test scheitert am Registry-Zugriff der
+Sandbox. Die gezielte Wiederholung außerhalb der Sandbox besteht **1/1**. Der ursprüngliche
+Gesamtlauf bleibt fehlgeschlagen. Zusätzlich besteht der erzwungene native x86-Lauf mit
+**81/81, 0 übersprungen**. **1698** ist die Summe aus Standardfällen und zusätzlichen
+x86-Ausführungen, keine Standardtestzahl. Release-Build: **0 Warnungen, 0 Fehler**;
+VISIA: **40/40, 0 Diagnosen**, Assembly-/PDB-Erzeugung ebenfalls getestet. Lokale Ergebnisse:
+`artifacts/status-review-20260905` (nicht versioniert). Frühere Einträge bleiben als Historie
+unverändert; dieser Eintrag korrigiert ihre Zählweise, ohne einen neuen Gesamtlauf zu behaupten.
+
+Die Matrix enthält **148 Erwartungen: 121 implemented, 0 partial, 27 planned**;
+**121 documented-verified, 27 not-yet-verified, 0 oracle-verified**. Die bisher absichtlich
+teilweise geführte Grammatik-Familienkarte bezeichnet nun genau ihre gemessene Modul-Sichtbarkeit.
+Der weitere Sprachumfang und zuvor fehlende Abschlussverträge erhalten eigene Karten mit
+Etappe, Abhängigkeiten und Abnahme. Bestehende IDs bleiben erhalten. Die 27 neuen Karten
+erweitern den sichtbaren Restumfang; sie verändern kein Compilerverhalten.
+
+Überzogene Aussagen zu allgemeiner Variant-Array-Dateipersistenz, PropertyPages, externem
+UserControl-OLE-Hosting und Enterprise-Ausführung sind auf ihre belegten Teilverträge begrenzt.
+Die Restverträge bleiben explizit offen. Bereichsstatus und Gap-Texte wurden mit den zugeordneten
+Erwartungen abgeglichen. Baseline-Testverweise einer geplanten Karte sind keine Verifikation.
+
+README, Arbeitsanweisungen, Korpus- und SDK-Dokumentation folgen dieser Roadmap. Der gepackte
+Resolver, TypeLib-Ausgaben und Clean/Rebuild werden nicht mehr als fehlend geführt;
+`vbUseSystem` bleibt ausdrücklich systemabhängig. Compiler, Runtime, Buildskript, CI und Tests
+bleiben in diesem Paket unverändert. Automatische Laufberichte, Statusprüfungen und der geplante
+`-UpdateVerificationDocs`-Schalter sind zukünftige R0-Arbeit.
+
+Prüfung dieses Dokumentationspakets: die drei vorhandenen `CompatibilityMatrixTests` bestehen.
+Eine zusätzliche einmalige Konsistenzprüfung bestätigt eindeutige IDs, vorhandene und zyklenfreie
+Abhängigkeiten, vollständige Roadmap-Zuordnung aller 27 Restkarten sowie passende Bereichsstatus.
+Diese einmalige Prüfung ist noch keine neue automatisierte Build-Funktion. Ein erneuter
+vollständiger Compiler-/OCX-Lauf wurde für die reinen Dokumentationsänderungen nicht behauptet.

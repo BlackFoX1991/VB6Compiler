@@ -6,7 +6,9 @@
     "architecture": "x86",
     "localePolicy": "system-lcid-and-ansi-code-page",
     "oracleAvailable": false,
-    "oraclePolicy": "documented-verified-until-vb6-runner-is-available"
+    "oraclePolicy": "documented-verified-until-vb6-runner-is-available",
+    "semanticPolicy": "VB6 language-semantic corrections apply to both profiles; locale, platform defaults and extensions remain profile-specific.",
+    "completionPolicy": "Close Managed expectations including lifetime, pointers and ABI; LLVM, LSP, IDE and visual designer remain deferred."
   },
   "statusModel": {
     "implementation": [
@@ -35,7 +37,9 @@
     "automation-types": "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oaut/7b5fa59b-d8f6-4a47-9695-630d3c10363e",
     "windows-controls": "https://learn.microsoft.com/en-us/windows/win32/controls/",
     "windows-code-pages": "https://learn.microsoft.com/en-us/windows/win32/intl/code-pages",
-    "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi"
+    "windows-gdi": "https://learn.microsoft.com/en-us/windows/win32/gdi/windows-gdi",
+    "vba-get": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/get-statement",
+    "vba-put": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/put-statement"
   },
   "expectationSchema": {
     "required": [
@@ -57,7 +61,14 @@
       "documented-verified",
       "oracle-verified"
     ],
-    "oracleComparable": true
+    "oracleComparable": true,
+    "optional": [
+      "milestone",
+      "dependsOn",
+      "title"
+    ],
+    "plannedTestRefsPolicy": "Existing baseline references satisfy current tooling; they do not verify planned acceptance. Automatic dependency/status checks are managed-r0-status-checks.",
+    "aggregationPolicy": "All children implemented => implemented; all planned => planned; otherwise partial. Any child not-yet-verified => not-yet-verified; all oracle-verified => oracle-verified; otherwise documented-verified. Open gaps list expectation IDs."
   },
   "expectations": [
     {
@@ -690,7 +701,7 @@
     },
     {
       "id": "l1-02-a-language-grammar-context",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",
       "input": "Module-level Public/Global, Private and Dim declarations referenced from the declaring and a different project module",
       "expected": {
@@ -699,7 +710,7 @@
         "diagnostic": "an Option Explicit reference to a private variable from another module reports VB6S0001",
         "metadata": "bound ModuleVariableSymbol.IsPublic records the visibility contract"
       },
-      "implementationNotes": "Module-level visibility is implemented and project-scoped; procedure/block context grammar remains in this family.",
+      "implementationNotes": "Module-variable visibility is measured. The full grammar/context inventory is tracked separately by managed-r1-grammar.",
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Parser.Tests/ParserTests.cs",
@@ -707,7 +718,7 @@
         "tests/VB6.Compiler.Tests/CompilationTests.cs",
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
       ],
-      "notes": "Deliberately kept partial as a broad family status, as CLAUDE.md records: the card covers the whole declaration and visibility surface rather than one contract, and closing it would claim completeness for a family that grows with every language feature. Public/Private resolution across modules, the VB6S0001 diagnostic and the IsPublic metadata are measured."
+      "notes": "Existing ID retained for its concrete Public/Global versus Private/Dim expectation; no indefinitely partial language-family claim."
     },
     {
       "id": "l1-02-a-dim-withevents-declaration",
@@ -1352,18 +1363,18 @@
       "id": "l1-03-i-file-variant-object-composite-layout",
       "implementation": "implemented",
       "matrixEntry": "runtime-file-io",
-      "input": "Variant arrays, object variants and composite Variant/UDT record layouts in file transfers",
+      "input": "Supported scalar Variant/UDT records and explicit rejection of object or array-containing Variant file values",
       "expected": {
-        "variantArray": "subtype, bounds and state markers are preserved where supported",
-        "objects": "unsupported object layouts fail explicitly rather than being flattened",
-        "composite": "nested record layout and ByRef write-back are deterministic"
+        "scalarVariant": "supported scalar tags and state markers are transferred",
+        "objects": "unsupported object values and incoming array-valued Variant tags fail explicitly",
+        "composite": "supported nested records preserve layout and ByRef write-back"
       },
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
       ],
-      "notes": "Variant arrays keep their subtype, bounds and state markers across a binary transfer, an object layout is refused explicitly instead of being flattened into something that reads back as data, and nested records keep their layout with deterministic ByRef write-back."
+      "notes": "Does not establish scalar Variant-containing-array persistence. Variant() arrays, Binary/Random descriptors and string payloads are audited by managed-r1-file-layout."
     },
     {
       "id": "l1-03-j-typelib-alias-record-pointer-import",
@@ -1714,14 +1725,13 @@
       "id": "l1-04-l-activex-persistence-propertypages",
       "implementation": "implemented",
       "matrixEntry": "activex-stock-and-generic-host",
-      "input": "Generic ActiveX persistence, Property Pages and connection points",
+      "input": "PropertyBag-based designer initialization, nested FRX resources and connection-point attachment",
       "expected": {
-        "persistence": "control state round-trips through the documented persistence interface",
-        "propertyPages": "property-page edits update the owning control",
-        "connections": "connection points attach, detach and dispatch events deterministically",
-        "errors": "unsupported persistence interfaces remain explicit"
+        "persistence": "IPersistPropertyBag loads tested designer properties and nested FRX resources",
+        "connections": "tested connections attach, dispatch and detach",
+        "fallback": "absence of IPersistPropertyBag returns false to permit ordinary property assignment"
       },
-      "notes": "Designer state round-trips through IPersistPropertyBag including nested BeginProperty groups and .frx pictures, and connection points attach, dispatch and detach. A control that does not implement the interface is reported rather than assumed. Property pages are the container's design-time surface and belong to the IDE, which this project defers deliberately.",
+      "notes": "Measured PropertyBag path only. Stream-only persistence and external property-page ApplyChanges remain managed-r5-stream-persistence and managed-r5-property-pages.",
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
@@ -1734,37 +1744,36 @@
       "id": "l1-04-m-usercontrol-ole-propertybag",
       "implementation": "implemented",
       "matrixEntry": "activex-stock-and-generic-host",
-      "input": "UserControl OLE view/in-place hosting with PropertyBag, events and lifecycle callbacks",
+      "input": "Generated UserControl initialization and property-bag lifecycle through the managed host",
       "expected": {
-        "oleView": "UserControl enters and leaves in-place/OLE view deterministically",
-        "propertyBag": "persisted properties round-trip through the PropertyBag",
-        "events": "events are raised to the attached container",
-        "lifecycle": "Initialize/ReadProperties/Resize/Terminate order is preserved"
+        "host": "generated controls are embedded in the managed designer hierarchy",
+        "propertyBag": "InitProperties or ReadProperties is selected when designer initialization completes",
+        "events": "tested lifecycle and host events reach the generated control"
       },
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ],
-      "notes": "A generated UserControl is embedded as a designer component, enters and leaves view with Show/Hide reported as changes, and its lifecycle runs Initialize, then exactly one of InitProperties or ReadProperties, then Resize and Terminate with WriteProperties. The choice between the two is made when the designer envelope closes, because only then is it known whether the container persisted anything -- deciding at creation left the bag always empty and ReadProperties never ran."
+      "notes": "Managed host evidence does not establish independent OLE-container compatibility (managed-r5-usercontrol-ole) or last-reference termination (managed-r2-lifetime)."
     },
     {
       "id": "l1-04-n-enterprise-designer-artifacts",
       "implementation": "implemented",
       "matrixEntry": "project-persisted-designer-artifacts",
-      "input": "DataEnvironment, DataReport, UserDocument and PropertyPage artifacts loaded from a project",
+      "input": "PropertyPage/UserDocument classification, control binding and managed class execution; Designer type preservation",
       "expected": {
-        "load": "enterprise artifacts are classified and their persisted metadata is retained",
-        "bind": "declared data/report members bind to generated host types",
-        "run": "supported artifacts execute through the managed host",
-        "unsupported": "missing native dependencies remain diagnostic and visible"
+        "load": "artifact classification and declared Designer type are preserved",
+        "bind": "PropertyPage/UserDocument procedures resolve generated controls",
+        "run": "tested PropertyPage/UserDocument procedures execute as managed classes"
       },
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
       ],
-      "notes": "PropertyPage and UserDocument artifacts are classified, compiled and executed: the class is creatable, its procedures run and the designer envelope has placed its controls. A Designer item keeps its declared type. Data-bound members of DataEnvironment/DataReport depend on native ADO components that are consumed through COM rather than reimplemented, and their absence stays diagnostic."
+      "notes": "External PropertyPage/OLE hosting and DataEnvironment/DataReport command/report execution remain managed-r5-property-pages and managed-r5-enterprise."
     },
     {
       "id": "l1-04-o-msbuild-resolver-task",
@@ -2082,6 +2091,518 @@
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"
       ]
+    },
+    {
+      "id": "managed-r0-reporting",
+      "matrixEntry": "verification-and-release-gates",
+      "milestone": "R0",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Messläufe getrennt auswerten",
+      "expected": {
+        "acceptance": "Nur aktuelle TRXs zählen; Standard, x86 und Wiederholungen getrennt mit Quellstand und Zeitpunkt berichten; alte/fehlende Dateien und Prozessfehler dürfen keinen grünen Lauf ergeben."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Messläufe getrennt auswerten"
+    },
+    {
+      "id": "managed-r0-status-checks",
+      "matrixEntry": "verification-and-release-gates",
+      "milestone": "R0",
+      "dependsOn": [
+        "managed-r0-reporting"
+      ],
+      "implementation": "planned",
+      "input": "Statusprüfung automatisieren",
+      "expected": {
+        "acceptance": "Unbekannte/zyklische Abhängigkeiten, falsche Bereichsstatus und veraltete Messzahlen melden; normaler Build ohne Doc-Schreibzugriff, expliziter UpdateVerificationDocs-Schalter zum Aktualisieren."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Statusprüfung automatisieren"
+    },
+    {
+      "id": "managed-r1-grammar",
+      "matrixEntry": "language-declarations-and-statements",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r0-status-checks"
+      ],
+      "implementation": "planned",
+      "input": "Grammatik und Kontext inventarisieren",
+      "expected": {
+        "acceptance": "Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Grammatik und Kontext inventarisieren"
+    },
+    {
+      "id": "managed-r1-udt-shapes",
+      "matrixEntry": "language-arrays-and-udts",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-grammar"
+      ],
+      "implementation": "planned",
+      "input": "Array- und UDT-Grenzen prüfen",
+      "expected": {
+        "acceptance": "Rang, Bounds, feste/dynamische Felder, Wertkopien und erlaubte UDT/Variant-Grenzen prüfen; dokumentiert verbotene Formen bleiben Negativtests."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Array- und UDT-Grenzen prüfen"
+    },
+    {
+      "id": "managed-r1-operators",
+      "matrixEntry": "language-operators-and-variants",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-grammar"
+      ],
+      "implementation": "planned",
+      "input": "Operator- und Default-Member-Tabelle schließen",
+      "expected": {
+        "acceptance": "Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Operator- und Default-Member-Tabelle schließen"
+    },
+    {
+      "id": "managed-r1-conversions",
+      "matrixEntry": "runtime-variant-and-conversions",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-operators"
+      ],
+      "implementation": "planned",
+      "input": "Konvertierungen und Promotionsmatrix prüfen",
+      "expected": {
+        "acceptance": "Missing, Error, Decimal, Date und Currency über implizite/explizite Konvertierungen, Rundung und Overflow abnehmen; strittige Alt-Tests als offene Nachweise ausweisen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Konvertierungen und Promotionsmatrix prüfen"
+    },
+    {
+      "id": "managed-r1-intrinsics",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-conversions"
+      ],
+      "implementation": "planned",
+      "input": "Standardbibliothek abschließend inventarisieren",
+      "expected": {
+        "acceptance": "String, Math, Financial, Datum/Zeit, Format, Information und Host-Intrinsics einschließlich Rückgabetyp, Dollar-Form, optionalen Argumenten und Fehlergrenzen messen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Standardbibliothek abschließend inventarisieren"
+    },
+    {
+      "id": "managed-r1-file-layout",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-udt-shapes"
+      ],
+      "implementation": "planned",
+      "input": "Datei-Layouts bytegenau abnehmen",
+      "expected": {
+        "acceptance": "Binary/Random-Strings, Variant(), skalare Variants, UDTs, Deskriptoren und Record-Grenzen gegen unabhängige Bytes prüfen; Objektwerte und skalare Variants mit Array-Inhalt von erlaubten Arrays trennen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Datei-Layouts bytegenau abnehmen"
+    },
+    {
+      "id": "managed-r1-profiles",
+      "matrixEntry": "profile-selection-and-provenance",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-intrinsics",
+        "managed-r1-file-layout"
+      ],
+      "implementation": "planned",
+      "input": "Profilgrenzen absichern",
+      "expected": {
+        "acceptance": "en-US/de-DE/ja-JP, ANSI/DBCS, vbUseSystem und Debug-/Financial-Ausgabe in gemischten Assemblies prüfen; gemeinsame Sprachsemantik und explizite Locale-Grenzen erhalten."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Profilgrenzen absichern"
+    },
+    {
+      "id": "managed-r2-lifetime",
+      "matrixEntry": "language-operators-and-variants",
+      "milestone": "R2",
+      "dependsOn": [
+        "managed-r1-profiles"
+      ],
+      "implementation": "planned",
+      "input": "Referenzgezählte Objektlebensdauer",
+      "expected": {
+        "acceptance": "Terminate beim Wegfall der letzten Referenz; Aliases, ByRef, Rückgaben, alle Speicherformen, Events/COM, Selbstzuweisung, Initialize-Fehler, Reentranz, Zyklen und Programmende ohne vorzeitige/doppelte Terminierung prüfen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Referenzgezählte Objektlebensdauer"
+    },
+    {
+      "id": "managed-r3-pointers",
+      "matrixEntry": "abi-declare-addressof",
+      "milestone": "R3",
+      "dependsOn": [
+        "managed-r2-lifetime"
+      ],
+      "implementation": "planned",
+      "input": "Stabiler adressierbarer Speicher",
+      "expected": {
+        "acceptance": "Gespeicherte VarPtr/StrPtr und ByRef-Aliase bleiben für ihre definierte Lebensdauer über GC gültig; native Schreibzugriffe, BSTR/VARIANT/SAFEARRAY/UDT, Freigabe und Reallokation prüfen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Stabiler adressierbarer Speicher"
+    },
+    {
+      "id": "managed-r3-callback-abi",
+      "matrixEntry": "abi-declare-addressof",
+      "milestone": "R3",
+      "dependsOn": [
+        "managed-r3-pointers"
+      ],
+      "implementation": "planned",
+      "input": "Declare- und Callback-ABI vervollständigen",
+      "expected": {
+        "acceptance": "UDT-, Pointer-, String- und Array-Signaturen mit Ownership, Bounds und Write-back in x86 sowie unterstützten x64-Erweiterungen messen; zurückbehaltene Callbacks nach GC und beim Abmelden prüfen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Declare- und Callback-ABI vervollständigen"
+    },
+    {
+      "id": "managed-r4-vtable-out",
+      "matrixEntry": "com-automation-types",
+      "milestone": "R4",
+      "dependsOn": [
+        "managed-r3-callback-abi"
+      ],
+      "implementation": "planned",
+      "input": "VTable-Ausgabeparameter",
+      "expected": {
+        "acceptance": "PARAMFLAG_FOUT, FIN/FOUT und FRETVAL korrekt unterscheiden; stdole.IFont.Clone mit echtem Aufruferspeicher und Write-back ausführen statt VB6S0075."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ComVTableExecutionTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "VTable-Ausgabeparameter"
+    },
+    {
+      "id": "managed-r4-automation-layouts",
+      "matrixEntry": "com-automation-types",
+      "milestone": "R4",
+      "dependsOn": [
+        "managed-r4-vtable-out"
+      ],
+      "implementation": "planned",
+      "input": "Rohe Automation-Layouts abnehmen",
+      "expected": {
+        "acceptance": "Aliase, Records, C-Arrays, verschachtelte Pointer und SAFEARRAY-Typen über unabhängige COM-Probes mit Layout- und Besitzprüfung in beide Richtungen abnehmen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ComInteropExecutionTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Rohe Automation-Layouts abnehmen"
+    },
+    {
+      "id": "managed-r4-binary-compatibility",
+      "matrixEntry": "project-vbp-vbg",
+      "milestone": "R4",
+      "dependsOn": [
+        "managed-r4-automation-layouts"
+      ],
+      "implementation": "planned",
+      "input": "Binary Compatibility gegen ältere Komponente",
+      "expected": {
+        "acceptance": "CompatibleMode/CompatibleEXE32 für bestehende Identitäten/Aufrufverträge auswerten; alter Client läuft nach kompatibler Änderung unverändert weiter, inkompatible Änderungen liefern Diagnose."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Binary Compatibility gegen ältere Komponente"
+    },
+    {
+      "id": "managed-r4-typelib-metadata",
+      "matrixEntry": "com-server-and-typelib-emission",
+      "milestone": "R4",
+      "dependsOn": [
+        "managed-r4-binary-compatibility"
+      ],
+      "implementation": "planned",
+      "input": "TypeLib-Metadaten vervollständigen",
+      "expected": {
+        "acceptance": "Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/TypeLibraryWriterTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "TypeLib-Metadaten vervollständigen"
+    },
+    {
+      "id": "managed-r4-server-lifetime",
+      "matrixEntry": "com-server-and-typelib-emission",
+      "milestone": "R4",
+      "dependsOn": [
+        "managed-r4-typelib-metadata"
+      ],
+      "implementation": "planned",
+      "input": "Server- und Event-Ownership schließen",
+      "expected": {
+        "acceptance": "IUnknown/ClassFactory, Instancing, Connection-Point-Enumeratoren, Attach/Detach und Shutdown per Fremdclient prüfen; vorhandene Enumeration-Stubs schließen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Server- und Event-Ownership schließen"
+    },
+    {
+      "id": "managed-r5-stream-persistence",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r4-server-lifetime"
+      ],
+      "implementation": "planned",
+      "input": "Stream-basierte Control-Persistenz",
+      "expected": {
+        "acceptance": "IPersistStreamInit-Zustand laden/sichern; InitNew, fehlende Schnittstelle und beschädigten Stream mit einer passenden Control-Fixture prüfen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ComPersistenceRuntimeTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Stream-basierte Control-Persistenz"
+    },
+    {
+      "id": "managed-r5-usercontrol-ole",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-stream-persistence"
+      ],
+      "implementation": "planned",
+      "input": "Generierte UserControls im Fremdcontainer",
+      "expected": {
+        "acceptance": "Kompilierte ctl-Komponente unabhängig aktivieren, zeichnen, speichern, laden und freigeben; OLE View/In-Place, Ambient Properties und Events prüfen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Generierte UserControls im Fremdcontainer"
+    },
+    {
+      "id": "managed-r5-property-pages",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-usercontrol-ole"
+      ],
+      "implementation": "planned",
+      "input": "PropertyPage-COM-Vertrag",
+      "expected": {
+        "acceptance": "Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "PropertyPage-COM-Vertrag"
+    },
+    {
+      "id": "managed-r5-enterprise",
+      "matrixEntry": "project-persisted-designer-artifacts",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-property-pages"
+      ],
+      "implementation": "planned",
+      "input": "Enterprise-Artefakte ausführen",
+      "expected": {
+        "acceptance": "DataEnvironment-Kommandos, DataReport-Bindung/Ausgabe und UserDocument-Hosting über kontrollierte Fixtures/verfügbare ADO-Komponenten prüfen; fehlende Abhängigkeiten sichtbar lassen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Enterprise-Artefakte ausführen"
+    },
+    {
+      "id": "managed-r5-forms",
+      "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-enterprise"
+      ],
+      "implementation": "planned",
+      "input": "Forms- und Control-Verträge schließen",
+      "expected": {
+        "acceptance": "Start-/Defaultinstanz, Unload/Wiederladen, Fokus, Tab/Z-Order, Modalität, Menüs, Control-Arrays und Stock-Events auf Identität/Ereignisreihenfolge prüfen; native Fälle verlangen x86."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Forms- und Control-Verträge schließen"
+    },
+    {
+      "id": "managed-r5-paint-mdi",
+      "matrixEntry": "forms-drawing-and-mdi",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-forms"
+      ],
+      "implementation": "planned",
+      "input": "Sichtbare Zeichen- und MDI-Abläufe abnehmen",
+      "expected": {
+        "acceptance": "Paint/AutoRedraw, aktive/persistente Flächen, Clipping, Skalierung sowie MDI-Menü/Fokus über Pixel- und Eventprüfungen abnehmen; Bitmap-Implementierung korrekt benennen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Sichtbare Zeichen- und MDI-Abläufe abnehmen"
+    },
+    {
+      "id": "managed-r6-visia-workflows",
+      "matrixEntry": "verification-and-release-gates",
+      "milestone": "R6",
+      "dependsOn": [
+        "managed-r5-paint-mdi"
+      ],
+      "implementation": "planned",
+      "input": "VISIA-Laufzeitszenarien",
+      "expected": {
+        "acceptance": "Unverändertes VISIA: Start, Projekt laden, zentrale Fenster/Controls, Dateioperationen und Beenden mit festen Ausgaben, Dateien und Eventabläufen prüfen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/ConformanceCorpusTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "VISIA-Laufzeitszenarien"
+    },
+    {
+      "id": "managed-r6-business-reference",
+      "matrixEntry": "verification-and-release-gates",
+      "milestone": "R6",
+      "dependsOn": [
+        "managed-r6-visia-workflows"
+      ],
+      "implementation": "planned",
+      "input": "VB6-Geschäftslogik-Referenzprojekt",
+      "expected": {
+        "acceptance": "Repo-eigenes versioniertes VB6-Projekt mit Forms, Klassen, Datei-I/O und ADO reproduzierbar gegen unabhängige fachliche Erwartungen prüfen; nicht als fremden Legacy-Korpus ausweisen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "VB6-Geschäftslogik-Referenzprojekt"
+    },
+    {
+      "id": "managed-r6-sdk-deployment",
+      "matrixEntry": "msbuild-headless-sdk",
+      "milestone": "R6",
+      "dependsOn": [
+        "managed-r6-business-reference"
+      ],
+      "implementation": "planned",
+      "input": "SDK und Deployment gemeinsam abnehmen",
+      "expected": {
+        "acceptance": "Gepacktes SDK, vbp/vbg, COM/Ressourcen, Output-Start, No-op, Reparatur und Clean/Rebuild zusammen prüfen; nur manifestierte Dateien entfernen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "SDK und Deployment gemeinsam abnehmen"
+    },
+    {
+      "id": "managed-r7-release",
+      "matrixEntry": "verification-and-release-gates",
+      "milestone": "R7",
+      "dependsOn": [
+        "managed-r6-sdk-deployment"
+      ],
+      "implementation": "planned",
+      "input": "Managed-Abschlussgate",
+      "expected": {
+        "acceptance": "Alle Managed-Erwartungen schließen; vollständige Standard-/native x86-Läufe und Anwendungsszenarien auf demselben Quellstand; Wiederholungen nicht zu grünem Gesamtlauf zusammenführen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Managed-Abschlussgate"
     }
   ],
   "entries": [
@@ -2100,12 +2621,24 @@
         "com": "none"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
+        "tests/VB6.Parser.Tests/ParserTests.cs",
+        "tests/VB6.Semantics.Tests/BinderTests.cs",
         "tests/VB6.Compiler.Tests/CompilationTests.cs",
-        "tests/VB6.Parser.Tests"
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Parser.Tests/ModuleMemberParserTests.cs",
+        "tests/VB6.Parser.Tests/OptionDirectiveParserTests.cs",
+        "tests/VB6.Semantics.Tests/StaticBinderTests.cs",
+        "tests/VB6.Compiler.Tests/ImplicitVariantAnalysisTests.cs",
+        "tests/VB6.Compiler.Tests/NamedArgumentExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/OptionalArgumentExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs",
+        "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs"
       ],
-      "gap": "The full documented grammar and all context restrictions remain open."
+      "gap": "managed-r1-grammar: Grammatik und Kontext inventarisieren"
     },
     {
       "id": "language-arrays-and-udts",
@@ -2123,12 +2656,24 @@
         "com": "SAFEARRAY-compatible where exposed"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Compiler.Tests/*Array*Tests.cs",
-        "tests/VB6.Compiler.Tests/*Udt*Tests.cs"
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ArrayLibraryBinderTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayLibraryExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedUdtArrayExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ArrayBinderGuardTests.cs",
+        "tests/VB6.Semantics.Tests/ArrayElementBinderTests.cs",
+        "tests/VB6.Runtime.Tests/VBArrayTests.cs",
+        "tests/VB6.Compiler.Tests/ReDimExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/UserDefinedTypeMemberArrayBindingTests.cs",
+        "tests/VB6.Semantics.Tests/ReDimBinderTests.cs",
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs",
+        "tests/VB6.Compiler.Tests/ForEachSyntaxGuardTests.cs",
+        "tests/VB6.Compiler.Tests/DynamicUserDefinedTypeArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
       ],
-      "gap": "Remaining Variant-array, UDT-layout and unsupported-shape cases are tracked in Etappen B-D."
+      "gap": "managed-r1-udt-shapes: Array- und UDT-Grenzen prüfen"
     },
     {
       "id": "language-control-flow-and-errors",
@@ -2147,9 +2692,14 @@
       "implementation": "implemented",
       "verification": "documented-verified",
       "tests": [
+        "tests/VB6.Parser.Tests/ErrorHandlingParserTests.cs",
         "tests/VB6.Compiler.Tests/ControlFlowGuardTests.cs",
-        "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs"
-      ]
+        "tests/VB6.Compiler.Tests/ManagedDiagnosticTests.cs",
+        "tests/VB6.Compiler.Tests/NestedErrorResumeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DocumentedErrorNumberExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/RuntimeTests.cs"
+      ],
+      "gap": ""
     },
     {
       "id": "language-operators-and-variants",
@@ -2166,12 +2716,23 @@
         "com": "none"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
-        "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/LikeAndObjectIdentityExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantEqualityExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/DeferredComparisonOperatorBinderTests.cs",
+        "tests/VB6.Compiler.Tests/CollectionExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/ClassMemberBinderTests.cs",
+        "tests/VB6.Compiler.Tests/WithEventsExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs",
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
       ],
-      "gap": "Variant/object promotion and the remaining operator matrix are tracked in Etappe B."
+      "gap": "managed-r1-operators: Operator- und Default-Member-Tabelle schließen; managed-r2-lifetime: Referenzgezählte Objektlebensdauer"
     },
     {
       "id": "runtime-variant-and-conversions",
@@ -2189,12 +2750,20 @@
         "com": "Automation VARTYPE mapping is preserved"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Compiler.Tests/Variant*Tests.cs",
-        "tests/VB6.Runtime.Tests"
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantTypePredicateExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/VariantArithmeticTests.cs",
+        "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs",
+        "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs"
       ],
-      "gap": "The complete promotion table, object variants and all array variants remain open."
+      "gap": "managed-r1-conversions: Konvertierungen und Promotionsmatrix prüfen"
     },
     {
       "id": "runtime-standard-library",
@@ -2211,12 +2780,36 @@
         "com": "Clipboard/Printer/host services use explicit adapters"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Compiler.Tests/*Intrinsic*Tests.cs",
-        "tests/VB6.Runtime.Tests"
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
+        "tests/VB6.Parser.Tests/LSetParserTests.cs",
+        "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MidIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
+        "tests/VB6.Runtime.Tests/ValWhitespaceTests.cs",
+        "tests/VB6.Compiler.Tests/ValWhitespaceExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/ReplaceAndSplitShapeTests.cs",
+        "tests/VB6.Compiler.Tests/ReplaceAndSplitShapeExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayArgumentConversionExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayArgumentConversionLoweringTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/MathRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/ByteStringAndLongLongIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ErrorAndPrintPositionIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryHostContractExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/MsgBoxExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/InputBoxExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
       ],
-      "gap": "The remaining documented intrinsic surface is Etappe C."
+      "gap": "managed-r1-intrinsics: Standardbibliothek abschließend inventarisieren"
     },
     {
       "id": "runtime-file-io",
@@ -2233,11 +2826,18 @@
         "com": "none"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Compiler.Tests/File*Tests.cs"
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs",
+        "tests/VB6.Compiler.Tests/FileStatementGuardTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FixedLengthStringUdtExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ArrayExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs"
       ],
-      "gap": "Loc now preserves Binary/Random/Sequential mode units, Reset closes all channels, Write # covers multi-value scalar formatting, Print # accepts an empty output list, Lock/Unlock maps Binary/Random ranges plus Sequential whole-file locks, and Open Access/sharing clauses map to explicit FileAccess/FileShare policies; omitted For defaults to Random with length 128. Sequential Print #, Write #, Input # and Line Input # now use stable UTF-8 for Deterministic and the active Windows ANSI code page for VB6Sp6. Input # restores scalar Variant state markers and binary Get/Put supports scalar Variant type tags; Variant arrays, object values and incoming SAFEARRAY tags currently fail explicitly with a type mismatch, while their complete layouts, richer UDT layouts and remaining file modes remain open."
+      "gap": "managed-r1-file-layout: Datei-Layouts bytegenau abnehmen"
     },
     {
       "id": "project-vbp-vbg",
@@ -2255,13 +2855,18 @@
         "com": "Reference/Object entries retain COM identity and paths"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
         "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs",
-        "tests/VB6.ProjectSystem.Tests"
+        "tests/VB6.ProjectSystem.Tests/VBProjectGroupLoaderTests.cs",
+        "tests/VB6.ProjectSystem.Tests/VBProjectLoaderTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs",
+        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs"
       ],
-      "gap": "Core executable/library project-kind classification, Sub Main/Form startup selection, output naming, the legacy x86 default, VBG dependency ordering and declared input manifests are verified. Binary Compatibility metadata is preserved for downstream use; resource embedding, component packaging and full binary-compatibility emission remain open."
+      "gap": "managed-r4-binary-compatibility: Binary Compatibility gegen ältere Komponente"
     },
     {
       "id": "project-persisted-designer-artifacts",
@@ -2278,12 +2883,16 @@
         "com": "ActiveX persistence and references remain addressable"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.ProjectSystem.Tests/VBDesignerParserTests.cs",
-        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+        "tests/VB6.ProjectSystem.Tests/VB6TextFileTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ResourceFileExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
+        "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
       ],
-      "gap": "Full persistence and executable DataEnvironment/DataReport/UserDocument/PropertyPage behavior remain open."
+      "gap": "managed-r5-enterprise: Enterprise-Artefakte ausführen"
     },
     {
       "id": "com-automation-types",
@@ -2302,13 +2911,20 @@
         "com": "IUnknown/IDispatch identity and reference counting are explicit"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
+        "tests/VB6.Compiler.Tests/RegisteredControlLibraryTests.cs",
         "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
-        "tests/VB6.Runtime.Tests",
-        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/ComInteropRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/ComInteropExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/NamedArgumentExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ComVTableExecutionTests.cs"
       ],
-      "gap": "Raw ABI, complete TypeLib import and all dispatch edge cases remain open."
+      "gap": "managed-r4-vtable-out: VTable-Ausgabeparameter; managed-r4-automation-layouts: Rohe Automation-Layouts abnehmen"
     },
     {
       "id": "com-server-and-typelib-emission",
@@ -2327,12 +2943,18 @@
         "com": "IUnknown/IDispatch, connection points and instancing are explicit"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
-        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+        "tests/VB6.ComActivationProbe",
+        "tests/VB6.Compiler.Cli.Tests/LocalServerActivationTests.cs",
+        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/ComArtifactArchitectureTests.cs",
+        "tests/VB6.Compiler.Tests/TypeLibraryWriterTests.cs",
+        "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs"
       ],
-      "gap": "TypeLib generation and the full raw class-factory/ActiveX-EXE contract remain open."
+      "gap": "managed-r4-typelib-metadata: TypeLib-Metadaten vervollständigen; managed-r4-server-lifetime: Server- und Event-Ownership schließen"
     },
     {
       "id": "forms-lifecycle-and-intrinsic-controls",
@@ -2350,12 +2972,12 @@
         "com": "ActiveX controls use explicit connection points"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Runtime.WinForms.Tests",
-        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+        "tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ],
-      "gap": "Full control surface, focus/z-order and stock-OCX coverage remain open."
+      "gap": "managed-r5-forms: Forms- und Control-Verträge schließen"
     },
     {
       "id": "forms-drawing-and-mdi",
@@ -2373,14 +2995,12 @@
         "com": "control surfaces may be ActiveX-backed"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
-        "tests/VB6.Runtime.WinForms.Tests",
-        "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs",
-        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"
       ],
-      "gap": "Fixed ScaleX/ScaleY conversions and all sixteen DrawMode ROP2 merges are implemented for persistent managed surfaces; direct visible-surface/Paint-context composition, GDI/DIB clipping and complete MDI state remain open."
+      "gap": "managed-r5-paint-mdi: Sichtbare Zeichen- und MDI-Abläufe abnehmen"
     },
     {
       "id": "activex-stock-and-generic-host",
@@ -2398,10 +3018,19 @@
         "bitness": "native controls require x86",
         "com": "OLE in-place and connection-point ABI is explicit"
       },
-      "implementation": "planned",
+      "implementation": "partial",
       "verification": "not-yet-verified",
-      "tests": [],
-      "gap": "VB6 is not installed; missing controls require ABI fixtures and must remain visibly non-native."
+      "tests": [
+        "tests/VB6.Runtime.WinForms.Tests/StockControlInventoryTests.cs",
+        "tests/VB6.Compiler.Tests/RegisteredInteropProjectTests.cs",
+        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs",
+        "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/ComPersistenceRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/DesignerEnvelopeLoweringTests.cs",
+        "tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs",
+        "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
+      ],
+      "gap": "managed-r5-stream-persistence: Stream-basierte Control-Persistenz; managed-r5-usercontrol-ole: Generierte UserControls im Fremdcontainer; managed-r5-property-pages: PropertyPage-COM-Vertrag"
     },
     {
       "id": "abi-declare-addressof",
@@ -2419,12 +3048,16 @@
         "com": "Automation callbacks use VARIANT/SAFEARRAY ownership rules"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
-        "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs"
+        "tests/VB6.Parser.Tests/DeclareParserTests.cs",
+        "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
+        "tests/VB6.Parser.Tests/AddressOfParserTests.cs",
+        "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs",
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
       ],
-      "gap": "Complete pointer, UDT, callback and native host ABI coverage remains open."
+      "gap": "managed-r3-pointers: Stabiler adressierbarer Speicher; managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
     },
     {
       "id": "profile-selection-and-provenance",
@@ -2442,16 +3075,21 @@
         "com": "hosts receive profile context additively"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/CompilationTests.cs",
-        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
-        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Runtime.Tests/CultureIndependenceTests.cs",
-        "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/FormatStringInputTests.cs",
+        "tests/VB6.Compiler.Tests/FormatStringInputExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
       ],
-      "gap": "Additional profile-aware runtime APIs and COM/ActiveX semantic and ABI propagation remain open."
+      "gap": "managed-r1-profiles: Profilgrenzen absichern"
     },
     {
       "id": "msbuild-headless-sdk",
@@ -2468,11 +3106,34 @@
         "com": "references and COM-host outputs are tracked"
       },
       "implementation": "partial",
-      "verification": "documented-verified",
+      "verification": "not-yet-verified",
       "tests": [
-        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs"
+        "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
+        "tests/VB6.Compiler.Tests/VBProjectGroupCompilationTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs"
       ],
-      "gap": "A separately packaged ProjectSystem resolver task plus complete Clean/Rebuild and TypeLib output orchestration remain open."
+      "gap": "managed-r6-sdk-deployment: SDK und Deployment gemeinsam abnehmen"
+    },
+    {
+      "id": "verification-and-release-gates",
+      "domain": "verification",
+      "surface": "Documentation, independent run accounting and managed application acceptance",
+      "sourceRefs": [
+        "vb6-docs"
+      ],
+      "contract": {
+        "compile": "Reproducible build and source-linked evidence",
+        "runtime": "Real application scenarios in the release gate",
+        "scope": "Managed completion with explicit native prerequisites and optional oracle"
+      },
+      "implementation": "planned",
+      "verification": "not-yet-verified",
+      "tests": [
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs",
+        "tests/VB6.Compiler.Tests/ConformanceCorpusTests.cs",
+        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      ],
+      "gap": "managed-r0-reporting: Messläufe getrennt auswerten; managed-r0-status-checks: Statusprüfung automatisieren; managed-r6-visia-workflows: VISIA-Laufzeitszenarien; managed-r6-business-reference: VB6-Geschäftslogik-Referenzprojekt; managed-r7-release: Managed-Abschlussgate"
     }
   ],
   "activeXStockControls": {
