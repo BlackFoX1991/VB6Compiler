@@ -43,6 +43,7 @@ public interface IVBArray
     int UBound(int dimension = 1);
     object? GetObjectValue(int[] indices);
     void SetObjectValue(int[] indices, object? value);
+    void TransferObjectValue(int[] indices, object? value);
 
     /// <summary>
     /// Creates independent storage with the same bounds and element descriptor. The generic
@@ -147,10 +148,11 @@ public sealed class VBArray<T> : IVBArray
 
     object? IVBArray.GetObjectValue(int[] indices) => this[indices];
 
-    void IVBArray.SetObjectValue(int[] indices, object? value)
-    {
-        this[indices] = ConvertElement(value);
-    }
+    void IVBArray.SetObjectValue(int[] indices, object? value) =>
+        ReplaceReferenceAtOffset(GetOffset(indices), ConvertElement(value), transferOwnership: false);
+
+    void IVBArray.TransferObjectValue(int[] indices, object? value) =>
+        ReplaceReferenceAtOffset(GetOffset(indices), ConvertElement(value), transferOwnership: true);
 
     IVBArray IVBArray.CloneStorage() => Clone();
 
@@ -671,6 +673,33 @@ public static class VBArrayOperations
         if (value is IVBArray array)
         {
             array.SetObjectValue(ToArrayIndices(indices), element);
+            return;
+        }
+
+        if (value is Array clrArray)
+        {
+            clrArray.SetValue(
+                ConvertArrayElement(element, clrArray.GetType().GetElementType() ?? typeof(object)),
+                ToArrayIndices(indices));
+            return;
+        }
+
+        VBDynamicDispatch.SetDefaultMember(value, indices, element);
+    }
+
+    /// <summary>
+    /// Stores an owned reference in a Variant array element. Array literals, <c>New</c> and
+    /// generated function results already carry one owner, which must move into the element
+    /// instead of being retained once more.
+    /// </summary>
+    public static void TransferElement(object? value, int[] indices, object? element) =>
+        TransferElement(value, indices.Cast<object?>().ToArray(), element);
+
+    public static void TransferElement(object? value, object?[] indices, object? element)
+    {
+        if (value is IVBArray array)
+        {
+            array.TransferObjectValue(ToArrayIndices(indices), element);
             return;
         }
 

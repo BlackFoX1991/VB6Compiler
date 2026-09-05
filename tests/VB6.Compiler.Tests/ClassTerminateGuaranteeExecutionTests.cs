@@ -429,4 +429,107 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_TracksGeneratedObjectsInVariantStorage()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateVariant", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Variant.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Variant"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim value As Variant
+                    Set value = New C
+                    Set value = value
+                    Debug.Print "Variant besitzt"
+                    Set value = Nothing
+                    Debug.Print "Variant geloescht"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "Variant besitzt", "Terminate", "Variant geloescht" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_TracksGeneratedObjectsInVariantArrayElements()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateVariantArray", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "VariantArray.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="VariantArray"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim typed() As Variant
+                    ReDim typed(0 To 0)
+                    Set typed(0) = New C
+                    Set typed(0) = typed(0)
+                    Set typed(0) = Nothing
+
+                    Dim holder As Variant
+                    holder = Array(Empty)
+                    Set holder(0) = New C
+                    Set holder(0) = holder(0)
+                    Set holder(0) = Nothing
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "Terminate", "Terminate" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

@@ -951,7 +951,7 @@ public sealed class ManagedEmitter
                     }
                     break;
                 case IrReturnTerminator ret:
-                    var returnsTrackedObject = ret.Value is not null && TracksObjectLifetime(ret.Value.Type);
+                    var returnsTrackedObject = ret.Value is not null && TracksLifetimeStorage(ret.Value.Type);
                     if (ret.Value is not null)
                     {
                         EmitExpression(encoder, procedure, ret.Value);
@@ -990,7 +990,7 @@ public sealed class ManagedEmitter
         {
             // A counted ByVal parameter owns the extra reference retained at the call boundary;
             // a ByRef parameter aliases caller storage and owns nothing on its own.
-            foreach (var local in procedure.Locals.Where(local => TracksObjectLifetime(local.Type)))
+            foreach (var local in procedure.Locals.Where(local => TracksLifetimeStorage(local.Type)))
             {
                 encoder.LoadLocal(local.Id);
                 encoder.Call(GetRuntimeMethodReference(Static(
@@ -1001,7 +1001,7 @@ public sealed class ManagedEmitter
 
             foreach (var parameter in procedure.Parameters.Where(parameter =>
                          parameter.PassingMode == ParameterPassingMode.ByVal &&
-                         TracksObjectLifetime(parameter.Type)))
+                         TracksLifetimeStorage(parameter.Type)))
             {
                 encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Index));
                 encoder.Call(GetRuntimeMethodReference(Static(
@@ -1245,7 +1245,7 @@ public sealed class ManagedEmitter
             switch (place)
             {
                 case IrLocalPlace local:
-                    if (TracksObjectLifetime(local.Type))
+                    if (TracksLifetimeStorage(local.Type))
                     {
                         EmitLifetimeAwareStore(
                             encoder,
@@ -1260,7 +1260,7 @@ public sealed class ManagedEmitter
                     encoder.StoreLocal(local.Local.Id);
                     break;
                 case IrParameterPlace parameter when parameter.Parameter.PassingMode == ParameterPassingMode.ByVal:
-                    if (TracksObjectLifetime(parameter.Type))
+                    if (TracksLifetimeStorage(parameter.Type))
                     {
                         EmitLifetimeAwareStore(
                             encoder,
@@ -1275,7 +1275,7 @@ public sealed class ManagedEmitter
                     encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     break;
                 case IrParameterPlace parameter:
-                    if (TracksObjectLifetime(parameter.Type))
+                    if (TracksLifetimeStorage(parameter.Type))
                     {
                         encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                         encoder.OpCode(ILOpCode.Dup);
@@ -1297,7 +1297,7 @@ public sealed class ManagedEmitter
                     EmitStoreIndirect(encoder, parameter.Type);
                     break;
                 case IrGlobalPlace global:
-                    if (TracksObjectLifetime(global.Type))
+                    if (TracksLifetimeStorage(global.Type))
                     {
                         EmitLifetimeAwareStore(
                             encoder,
@@ -1321,7 +1321,7 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
-                    if (TracksObjectLifetime(field.Type))
+                    if (TracksLifetimeStorage(field.Type))
                     {
                         EmitFieldReceiver(encoder, procedure, field.Receiver);
                         encoder.LoadString(_metadata.GetOrAddUserString(field.Field.Name));
@@ -1342,7 +1342,7 @@ public sealed class ManagedEmitter
                     encoder.Token(_fieldHandles[field.Field]);
                     break;
                 case IrArrayElementPlace element:
-                    if (TracksObjectLifetime(element.ElementType))
+                    if (TracksLifetimeStorage(element.ElementType))
                     {
                         EmitExpression(encoder, procedure, element.Array);
                         EmitInt32Array(encoder, procedure, element.Indices);
@@ -1360,7 +1360,7 @@ public sealed class ManagedEmitter
                     EmitStoreIndirect(encoder, element.ElementType);
                     break;
                 case IrArrayFlatElementPlace element:
-                    if (TracksObjectLifetime(element.ElementType))
+                    if (TracksLifetimeStorage(element.ElementType))
                     {
                         EmitExpression(encoder, procedure, element.Array);
                         EmitExpression(encoder, procedure, element.Index);
@@ -1890,7 +1890,7 @@ public sealed class ManagedEmitter
                 var targetParameter = call.Procedure.Parameters[index];
                 if (!call.Procedure.IsExternal &&
                     targetParameter.PassingMode == ParameterPassingMode.ByVal &&
-                    TracksObjectLifetime(targetParameter.Type) &&
+                    TracksLifetimeStorage(targetParameter.Type) &&
                     !OwnsLifetimeReference(argument.Expression))
                 {
                     // The callee receives a distinct ByVal slot. A borrowed caller value gains
@@ -2713,9 +2713,11 @@ public sealed class ManagedEmitter
             EmitExpressionWithAssignmentConversion(encoder, procedure, value, TypeSymbol.Variant);
             encoder.Call(GetRuntimeMethodReference(
                 typeof(VBArrayOperations).GetMethod(
-                    nameof(VBArrayOperations.SetElement),
+                    OwnsLifetimeReference(value)
+                        ? nameof(VBArrayOperations.TransferElement)
+                        : nameof(VBArrayOperations.SetElement),
                     new[] { typeof(object), typeof(object[]), typeof(object) })
-                ?? throw new MissingMethodException("VBArrayOperations.SetElement(object,object[],object) is required.")));
+                ?? throw new MissingMethodException("VBArrayOperations element store is required.")));
         }
 
         private void EmitEnsureArray(
@@ -4969,12 +4971,35 @@ public sealed class ManagedEmitter
             classType.ExternalAssemblyName is null;
 
         /// <summary>
+        /// A Variant may carry a generated class. Its opaque CLR storage still owns that class
+        /// reference, so every ordinary storage boundary uses the same replace/release protocol
+        /// as a concrete generated-class slot.
+        /// </summary>
+        private static bool TracksLifetimeStorage(TypeSymbol type) =>
+            TracksObjectLifetime(type) || type == TypeSymbol.Variant;
+
+        /// <summary>
         /// New and generated class-return calls yield a reference that the destination adopts.
         /// A load is borrowed and therefore uses Replace, which retains before releasing.
         /// </summary>
-        private static bool OwnsLifetimeReference(IrExpression expression) =>
-            expression is IrNewClassExpression ||
-            expression is IrProcedureCallExpression { ResultType: ClassTypeSymbol };
+        private static bool OwnsLifetimeReference(IrExpression expression)
+        {
+            if (expression is IrNewClassExpression ||
+                expression is IrProcedureCallExpression { ResultType: ClassTypeSymbol })
+            {
+                return true;
+            }
+
+            // A Set assignment into Variant boxes Nothing, but preserves an existing object
+            // reference. When that object is New (or a generated function result), the box must
+            // transfer its construction owner into the Variant slot.
+            return expression is IrRuntimeCallExpression
+                   {
+                       Method: IrRuntimeMethod.ObjectToVariant or IrRuntimeMethod.ObjectRequireOperand,
+                       Arguments.Length: 1
+                   } conversion &&
+                   OwnsLifetimeReference(conversion.Arguments[0].Expression);
+        }
 
         private static bool IsValueType(TypeSymbol type) => !IsReferenceType(type) && type != TypeSymbol.Error;
 
