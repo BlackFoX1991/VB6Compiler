@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     # Only -Configuration is positional. Giving it an explicit position makes every other
     # parameter named-only, so a stray positional argument fails loudly instead of silently
@@ -342,7 +342,10 @@ function Update-MarkedRegions {
     }
 
     if ($updated -ne $original) {
-        Set-Content -LiteralPath $Path -Value $updated -Encoding UTF8 -NoNewline
+        # Not Set-Content -Encoding UTF8: under Windows PowerShell 5.1 that writes a BOM, and
+        # these documents have never had one. Writing the bytes explicitly keeps both shells
+        # producing the same file.
+        [IO.File]::WriteAllText($Path, $updated, (New-Object Text.UTF8Encoding($false)))
     }
 
     return [pscustomobject]@{
@@ -593,8 +596,9 @@ try {
 
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent ([IO.Path]::GetFullPath((Join-Path $repositoryRoot $ReportPath)))) | Out-Null
     $reportJson = $report | ConvertTo-Json -Depth 6
-    Set-Content -LiteralPath (Join-Path $repositoryRoot $ReportPath) -Value $reportJson -Encoding UTF8
-    Set-Content -LiteralPath (Join-Path $resultsPath "verification-report-$runId.json") -Value $reportJson -Encoding UTF8
+    $utf8NoBom = New-Object Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText((Join-Path $repositoryRoot $ReportPath), $reportJson, $utf8NoBom)
+    [IO.File]::WriteAllText((Join-Path $resultsPath "verification-report-$runId.json"), $reportJson, $utf8NoBom)
 
     Write-Host ''
     Write-Host "Run $runId on $($sourceState.describes)"
