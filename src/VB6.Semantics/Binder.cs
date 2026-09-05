@@ -59,6 +59,30 @@ public sealed class Binder
     private bool _optionCompareText;
     private readonly TypeSymbol?[] _defaultTypes = new TypeSymbol?[26];
 
+    // A standard module may declare Property Get/Let/Set just as a class does, but it has no
+    // instance to hang them on, so they cannot go through the class path. They are ordinary
+    // procedures of the module, and binding them as calls means the IR and the emitter need to
+    // know nothing new. The table exists because Get, Let and Set share one name and therefore
+    // cannot all live in the name-keyed procedure table.
+    private readonly Dictionary<string, ModuleProperty> _moduleProperties =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed class ModuleProperty
+    {
+        public ProcedureSymbol? Get { get; set; }
+
+        public ProcedureSymbol? Let { get; set; }
+
+        public ProcedureSymbol? Set { get; set; }
+
+        public ProcedureSymbol? For(PropertyAccessorKind accessor) => accessor switch
+        {
+            PropertyAccessorKind.Get => Get,
+            PropertyAccessorKind.Let => Let,
+            _ => Set
+        };
+    }
+
     public Binder(
         SourceText text,
         IReadOnlyDictionary<string, long>? qualifiedEnumMembers = null,
@@ -147,6 +171,7 @@ public sealed class Binder
 
         _containingClass = containingClass;
         ApplyModuleOptions(root);
+        DeclareModuleProperties(root, containingClass);
         var declared = DeclareModuleVariables(root, availableModuleVariables);
         var moduleVariables = new Dictionary<string, ModuleVariableSymbol>(
             declared.Scope,
@@ -213,7 +238,7 @@ public sealed class Binder
                 case PropertyDeclarationSyntax declaration:
                 {
                     var property = CreatePropertySymbol(declaration);
-                    var propertyProcedure = CreatePropertyProcedureSymbol(declaration);
+                    var propertyProcedure = ResolveModulePropertyAccessor(declaration);
                     properties.Add(property);
                     if (propertyProcedure.ReturnType == TypeSymbol.Error && declaration.ReturnTypeToken is not null)
                     {
@@ -528,6 +553,73 @@ public sealed class Binder
             parameters);
     }
 
+    /// <summary>
+    /// Collects the <c>Property Get/Let/Set</c> declarations of a standard module before its
+    /// bodies are bound.
+    /// </summary>
+    /// <remarks>
+    /// It has to run first: the accessor a call site resolves to must be the same instance the
+    /// body is bound to, and the member loop binds bodies in source order, so a property used
+    /// above its declaration would otherwise not be found. Class members keep their own path and
+    /// are skipped here.
+    /// </remarks>
+    private void DeclareModuleProperties(CompilationUnitSyntax root, ClassTypeSymbol? containingClass)
+    {
+        _moduleProperties.Clear();
+        if (containingClass is not null)
+        {
+            return;
+        }
+
+        foreach (var member in root.Members.OfType<PropertyDeclarationSyntax>())
+        {
+            if (!_moduleProperties.TryGetValue(member.Identifier.Text, out var accessors))
+            {
+                accessors = new ModuleProperty();
+                _moduleProperties[member.Identifier.Text] = accessors;
+            }
+
+            var accessor = CreatePropertyProcedureSymbol(member);
+            if (member.IsGet)
+            {
+                accessors.Get ??= accessor;
+            }
+            else if (member.IsLet)
+            {
+                accessors.Let ??= accessor;
+            }
+            else
+            {
+                accessors.Set ??= accessor;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns the accessor symbol declared for this property, so the body is bound to the same
+    /// instance the call sites resolve to.
+    /// </summary>
+    private ProcedureSymbol ResolveModulePropertyAccessor(PropertyDeclarationSyntax declaration)
+    {
+        if (_moduleProperties.TryGetValue(declaration.Identifier.Text, out var accessors))
+        {
+            var accessor = accessors.For(
+                declaration.IsGet
+                    ? PropertyAccessorKind.Get
+                    : declaration.IsLet
+                    ? PropertyAccessorKind.Let
+                    : PropertyAccessorKind.Set);
+            if (accessor is not null)
+            {
+                return accessor;
+            }
+        }
+
+        // A class member never passes through DeclareProcedures, and a duplicate accessor was
+        // reported there rather than replacing the first one.
+        return CreatePropertyProcedureSymbol(declaration);
+    }
+
     private static ProcedureSymbol CreatePropertyProcedureSymbol(PropertyDeclarationSyntax declaration)
     {
         var property = CreatePropertySymbol(declaration);
@@ -589,6 +681,7 @@ public sealed class Binder
                     symbol = CreateDeclareProcedureSymbol(declare);
                     identifier = declare.Identifier;
                     break;
+
             }
 
             if (symbol is null || identifier is null)
@@ -2555,6 +2648,21 @@ public sealed class Binder
                 return new BoundMemberAssignmentStatement(
                     propertyTarget,
                     BindConversion(expression, propertyTarget.Type));
+            }
+
+            // A module-level Property Let is an ordinary procedure taking the assigned value, so
+            // the assignment becomes its call. Nothing below the binder has to learn a new shape.
+            if (TryGetModulePropertyAccessor(
+                    syntax.Identifier.Text,
+                    PropertyAccessorKind.Let,
+                    out var moduleSetter))
+            {
+                var parameter = moduleSetter.Parameters.Length > 0 ? moduleSetter.Parameters[^1] : null;
+                return new BoundInvocationStatement(
+                    moduleSetter,
+                    ImmutableArray.Create(new BoundArgument(
+                        parameter,
+                        parameter is null ? expression : BindConversion(expression, parameter.Type))));
             }
 
             if (!_optionExplicit && _activeLocals is not null)
@@ -4857,6 +4965,14 @@ public sealed class Binder
             return property;
         }
 
+        if (TryGetModulePropertyAccessor(
+                syntax.IdentifierToken.Text,
+                PropertyAccessorKind.Get,
+                out var moduleGetter))
+        {
+            return new BoundInvocationExpression(moduleGetter, ImmutableArray<BoundArgument>.Empty);
+        }
+
         // A bare name is also how VB6 calls a function that takes no arguments, as in
         // FileNum = FreeFile. A variable of that name would have won above, which is the right
         // precedence.
@@ -4901,6 +5017,32 @@ public sealed class Binder
                 qualifiedName = string.Empty;
                 return false;
         }
+    }
+
+    /// <summary>
+    /// Finds a <c>Property Get/Let/Set</c> declared at module level.
+    /// </summary>
+    /// <remarks>
+    /// A property of the module being bound wins over a same-named procedure but loses to a
+    /// variable, which is the precedence a declared variable already has over everything else in
+    /// <see cref="BindName"/>. Inside a class the class path answers first, so this only ever
+    /// applies to standard modules.
+    /// </remarks>
+    private bool TryGetModulePropertyAccessor(
+        string name,
+        PropertyAccessorKind accessor,
+        out ProcedureSymbol procedure)
+    {
+        if (_containingClass is null &&
+            _moduleProperties.TryGetValue(name, out var accessors) &&
+            accessors.For(accessor) is { } found)
+        {
+            procedure = found;
+            return true;
+        }
+
+        procedure = null!;
+        return false;
     }
 
     private bool TryGetContainingClassProperty(
