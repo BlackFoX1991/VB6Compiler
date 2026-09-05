@@ -34,7 +34,13 @@ public readonly record struct VBArrayBound(int Lower, int Upper)
 /// remains on <see cref="VBArray{T}"/>, while the Variant runtime only needs bounds and boxed
 /// element access.
 /// </summary>
-public interface IVBArray
+public interface IVBObjectLifetimeContainer
+{
+    void RetainObjectReferences();
+    void ReleaseObjectReferences();
+}
+
+public interface IVBArray : IVBObjectLifetimeContainer
 {
     int Rank { get; }
     string? ElementTypeName { get; }
@@ -44,9 +50,6 @@ public interface IVBArray
     object? GetObjectValue(int[] indices);
     void SetObjectValue(int[] indices, object? value);
     void TransferObjectValue(int[] indices, object? value);
-    void RetainObjectReferences();
-    void ReleaseObjectReferences();
-
     /// <summary>
     /// Creates independent storage with the same bounds and element descriptor. The generic
     /// <see cref="VBArray{T}.Clone"/> is unreachable from code that only holds a Variant, which is
@@ -156,9 +159,9 @@ public sealed class VBArray<T> : IVBArray
     void IVBArray.TransferObjectValue(int[] indices, object? value) =>
         ReplaceReferenceAtOffset(GetOffset(indices), ConvertElement(value), transferOwnership: true);
 
-    void IVBArray.RetainObjectReferences() => RetainElements();
+    void IVBObjectLifetimeContainer.RetainObjectReferences() => RetainElements();
 
-    void IVBArray.ReleaseObjectReferences() => ReleaseElements();
+    void IVBObjectLifetimeContainer.ReleaseObjectReferences() => ReleaseElements();
 
     IVBArray IVBArray.CloneStorage() => Clone();
 

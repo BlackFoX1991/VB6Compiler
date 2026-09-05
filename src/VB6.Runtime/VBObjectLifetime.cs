@@ -93,9 +93,9 @@ public static class VBObjectLifetime
     /// </summary>
     public static void Retain(object? instance)
     {
-        if (instance is IVBArray array)
+        if (instance is IVBObjectLifetimeContainer container)
         {
-            array.RetainObjectReferences();
+            container.RetainObjectReferences();
             return;
         }
 
@@ -115,9 +115,9 @@ public static class VBObjectLifetime
     /// </summary>
     public static void Release(object? instance)
     {
-        if (instance is IVBArray array)
+        if (instance is IVBObjectLifetimeContainer container)
         {
-            array.ReleaseObjectReferences();
+            container.ReleaseObjectReferences();
             return;
         }
 
@@ -316,7 +316,7 @@ public static class VBObjectLifetime
         {
             var value = field.GetValue(instance);
             if (value is null ||
-                (value is not IVBArray && !States.TryGetValue(value, out _)))
+                (value is not IVBObjectLifetimeContainer && !States.TryGetValue(value, out _)))
             {
                 continue;
             }

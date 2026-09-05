@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace VB6.Runtime;
 
 /// <summary>Managed storage for the VB6 standard Collection object.</summary>
-public sealed class VBCollection
+public sealed class VBCollection : IVBObjectLifetimeContainer
 {
     private readonly List<Entry> _items = new();
     private readonly Dictionary<string, int> _keys = new(StringComparer.OrdinalIgnoreCase);
@@ -32,7 +32,9 @@ public sealed class VBCollection
         var values = new VBArray<object>(new VBArrayBound(0, collection._items.Count - 1));
         for (var index = 0; index < collection._items.Count; index++)
         {
-            values[index] = collection._items[index].Value!;
+            // The enumeration array has its own temporary storage owner. A Collection.Item read
+            // is borrowed, so the temporary retains before its normal cleanup releases it.
+            values.ReplaceReferenceAtFlatIndex(index, collection._items[index].Value!);
         }
 
         return values;
@@ -54,6 +56,41 @@ public sealed class VBCollection
         [Optional] object? key,
         [Optional] object? before,
         [Optional] object? after)
+        => AddCore(item, key, before, after, transferOwnership: false);
+
+    /// <summary>
+    /// Adopts a freshly-created generated object or function result. The compiler emits this
+    /// path for <c>Collection.Add New C</c>; the construction reference becomes the entry owner.
+    /// </summary>
+    public void AddOwned(
+        object? item,
+        [Optional] object? key,
+        [Optional] object? before,
+        [Optional] object? after) =>
+        AddCore(item, key, before, after, transferOwnership: true);
+
+    public void RetainObjectReferences()
+    {
+        foreach (var entry in _items)
+        {
+            VBObjectLifetime.Retain(entry.Value);
+        }
+    }
+
+    public void ReleaseObjectReferences()
+    {
+        foreach (var entry in _items)
+        {
+            VBObjectLifetime.Release(entry.Value);
+        }
+    }
+
+    private void AddCore(
+        object? item,
+        object? key,
+        object? before,
+        object? after,
+        bool transferOwnership)
     {
         if (!VBVariants.IsMissing(before) && !VBVariants.IsMissing(after))
         {
@@ -82,15 +119,32 @@ public sealed class VBCollection
             }
         }
 
-        _items.Insert(insertAt, new Entry(item, normalizedKey));
-        RebuildKeys();
+        if (!transferOwnership)
+        {
+            VBObjectLifetime.Retain(item);
+        }
+
+        try
+        {
+            _items.Insert(insertAt, new Entry(item, normalizedKey));
+            RebuildKeys();
+        }
+        catch
+        {
+            // New/function results do not have a caller storage owner if Add rejects them.
+            // A borrowed source was retained just above and needs the matching rollback too.
+            VBObjectLifetime.Release(item);
+            throw;
+        }
     }
 
     public void Remove(object? index)
     {
         var position = ResolveIndex(index);
+        var entry = _items[position];
         _items.RemoveAt(position);
         RebuildKeys();
+        VBObjectLifetime.Release(entry.Value);
     }
 
     public static int CountValue(VBCollection collection) => collection.Count;
@@ -103,6 +157,13 @@ public sealed class VBCollection
         object? key,
         object? before,
         object? after) => collection.Add(item, key, before, after);
+
+    public static void AddOwnedValue(
+        VBCollection collection,
+        object? item,
+        object? key,
+        object? before,
+        object? after) => collection.AddOwned(item, key, before, after);
 
     public static void RemoveValue(VBCollection collection, object? index) => collection.Remove(index);
 

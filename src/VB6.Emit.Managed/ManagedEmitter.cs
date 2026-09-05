@@ -1570,6 +1570,12 @@ public sealed class ManagedEmitter
 
         private void EmitRuntimeCall(InstructionEncoder encoder, IrProcedure procedure, IrRuntimeCallExpression call)
         {
+            if (call.Method == IrRuntimeMethod.CollectionAdd)
+            {
+                EmitCollectionAdd(encoder, procedure, call);
+                return;
+            }
+
             if (call.Method is IrRuntimeMethod.FileGetDynamicArray or
                 IrRuntimeMethod.FileGetDynamicArrayIfRandom or
                 IrRuntimeMethod.FilePutDynamicArrayDescriptor or
@@ -1706,6 +1712,38 @@ public sealed class ManagedEmitter
 
                 encoder.Call(GetDynamicArrayConversionReference(arrayResult.ElementType, hasElementDescriptor));
             }
+        }
+
+        private void EmitCollectionAdd(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrRuntimeCallExpression call)
+        {
+            if (call.Arguments.Length != 5)
+            {
+                throw new InvalidOperationException("Collection.Add requires the receiver and four VB6 arguments.");
+            }
+
+            foreach (var argument in call.Arguments)
+            {
+                EmitExpression(encoder, procedure, argument.Expression);
+                if (IsValueType(argument.Expression.Type))
+                {
+                    encoder.OpCode(ILOpCode.Box);
+                    encoder.Token(GetTypeEntityHandle(argument.Expression.Type));
+                }
+            }
+
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBCollection),
+                OwnsLifetimeReference(call.Arguments[1].Expression)
+                    ? nameof(VBCollection.AddOwnedValue)
+                    : nameof(VBCollection.AddValue),
+                typeof(VBCollection),
+                typeof(object),
+                typeof(object),
+                typeof(object),
+                typeof(object))));
         }
 
         private bool TryEmitTypedComparison(
@@ -4980,7 +5018,8 @@ public sealed class ManagedEmitter
         /// as a concrete generated-class slot.
         /// </summary>
         private static bool TracksLifetimeStorage(TypeSymbol type) =>
-            TracksObjectLifetime(type) || type == TypeSymbol.Variant || type is ArrayTypeSymbol;
+            TracksObjectLifetime(type) || type == TypeSymbol.Variant || type is ArrayTypeSymbol ||
+            ReferenceEquals(type, VBStandardTypes.Collection);
 
         /// <summary>
         /// Newly allocated arrays and generated procedure results yield an ownership that the
@@ -5002,6 +5041,16 @@ public sealed class ManagedEmitter
                 // would orphan the function-return ownership.
                 return call.ResultType is ClassTypeSymbol or ArrayTypeSymbol ||
                        call.ResultType == TypeSymbol.Variant;
+            }
+
+            if (expression is IrRuntimeCallExpression
+                {
+                    Method: IrRuntimeMethod.CollectionEnumerateValues
+                })
+            {
+                // Enumeration materializes a new VBArray. Its storage owns retained references
+                // to the collection entries and the receiving local adopts that array reference.
+                return true;
             }
 
             // A Set assignment into Variant boxes Nothing, but preserves an existing object

@@ -841,4 +841,105 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_TracksGeneratedObjectsInCollections()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateCollection", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Collection.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Collection"
+                Class=C; C.cls
+                Class=Bag; Bag.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate C"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Bag.cls"), """
+                Option Explicit
+
+                Private entries As Collection
+
+                Private Sub Class_Initialize()
+                    Set entries = New Collection
+                End Sub
+
+                Public Sub AddChild()
+                    entries.Add New C
+                End Sub
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate Bag"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim entries As Collection
+                    Dim child As C
+                    Set entries = New Collection
+                    Set child = New C
+                    entries.Add child
+                    Set child = Nothing
+                    Debug.Print "Collection besitzt"
+                    entries.Remove 1
+                    Debug.Print "Collection entfernt"
+
+                    entries.Add New C
+                    Debug.Print "New uebernommen"
+                    entries.Remove 1
+                    Debug.Print "New entfernt"
+
+                    entries.Add New C
+                    Walk entries
+                    Debug.Print "For Each beendet"
+                    entries.Remove 1
+                    Debug.Print "For Each entfernt"
+
+                    Dim bag As Bag
+                    Set bag = New Bag
+                    bag.AddChild
+                    Debug.Print "Bag besitzt"
+                    Set bag = Nothing
+                    Debug.Print "Bag entfernt"
+                End Sub
+
+                Sub Walk(ByVal values As Collection)
+                    Dim entry As Variant
+                    For Each entry In values
+                        Debug.Print "For Each besitzt"
+                    Next entry
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Collection besitzt", "Terminate C", "Collection entfernt",
+                    "New uebernommen", "Terminate C", "New entfernt",
+                    "For Each besitzt", "For Each beendet", "Terminate C", "For Each entfernt",
+                    "Bag besitzt", "Terminate Bag", "Terminate C", "Bag entfernt"
+                },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
