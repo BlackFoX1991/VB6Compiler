@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace VB6.Compiler.Tests;
@@ -6,12 +5,15 @@ namespace VB6.Compiler.Tests;
 /// <summary>
 /// The closing gate of the compatibility matrix, mechanised.
 ///
-/// A matrix is only worth something while its claims stay checkable. Three of them can be checked
-/// by machine and are checked here: every expectation names tests, those tests exist, and the
-/// counts quoted in the documentation are the counts in the file. The fourth is the rule that no
-/// entry may claim <c>oracle-verified</c> without a run against a real VB6 SP6 -- no such run
-/// exists, so the honest value is zero, and a future non-zero has to be argued for by deleting
-/// this assertion rather than by editing a number.
+/// A matrix is only worth something while its claims stay checkable. Two of them are checked here:
+/// every expectation names tests and those tests exist, and the counts quoted in the documentation
+/// are the counts in the file. The third is the rule that no entry may claim
+/// <c>oracle-verified</c> without a run against a real VB6 SP6 -- no such run exists, so the honest
+/// value is zero, and a future non-zero has to be argued for by deleting this assertion rather than
+/// by editing a number.
+///
+/// The status, dependency and milestone rules are checked in
+/// <see cref="CompatibilityMatrixStatusTests"/>.
 /// </summary>
 [TestClass]
 public sealed class CompatibilityMatrixTests
@@ -19,35 +21,22 @@ public sealed class CompatibilityMatrixTests
     [TestMethod]
     public void Matrix_ReferencesTestsThatExist()
     {
-        var root = FindRepositoryRoot();
-        using var document = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(root, "docs", "vb6-sp6-compatibility-matrix.json")));
-
+        var root = CompatibilityMatrix.FindRepositoryRoot();
         var unresolved = new List<string>();
-        foreach (var expectation in document.RootElement.GetProperty("expectations").EnumerateArray())
+
+        foreach (var expectation in CompatibilityMatrix.LoadExpectations())
         {
-            var id = expectation.GetProperty("id").GetString()!;
-            var references = expectation.GetProperty("testRefs").EnumerateArray().ToArray();
-            Assert.IsTrue(references.Length > 0, id + " names no test.");
-            foreach (var reference in references)
-            {
-                if (!Resolves(root, reference.GetString()!))
-                {
-                    unresolved.Add(id + " -> " + reference.GetString());
-                }
-            }
+            Assert.IsTrue(expectation.TestRefs.Count > 0, expectation.Id + " names no test.");
+            unresolved.AddRange(expectation.TestRefs
+                .Where(reference => !Resolves(root, reference))
+                .Select(reference => expectation.Id + " -> " + reference));
         }
 
-        foreach (var entry in document.RootElement.GetProperty("entries").EnumerateArray())
+        foreach (var area in CompatibilityMatrix.LoadAreas())
         {
-            var id = entry.GetProperty("id").GetString()!;
-            foreach (var reference in entry.GetProperty("tests").EnumerateArray())
-            {
-                if (!Resolves(root, reference.GetString()!))
-                {
-                    unresolved.Add(id + " -> " + reference.GetString());
-                }
-            }
+            unresolved.AddRange(area.Tests
+                .Where(reference => !Resolves(root, reference))
+                .Select(reference => area.Id + " -> " + reference));
         }
 
         Assert.AreEqual(0, unresolved.Count, string.Join(Environment.NewLine, unresolved));
@@ -56,13 +45,9 @@ public sealed class CompatibilityMatrixTests
     [TestMethod]
     public void Matrix_KeepsOracleVerificationEmptyUntilThereIsAnOracle()
     {
-        var root = FindRepositoryRoot();
-        using var document = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(root, "docs", "vb6-sp6-compatibility-matrix.json")));
-
-        var claimed = document.RootElement.GetProperty("expectations").EnumerateArray()
-            .Where(entry => entry.GetProperty("verification").GetString() == "oracle-verified")
-            .Select(entry => entry.GetProperty("id").GetString())
+        var claimed = CompatibilityMatrix.LoadExpectations()
+            .Where(expectation => expectation.Verification == "oracle-verified")
+            .Select(expectation => expectation.Id)
             .ToArray();
 
         Assert.AreEqual(
@@ -74,32 +59,45 @@ public sealed class CompatibilityMatrixTests
     [TestMethod]
     public void Matrix_CountsMatchTheDocumentedNumbers()
     {
-        var root = FindRepositoryRoot();
-        using var document = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(root, "docs", "vb6-sp6-compatibility-matrix.json")));
+        var root = CompatibilityMatrix.FindRepositoryRoot();
+        var expectations = CompatibilityMatrix.LoadExpectations();
 
-        var expectations = document.RootElement.GetProperty("expectations").EnumerateArray().ToArray();
-        var implemented = expectations.Count(e => e.GetProperty("implementation").GetString() == "implemented");
-        var partial = expectations.Count(e => e.GetProperty("implementation").GetString() == "partial");
-        var planned = expectations.Count(e => e.GetProperty("implementation").GetString() == "planned");
-        var documented = expectations.Count(e => e.GetProperty("verification").GetString() == "documented-verified");
+        var implemented = expectations.Count(expectation => expectation.Implementation == "implemented");
+        var partial = expectations.Count(expectation => expectation.Implementation == "partial");
+        var planned = expectations.Count(expectation => expectation.Implementation == "planned");
+        var documented = expectations.Count(expectation => expectation.Verification == "documented-verified");
+        var notYetVerified = expectations.Count(expectation => expectation.Verification == "not-yet-verified");
+        var total = expectations.Count;
 
-        Assert.AreEqual(expectations.Length, implemented + partial + planned, "Statusachse unvollständig.");
+        Assert.AreEqual(total, implemented + partial + planned, "Statusachse implementation unvollständig.");
+        Assert.AreEqual(
+            total,
+            documented + notYetVerified,
+            "Statusachse verification unvollständig -- oder es steht ein dritter Wert in der Datei.");
 
-        // Die Zahlen stehen an drei Stellen in der Dokumentation. Wandern sie auseinander, ist die
+        // Die Zahlen stehen an vier Stellen in der Dokumentation. Wandern sie auseinander, ist die
         // Matrix nicht mehr die Quelle -- und genau das soll auffallen.
         var roadmap = File.ReadAllText(Path.Combine(root, "docs", "ROADMAP.md"));
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        var instructions = File.ReadAllText(Path.Combine(root, "CLAUDE.md"));
 
         StringAssert.Contains(
             roadmap,
-            $"**{expectations.Length} Erwartungen**, davon **{implemented} implemented**, **{partial} partial** und **{planned} planned**",
+            $"**{total} Erwartungen**, davon **{implemented} implemented**, **{partial} partial** und **{planned} planned**",
             "ROADMAP.md");
-        StringAssert.Contains(roadmap, $"**{documented}/{expectations.Length} documented-verified**", "ROADMAP.md");
+        StringAssert.Contains(roadmap, $"**{documented}/{total} documented-verified**", "ROADMAP.md");
         StringAssert.Contains(
             readme,
-            $"{expectations.Length} expectations ({implemented} implemented, {partial} partial, {planned} planned) with {documented}/{expectations.Length} documented-verified",
+            $"{total} expectations ({implemented} implemented, {partial} partial, {planned} planned) with {documented}/{total} documented-verified",
             "README.md");
+        StringAssert.Contains(
+            instructions,
+            $"Die Matrix enthält {total} Erwartungen: {implemented} `implemented`, {partial} `partial`, {planned} `planned`",
+            "CLAUDE.md");
+        StringAssert.Contains(
+            instructions,
+            $"{documented} `documented-verified`, {notYetVerified} `not-yet-verified`, 0 `oracle-verified`",
+            "CLAUDE.md");
     }
 
     private static bool Resolves(string root, string reference)
@@ -122,21 +120,5 @@ public sealed class CompatibilityMatrixTests
         var expression = "^" + Regex.Escape(pattern).Replace("\\*", ".*", StringComparison.Ordinal) + "$";
         return Directory.EnumerateFiles(directory)
             .Any(file => Regex.IsMatch(Path.GetFileName(file), expression, RegexOptions.IgnoreCase));
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "docs", "vb6-sp6-compatibility-matrix.json")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new FileNotFoundException("The compatibility matrix was not found above the test output.");
     }
 }
