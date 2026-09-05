@@ -2166,16 +2166,55 @@ public static class IrLowerer
         /// </summary>
         private void EmitProcedurePrologue()
         {
+            var declared = new HashSet<VariableSymbol>(ReferenceEqualityComparer.Instance);
             foreach (var declaration in EnumerateVariableDeclarations(_procedure.Body))
             {
+                declared.Add(declaration.Variable);
                 InitializeVariableDeclaration(declaration);
             }
+
+            InitializeUndeclaredLocals(declared);
 
             if (_returnLocal is not null && _procedure.Symbol.ReturnType == TypeSymbol.String)
             {
                 Emit(new IrStoreInstruction(
                     new IrLocalPlace(_returnLocal),
                     new IrConstantExpression(string.Empty, TypeSymbol.String)));
+            }
+        }
+
+        /// <summary>
+        /// Gives the VB6 default to locals that never had a declaration statement.
+        /// </summary>
+        /// <remarks>
+        /// Without <c>Option Explicit</c> a variable comes into being at its first use, so the
+        /// prologue's walk over declaration statements never sees it. That is invisible for every
+        /// type whose VB6 default matches the CLR default, and wrong for <c>String</c>: left at
+        /// null it still concatenates and measures like the empty string, so only the reported
+        /// type gives it away -- <c>VarType</c> answers 0 and <c>TypeName</c> answers "Empty"
+        /// where VB6 answers 8 and "String". A <c>DefStr</c> directive makes that the normal case
+        /// rather than a curiosity.
+        /// </remarks>
+        private void InitializeUndeclaredLocals(HashSet<VariableSymbol> declared)
+        {
+            foreach (var symbol in _procedure.Locals)
+            {
+                if (declared.Contains(symbol) || !_locals.TryGetValue(symbol, out var local))
+                {
+                    continue;
+                }
+
+                var target = new IrLocalPlace(local);
+                if (symbol.Type is FixedLengthStringTypeSymbol fixedString)
+                {
+                    Emit(new IrStoreInstruction(target, FixedStringInitialValue(fixedString)));
+                }
+                else if (symbol.Type == TypeSymbol.String)
+                {
+                    Emit(new IrStoreInstruction(
+                        target,
+                        new IrConstantExpression(string.Empty, TypeSymbol.String)));
+                }
             }
         }
 
