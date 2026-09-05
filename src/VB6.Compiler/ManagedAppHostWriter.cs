@@ -70,6 +70,13 @@ internal static class ManagedAppHostWriter
                 : null,
             Environment.GetEnvironmentVariable("ProgramFiles(x86)") is { Length: > 0 } programFilesX86
                 ? Path.Combine(programFilesX86, "dotnet")
+                : null,
+            // A 32-bit compiler process sees ProgramFiles as "Program Files (x86)", while SDK
+            // host packs are commonly installed under the 64-bit Program Files root. ProgramW6432
+            // names that root from either process width, so cross-architecture emission does not
+            // depend on which test host invoked the compiler.
+            Environment.GetEnvironmentVariable("ProgramW6432") is { Length: > 0 } programFiles64
+                ? Path.Combine(programFiles64, "dotnet")
                 : null
         };
 
