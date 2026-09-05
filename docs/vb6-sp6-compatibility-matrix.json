@@ -776,7 +776,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/GoSubReturnExecutionTests.cs"
       ],
-      "notes": "Part of the managed-r1-grammar inventory. The VB6 error number and trappability of this case are tracked separately by r1-grammar-return-error-number."
+      "notes": "Part of the managed-r1-grammar inventory. The VB6 error number and trappability are covered by the implemented r1-grammar-return-error-number contract."
     },
     {
       "id": "r1-grammar-return-error-number",
@@ -785,18 +785,18 @@
       "dependsOn": [
         "r1-grammar-gosub-return"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "On Error Resume Next followed by a Return with no active GoSub",
       "expected": {
         "number": "Err.Number is 3, 'Return without GoSub'",
         "trappable": "On Error Resume Next continues past it instead of the process ending"
       },
-      "implementationNotes": "Measured deviation: the failure escapes On Error entirely and ends the process with an unmapped InvalidOperationException. BoundGoSubReturnStatement is excluded from error-handling protection, and VBErrors has no mapping for the exception, so even once protected it would report the catch-all 5 rather than 3. CLAUDE.md records that a generic wrapper in LowerStatement broke the VISIA corpus, so the protection has to go through LowerProtectedHeader rather than a blanket change.",
-      "verification": "not-yet-verified",
+      "implementationNotes": "Return remains a control-flow terminator, so it cannot receive the generic LowerStatement wrapper without crossing a basic block. Lowering now protects only VBGoSub.Pop through LowerProtectedHeader, stores its return index, and leaves to the normal statement continuation when it fails. VBGoSub reports the failure as VB6RuntimeErrorException(3), so VBErrors records Err.Number 3; a successful Pop still feeds the unchanged return dispatch.",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/GoSubReturnExecutionTests.cs"
       ],
-      "notes": "Planned work: the testRef is the existing GoSub baseline, not evidence for this contract."
+      "notes": "GoSubReturnExecutionTests execute both an immediate Return and a Return after a previously successful GoSub under On Error Resume Next; both continue and report Err.Number 3."
     },
     {
       "id": "r1-grammar-invalid-form-diagnostics",

@@ -7531,3 +7531,28 @@ Kindprozess, nachdem Windows-Kompatibilitätsdiagnostik dessen Fehlerausgabe ber
 Die Abnahme behauptet bewusst **nicht**, dass ein Installer-`LocalServer32` den SCM-Start schon
 vollständig abdeckt. Diese Registrierungs- und Bereitstellungsarbeit bleibt Teil des offenen
 R4-Vertrags. Die Matrix bleibt bei **161 Erwartungen: 133 implemented, 0 partial, 28 planned**.
+
+## 2026-09-05 — R1, Schnitt 8: `Return` ist unter `On Error` wieder eine VB6-Fehlernummer
+
+Ein `Return` ohne aktives `GoSub` erreichte zwar seit Schnitt 6 seine Runtime-Meldung, entzog sich
+aber weiterhin jeder Fehlerbehandlung: Als Terminator darf es nicht von der allgemeinen
+Statement-Absicherung umschlossen werden, weil die Try-Region sonst über Basic Blocks reicht. Der
+untrappte `InvalidOperationException` hatte außerdem keinen VB6-Fehlercode und wurde als Fehler 5
+eingeordnet.
+
+Der Lowerer schützt deshalb ausschließlich `VBGoSub.Pop` über `LowerProtectedHeader`. Sein
+Rücksprungindex wird in ein temporäres Local geschrieben; bei Erfolg liest die bestehende
+Sprungtabelle diesen Wert, bei Fehler verlässt die Exception-Region genau zur nächsten Statement-
+Position. `VBGoSub` meldet den leeren Stack jetzt als `VB6RuntimeErrorException(3)`, womit
+`VBErrors` `Err.Number = 3` setzt. `On Error Resume Next` fährt somit nach dem fehlerhaften
+`Return` fort.
+
+Die Abnahme enthält den unmittelbaren leeren Stack und den dynamischen Fall nach einem korrekten
+`GoSub`/`Return`; beide geben `3` aus. Der Testharness liest beide Prozesspipes parallel und
+probiert die Bereinigung temporärer Fehlerprozess-Verzeichnisse kurz erneut, weil die
+Windows-Kompatibilitätsdiagnostik die DLL nach einem bereits beendeten Kindprozess kurz sperren
+kann.
+
+Die Matrix steht bei **161 Erwartungen: 134 implemented, 0 partial, 27 planned**;
+`r1-grammar-return-error-number` ist jetzt `documented-verified`. `managed-r1-grammar` bleibt
+offen für die restliche, einzeln inventarisierte Grammatik- und Kontextfläche.
