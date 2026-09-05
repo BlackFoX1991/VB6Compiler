@@ -159,7 +159,8 @@ public sealed record IrGoSubTerminator(
     int ReturnIndex) : IrTerminator;
 
 public sealed record IrGoSubReturnTerminator(
-    ImmutableArray<int> ReturnTargetBlockIds) : IrTerminator;
+    ImmutableArray<int> ReturnTargetBlockIds,
+    IrExpression? ReturnIndex = null) : IrTerminator;
 
 public sealed record IrOnGoToTerminator(
     IrExpression Index,
@@ -546,6 +547,7 @@ public enum IrRuntimeMethod
     GraphicsPoint,
     NamedArgument,
     ComLocalServerTryRun,
+    GoSubPop,
     FileAttr,
     IMEStatus,
     EndProgram,

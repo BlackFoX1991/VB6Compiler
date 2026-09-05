@@ -31,7 +31,7 @@ public static class VBGoSub
     {
         if (_frames is null || _frames.Count == 0 || !_frames.Peek().TryPop(out var returnIndex))
         {
-            throw new InvalidOperationException("VB6 Return executed without an active GoSub.");
+            throw new VB6RuntimeErrorException(3, "VB6 Return executed without an active GoSub.");
         }
 
         return returnIndex;

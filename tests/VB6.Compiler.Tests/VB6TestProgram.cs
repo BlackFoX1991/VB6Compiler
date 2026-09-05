@@ -192,9 +192,30 @@ internal static class VB6TestProgram
         }
         finally
         {
-            if (Directory.Exists(directory))
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private static void TryDeleteDirectory(string directory)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
             {
-                Directory.Delete(directory, recursive: true);
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+
+                return;
+            }
+            catch (UnauthorizedAccessException) when (attempt < 9)
+            {
+                Thread.Sleep(200);
+            }
+            catch (IOException) when (attempt < 9)
+            {
+                Thread.Sleep(200);
             }
         }
     }

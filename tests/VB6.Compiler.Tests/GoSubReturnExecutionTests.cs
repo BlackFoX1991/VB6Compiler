@@ -54,6 +54,38 @@ public sealed class GoSubReturnExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_RecordsErrorThreeForReturnWithoutAnActiveGoSub()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Public Sub Main()
+                On Error Resume Next
+                Return
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "3" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_ContinuesAfterReturnEmptiesTheGoSubStack()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Public Sub Main()
+                On Error Resume Next
+                GoSub Helper
+                Return
+                Debug.Print Err.Number
+                Exit Sub
+            Helper:
+                Return
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "3" }, output);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ReportsAReturnAfterTheGoSubStackIsEmpty()
     {
         var error = VB6TestProgram.RunExpectingFailure("""

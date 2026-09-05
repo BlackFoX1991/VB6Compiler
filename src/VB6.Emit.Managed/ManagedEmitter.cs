@@ -872,9 +872,16 @@ public sealed class ManagedEmitter
                     // behavior. Getting there needs a well-formed block: without a jump table the
                     // index Pop pushes has no consumer, and a call that throws is not a terminator,
                     // so the method used to be rejected as invalid IL before Pop could ever run.
-                    encoder.Call(GetRuntimeMethodReference(Static(
-                        typeof(VBGoSub),
-                        nameof(VBGoSub.Pop))));
+                    if (goSubReturn.ReturnIndex is null)
+                    {
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBGoSub),
+                            nameof(VBGoSub.Pop))));
+                    }
+                    else
+                    {
+                        EmitExpression(encoder, procedure, goSubReturn.ReturnIndex);
+                    }
                     if (goSubReturn.ReturnTargetBlockIds.Length > 0)
                     {
                         var switchEncoder = encoder.Switch(goSubReturn.ReturnTargetBlockIds.Length);
@@ -4133,6 +4140,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ComLocalServerTryRun) return Static(
                 typeof(VBComLocalServer),
                 nameof(VBComLocalServer.TryRunAsLocalServer));
+            if (m == IrRuntimeMethod.GoSubPop) return Static(typeof(VBGoSub), nameof(VBGoSub.Pop));
             if (m == IrRuntimeMethod.FileAttr) return Static(
                 typeof(VBFiles),
                 nameof(VBFiles.FileAttr),

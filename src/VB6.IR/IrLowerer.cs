@@ -1254,9 +1254,32 @@ public static class IrLowerer
                     _current = _blocks[_goSubReturnBlocks[site.ReturnIndex]];
                     break;
                 case BoundGoSubReturnStatement:
-                    Terminate(new IrGoSubReturnTerminator(_goSubReturnBlocks.ToImmutableArray()));
-                    _current = NewBlock("after_gosub_return");
+                {
+                    var continuation = NewBlock("after_gosub_return");
+                    if (_resumeNext || _errorHandler is not null)
+                    {
+                        // Return normally transfers control, so LowerStatement cannot surround
+                        // its terminator with a try region. Only Pop can fail here; protect that
+                        // one instruction and leave to the statement continuation on an error.
+                        var returnIndex = new IrLocalPlace(
+                            NewLocal("__gosub_return", TypeSymbol.Long, compilerGenerated: true));
+                        LowerProtectedHeader(
+                            continuation.Id,
+                            () => Emit(new IrStoreInstruction(
+                                returnIndex,
+                                Runtime(IrRuntimeMethod.GoSubPop, TypeSymbol.Long))));
+                        Terminate(new IrGoSubReturnTerminator(
+                            _goSubReturnBlocks.ToImmutableArray(),
+                            new IrLoadExpression(returnIndex)));
+                    }
+                    else
+                    {
+                        Terminate(new IrGoSubReturnTerminator(_goSubReturnBlocks.ToImmutableArray()));
+                    }
+
+                    _current = continuation;
                     break;
+                }
                 case BoundOnGoSubStatement onGoSub:
                     if (!_onGoSubs.TryGetValue(onGoSub, out var onGoSubSite))
                     {

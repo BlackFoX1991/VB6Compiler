@@ -10,7 +10,9 @@ public sealed class VBGoSubTests
         VBGoSub.Push(7);
 
         VBGoSub.Enter();
-        Assert.ThrowsException<InvalidOperationException>(() => VBGoSub.Pop());
+        var error = Assert.ThrowsException<VB6RuntimeErrorException>(() => VBGoSub.Pop());
+        Assert.AreEqual(3, error.Number);
+        StringAssert.Contains(error.Message, "Return executed without an active GoSub");
         VBGoSub.Push(3);
         Assert.AreEqual(3, VBGoSub.Pop());
         VBGoSub.Leave();
