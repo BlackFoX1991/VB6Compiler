@@ -7626,3 +7626,22 @@ Indizes und klont diese inneren Felder ebenfalls. Die neue Einzelkarte
 Die Matrix steht bei **162 Erwartungen: 139 implemented, 0 partial, 23 planned**;
 `managed-r1-udt-shapes` und die Array-/UDT-Fläche sind jetzt `documented-verified`. Als nächste
 Karte folgt `managed-r1-operators`.
+
+## 2026-09-05 — R1, Schnitt 13: Operator- und Default-Member-Vertrag geschlossen
+
+Die Operatorenkarte war eine offene Inventur, nicht ein fehlender Laufzeitpfad. Die Abnahme fasst
+nun die bestehenden, unabhängigen Runtime- und Managed-Ausführungsnachweise zusammen: 88 direkte
+Variant-Tests messen Zustände, Subtypen, Promotions- und Fehlergrenzen; 120 Compiler-Tests führen
+die Formen durch Binder, IR, Emitter und Runtime. Die Tabelle umfasst arithmetische, Vergleichs-,
+Verkettungs- und logische Operatoren samt Ergebniswert und `VarType`, `Null`/`Empty`/`Error`/
+`Missing`, skalare Default-Member, Array-Type-Mismatch sowie die beobachtbaren Fehlernummern für
+Overflow und Division.
+
+`And` und `Or` haben zusätzlich einen Ausführungsnachweis mit Seiteneffekten: beide Operanden
+laufen stets von links nach rechts; der rechte Operand wird also nicht kurzgeschlossen. Das ist
+eine dokumentationsbasierte Verifikation gegen die hinterlegte VB6-Referenz, kein Lauf gegen einen
+originalen VB6-SP6-Compiler.
+
+Die Matrix steht bei **162 Erwartungen: 140 implemented, 0 partial, 22 planned**;
+`managed-r1-operators` ist jetzt `documented-verified`. Als nächste Karte folgt
+`managed-r1-conversions`.

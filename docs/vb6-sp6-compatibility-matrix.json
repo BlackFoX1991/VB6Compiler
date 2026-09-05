@@ -2479,16 +2479,30 @@
       "dependsOn": [
         "managed-r1-grammar"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Operator- und Default-Member-Tabelle schließen",
       "expected": {
-        "acceptance": "Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen."
+        "acceptance": "Ergebnistyp, Wert, Reihenfolge und Fehlernummer über skalaren Subtypen, Null/Empty/Error, Objekt-Default-Membern und Arrays unabhängig messen.",
+        "result": "Variant-Promotion, Vergleich, Verkettung, arithmetische und logische Operatoren behalten den dokumentierten Wert und Subtyp.",
+        "evaluation": "And und Or werten beide Operanden in Quellreihenfolge aus.",
+        "errors": "Overflow, Division durch Null, unzulässige Array-/Objektformen, Error und Missing bleiben als dokumentierte VB-Fehler beobachtbar."
       },
-      "verification": "not-yet-verified",
-      "testRefs": [
-        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+      "verification": "documented-verified",
+      "sourceRefs": [
+        "vb6-docs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs",
+        "tests/VB6.Runtime.Tests/VariantArithmeticTests.cs",
+        "tests/VB6.Runtime.Tests/VariantMultiplyTests.cs",
+        "tests/VB6.Compiler.Tests/VariantFoundationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantStateExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantConcatenationExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantEqualityExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/VariantObjectDispatchExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/EvaluationOrderExecutionTests.cs"
+      ],
+      "notes": "88 Runtime-Tests prüfen die Variant-Zustände, Promotionen und Fehlergrenzen direkt; 120 Compiler-Tests führen dieselben Formen durch den Managed-Pfad aus. Die Ausführungsnachweise decken Ergebnistyp und Wert, Null/Empty/Error/Missing, skalare Objekt-Default-Member, Array-Type-Mismatch und die beidseitige And/Or-Auswertung in Quellreihenfolge ab. Dies ist dokumentationsbasiert verifiziert, nicht gegen einen originalen VB6-SP6-Lauf.",
       "title": "Operator- und Default-Member-Tabelle schließen"
     },
     {
@@ -3037,7 +3051,7 @@
         "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs",
         "tests/VB6.Runtime.Tests/VariantStateTests.cs"
       ],
-      "gap": "managed-r1-operators: Operator- und Default-Member-Tabelle schließen; managed-r2-lifetime: Referenzgezählte Objektlebensdauer"
+      "gap": "managed-r2-lifetime: Referenzgezählte Objektlebensdauer"
     },
     {
       "id": "runtime-variant-and-conversions",
