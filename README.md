@@ -32,7 +32,9 @@ Implemented so far:
 - named arguments with `name:=value`, case-insensitive parameter binding, signature-order normalization,
   declaration-order evaluation for side-effecting expressions, optional defaults, and deterministic
   `VB6S0069` diagnostics for duplicate/out-of-order forms
-- `Array(...)` as a zero-based Variant-array intrinsic, including empty calls and mixed values
+- `Array(...)` as a Variant-array intrinsic, including empty calls and mixed values. It is
+  currently always zero-based; under `Option Base 1` the documented contract is a one-based result,
+  tracked as the open card `r1-grammar-array-option-base`
 - `Choose` with rounded one-based selection, eager Variant choices, and Null for out-of-range indexes
 - `Switch` with eager condition/value evaluation and Variant Null when no condition matches
 - `Str` with invariant numeric formatting and VB6's leading sign space
@@ -170,12 +172,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-05 at `6f6a17f` on `main`, run `20260905T124015Z-18ebd28a`:
+Measured on 2026-09-05 at `538e81a` on `main`, run `20260905T125436Z-a7a66fcf`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1654 cases: 1654 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1658 cases: 1658 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
