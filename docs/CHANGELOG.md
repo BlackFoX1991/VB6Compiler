@@ -7662,3 +7662,19 @@ Banker's Rounding und den Decimal-/Date-/Currency-Grenzen.
 Die Matrix steht bei **162 Erwartungen: 141 implemented, 0 partial, 21 planned**;
 `managed-r1-conversions` und die Variant-/Konvertierungsfläche sind jetzt
 `documented-verified`. Als nächste Karte folgt `managed-r1-intrinsics`.
+
+## 2026-09-05 — R1, Schnitt 15: Standardbibliotheksinventur geschlossen
+
+Die offene Karte erwies sich als Zusammenfassung von vierzehn bereits atomar dokumentierten
+Verträgen, nicht als fehlende Runtime-Familie. Die Inventur fasst String, Format, Math, Financial,
+Datum/Zeit, Information und Interaktion/Host zusammen, einschließlich Bindung, Rückgabetyp,
+Dollar-Form, optionaler Argumente und Fehlergrenzen. 108 Runtime-Tests prüfen die Helfer direkt,
+86 Managed-Tests führen die Formen von der Signatur über Binder, IR und Emitter bis zur Runtime aus.
+
+Damit bleibt die Zusage bewusst endlich: Die Karte beschreibt den dokumentierten Managed-Umfang
+der vierzehn Einzelverträge, keine unbegrenzte Behauptung über weitere VB6- oder Host-Oberflächen.
+Native ABI, COM-Binärvertrag und Anwendungsabläufe behalten ihre separaten R3–R7-Karten.
+
+Die Matrix steht bei **162 Erwartungen: 142 implemented, 0 partial, 20 planned**;
+`managed-r1-intrinsics` und die Standardbibliotheksfläche sind jetzt
+`documented-verified`. Als nächste Karte folgt `managed-r1-file-layout`.

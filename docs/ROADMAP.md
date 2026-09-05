@@ -21,7 +21,7 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-05 auf `main` / `93550c1` mit nicht committeten Änderungen, Lauf `20260905T192815Z-87201e84`:
+Messung vom 2026-09-05 auf `main` / `e8b43ed` mit nicht committeten Änderungen, Lauf `20260905T193638Z-a2ccc37d`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **162 Erwartungen**, davon **141 implemented**, **0 partial** und **21 planned**;
-**141/162 documented-verified**, 21 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **162 Erwartungen**, davon **142 implemented**, **0 partial** und **20 planned**;
+**142/162 documented-verified**, 20 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -146,7 +146,7 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 
 ## Aktive Restliste
 
-Die 21 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+Die 20 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
 abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -161,7 +161,6 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r1-intrinsics` | **Standardbibliothek abschließend inventarisieren:** String, Math, Financial, Datum/Zeit, Format, Information und Host-Intrinsics einschließlich Rückgabetyp, Dollar-Form, optionalen Argumenten und Fehlergrenzen messen. |
 | `managed-r1-file-layout` | **Datei-Layouts bytegenau abnehmen:** Binary/Random-Strings, Variant(), skalare Variants, UDTs, Deskriptoren und Record-Grenzen gegen unabhängige Bytes prüfen; Objektwerte und skalare Variants mit Array-Inhalt von erlaubten Arrays trennen. |
 | `managed-r1-profiles` | **Profilgrenzen absichern:** en-US/de-DE/ja-JP, ANSI/DBCS, vbUseSystem und Debug-/Financial-Ausgabe in gemischten Assemblies prüfen; gemeinsame Sprachsemantik und explizite Locale-Grenzen erhalten. |
 

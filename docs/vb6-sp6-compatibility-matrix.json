@@ -2546,16 +2546,42 @@
       "dependsOn": [
         "managed-r1-conversions"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Standardbibliothek abschließend inventarisieren",
       "expected": {
-        "acceptance": "String, Math, Financial, Datum/Zeit, Format, Information und Host-Intrinsics einschließlich Rückgabetyp, Dollar-Form, optionalen Argumenten und Fehlergrenzen messen."
+        "acceptance": "String, Math, Financial, Datum/Zeit, Format, Information und Host-Intrinsics einschließlich Rückgabetyp, Dollar-Form, optionalen Argumenten und Fehlergrenzen messen.",
+        "binding": "Namen, Argumentanzahl, optionale Argumente, Rückgabetypen und Dollar-Formen binden über die dokumentierte Signatur.",
+        "runtime": "String-, Math-, Financial-, Date/Time-, Format- und Informationswerte bleiben durch direkte Runtime- und Managed-Ausführungen beobachtbar.",
+        "host": "Interaktions- und Host-Intrinsics verwenden explizite Headless-/Host-Verträge statt eines vorausgesetzten Desktops.",
+        "errors": "Ungültige Bereiche, Domänen, Typen und optionale Formen melden die getesteten stabilen VB-Fehler."
       },
-      "verification": "not-yet-verified",
-      "testRefs": [
-        "tests/VB6.Compiler.Tests/CompilationTests.cs"
+      "verification": "documented-verified",
+      "sourceRefs": [
+        "vb6-docs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/MathRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/FinancialIntrinsicTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/FormatStringInputTests.cs",
+        "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/MathSurfaceExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/StandardLibraryHostContractExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ErrorAndPrintPositionIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ByteStringAndLongLongIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/LenIntrinsicExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/IntrinsicSymbolTests.cs",
+        "tests/VB6.Compiler.Tests/MsgBoxExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/InputBoxExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/FormatStringInputExecutionTests.cs"
+      ],
+      "notes": "Die 14 atomaren Standardbibliotheksverträge bilden die endliche Inventur. 108 direkte Runtime-Tests und 86 Managed-Tests prüfen ihre Familien einschließlich Signatur-/Arity-Grenzen, Dollar-Formen, Rückgabetypen, optionalen Argumenten, Fehlern und Headless-Host-Verträgen. Die Karte erweitert keinen unendlichen Anspruch auf alle VB6- oder Host-Oberflächen; darüber hinausgehende ABI-/Kompatibilitätsarbeit bleibt auf ihren eigenen R3–R7-Karten.",
       "title": "Standardbibliothek abschließend inventarisieren"
     },
     {
@@ -3117,8 +3143,8 @@
         "bitness": "agnostic unless API exposes native handles",
         "com": "Clipboard/Printer/host services use explicit adapters"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
@@ -3146,8 +3172,7 @@
         "tests/VB6.Compiler.Tests/MsgBoxExecutionTests.cs",
         "tests/VB6.Compiler.Tests/InputBoxExecutionTests.cs",
         "tests/VB6.Compiler.Tests/CompilationTests.cs"
-      ],
-      "gap": "managed-r1-intrinsics: Standardbibliothek abschließend inventarisieren"
+      ]
     },
     {
       "id": "runtime-file-io",
