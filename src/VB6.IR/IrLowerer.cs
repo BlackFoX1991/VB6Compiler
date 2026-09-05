@@ -4392,9 +4392,9 @@ public static class IrLowerer
                 (member.Type is UserDefinedTypeSymbol nested && RequiresDeepCopy(nested)));
 
         /// <summary>
-        /// Gives every fixed array member below <paramref name="place"/> its own storage. Array
-        /// elements of a UDT element type keep sharing their own arrays for now; VB6 copies those
-        /// too, but that needs an element-wise copy the runtime only exposes as a callback.
+        /// Gives every fixed array member below <paramref name="place"/> its own storage. An
+        /// array of UDTs needs a second pass after the array clone: the array container is new,
+        /// but each copied struct can still hold references to fixed array fields of its own.
         /// </summary>
         private void EmitArrayMemberCopies(IrPlace place, UserDefinedTypeSymbol type)
         {
@@ -4409,6 +4409,18 @@ public static class IrLowerer
                             new IrLoadExpression(field),
                             arrayType,
                             MemberArrayBounds(member))));
+
+                    if (arrayType.ElementType is UserDefinedTypeSymbol elementType && RequiresDeepCopy(elementType))
+                    {
+                        foreach (var indices in EnumerateArrayIndices(member.ArrayBounds))
+                        {
+                            var element = new IrArrayElementPlace(
+                                new IrLoadExpression(field),
+                                indices,
+                                elementType);
+                            EmitArrayMemberCopies(element, elementType);
+                        }
+                    }
                 }
                 else if (member.Type is UserDefinedTypeSymbol nested && RequiresDeepCopy(nested))
                 {

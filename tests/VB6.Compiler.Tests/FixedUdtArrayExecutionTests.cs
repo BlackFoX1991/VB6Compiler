@@ -157,6 +157,34 @@ public sealed class FixedUdtArrayExecutionTests
         CollectionAssert.AreEqual(new[] { "1", "1", "1", "1", "1", "92" }, lines);
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_DeepCopiesFixedUdtArrayElements()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Type Child
+                Values(1 To 1) As Long
+            End Type
+
+            Type Parent
+                Children(1 To 2) As Child
+            End Type
+
+            Sub Main()
+                Dim source As Parent
+                Dim copied As Parent
+
+                source.Children(1).Values(1) = 10
+                copied = source
+                copied.Children(1).Values(1) = 20
+
+                Debug.Print source.Children(1).Values(1)
+                Debug.Print copied.Children(1).Values(1)
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "10", "20" }, lines);
+    }
+
     /// <summary>
     /// A user-defined type without array members is plain value storage, so copying it needs no
     /// fixup at all - the copy must not drag in array work that has nothing to copy.
