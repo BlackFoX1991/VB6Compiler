@@ -13,6 +13,13 @@ public sealed class Lexer
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private int _position;
 
+    // `Rem` introduces a comment only where a statement could start, which is the one thing a
+    // context-free scan cannot see: `Rem x` is a comment, `Remainder = 1` is an assignment, and
+    // `x = Rem` is neither. Tracking the position is what lets the comment be recognised here
+    // rather than in the parser -- and it has to be here, because by the time the parser sees the
+    // line, an apostrophe or an unpaired quote inside the comment text has already been lexed.
+    private bool _atStatementStart = true;
+
     public Lexer(SourceText text)
     {
         _text = text;
@@ -26,6 +33,14 @@ public sealed class Lexer
         {
             var token = NextToken();
             tokens.Add(token);
+
+            // A line number keeps the line at its start, so `10 Rem note` is a comment too.
+            _atStatementStart = token.Kind switch
+            {
+                SyntaxKind.NewLineToken or SyntaxKind.ColonToken => true,
+                SyntaxKind.IntegerLiteralToken => _atStatementStart,
+                _ => false
+            };
 
             if (token.Kind == SyntaxKind.EndOfFileToken)
             {
@@ -507,6 +522,25 @@ public sealed class Lexer
             leadingTrivia);
     }
 
+    /// <summary>
+    /// Is the scanner sitting on a <c>Rem</c> that introduces a comment?
+    /// </summary>
+    /// <remarks>
+    /// The word has to stand alone: <c>Remainder</c>, <c>Rem2</c> and <c>Rem_x</c> are ordinary
+    /// identifiers. Only the caller's statement-start check separates <c>Rem note</c> from a
+    /// variable that happens to be called Rem.
+    /// </remarks>
+    private bool StartsRemComment()
+    {
+        if (!(Current is 'R' or 'r') || !(Peek(1) is 'E' or 'e') || !(Peek(2) is 'M' or 'm'))
+        {
+            return false;
+        }
+
+        var following = Peek(3);
+        return following == '\0' || (following != '_' && !char.IsLetterOrDigit(following));
+    }
+
     private ImmutableArray<SyntaxTrivia> ReadLeadingTrivia()
     {
         var trivia = ImmutableArray.CreateBuilder<SyntaxTrivia>();
@@ -527,7 +561,7 @@ public sealed class Lexer
                 continue;
             }
 
-            if (Current == '\'')
+            if (Current == '\'' || (_atStatementStart && StartsRemComment()))
             {
                 var start = _position;
                 while (true)
