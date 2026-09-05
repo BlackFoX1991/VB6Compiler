@@ -7386,3 +7386,34 @@ Test schrieb das jetzige Verhalten fest; es war schlicht ungeprüft.
 Die Matrix steht bei **155 Erwartungen: 129 implemented, 0 partial, 26 planned**;
 **129 documented-verified, 26 not-yet-verified, 0 oracle-verified**. Neu sind
 `r1-grammar-module-properties` (geschlossen) und `r1-grammar-array-option-base` (offen).
+
+## 2026-09-05 — R1, Schnitt 4: Property Set im Modul und zwei interne Fehler beseitigt
+
+Vierter Durchgang durch `managed-r1-grammar`. Beide Befunde dieses Schnitts endeten nicht in einer
+falschen Zahl, sondern in einem **internen** Fehler — der schlechtesten Kategorie, weil sie wie ein
+Compilerdefekt aussieht statt wie ein Quelltextfehler.
+
+**`Property Set` im Standardmodul.** Der vorige Schnitt hat Get und Let geschlossen, und genau das
+erzeugte diesen Fehlermodus: Sobald ein Modul-`Property Get` auflösbar war, löste `Set Items = c`
+sein Ziel über den Lesepfad auf und übergab dem Lowerer einen Aufrufausdruck an der Stelle, an die
+ein Zuweisungsziel gehört. Ergebnis war ein Abbruch mit „Bound expression 'BoundInvocationExpression'",
+keine Diagnose. Eine Reparatur, die einen schlimmeren Ausfall erzeugt als die Lücke, die sie
+schließt, ist keine. Der Set-Accessor wird jetzt beantwortet, **bevor** das Ziel überhaupt gebunden
+wird; fehlt er, meldet der Binder `VB6S0064`.
+
+**Zuweisung an eine `Const`.** `Fixed = 20` erreichte den Lowerer und scheiterte dort mit
+„Global 'Fixed' was not declared before lowering" — eine Meldung über einen internen
+Übersetzungszustand, die einem Anwender nichts sagt. Eine Konstante hat keinen Speicher, die
+Zuweisung ist an der Quelle falsch und wird jetzt als **`VB6S0076`** gemeldet. Der neue Code hat
+seinen Test in `UncoveredDiagnosticTests`, das den Code prüft, nicht den Meldungstext.
+
+**Was schon stimmte.** `Exit Property`, `End`, alle `Const`-Deklarationsformen (typisiert,
+inferiert, mit Suffix, Modul- und Prozedurebene), `Exit For` aus einer verschachtelten Schleife —
+es verlässt nur die innere — und `Option Explicit`, das eine nicht deklarierte Zuweisung korrekt
+mit `VB6S0001` ablehnt.
+
+Die Matrix steht bei **156 Erwartungen: 130 implemented, 0 partial, 26 planned**;
+**130 documented-verified, 26 not-yet-verified, 0 oracle-verified**.
+`r1-grammar-module-properties` deckt jetzt auch `Set` ab, neu ist
+`r1-grammar-declaration-shapes`. `managed-r1-grammar` bleibt offen; die noch nicht inventarisierte
+Fläche ist vor allem die projektweite Sichtbarkeit über mehrere Module.

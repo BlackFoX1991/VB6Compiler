@@ -745,17 +745,40 @@
       "id": "r1-grammar-module-properties",
       "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",
-      "input": "Property Get and Property Let declared in a standard module, read and assigned by name, with and without Option Explicit, with a same-named local, and used above their declaration",
+      "input": "Property Get, Let and Set declared in a standard module, read and assigned by name, with and without Option Explicit, with a same-named local, and used above their declaration",
       "expected": {
         "read": "a bare reference calls the Get accessor of the module",
         "assign": "an assignment calls the Let accessor with the assigned value",
+        "set": "Set calls the Set accessor; a module property without one reports VB6S0064 instead of failing inside lowering",
         "precedence": "a declared variable of the same name still wins over the property",
         "order": "a property may be used above its declaration"
       },
-      "implementationNotes": "Previously unresolvable: with Option Explicit the reference reported VB6S0001, and without it an implicit local shadowed the property, so the program ran and printed a value that had never been through the accessor. Module accessors are now collected before any body is bound and bound as ordinary procedure calls.",
+      "implementationNotes": "Previously unresolvable: with Option Explicit the reference reported VB6S0001, and without it an implicit local shadowed the property, so the program ran and printed a value that had never been through the accessor. Module accessors are now collected before any body is bound and bound as ordinary procedure calls. The Set form had to be answered before the target is bound at all: once the Get became resolvable, Set routed its target through the read path and handed the lowerer an invocation where an assignment target belongs.",
       "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/ModulePropertyExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/ModulePropertyExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/DeclarationShapeExecutionTests.cs"
+      ],
+      "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
+    },
+    {
+      "id": "r1-grammar-declaration-shapes",
+      "implementation": "implemented",
+      "matrixEntry": "language-declarations-and-statements",
+      "input": "Exit Property, End, typed/inferred/suffixed Const at module and procedure level, Exit For from a nested loop, an undeclared assignment under Option Explicit, and an assignment to a constant",
+      "expected": {
+        "exitProperty": "Exit Property leaves the accessor with the value assigned so far",
+        "end": "End stops the program; statements after it do not run",
+        "const": "Const accepts an explicit type, an inferred value and a type suffix, at module and procedure level",
+        "exitFor": "Exit For leaves the innermost loop only",
+        "optionExplicit": "an undeclared assignment reports VB6S0001",
+        "constantAssignment": "an assignment to a constant reports VB6S0076"
+      },
+      "implementationNotes": "All measured correct except the assignment to a constant, which reached the lowerer and failed with 'Global was not declared before lowering' -- a message that reads like a compiler defect rather than a source error. VB6S0076 is new.",
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/DeclarationShapeExecutionTests.cs",
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
       ],
       "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration, statement and visibility surface."
     },
