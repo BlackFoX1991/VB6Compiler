@@ -100,9 +100,85 @@ public sealed class CrossModuleVisibilityExecutionTests
                 """);
     }
 
+    [TestMethod]
+    public void AnalyzeManagedProject_DoesNotLeakAPrivateAccessorIntoASharedPropertyName()
+    {
+        // The public Let creates a project-wide entry. A private Get in a different module must
+        // stay local to that module; otherwise it silently completes the public property and lets
+        // Main read an accessor it has no right to call.
+        WithProject(
+            [
+                ("PublicStore", """
+                    Option Explicit
+
+                    Public Property Let State(ByVal value As Long)
+                    End Property
+                    """),
+                ("PrivateStore", """
+                    Option Explicit
+
+                    Private Property Get State() As Long
+                        State = 42
+                    End Property
+                    """),
+                ("MainModule", """
+                    Option Explicit
+
+                    Sub Main()
+                        Debug.Print State
+                    End Sub
+                    """)
+            ],
+            projectPath =>
+            {
+                var analysis = VBProjectCompilation.Create(projectPath).Analyze();
+                Assert.IsTrue(
+                    analysis.Diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0001"),
+                    "Ein privater Get-Accessor darf Main nicht sichtbar werden: " +
+                    string.Join(", ", analysis.Diagnostics.Select(diagnostic => diagnostic.Code)));
+            });
+    }
+
+    [TestMethod]
+    public void EmitManagedProject_UsesThePrivateAccessorInsideItsDeclaringModule()
+    {
+        RunInProject(
+            new[]
+            {
+                ("PublicStore", """
+                    Public Property Let State(ByVal value As Long)
+                    End Property
+                    """),
+                ("PrivateStore", """
+                    Private Property Get State() As Long
+                        State = 42
+                    End Property
+
+                    Public Function ReadPrivateState() As Long
+                        ReadPrivateState = State
+                    End Function
+                    """),
+                ("MainModule", """
+                    Sub Main()
+                        Debug.Print ReadPrivateState
+                    End Sub
+                    """)
+            },
+            expected: new[] { "42" });
+    }
+
     private static void RunInProject(string store, string main, string[] expected)
     {
         WithProject(store, main, projectPath =>
+        {
+            var output = VB6TestProgram.RunProjectLines(projectPath);
+            CollectionAssert.AreEqual(expected, output);
+        });
+    }
+
+    private static void RunInProject((string Name, string Source)[] modules, string[] expected)
+    {
+        WithProject(modules, projectPath =>
         {
             var output = VB6TestProgram.RunProjectLines(projectPath);
             CollectionAssert.AreEqual(expected, output);
@@ -124,6 +200,16 @@ public sealed class CrossModuleVisibilityExecutionTests
 
     private static void WithProject(string store, string main, Action<string> body)
     {
+        WithProject(
+            [
+                ("Store", store),
+                ("MainModule", main)
+            ],
+            body);
+    }
+
+    private static void WithProject((string Name, string Source)[] modules, Action<string> body)
+    {
         var directory = Path.Combine(
             Path.GetTempPath(),
             "VB6CompilerCrossModuleTests",
@@ -133,15 +219,14 @@ public sealed class CrossModuleVisibilityExecutionTests
         {
             Directory.CreateDirectory(directory);
             var projectPath = Path.Combine(directory, "CrossModule.vbp");
-            File.WriteAllText(projectPath, """
-                Type=Exe
-                Startup="Sub Main"
-                Name="CrossModule"
-                Module=Store; Store.bas
-                Module=MainModule; MainModule.bas
-                """);
-            File.WriteAllText(Path.Combine(directory, "Store.bas"), store);
-            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), main);
+            File.WriteAllText(
+                projectPath,
+                "Type=Exe\nStartup=\"Sub Main\"\nName=\"CrossModule\"\n" +
+                string.Join("\n", modules.Select(module => $"Module={module.Name}; {module.Name}.bas")) + "\n");
+            foreach (var module in modules)
+            {
+                File.WriteAllText(Path.Combine(directory, module.Name + ".bas"), module.Source);
+            }
             body(projectPath);
         }
         finally

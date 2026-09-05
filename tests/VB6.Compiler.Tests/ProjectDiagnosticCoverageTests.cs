@@ -25,6 +25,18 @@ public sealed class ProjectDiagnosticCoverageTests
     }
 
     [TestMethod]
+    public void Analyze_ReportsDuplicatePublicModulePropertiesAcrossModules()
+    {
+        AssertProjectDiagnostic(
+            "VB6PRJ0003",
+            "Type=Exe\nStartup=\"Sub Main\"\n" +
+            "Module=First; First.bas\nModule=Second; Second.bas\nModule=Main; Main.bas\n",
+            ("First.bas", "Public Property Get State() As Long\nState = 1\nEnd Property"),
+            ("Second.bas", "Public Property Get State() As Long\nState = 2\nEnd Property"),
+            ("Main.bas", "Sub Main()\nDebug.Print State\nEnd Sub"));
+    }
+
+    [TestMethod]
     [DataRow("VB6PRJ0010", "Implements Missing")]
     [DataRow("VB6PRJ0011", "Implements Self")]
     public void Analyze_ReportsInvalidClassImplementation(string code, string declaration)
