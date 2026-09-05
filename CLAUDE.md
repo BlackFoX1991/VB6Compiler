@@ -16,17 +16,18 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 148 Erwartungen: 121 `implemented`, 0 `partial`, 27 `planned`;
-121 `documented-verified`, 27 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 148 Erwartungen: 123 `implemented`, 0 `partial`, 25 `planned`;
+123 `documented-verified`, 25 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
 Sprachsemantische Korrekturen gelten in beiden Profilen. Locale, Plattformvorgaben und
 erlaubte Erweiterungen bleiben profilabhängig.
 
-Dieses Dokumentationspaket ändert keinen Compiler-, Runtime-, Build- oder Testcode.
-Automatische Status-/Abhängigkeitsprüfungen, getrennte JSON-Laufberichte und der geplante
-`-UpdateVerificationDocs`-Schalter bleiben offene R0-Karten.
+R0 ist geschlossen: `build.ps1` wertet Standardlauf, nativen x86-Lauf und Wiederholungen getrennt
+aus und schreibt `artifacts/verification-report.json`; die Statusregeln der Matrix prüfen Tests
+statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke. Nächste Karte ist
+`managed-r1-grammar`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
 
@@ -68,7 +69,7 @@ Originalcompiler gesetzt werden. Geplante Karten bleiben `not-yet-verified`; ihr
 Bereichsstatus werden aus den Erwartungen abgeleitet: alle umgesetzt = `implemented`,
 alle geplant = `planned`, sonst `partial`. Nicht verifizierte Kinder verhindern eine
 Verifikationszusage für den Gesamtbereich. Offene `gap`-Texte nennen konkrete Karten.
-Die bisherigen Tests prüfen noch nicht alle diese Regeln; ihre Erweiterung ist R0.
+Diese Regeln prüfen `CompatibilityMatrixStatusTests` und `CompatibilityMatrixTests`, nicht mehr das Lesen.
 
 ## Die eine Regel, die alles andere schlägt
 

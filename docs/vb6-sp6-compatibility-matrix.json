@@ -2097,16 +2097,17 @@
       "matrixEntry": "verification-and-release-gates",
       "milestone": "R0",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Messläufe getrennt auswerten",
       "expected": {
         "acceptance": "Nur aktuelle TRXs zählen; Standard, x86 und Wiederholungen getrennt mit Quellstand und Zeitpunkt berichten; alte/fehlende Dateien und Prozessfehler dürfen keinen grünen Lauf ergeben."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs"
+        "build.ps1",
+        "tests/VB6.Compiler.Tests/VerificationDocumentTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "build.ps1 reads each run's own TRX, rejects a file older than the run that produced it, and records standard, native-x86 and rerun results as separate entries in artifacts/verification-report.json together with source state, timestamp, VISIA and matrix counts. Only standard and native runs decide the gate; a missing native run is reported as missing, never as passed.",
       "title": "Messläufe getrennt auswerten"
     },
     {
@@ -2116,16 +2117,18 @@
       "dependsOn": [
         "managed-r0-reporting"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Statusprüfung automatisieren",
       "expected": {
         "acceptance": "Unbekannte/zyklische Abhängigkeiten, falsche Bereichsstatus und veraltete Messzahlen melden; normaler Build ohne Doc-Schreibzugriff, expliziter UpdateVerificationDocs-Schalter zum Aktualisieren."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs"
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixStatusTests.cs",
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs",
+        "build.ps1"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "CompatibilityMatrixStatusTests fails on an unknown or cyclic dependency, on a card that waits for a later milestone, on an open card without a milestone or roadmap entry, and on an area status that does not follow from its expectations. CompatibilityMatrixTests checks the documented counts in ROADMAP.md, README.md and CLAUDE.md against the file. Each rule was counter-checked by breaking it once. An ordinary build writes no document; build.ps1 -UpdateVerificationDocs writes the marked measurement regions and refuses a partial run.",
       "title": "Statusprüfung automatisieren"
     },
     {
@@ -3126,14 +3129,16 @@
         "runtime": "Real application scenarios in the release gate",
         "scope": "Managed completion with explicit native prerequisites and optional oracle"
       },
-      "implementation": "planned",
+      "implementation": "partial",
       "verification": "not-yet-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/CompatibilityMatrixTests.cs",
+        "tests/VB6.Compiler.Tests/CompatibilityMatrixStatusTests.cs",
+        "tests/VB6.Compiler.Tests/VerificationDocumentTests.cs",
         "tests/VB6.Compiler.Tests/ConformanceCorpusTests.cs",
         "tests/VB6.Compiler.Tests/CompilationTests.cs"
       ],
-      "gap": "managed-r0-reporting: Messläufe getrennt auswerten; managed-r0-status-checks: Statusprüfung automatisieren; managed-r6-visia-workflows: VISIA-Laufzeitszenarien; managed-r6-business-reference: VB6-Geschäftslogik-Referenzprojekt; managed-r7-release: Managed-Abschlussgate"
+      "gap": "managed-r6-visia-workflows: VISIA-Laufzeitszenarien; managed-r6-business-reference: VB6-Geschäftslogik-Referenzprojekt; managed-r7-release: Managed-Abschlussgate"
     }
   ],
   "activeXStockControls": {

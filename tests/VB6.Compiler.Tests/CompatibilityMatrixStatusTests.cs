@@ -123,16 +123,18 @@ public sealed class CompatibilityMatrixStatusTests
             withoutMilestone.Length,
             "Offene Karte ohne Etappe R0-R7: " + string.Join(", ", withoutMilestone));
 
-        // Eine geschlossene Karte trägt keine Etappe mehr. Sonst wächst neben der Roadmap eine
-        // zweite Restliste heran, und genau die soll die Zuordnungstabelle ersetzen.
-        var closedWithMilestone = expectations
-            .Where(expectation => expectation.Implementation != "planned" && expectation.Milestone is not null)
+        // Eine geschlossene Karte darf ihre Etappe als Historie behalten -- sie soll aber nicht
+        // mehr in der aktiven Restliste stehen. Genau daran ist die Roadmap vorher auf 2800
+        // Zeilen gewachsen: erledigte Punkte blieben zwischen den offenen stehen.
+        var stillListedAsOpen = expectations
+            .Where(expectation => expectation.Implementation == "implemented")
+            .Where(expectation => ActiveRemainderList(roadmap).Contains(expectation.Id, StringComparison.Ordinal))
             .Select(expectation => expectation.Id)
             .ToArray();
         Assert.AreEqual(
             0,
-            closedWithMilestone.Length,
-            "Geschlossene Karte trägt noch eine Etappe: " + string.Join(", ", closedWithMilestone));
+            stillListedAsOpen.Length,
+            "Geschlossene Karte steht noch in der aktiven Restliste: " + string.Join(", ", stillListedAsOpen));
 
         var missingFromRoadmap = expectations
             .Where(expectation => expectation.Implementation == "planned")
@@ -143,6 +145,19 @@ public sealed class CompatibilityMatrixStatusTests
             0,
             missingFromRoadmap.Length,
             "Offene Karte fehlt in ROADMAP.md: " + string.Join(", ", missingFromRoadmap));
+    }
+
+    /// <summary>
+    /// The span of ROADMAP.md that lists what is still open, from its heading to the next one.
+    /// </summary>
+    private static string ActiveRemainderList(string roadmap)
+    {
+        const string heading = "## Aktive Restliste";
+        var start = roadmap.IndexOf(heading, StringComparison.Ordinal);
+        Assert.IsTrue(start >= 0, "ROADMAP.md hat keinen Abschnitt '" + heading + "'.");
+
+        var end = roadmap.IndexOf("\n## ", start + heading.Length, StringComparison.Ordinal);
+        return end < 0 ? roadmap[start..] : roadmap[start..end];
     }
 
     [TestMethod]

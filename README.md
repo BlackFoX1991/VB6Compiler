@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 148 expectations (121 implemented, 0 partial, 27 planned) with 121/148 documented-verified.
+The compatibility matrix contains 148 expectations (123 implemented, 0 partial, 25 planned) with 123/148 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -166,13 +166,13 @@ Local evidence is in `artifacts/status-review-20260905` (not versioned).
 Standard runs, native runs and targeted reruns must be reported separately.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **148 expectations**: **121 implemented**, **0 partial**, **27 planned**;
-**121 documented-verified**, **27 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **148 expectations**: **123 implemented**, **0 partial**, **25 planned**;
+**123 documented-verified**, **25 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
-No original VB6 compiler comparison has been performed. Automatic run summaries, dependency
-checks and an explicit documentation-update switch are planned in R0; they are not implemented
-by this documentation change. Historical measurements remain in [the changelog](docs/CHANGELOG.md).
+No original VB6 compiler comparison has been performed. Run accounting, the dependency and status
+checks and the explicit documentation-update switch landed in R0 and are described in
+[the roadmap](docs/ROADMAP.md). Historical measurements remain in [the changelog](docs/CHANGELOG.md).
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. `Erase` on a `ByRef` array parameter now deallocates the caller's descriptor and is covered by semantic and generated-program tests. `StrConv` additionally handles profile-aware combined casing, East-Asian width, and Japanese Kana flags with locale validation. What is still guarded is narrower: `For Each` over arrays of user-defined types (`VB6S0056`) and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
@@ -360,7 +360,7 @@ The single active completion plan is [R0–R7](docs/ROADMAP.md). Open expectatio
 live in [the compatibility matrix](docs/vb6-sp6-compatibility-matrix.json). The old A–H and
 M0–M10 sections are mapped to these milestones in the roadmap.
 
-1. R0: independent run accounting and automatic status/documentation checks.
+1. R0: independent run accounting and automatic status/documentation checks. **Done.**
 2. R1: finite language/runtime inventory and conformance, including file layouts and locale.
 3. R2: last-reference object termination throughout the generated program and runtime.
 4. R3: GC-stable addressable storage, pointers and complete Declare/callback ABI.

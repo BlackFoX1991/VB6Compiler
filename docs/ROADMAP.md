@@ -39,8 +39,8 @@ Tests. Die lokale Messung liegt unter `artifacts/status-review-20260905`; Artefa
 versioniert. Neue Messungen sind mit Datum, Quellstand und getrennten Ergebnissen einzutragen.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **148 Erwartungen**, davon **121 implemented**, **0 partial** und **27 planned**;
-**121/148 documented-verified**, 27 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **148 Erwartungen**, davon **123 implemented**, **0 partial** und **25 planned**;
+**123/148 documented-verified**, 25 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -102,7 +102,8 @@ Die Quelle für Karten, Status und Abhängigkeiten ist
   Kinder verhindern die Verifikationszusage für den Gesamtbereich. `gap` nennt offene IDs.
 - Bei geplanten Karten verweisen `testRefs` auf vorhandene Baseline-/Regressionsdateien, damit
   die aktuelle Matrixprüfung weiter funktioniert. Diese Verweise sind **kein Nachweis** der
-  zukünftigen Abnahme. Neue automatische Abhängigkeits-/Statusprüfungen gehören zu R0.
+  zukünftigen Abnahme. Abhängigkeiten, Etappenreihenfolge und Bereichsstatus prüfen seit R0
+  `CompatibilityMatrixStatusTests` automatisch.
 - Pro Karte: Vertrag und Baseline messen, erforderliche Schichten ändern, zielgerichtete
   Tests und E2E-Nachweis ausführen, Status und Dokumentation fortschreiben, Changelog ergänzen.
   Ungültige VB6-Formen dürfen durch belegte Negativtests abgeschlossen werden.
@@ -110,25 +111,42 @@ Die Quelle für Karten, Status und Abhängigkeiten ist
   Native OCX-Abnahme erfolgt zusätzlich mit `-RequireNativeOcx` in geeigneter Umgebung.
   Vor einem Etappenabschluss müssen alle Karten der Etappe und ihre Abhängigkeiten geschlossen sein.
 
-## Aktive Restliste
-
-Alle 27 folgenden Karten sind derzeit `planned` / `not-yet-verified`.
-Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen
-legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben
-in der Matrix erhalten und werden nicht neu implementiert.
+## Abgeschlossene Etappen
 
 ### R0 — Messwerte und Status bereinigen
 
-Keine fachliche Voraussetzung. Die Dokumentationsneuordnung ist umgesetzt; die beiden Werkzeugkarten bleiben offen.
+Geschlossen. Die Karten stehen als `implemented` / `documented-verified` in der Matrix und
+nicht mehr in der Restliste; die Nachweise sind hier festgehalten, damit sie nachvollziehbar
+bleiben.
 
-Die spätere Build-Auswertung erhält einen Bericht pro Lauf mit Quellstand, Zeitpunkt, Projektresultaten, VISIA und Matrixzählung. Nur diesem Lauf zugeordnete TRXs werden eingelesen. Standardlauf, zusätzlicher x86-Lauf und Wiederholungen bleiben getrennt; fehlende native Ausführung bedeutet nicht bestanden. Ein fehlgeschlagener Gesamtlauf bleibt auch nach erfolgreicher Einzelwiederholung fehlgeschlagen.
+`build.ps1` liest für jeden Lauf dessen eigene TRX-Dateien, weist eine Datei zurück, die älter
+ist als der Lauf, der sie erzeugt haben soll, und meldet Prozessfehler, fehlende Ergebnisdateien
+und leere Läufe je mit ihrem Grund. Standardlauf, nativer x86-Lauf und Wiederholungen sind
+getrennte Einträge: Nur die ersten beiden entscheiden das Gate, eine bestandene Wiederholung
+macht einen fehlgeschlagenen Gesamtlauf nicht grün, und ein nicht ausgeführter nativer Lauf wird
+als fehlend berichtet statt als bestanden. `artifacts/verification-report.json` hält Quellstand
+samt Dirty-Kennzeichen, Zeitpunkt, Projektzähler, VISIA und Matrixzählung fest.
 
-Ein geplanter Schalter `-UpdateVerificationDocs` aktualisiert Messwertabschnitte ausdrücklich. Normale Builds verändern keine Dokumente. Dieser Schalter, der JSON-Bericht und die neuen Abhängigkeits-/Aggregationsprüfungen sind **noch nicht implementiert**. R0 ist abgeschlossen, wenn die Prüfungen alte/fehlende TRXs, Prozessfehler, falsche Zählungen und widersprüchliche Status zuverlässig erkennen.
+Die Statusregeln prüfen jetzt Maschinen statt Leser: unbekannte und zyklische Abhängigkeiten,
+Karten, die auf eine spätere Etappe warten, offene Karten ohne Etappe oder Roadmap-Eintrag,
+Bereichsstatus, die nicht aus ihren Erwartungen folgen, und die in ROADMAP, README und CLAUDE.md
+dokumentierten Zahlen. Jede Regel wurde durch einmaliges Brechen gegengeprüft.
 
-| Karte | Ziel und Abnahme |
+`-UpdateVerificationDocs` schreibt die markierten Messwertblöcke aus dem Laufbericht und
+verweigert das für einen Teillauf; ein gewöhnlicher Build fasst kein Dokument an. Die Prosa um
+jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihre Aussagegrenzen.
+
+| Karte | Nachweis |
 | --- | --- |
-| `managed-r0-reporting` | **Messläufe getrennt auswerten:** Nur aktuelle TRXs zählen; Standard, x86 und Wiederholungen getrennt mit Quellstand und Zeitpunkt berichten; alte/fehlende Dateien und Prozessfehler dürfen keinen grünen Lauf ergeben. |
-| `managed-r0-status-checks` | **Statusprüfung automatisieren:** Unbekannte/zyklische Abhängigkeiten, falsche Bereichsstatus und veraltete Messzahlen melden; normaler Build ohne Doc-Schreibzugriff, expliziter UpdateVerificationDocs-Schalter zum Aktualisieren. |
+| `managed-r0-reporting` | `build.ps1`, `artifacts/verification-report.json`, `VerificationDocumentTests` |
+| `managed-r0-status-checks` | `CompatibilityMatrixStatusTests`, `CompatibilityMatrixTests`, `build.ps1 -UpdateVerificationDocs` |
+
+## Aktive Restliste
+
+Die 25 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
+abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
+dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
+Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
 
 ### R1 — Sprach- und Runtime-Verträge vervollständigen
 
