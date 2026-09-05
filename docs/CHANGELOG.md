@@ -7509,3 +7509,25 @@ Properties.
 
 Die Matrixzahl bleibt bei **161 Erwartungen: 133 implemented, 0 partial, 28 planned**;
 der vorhandene Vertrag `r1-grammar-cross-module-visibility` enthält jetzt beide Regressionen.
+
+## 2026-09-05 — ActiveX EXE: externe Automation-Abnahme stabilisiert
+
+Der ActiveX-EXE-Pfad hatte eine Lücke genau zwischen erzeugter Anwendung und echtem externem
+Client. Ein lokaler COM-Server braucht eine COM-Apartment-Initialisierung, aber der erzeugte
+Einstiegspunkt ist keine C#-`Main` mit `[STAThread]`. `VBComLocalServer` initialisiert daher seine
+eigene STA, registriert die Klassenobjekte, und gibt das Apartment beim Herunterfahren wieder frei.
+
+Die Abnahme startet die erzeugte EXE ausdrücklich mit `/Embedding`. Ein separater nativer
+Probe-Prozess holt das registrierte `IDispatch`, löst `Summe` auf und ruft es mit `20, 22` auf; das
+Ergebnis ist `42`. Nach Freigabe des Proxys muss genau dieser Serverprozess selbst enden. Der Probe
+behandelt `VARIANT` auf x64 korrekt als 24 Byte und der Test wartet begrenzt darauf, dass die
+bereits gestartete EXE ihr Klassenobjekt registriert hat.
+
+Für x86-Emission findet der AppHost-Sucher den Host-Pack jetzt auch aus einem 32-Bit-
+Compilerprozess über `ProgramW6432`. Der Prozessharness der Compiler-Tests liest Standardausgabe
+und -fehler parallel; bei einem erwarteten Fehler beendet er ausschließlich einen hängen gebliebenen
+Kindprozess, nachdem Windows-Kompatibilitätsdiagnostik dessen Fehlerausgabe bereits geliefert hat.
+
+Die Abnahme behauptet bewusst **nicht**, dass ein Installer-`LocalServer32` den SCM-Start schon
+vollständig abdeckt. Diese Registrierungs- und Bereitstellungsarbeit bleibt Teil des offenen
+R4-Vertrags. Die Matrix bleibt bei **161 Erwartungen: 133 implemented, 0 partial, 28 planned**.
