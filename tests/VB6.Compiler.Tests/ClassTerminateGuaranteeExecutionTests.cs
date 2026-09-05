@@ -991,4 +991,100 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_TracksObjectsAcrossVariantAndArrayParameterBoundaries()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateParameterStorage", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "ParameterStorage.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ParameterStorage"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Public Label As String
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate " & Label
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub ClearVariant(ByRef value As Variant)
+                    Set value = Nothing
+                End Sub
+
+                Sub InspectVariant(ByVal value As Variant)
+                    Debug.Print "ByVal besitzt"
+                End Sub
+
+                Sub ClearArrayElement(ByRef values() As C)
+                    Set values(0) = Nothing
+                End Sub
+
+                Function CreateArray() As Variant
+                    Dim values As Variant
+                    values = Array(Empty)
+                    Set values(0) = New C
+                    values(0).Label = "Rueckgabe"
+                    CreateArray = values
+                End Function
+
+                Sub Main()
+                    Dim value As Variant
+                    Set value = New C
+                    value.Label = "ByRef Variant"
+                    ClearVariant value
+                    Debug.Print "ByRef frei"
+
+                    Set value = New C
+                    value.Label = "ByVal Variant"
+                    InspectVariant value
+                    Debug.Print "Caller besitzt"
+                    Set value = Nothing
+                    Debug.Print "ByVal frei"
+
+                    Dim returned As Variant
+                    returned = CreateArray()
+                    Debug.Print "Rueckgabe besitzt"
+                    Set returned(0) = Nothing
+                    Debug.Print "Rueckgabe frei"
+
+                    Dim direct() As C
+                    ReDim direct(0 To 0)
+                    Set direct(0) = New C
+                    direct(0).Label = "ByRef Array"
+                    ClearArrayElement direct
+                    Debug.Print "Array frei"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Terminate ByRef Variant", "ByRef frei",
+                    "ByVal besitzt", "Caller besitzt", "Terminate ByVal Variant", "ByVal frei",
+                    "Rueckgabe besitzt", "Terminate Rueckgabe", "Rueckgabe frei",
+                    "Terminate ByRef Array", "Array frei"
+                },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

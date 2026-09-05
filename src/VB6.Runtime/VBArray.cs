@@ -143,6 +143,13 @@ public sealed class VBArray<T> : IVBArray
     public void TransferReference(int[] indices, T value) =>
         ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
 
+    /// <summary>
+    /// Stores a Variant value that has passed through its copy-on-assignment operation. A copied
+    /// VB array already owns its retained elements; a scalar or object result is still borrowed.
+    /// </summary>
+    public void ReplaceCopiedVariant(int[] indices, T value) =>
+        ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: value is IVBArray);
+
     /// <summary>Flat-index version used by compiler paths that already resolved VB6 bounds.</summary>
     public void ReplaceReferenceAtFlatIndex(int index, T value) =>
         ReplaceReferenceAtOffset(index, value, transferOwnership: false);
@@ -150,6 +157,10 @@ public sealed class VBArray<T> : IVBArray
     /// <summary>Flat-index version that adopts a New/function-result reference.</summary>
     public void TransferReferenceAtFlatIndex(int index, T value) =>
         ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+
+    /// <summary>Flat-index form of <see cref="ReplaceCopiedVariant"/>.</summary>
+    public void ReplaceCopiedVariantAtFlatIndex(int index, T value) =>
+        ReplaceReferenceAtOffset(index, value, transferOwnership: value is IVBArray);
 
     object? IVBArray.GetObjectValue(int[] indices) => this[indices];
 
@@ -388,6 +399,23 @@ public static class VBArrayOperations
         Array clrArray => clrArray.Clone(),
         _ => value
     };
+
+    /// <summary>
+    /// Copy-on-assignment for an array value whose storage reference is already owned by the
+    /// caller. The cloned array retains its elements first, then the consumed source storage drops
+    /// its owner. Non-array values retain their ordinary transfer behavior.
+    /// </summary>
+    public static object? CopyOwnedAssignedValue(object? value)
+    {
+        if (value is not IVBArray)
+        {
+            return value;
+        }
+
+        var copy = CopyAssignedValue(value);
+        VBObjectLifetime.Release(value);
+        return copy;
+    }
 
     /// <summary>
     /// Converts a CLR SAFEARRAY result into the compiler's bound-preserving array representation.
@@ -721,6 +749,21 @@ public static class VBArrayOperations
         }
 
         VBDynamicDispatch.SetDefaultMember(value, indices, element);
+    }
+
+    /// <summary>
+    /// Variant-array store for a value-copy result. Its runtime shape decides whether the copied
+    /// array storage is adopted or a borrowed scalar/object reference is retained.
+    /// </summary>
+    public static void SetCopiedVariantElement(object? value, object?[] indices, object? element)
+    {
+        if (element is IVBArray)
+        {
+            TransferElement(value, indices, element);
+            return;
+        }
+
+        SetElement(value, indices, element);
     }
 
     private static int[] ToArrayIndices(object?[] indices) =>

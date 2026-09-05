@@ -1283,9 +1283,7 @@ public sealed class ManagedEmitter
                         EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
                         encoder.Call(GetRuntimeMethodReference(Static(
                             typeof(VBObjectLifetime),
-                            OwnsLifetimeReference(value)
-                                ? nameof(VBObjectLifetime.Transfer)
-                                : nameof(VBObjectLifetime.Replace),
+                            LifetimeReplacementMethod(value),
                             typeof(object),
                             typeof(object))));
                         EmitLifetimeReferenceCast(encoder, parameter.Type);
@@ -1332,9 +1330,7 @@ public sealed class ManagedEmitter
                         EmitExpressionWithAssignmentConversion(encoder, procedure, value, field.Type);
                         encoder.Call(GetRuntimeMethodReference(Static(
                             typeof(VBObjectLifetime),
-                            OwnsLifetimeReference(value)
-                                ? nameof(VBObjectLifetime.TransferField)
-                                : nameof(VBObjectLifetime.ReplaceField),
+                            LifetimeFieldReplacementMethod(value),
                             typeof(object),
                             typeof(string),
                             typeof(object))));
@@ -1353,9 +1349,11 @@ public sealed class ManagedEmitter
                         EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
                         encoder.Call(GetArrayReferenceStoreReference(
                             ((ArrayTypeSymbol)element.Array.Type).ElementType,
-                            OwnsLifetimeReference(value)
-                                ? nameof(VBArray<object>.TransferReference)
-                                : nameof(VBArray<object>.ReplaceReference),
+                            IsBorrowedCopiedVariantArrayValue(value)
+                                ? nameof(VBArray<object>.ReplaceCopiedVariant)
+                                : OwnsLifetimeReference(value)
+                                    ? nameof(VBArray<object>.TransferReference)
+                                    : nameof(VBArray<object>.ReplaceReference),
                             flatIndex: false));
                         break;
                     }
@@ -1371,9 +1369,11 @@ public sealed class ManagedEmitter
                         EmitExpressionWithAssignmentConversion(encoder, procedure, value, element.ElementType);
                         encoder.Call(GetArrayReferenceStoreReference(
                             ((ArrayTypeSymbol)element.Array.Type).ElementType,
-                            OwnsLifetimeReference(value)
-                                ? nameof(VBArray<object>.TransferReferenceAtFlatIndex)
-                                : nameof(VBArray<object>.ReplaceReferenceAtFlatIndex),
+                            IsBorrowedCopiedVariantArrayValue(value)
+                                ? nameof(VBArray<object>.ReplaceCopiedVariantAtFlatIndex)
+                                : OwnsLifetimeReference(value)
+                                    ? nameof(VBArray<object>.TransferReferenceAtFlatIndex)
+                                    : nameof(VBArray<object>.ReplaceReferenceAtFlatIndex),
                             flatIndex: true));
                         break;
                     }
@@ -1414,9 +1414,7 @@ public sealed class ManagedEmitter
             EmitExpressionWithAssignmentConversion(encoder, procedure, value, targetType);
             encoder.Call(GetRuntimeMethodReference(Static(
                 typeof(VBObjectLifetime),
-                OwnsLifetimeReference(value)
-                    ? nameof(VBObjectLifetime.Transfer)
-                    : nameof(VBObjectLifetime.Replace),
+                LifetimeReplacementMethod(value),
                 typeof(object),
                 typeof(object))));
             EmitLifetimeReferenceCast(encoder, targetType);
@@ -1573,6 +1571,20 @@ public sealed class ManagedEmitter
             if (call.Method == IrRuntimeMethod.CollectionAdd)
             {
                 EmitCollectionAdd(encoder, procedure, call);
+                return;
+            }
+
+            if (call.Method == IrRuntimeMethod.ArrayCopyAssignedValue &&
+                call.Arguments.Length == 1 &&
+                OwnsLifetimeReference(call.Arguments[0].Expression))
+            {
+                // A value-copy of an owned array leaves a new array result behind. Its clone
+                // retains every element before the temporary source owner is released.
+                EmitExpression(encoder, procedure, call.Arguments[0].Expression);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBArrayOperations),
+                    nameof(VBArrayOperations.CopyOwnedAssignedValue),
+                    typeof(object))));
                 return;
             }
 
@@ -2755,9 +2767,11 @@ public sealed class ManagedEmitter
             EmitExpressionWithAssignmentConversion(encoder, procedure, value, TypeSymbol.Variant);
             encoder.Call(GetRuntimeMethodReference(
                 typeof(VBArrayOperations).GetMethod(
-                    OwnsLifetimeReference(value)
-                        ? nameof(VBArrayOperations.TransferElement)
-                        : nameof(VBArrayOperations.SetElement),
+                    IsBorrowedCopiedVariantArrayValue(value)
+                        ? nameof(VBArrayOperations.SetCopiedVariantElement)
+                        : OwnsLifetimeReference(value)
+                            ? nameof(VBArrayOperations.TransferElement)
+                            : nameof(VBArrayOperations.SetElement),
                     new[] { typeof(object), typeof(object[]), typeof(object) })
                 ?? throw new MissingMethodException("VBArrayOperations element store is required.")));
         }
@@ -5065,6 +5079,30 @@ public sealed class ManagedEmitter
                    } conversion &&
                    OwnsLifetimeReference(conversion.Arguments[0].Expression);
         }
+
+        private static bool IsCopiedVariantArrayValue(IrExpression expression) =>
+            expression is IrRuntimeCallExpression
+            {
+                Method: IrRuntimeMethod.ArrayCopyAssignedValue,
+                Arguments.Length: 1
+            };
+
+        private static bool IsBorrowedCopiedVariantArrayValue(IrExpression expression) =>
+            IsCopiedVariantArrayValue(expression) && !OwnsLifetimeReference(expression);
+
+        private static string LifetimeReplacementMethod(IrExpression value) =>
+            IsBorrowedCopiedVariantArrayValue(value)
+                ? nameof(VBObjectLifetime.ReplaceCopiedVariant)
+                : OwnsLifetimeReference(value)
+                    ? nameof(VBObjectLifetime.Transfer)
+                    : nameof(VBObjectLifetime.Replace);
+
+        private static string LifetimeFieldReplacementMethod(IrExpression value) =>
+            IsBorrowedCopiedVariantArrayValue(value)
+                ? nameof(VBObjectLifetime.ReplaceCopiedVariantField)
+                : OwnsLifetimeReference(value)
+                    ? nameof(VBObjectLifetime.TransferField)
+                    : nameof(VBObjectLifetime.ReplaceField);
 
         private static bool IsValueType(TypeSymbol type) => !IsReferenceType(type) && type != TypeSymbol.Error;
 

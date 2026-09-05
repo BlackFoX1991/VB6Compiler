@@ -157,6 +157,14 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
+    /// Replaces a Variant slot after its value-copy operation. Array values arrive as fresh
+    /// independent storage whose elements were retained while copying; scalars and objects remain
+    /// borrowed. Selecting the path from the runtime value keeps both cases correct.
+    /// </summary>
+    public static object? ReplaceCopiedVariant(object? current, object? replacement) =>
+        replacement is IVBArray ? Transfer(current, replacement) : Replace(current, replacement);
+
+    /// <summary>
     /// Replaces a generated class field with a borrowed source value. Reflection is used only at
     /// this boundary so the emitted field remains strongly typed; it lets the runtime retain the
     /// incoming value before it releases a self-referential outgoing value.
@@ -179,6 +187,18 @@ public static class VBObjectLifetime
         var current = field.GetValue(instance);
         field.SetValue(instance, replacement);
         Release(current);
+    }
+
+    /// <summary>Variant-field form of <see cref="ReplaceCopiedVariant"/>.</summary>
+    public static void ReplaceCopiedVariantField(object instance, string fieldName, object? replacement)
+    {
+        if (replacement is IVBArray)
+        {
+            TransferField(instance, fieldName, replacement);
+            return;
+        }
+
+        ReplaceField(instance, fieldName, replacement);
     }
 
     /// <summary>
