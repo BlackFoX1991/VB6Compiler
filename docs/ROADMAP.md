@@ -17,6 +17,10 @@ unspezifischen Suche nach „weiteren Randfällen“.
 
 ## Gemessener Ausgangsstand
 
+Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufbericht geschrieben,
+nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
+
+<!-- verification:roadmap-measurements:begin -->
 Messung vom 2026-09-05 auf `main` / `df2abd0`, vor diesem Dokumentationsupdate:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
@@ -27,14 +31,18 @@ Messung vom 2026-09-05 auf `main` / `df2abd0`, vor diesem Dokumentationsupdate:
 | Zusätzlicher nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems fehlerfrei, 0 Diagnosen | Analyse/Binden |
 | VISIA-Assembly-Erzeugung | Test bestanden, Assembly und PDB erzeugt | Keine vollständige Laufzeitabnahme der Anwendung |
+<!-- verification:roadmap-measurements:end -->
 
 Die bisher genannte Zahl **1698** ist die Summe von **1617 Standardfällen und 81 zusätzlichen
 x86-Ausführungen**. Sie ist keine Standardtestzahl und keine Aussage über 1698 unterschiedliche
 Tests. Die lokale Messung liegt unter `artifacts/status-review-20260905`; Artefakte werden nicht
 versioniert. Neue Messungen sind mit Datum, Quellstand und getrennten Ergebnissen einzutragen.
 
+<!-- verification:roadmap-matrix:begin -->
 **Kompatibilitätsmatrix nach der Restplanung:** **148 Erwartungen**, davon **121 implemented**, **0 partial** und **27 planned**;
 **121/148 documented-verified**, 27 `not-yet-verified`, 0 `oracle-verified`.
+<!-- verification:roadmap-matrix:end -->
+
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
 Die Erweiterung gegenüber 121 Erwartungen macht zuvor nicht atomar erfassten Restumfang sichtbar;
 sie ist keine Verschlechterung des Compilerverhaltens.

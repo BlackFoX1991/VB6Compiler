@@ -12,7 +12,9 @@ language/runtime conformance, deterministic object lifetime, stable pointers, co
 ABI and COM binary compatibility, external ActiveX contracts, and application-level acceptance.
 LLVM, LSP, the IDE and visual designer remain deferred.
 
+<!-- verification:readme-status-matrix:begin -->
 The compatibility matrix contains 148 expectations (121 implemented, 0 partial, 27 planned) with 121/148 documented-verified.
+<!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
 broad grammar card now describes its measured module-visibility contract, with the remaining
@@ -142,6 +144,10 @@ Implemented so far:
 
 ## Current verification
 
+The table below is written by `build.ps1 -UpdateVerificationDocs` from the run report, not by
+hand. An ordinary build does not touch this file.
+
+<!-- verification:readme-measurements:begin -->
 Measured on 2026-09-05 at `df2abd0`, before this documentation update:
 
 | Check | Result |
@@ -152,14 +158,18 @@ Measured on 2026-09-05 at `df2abd0`, before this documentation update:
 | Additional required native x86 OCX run | 81/81 passed, 0 skipped |
 | VISIA analysis | 40/40 project items, 0 diagnostics |
 | VISIA assembly/PDB emission | Passed; full application behavior is not established by this test |
+<!-- verification:readme-measurements:end -->
 
 The previously reported **1698** combines **1617 standard cases and 81 additional x86
 executions**. It is not the standard-suite count or a count of distinct tests.
 Local evidence is in `artifacts/status-review-20260905` (not versioned).
 Standard runs, native runs and targeted reruns must be reported separately.
 
+<!-- verification:readme-matrix:begin -->
 The matrix reports **148 expectations**: **121 implemented**, **0 partial**, **27 planned**;
 **121 documented-verified**, **27 not-yet-verified**, **0 oracle-verified**.
+<!-- verification:readme-matrix:end -->
+
 No original VB6 compiler comparison has been performed. Automatic run summaries, dependency
 checks and an explicit documentation-update switch are planned in R0; they are not implemented
 by this documentation change. Historical measurements remain in [the changelog](docs/CHANGELOG.md).
