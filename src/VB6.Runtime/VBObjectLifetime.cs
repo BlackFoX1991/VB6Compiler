@@ -29,6 +29,8 @@ public static class VBObjectLifetime
     private static readonly List<WeakReference<object>> Live = [];
     private static readonly ConditionalWeakTable<object, LifetimeState> States = [];
     private static readonly Dictionary<Type, MethodInfo?> Terminators = [];
+    private static readonly Dictionary<(Type Type, string Name), FieldInfo> Fields = [];
+    private static readonly Dictionary<Type, FieldInfo[]> InstanceFields = [];
 
     private static bool _drainInstalled;
     private static int _pruneThreshold = 64;
@@ -140,6 +142,31 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
+    /// Replaces a generated class field with a borrowed source value. Reflection is used only at
+    /// this boundary so the emitted field remains strongly typed; it lets the runtime retain the
+    /// incoming value before it releases a self-referential outgoing value.
+    /// </summary>
+    public static void ReplaceField(object instance, string fieldName, object? replacement)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        var field = GetField(instance.GetType(), fieldName);
+        var current = field.GetValue(instance);
+        Retain(replacement);
+        field.SetValue(instance, replacement);
+        Release(current);
+    }
+
+    /// <summary>Moves an already-owned value, such as New or a function result, into a class field.</summary>
+    public static void TransferField(object instance, string fieldName, object? replacement)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        var field = GetField(instance.GetType(), fieldName);
+        var current = field.GetValue(instance);
+        field.SetValue(instance, replacement);
+        Release(current);
+    }
+
+    /// <summary>
     /// Runs the terminators still outstanding, most recently created first. Nesting usually
     /// follows creation order, so the reverse order tears an object down before the objects it
     /// was built from.
@@ -217,6 +244,59 @@ public static class VBObjectLifetime
             // the program is already ending, and an error there cannot be handled by code that
             // has stopped running -- and on the finalizer thread an escaping exception would kill
             // the process outright, which no VB6 program does.
+        }
+
+        // VB6 keeps member references alive while Class_Terminate executes and releases them
+        // afterwards. This also handles a class that is itself the final owner of another class.
+        ReleaseInstanceFields(instance);
+    }
+
+    private static FieldInfo GetField(Type type, string name)
+    {
+        lock (Gate)
+        {
+            if (Fields.TryGetValue((type, name), out var field))
+            {
+                return field;
+            }
+
+            field = type.GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                ?? throw new MissingFieldException(type.FullName, name);
+            Fields.Add((type, name), field);
+            return field;
+        }
+    }
+
+    private static void ReleaseInstanceFields(object instance)
+    {
+        FieldInfo[] fields;
+        lock (Gate)
+        {
+            var type = instance.GetType();
+            if (!InstanceFields.TryGetValue(type, out fields!))
+            {
+                fields = type
+                    .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(field => !field.FieldType.IsValueType && field.FieldType != typeof(string))
+                    .ToArray();
+                InstanceFields.Add(type, fields);
+            }
+        }
+
+        foreach (var field in fields)
+        {
+            var value = field.GetValue(instance);
+            if (value is null || !States.TryGetValue(value, out _))
+            {
+                continue;
+            }
+
+            // A terminated object has no observable fields. Clearing first breaks the managed
+            // CLR edge before Release can synchronously run the nested object's terminator.
+            field.SetValue(instance, null);
+            Release(value);
         }
     }
 

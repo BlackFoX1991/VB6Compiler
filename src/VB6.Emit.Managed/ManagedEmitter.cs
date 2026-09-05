@@ -988,11 +988,22 @@ public sealed class ManagedEmitter
 
         private void EmitProcedureLifetimeCleanup(InstructionEncoder encoder, IrProcedure procedure)
         {
-            // ByVal parameters are caller-owned at the current call boundary. Until calls create
-            // their own counted ownership, only procedure locals are released here.
+            // A counted ByVal parameter owns the extra reference retained at the call boundary;
+            // a ByRef parameter aliases caller storage and owns nothing on its own.
             foreach (var local in procedure.Locals.Where(local => TracksObjectLifetime(local.Type)))
             {
                 encoder.LoadLocal(local.Id);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBObjectLifetime),
+                    nameof(VBObjectLifetime.Release),
+                    typeof(object))));
+            }
+
+            foreach (var parameter in procedure.Parameters.Where(parameter =>
+                         parameter.PassingMode == ParameterPassingMode.ByVal &&
+                         TracksObjectLifetime(parameter.Type)))
+            {
+                encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Index));
                 encoder.Call(GetRuntimeMethodReference(Static(
                     typeof(VBObjectLifetime),
                     nameof(VBObjectLifetime.Release),
@@ -1264,6 +1275,23 @@ public sealed class ManagedEmitter
                     encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     break;
                 case IrParameterPlace parameter:
+                    if (TracksObjectLifetime(parameter.Type))
+                    {
+                        encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                        encoder.OpCode(ILOpCode.Dup);
+                        EmitLoadIndirect(encoder, parameter.Type);
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBObjectLifetime),
+                            OwnsLifetimeReference(value)
+                                ? nameof(VBObjectLifetime.Transfer)
+                                : nameof(VBObjectLifetime.Replace),
+                            typeof(object),
+                            typeof(object))));
+                        EmitLifetimeReferenceCast(encoder, parameter.Type);
+                        EmitStoreIndirect(encoder, parameter.Type);
+                        break;
+                    }
                     encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
                     EmitStoreIndirect(encoder, parameter.Type);
@@ -1293,6 +1321,21 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
+                    if (TracksObjectLifetime(field.Type))
+                    {
+                        EmitFieldReceiver(encoder, procedure, field.Receiver);
+                        encoder.LoadString(_metadata.GetOrAddUserString(field.Field.Name));
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, field.Type);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBObjectLifetime),
+                            OwnsLifetimeReference(value)
+                                ? nameof(VBObjectLifetime.TransferField)
+                                : nameof(VBObjectLifetime.ReplaceField),
+                            typeof(object),
+                            typeof(string),
+                            typeof(object))));
+                        break;
+                    }
                     EmitFieldReceiver(encoder, procedure, field.Receiver);
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, field.Type);
                     encoder.OpCode(ILOpCode.Stfld);
@@ -1817,6 +1860,22 @@ public sealed class ManagedEmitter
                     procedure,
                     argument.Expression,
                     call.Procedure.Parameters[index].Type);
+
+                var targetParameter = call.Procedure.Parameters[index];
+                if (!call.Procedure.IsExternal &&
+                    targetParameter.PassingMode == ParameterPassingMode.ByVal &&
+                    TracksObjectLifetime(targetParameter.Type) &&
+                    !OwnsLifetimeReference(argument.Expression))
+                {
+                    // The callee receives a distinct ByVal slot. A borrowed caller value gains
+                    // one owner for that slot; New and generated function results already carry
+                    // the reference that the callee adopts.
+                    encoder.OpCode(ILOpCode.Dup);
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBObjectLifetime),
+                        nameof(VBObjectLifetime.Retain),
+                        typeof(object))));
+                }
             }
             EntityHandle target;
             if (!TryGetProcedureHandle(call.Procedure, out var localTarget))
