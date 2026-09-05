@@ -840,17 +840,20 @@
       "id": "r1-grammar-cross-module-visibility",
       "implementation": "implemented",
       "matrixEntry": "language-declarations-and-statements",
-      "input": "A .vbp with two standard modules: a public variable, a public function called plainly and module-qualified, a public Property Get/Let, and a private function and private property referenced from the other module",
+      "input": "A .vbp with standard modules containing a public variable, a public function called plainly and module-qualified, a public Property Get/Let, a private function/property referenced from another module, a private Get sharing a name with a public Let in another module, and duplicate public property names",
       "expected": {
         "publicMembers": "a public variable, function and property of one module resolve from another, plainly and module-qualified",
         "propertyIdentity": "the accessor a call in another module resolves to is the one the declaring body was bound to",
         "privateName": "a private property referenced by bare name reports VB6S0001",
-        "privateCall": "a private function called with parentheses reports VB6S0005"
+        "privateCall": "a private function called with parentheses reports VB6S0005",
+        "privateAccessorIsolation": "a private Get never completes a same-named public Let in another module; outside callers still report VB6S0001",
+        "duplicatePublicProperty": "a public property name declared in two modules reports project diagnostic VB6PRJ0003"
       },
-      "implementationNotes": "Public module properties were invisible across the project: the project-wide lookup table is keyed by name and Get, Let and Set share one, so properties had never been added. ModulePropertySymbol carries the three accessors under one name and the project builds them once, which also gives them a single identity.",
+      "implementationNotes": "Public module properties were invisible across the project: the project-wide lookup table is keyed by name and Get, Let and Set share one, so properties had never been added. ModulePropertySymbol carries the three accessors under one name and the project builds them once, which also gives them a single identity. Each binder clones that exported view before adding its own declarations, so a private accessor cannot mutate the project table. A second public property name in another module is rejected before its accessors could be merged.",
       "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/CrossModuleVisibilityExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/CrossModuleVisibilityExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs"
       ],
       "notes": "Part of the managed-r1-grammar inventory; that card stays open for the remaining declaration and statement surface."
     },

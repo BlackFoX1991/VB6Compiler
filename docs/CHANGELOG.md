@@ -7486,3 +7486,26 @@ implizite `Enum`-Werte, `Type` mit `String * n`-Member, `ParamArray` mit und ohn
 
 Die Matrix steht bei **161 Erwartungen: 133 implemented, 0 partial, 28 planned**;
 **133 documented-verified, 28 not-yet-verified, 0 oracle-verified**.
+
+## 2026-09-05 — R1, Schnitt 7: Modul-Property-Sichtbarkeit isoliert
+
+Die projektweite Tabelle für `Public Property Get`/`Let`/`Set` hatte noch eine zweite, nicht von
+dem ersten Zweimodul-Test erfasste Kante: Jeder Binder erhielt dieselbe `ModulePropertySymbol`-
+Instanz. Deklarierte anschließend ein anderes Modul einen **privaten** gleichnamigen Accessor,
+ergänzte es damit diese gemeinsame Instanz. Ein später gebundenes drittes Modul konnte den privaten
+Accessor dann über den öffentlichen Namen aufrufen — Sichtbarkeit hing folglich von der Reihenfolge
+der Module ab.
+
+Jeder Binder erzeugt jetzt vor seinen lokalen Property-Deklarationen eine Kopie der exportierten
+Accessor-Sicht. Öffentliche Accessoren behalten dabei ihre projektweite Symbolidentität, private
+Accessoren überdecken nur im deklarierenden Modul. Der Regressionstest kombiniert daher bewusst
+ein `Public Property Let State` mit einem `Private Property Get State` in einem anderen Modul; der
+aufrufende dritte Modultext muss weiter `VB6S0001` erhalten.
+
+Zusätzlich sind doppelte öffentliche Modul-Property-Namen nun ein Projektfehler `VB6PRJ0003`, statt
+dass Get/Let/Set aus verschiedenen Modulen unbemerkt zu einer scheinbaren Property verschmolzen
+werden. Der bestehende Ein-Namen-pro-Projekt-Vertrag für öffentliche Prozeduren gilt damit auch für
+Properties.
+
+Die Matrixzahl bleibt bei **161 Erwartungen: 133 implemented, 0 partial, 28 planned**;
+der vorhandene Vertrag `r1-grammar-cross-module-visibility` enthält jetzt beide Regressionen.
