@@ -1087,4 +1087,117 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_ReleasesObjectsAfterAHandledError()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateHandledError", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "HandledError.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="HandledError"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Recover()
+                    Dim local As C
+                    Set local = New C
+                    On Error GoTo Failed
+                    Err.Raise 5
+                    Debug.Print "Nicht erreicht"
+                    Exit Sub
+                Failed:
+                    Debug.Print "Handler"
+                End Sub
+
+                Sub Main()
+                    Recover
+                    Debug.Print "Danach"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "Handler", "Terminate", "Danach" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_TerminatesAFieldReferenceCycleOnceAtProgramEnd()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateCycle", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Cycle.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Cycle"
+                Class=Node; Node.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Node.cls"), """
+                Option Explicit
+
+                Public Label As String
+                Public NextNode As Node
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate " & Label
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim first As Node
+                    Dim second As Node
+                    Set first = New Node
+                    first.Label = "first"
+                    Set second = New Node
+                    second.Label = "second"
+                    Set first.NextNode = second
+                    Set second.NextNode = first
+                    Set first = Nothing
+                    Set second = Nothing
+                    Debug.Print "Keine externen Referenzen"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "Keine externen Referenzen", "Terminate second", "Terminate first" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
