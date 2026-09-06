@@ -7788,3 +7788,43 @@ Etappe, die keine ihrer eigenen offenen Karten nennt, und den umgekehrten Fall e
 offenen Karten, die aus der Liste verschwunden ist — der vorhandene Nachweis über die ganze Datei
 genügt dafür nicht, weil eine ID im Historienteil für ihn genauso aussieht. Alle drei Zweige
 wurden durch einmaliges Brechen gegengeprüft.
+
+## 2026-09-06 — R2, Schnitt 21: exakte native Referenzzählung
+
+Bis hierher war jeder Lebensdauernachweis indirekt. Eine `InvalidComObjectException` auf einem
+freigegebenen RCW, ein Member, der noch antwortet, das Prozessende eines ActiveX-EXE-Servers —
+alle beantworten „hat jemand losgelassen", keiner „wie oft". Eine doppelt abgegebene Referenz
+und eine korrekt abgegebene sehen von außen gleich aus, solange das Objekt am Ende weg ist.
+
+Eine registrierte Komponente kann das nicht klären, weil ihr Zähler jemand anderem gehört. Der
+neue Prüfstand bringt den Zähler deshalb selbst mit: `CountingComIdentity` ist ein von Hand
+gebautes IUnknown — drei Vtable-Slots, deren AddRef und Release Zahlen führen, die die
+Assertions lesen können. Es beantwortet alles außer `IID_IUnknown` mit `E_NOINTERFACE`, weil die
+Identität alles ist, was die Runtime braucht, und jede weitere Schnittstelle ein ungemessener
+Vertrag wäre. Nebeneffekt: Diese Fälle können sich nicht mangels Registrierung überspringen.
+
+Gemessen wurde vor dem Bauen, und die Messung hat nichts gefunden, was zu bauen gewesen wäre.
+Über zehn Fälle — direkte Aktivierung, Alias, geliehener Wrapper, fremdes COM-Memberergebnis,
+Selbstzuweisung, Array- und Collection-Speicher, GC-Druck, mehrfaches Retain und ein Release ohne
+Retain — kehrt der native Zähler exakt auf seinen Ausgangswert zurück. Eine Adoption nimmt genau
+einen Hold zusätzlich zum RCW-Anteil, ein Alias oder ein zweiter Behälter nimmt keinen, der
+letzte Besitzer gibt beides zurück, drei erzwungene GC-Läufe bewegen nichts, und ein Release ohne
+passendes Retain wird ignoriert statt eine lebende Referenz abzuräumen.
+
+Zwei dieser Fälle hätten vorher nicht sichtbar scheitern können: Eine Überfreigabe hinterlässt an
+ihrer Ursache keine Spur, und ein zu früh finalisierter RCW meldet sich an einer ganz anderen
+Stelle. Festzuhalten bleibt eine Eigenschaft, die leicht als Zähler missverstanden wird:
+`OwnedRcwReferences` zählt Adoptionen, nicht native Referenzen. Bei zwei Adoptionen derselben
+Identität gibt schon der erste `Marshal.ReleaseComObject` alles frei, jeder weitere läuft in die
+abgefangene Ausnahme. Das Ergebnis ist gemessen korrekt, trägt seine Richtigkeit aber über den
+Schleifenabbruch statt über die Zählung. Nicht angefasst, weil nichts daran belegt falsch ist.
+
+Der Besitzvertrag steht jetzt als eigenes Dokument in `docs/R2-OBJECT-LIFETIME.md`, nach dem
+Muster von R3: Ausgangspunkt, Zielvertrag, die acht Besitzfamilien mit Erwerb und Freigabe, und
+nummerierte Abnahmeschritte mit Vermerk, welcher erledigt ist. Die R2-Prosa in der Roadmap ist
+entsprechend auf Ergebnis und Verweis gekürzt.
+
+Die Matrix bleibt bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**.
+`managed-r2-lifetime` bleibt offen: Ein Wrapper, den ein fremder Host gleichzeitig über einen
+eigenen Anteil hält, und eine Fremdclient-Probe, die die Zählung über die Prozessgrenze liest,
+sind weiterhin nicht gemessen.

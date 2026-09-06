@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `7211bc8`, Lauf `20260906T171228Z-a57cb4b4`:
+Messung vom 2026-09-06 auf `main` / `c587ce1` mit nicht committeten Änderungen, Lauf `20260906T183210Z-e3cb3858`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1760 Fälle: 1760 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1771 Fälle: 1771 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -193,11 +193,28 @@ implementiert.
 
 Nach R1.
 
-Die Runtime führt explizite Referenzverwaltung für generierte VB6-Objekte; das IR trägt Besitzübergänge an allen Wert-/Referenzgrenzen. Dazu gehören Locals, Modul-/Klassenfelder, Parameter, Rückgaben, Variant-/Array-/Collection-Speicher, Events und auch generierte Klassen aus referenzierten Projektassemblies. Neue Referenzen werden vor dem Freigeben ersetzter Referenzen gesichert, damit Selbstzuweisung und Aliasbildung kein lebendes Objekt terminieren. Aktivierte COM-RCWs aus `New`, `CreateObject` und `GetObject` sowie Interface-Ergebnisse fremder COM-Member folgen jetzt demselben Slot-Protokoll: ihr RCW-Anteil wird beim letzten VB6-Besitzer freigegeben; fremd geliehene RCWs erhalten nur einen kontrollierten IUnknown-Hold. Ein late-bound CLR-Memberergebnis bleibt dagegen ein Retain der geliehenen Referenz. Eine `WithEvents`-Subscription hält Quelle und Senke bis zum Unsubscribe, damit keine COM-Quelle vor dem Unadvise verschwindet.
+Ziel ist Terminate beim Wegfall der letzten Referenz in beiden Profilen — nicht irgendwann
+danach. `Class_Terminate` ist beobachtbares Verhalten, deshalb genügt ein Finalizer nicht, und
+der vorhandene Shutdown-Drain ist ein Rückfall, kein Nachweis eines Zeitpunkts. Keine neue
+VB6-Syntax ist vorgesehen.
 
-Heute registriert `VBObjectLifetime` Terminatoren für Finalizer/Prozessabbau. Das garantiert noch nicht den VB6-Zeitpunkt. Ziel ist Terminate bei der letzten Referenz in beiden Profilen, einschließlich kontrollierter Fehler- und Reentranzpfade. Zyklen und abruptes `End` müssen gesondert gegen den Sprachvertrag geprüft werden; ein pauschaler Shutdown-Drain ersetzt diese Regeln nicht. Keine neue VB6-Syntax ist vorgesehen.
+Der Besitzvertrag, seine acht Familien und die Reihenfolge der Abnahmeschritte stehen in
+[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md). Er hält insbesondere fest, dass eine direkte
+COM-Aktivierung ihren RCW-Anteil an den ersten VB6-Speicherplatz abgibt, während ein geliehener
+Wrapper nur einen kontrollierten IUnknown-Hold erhält — und dass diese beiden Fälle sich genau
+darin unterscheiden, ob die Freigabe durch VB6 einen fremden Besitzer treffen darf.
 
-Die vorhandenen Ausführungstests decken für erzeugte Klassen inzwischen Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-/Array-/Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies ab. Runtime-Tests gegen `Scripting.Dictionary` bestätigen zusätzlich, dass eine direkte Aktivierung über Alias-, Array- und Collection-Slots lebt und nach dem letzten Slot ungültig wird. `Scripting.FileSystemObject.Drives` liefert den ergänzenden Fremdmember-Fall; sein RCW wird erst beim letzten Zielslot ungültig. Ein getrennter ActiveX-EXE-Prozess ergänzt den beobachtbaren COM-Proxy-Nachweis: Nach dem Clear des ersten Runtime-Slots bleibt der verbleibende Alias aufrufbar, und erst nach dem letzten Slot beendet der Server sich selbst. Ein Emitter-Test trennt direkte Aktivierung, COM-Memberresultat und eine Funktionsrückgabe mit vorhandenem Speicherbesitz; der Runtime-Gegenfall eines late-bound CLR-Ergebnisses bleibt bis zum letzten Retain lebendig. Das schließt nicht den gesamten COM-Vertrag: externe Hosts mit eigenen Wrapper-Anteilen und die genaue native Referenzzählung bleiben offen. Daher bleibt R2 offen.
+Erledigt sind das Slot-Protokoll an allen Wertgrenzen, die beobachtbare Freigabe über eine
+Prozessgrenze mit einem registrierungsfreien ActiveX-EXE-Server und seit Schnitt 21 die exakte
+native Referenzzählung: Zehn Fälle lesen den Zähler einer testeigenen IUnknown-Identität und
+zeigen, dass jeder Übergang exakt auf seinen Ausgangswert zurückkehrt. Erzeugte Klassen sind
+darüber hinaus für Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-/Array-/
+Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante
+Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt.
+
+Offen bleiben zwei benannte Punkte: ein Wrapper, den ein fremder Host gleichzeitig über einen
+eigenen Anteil hält, und eine Fremdclient-Probe, die die Zählung auch von außen über eine
+Prozessgrenze liest statt nur in-proc. Daher bleibt R2 offen.
 
 | Karte | Ziel und Abnahme |
 | --- | --- |

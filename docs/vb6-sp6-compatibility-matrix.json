@@ -2658,6 +2658,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
         "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs",
+        "tests/VB6.Runtime.Tests/ComReferenceCountTests.cs",
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Tests/WithEventsExecutionTests.cs",
         "tests/VB6.Compiler.Cli.Tests/LocalServerActivationTests.cs"
