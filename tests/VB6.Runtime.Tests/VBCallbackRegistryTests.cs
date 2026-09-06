@@ -8,6 +8,36 @@ namespace VB6.Runtime.Tests;
 public sealed class VBCallbackRegistryTests
 {
     [TestMethod]
+    public void AddressOfCallback_RemainsCallableAfterForcedCollection()
+    {
+        var method = typeof(VBCallbackRegistryTests).GetMethod(
+            nameof(IncrementCallback),
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+
+        var pointer = VBCallbackRegistry.GetFunctionPointer(method.MethodHandle, null);
+        var callbackAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .Single(assembly => assembly.GetName().Name == "VB6.Runtime.NativeCallbacks");
+        var callbackType = callbackAssembly
+            .GetTypes()
+            .Single(type =>
+            {
+                var invoke = type.GetMethod("Invoke");
+                return invoke?.ReturnType == typeof(int) &&
+                    invoke.GetParameters().Select(parameter => parameter.ParameterType)
+                        .SequenceEqual(new[] { typeof(int) });
+            });
+
+        // A native API may retain an AddressOf pointer after the managed call that created it has
+        // returned. Collect twice to ensure this call depends on the registry, not a JIT-local
+        // delegate reference from GetFunctionPointer.
+        ForceFullCollection();
+        ForceFullCollection();
+
+        var callback = Marshal.GetDelegateForFunctionPointer(pointer, callbackType);
+        Assert.AreEqual(42, callback.DynamicInvoke(41));
+    }
+
+    [TestMethod]
     public void AddressOfAdapter_UsesDateSafeArrayAndWritesBackReplacement()
     {
         var method = typeof(VBCallbackRegistryTests).GetMethod(
@@ -107,5 +137,13 @@ public sealed class VBCallbackRegistryTests
         values[4] = new DateTime(2020, 2, 4);
         values[5] = new DateTime(2020, 2, 5);
         return 1;
+    }
+
+    private static int IncrementCallback(int value) => value + 1;
+
+    private static void ForceFullCollection()
+    {
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+        GC.WaitForPendingFinalizers();
     }
 }
