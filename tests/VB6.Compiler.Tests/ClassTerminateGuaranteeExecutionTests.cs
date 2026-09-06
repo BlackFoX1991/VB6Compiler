@@ -1145,6 +1145,63 @@ public sealed class ClassTerminateGuaranteeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_DoesNotTerminateTwiceWhenATerminatorClearsItsLastGlobalAlias()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateReentrant", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "Reentrant.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="Reentrant"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate begins"
+                    Set Held = Nothing
+                    Debug.Print "Terminate ends"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Public Held As C
+
+                Sub Main()
+                    Dim local As C
+                    Set local = New C
+                    Set Held = local
+                    Set local = Nothing
+                    Debug.Print "Local release"
+                    Set Held = Nothing
+                    Debug.Print "After release"
+                End Sub
+                """);
+
+            // The global clear calls Terminate synchronously. The nested Set in Class_Terminate
+            // observes the same object, so it must neither start a second terminator nor prevent
+            // the original call from completing.
+            CollectionAssert.AreEqual(
+                new[] { "Local release", "Terminate begins", "Terminate ends", "After release" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_TerminatesAFieldReferenceCycleOnceAtProgramEnd()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateCycle", Guid.NewGuid().ToString("N"));
