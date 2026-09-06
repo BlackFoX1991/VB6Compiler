@@ -181,6 +181,11 @@ Nach R2.
 
 Adressierter Speicher erhält einen von der Runtime besessenen, GC-stabilen Speichervertrag. ByRef-Aliase, native Layouts und Laufzeitverwaltung werden gemeinsam entworfen; lediglich für einen einzelnen Declare-Aufruf erzeugte Kopien erfüllen den Vertrag gespeicherter Zeiger nicht. Nicht adressierte Werte behalten ihren bisherigen schnellen Speicherpfad.
 
+Der verbindliche Zellentwurf, seine Layoutfamilien und die Reihenfolge von Slot-Instrumentierung
+bis Fremdclient-Probes stehen in [R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md). Er hält
+insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` umgewandelter
+Managed-Innenzeiger keine zulässige Abkürzung wäre.
+
 `VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
 
 Die Runtime verankert einen erzeugten `AddressOf`-Callback-Delegate derzeit prozessweit, damit ein
