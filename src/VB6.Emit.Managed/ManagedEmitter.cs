@@ -1820,7 +1820,9 @@ public sealed class ManagedEmitter
 
         private static MethodInfo AddressableStorageMethod(TypeSymbol type, string operation)
         {
-            var (suffix, scalarType) = type == TypeSymbol.Byte
+            var (suffix, scalarType) = type == TypeSymbol.Boolean
+                ? ("Boolean", typeof(bool))
+                : type == TypeSymbol.Byte
                 ? ("Byte", typeof(byte))
                 : type == TypeSymbol.Long
                 ? ("Int32", typeof(int))

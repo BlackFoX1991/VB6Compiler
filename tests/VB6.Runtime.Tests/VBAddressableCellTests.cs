@@ -84,6 +84,23 @@ public sealed class VBAddressableCellTests
         Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadByte(storage));
     }
 
+    [TestMethod]
+    public void BooleanFacade_UsesTheVb6TwoByteMinusOneTrueRepresentation()
+    {
+        var storage = VBAddressableStorage.CreateBoolean(true);
+        var address = VBAddressableStorage.GetBooleanNativeAddress(storage);
+
+        Assert.AreEqual((short)-1, Marshal.ReadInt16(address));
+        Marshal.WriteInt16(address, 1);
+        ForceFullCollection();
+        Assert.IsTrue(VBAddressableStorage.ReadBoolean(storage));
+
+        VBAddressableStorage.WriteBoolean(storage, false);
+        Assert.AreEqual((short)0, Marshal.ReadInt16(address));
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadBoolean(storage));
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);

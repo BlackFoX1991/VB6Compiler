@@ -69,11 +69,15 @@ public sealed class VBAddressableCell<T> : IDisposable
 /// </summary>
 public static class VBAddressableStorage
 {
+    public static object CreateBoolean(bool value) => VBAddressableCell<short>.Create(value ? (short)-1 : (short)0);
+
     public static object CreateByte(byte value) => VBAddressableCell<byte>.Create(value);
 
     public static object CreateInt32(int value) => VBAddressableCell<int>.Create(value);
 
     public static object CreateInt16(short value) => VBAddressableCell<short>.Create(value);
+
+    public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
 
@@ -81,11 +85,15 @@ public static class VBAddressableStorage
 
     public static IntPtr GetInt16NativeAddress(object storage) => GetInt16(storage).GetNativeAddress();
 
+    public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
+
     public static byte ReadByte(object storage) => GetByte(storage).Read();
 
     public static int ReadInt32(object storage) => GetInt32(storage).Read();
 
     public static short ReadInt16(object storage) => GetInt16(storage).Read();
+
+    public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
 
@@ -102,6 +110,9 @@ public static class VBAddressableStorage
 
         disposable.Dispose();
     }
+
+    private static VBAddressableCell<short> GetBoolean(object storage) => storage as VBAddressableCell<short>
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Boolean.", nameof(storage));
 
     private static VBAddressableCell<byte> GetByte(object storage) => storage as VBAddressableCell<byte>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Byte.", nameof(storage));

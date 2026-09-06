@@ -96,6 +96,7 @@ public sealed class PointerIntrinsicTests
                     Dim source As Long
                     Dim destination As Long
                     Dim pointer As Long
+                    Dim raw As Integer
 
                     source = 16909060
                     pointer = VarPtr(source)
@@ -141,6 +142,21 @@ public sealed class PointerIntrinsicTests
                     byteDestination = 42
                     CopyMemory ByVal bytePointer, byteDestination, 1
                     Debug.Print byteSource
+
+                    Dim booleanSource As Boolean
+                    Dim booleanPointer As Long
+                    booleanSource = True
+                    booleanPointer = VarPtr(booleanSource)
+                    CopyMemory raw, ByVal booleanPointer, 2
+                    Debug.Print raw
+
+                    booleanSource = False
+                    CopyMemory raw, ByVal booleanPointer, 2
+                    Debug.Print raw
+
+                    raw = 1
+                    CopyMemory ByVal booleanPointer, raw, 2
+                    Debug.Print booleanSource
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -164,7 +180,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }
