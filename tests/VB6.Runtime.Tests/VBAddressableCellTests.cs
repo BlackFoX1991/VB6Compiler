@@ -121,6 +121,23 @@ public sealed class VBAddressableCellTests
     }
 
     [TestMethod]
+    public void StringFacade_OwnsAGcStableBstrUntilReplacementOrRelease()
+    {
+        var storage = VBAddressableStorage.CreateString("abc");
+        var address = VBAddressableStorage.GetStringNativeAddress(storage);
+
+        Marshal.WriteInt16(address, 'Z');
+        ForceFullCollection();
+        Assert.AreEqual("Zbc", VBAddressableStorage.ReadString(storage));
+
+        VBAddressableStorage.WriteString(storage, "xy");
+        Assert.AreEqual("xy", VBAddressableStorage.ReadString(storage));
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadString(storage));
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.WriteString(storage, "z"));
+    }
+
+    [TestMethod]
     public void BooleanFacade_UsesTheVb6TwoByteMinusOneTrueRepresentation()
     {
         var storage = VBAddressableStorage.CreateBoolean(true);

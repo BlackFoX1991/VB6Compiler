@@ -4311,15 +4311,17 @@ public static class IrLowerer
         {
             if (StripConversions(expression) is BoundInvocationExpression
                 {
-                    Procedure.IntrinsicKind: VBIntrinsicKind.VarPtr,
+                    Procedure.IntrinsicKind: var intrinsic,
                     Arguments.Length: 1
                 } invocation &&
+                (intrinsic == VBIntrinsicKind.VarPtr || intrinsic == VBIntrinsicKind.StrPtr) &&
                 StripConversions(invocation.Arguments[0].Expression) is BoundVariableExpression
                 {
                     Variable: LocalVariableSymbol localSymbol
                 } &&
                 _locals.TryGetValue(localSymbol, out var local) &&
-                IsAddressableScalar(local.Type))
+                ((intrinsic == VBIntrinsicKind.VarPtr && IsAddressableScalar(local.Type)) ||
+                 (intrinsic == VBIntrinsicKind.StrPtr && local.Type == TypeSymbol.String)))
             {
                 if (!_addressableCells.TryGetValue(local, out var cell))
                 {

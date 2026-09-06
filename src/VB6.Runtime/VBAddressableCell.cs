@@ -69,6 +69,57 @@ public sealed class VBAddressableCell<T> : IDisposable
 /// </summary>
 public static class VBAddressableStorage
 {
+    private sealed class BStrCell : IDisposable
+    {
+        private IntPtr _storage;
+        private bool _disposed;
+
+        public BStrCell(string? value) => _storage = Marshal.StringToBSTR(value ?? string.Empty);
+
+        public IntPtr GetNativeAddress()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _storage;
+        }
+
+        public string Read()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return Marshal.PtrToStringBSTR(_storage);
+        }
+
+        public void Write(string? value)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_storage != IntPtr.Zero)
+            {
+                Marshal.FreeBSTR(_storage);
+            }
+
+            _storage = Marshal.StringToBSTR(value ?? string.Empty);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_storage != IntPtr.Zero)
+            {
+                Marshal.FreeBSTR(_storage);
+            }
+            _storage = IntPtr.Zero;
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
+
+        ~BStrCell() => Dispose();
+    }
+
+    public static object CreateString(string value) => new BStrCell(value);
+
     public static object CreateBoolean(bool value) => VBAddressableCell<short>.Create(value ? (short)-1 : (short)0);
 
     public static object CreateByte(byte value) => VBAddressableCell<byte>.Create(value);
@@ -97,6 +148,8 @@ public static class VBAddressableStorage
 
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
+    public static IntPtr GetStringNativeAddress(object storage) => GetString(storage).GetNativeAddress();
+
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
 
     public static IntPtr GetInt32NativeAddress(object storage) => GetInt32(storage).GetNativeAddress();
@@ -123,6 +176,8 @@ public static class VBAddressableStorage
 
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
+    public static string ReadString(object storage) => GetString(storage).Read();
+
     public static byte ReadByte(object storage) => GetByte(storage).Read();
 
     public static int ReadInt32(object storage) => GetInt32(storage).Read();
@@ -148,6 +203,8 @@ public static class VBAddressableStorage
     public static IntPtr ReadIntPtr32(object storage) => new(GetIntPtr32(storage).Read());
 
     public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
+
+    public static void WriteString(object storage, string value) => GetString(storage).Write(value);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
 
@@ -185,6 +242,9 @@ public static class VBAddressableStorage
 
     private static VBAddressableCell<short> GetBoolean(object storage) => storage as VBAddressableCell<short>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Boolean.", nameof(storage));
+
+    private static BStrCell GetString(object storage) => storage as BStrCell
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 String BSTR.", nameof(storage));
 
     private static VBAddressableCell<byte> GetByte(object storage) => storage as VBAddressableCell<byte>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Byte.", nameof(storage));

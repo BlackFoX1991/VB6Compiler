@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `7c8a51e`, Lauf `20260906T134850Z-3b0342fb`:
+Messung vom 2026-09-06 auf `main` / `4ba8e29` mit nicht committeten Änderungen, Lauf `20260906T141427Z-70f43cea`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1749 Fälle: 1749 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1751 Fälle: 1751 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -198,6 +198,12 @@ ihre vier beziehungsweise acht Byte breiten IEEE-754-Layouts, `Date` das acht By
 OLE-Automation-Layout und `Currency` den mit 10.000 skalierten `Int64`-Wert. AnyCPU/x64 sowie
 alle anderen Speicherfamilien behalten ihre explizite Fehler-5-Grenze, bis ihr Layout und ihre
 Invalidierung abgenommen sind.
+
+Als getrennten lokalen String-Slice unterstützt der x86-Managed-Pfad außerdem
+`StrPtr(localString)`: eine Runtime-eigene BSTR bleibt bis zur Neuzuweisung oder
+Prozedurrückkehr gültig, native UTF-16-Schreibzugriffe werden beim nächsten String-Load sichtbar,
+und eine Neuzuweisung invalidiert die alte Adresse. Felder, Parameter, Arrays, Variant und
+`VarPtr(String)` bleiben außerhalb dieses Slice.
 
 `VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
 

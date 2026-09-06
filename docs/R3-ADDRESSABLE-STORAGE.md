@@ -29,6 +29,13 @@ werden bei der Prozedurrückkehr freigegeben. Sie überstehen damit eine GC, sol
 Speicherplatz lebt. AnyCPU und x64 behalten für denselben Ausdruck Fehler 5; dort wird kein
 `IntPtr` in einen `Long` abgeschnitten.
 
+Zusätzlich erhält `StrPtr(localString)` im x86-Managed-Pfad eine von der Runtime besessene BSTR-
+Zelle. Ihr Wert und ihre UTF-16-Zeichen sind über GC stabil und native Zeichenänderungen werden
+beim nächsten String-Load sichtbar. Eine Zuweisung eines neuen String-Werts ersetzt die BSTR und
+invalidiert die frühere Adresse kontrolliert; nach der Prozedurrückkehr wird die aktuelle BSTR
+freigegeben. Dieser Local-Slice umfasst weder BSTR-Felder/Parameter/Arrays noch einen
+gespeicherten `VarPtr` eines String-Descriptors.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -90,6 +97,7 @@ Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er
 separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
 allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert sind
 nur lokale `Long`-, `LongLong`-, `LongPtr`-, `Integer`-, `UShort`-, `UInteger`-, `ULong`-,
-`Byte`-, `Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots im x86-Managed-Pfad.
+`Byte`-, `Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots sowie
+`StrPtr(localString)` im x86-Managed-Pfad.
 Außerhalb dieser Fälle und außerhalb des unmittelbaren `Declare`-Pfads gilt weiterhin die
 bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.

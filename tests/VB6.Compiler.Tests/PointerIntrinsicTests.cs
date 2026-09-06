@@ -92,6 +92,10 @@ public sealed class PointerIntrinsicTests
             var result = VBCompilation.Create("""
                 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
 
+                Sub ReplaceString(ByRef value As String)
+                    value = "xy"
+                End Sub
+
                 Sub Main()
                     Dim source As Long
                     Dim destination As Long
@@ -299,6 +303,24 @@ public sealed class PointerIntrinsicTests
                     uLongDestination = CULng("10000000000000000000")
                     CopyMemory ByVal uLongPointer, uLongDestination, 8
                     Debug.Print uLongSource
+
+                    Dim stringSource As String
+                    Dim stringPointer As Long
+                    Dim character As Integer
+                    stringSource = "abc"
+                    stringPointer = StrPtr(stringSource)
+                    CopyMemory character, ByVal stringPointer, 2
+                    Debug.Print character
+
+                    character = 90
+                    CopyMemory ByVal stringPointer, character, 2
+                    Debug.Print stringSource
+
+                    ReplaceString stringSource
+                    Debug.Print stringSource
+                    stringPointer = StrPtr(stringSource)
+                    CopyMemory character, ByVal stringPointer, 2
+                    Debug.Print character
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -322,7 +344,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096", "16909060", "123", "84281096", "50000", "123", "40000", "4000000000", "123", "3000000000", "18446744073709551614", "123", "10000000000000000000" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096", "16909060", "123", "84281096", "50000", "123", "40000", "4000000000", "123", "3000000000", "18446744073709551614", "123", "10000000000000000000", "97", "Zbc", "xy", "120" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }

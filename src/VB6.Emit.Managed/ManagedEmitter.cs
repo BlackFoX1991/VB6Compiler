@@ -1035,7 +1035,11 @@ public sealed class ManagedEmitter
 
             foreach (var pair in procedure.AddressableCells)
             {
-                if (pair.Key.Type == TypeSymbol.Single)
+                if (pair.Key.Type == TypeSymbol.String)
+                {
+                    encoder.LoadString(_metadata.GetOrAddUserString(string.Empty));
+                }
+                else if (pair.Key.Type == TypeSymbol.Single)
                 {
                     encoder.LoadConstantR4(0f);
                 }
@@ -1850,6 +1854,8 @@ public sealed class ManagedEmitter
         {
             var (suffix, scalarType) = type == TypeSymbol.Boolean
                 ? ("Boolean", typeof(bool))
+                : type == TypeSymbol.String
+                ? ("String", typeof(string))
                 : type == TypeSymbol.Byte
                 ? ("Byte", typeof(byte))
                 : type == TypeSymbol.Long
@@ -2168,6 +2174,17 @@ public sealed class ManagedEmitter
 
             foreach (var argument in call.Arguments)
             {
+                if (argument.Kind == IrCallArgumentKind.Address &&
+                    argument.Expression is IrAddressExpression { Place: IrLocalPlace local } &&
+                    TryGetAddressableCell(procedure, local.Local, out var cell))
+                {
+                    // A CLR ByRef call writes to the ordinary local. Keep the separately-owned
+                    // native cell authoritative again before the stored pointer can be observed.
+                    encoder.LoadLocal(cell.Id);
+                    encoder.LoadLocal(local.Local.Id);
+                    encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(local.Type, "Write")));
+                }
+
                 if (argument.Kind == IrCallArgumentKind.Address && argument.WriteBackPlace is not null)
                 {
                     if (argument.Expression is not IrAddressExpression

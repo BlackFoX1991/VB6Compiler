@@ -360,6 +360,28 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredStrPtrForLocalStringCreatesAnAddressableCell()
+    {
+        var program = Lower("""
+            Sub Main()
+                Dim value As String
+                Dim pointer As Long
+                value = "abc"
+                pointer = StrPtr(value)
+            End Sub
+            """);
+        var main = program.EntryPoint!;
+
+        Assert.IsNotNull(main.AddressableCells);
+        Assert.AreEqual(TypeSymbol.String, main.AddressableCells.Single().Key.Type);
+        Assert.IsInstanceOfType<IrAddressablePointerExpression>(main.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .Single(value => value is IrAddressablePointerExpression));
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""
