@@ -206,6 +206,28 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredVarPtrForLocalDateCreatesAnAddressableCell()
+    {
+        var program = Lower("""
+            Sub Main()
+                Dim value As Date
+                Dim pointer As Long
+                value = CDate(1.5)
+                pointer = VarPtr(value)
+            End Sub
+            """);
+        var main = program.EntryPoint!;
+
+        Assert.IsNotNull(main.AddressableCells);
+        Assert.AreEqual(TypeSymbol.Date, main.AddressableCells.Single().Key.Type);
+        Assert.IsInstanceOfType<IrAddressablePointerExpression>(main.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .Single(value => value is IrAddressablePointerExpression));
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""

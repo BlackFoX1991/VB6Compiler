@@ -188,6 +188,21 @@ public sealed class PointerIntrinsicTests
                     doubleDestination = 3
                     CopyMemory ByVal doublePointer, doubleDestination, 8
                     Debug.Print doubleSource
+
+                    Dim dateSource As Date
+                    Dim datePointer As Long
+                    dateSource = CDate(1.5)
+                    datePointer = VarPtr(dateSource)
+                    CopyMemory doubleDestination, ByVal datePointer, 8
+                    Debug.Print doubleDestination
+
+                    dateSource = CDate(2.5)
+                    CopyMemory doubleDestination, ByVal datePointer, 8
+                    Debug.Print doubleDestination
+
+                    doubleDestination = 3
+                    CopyMemory ByVal datePointer, doubleDestination, 8
+                    Debug.Print CDbl(dateSource)
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -211,7 +226,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }

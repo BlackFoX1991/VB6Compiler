@@ -91,6 +91,10 @@ public sealed class ManagedEmitterTests
                 value = value + 1
             End Sub
 
+            Sub BumpDate(ByRef value As Date)
+                value = CDate(CDbl(value) + 1)
+            End Sub
+
             Sub Main()
                 Dim value As Long
                 Dim pointer As Long
@@ -99,6 +103,7 @@ public sealed class ManagedEmitterTests
                 Dim booleanValue As Boolean
                 Dim singleValue As Single
                 Dim doubleValue As Double
+                Dim dateValue As Date
                 value = 7
                 pointer = VarPtr(value)
                 Bump value
@@ -117,6 +122,9 @@ public sealed class ManagedEmitterTests
                 doubleValue = 1.5
                 pointer = VarPtr(doubleValue)
                 BumpDouble doubleValue
+                dateValue = CDate(1.5)
+                pointer = VarPtr(dateValue)
+                BumpDate dateValue
                 Debug.Print value
             End Sub
             """);
@@ -162,6 +170,10 @@ public sealed class ManagedEmitterTests
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetDoubleNativeAddress)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadDouble)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteDouble)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateDate)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetDateNativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadDate)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteDate)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.Dispose))
             },
             x86Methods);

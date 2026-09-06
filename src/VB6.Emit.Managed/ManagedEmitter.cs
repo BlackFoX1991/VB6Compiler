@@ -1039,7 +1039,7 @@ public sealed class ManagedEmitter
                 {
                     encoder.LoadConstantR4(0f);
                 }
-                else if (pair.Key.Type == TypeSymbol.Double)
+                else if (pair.Key.Type == TypeSymbol.Double || pair.Key.Type == TypeSymbol.Date)
                 {
                     encoder.LoadConstantR8(0d);
                 }
@@ -1842,7 +1842,9 @@ public sealed class ManagedEmitter
                 : type == TypeSymbol.Single
                 ? ("Single", typeof(float))
                 : type == TypeSymbol.Double
-                    ? ("Double", typeof(double))
+                ? ("Double", typeof(double))
+                : type == TypeSymbol.Date
+                    ? ("Date", typeof(double))
                     : throw new NotSupportedException(
                         $"Addressable storage for VB6 type '{type.Name}' is not implemented.");
             return operation switch

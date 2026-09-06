@@ -81,6 +81,8 @@ public static class VBAddressableStorage
 
     public static object CreateDouble(double value) => VBAddressableCell<double>.Create(value);
 
+    public static object CreateDate(double value) => VBAddressableCell<double>.Create(value);
+
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
@@ -92,6 +94,8 @@ public static class VBAddressableStorage
     public static IntPtr GetSingleNativeAddress(object storage) => GetSingle(storage).GetNativeAddress();
 
     public static IntPtr GetDoubleNativeAddress(object storage) => GetDouble(storage).GetNativeAddress();
+
+    public static IntPtr GetDateNativeAddress(object storage) => GetDate(storage).GetNativeAddress();
 
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
@@ -105,6 +109,8 @@ public static class VBAddressableStorage
 
     public static double ReadDouble(object storage) => GetDouble(storage).Read();
 
+    public static double ReadDate(object storage) => GetDate(storage).Read();
+
     public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
@@ -116,6 +122,8 @@ public static class VBAddressableStorage
     public static void WriteSingle(object storage, float value) => GetSingle(storage).Write(value);
 
     public static void WriteDouble(object storage, double value) => GetDouble(storage).Write(value);
+
+    public static void WriteDate(object storage, double value) => GetDate(storage).Write(value);
 
     public static void Dispose(object storage)
     {
@@ -144,4 +152,7 @@ public static class VBAddressableStorage
 
     private static VBAddressableCell<double> GetDouble(object storage) => storage as VBAddressableCell<double>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Double.", nameof(storage));
+
+    private static VBAddressableCell<double> GetDate(object storage) => storage as VBAddressableCell<double>
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Date.", nameof(storage));
 }

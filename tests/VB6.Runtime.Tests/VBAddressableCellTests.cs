@@ -135,6 +135,23 @@ public sealed class VBAddressableCellTests
         Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadDouble(storage));
     }
 
+    [TestMethod]
+    public void DateFacade_PreservesTheEightByteAutomationDateNativeCellContract()
+    {
+        var storage = VBAddressableStorage.CreateDate(1.5d);
+        var address = VBAddressableStorage.GetDateNativeAddress(storage);
+
+        Assert.AreEqual(BitConverter.DoubleToInt64Bits(1.5d), Marshal.ReadInt64(address));
+        Marshal.WriteInt64(address, BitConverter.DoubleToInt64Bits(2.5d));
+        ForceFullCollection();
+        Assert.AreEqual(2.5d, VBAddressableStorage.ReadDate(storage));
+
+        VBAddressableStorage.WriteDate(storage, 3d);
+        Assert.AreEqual(BitConverter.DoubleToInt64Bits(3d), Marshal.ReadInt64(address));
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadDate(storage));
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
