@@ -157,6 +157,21 @@ public sealed class PointerIntrinsicTests
                     raw = 1
                     CopyMemory ByVal booleanPointer, raw, 2
                     Debug.Print booleanSource
+
+                    Dim singleSource As Single
+                    Dim singlePointer As Long
+                    singleSource = 1.5
+                    singlePointer = VarPtr(singleSource)
+                    CopyMemory destination, ByVal singlePointer, 4
+                    Debug.Print destination
+
+                    singleSource = 2.5
+                    CopyMemory destination, ByVal singlePointer, 4
+                    Debug.Print destination
+
+                    destination = 1077936128
+                    CopyMemory ByVal singlePointer, destination, 4
+                    Debug.Print singleSource
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -180,7 +195,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }

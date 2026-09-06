@@ -77,6 +77,8 @@ public static class VBAddressableStorage
 
     public static object CreateInt16(short value) => VBAddressableCell<short>.Create(value);
 
+    public static object CreateSingle(float value) => VBAddressableCell<float>.Create(value);
+
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
@@ -84,6 +86,8 @@ public static class VBAddressableStorage
     public static IntPtr GetInt32NativeAddress(object storage) => GetInt32(storage).GetNativeAddress();
 
     public static IntPtr GetInt16NativeAddress(object storage) => GetInt16(storage).GetNativeAddress();
+
+    public static IntPtr GetSingleNativeAddress(object storage) => GetSingle(storage).GetNativeAddress();
 
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
@@ -93,6 +97,8 @@ public static class VBAddressableStorage
 
     public static short ReadInt16(object storage) => GetInt16(storage).Read();
 
+    public static float ReadSingle(object storage) => GetSingle(storage).Read();
+
     public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
@@ -100,6 +106,8 @@ public static class VBAddressableStorage
     public static void WriteInt32(object storage, int value) => GetInt32(storage).Write(value);
 
     public static void WriteInt16(object storage, short value) => GetInt16(storage).Write(value);
+
+    public static void WriteSingle(object storage, float value) => GetSingle(storage).Write(value);
 
     public static void Dispose(object storage)
     {
@@ -122,4 +130,7 @@ public static class VBAddressableStorage
 
     private static VBAddressableCell<short> GetInt16(object storage) => storage as VBAddressableCell<short>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Integer.", nameof(storage));
+
+    private static VBAddressableCell<float> GetSingle(object storage) => storage as VBAddressableCell<float>
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Single.", nameof(storage));
 }

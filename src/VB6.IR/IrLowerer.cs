@@ -4300,9 +4300,9 @@ public static class IrLowerer
 
         /// <summary>
         /// The first retained-pointer slice deliberately covers only local VB6 Byte, Integer,
-        /// Long and Boolean slots. Boolean is represented by a separate two-byte -1/0 cell;
-        /// strings, Variants, UDTs and aggregate storage need their own ABI layouts before they
-        /// can make the same promise.
+        /// Long, Boolean and Single slots. Boolean is represented by a separate two-byte -1/0
+        /// cell and Single by a four-byte IEEE-754 cell; strings, Variants, UDTs and aggregate
+        /// storage need their own ABI layouts before they can make the same promise.
         /// </summary>
         private bool TryLowerStoredVarPtr(BoundExpression expression, out IrExpression pointer)
         {
@@ -4336,7 +4336,8 @@ public static class IrLowerer
             type == TypeSymbol.Boolean ||
             type == TypeSymbol.Byte ||
             type == TypeSymbol.Integer ||
-            type == TypeSymbol.Long;
+            type == TypeSymbol.Long ||
+            type == TypeSymbol.Single;
 
         private IrCallArgument LowerAnyPointerArgument(BoundExpression expression)
         {

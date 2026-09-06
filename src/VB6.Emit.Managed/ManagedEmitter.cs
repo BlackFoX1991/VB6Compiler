@@ -1035,7 +1035,14 @@ public sealed class ManagedEmitter
 
             foreach (var pair in procedure.AddressableCells)
             {
-                encoder.LoadConstantI4(0);
+                if (pair.Key.Type == TypeSymbol.Single)
+                {
+                    encoder.LoadConstantR4(0f);
+                }
+                else
+                {
+                    encoder.LoadConstantI4(0);
+                }
                 encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pair.Key.Type, "Create")));
                 encoder.StoreLocal(pair.Value.Id);
             }
@@ -1827,7 +1834,9 @@ public sealed class ManagedEmitter
                 : type == TypeSymbol.Long
                 ? ("Int32", typeof(int))
                 : type == TypeSymbol.Integer
-                    ? ("Int16", typeof(short))
+                ? ("Int16", typeof(short))
+                : type == TypeSymbol.Single
+                    ? ("Single", typeof(float))
                     : throw new NotSupportedException(
                         $"Addressable storage for VB6 type '{type.Name}' is not implemented.");
             return operation switch

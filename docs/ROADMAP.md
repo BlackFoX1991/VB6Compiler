@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `e9dc7c3`, Lauf `20260906T091216Z-f0f654b8`:
+Messung vom 2026-09-06 auf `main` / `6180b2f` mit nicht committeten Änderungen, Lauf `20260906T092306Z-b194307f`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1731 Fälle: 1731 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1733 Fälle: 1733 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -187,12 +187,12 @@ insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` um
 Managed-Innenzeiger keine zulässige Abkürzung wäre.
 
 Der erste implementierte Ausschnitt ist bewusst enger: x86-Managed-Code kann `VarPtr` eines
-lokalen `Long`, `Integer`, `Byte` oder `Boolean` speichern. Von der Runtime besessene native
-Vier-, Zwei- und Ein-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores und
-CLR-ByRef-Write-backs synchronisiert und bei der Prozedurrückkehr freigegeben; `Boolean` nutzt
-dabei die klassische zwei Byte breite `-1`/`0`-Darstellung. AnyCPU/x64 sowie alle anderen
-Speicherfamilien behalten ihre explizite Fehler-5-Grenze, bis ihr Layout und ihre Invalidierung
-abgenommen sind.
+lokalen `Long`, `Integer`, `Byte`, `Boolean` oder `Single` speichern. Von der Runtime besessene
+native Vier-, Zwei- und Ein-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores
+und CLR-ByRef-Write-backs synchronisiert und bei der Prozedurrückkehr freigegeben; `Boolean` nutzt
+dabei die klassische zwei Byte breite `-1`/`0`-Darstellung und `Single` sein vier Byte breites
+IEEE-754-Layout. AnyCPU/x64 sowie alle anderen Speicherfamilien behalten ihre explizite Fehler-5-
+Grenze, bis ihr Layout und ihre Invalidierung abgenommen sind.
 
 `VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
 
