@@ -34,44 +34,7 @@ public sealed class LocalServerActivationTests
 
         try
         {
-            var projectPath = Path.Combine(directory, applicationName + ".vbp");
-            File.WriteAllText(
-                projectPath,
-                "Type=ActiveX EXE" + Environment.NewLine +
-                "Name=\"" + applicationName + "\"" + Environment.NewLine +
-                "Class=Addierer; Addierer.cls" + Environment.NewLine);
-            File.WriteAllText(Path.Combine(directory, "Addierer.cls"), """
-                VERSION 1.0 CLASS
-                BEGIN
-                  MultiUse = -1  'True
-                END
-                Attribute VB_Name = "Addierer"
-                Attribute VB_Creatable = True
-                Attribute VB_PredeclaredId = False
-                Attribute VB_Exposed = True
-                Option Explicit
-
-                Public Function Summe(ByVal Links As Long, ByVal Rechts As Long) As Long
-                    Summe = Links + Rechts
-                End Function
-                """);
-
-            var exePath = Path.Combine(directory, "bin", applicationName + ".exe");
-            var result = DirectManagedCompilation.EmitManaged(
-                VBProjectCompilation.Create(projectPath),
-                exePath,
-                new ManagedEmitOptions(exePath) { EnableComHosting = true });
-            Assert.IsTrue(
-                result.Success,
-                string.Join(
-                    Environment.NewLine,
-                    result.Lowering.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
-                        .Concat(result.Lowering.Analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))
-                        .Concat(result.BackendResult?.Diagnostics.Select(diagnostic =>
-                            diagnostic.Code + ": " + diagnostic.Message) ?? Array.Empty<string>())));
-            Assert.IsTrue(File.Exists(exePath), exePath);
-
-            var classId = ReadClassId(Path.Combine(directory, "bin", applicationName + ".dll"), "Addierer");
+            var (exePath, classId) = BuildAdditionServer(directory, applicationName);
             server = StartLocalServer(exePath, directory);
 
             // Der Runtime-Pfad muss einen fremden Local-Server-RCW so lange behalten, wie noch
@@ -135,6 +98,54 @@ public sealed class LocalServerActivationTests
 
             TryDeleteDirectory(directory);
         }
+    }
+
+/// <summary>
+    /// Emits the shared one-class ActiveX EXE and returns its path and the class id.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static (string ExePath, Guid ClassId) BuildAdditionServer(string directory, string applicationName)
+    {
+            var projectPath = Path.Combine(directory, applicationName + ".vbp");
+            File.WriteAllText(
+                projectPath,
+                "Type=ActiveX EXE" + Environment.NewLine +
+                "Name=\"" + applicationName + "\"" + Environment.NewLine +
+                "Class=Addierer; Addierer.cls" + Environment.NewLine);
+            File.WriteAllText(Path.Combine(directory, "Addierer.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1  'True
+                END
+                Attribute VB_Name = "Addierer"
+                Attribute VB_Creatable = True
+                Attribute VB_PredeclaredId = False
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Public Function Summe(ByVal Links As Long, ByVal Rechts As Long) As Long
+                    Summe = Links + Rechts
+                End Function
+                """);
+
+            var exePath = Path.Combine(directory, "bin", applicationName + ".exe");
+            var result = DirectManagedCompilation.EmitManaged(
+                VBProjectCompilation.Create(projectPath),
+                exePath,
+                new ManagedEmitOptions(exePath) { EnableComHosting = true });
+            Assert.IsTrue(
+                result.Success,
+                string.Join(
+                    Environment.NewLine,
+                    result.Lowering.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(result.Lowering.Analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))
+                        .Concat(result.BackendResult?.Diagnostics.Select(diagnostic =>
+                            diagnostic.Code + ": " + diagnostic.Message) ?? Array.Empty<string>())));
+            Assert.IsTrue(File.Exists(exePath), exePath);
+
+            var classId = ReadClassId(Path.Combine(directory, "bin", applicationName + ".dll"), "Addierer");
+
+        return (exePath, classId);
     }
 
     private static Process StartLocalServer(string exePath, string workingDirectory)
@@ -286,6 +297,182 @@ public sealed class LocalServerActivationTests
             GC.Collect();
             GC.WaitForPendingFinalizers();
             Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// The cross-process counterpart to the in-process reference-count cases: a foreign client
+    /// holds its own reference while the runtime releases every slot it has.
+    ///
+    /// In one process a second holder and the runtime share a wrapper, so "the other holder
+    /// survived" is partly a statement about the CLR. Here the two references are genuinely
+    /// independent, and the server's own lifetime answers the question: if the runtime's release
+    /// reached past its own ownership, the server would exit while somebody is still using it.
+    /// </summary>
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void ActiveXExe_OutlivesTheRuntimeWhileAForeignClientHoldsIt()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("COM local servers are a Windows contract.");
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6LocalServer", Guid.NewGuid().ToString("N"));
+        var applicationName = "Rechner_" + Guid.NewGuid().ToString("N")[..12];
+        Directory.CreateDirectory(directory);
+        Process? server = null;
+        Process? holder = null;
+
+        try
+        {
+            var (exePath, classId) = BuildAdditionServer(directory, applicationName);
+            server = StartLocalServer(exePath, directory);
+
+            var activated = WaitForRuntimeActivation(server, classId);
+            holder = StartHoldingProbe(classId, directory);
+
+            var announced = ReadProbeUntilHolding(holder);
+            Assert.AreEqual("42", announced["SUM"], "Der Fremdclient konnte den Server nicht aufrufen.");
+
+            // Die Zählerbeobachtung von außen: AddRef und das zugehörige Release müssen den Zähler
+            // um genau eins bewegen. Es ist der Zähler des Proxys in jenem Prozess, nicht der des
+            // Objekts im Server -- mehr kann ein Client nicht sehen, und mehr wird nicht behauptet.
+            var afterAddRef = uint.Parse(announced["ADDREF"]);
+            var afterRelease = uint.Parse(announced["RELEASE"]);
+            Assert.AreEqual(afterAddRef - 1, afterRelease, "AddRef und Release müssen sich um genau eins unterscheiden.");
+
+            object? slot = VBObjectLifetime.TransferComActivation(null, activated);
+            slot = VBObjectLifetime.Transfer(slot, null);
+            Assert.IsNull(slot);
+
+            // Der eigentliche Nachweis. Die Runtime hat alles losgelassen, was ihr gehört; der
+            // Server muss trotzdem laufen, weil ein fremder Prozess noch eine Referenz hält.
+            Assert.IsFalse(
+                ServerExitsWithin(server, TimeSpan.FromSeconds(3)),
+                "Der Server hat sich beendet, obwohl ein fremder Client noch eine Referenz hält.");
+
+            holder.StandardInput.WriteLine();
+            holder.StandardInput.Flush();
+
+            var released = ReadProbeToEnd(holder);
+            Assert.IsTrue(holder.WaitForExit(30000), "Der Fremdclient ist nicht beendet.");
+            Assert.AreEqual(0, holder.ExitCode, holder.StandardError.ReadToEnd());
+            Assert.AreEqual("0", released["FINAL"], "Die letzte Freigabe muss den Zähler auf null bringen.");
+
+            Assert.IsTrue(
+                ServerExitsWithin(server, TimeSpan.FromSeconds(30)),
+                "Der Server hat sich nach der Freigabe durch den letzten Client nicht beendet.");
+        }
+        finally
+        {
+            KillIfRunning(holder);
+            KillIfRunning(server);
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private static Process StartHoldingProbe(Guid classId, string workingDirectory)
+    {
+        var probePath = Path.Combine(AppContext.BaseDirectory, "VB6.ComActivationProbe.exe");
+        Assert.IsTrue(File.Exists(probePath), probePath);
+        var startInfo = new ProcessStartInfo(probePath)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("--local-server-hold");
+        startInfo.ArgumentList.Add(classId.ToString("D"));
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start the holding activation probe.");
+    }
+
+    private static Dictionary<string, string> ReadProbeUntilHolding(Process probe)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? line;
+        while ((line = probe.StandardOutput.ReadLine()) is not null)
+        {
+            if (string.Equals(line, "HOLDING", StringComparison.Ordinal))
+            {
+                return values;
+            }
+
+            AddProbeValue(values, line);
+        }
+
+        throw new AssertFailedException(
+            "Der Fremdclient hat die Aktivierung nicht gemeldet: " + probe.StandardError.ReadToEnd());
+    }
+
+    private static Dictionary<string, string> ReadProbeToEnd(Process probe)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? line;
+        while ((line = probe.StandardOutput.ReadLine()) is not null)
+        {
+            AddProbeValue(values, line);
+        }
+
+        return values;
+    }
+
+    private static void AddProbeValue(Dictionary<string, string> values, string line)
+    {
+        var separator = line.IndexOf('=', StringComparison.Ordinal);
+        if (separator > 0)
+        {
+            values[line[..separator]] = line[(separator + 1)..];
+        }
+    }
+
+    /// <summary>
+    /// Whether the server exits within the timeout. Unlike <see cref="WaitForServerExit"/> this
+    /// never kills it: it is also used to assert that the server keeps running, and a helper that
+    /// tidies up on timeout would destroy the very thing being asserted.
+    /// </summary>
+    private static bool ServerExitsWithin(Process server, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (server.HasExited)
+            {
+                return true;
+            }
+
+            Thread.Sleep(200);
+        }
+
+        return false;
+    }
+
+    private static void KillIfRunning(Process? process)
+    {
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(5000);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        finally
+        {
+            process.Dispose();
         }
     }
 }

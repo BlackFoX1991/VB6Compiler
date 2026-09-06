@@ -2649,12 +2649,12 @@
       "dependsOn": [
         "managed-r1-profiles"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Referenzgezählte Objektlebensdauer",
       "expected": {
         "acceptance": "Terminate beim Wegfall der letzten Referenz; Aliases, ByRef, Rückgaben, alle Speicherformen, Events/COM, Selbstzuweisung, Initialize-Fehler, Reentranz, Zyklen und Programmende ohne vorzeitige/doppelte Terminierung prüfen."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
         "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs",
@@ -2663,7 +2663,7 @@
         "tests/VB6.Compiler.Tests/WithEventsExecutionTests.cs",
         "tests/VB6.Compiler.Cli.Tests/LocalServerActivationTests.cs"
       ],
-      "notes": "Planned work: generated-class storage is covered across aliases, ByRef/ByVal, returns, fields, Variant, arrays, Collections, WithEvents, handled errors, initialization failures, reentrancy, cycles, End and referenced assemblies. A current R2 slice gives direct RCWs activated by New, CreateObject or GetObject and interface values returned by foreign COM members slot-counted ownership: aliases, arrays and Collections survive until their final VB6 slot, an owned result releases its RCW at that point, borrowed RCWs retain only an IUnknown hold, and event subscriptions hold both source and sink until Unadvise. Dynamic member storage chooses a COM adoption at runtime, while a late-bound managed result is retained. Generated procedure returns deliberately transfer their existing storage ownership rather than adopting another raw RCW reference. An independent ActiveX-EXE process confirms the observable proxy boundary: its server stays callable after the first Runtime-slot clear and exits only after the final slot leaves. This is not passing evidence for the full acceptance contract: host-shared wrappers and exact native reference counts remain open.",
+      "notes": "Generated-class storage is covered across aliases, ByRef/ByVal, returns, fields, Variant, arrays, Collections, WithEvents, handled errors, initialization failures, reentrancy, cycles, End and referenced assemblies. RCWs activated by New, CreateObject or GetObject and interface values returned by foreign COM members carry slot-counted ownership; borrowed RCWs retain only an IUnknown hold, a late-bound managed result is retained rather than adopted, and generated procedure returns transfer their existing storage ownership instead of adopting another raw RCW reference. The native reference count itself is measured against a test-owned IUnknown identity: every boundary returns the count to exactly its pre-adoption value, a forced collection moves nothing, and a release without a matching retain is ignored. Adoption spends a share of the wrapper and presumes the value arrived with one of its own, which every marshalled COM result does; a managed co-holder with its own share survives, and the boundary case without one is recorded as a test because no emitted path reaches it. Across a process boundary a foreign client holding its own reference keeps the server alive after the runtime releases every slot, and the server exits only once that client releases too. Documented-verified, not oracle-verified: the counts read on the client side belong to its proxy, and no run against an original VB6 SP6 compiler backs any of this.",
       "title": "Referenzgezählte Objektlebensdauer"
     },
     {
@@ -3102,8 +3102,8 @@
         "bitness": "agnostic except LongPtr",
         "com": "none"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",
@@ -3118,8 +3118,7 @@
         "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
         "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs",
         "tests/VB6.Runtime.Tests/VariantStateTests.cs"
-      ],
-      "gap": "managed-r2-lifetime: Referenzgezählte Objektlebensdauer"
+      ]
     },
     {
       "id": "runtime-variant-and-conversions",

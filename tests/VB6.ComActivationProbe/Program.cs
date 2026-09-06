@@ -13,11 +13,17 @@ internal static class Program
             return ActivateLocalServer(args[1]);
         }
 
+        if (args.Length == 2 && string.Equals(args[0], "--local-server-hold", StringComparison.Ordinal))
+        {
+            return HoldLocalServer(args[1]);
+        }
+
         if (args.Length != 2)
         {
             Console.Error.WriteLine(
                 "Usage: VB6.ComActivationProbe <comhost.dll> <clsid> | " +
-                "VB6.ComActivationProbe --local-server <clsid>");
+                "VB6.ComActivationProbe --local-server <clsid> | " +
+                "VB6.ComActivationProbe --local-server-hold <clsid>");
             return 2;
         }
 
@@ -143,6 +149,96 @@ internal static class Program
             CoUninitialize();
         }
     }
+
+    /// <summary>
+    /// Activates the server, reads its own reference count off IUnknown, then keeps the reference
+    /// until a line arrives on standard input.
+    ///
+    /// This is the only vantage point from which the runtime's release can be checked against a
+    /// holder it does not share anything with. In one process a second holder and the runtime end
+    /// up on the same wrapper, so "the other holder survived" partly tests the CLR. Across the
+    /// boundary the two references are genuinely independent, and the server's own lifetime says
+    /// whether releasing one touched the other.
+    ///
+    /// The counts printed here belong to this process's proxy, not to the object in the server --
+    /// a proxy is what a client can see, and claiming otherwise would overstate the measurement.
+    /// </summary>
+    private static int HoldLocalServer(string classIdText)
+    {
+        var initialization = CoInitializeEx(IntPtr.Zero, CoInitMultiThreaded);
+        if (initialization < 0)
+        {
+            Console.Error.WriteLine($"CoInitializeEx failed: 0x{initialization:X8}");
+            return initialization;
+        }
+
+        try
+        {
+            var classId = Guid.Parse(classIdText);
+            var dispatchId = new Guid("00020400-0000-0000-C000-000000000046");
+            var dispatch = IntPtr.Zero;
+            var activation = CoCreateInstance(
+                ref classId,
+                IntPtr.Zero,
+                ClsCtxLocalServer,
+                ref dispatchId,
+                out dispatch);
+            if (activation != 0)
+            {
+                Console.Error.WriteLine($"CoCreateInstance failed: 0x{activation:X8}");
+                return activation;
+            }
+
+            var released = false;
+            try
+            {
+                Console.WriteLine("SUM=" + InvokeTwoInt32(dispatch, "Summe", 20, 22));
+
+                // AddRef then Release again: the pair has to move the count by exactly one in each
+                // direction, and it leaves the activation reference untouched.
+                Console.WriteLine("ADDREF=" + CallAddRef(dispatch));
+                Console.WriteLine("RELEASE=" + CallRelease(dispatch));
+
+                Console.WriteLine("HOLDING");
+                Console.Out.Flush();
+
+                _ = Console.In.ReadLine();
+
+                Console.WriteLine("FINAL=" + CallRelease(dispatch));
+                released = true;
+                Console.WriteLine("RELEASED");
+                Console.Out.Flush();
+                return 0;
+            }
+            finally
+            {
+                if (!released && dispatch != IntPtr.Zero)
+                {
+                    Marshal.Release(dispatch);
+                }
+            }
+        }
+        finally
+        {
+            CoUninitialize();
+        }
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate uint AddRefDelegate(IntPtr @this);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate uint ReleaseDelegate(IntPtr @this);
+
+    /// <summary>IUnknown::AddRef, vtable slot 1, called for its returned count.</summary>
+    private static uint CallAddRef(IntPtr unknown) =>
+        Marshal.GetDelegateForFunctionPointer<AddRefDelegate>(
+            Marshal.ReadIntPtr(Marshal.ReadIntPtr(unknown), IntPtr.Size * 1))(unknown);
+
+    /// <summary>IUnknown::Release, vtable slot 2, called for its returned count.</summary>
+    private static uint CallRelease(IntPtr unknown) =>
+        Marshal.GetDelegateForFunctionPointer<ReleaseDelegate>(
+            Marshal.ReadIntPtr(Marshal.ReadIntPtr(unknown), IntPtr.Size * 2))(unknown);
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int DllGetClassObjectDelegate(

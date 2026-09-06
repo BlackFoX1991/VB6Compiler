@@ -7864,3 +7864,31 @@ Fehlerklasse.
 Die Matrix bleibt bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**.
 `managed-r2-lifetime` bleibt offen: Die Zählung ist vollständig in-proc gemessen; die
 Fremdclient-Probe über die Prozessgrenze fehlt.
+
+## 2026-09-06 — R2, Schnitt 23: Fremdclient über die Prozessgrenze, Etappe geschlossen
+
+`VB6.ComActivationProbe` bekommt einen Haltemodus: Er aktiviert den Server, liest `AddRef` und
+`Release` über die rohen Vtable-Slots 1 und 2 und behält seine Referenz, bis eine Zeile auf der
+Standardeingabe ankommt. Der Test nutzt das für die eine Aussage, die in einem Prozess nicht zu
+haben ist: Während der Fremdclient hält, leert die Runtime jeden eigenen Slot — und der Server
+läuft weiter. Erst als der Fremdclient freigibt, beendet er sich.
+
+In-proc teilen sich ein zweiter Halter und die Runtime denselben Wrapper; „der andere hat
+überlebt" ist dort zur Hälfte eine Aussage über die CLR. Über die Prozessgrenze sind die beiden
+Referenzen wirklich unabhängig, und die Lebensdauer des Servers beantwortet die Frage direkt.
+Die Gegenprobe bestätigt, dass die Assertion trägt: Stirbt der Fremdclient vorher, wird sie rot.
+
+Gemessen wurde vorher, wie üblich, mit einem Wegwerflauf. `ADDREF=2`, `RELEASE=1`, `FINAL=0` —
+das Paar bewegt den Zähler um genau eins in jede Richtung. Was dieser Zähler ist, steht
+ausdrücklich dabei: der des Proxys in jenem Prozess, nicht der des Objekts im Server. Mehr kann
+ein Client nicht sehen, und mehr wird nicht behauptet.
+
+Damit sind alle sechs Abnahmeschritte der Karte erledigt, und `managed-r2-lifetime` steht als
+**implemented / documented-verified**. Der Bereich `language-operators-and-variants` folgt daraus
+als vollständig umgesetzt und verliert seinen `gap`. Die Matrix steht bei **162 Erwartungen:
+145 implemented, 0 partial, 17 planned**; R2 ist als abgeschlossene Etappe zu R0 und R1 gerückt.
+
+Was der Abschluss nicht behauptet: Nichts davon ist gegen einen Original-VB6-SP6-Compiler
+gelaufen — die Verifikation bleibt `documented-verified`. Die Abnahme gilt für die acht benannten
+Besitzfamilien und die dokumentierten Grenzen, nicht als allgemeine Zusage über beliebige fremde
+Hosts mit eigenen Wrapper-Anteilen. Nächste Karte ist `managed-r3-pointers`.

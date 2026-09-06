@@ -1,7 +1,7 @@
 # R2 — Deterministische Objektlebensdauer: Entwurfsvertrag
 
-Stand: 2026-09-06. Dieses Dokument zerlegt die noch offene Karte `managed-r2-lifetime`.
-Es beschreibt den Besitzvertrag, der heute gilt, und benennt, was an ihm noch nicht gemessen ist.
+Stand: 2026-09-06. Dieses Dokument beschreibt den Besitzvertrag der Karte `managed-r2-lifetime`,
+wie er abgenommen wurde, und benennt die Grenzen dessen, was dabei gemessen worden ist.
 
 ## Ausgangspunkt
 
@@ -117,15 +117,17 @@ Schleife trägt ihre Richtigkeit in diesem Fall über den Abbruch statt über di
    adoptierten Memberergebnissen. Der Fall ohne eigenen Anteil ist als Grenze festgeschrieben; kein
    erzeugter Pfad erreicht ihn. Ein **nativer** Fremdhalter ist von `Marshal.ReleaseComObject`
    ohnehin nicht betroffen; seine Prüfung gehört zu Schritt 5.
-5. **Unabhängige Fremdclient-Probe mit Zählerbeobachtung.** *Offen.* `VB6.ComActivationProbe`
-   spricht heute roh über Vtable-Slots mit einem Server, gibt seine Zeiger aber nur ordentlich frei,
-   ohne die Rückgabewerte von `AddRef`/`Release` zu lesen. Erst damit wäre die Zählung auch von
-   außen und über eine Prozessgrenze belegt statt nur in-proc.
+5. **Unabhängige Fremdclient-Probe mit Zählerbeobachtung.** *Erledigt (Schnitt 23).*
+   `VB6.ComActivationProbe` liest `AddRef` und `Release` über die rohen Vtable-Slots 1 und 2 und
+   hält seine Referenz, bis ein Signal kommt. Währenddessen leert die Runtime jeden eigenen Slot:
+   Der Server läuft weiter, und erst die Freigabe durch den Fremdclient beendet ihn. Die gelesenen
+   Zähler gehören dem Proxy jenes Prozesses, nicht dem Objekt im Server — mehr kann ein Client
+   sehen, und mehr wird nicht behauptet.
 6. **Zyklen und `End`.** Vorhandene Ausführungstests decken Zyklen, abruptes `End`, behandelte
    Fehler, Initialisierungsfehler und reentrante Terminierung ab. Ein pauschaler Shutdown-Drain
    ersetzt diese Regeln nicht und gilt nicht als Nachweis des Zeitpunkts.
 
-`managed-r2-lifetime` bleibt `planned` / `not-yet-verified`, solange 5 offen ist. Die gesamte
-Zählung ist bisher im eigenen Prozess gemessen; ein nativer Fremdhalter jenseits der
-Prozessgrenze hat sie noch nicht bestätigt, und ohne diese Gegenprobe ist es kein abgenommener
-COM-Lebensdauervertrag.
+`managed-r2-lifetime` steht damit als `implemented` / `documented-verified`. Was das nicht heißt:
+Kein Teil davon ist gegen einen Original-VB6-SP6-Compiler gelaufen, die von einem Client gelesenen
+Zähler gehören seinem Proxy, und die Abnahme gilt für die hier genannten Familien und Grenzen —
+nicht als allgemeine Zusage über beliebige fremde Hosts mit eigenen Wrapper-Anteilen.

@@ -21,16 +21,16 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `fb907fc`, Lauf `20260906T185801Z-261b24bc`:
+Messung vom 2026-09-06 auf `main` / `a4eabe4` mit nicht committeten Änderungen, Lauf `20260906T191144Z-e2dff967`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1775 Fälle: 1775 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1776 Fälle: 1775 bestanden, 1 fehlgeschlagen | Nicht bestanden -- VB6.Compiler.Tests: test process exited with 1 |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
-Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
+Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **False**.
 Der Laufbericht liegt unter `artifacts/verification-report.json` und wird nicht versioniert.
 <!-- verification:roadmap-measurements:end -->
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **162 Erwartungen**, davon **144 implemented**, **0 partial** und **18 planned**;
-**144/162 documented-verified**, 18 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **162 Erwartungen**, davon **145 implemented**, **0 partial** und **17 planned**;
+**145/162 documented-verified**, 17 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -181,48 +181,43 @@ abgenommen, statt einen Besitzvertrag zu erfinden.
 | `r1-grammar-array-option-base` | `ArrayExecutionTests` |
 | `r1-udt-nested-array-value-copy` | `FixedUdtArrayExecutionTests` |
 
+### R2 — Deterministische Objektlebensdauer
+
+Geschlossen. Terminate erfolgt beim Wegfall der letzten Referenz; die Karte steht als
+`implemented` / `documented-verified` in der Matrix. Der vollständige Besitzvertrag mit seinen
+acht Familien und den sechs Abnahmeschritten steht in
+[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md).
+
+Erzeugte Klassen sind über Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-,
+Array- und Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler,
+reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt. Für COM
+trägt jede Wertgrenze einen eigenen Helfer: direkte Aktivierung, fremdes Memberergebnis und
+geliehener Wert sind unterschiedliche Verträge, und ein late-bound CLR-Ergebnis ist keiner von
+beiden.
+
+Der Nachweis ist in drei Stufen geführt, weil jede allein zu wenig sagt. Der **native Zähler**
+wird gegen eine testeigene IUnknown-Identität gelesen: Jeder Übergang kehrt exakt auf seinen
+Ausgangswert zurück, erzwungene GC-Läufe bewegen nichts, ein Release ohne Retain ist folgenlos.
+Der **verwaltete Mithalter** überlebt Adoption und Freigabe durch VB6, weil Adoption einen Anteil
+am Wrapper verbraucht und jedes gemarshallte COM-Ergebnis seinen eigenen mitbringt. Und über die
+**Prozessgrenze** hält ein fremder Client den Server am Leben, nachdem die Runtime alle Slots
+geleert hat; erst seine Freigabe beendet ihn.
+
+Die Aussagegrenze steht ausdrücklich dabei: Die Zähler, die ein Client liest, gehören seinem
+Proxy, nicht dem Objekt im Server. Der Grenzfall einer Adoption ohne eigenen Anteil ist als Test
+festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, sondern als Wächter.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
+
 ## Aktive Restliste
 
-Die 18 folgenden Karten sind `planned` / `not-yet-verified`. R0 und R1 sind geschlossen und
+Die 17 folgenden Karten sind `planned` / `not-yet-verified`. R0, R1 und R2 sind geschlossen und
 stehen als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der
 Matrix; die dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits
 erfüllte fachliche Einzelverträge bleiben in der Matrix erhalten und werden nicht neu
 implementiert.
-
-### R2 — Deterministische Objektlebensdauer
-
-Nach R1.
-
-Ziel ist Terminate beim Wegfall der letzten Referenz in beiden Profilen — nicht irgendwann
-danach. `Class_Terminate` ist beobachtbares Verhalten, deshalb genügt ein Finalizer nicht, und
-der vorhandene Shutdown-Drain ist ein Rückfall, kein Nachweis eines Zeitpunkts. Keine neue
-VB6-Syntax ist vorgesehen.
-
-Der Besitzvertrag, seine acht Familien und die Reihenfolge der Abnahmeschritte stehen in
-[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md). Er hält insbesondere fest, dass eine direkte
-COM-Aktivierung ihren RCW-Anteil an den ersten VB6-Speicherplatz abgibt, während ein geliehener
-Wrapper nur einen kontrollierten IUnknown-Hold erhält — und dass diese beiden Fälle sich genau
-darin unterscheiden, ob die Freigabe durch VB6 einen fremden Besitzer treffen darf.
-
-Erledigt sind das Slot-Protokoll an allen Wertgrenzen, die beobachtbare Freigabe über eine
-Prozessgrenze mit einem registrierungsfreien ActiveX-EXE-Server und seit Schnitt 21 die exakte
-native Referenzzählung: Zehn Fälle lesen den Zähler einer testeigenen IUnknown-Identität und
-zeigen, dass jeder Übergang exakt auf seinen Ausgangswert zurückkehrt. Erzeugte Klassen sind
-darüber hinaus für Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-/Array-/
-Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante
-Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt.
-
-Schnitt 22 hat zusätzlich den verwalteten Mithalter geklärt: Ein Halter mit eigenem Anteil am
-Wrapper überlebt Adoption und Freigabe durch VB6. Dahinter steht die Regel, an der der COM-Besitz
-tatsächlich hängt — die CLR führt einen Wrapper je Identität, und Adoption verbraucht einen
-**Anteil** daran, keinen Zähler. Ein nativer Fremdhalter ist davon ohnehin nicht betroffen.
-
-Offen bleibt damit ein Punkt: eine Fremdclient-Probe, die die Zählung von außen über eine
-Prozessgrenze liest statt nur in-proc. Daher bleibt R2 offen.
-
-| Karte | Ziel und Abnahme |
-| --- | --- |
-| `managed-r2-lifetime` | **Referenzgezählte Objektlebensdauer:** Terminate beim Wegfall der letzten Referenz; Aliases, ByRef, Rückgaben, alle Speicherformen, Events/COM, Selbstzuweisung, Initialize-Fehler, Reentranz, Zyklen und Programmende ohne vorzeitige/doppelte Terminierung prüfen. |
 
 ### R3 — Adressierbarer Speicher und native ABI
 

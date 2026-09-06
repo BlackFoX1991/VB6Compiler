@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 162 Erwartungen: 144 `implemented`, 0 `partial`, 18 `planned`;
-144 `documented-verified`, 18 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 162 Erwartungen: 145 `implemented`, 0 `partial`, 17 `planned`;
+145 `documented-verified`, 17 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -31,7 +31,12 @@ statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke.
 R1 ist ebenfalls geschlossen: Grammatik und Kontext, Array-/UDT-Formen, Operator- und
 Default-Member-Vertrag, Konvertierungs- und Promotionsmatrix, Standardbibliothek, Datei-Layouts
 gegen Rohbytes und die Profilgrenzen sind abgenommen. Elf Karten, davon vier Einzelbefunde, die
-beim Messen gefunden wurden. Nächste Karte ist `managed-r2-lifetime`.
+beim Messen gefunden wurden.
+
+R2 ist geschlossen: Terminate beim Wegfall der letzten Referenz, mit dem nativen Zähler gegen eine
+testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adoption und Freigabe
+übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am Leben hält. Details in
+`docs/R2-OBJECT-LIFETIME.md`. Nächste Karte ist `managed-r3-pointers`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
 
@@ -223,10 +228,10 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-06 auf `fb907fc`: 1775 Standardfälle in 13 Projekten,
-1775 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 81/81 bestanden, 0 übersprungen.
+Stand der Prüfung 2026-09-06 auf `a4eabe4` mit nicht committeten Änderungen: 1776 Standardfälle in 13 Projekten,
+1775 bestanden, 1 fehlgeschlagen. Nativer x86-Lauf: 81/81 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
-Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
+Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
 
 Standardlauf, x86-Lauf und Wiederholungen werden nie addiert — die früher genannte 1698 war genau
