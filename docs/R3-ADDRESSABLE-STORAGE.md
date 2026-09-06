@@ -32,8 +32,8 @@ Layout und eine Lebensdauer; sie legt niemals die Adresse eines verwalteten Obje
 - Die Zelle lebt mindestens bis zum Ende ihres Speicherplatzes. `Erase`, `ReDim`, Feldersetzung,
   Objektterminierung und Prozedurrückkehr invalidieren sie kontrolliert und geben ihren nativen
   Speicher genau einmal frei. Ein nativer Aufrufer, der danach weiter schreibt, verletzt wie bei
-  VB6 die definierte Zeigerlebensdauer; die Runtime darf eine freigegebene Adresse nicht erneut
-  für eine andere lebende Zelle ausgeben.
+  VB6 die definierte Zeigerlebensdauer; eine solche Verwendung kann die Runtime nicht an der
+  rohen Adresse prüfen und der zugrunde liegende Allocator darf Speicher wiederverwenden.
 - Ein x86-`VarPtr` wird nur dann als speicherbarer Wert bereitgestellt, wenn die Adresse ohne
   Trunkierung in `Long` passt. Die bestehenden expliziten `LongPtr`-Erweiterungen erhalten
   getrennte x64-Prüfungen; sie ändern nicht den VB6-`VarPtr`-Vertrag.
@@ -68,3 +68,8 @@ dem R4-Ownership-Vertrag und darf nicht als CLR-RCW-Innenadresse erscheinen.
 `managed-r3-pointers` und `managed-r3-callback-abi` bleiben bis zu diesen vollständigen
 End-to-End-Probes `planned`. Die vorhandenen Callback-GC-Regressionen belegen nur Schritt 4s
 erste Haltegarantie; sie schließen keine der anderen Familien.
+
+Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
+separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
+Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable; außerhalb des unmittelbaren
+`Declare`-Pfads gilt weiterhin die bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.
