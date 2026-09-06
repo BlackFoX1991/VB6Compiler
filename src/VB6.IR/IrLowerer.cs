@@ -4300,11 +4300,12 @@ public static class IrLowerer
 
         /// <summary>
         /// The first retained-pointer slice deliberately covers only local VB6 Byte, Integer,
-        /// Long, LongLong, Boolean, Single, Double, Date and Currency slots. Boolean is
+        /// Long, LongLong, LongPtr, Boolean, Single, Double, Date and Currency slots. Boolean is
         /// represented by a separate two-byte -1/0 cell, LongLong by an eight-byte signed cell,
-        /// Single and Double use their IEEE-754 cells, Date uses its eight-byte Automation date
-        /// layout, and Currency its scaled Int64 layout; strings, Variants, UDTs and aggregate
-        /// storage need their own ABI layouts before they can make the same promise.
+        /// LongPtr by an x86 four-byte native-width cell, Single and Double use their IEEE-754
+        /// cells, Date uses its eight-byte Automation date layout, and Currency its scaled Int64
+        /// layout; strings, Variants, UDTs and aggregate storage need their own ABI layouts
+        /// before they can make the same promise.
         /// </summary>
         private bool TryLowerStoredVarPtr(BoundExpression expression, out IrExpression pointer)
         {
@@ -4340,6 +4341,7 @@ public static class IrLowerer
             type == TypeSymbol.Integer ||
             type == TypeSymbol.Long ||
             type == TypeSymbol.LongLong ||
+            type == TypeSymbol.LongPtr ||
             type == TypeSymbol.Single ||
             type == TypeSymbol.Double ||
             type == TypeSymbol.Date ||

@@ -235,6 +235,22 @@ public sealed class PointerIntrinsicTests
                     longLongDestination = 84281096
                     CopyMemory ByVal longLongPointer, longLongDestination, 8
                     Debug.Print longLongSource
+
+                    Dim longPtrSource As LongPtr
+                    Dim longPtrDestination As LongPtr
+                    Dim longPtrPointer As Long
+                    longPtrSource = CLngPtr(16909060)
+                    longPtrPointer = VarPtr(longPtrSource)
+                    CopyMemory longPtrDestination, ByVal longPtrPointer, 4
+                    Debug.Print CLng(longPtrDestination)
+
+                    longPtrSource = CLngPtr(123)
+                    CopyMemory longPtrDestination, ByVal longPtrPointer, 4
+                    Debug.Print CLng(longPtrDestination)
+
+                    longPtrDestination = CLngPtr(84281096)
+                    CopyMemory ByVal longPtrPointer, longPtrDestination, 4
+                    Debug.Print CLng(longPtrSource)
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -258,7 +274,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096", "16909060", "123", "84281096" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }

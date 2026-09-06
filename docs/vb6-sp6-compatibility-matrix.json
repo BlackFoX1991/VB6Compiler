@@ -2680,7 +2680,7 @@
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs"
       ],
-      "notes": "Planned work: the listed regressions include x86 local-Long, signed eight-byte local-LongLong, local-Integer, local-Byte, two-byte local-Boolean, four-byte IEEE-754 local-Single, eight-byte IEEE-754 local-Double, eight-byte OLE-Automation local-Date and eight-byte scaled-Int64 local-Currency VarPtr cells with GC-stable storage and CLR-ByRef synchronization. They are not passing evidence for the full acceptance contract (other storage families, native probes, invalidation and reallocation remain open).",
+      "notes": "Planned work: the listed regressions include x86 local-Long, signed eight-byte local-LongLong, four-byte local-LongPtr, local-Integer, local-Byte, two-byte local-Boolean, four-byte IEEE-754 local-Single, eight-byte IEEE-754 local-Double, eight-byte OLE-Automation local-Date and eight-byte scaled-Int64 local-Currency VarPtr cells with GC-stable storage and CLR-ByRef synchronization. They are not passing evidence for the full acceptance contract (other storage families, native probes, invalidation and reallocation remain open).",
       "title": "Stabiler adressierbarer Speicher"
     },
     {

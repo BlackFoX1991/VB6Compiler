@@ -87,6 +87,8 @@ public static class VBAddressableStorage
 
     public static object CreateInt64(long value) => VBAddressableCell<long>.Create(value);
 
+    public static object CreateIntPtr32(IntPtr value) => VBAddressableCell<int>.Create(checked((int)value.ToInt64()));
+
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
@@ -104,6 +106,8 @@ public static class VBAddressableStorage
     public static IntPtr GetCurrencyNativeAddress(object storage) => GetCurrency(storage).GetNativeAddress();
 
     public static IntPtr GetInt64NativeAddress(object storage) => GetInt64(storage).GetNativeAddress();
+
+    public static IntPtr GetIntPtr32NativeAddress(object storage) => GetIntPtr32(storage).GetNativeAddress();
 
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
@@ -123,6 +127,8 @@ public static class VBAddressableStorage
 
     public static long ReadInt64(object storage) => GetInt64(storage).Read();
 
+    public static IntPtr ReadIntPtr32(object storage) => new(GetIntPtr32(storage).Read());
+
     public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
@@ -140,6 +146,8 @@ public static class VBAddressableStorage
     public static void WriteCurrency(object storage, VBCurrency value) => GetCurrency(storage).Write(value.ScaledValue);
 
     public static void WriteInt64(object storage, long value) => GetInt64(storage).Write(value);
+
+    public static void WriteIntPtr32(object storage, IntPtr value) => GetIntPtr32(storage).Write(checked((int)value.ToInt64()));
 
     public static void Dispose(object storage)
     {
@@ -177,4 +185,7 @@ public static class VBAddressableStorage
 
     private static VBAddressableCell<long> GetInt64(object storage) => storage as VBAddressableCell<long>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 LongLong.", nameof(storage));
+
+    private static VBAddressableCell<int> GetIntPtr32(object storage) => storage as VBAddressableCell<int>
+        ?? throw new ArgumentException("The addressable storage cell must hold an x86 VB6 LongPtr.", nameof(storage));
 }

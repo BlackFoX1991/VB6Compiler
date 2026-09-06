@@ -1055,6 +1055,11 @@ public sealed class ManagedEmitter
                 {
                     encoder.LoadConstantI8(0L);
                 }
+                else if (pair.Key.Type == TypeSymbol.LongPtr)
+                {
+                    encoder.LoadConstantI4(0);
+                    encoder.OpCode(ILOpCode.Conv_i);
+                }
                 else
                 {
                     encoder.LoadConstantI4(0);
@@ -1851,6 +1856,8 @@ public sealed class ManagedEmitter
                 ? ("Int32", typeof(int))
                 : type == TypeSymbol.LongLong
                 ? ("Int64", typeof(long))
+                : type == TypeSymbol.LongPtr
+                ? ("IntPtr32", typeof(IntPtr))
                 : type == TypeSymbol.Integer
                 ? ("Int16", typeof(short))
                 : type == TypeSymbol.Single
