@@ -1860,6 +1860,8 @@ public sealed class ManagedEmitter
                 ? ("IntPtr32", typeof(IntPtr))
                 : type == TypeSymbol.Integer
                 ? ("Int16", typeof(short))
+                : type == TypeSymbol.UShort
+                ? ("UShort", typeof(ushort))
                 : type == TypeSymbol.Single
                 ? ("Single", typeof(float))
                 : type == TypeSymbol.Double

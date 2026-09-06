@@ -4300,7 +4300,7 @@ public static class IrLowerer
 
         /// <summary>
         /// The first retained-pointer slice deliberately covers only local VB6 Byte, Integer,
-        /// Long, LongLong, LongPtr, Boolean, Single, Double, Date and Currency slots. Boolean is
+        /// UShort, Long, LongLong, LongPtr, Boolean, Single, Double, Date and Currency slots. Boolean is
         /// represented by a separate two-byte -1/0 cell, LongLong by an eight-byte signed cell,
         /// LongPtr by an x86 four-byte native-width cell, Single and Double use their IEEE-754
         /// cells, Date uses its eight-byte Automation date layout, and Currency its scaled Int64
@@ -4339,6 +4339,7 @@ public static class IrLowerer
             type == TypeSymbol.Boolean ||
             type == TypeSymbol.Byte ||
             type == TypeSymbol.Integer ||
+            type == TypeSymbol.UShort ||
             type == TypeSymbol.Long ||
             type == TypeSymbol.LongLong ||
             type == TypeSymbol.LongPtr ||

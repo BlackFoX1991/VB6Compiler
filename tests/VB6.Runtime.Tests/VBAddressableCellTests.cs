@@ -68,6 +68,24 @@ public sealed class VBAddressableCellTests
     }
 
     [TestMethod]
+    public void UShortFacade_PreservesTheTwoByteUnsignedNativeCellContract()
+    {
+        var storage = VBAddressableStorage.CreateUShort(50_000);
+        var address = VBAddressableStorage.GetUShortNativeAddress(storage);
+
+        Assert.AreEqual(50_000, unchecked((ushort)Marshal.ReadInt16(address)));
+        Marshal.WriteInt16(address, 123);
+        ForceFullCollection();
+
+        Assert.AreEqual((ushort)123, VBAddressableStorage.ReadUShort(storage));
+        VBAddressableStorage.WriteUShort(storage, 40_000);
+        Assert.AreEqual(40_000, unchecked((ushort)Marshal.ReadInt16(address)));
+
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadUShort(storage));
+    }
+
+    [TestMethod]
     public void ByteFacade_PreservesTheSingleByteNativeCellContract()
     {
         var storage = VBAddressableStorage.CreateByte(7);
