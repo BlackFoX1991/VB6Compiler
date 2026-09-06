@@ -122,7 +122,8 @@ public static class VBObjectLifetime
             return;
         }
 
-        if (instance is null || !States.TryGetValue(instance, out var state))
+        if (instance is null || !States.TryGetValue(instance, out var state) ||
+            Volatile.Read(ref state.Terminating) != 0)
         {
             return;
         }
