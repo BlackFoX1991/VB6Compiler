@@ -219,6 +219,22 @@ public sealed class PointerIntrinsicTests
                     currencyRaw = 30000
                     CopyMemory ByVal currencyPointer, currencyRaw, 8
                     Debug.Print currencySource
+
+                    Dim longLongSource As LongLong
+                    Dim longLongDestination As LongLong
+                    Dim longLongPointer As Long
+                    longLongSource = 72623859790382856
+                    longLongPointer = VarPtr(longLongSource)
+                    CopyMemory longLongDestination, ByVal longLongPointer, 8
+                    Debug.Print longLongDestination
+
+                    longLongSource = 123
+                    CopyMemory longLongDestination, ByVal longLongPointer, 8
+                    Debug.Print longLongDestination
+
+                    longLongDestination = 84281096
+                    CopyMemory ByVal longLongPointer, longLongDestination, 8
+                    Debug.Print longLongSource
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -242,7 +258,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }
