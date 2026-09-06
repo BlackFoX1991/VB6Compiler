@@ -7752,3 +7752,16 @@ ausgewählten Helfer für Object-Slots und die vorhandenen Behälter-/ByVal-Pfad
 Die Matrix bleibt bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**: Ein
 unabhängiger Fremdclient muss die nativen Referenzzähler und host-geteilte Wrapper weiter
 beobachten, bevor R2 geschlossen werden darf.
+
+## 2026-09-06 — R2, Schnitt 20: COM-Proxy-Lebensdauer über Prozessgrenze messen
+
+Der ActiveX-EXE-Aktivierungstest startet nun einen registrierungsfreien COM-Server in einem
+eigenen Prozess und aktiviert ihn zusätzlich über den Runtime-Pfad `CreateComInstance`. Nach dem
+Freigeben des ersten VB6-Slots bleibt der Alias per `IDispatch` aufrufbar; erst das Freigeben des
+letzten Slots beendet den Server. Damit ist der letzte RCW-Besitzer nicht nur anhand eines
+in-proc `InvalidComObjectException`, sondern anhand der beobachtbaren Prozesslebensdauer belegt.
+
+Der vorhandene rohe Fremdclient-Probe läuft danach gegen einen frisch gestarteten Server weiter.
+R2 bleibt offen: Der Test misst keinen exakten nativen Referenzzähler und deckt keinen von einem
+fremden Host gleichzeitig geteilten Wrapper ab. Die Matrix bleibt daher bei **162 Erwartungen:
+144 implemented, 0 partial, 18 planned**.

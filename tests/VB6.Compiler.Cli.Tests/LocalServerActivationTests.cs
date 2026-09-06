@@ -1,8 +1,10 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using VB6.Compiler;
 using VB6.Emit.Managed;
+using VB6.Runtime;
 
 namespace VB6.Compiler.Cli.Tests;
 
@@ -70,6 +72,32 @@ public sealed class LocalServerActivationTests
             Assert.IsTrue(File.Exists(exePath), exePath);
 
             var classId = ReadClassId(Path.Combine(directory, "bin", applicationName + ".dll"), "Addierer");
+            server = StartLocalServer(exePath, directory);
+
+            // Der Runtime-Pfad muss einen fremden Local-Server-RCW so lange behalten, wie noch
+            // ein VB6-Slot darauf zeigt. Die Probe läuft dabei gegen einen anderen Prozess;
+            // eine vorzeitige ReleaseComObject-Freigabe würde den Server nach dem ersten Clear
+            // beenden oder den verbleibenden Alias unbrauchbar machen.
+            var activated = WaitForRuntimeActivation(server, classId);
+            Assert.IsTrue(Marshal.IsComObject(activated));
+            object? primarySlot = VBObjectLifetime.TransferComActivation(null, activated);
+            object? aliasSlot = VBObjectLifetime.Replace(null, primarySlot);
+            primarySlot = VBObjectLifetime.Transfer(primarySlot, null);
+
+            Assert.IsTrue(
+                VBDynamicDispatch.TryInvokeComMember(aliasSlot, "Summe", [20, 22], out var sum));
+            Assert.AreEqual(42, Convert.ToInt32(sum));
+            Assert.IsFalse(server.HasExited, "Der Server darf mit einem verbleibenden VB6-Alias nicht enden.");
+
+            aliasSlot = VBObjectLifetime.Transfer(aliasSlot, null);
+            var stoppedAfterLastSlot = WaitForServerExit(server, TimeSpan.FromSeconds(30));
+            Assert.IsTrue(
+                stoppedAfterLastSlot,
+                "Der Local Server hat sich nach dem letzten Runtime-Slot nicht beendet.");
+            server.Dispose();
+
+            // Der bisherige rohe IDispatch-Probe bleibt separat erhalten: Er deckt den
+            // unabhängigen Fremdclient-Vertrag der ActiveX-EXE-Emission ab.
             server = StartLocalServer(exePath, directory);
 
             // Ein getrennter Prozess ist Teil des Vertrags: Der Probe spricht den externen
@@ -146,6 +174,34 @@ public sealed class LocalServerActivationTests
         var standardError = probe.StandardError.ReadToEnd();
         probe.WaitForExit();
         return (probe.ExitCode, standardOutput, standardError);
+    }
+
+    private static object WaitForRuntimeActivation(Process server, Guid classId)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        VB6RaisedError? lastError = null;
+        while (true)
+        {
+            try
+            {
+                return VBInteraction.CreateComInstance(classId.ToString("D"), "Addierer");
+            }
+            catch (VB6RaisedError error) when (error.Number == 429)
+            {
+                lastError = error;
+            }
+
+            if (server.HasExited || DateTime.UtcNow >= deadline)
+            {
+                throw new AssertFailedException(
+                    "Die Runtime konnte den ActiveX-EXE-Server nicht aktivieren. " +
+                    (lastError?.Message ?? "Der Server wurde vor der Registrierung beendet."));
+            }
+
+            // Der Prozess läuft schon; es wird nur auf seine CoRegisterClassObject-Sichtbarkeit
+            // gewartet, nicht auf eine Registrierung über den SCM.
+            Thread.Sleep(100);
+        }
     }
 
     private static (int ExitCode, string StandardOutput, string StandardError) WaitForExternalActivation(

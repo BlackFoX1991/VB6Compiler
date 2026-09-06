@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/VB6.Compiler.Cli/VB6.Compiler.Cli.csproj" />
+    <ProjectReference Include="../../src/VB6.Runtime/VB6.Runtime.csproj" />
     <ProjectReference Include="../VB6.ComActivationProbe/VB6.ComActivationProbe.csproj" />
   </ItemGroup>
 </Project>

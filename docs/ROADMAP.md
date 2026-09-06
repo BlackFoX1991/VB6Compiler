@@ -1,6 +1,6 @@
 # Roadmap
 
-Stand: 2026-09-05. Eine aktive Restliste für den Managed-Abschluss.
+Stand: 2026-09-06. Eine aktive Restliste für den Managed-Abschluss.
 Die chronologische Historie steht in [CHANGELOG.md](CHANGELOG.md).
 
 ## Produktziel und Grenzen
@@ -169,7 +169,7 @@ Die Runtime führt explizite Referenzverwaltung für generierte VB6-Objekte; das
 
 Heute registriert `VBObjectLifetime` Terminatoren für Finalizer/Prozessabbau. Das garantiert noch nicht den VB6-Zeitpunkt. Ziel ist Terminate bei der letzten Referenz in beiden Profilen, einschließlich kontrollierter Fehler- und Reentranzpfade. Zyklen und abruptes `End` müssen gesondert gegen den Sprachvertrag geprüft werden; ein pauschaler Shutdown-Drain ersetzt diese Regeln nicht. Keine neue VB6-Syntax ist vorgesehen.
 
-Die vorhandenen Ausführungstests decken für erzeugte Klassen inzwischen Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-/Array-/Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies ab. Runtime-Tests gegen `Scripting.Dictionary` bestätigen zusätzlich, dass eine direkte Aktivierung über Alias-, Array- und Collection-Slots lebt und nach dem letzten Slot ungültig wird. `Scripting.FileSystemObject.Drives` liefert den ergänzenden Fremdmember-Fall; sein RCW wird erst beim letzten Zielslot ungültig. Ein Emitter-Test trennt direkte Aktivierung, COM-Memberresultat und eine Funktionsrückgabe mit vorhandenem Speicherbesitz; der Runtime-Gegenfall eines late-bound CLR-Ergebnisses bleibt bis zum letzten Retain lebendig. Das schließt nicht den gesamten COM-Vertrag: externe Hosts mit eigenen Wrapper-Anteilen und die genaue native Referenzzählung brauchen weiterhin unabhängige Fremdclient-Probes. Daher bleibt R2 offen.
+Die vorhandenen Ausführungstests decken für erzeugte Klassen inzwischen Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-/Array-/Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies ab. Runtime-Tests gegen `Scripting.Dictionary` bestätigen zusätzlich, dass eine direkte Aktivierung über Alias-, Array- und Collection-Slots lebt und nach dem letzten Slot ungültig wird. `Scripting.FileSystemObject.Drives` liefert den ergänzenden Fremdmember-Fall; sein RCW wird erst beim letzten Zielslot ungültig. Ein getrennter ActiveX-EXE-Prozess ergänzt den beobachtbaren COM-Proxy-Nachweis: Nach dem Clear des ersten Runtime-Slots bleibt der verbleibende Alias aufrufbar, und erst nach dem letzten Slot beendet der Server sich selbst. Ein Emitter-Test trennt direkte Aktivierung, COM-Memberresultat und eine Funktionsrückgabe mit vorhandenem Speicherbesitz; der Runtime-Gegenfall eines late-bound CLR-Ergebnisses bleibt bis zum letzten Retain lebendig. Das schließt nicht den gesamten COM-Vertrag: externe Hosts mit eigenen Wrapper-Anteilen und die genaue native Referenzzählung bleiben offen. Daher bleibt R2 offen.
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
