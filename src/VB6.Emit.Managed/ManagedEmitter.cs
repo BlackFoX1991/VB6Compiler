@@ -1051,7 +1051,7 @@ public sealed class ManagedEmitter
                         nameof(VBCurrency.FromScaled),
                         typeof(long))));
                 }
-                else if (pair.Key.Type == TypeSymbol.LongLong)
+                else if (pair.Key.Type == TypeSymbol.LongLong || pair.Key.Type == TypeSymbol.ULong)
                 {
                     encoder.LoadConstantI8(0L);
                 }
@@ -1858,6 +1858,8 @@ public sealed class ManagedEmitter
                 ? ("UInt32", typeof(uint))
                 : type == TypeSymbol.LongLong
                 ? ("Int64", typeof(long))
+                : type == TypeSymbol.ULong
+                ? ("UInt64", typeof(ulong))
                 : type == TypeSymbol.LongPtr
                 ? ("IntPtr32", typeof(IntPtr))
                 : type == TypeSymbol.Integer

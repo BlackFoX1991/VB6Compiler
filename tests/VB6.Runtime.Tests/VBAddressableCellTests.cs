@@ -223,6 +223,24 @@ public sealed class VBAddressableCellTests
     }
 
     [TestMethod]
+    public void UInt64Facade_PreservesTheEightByteUnsignedNativeCellContract()
+    {
+        var storage = VBAddressableStorage.CreateUInt64(18_446_744_073_709_551_614UL);
+        var address = VBAddressableStorage.GetUInt64NativeAddress(storage);
+
+        Assert.AreEqual(18_446_744_073_709_551_614UL, unchecked((ulong)Marshal.ReadInt64(address)));
+        Marshal.WriteInt64(address, 123L);
+        ForceFullCollection();
+
+        Assert.AreEqual(123UL, VBAddressableStorage.ReadUInt64(storage));
+        VBAddressableStorage.WriteUInt64(storage, 10_000_000_000_000_000_000UL);
+        Assert.AreEqual(10_000_000_000_000_000_000UL, unchecked((ulong)Marshal.ReadInt64(address)));
+
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadUInt64(storage));
+    }
+
+    [TestMethod]
     public void IntPtr32Facade_PreservesTheX86FourByteNativeCellContract()
     {
         var storage = VBAddressableStorage.CreateIntPtr32(new IntPtr(16_909_060));

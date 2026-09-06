@@ -15,14 +15,15 @@ ungültig und erfüllt den Speichervertrag eines gespeicherten Zeigers nicht.
 
 Als erste, absichtlich kleine gespeicherte-Ausnahme erzeugt die x86-Managed-Emission für
 `VarPtr(localLong)`, `VarPtr(localLongLong)`, `VarPtr(localLongPtr)`,
-`VarPtr(localInteger)`, `VarPtr(localUShort)`, `VarPtr(localUInteger)`, `VarPtr(localByte)`,
-`VarPtr(localBoolean)`, `VarPtr(localSingle)`, `VarPtr(localDouble)`, `VarPtr(localDate)`
-und `VarPtr(localCurrency)` native Vier-, Acht-, Vier-, Zwei-, zwei-, Vier-, Ein-, zwei-, vier-,
-acht-, acht- und acht Byte breite Zellen. Der Boolean-Zellwert verwendet dabei VB6s
-`-1`/`0`-Darstellung statt eines CLR-`bool`; UShort und UInteger nutzen vorzeichenlose zwei
-beziehungsweise vier Byte breite Layouts, LongLong ist ein direkter signierter 64-Bit-Wert, LongPtr
-nutzt im x86-Pfad explizit vier Byte, Single und Double nutzen ihre unveränderten IEEE-754-Layouts,
-Date das acht Byte breite OLE-Automation-Datum und Currency seinen mit 10.000 skalierten `Int64`.
+`VarPtr(localInteger)`, `VarPtr(localUShort)`, `VarPtr(localUInteger)`, `VarPtr(localULong)`,
+`VarPtr(localByte)`, `VarPtr(localBoolean)`, `VarPtr(localSingle)`, `VarPtr(localDouble)`,
+`VarPtr(localDate)` und `VarPtr(localCurrency)` native Vier-, Acht-, Vier-, Zwei-, zwei-, Vier-,
+Acht-, Ein-, zwei-, vier-, acht-, acht- und acht Byte breite Zellen. Der Boolean-Zellwert verwendet
+dabei VB6s `-1`/`0`-Darstellung statt eines CLR-`bool`; UShort, UInteger und ULong nutzen
+vorzeichenlose zwei, vier beziehungsweise acht Byte breite Layouts, LongLong ist ein direkter
+signierter 64-Bit-Wert, LongPtr nutzt im x86-Pfad explizit vier Byte, Single und Double nutzen ihre
+unveränderten IEEE-754-Layouts, Date das acht Byte breite OLE-Automation-Datum und Currency seinen
+mit 10.000 skalierten `Int64`.
 Normale Loads/Stores sowie CLR-ByRef-Write-backs werden mit diesen Zellen synchronisiert, und sie
 werden bei der Prozedurrückkehr freigegeben. Sie überstehen damit eine GC, solange der lokale
 Speicherplatz lebt. AnyCPU und x64 behalten für denselben Ausdruck Fehler 5; dort wird kein
@@ -88,7 +89,7 @@ keine der anderen Familien.
 Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
 separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
 allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert sind
-nur lokale `Long`-, `LongLong`-, `LongPtr`-, `Integer`-, `UShort`-, `UInteger`-, `Byte`-,
-`Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots im x86-Managed-Pfad.
+nur lokale `Long`-, `LongLong`-, `LongPtr`-, `Integer`-, `UShort`-, `UInteger`-, `ULong`-,
+`Byte`-, `Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots im x86-Managed-Pfad.
 Außerhalb dieser Fälle und außerhalb des unmittelbaren `Declare`-Pfads gilt weiterhin die
 bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.

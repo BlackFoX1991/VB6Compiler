@@ -115,6 +115,10 @@ public sealed class ManagedEmitterTests
                 value = value + 1
             End Sub
 
+            Sub BumpULong(ByRef value As ULong)
+                value = value + 1
+            End Sub
+
             Sub Main()
                 Dim value As Long
                 Dim pointer As Long
@@ -129,6 +133,7 @@ public sealed class ManagedEmitterTests
                 Dim longPtrValue As LongPtr
                 Dim uShortValue As UShort
                 Dim uIntegerValue As UInteger
+                Dim uLongValue As ULong
                 value = 7
                 pointer = VarPtr(value)
                 Bump value
@@ -165,6 +170,9 @@ public sealed class ManagedEmitterTests
                 uIntegerValue = CUInt(7)
                 pointer = VarPtr(uIntegerValue)
                 BumpUInteger uIntegerValue
+                uLongValue = CULng(7)
+                pointer = VarPtr(uLongValue)
+                BumpULong uLongValue
                 Debug.Print value
             End Sub
             """);
@@ -234,6 +242,10 @@ public sealed class ManagedEmitterTests
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetUInt32NativeAddress)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadUInt32)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteUInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateUInt64)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetUInt64NativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadUInt64)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteUInt64)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.Dispose))
             },
             x86Methods);
