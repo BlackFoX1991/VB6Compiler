@@ -169,6 +169,8 @@ Die Runtime führt explizite Referenzverwaltung für generierte VB6-Objekte; das
 
 Heute registriert `VBObjectLifetime` Terminatoren für Finalizer/Prozessabbau. Das garantiert noch nicht den VB6-Zeitpunkt. Ziel ist Terminate bei der letzten Referenz in beiden Profilen, einschließlich kontrollierter Fehler- und Reentranzpfade. Zyklen und abruptes `End` müssen gesondert gegen den Sprachvertrag geprüft werden; ein pauschaler Shutdown-Drain ersetzt diese Regeln nicht. Keine neue VB6-Syntax ist vorgesehen.
 
+Die vorhandenen Ausführungstests decken für erzeugte Klassen inzwischen Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-/Array-/Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies ab. Importierte COM-RCWs sind bewusst nicht Teil dieses Zählers: Die CLR-RCW-Referenzzahl entspricht nicht einzelnen VB6-Speicherplätzen. Für eine deterministische Freigabe solcher Objekte braucht es deshalb einen separat entworfenen COM-Ownership-Vertrag mit Fremdclient-Probes; bis dahin bleibt R2 offen.
+
 | Karte | Ziel und Abnahme |
 | --- | --- |
 | `managed-r2-lifetime` | **Referenzgezählte Objektlebensdauer:** Terminate beim Wegfall der letzten Referenz; Aliases, ByRef, Rückgaben, alle Speicherformen, Events/COM, Selbstzuweisung, Initialize-Fehler, Reentranz, Zyklen und Programmende ohne vorzeitige/doppelte Terminierung prüfen. |
