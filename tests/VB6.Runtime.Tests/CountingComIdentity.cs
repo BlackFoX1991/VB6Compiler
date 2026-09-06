@@ -19,10 +19,20 @@ namespace VB6.Runtime.Tests;
 ///
 /// The delegates are held in fields on purpose: a function pointer handed to native code does not
 /// keep its delegate alive, and a collected one turns into a call into freed memory.
+///
+/// The identity is never freed, and that is deliberate. The CLR caches one RCW per IUnknown
+/// address, so a freed block whose address the allocator hands out again can resurrect the
+/// previous identity's wrapper -- with its previous lifetime state attached. It was measured:
+/// a test that kept a wrapper alive past its identity made the next test read counts that
+/// belonged to the one before it, and the numbers looked plausible enough to be believed. Holding
+/// every block for the life of the process costs a few dozen bytes per case and removes the whole
+/// class of result.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class CountingComIdentity : IDisposable
+internal sealed class CountingComIdentity
 {
+    // Keeps blocks and delegates reachable, and keeps every address unique for the process.
+    private static readonly List<CountingComIdentity> Issued = [];
     private const int SOk = 0;
     private const int ENoInterface = unchecked((int)0x80004002);
     private const int EPointer = unchecked((int)0x80004003);
@@ -48,7 +58,6 @@ internal sealed class CountingComIdentity : IDisposable
     private int _addRefCalls;
     private int _releaseCalls;
     private int _rejectedQueries;
-    private bool _disposed;
 
     public CountingComIdentity()
     {
@@ -65,6 +74,11 @@ internal sealed class CountingComIdentity : IDisposable
         // the state this fixture cares about lives on the managed side.
         _instance = Marshal.AllocHGlobal(IntPtr.Size);
         Marshal.WriteIntPtr(_instance, _vtable);
+
+        lock (Issued)
+        {
+            Issued.Add(this);
+        }
     }
 
     /// <summary>The raw IUnknown pointer, at a native reference count of zero.</summary>
@@ -112,20 +126,4 @@ internal sealed class CountingComIdentity : IDisposable
         return (uint)Interlocked.Decrement(ref _references);
     }
 
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        Marshal.FreeHGlobal(_instance);
-        Marshal.FreeHGlobal(_vtable);
-
-        // The delegates must outlive the last native call through their function pointers.
-        GC.KeepAlive(_queryInterface);
-        GC.KeepAlive(_addRef);
-        GC.KeepAlive(_release);
-    }
 }

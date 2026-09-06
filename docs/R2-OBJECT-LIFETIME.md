@@ -67,14 +67,40 @@ Die Zählung ist an allen oben genannten Familien gegen eine testeigene Identit�
 Jeder Übergang kehrt exakt auf den Ausgangswert zurück, drei erzwungene GC-Läufe ändern an einem
 gehaltenen Objekt nichts, und ein Release ohne passendes Retain ist folgenlos statt schädlich.
 
-Eine Eigenschaft ist dabei festzuhalten, weil sie leicht als Zähler missverstanden wird:
+### Anteile, nicht Referenzen
+
+Der Punkt, an dem der COM-Besitz tatsächlich hängt, ist gemessen und war vorher nirgends
+aufgeschrieben: Die CLR führt **einen** RCW pro IUnknown-Identität. Ein zweites Marshalling
+derselben Identität liefert dasselbe Objekt und vergibt einen weiteren **Anteil** daran — keine
+weitere native Referenz. `Marshal.ReleaseComObject` verbraucht genau einen Anteil und gibt die
+native Referenz erst frei, wenn der letzte weg ist.
+
+Daraus folgt die eigentliche Vorbedingung der Adoption: Sie **verbraucht einen Anteil** und setzt
+voraus, dass der adoptierte Wert einen eigenen mitgebracht hat. Ein gemarshalltes COM-Ergebnis tut
+das immer. Bekommt die Adoption dagegen genau das Objekt, das ein verwalteter Halter benutzt, ohne
+eigenen Anteil, dann nimmt die Freigabe durch VB6 den Wrapper des Halters mit.
+
+Gemessen wurde beides: Mit eigenem Anteil überlebt der Halter (auch bei zwei adoptierten
+Memberergebnissen), ohne eigenen Anteil ist sein Wrapper danach ungültig. **Kein erzeugter Pfad
+erreicht den zweiten Fall** — ein aus VB6-Speicher zurückgelesener Wert gilt als geliehen, und jeder
+adoptierende Pfad läuft über Marshalling. Die Grenze ist trotzdem als Fall festgeschrieben, damit
+ein künftiger Pfad dort scheitert statt an einer weit entfernten Aufrufstelle.
+
+Zu unterscheiden ist das von einem **nativen** Fremdhalter — einem echten COM-Client in einem
+anderen Apartment oder Prozess oder einem Control, das sein Objekt selbst hält. Der hat seine
+eigene `AddRef` und ist von `Marshal.ReleaseComObject` gar nicht betroffen. Gefährdet ist nur ein
+verwalteter Mithalter im selben Prozess, der sich denselben RCW teilt.
+
+### Weiteres
+
+Eine Eigenschaft ist außerdem festzuhalten, weil sie leicht als Zähler missverstanden wird:
 `AdoptComObject` nimmt den IUnknown-Hold nur, wenn noch keine VB6-Referenz besteht, erhöht aber
-`OwnedRcwReferences` bei jeder Adoption. Wird dieselbe Identität zweimal adoptiert, ruft
-`ReleaseComObject` deshalb `Marshal.ReleaseComObject` mehrfach; der erste Aufruf gibt bereits alle
-nativen Referenzen des Wrappers frei, jeder weitere läuft in die abgefangene
-`InvalidComObjectException`. Das Ergebnis ist gemessen korrekt — aber `OwnedRcwReferences` ist eine
-Zählung von Adoptionen, keine native Referenzzählung, und die Schleife trägt ihre Richtigkeit
-nicht selbst, sondern über den Abbruch.
+`OwnedRcwReferences` bei jeder Adoption. `ReleaseComObject` ruft `Marshal.ReleaseComObject`
+entsprechend oft — und das ist richtig, solange jede Adoption ihren eigenen Anteil mitgebracht hat:
+Dann verbraucht jeder Aufruf genau einen. Nur wenn öfter adoptiert als angeliefert wurde, gibt der
+erste Aufruf bereits alles frei und die restlichen laufen in die abgefangene
+`InvalidComObjectException`. Der Zähler heißt also Adoptionen, nicht native Referenzen, und die
+Schleife trägt ihre Richtigkeit in diesem Fall über den Abbruch statt über die Zählung.
 
 ## Durchführung und Abnahme
 
@@ -86,10 +112,11 @@ nicht selbst, sondern über den Abbruch.
    Alias aufrufbar und beendet sich erst nach dem letzten.
 3. **Exakte native Referenzzählung.** *Erledigt (Schnitt 21).* Zehn Fälle über eine testeigene
    IUnknown-Identität, ohne Abhängigkeit von einer registrierten Komponente.
-4. **Host-geteilte Wrapper.** *Offen.* Gemessen ist bisher der einfache Fall: VB6 gibt frei, der
-   Host behält seine Referenz. Nicht gemessen ist ein Wrapper, den ein fremder Host **gleichzeitig**
-   über einen eigenen Anteil hält, während VB6 ihn adoptiert — genau die Konstellation, in der
-   `Marshal.ReleaseComObject` einen fremden Anteil mitnehmen kann.
+4. **Host-geteilte Wrapper.** *Erledigt für den verwalteten Mithalter (Schnitt 22).* Ein Halter,
+   der seinen eigenen Anteil hat, überlebt die Adoption und Freigabe durch VB6 — auch bei zwei
+   adoptierten Memberergebnissen. Der Fall ohne eigenen Anteil ist als Grenze festgeschrieben; kein
+   erzeugter Pfad erreicht ihn. Ein **nativer** Fremdhalter ist von `Marshal.ReleaseComObject`
+   ohnehin nicht betroffen; seine Prüfung gehört zu Schritt 5.
 5. **Unabhängige Fremdclient-Probe mit Zählerbeobachtung.** *Offen.* `VB6.ComActivationProbe`
    spricht heute roh über Vtable-Slots mit einem Server, gibt seine Zeiger aber nur ordentlich frei,
    ohne die Rückgabewerte von `AddRef`/`Release` zu lesen. Erst damit wäre die Zählung auch von
@@ -98,6 +125,7 @@ nicht selbst, sondern über den Abbruch.
    Fehler, Initialisierungsfehler und reentrante Terminierung ab. Ein pauschaler Shutdown-Drain
    ersetzt diese Regeln nicht und gilt nicht als Nachweis des Zeitpunkts.
 
-`managed-r2-lifetime` bleibt `planned` / `not-yet-verified`, solange 4 und 5 offen sind. Ein
-Vertrag, dessen Zählung nur im eigenen Prozess und nur ohne fremde Mitbesitzer gemessen ist, ist
-kein abgenommener COM-Lebensdauervertrag.
+`managed-r2-lifetime` bleibt `planned` / `not-yet-verified`, solange 5 offen ist. Die gesamte
+Zählung ist bisher im eigenen Prozess gemessen; ein nativer Fremdhalter jenseits der
+Prozessgrenze hat sie noch nicht bestätigt, und ohne diese Gegenprobe ist es kein abgenommener
+COM-Lebensdauervertrag.

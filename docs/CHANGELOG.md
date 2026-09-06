@@ -7828,3 +7828,39 @@ Die Matrix bleibt bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned*
 `managed-r2-lifetime` bleibt offen: Ein Wrapper, den ein fremder Host gleichzeitig über einen
 eigenen Anteil hält, und eine Fremdclient-Probe, die die Zählung über die Prozessgrenze liest,
 sind weiterhin nicht gemessen.
+
+## 2026-09-06 — R2, Schnitt 22: host-geteilte Wrapper und die Anteilsregel
+
+Der Verdacht war konkret: `ReleaseComObject` ruft am Nullpunkt `Marshal.ReleaseComObject`, und das
+gibt beim Erreichen von null alle nativen Referenzen des Wrappers frei. Da die CLR einen Wrapper je
+IUnknown-Identität cacht, hätte VB6 damit einem fremden Halter das Objekt unter den Füßen
+wegziehen können.
+
+Die Messung hat den Mechanismus bestätigt und die Reichweite widerlegt. Entscheidend ist eine
+Regel, die vorher nirgends aufgeschrieben war: Ein zweites Marshalling derselben Identität liefert
+dasselbe Objekt und vergibt einen weiteren **Anteil** daran, keine weitere native Referenz;
+`Marshal.ReleaseComObject` verbraucht genau einen Anteil. Adoption verbraucht also einen Anteil und
+setzt voraus, dass der Wert einen eigenen mitgebracht hat — was jedes gemarshallte COM-Ergebnis tut.
+Mit eigenem Anteil überlebt der Halter, auch bei zwei adoptierten Memberergebnissen. Ohne eigenen
+Anteil ist sein Wrapper danach ungültig.
+
+Kein erzeugter Pfad erreicht den zweiten Fall: Ein aus VB6-Speicher zurückgelesener Wert gilt als
+geliehen, und jeder adoptierende Pfad läuft über Marshalling. Der Fall steht trotzdem als Test da,
+damit ein künftiger Pfad dort scheitert statt an einer weit entfernten Aufrufstelle. An `src/`
+wurde nichts geändert — es gibt keine belegte Abweichung zu korrigieren.
+
+Damit ist auch die Aussage aus Schnitt 21 über `OwnedRcwReferences` zu schärfen: Mehrfache
+`Marshal.ReleaseComObject`-Aufrufe sind richtig, solange jede Adoption ihren Anteil mitbrachte —
+jeder Aufruf verbraucht dann genau einen. Nur wenn öfter adoptiert als angeliefert wurde, trägt der
+abgefangene Ausnahmefall das Ergebnis. Der frühere Satz beschrieb diesen Sonderfall als Regel.
+
+Ein Messfehler ist dabei aufgefallen und in der Fixture abgestellt: `CountingComIdentity` gab ihren
+Speicher frei, der Allocator vergab die Adresse erneut, und der adressbasierte RCW-Cache lieferte
+den Wrapper der vorherigen Identität samt deren Lebensdauerzustand zurück. Ein Fall las dadurch
+Zahlen, die zum Fall davor gehörten, und sie sahen plausibel aus. Die Identität wird jetzt für die
+Prozesslebensdauer gehalten; das kostet ein paar Dutzend Byte und nimmt der Messung eine ganze
+Fehlerklasse.
+
+Die Matrix bleibt bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**.
+`managed-r2-lifetime` bleibt offen: Die Zählung ist vollständig in-proc gemessen; die
+Fremdclient-Probe über die Prozessgrenze fehlt.

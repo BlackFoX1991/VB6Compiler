@@ -212,8 +212,12 @@ darüber hinaus für Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, V
 Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler, reentrante
 Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt.
 
-Offen bleiben zwei benannte Punkte: ein Wrapper, den ein fremder Host gleichzeitig über einen
-eigenen Anteil hält, und eine Fremdclient-Probe, die die Zählung auch von außen über eine
+Schnitt 22 hat zusätzlich den verwalteten Mithalter geklärt: Ein Halter mit eigenem Anteil am
+Wrapper überlebt Adoption und Freigabe durch VB6. Dahinter steht die Regel, an der der COM-Besitz
+tatsächlich hängt — die CLR führt einen Wrapper je Identität, und Adoption verbraucht einen
+**Anteil** daran, keinen Zähler. Ein nativer Fremdhalter ist davon ohnehin nicht betroffen.
+
+Offen bleibt damit ein Punkt: eine Fremdclient-Probe, die die Zählung von außen über eine
 Prozessgrenze liest statt nur in-proc. Daher bleibt R2 offen.
 
 | Karte | Ziel und Abnahme |
