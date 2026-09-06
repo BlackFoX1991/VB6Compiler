@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `bd0712c`, Lauf `20260906T132127Z-1a1a1661`:
+Messung vom 2026-09-06 auf `main` / `97ebcb4` mit nicht committeten Änderungen, Lauf `20260906T132941Z-1fe108d7`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1745 Fälle: 1745 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1747 Fälle: 1747 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -187,16 +187,17 @@ insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` um
 Managed-Innenzeiger keine zulässige Abkürzung wäre.
 
 Der erste implementierte Ausschnitt ist bewusst enger: x86-Managed-Code kann `VarPtr` eines
-lokalen `Long`, `LongLong`, `LongPtr`, `Integer`, `UShort`, `Byte`, `Boolean`, `Single`,
-`Double`, `Date` oder `Currency` speichern. Von der Runtime besessene native Vier-, Zwei-, Ein-
-und Acht-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores und CLR-ByRef-Write-backs
-synchronisiert und bei der Prozedurrückkehr freigegeben; `Boolean` nutzt dabei die klassische zwei
-Byte breite `-1`/`0`-Darstellung, `UShort` ein vorzeichenloses zwei Byte breites Layout,
-`LongLong` einen direkten signierten 64-Bit-Wert, `LongPtr` den expliziten x86-Vier-Byte-Vertrag,
-`Single` und `Double` ihre vier beziehungsweise acht Byte breiten IEEE-754-Layouts, `Date` das
-acht Byte breite OLE-Automation-Layout und `Currency` den mit 10.000 skalierten `Int64`-Wert.
-AnyCPU/x64 sowie alle anderen Speicherfamilien behalten ihre explizite Fehler-5-Grenze, bis ihr
-Layout und ihre Invalidierung abgenommen sind.
+lokalen `Long`, `LongLong`, `LongPtr`, `Integer`, `UShort`, `UInteger`, `Byte`, `Boolean`,
+`Single`, `Double`, `Date` oder `Currency` speichern. Von der Runtime besessene native Vier-,
+Zwei-, Ein- und Acht-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores und
+CLR-ByRef-Write-backs synchronisiert und bei der Prozedurrückkehr freigegeben; `Boolean` nutzt
+dabei die klassische zwei Byte breite `-1`/`0`-Darstellung, `UShort` und `UInteger`
+vorzeichenlose zwei beziehungsweise vier Byte breite Layouts, `LongLong` einen direkten signierten
+64-Bit-Wert, `LongPtr` den expliziten x86-Vier-Byte-Vertrag, `Single` und `Double` ihre vier
+beziehungsweise acht Byte breiten IEEE-754-Layouts, `Date` das acht Byte breite
+OLE-Automation-Layout und `Currency` den mit 10.000 skalierten `Int64`-Wert. AnyCPU/x64 sowie
+alle anderen Speicherfamilien behalten ihre explizite Fehler-5-Grenze, bis ihr Layout und ihre
+Invalidierung abgenommen sind.
 
 `VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
 

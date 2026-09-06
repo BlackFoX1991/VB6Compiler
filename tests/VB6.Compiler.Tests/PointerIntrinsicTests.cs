@@ -267,6 +267,22 @@ public sealed class PointerIntrinsicTests
                     uShortDestination = CUShort(40000)
                     CopyMemory ByVal uShortPointer, uShortDestination, 2
                     Debug.Print CLng(uShortSource)
+
+                    Dim uIntegerSource As UInteger
+                    Dim uIntegerDestination As UInteger
+                    Dim uIntegerPointer As Long
+                    uIntegerSource = CUInt(4000000000)
+                    uIntegerPointer = VarPtr(uIntegerSource)
+                    CopyMemory uIntegerDestination, ByVal uIntegerPointer, 4
+                    Debug.Print uIntegerDestination
+
+                    uIntegerSource = CUInt(123)
+                    CopyMemory uIntegerDestination, ByVal uIntegerPointer, 4
+                    Debug.Print uIntegerDestination
+
+                    uIntegerDestination = CUInt(3000000000)
+                    CopyMemory ByVal uIntegerPointer, uIntegerDestination, 4
+                    Debug.Print uIntegerSource
                 End Sub
                 """, "Module1.bas").EmitManagedApplication(
                 assemblyPath,
@@ -290,7 +306,7 @@ public sealed class PointerIntrinsicTests
 
             Assert.AreEqual(0, process.ExitCode, standardError);
             CollectionAssert.AreEqual(
-                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096", "16909060", "123", "84281096", "50000", "123", "40000" },
+                new[] { "16909060", "123", "84281096", "1690", "123", "8428", "169", "123", "42", "-1", "0", "True", "1069547520", "1075838976", "3", "1.5", "2.5", "3", "1.5", "2.5", "3", "15000", "25000", "3", "72623859790382856", "123", "84281096", "16909060", "123", "84281096", "50000", "123", "40000", "4000000000", "123", "3000000000" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }

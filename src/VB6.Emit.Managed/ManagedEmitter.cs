@@ -1854,6 +1854,8 @@ public sealed class ManagedEmitter
                 ? ("Byte", typeof(byte))
                 : type == TypeSymbol.Long
                 ? ("Int32", typeof(int))
+                : type == TypeSymbol.UInteger
+                ? ("UInt32", typeof(uint))
                 : type == TypeSymbol.LongLong
                 ? ("Int64", typeof(long))
                 : type == TypeSymbol.LongPtr

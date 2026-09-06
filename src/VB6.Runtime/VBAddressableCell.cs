@@ -75,6 +75,8 @@ public static class VBAddressableStorage
 
     public static object CreateInt32(int value) => VBAddressableCell<int>.Create(value);
 
+    public static object CreateUInt32(uint value) => VBAddressableCell<uint>.Create(value);
+
     public static object CreateInt16(short value) => VBAddressableCell<short>.Create(value);
 
     public static object CreateUShort(ushort value) => VBAddressableCell<ushort>.Create(value);
@@ -96,6 +98,8 @@ public static class VBAddressableStorage
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
 
     public static IntPtr GetInt32NativeAddress(object storage) => GetInt32(storage).GetNativeAddress();
+
+    public static IntPtr GetUInt32NativeAddress(object storage) => GetUInt32(storage).GetNativeAddress();
 
     public static IntPtr GetInt16NativeAddress(object storage) => GetInt16(storage).GetNativeAddress();
 
@@ -119,6 +123,8 @@ public static class VBAddressableStorage
 
     public static int ReadInt32(object storage) => GetInt32(storage).Read();
 
+    public static uint ReadUInt32(object storage) => GetUInt32(storage).Read();
+
     public static short ReadInt16(object storage) => GetInt16(storage).Read();
 
     public static ushort ReadUShort(object storage) => GetUShort(storage).Read();
@@ -140,6 +146,8 @@ public static class VBAddressableStorage
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
 
     public static void WriteInt32(object storage, int value) => GetInt32(storage).Write(value);
+
+    public static void WriteUInt32(object storage, uint value) => GetUInt32(storage).Write(value);
 
     public static void WriteInt16(object storage, short value) => GetInt16(storage).Write(value);
 
@@ -175,6 +183,9 @@ public static class VBAddressableStorage
 
     private static VBAddressableCell<int> GetInt32(object storage) => storage as VBAddressableCell<int>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Long.", nameof(storage));
+
+    private static VBAddressableCell<uint> GetUInt32(object storage) => storage as VBAddressableCell<uint>
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 UInteger.", nameof(storage));
 
     private static VBAddressableCell<short> GetInt16(object storage) => storage as VBAddressableCell<short>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Integer.", nameof(storage));
