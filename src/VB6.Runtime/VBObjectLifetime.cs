@@ -88,9 +88,9 @@ public static class VBObjectLifetime
 
     /// <summary>
     /// Records another generated storage owner. An array retains the objects in all of its
-    /// elements for a copied descriptor; a generated class increments its own counter. Runtime
-    /// and external COM objects are intentionally ignored because their ownership is governed by
-    /// their own contracts, not by a managed <c>Class_Terminate</c> counter.
+    /// elements for a copied descriptor; a generated class increments its own counter, including
+    /// one emitted by a referenced project that shares this runtime. Runtime contracts and COM
+    /// objects have no counter state, so their native ownership remains intact.
     /// </summary>
     public static void Retain(object? instance)
     {

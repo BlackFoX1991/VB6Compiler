@@ -165,7 +165,7 @@ Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-I
 
 Nach R1.
 
-Die Runtime führt explizite Referenzverwaltung für VB6-Objekte; das IR trägt Besitzübergänge an allen Wert-/Referenzgrenzen. Dazu gehören Locals, Modul-/Klassenfelder, Parameter, Rückgaben, Variant-/Array-/Collection-Speicher, Events und COM. Neue Referenzen werden vor dem Freigeben ersetzter Referenzen gesichert, damit Selbstzuweisung und Aliasbildung kein lebendes Objekt terminieren.
+Die Runtime führt explizite Referenzverwaltung für generierte VB6-Objekte; das IR trägt Besitzübergänge an allen Wert-/Referenzgrenzen. Dazu gehören Locals, Modul-/Klassenfelder, Parameter, Rückgaben, Variant-/Array-/Collection-Speicher, Events und auch generierte Klassen aus referenzierten Projektassemblies. Neue Referenzen werden vor dem Freigeben ersetzter Referenzen gesichert, damit Selbstzuweisung und Aliasbildung kein lebendes Objekt terminieren. Importierte COM-Objekte behalten dagegen ihre native Referenzverwaltung.
 
 Heute registriert `VBObjectLifetime` Terminatoren für Finalizer/Prozessabbau. Das garantiert noch nicht den VB6-Zeitpunkt. Ziel ist Terminate bei der letzten Referenz in beiden Profilen, einschließlich kontrollierter Fehler- und Reentranzpfade. Zyklen und abruptes `End` müssen gesondert gegen den Sprachvertrag geprüft werden; ein pauschaler Shutdown-Drain ersetzt diese Regeln nicht. Keine neue VB6-Syntax ist vorgesehen.
 

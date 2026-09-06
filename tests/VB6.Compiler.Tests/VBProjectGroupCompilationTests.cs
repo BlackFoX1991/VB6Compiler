@@ -284,6 +284,10 @@ public sealed class VBProjectGroupCompilationTests
                 Public Function Value() As Long
                     Value = 7
                 End Function
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Customer.Terminate"
+                End Sub
                 """);
             File.WriteAllText(Path.Combine(directory, "Consumer.vbp"), """
                 Type=Exe
@@ -297,6 +301,8 @@ public sealed class VBProjectGroupCompilationTests
                     Dim customer As Shared.Customer
                     Set customer = New Shared.Customer
                     Debug.Print customer.Value
+                    Set customer = Nothing
+                    Debug.Print "after release"
                 End Sub
                 """);
 
@@ -349,7 +355,12 @@ public sealed class VBProjectGroupCompilationTests
             process.WaitForExit();
 
             Assert.AreEqual(0, process.ExitCode, standardError);
-            Assert.AreEqual("7", standardOutput.Trim());
+            // The referenced generated class must release at Set Nothing, not only through the
+            // process-exit fallback after the consumer has already continued.
+            CollectionAssert.AreEqual(
+                new[] { "7", "Customer.Terminate", "after release" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
         }
         finally
         {

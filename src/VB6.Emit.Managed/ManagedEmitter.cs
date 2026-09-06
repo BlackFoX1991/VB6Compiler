@@ -5017,14 +5017,13 @@ public sealed class ManagedEmitter
             type is ClassTypeSymbol;
 
         /// <summary>
-        /// Only generated VB6 classes participate in this counter. Runtime contracts and imported
-        /// COM classes retain their existing ownership mechanisms, while a generated interface is
-        /// still a valid typed view over a counted generated instance.
+        /// Generated VB6 classes participate in this counter even when they were emitted by a
+        /// referenced project: the shared runtime recognizes their registration. Runtime contracts
+        /// and imported COM classes have no counter state, so their native ownership remains intact.
         /// </summary>
         private static bool TracksObjectLifetime(TypeSymbol type) =>
             type is ClassTypeSymbol classType &&
-            !classType.IsRuntimeObjectContract &&
-            classType.ExternalAssemblyName is null;
+            !classType.IsRuntimeObjectContract;
 
         /// <summary>
         /// A Variant may carry a generated class. Its opaque CLR storage still owns that class
