@@ -65,20 +65,39 @@ public sealed class VBAddressableCell<T> : IDisposable
 }
 
 /// <summary>
-/// Non-generic entry points used by emitted code for the initial Int32 addressable-storage slice.
+/// Non-generic entry points used by emitted code for scalar addressable-storage slices.
 /// </summary>
 public static class VBAddressableStorage
 {
     public static object CreateInt32(int value) => VBAddressableCell<int>.Create(value);
 
+    public static object CreateInt16(short value) => VBAddressableCell<short>.Create(value);
+
     public static IntPtr GetInt32NativeAddress(object storage) => GetInt32(storage).GetNativeAddress();
+
+    public static IntPtr GetInt16NativeAddress(object storage) => GetInt16(storage).GetNativeAddress();
 
     public static int ReadInt32(object storage) => GetInt32(storage).Read();
 
+    public static short ReadInt16(object storage) => GetInt16(storage).Read();
+
     public static void WriteInt32(object storage, int value) => GetInt32(storage).Write(value);
 
-    public static void DisposeInt32(object storage) => GetInt32(storage).Dispose();
+    public static void WriteInt16(object storage, short value) => GetInt16(storage).Write(value);
+
+    public static void Dispose(object storage)
+    {
+        if (storage is not IDisposable disposable)
+        {
+            throw new ArgumentException("The addressable storage cell must be disposable.", nameof(storage));
+        }
+
+        disposable.Dispose();
+    }
 
     private static VBAddressableCell<int> GetInt32(object storage) => storage as VBAddressableCell<int>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Long.", nameof(storage));
+
+    private static VBAddressableCell<short> GetInt16(object storage) => storage as VBAddressableCell<short>
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Integer.", nameof(storage));
 }

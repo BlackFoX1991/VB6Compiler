@@ -4299,10 +4299,10 @@ public static class IrLowerer
         }
 
         /// <summary>
-        /// The first retained-pointer slice deliberately covers only a local VB6 Long.  Its
-        /// native cell has the same four-byte x86 representation, while Boolean, strings,
-        /// Variants, UDTs and aggregate storage need their own ABI layouts before they can make
-        /// the same promise.
+        /// The first retained-pointer slice deliberately covers only local VB6 Long and Integer
+        /// slots. Their native cells have the same x86 scalar representations, while Boolean,
+        /// strings, Variants, UDTs and aggregate storage need their own ABI layouts before they
+        /// can make the same promise.
         /// </summary>
         private bool TryLowerStoredVarPtr(BoundExpression expression, out IrExpression pointer)
         {
@@ -4316,7 +4316,7 @@ public static class IrLowerer
                     Variable: LocalVariableSymbol localSymbol
                 } &&
                 _locals.TryGetValue(localSymbol, out var local) &&
-                local.Type == TypeSymbol.Long)
+                IsAddressableScalar(local.Type))
             {
                 if (!_addressableCells.TryGetValue(local, out var cell))
                 {
@@ -4331,6 +4331,9 @@ public static class IrLowerer
             pointer = null!;
             return false;
         }
+
+        private static bool IsAddressableScalar(TypeSymbol type) =>
+            type == TypeSymbol.Long || type == TypeSymbol.Integer;
 
         private IrCallArgument LowerAnyPointerArgument(BoundExpression expression)
         {

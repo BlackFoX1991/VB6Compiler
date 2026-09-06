@@ -14,10 +14,11 @@ Puffer; Skalare gehen direkt als ByRef-Adresse in den Aufruf. Dieser Puffer ist 
 ungültig und erfüllt den Speichervertrag eines gespeicherten Zeigers nicht.
 
 Als erste, absichtlich kleine gespeicherte-Ausnahme erzeugt die x86-Managed-Emission für
-`VarPtr(localLong)` eine native Vier-Byte-Zelle. Normale Loads/Stores sowie CLR-ByRef-Write-backs
-werden mit dieser Zelle synchronisiert, und die Zelle wird bei der Prozedurrückkehr freigegeben.
-Sie übersteht damit eine GC, solange der lokale Speicherplatz lebt. AnyCPU und x64 behalten für
-denselben Ausdruck Fehler 5; dort wird kein `IntPtr` in einen `Long` abgeschnitten.
+`VarPtr(localLong)` und `VarPtr(localInteger)` native Vier- beziehungsweise Zwei-Byte-Zellen.
+Normale Loads/Stores sowie CLR-ByRef-Write-backs werden mit diesen Zellen synchronisiert, und sie
+werden bei der Prozedurrückkehr freigegeben. Sie überstehen damit eine GC, solange der lokale
+Speicherplatz lebt. AnyCPU und x64 behalten für denselben Ausdruck Fehler 5; dort wird kein
+`IntPtr` in einen `Long` abgeschnitten.
 
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
@@ -78,6 +79,7 @@ keine der anderen Familien.
 
 Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
 separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
-allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert ist
-nur ein lokales `Long` im x86-Managed-Pfad. Außerhalb dieses Falls und außerhalb des unmittelbaren
-`Declare`-Pfads gilt weiterhin die bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.
+allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert sind
+nur lokale `Long`- und `Integer`-Slots im x86-Managed-Pfad. Außerhalb dieser Fälle und außerhalb
+des unmittelbaren `Declare`-Pfads gilt weiterhin die bestehende Fehler-5-Grenze für `VarPtr` und
+`StrPtr`.

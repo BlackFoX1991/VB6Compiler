@@ -64,19 +64,27 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
-    public void Emit_UsesNativeLongStorageOnlyForTheX86StoredVarPtrContract()
+    public void Emit_UsesNativeScalarStorageOnlyForTheX86StoredVarPtrContract()
     {
         var program = Lower("""
             Sub Bump(ByRef value As Long)
                 value = value + 1
             End Sub
 
+            Sub BumpShort(ByRef value As Integer)
+                value = value + 1
+            End Sub
+
             Sub Main()
                 Dim value As Long
                 Dim pointer As Long
+                Dim smallValue As Integer
                 value = 7
                 pointer = VarPtr(value)
                 Bump value
+                smallValue = 8
+                pointer = VarPtr(smallValue)
+                BumpShort smallValue
                 Debug.Print value
             End Sub
             """);
@@ -102,7 +110,11 @@ public sealed class ManagedEmitterTests
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetInt32NativeAddress)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadInt32)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteInt32)),
-                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.DisposeInt32))
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateInt16)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetInt16NativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadInt16)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteInt16)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.Dispose))
             },
             x86Methods);
 

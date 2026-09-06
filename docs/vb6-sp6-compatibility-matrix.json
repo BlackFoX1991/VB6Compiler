@@ -2680,7 +2680,7 @@
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs"
       ],
-      "notes": "Planned work: the listed regressions include an x86 local-Long VarPtr cell with GC-stable storage and CLR-ByRef synchronization. They are not passing evidence for the full acceptance contract (other storage families, native probes, invalidation and reallocation remain open).",
+      "notes": "Planned work: the listed regressions include x86 local-Long and local-Integer VarPtr cells with GC-stable storage and CLR-ByRef synchronization. They are not passing evidence for the full acceptance contract (other storage families, native probes, invalidation and reallocation remain open).",
       "title": "Stabiler adressierbarer Speicher"
     },
     {

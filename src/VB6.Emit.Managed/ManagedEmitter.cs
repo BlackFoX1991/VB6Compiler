@@ -1033,14 +1033,11 @@ public sealed class ManagedEmitter
                 return;
             }
 
-            foreach (var cell in procedure.AddressableCells.Values)
+            foreach (var pair in procedure.AddressableCells)
             {
                 encoder.LoadConstantI4(0);
-                encoder.Call(GetRuntimeMethodReference(Static(
-                    typeof(VBAddressableStorage),
-                    nameof(VBAddressableStorage.CreateInt32),
-                    typeof(int))));
-                encoder.StoreLocal(cell.Id);
+                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pair.Key.Type, "Create")));
+                encoder.StoreLocal(pair.Value.Id);
             }
         }
 
@@ -1056,7 +1053,7 @@ public sealed class ManagedEmitter
                 encoder.LoadLocal(cell.Id);
                 encoder.Call(GetRuntimeMethodReference(Static(
                     typeof(VBAddressableStorage),
-                    nameof(VBAddressableStorage.DisposeInt32),
+                    nameof(VBAddressableStorage.Dispose),
                     typeof(object))));
             }
         }
@@ -1252,10 +1249,7 @@ public sealed class ManagedEmitter
                     if (TryGetAddressableCell(procedure, local.Local, out var cell))
                     {
                         encoder.LoadLocal(cell.Id);
-                        encoder.Call(GetRuntimeMethodReference(Static(
-                            typeof(VBAddressableStorage),
-                            nameof(VBAddressableStorage.ReadInt32),
-                            typeof(object))));
+                        encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(local.Type, "Read")));
                         break;
                     }
                     encoder.LoadLocal(local.Local.Id);
@@ -1324,11 +1318,7 @@ public sealed class ManagedEmitter
                     {
                         encoder.LoadLocal(cell.Id);
                         encoder.LoadLocal(local.Local.Id);
-                        encoder.Call(GetRuntimeMethodReference(Static(
-                            typeof(VBAddressableStorage),
-                            nameof(VBAddressableStorage.WriteInt32),
-                            typeof(object),
-                            typeof(int))));
+                        encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(local.Type, "Write")));
                     }
                     break;
                 case IrParameterPlace parameter when parameter.Parameter.PassingMode == ParameterPassingMode.ByVal:
@@ -1512,11 +1502,8 @@ public sealed class ManagedEmitter
                         // current first, then copy any write-back into native storage below.
                         encoder.LoadLocalAddress(local.Local.Id);
                         encoder.LoadLocal(cell.Id);
-                        encoder.Call(GetRuntimeMethodReference(Static(
-                            typeof(VBAddressableStorage),
-                            nameof(VBAddressableStorage.ReadInt32),
-                            typeof(object))));
-                        EmitStoreIndirect(encoder, TypeSymbol.Long);
+                        encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(local.Type, "Read")));
+                        EmitStoreIndirect(encoder, local.Type);
                     }
                     encoder.LoadLocalAddress(local.Local.Id);
                     break;
@@ -1818,10 +1805,7 @@ public sealed class ManagedEmitter
             if (_options.Platform == ManagedPlatform.X86)
             {
                 encoder.LoadLocal(pointer.Cell.Id);
-                encoder.Call(GetRuntimeMethodReference(Static(
-                    typeof(VBAddressableStorage),
-                    nameof(VBAddressableStorage.GetInt32NativeAddress),
-                    typeof(object))));
+                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pointer.Local.Type, "NativeAddress")));
                 encoder.OpCode(ILOpCode.Conv_i4);
                 return;
             }
@@ -1832,6 +1816,24 @@ public sealed class ManagedEmitter
             encoder.OpCode(ILOpCode.Box);
             encoder.Token(GetTypeEntityHandle(TypeSymbol.Long));
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object))));
+        }
+
+        private static MethodInfo AddressableStorageMethod(TypeSymbol type, string operation)
+        {
+            var (suffix, scalarType) = type == TypeSymbol.Long
+                ? ("Int32", typeof(int))
+                : type == TypeSymbol.Integer
+                    ? ("Int16", typeof(short))
+                    : throw new NotSupportedException(
+                        $"Addressable storage for VB6 type '{type.Name}' is not implemented.");
+            return operation switch
+            {
+                "Create" => Static(typeof(VBAddressableStorage), "Create" + suffix, scalarType),
+                "Read" => Static(typeof(VBAddressableStorage), "Read" + suffix, typeof(object)),
+                "NativeAddress" => Static(typeof(VBAddressableStorage), "Get" + suffix + "NativeAddress", typeof(object)),
+                "Write" => Static(typeof(VBAddressableStorage), "Write" + suffix, typeof(object), scalarType),
+                _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
+            };
         }
 
         private void EmitCollectionAdd(
