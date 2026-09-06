@@ -7735,3 +7735,20 @@ Arrays und `Collection.Add`.
 Die Matrix bleibt bewusst bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**.
 R2 ist nicht abgeschlossen: COM-Objekte aus fremden Memberrückgaben, host-geteilte Wrapper,
 exakte native Referenzzählung und unabhängige Fremdclient-Probes sind weiterhin offen.
+
+## 2026-09-06 — R2, Schnitt 19: COM-Memberrückgaben von geliehenen CLR-Ergebnissen trennen
+
+Ein Interface-Ergebnis eines fremden COM-Members bringt eine frische COM-Referenz mit und wird
+jetzt wie eine direkte Aktivierung in den ersten VB6-Slot übertragen. Dieselbe late-bound
+Aufrufoberfläche kann jedoch ein verwaltetes Objekt zurückgeben; dieses bleibt ein geliehener Wert
+und erhält einen normalen Retain. Damit führt dynamischer Dispatch weder zur vorzeitigen
+Terminierung einer erzeugten Klasse noch zu einer unerkannten RCW-Freigabe.
+
+Der Runtime-Nachweis liest `Scripting.FileSystemObject.Drives`, hält das gelieferte RCW im Slot
+lebendig und bestätigt seine Ungültigkeit erst nach dessen Freigabe. Ein separater Gegenfall
+behält einen geliehenen Host-RCW nach dem Slot-Cleanup verwendbar. Emitter-Tests sichern die
+ausgewählten Helfer für Object-Slots und die vorhandenen Behälter-/ByVal-Pfade ab.
+
+Die Matrix bleibt bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**: Ein
+unabhängiger Fremdclient muss die nativen Referenzzähler und host-geteilte Wrapper weiter
+beobachten, bevor R2 geschlossen werden darf.

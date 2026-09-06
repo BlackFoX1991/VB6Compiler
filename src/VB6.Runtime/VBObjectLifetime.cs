@@ -191,8 +191,8 @@ public static class VBObjectLifetime
 
     /// <summary>
     /// Replaces a slot with a freshly activated COM object. Unlike a generated function result,
-    /// this raw RCW has not yet entered VB6 storage, so its activation reference becomes the
-    /// destination owner.
+    /// this raw RCW has not yet entered VB6 storage, so its COM reference becomes the destination
+    /// owner.
     /// </summary>
     public static object? TransferComActivation(object? current, object? replacement)
     {
@@ -202,10 +202,22 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
-    /// Marks a freshly activated COM value as owned by its first VB6 storage destination. Generated
-    /// objects and values returned from generated procedures already carry a storage reference,
-    /// so callers must use this only for the direct <c>New</c>, <c>CreateObject</c> or
-    /// <c>GetObject</c> runtime result.
+    /// Replaces a slot with a result from a foreign COM member. COM results carry a fresh raw RCW
+    /// reference, while a late-bound CLR result is borrowed just like any other object and has to
+    /// be retained before the outgoing slot is released.
+    /// </summary>
+    public static object? ReplaceComMemberResult(object? current, object? replacement)
+    {
+        RetainOrAdoptComResult(replacement);
+        Release(current);
+        return replacement;
+    }
+
+    /// <summary>
+    /// Marks a fresh COM result as owned by its first VB6 storage destination. Generated objects
+    /// and values returned from generated procedures already carry a storage reference, so callers
+    /// use this only for a direct <c>New</c>/<c>CreateObject</c>/<c>GetObject</c> result or an
+    /// interface result marshalled from a foreign COM member.
     /// </summary>
     public static void AdoptComActivation(object? instance)
     {
@@ -213,6 +225,23 @@ public static class VBObjectLifetime
         {
             AdoptComObject(instance);
         }
+    }
+
+    /// <summary>
+    /// Gives the first VB6 slot the correct ownership for a foreign member result. A COM result
+    /// transfers its freshly marshalled RCW reference; a CLR result remains borrowed and gains a
+    /// normal storage reference instead.
+    /// </summary>
+    public static object? RetainOrAdoptComResult(object? instance)
+    {
+        if (instance is null || !OperatingSystem.IsWindows() || !Marshal.IsComObject(instance))
+        {
+            Retain(instance);
+            return instance;
+        }
+
+        AdoptComActivation(instance);
+        return instance;
     }
 
     /// <summary>
@@ -248,13 +277,24 @@ public static class VBObjectLifetime
         Release(current);
     }
 
-    /// <summary>Moves a direct COM activation into a generated class field.</summary>
+    /// <summary>Moves a fresh COM runtime result into a generated class field.</summary>
     public static void TransferComActivationField(object instance, string fieldName, object? replacement)
     {
         ArgumentNullException.ThrowIfNull(instance);
         var field = GetField(instance.GetType(), fieldName);
         var current = field.GetValue(instance);
         AdoptComActivation(replacement);
+        field.SetValue(instance, replacement);
+        Release(current);
+    }
+
+    /// <summary>Stores a foreign COM-member result in a generated class field.</summary>
+    public static void ReplaceComMemberResultField(object instance, string fieldName, object? replacement)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        var field = GetField(instance.GetType(), fieldName);
+        var current = field.GetValue(instance);
+        RetainOrAdoptComResult(replacement);
         field.SetValue(instance, replacement);
         Release(current);
     }

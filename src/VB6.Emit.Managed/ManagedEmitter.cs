@@ -1447,6 +1447,8 @@ public sealed class ManagedEmitter
                                 ? nameof(VBArray<object>.ReplaceCopiedVariant)
                                 : IsDirectComActivation(value)
                                     ? nameof(VBArray<object>.TransferComActivationReference)
+                                : IsForeignComMemberResult(value)
+                                    ? nameof(VBArray<object>.ReplaceComMemberResultReference)
                                 : OwnsLifetimeReference(value)
                                     ? nameof(VBArray<object>.TransferReference)
                                     : nameof(VBArray<object>.ReplaceReference),
@@ -1469,6 +1471,8 @@ public sealed class ManagedEmitter
                                 ? nameof(VBArray<object>.ReplaceCopiedVariantAtFlatIndex)
                                 : IsDirectComActivation(value)
                                     ? nameof(VBArray<object>.TransferComActivationReferenceAtFlatIndex)
+                                : IsForeignComMemberResult(value)
+                                    ? nameof(VBArray<object>.ReplaceComMemberResultReferenceAtFlatIndex)
                                 : OwnsLifetimeReference(value)
                                     ? nameof(VBArray<object>.TransferReferenceAtFlatIndex)
                                     : nameof(VBArray<object>.ReplaceReferenceAtFlatIndex),
@@ -1920,6 +1924,8 @@ public sealed class ManagedEmitter
                 typeof(VBCollection),
                 IsDirectComActivation(call.Arguments[1].Expression)
                     ? nameof(VBCollection.AddComActivationValue)
+                    : IsForeignComMemberResult(call.Arguments[1].Expression)
+                        ? nameof(VBCollection.AddComMemberResultValue)
                     : OwnsLifetimeReference(call.Arguments[1].Expression)
                     ? nameof(VBCollection.AddOwnedValue)
                     : nameof(VBCollection.AddValue),
@@ -2120,13 +2126,24 @@ public sealed class ManagedEmitter
                 {
                     if (IsDirectComActivation(argument.Expression))
                     {
-                        // A direct activation has not reached any storage yet. The callee owns
-                        // its ByVal slot, so give that slot the raw RCW activation reference.
+                        // A fresh COM result has not reached any VB6 storage yet. The callee owns
+                        // its ByVal slot, so give that slot its raw RCW reference.
                         encoder.OpCode(ILOpCode.Dup);
                         encoder.Call(GetRuntimeMethodReference(Static(
                             typeof(VBObjectLifetime),
                             nameof(VBObjectLifetime.AdoptComActivation),
                             typeof(object))));
+                    }
+                    else if (IsForeignComMemberResult(argument.Expression))
+                    {
+                        // A late-bound CLR result is borrowed, but a COM member result owns a
+                        // raw interface reference. The runtime chooses the matching protocol.
+                        encoder.OpCode(ILOpCode.Dup);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBObjectLifetime),
+                            nameof(VBObjectLifetime.RetainOrAdoptComResult),
+                            typeof(object))));
+                        encoder.OpCode(ILOpCode.Pop);
                     }
                     else if (!OwnsLifetimeReference(argument.Expression))
                     {
@@ -2966,6 +2983,8 @@ public sealed class ManagedEmitter
                         ? nameof(VBArrayOperations.SetCopiedVariantElement)
                         : IsDirectComActivation(value)
                             ? nameof(VBArrayOperations.TransferComActivationElement)
+                        : IsForeignComMemberResult(value)
+                            ? nameof(VBArrayOperations.SetComMemberResultElement)
                         : OwnsLifetimeReference(value)
                             ? nameof(VBArrayOperations.TransferElement)
                             : nameof(VBArrayOperations.SetElement),
@@ -5280,8 +5299,8 @@ public sealed class ManagedEmitter
         }
 
         /// <summary>
-        /// A direct activation is the only COM result that still owns a raw RCW reference. A
-        /// generated procedure return has already retained a VB6 storage slot, even when its
+        /// A direct activation owns a raw RCW reference until its first VB6 storage slot takes it.
+        /// A generated procedure return has already retained a VB6 storage slot, even when its
         /// declared type is an imported COM class, and must therefore take the ordinary transfer
         /// path instead of acquiring another RCW ownership.
         /// </summary>
@@ -5298,6 +5317,33 @@ public sealed class ManagedEmitter
                 Arguments.Length: 1
             } conversion && IsDirectComActivation(conversion.Arguments[0].Expression);
 
+        /// <summary>
+        /// A foreign COM member returns an interface reference, but a late-bound call can instead
+        /// return a managed object. Its storage helper therefore decides at runtime whether to
+        /// adopt a COM result or retain an ordinary borrowed object.
+        /// </summary>
+        private static bool IsForeignComMemberResult(IrExpression expression) =>
+            expression is IrRuntimeCallExpression
+            {
+                Method:
+                    IrRuntimeMethod.DynamicGetMember or
+                    IrRuntimeMethod.DynamicGetIndexedMember or
+                    IrRuntimeMethod.DynamicInvokeMember
+            } ||
+            expression is IrProcedureCallExpression
+            {
+                Procedure: { IsExternal: true },
+                Receiver: { Type: ClassTypeSymbol receiver }
+            } && IsImportedComContract(receiver) ||
+            expression is IrRuntimeCallExpression
+            {
+                Method: IrRuntimeMethod.ObjectToVariant or IrRuntimeMethod.ObjectRequireOperand,
+                Arguments.Length: 1
+            } conversion && IsForeignComMemberResult(conversion.Arguments[0].Expression);
+
+        private static bool IsImportedComContract(ClassTypeSymbol type) =>
+            type.ComClassId is not null || type.ComInterfaceId is not null;
+
         private static bool IsCopiedVariantArrayValue(IrExpression expression) =>
             expression is IrRuntimeCallExpression
             {
@@ -5313,6 +5359,8 @@ public sealed class ManagedEmitter
                 ? nameof(VBObjectLifetime.ReplaceCopiedVariant)
                 : IsDirectComActivation(value)
                     ? nameof(VBObjectLifetime.TransferComActivation)
+                : IsForeignComMemberResult(value)
+                    ? nameof(VBObjectLifetime.ReplaceComMemberResult)
                 : OwnsLifetimeReference(value)
                     ? nameof(VBObjectLifetime.Transfer)
                     : nameof(VBObjectLifetime.Replace);
@@ -5322,6 +5370,8 @@ public sealed class ManagedEmitter
                 ? nameof(VBObjectLifetime.ReplaceCopiedVariantField)
                 : IsDirectComActivation(value)
                     ? nameof(VBObjectLifetime.TransferComActivationField)
+                : IsForeignComMemberResult(value)
+                    ? nameof(VBObjectLifetime.ReplaceComMemberResultField)
                 : OwnsLifetimeReference(value)
                     ? nameof(VBObjectLifetime.TransferField)
                     : nameof(VBObjectLifetime.ReplaceField);

@@ -126,6 +126,22 @@ public sealed class ObjectLifetimeTests
     }
 
     [TestMethod]
+    public void ReplaceComMemberResult_RetainsALateBoundManagedObject()
+    {
+        var instance = new Terminable();
+        VBObjectLifetime.Register(instance);
+
+        object? source = VBObjectLifetime.Transfer(null, instance);
+        object? memberResult = VBObjectLifetime.ReplaceComMemberResult(null, source);
+        source = VBObjectLifetime.Transfer(source, null);
+
+        Assert.AreEqual(0, instance.Runs);
+
+        memberResult = VBObjectLifetime.Transfer(memberResult, null);
+        Assert.AreEqual(1, instance.Runs);
+    }
+
+    [TestMethod]
     public void Release_ReleasesTheReferencesOwnedByAnArrayStorage()
     {
         var instance = new Terminable();
@@ -232,6 +248,67 @@ public sealed class ObjectLifetimeTests
         caller = VBObjectLifetime.Transfer(caller, null);
 
         Assert.ThrowsExactly<InvalidComObjectException>(() => VBDynamicDispatch.GetMember(dictionary, "Count"));
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void Transfer_ReleasesAnRcwReturnedByAForeignComMember()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("RCW ownership is a Windows COM contract.");
+            return;
+        }
+
+        if (Type.GetTypeFromProgID("Scripting.FileSystemObject", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The Scripting.FileSystemObject COM class is not available.");
+            return;
+        }
+
+        var fileSystemObject = VBInteraction.CreateObject("Scripting.FileSystemObject", string.Empty);
+        object? owner = VBObjectLifetime.TransferComActivation(null, fileSystemObject);
+        var drives = VBDynamicDispatch.GetMember(owner, "Drives");
+        Assert.IsNotNull(drives);
+        Assert.IsTrue(Marshal.IsComObject(drives!));
+
+        object? result = VBObjectLifetime.ReplaceComMemberResult(null, drives);
+        Assert.IsTrue(Convert.ToInt32(VBDynamicDispatch.GetMember(result, "Count")) >= 1);
+        result = VBObjectLifetime.Transfer(result, null);
+
+        Assert.ThrowsExactly<InvalidComObjectException>(() => VBDynamicDispatch.GetMember(drives, "Count"));
+
+        owner = VBObjectLifetime.Transfer(owner, null);
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void Replace_DoesNotInvalidateABorrowedHostComWrapper()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("RCW ownership is a Windows COM contract.");
+            return;
+        }
+
+        if (Type.GetTypeFromProgID("Scripting.Dictionary", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The Scripting.Dictionary COM class is not available.");
+            return;
+        }
+
+        var dictionary = VBInteraction.CreateObject("Scripting.Dictionary", string.Empty);
+        try
+        {
+            object? slot = VBObjectLifetime.Replace(null, dictionary);
+            slot = VBObjectLifetime.Transfer(slot, null);
+
+            Assert.AreEqual(0, Convert.ToInt32(VBDynamicDispatch.GetMember(dictionary, "Count")));
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(dictionary);
+        }
     }
 
     private sealed class Ordered(string name, List<string> order)

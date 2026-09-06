@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using VB6.Compiler;
 using VB6.IR;
 using VB6.Runtime;
@@ -380,6 +381,93 @@ public sealed class ManagedEmitterTests
         Assert.IsTrue(
             runtimeMethods.Any(method => method.Name == nameof(VBArray<object>.TransferComActivationReference)),
             $"The emitter must use the COM-activation array store. Emitted runtime methods: {string.Join(", ", runtimeMethods)}.");
+    }
+
+    [TestMethod]
+    public void Emit_TransfersAComMemberResultIntoItsFirstObjectSlot()
+    {
+        var program = Lower("""
+            Sub Main()
+                Dim source As Object
+                Dim member As Object
+                Set member = source.Child
+            End Sub
+            """);
+
+        var result = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "ComMemberOwnership",
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        var runtimeMethods = RuntimeMemberNames(result.PeImage!);
+        Assert.IsTrue(
+            runtimeMethods.Contains((nameof(VBObjectLifetime), nameof(VBObjectLifetime.ReplaceComMemberResult))),
+            $"The dynamic member result must choose COM adoption or a managed retain at runtime. Emitted runtime methods: {string.Join(", ", runtimeMethods)}.");
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void Emit_AdoptsATypedImportedComMemberResult()
+    {
+        if (!OperatingSystem.IsWindows() ||
+            Type.GetTypeFromProgID("Scripting.FileSystemObject", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The registered Windows Scripting Runtime fixture is not available.");
+            return;
+        }
+
+        const string scriptingLibraryId = "{420B2830-E718-11CF-893D-00A0C9054228}";
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TypedComMember", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "TypedComMember.vbp");
+            File.WriteAllText(projectPath, $"""
+                Type=Exe
+                Startup="Sub Main"
+                Name="TypedComMember"
+                Reference=*\G{scriptingLibraryId}#1.0#0#scrrun.dll#Scripting
+                Module=Main; Main.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Main.bas"), """
+                Sub Main()
+                    Dim fso As Scripting.FileSystemObject
+                    Dim folder As Object
+                    Set fso = New Scripting.FileSystemObject
+                    Set folder = fso.GetSpecialFolder(0)
+                    Set folder = Nothing
+                    Set fso = Nothing
+                End Sub
+                """);
+
+            var outputPath = Path.Combine(directory, "TypedComMember.exe");
+            var emitted = DirectManagedCompilation.EmitManaged(
+                VBProjectCompilation.Create(projectPath),
+                outputPath,
+                new ManagedEmitOptions(outputPath));
+            Assert.IsTrue(
+                emitted.Success,
+                string.Join(
+                    Environment.NewLine,
+                    emitted.Lowering.ProjectDiagnostics.Select(diagnostic => diagnostic.ToString())
+                        .Concat(emitted.Lowering.Analysis.Diagnostics.Select(diagnostic => diagnostic.ToString()))
+                        .Concat(emitted.BackendResult?.Diagnostics.Select(diagnostic =>
+                            diagnostic.Code + ": " + diagnostic.Message) ?? Array.Empty<string>())));
+
+            var assemblyPath = Path.ChangeExtension(outputPath, ".dll");
+            Assert.IsTrue(File.Exists(assemblyPath), assemblyPath);
+            var runtimeMethods = RuntimeMemberNames(File.ReadAllBytes(assemblyPath));
+            Assert.IsTrue(
+                runtimeMethods.Contains((nameof(VBObjectLifetime), nameof(VBObjectLifetime.ReplaceComMemberResult))),
+                $"The typed COM member result must select ownership-aware storage. Emitted runtime methods: {string.Join(", ", runtimeMethods)}.");
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     [TestMethod]

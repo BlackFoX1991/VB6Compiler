@@ -69,7 +69,7 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         [Optional] object? after) =>
         AddCore(item, key, before, after, transferOwnership: true);
 
-    /// <summary>Moves a direct COM activation into the Collection entry.</summary>
+    /// <summary>Moves a fresh COM runtime result into the Collection entry.</summary>
     public void AddComActivation(
         object? item,
         [Optional] object? key,
@@ -80,6 +80,18 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         // normal CLR cleanup remains responsible for the raw result.
         ValidateAddArguments(key, before, after, out var insertAt, out var normalizedKey);
         VBObjectLifetime.AdoptComActivation(item);
+        InsertOwned(item, insertAt, normalizedKey);
+    }
+
+    /// <summary>Moves a foreign COM-member result into the Collection entry.</summary>
+    public void AddComMemberResult(
+        object? item,
+        [Optional] object? key,
+        [Optional] object? before,
+        [Optional] object? after)
+    {
+        ValidateAddArguments(key, before, after, out var insertAt, out var normalizedKey);
+        VBObjectLifetime.RetainOrAdoptComResult(item);
         InsertOwned(item, insertAt, normalizedKey);
     }
 
@@ -200,6 +212,13 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         object? key,
         object? before,
         object? after) => collection.AddComActivation(item, key, before, after);
+
+    public static void AddComMemberResultValue(
+        VBCollection collection,
+        object? item,
+        object? key,
+        object? before,
+        object? after) => collection.AddComMemberResult(item, key, before, after);
 
     public static void RemoveValue(VBCollection collection, object? index) => collection.Remove(index);
 

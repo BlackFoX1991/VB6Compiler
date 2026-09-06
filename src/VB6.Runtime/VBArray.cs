@@ -143,10 +143,20 @@ public sealed class VBArray<T> : IVBArray
     public void TransferReference(int[] indices, T value) =>
         ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
 
-    /// <summary>Moves a direct COM activation into an array slot.</summary>
+    /// <summary>Moves a fresh COM runtime result into an array slot.</summary>
     public void TransferComActivationReference(int[] indices, T value)
     {
         VBObjectLifetime.AdoptComActivation(value);
+        ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
+    }
+
+    /// <summary>
+    /// Stores a foreign member result in an array slot. A COM result transfers its marshalled
+    /// reference; a managed result is retained before the previous slot leaves.
+    /// </summary>
+    public void ReplaceComMemberResultReference(int[] indices, T value)
+    {
+        VBObjectLifetime.RetainOrAdoptComResult(value);
         ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
     }
 
@@ -169,6 +179,13 @@ public sealed class VBArray<T> : IVBArray
     public void TransferComActivationReferenceAtFlatIndex(int index, T value)
     {
         VBObjectLifetime.AdoptComActivation(value);
+        ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+    }
+
+    /// <summary>Flat-index form of <see cref="ReplaceComMemberResultReference"/>.</summary>
+    public void ReplaceComMemberResultReferenceAtFlatIndex(int index, T value)
+    {
+        VBObjectLifetime.RetainOrAdoptComResult(value);
         ReplaceReferenceAtOffset(index, value, transferOwnership: true);
     }
 
@@ -766,7 +783,7 @@ public static class VBArrayOperations
     }
 
     /// <summary>
-    /// Stores a direct COM activation in a Variant array element. The raw RCW reference becomes
+    /// Stores a fresh COM runtime result in a Variant array element. The raw RCW reference becomes
     /// the element's owner; ordinary generated procedure results continue through
     /// <see cref="TransferElement(object?, object?[], object?)"/>.
     /// </summary>
@@ -776,6 +793,15 @@ public static class VBArrayOperations
     public static void TransferComActivationElement(object? value, object?[] indices, object? element)
     {
         VBObjectLifetime.AdoptComActivation(element);
+        TransferElement(value, indices, element);
+    }
+
+    /// <summary>
+    /// Variant-array form of <see cref="VBObjectLifetime.ReplaceComMemberResult"/>.
+    /// </summary>
+    public static void SetComMemberResultElement(object? value, object?[] indices, object? element)
+    {
+        VBObjectLifetime.RetainOrAdoptComResult(element);
         TransferElement(value, indices, element);
     }
 
