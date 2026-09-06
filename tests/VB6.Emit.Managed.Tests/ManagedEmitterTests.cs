@@ -75,16 +75,24 @@ public sealed class ManagedEmitterTests
                 value = value + 1
             End Sub
 
+            Sub BumpByte(ByRef value As Byte)
+                value = value + 1
+            End Sub
+
             Sub Main()
                 Dim value As Long
                 Dim pointer As Long
                 Dim smallValue As Integer
+                Dim byteValue As Byte
                 value = 7
                 pointer = VarPtr(value)
                 Bump value
                 smallValue = 8
                 pointer = VarPtr(smallValue)
                 BumpShort smallValue
+                byteValue = 9
+                pointer = VarPtr(byteValue)
+                BumpByte byteValue
                 Debug.Print value
             End Sub
             """);
@@ -114,6 +122,10 @@ public sealed class ManagedEmitterTests
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetInt16NativeAddress)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadInt16)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteInt16)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateByte)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetByteNativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadByte)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteByte)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.Dispose))
             },
             x86Methods);

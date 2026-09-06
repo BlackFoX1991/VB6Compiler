@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `3e30e1c`, Lauf `20260906T084420Z-e02d8151`:
+Messung vom 2026-09-06 auf `main` / `1da06cf` mit nicht committeten Änderungen, Lauf `20260906T085230Z-b4aa30d0`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1727 Fälle: 1727 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1729 Fälle: 1729 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -187,8 +187,8 @@ insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` um
 Managed-Innenzeiger keine zulässige Abkürzung wäre.
 
 Der erste implementierte Ausschnitt ist bewusst enger: x86-Managed-Code kann `VarPtr` eines
-lokalen `Long` oder `Integer` speichern. Von der Runtime besessene native Vier- beziehungsweise
-Zwei-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores und CLR-ByRef-Write-backs
+lokalen `Long`, `Integer` oder `Byte` speichern. Von der Runtime besessene native Vier-, Zwei- und
+Ein-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores und CLR-ByRef-Write-backs
 synchronisiert und bei der Prozedurrückkehr freigegeben. AnyCPU/x64 sowie alle anderen
 Speicherfamilien behalten ihre explizite Fehler-5-Grenze, bis ihr Layout und ihre Invalidierung
 abgenommen sind.
