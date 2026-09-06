@@ -63,3 +63,22 @@ public sealed class VBAddressableCell<T> : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_storage == IntPtr.Zero, this);
 }
+
+/// <summary>
+/// Non-generic entry points used by emitted code for the initial Int32 addressable-storage slice.
+/// </summary>
+public static class VBAddressableStorage
+{
+    public static object CreateInt32(int value) => VBAddressableCell<int>.Create(value);
+
+    public static IntPtr GetInt32NativeAddress(object storage) => GetInt32(storage).GetNativeAddress();
+
+    public static int ReadInt32(object storage) => GetInt32(storage).Read();
+
+    public static void WriteInt32(object storage, int value) => GetInt32(storage).Write(value);
+
+    public static void DisposeInt32(object storage) => GetInt32(storage).Dispose();
+
+    private static VBAddressableCell<int> GetInt32(object storage) => storage as VBAddressableCell<int>
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Long.", nameof(storage));
+}

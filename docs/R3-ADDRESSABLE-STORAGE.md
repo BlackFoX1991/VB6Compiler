@@ -8,10 +8,16 @@ noch erklärt ihn zum Ersatz für gespeicherte Zeiger.
 
 `VarPtr` und `StrPtr` geben Werte vom Typ `Long` zurück. Der klassische Vertrag ist damit x86;
 eine AnyCPU- oder x64-Ausführung darf keinen abgeschnittenen Zeiger als Erweiterung ausgeben.
-Der heutige Emitter unterstützt deshalb ausschließlich die Stelle, an der ein `ByVal As Any`-
-`Declare` den Zeiger unmittelbar konsumiert. `StrPtr` erhält dafür einen temporären UTF-16-Puffer;
-Skalare gehen direkt als ByRef-Adresse in den Aufruf. Dieser Puffer ist nach der Rückkehr ungültig
-und erfüllt den Speichervertrag eines gespeicherten Zeigers nicht.
+Der heutige Emitter unterstützt deshalb im allgemeinen Fall nur die Stelle, an der ein `ByVal As
+Any`-`Declare` den Zeiger unmittelbar konsumiert. `StrPtr` erhält dafür einen temporären UTF-16-
+Puffer; Skalare gehen direkt als ByRef-Adresse in den Aufruf. Dieser Puffer ist nach der Rückkehr
+ungültig und erfüllt den Speichervertrag eines gespeicherten Zeigers nicht.
+
+Als erste, absichtlich kleine gespeicherte-Ausnahme erzeugt die x86-Managed-Emission für
+`VarPtr(localLong)` eine native Vier-Byte-Zelle. Normale Loads/Stores sowie CLR-ByRef-Write-backs
+werden mit dieser Zelle synchronisiert, und die Zelle wird bei der Prozedurrückkehr freigegeben.
+Sie übersteht damit eine GC, solange der lokale Speicherplatz lebt. AnyCPU und x64 behalten für
+denselben Ausdruck Fehler 5; dort wird kein `IntPtr` in einen `Long` abgeschnitten.
 
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
@@ -67,9 +73,11 @@ dem R4-Ownership-Vertrag und darf nicht als CLR-RCW-Innenadresse erscheinen.
 
 `managed-r3-pointers` und `managed-r3-callback-abi` bleiben bis zu diesen vollständigen
 End-to-End-Probes `planned`. Die vorhandenen Callback-GC-Regressionen belegen nur Schritt 4s
-erste Haltegarantie; sie schließen keine der anderen Familien.
+erste Haltegarantie; die neue x86-`Long`-Zelle ist nur der engste Teil von Schritt 2 und schließt
+keine der anderen Familien.
 
 Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
 separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
-Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable; außerhalb des unmittelbaren
+allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert ist
+nur ein lokales `Long` im x86-Managed-Pfad. Außerhalb dieses Falls und außerhalb des unmittelbaren
 `Declare`-Pfads gilt weiterhin die bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.

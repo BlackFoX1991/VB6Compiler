@@ -64,6 +64,36 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredVarPtrForLocalLongCreatesOneAddressableCell()
+    {
+        var program = Lower("""
+            Sub Main()
+                Dim value As Long
+                Dim pointer As Long
+                value = 7
+                pointer = VarPtr(value)
+            End Sub
+            """);
+        var main = program.EntryPoint!;
+
+        Assert.IsNotNull(main.AddressableCells);
+        Assert.AreEqual(1, main.AddressableCells.Count);
+        var pair = main.AddressableCells.Single();
+        Assert.AreEqual(TypeSymbol.Long, pair.Key.Type);
+        Assert.AreEqual(TypeSymbol.Variant, pair.Value.Type);
+
+        var pointer = main.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .OfType<IrAddressablePointerExpression>()
+            .Single();
+        Assert.AreSame(pair.Key, pointer.Local);
+        Assert.AreSame(pair.Value, pointer.Cell);
+        Assert.AreEqual(TypeSymbol.Long, pointer.ResultType);
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""

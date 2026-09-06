@@ -590,6 +590,7 @@ public sealed class ManagedEmitter
                     encoder.Call(GetRuntimeMethodReference(Static(
                         typeof(VBGoSub),
                         nameof(VBGoSub.Enter))));
+                    EmitAddressableCellInitializers(encoder, procedure);
                     encoder.Branch(ILOpCode.Br, blockLabels[entry.Id]);
                     var boundaryStarts = procedure.Blocks
                         .SelectMany(block => block.Instructions)
@@ -967,6 +968,7 @@ public sealed class ManagedEmitter
                         }
                     }
                     EmitProcedureLifetimeCleanup(encoder, procedure);
+                    EmitAddressableCellCleanup(encoder, procedure);
                     if (ret.ClearsActiveErrorHandler)
                     {
                         encoder.Call(GetRuntimeMethodReference(Static(
@@ -1011,6 +1013,54 @@ public sealed class ManagedEmitter
             }
         }
 
+        private bool TryGetAddressableCell(IrProcedure procedure, IrLocal local, out IrLocal cell)
+        {
+            if (_options.Platform == ManagedPlatform.X86 &&
+                procedure.AddressableCells is not null &&
+                procedure.AddressableCells.TryGetValue(local, out cell!))
+            {
+                return true;
+            }
+
+            cell = null!;
+            return false;
+        }
+
+        private void EmitAddressableCellInitializers(InstructionEncoder encoder, IrProcedure procedure)
+        {
+            if (_options.Platform != ManagedPlatform.X86 || procedure.AddressableCells is null)
+            {
+                return;
+            }
+
+            foreach (var cell in procedure.AddressableCells.Values)
+            {
+                encoder.LoadConstantI4(0);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBAddressableStorage),
+                    nameof(VBAddressableStorage.CreateInt32),
+                    typeof(int))));
+                encoder.StoreLocal(cell.Id);
+            }
+        }
+
+        private void EmitAddressableCellCleanup(InstructionEncoder encoder, IrProcedure procedure)
+        {
+            if (_options.Platform != ManagedPlatform.X86 || procedure.AddressableCells is null)
+            {
+                return;
+            }
+
+            foreach (var cell in procedure.AddressableCells.Values)
+            {
+                encoder.LoadLocal(cell.Id);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBAddressableStorage),
+                    nameof(VBAddressableStorage.DisposeInt32),
+                    typeof(object))));
+            }
+        }
+
         private void EmitExpression(InstructionEncoder encoder, IrProcedure procedure, IrExpression expression)
         {
             switch (expression)
@@ -1035,6 +1085,9 @@ public sealed class ManagedEmitter
                     break;
                 case IrAddressOfExpression addressOf:
                     EmitAddressOf(encoder, procedure, addressOf);
+                    break;
+                case IrAddressablePointerExpression pointer:
+                    EmitAddressablePointer(encoder, procedure, pointer);
                     break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
@@ -1196,6 +1249,15 @@ public sealed class ManagedEmitter
             switch (place)
             {
                 case IrLocalPlace local:
+                    if (TryGetAddressableCell(procedure, local.Local, out var cell))
+                    {
+                        encoder.LoadLocal(cell.Id);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBAddressableStorage),
+                            nameof(VBAddressableStorage.ReadInt32),
+                            typeof(object))));
+                        break;
+                    }
                     encoder.LoadLocal(local.Local.Id);
                     break;
                 case IrParameterPlace parameter:
@@ -1258,6 +1320,16 @@ public sealed class ManagedEmitter
                     }
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, local.Type);
                     encoder.StoreLocal(local.Local.Id);
+                    if (TryGetAddressableCell(procedure, local.Local, out var cell))
+                    {
+                        encoder.LoadLocal(cell.Id);
+                        encoder.LoadLocal(local.Local.Id);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBAddressableStorage),
+                            nameof(VBAddressableStorage.WriteInt32),
+                            typeof(object),
+                            typeof(int))));
+                    }
                     break;
                 case IrParameterPlace parameter when parameter.Parameter.PassingMode == ParameterPassingMode.ByVal:
                     if (TracksLifetimeStorage(parameter.Type))
@@ -1434,6 +1506,18 @@ public sealed class ManagedEmitter
             switch (place)
             {
                 case IrLocalPlace local:
+                    if (TryGetAddressableCell(procedure, local.Local, out var cell))
+                    {
+                        // A managed ByRef call still receives the ordinary CLR local.  Bring it
+                        // current first, then copy any write-back into native storage below.
+                        encoder.LoadLocalAddress(local.Local.Id);
+                        encoder.LoadLocal(cell.Id);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBAddressableStorage),
+                            nameof(VBAddressableStorage.ReadInt32),
+                            typeof(object))));
+                        EmitStoreIndirect(encoder, TypeSymbol.Long);
+                    }
                     encoder.LoadLocalAddress(local.Local.Id);
                     break;
                 case IrParameterPlace parameter:
@@ -1724,6 +1808,30 @@ public sealed class ManagedEmitter
 
                 encoder.Call(GetDynamicArrayConversionReference(arrayResult.ElementType, hasElementDescriptor));
             }
+        }
+
+        private void EmitAddressablePointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressablePointerExpression pointer)
+        {
+            if (_options.Platform == ManagedPlatform.X86)
+            {
+                encoder.LoadLocal(pointer.Cell.Id);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBAddressableStorage),
+                    nameof(VBAddressableStorage.GetInt32NativeAddress),
+                    typeof(object))));
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            // The x86-only storage ABI must not silently truncate a pointer on AnyCPU/x64.  Keep
+            // the established explicit VB error 5 there until those ABIs have their own contract.
+            encoder.LoadLocal(pointer.Local.Id);
+            encoder.OpCode(ILOpCode.Box);
+            encoder.Token(GetTypeEntityHandle(TypeSymbol.Long));
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object))));
         }
 
         private void EmitCollectionAdd(

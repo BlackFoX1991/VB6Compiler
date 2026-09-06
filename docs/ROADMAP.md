@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `a0c6387`, Lauf `20260906T075827Z-9f96c632`:
+Messung vom 2026-09-06 auf `main` / `7fe00e3` mit nicht committeten Änderungen, Lauf `20260906T082045Z-e348cc8a`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1719 Fälle: 1719 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1725 Fälle: 1725 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -185,6 +185,12 @@ Der verbindliche Zellentwurf, seine Layoutfamilien und die Reihenfolge von Slot-
 bis Fremdclient-Probes stehen in [R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md). Er hält
 insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` umgewandelter
 Managed-Innenzeiger keine zulässige Abkürzung wäre.
+
+Der erste implementierte Ausschnitt ist bewusst enger: x86-Managed-Code kann `VarPtr` eines
+lokalen `Long` speichern. Eine von der Runtime besessene native Vier-Byte-Zelle bleibt über GC
+stabil, wird an normalen Loads/Stores und CLR-ByRef-Write-backs synchronisiert und bei der
+Prozedurrückkehr freigegeben. AnyCPU/x64 sowie alle anderen Speicherfamilien behalten ihre
+explizite Fehler-5-Grenze, bis ihr Layout und ihre Invalidierung abgenommen sind.
 
 `VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
 

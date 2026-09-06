@@ -33,6 +33,23 @@ public sealed class VBAddressableCellTests
         Assert.ThrowsException<ObjectDisposedException>(() => cell.Write(8));
     }
 
+    [TestMethod]
+    public void Int32Facade_PreservesTheNativeCellContract()
+    {
+        var storage = VBAddressableStorage.CreateInt32(7);
+        var address = VBAddressableStorage.GetInt32NativeAddress(storage);
+
+        Marshal.WriteInt32(address, 41);
+        ForceFullCollection();
+
+        Assert.AreEqual(41, VBAddressableStorage.ReadInt32(storage));
+        VBAddressableStorage.WriteInt32(storage, 42);
+        Assert.AreEqual(42, Marshal.ReadInt32(address));
+
+        VBAddressableStorage.DisposeInt32(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadInt32(storage));
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);

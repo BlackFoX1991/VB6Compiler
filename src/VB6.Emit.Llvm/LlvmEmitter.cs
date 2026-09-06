@@ -1001,6 +1001,7 @@ public sealed class LlvmEmitter
                 case IrAddressExpression:
                 case IrLocalAddressExpression:
                 case IrAddressOfExpression:
+                case IrAddressablePointerExpression:
                     AddDiagnostic("VB6L0001", $"Native LLVM lowering for address expression '{expression.GetType().Name}' is not implemented yet.");
                     return ZeroValue(expression.Type);
                 default:

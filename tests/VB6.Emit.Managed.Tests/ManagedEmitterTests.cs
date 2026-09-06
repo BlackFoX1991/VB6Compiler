@@ -64,6 +64,54 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    public void Emit_UsesNativeLongStorageOnlyForTheX86StoredVarPtrContract()
+    {
+        var program = Lower("""
+            Sub Bump(ByRef value As Long)
+                value = value + 1
+            End Sub
+
+            Sub Main()
+                Dim value As Long
+                Dim pointer As Long
+                value = 7
+                pointer = VarPtr(value)
+                Bump value
+                Debug.Print value
+            End Sub
+            """);
+
+        var emitter = new ManagedEmitter();
+        var x86 = emitter.Emit(program, new ManagedEmitOptions(
+            "StoredVarPtrX86",
+            Platform: ManagedPlatform.X86,
+            EmitPortablePdb: false));
+        var anyCpu = emitter.Emit(program, new ManagedEmitOptions(
+            "StoredVarPtrAnyCpu",
+            Platform: ManagedPlatform.AnyCpu,
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(x86.Success, string.Join(Environment.NewLine, x86.Diagnostics));
+        Assert.IsTrue(anyCpu.Success, string.Join(Environment.NewLine, anyCpu.Diagnostics));
+
+        var x86Methods = RuntimeMemberNames(x86.PeImage!);
+        CollectionAssert.IsSubsetOf(
+            new[]
+            {
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetInt32NativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.DisposeInt32))
+            },
+            x86Methods);
+
+        var anyCpuMethods = RuntimeMemberNames(anyCpu.PeImage!);
+        Assert.IsFalse(anyCpuMethods.Any(method => method.Parent == nameof(VBAddressableStorage)));
+        Assert.IsTrue(anyCpuMethods.Contains((nameof(VBMemory), nameof(VBMemory.VarPtr))));
+    }
+
+    [TestMethod]
     public void Emit_IsDeterministicForSameInput()
     {
         var program = Lower("""
@@ -195,6 +243,23 @@ public sealed class ManagedEmitterTests
         {
             new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!)
         });
+    }
+
+    private static (string Parent, string Name)[] RuntimeMemberNames(byte[] image)
+    {
+        using var stream = new MemoryStream(image, writable: false);
+        using var pe = new PEReader(stream);
+        var metadata = pe.GetMetadataReader();
+        return metadata.MemberReferences
+            .Select(handle =>
+            {
+                var reference = metadata.GetMemberReference(handle);
+                var parent = reference.Parent.Kind == HandleKind.TypeReference
+                    ? metadata.GetString(metadata.GetTypeReference((TypeReferenceHandle)reference.Parent).Name)
+                    : string.Empty;
+                return (Parent: parent, Name: metadata.GetString(reference.Name));
+            })
+            .ToArray();
     }
 
     /// <summary>

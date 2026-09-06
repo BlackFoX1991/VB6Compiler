@@ -2675,9 +2675,12 @@
       },
       "verification": "not-yet-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.IR.Tests/IrLowererTests.cs",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Planned work: the listed regressions include an x86 local-Long VarPtr cell with GC-stable storage and CLR-ByRef synchronization. They are not passing evidence for the full acceptance contract (other storage families, native probes, invalidation and reallocation remain open).",
       "title": "Stabiler adressierbarer Speicher"
     },
     {

@@ -820,6 +820,8 @@ public static class IrLowerer
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ParameterSymbol, IrParameter> _parameters =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<IrLocal, IrLocal> _addressableCells =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<int, IrPlace> _withPlaces = new();
         private readonly Dictionary<int, int> _loopExits = new();
         private readonly Dictionary<string, int> _labels = new(StringComparer.OrdinalIgnoreCase);
@@ -915,7 +917,10 @@ public static class IrLowerer
                 _blocks.Select(block => block.Build()).ToImmutableArray(),
                 IsStatic: _containingClass is null,
                 IsCompilerGenerated: IsModuleInitializer,
-                DeclaringClass: _containingClass);
+                DeclaringClass: _containingClass,
+                AddressableCells: _addressableCells.Count == 0
+                    ? null
+                    : _addressableCells.ToImmutableDictionary());
         }
 
         private void PredeclareLabels(BoundBlockStatement block)
@@ -2891,6 +2896,11 @@ public static class IrLowerer
 
         private IrExpression LowerExpression(BoundExpression expression)
         {
+            if (TryLowerStoredVarPtr(expression, out var storedPointer))
+            {
+                return storedPointer;
+            }
+
             return expression switch
             {
                 BoundLiteralExpression literal => new IrConstantExpression(literal.Value, literal.LiteralType),
@@ -4286,6 +4296,40 @@ public static class IrLowerer
             }
 
             return LowerExpression(expression);
+        }
+
+        /// <summary>
+        /// The first retained-pointer slice deliberately covers only a local VB6 Long.  Its
+        /// native cell has the same four-byte x86 representation, while Boolean, strings,
+        /// Variants, UDTs and aggregate storage need their own ABI layouts before they can make
+        /// the same promise.
+        /// </summary>
+        private bool TryLowerStoredVarPtr(BoundExpression expression, out IrExpression pointer)
+        {
+            if (StripConversions(expression) is BoundInvocationExpression
+                {
+                    Procedure.IntrinsicKind: VBIntrinsicKind.VarPtr,
+                    Arguments.Length: 1
+                } invocation &&
+                StripConversions(invocation.Arguments[0].Expression) is BoundVariableExpression
+                {
+                    Variable: LocalVariableSymbol localSymbol
+                } &&
+                _locals.TryGetValue(localSymbol, out var local) &&
+                local.Type == TypeSymbol.Long)
+            {
+                if (!_addressableCells.TryGetValue(local, out var cell))
+                {
+                    cell = NewLocal($"__varptr_cell_{local.Id}", TypeSymbol.Variant, compilerGenerated: true);
+                    _addressableCells.Add(local, cell);
+                }
+
+                pointer = new IrAddressablePointerExpression(local, cell, TypeSymbol.Long);
+                return true;
+            }
+
+            pointer = null!;
+            return false;
         }
 
         private IrCallArgument LowerAnyPointerArgument(BoundExpression expression)

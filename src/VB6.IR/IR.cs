@@ -75,7 +75,13 @@ public sealed record IrProcedure(
     bool IsExternal = false,
     string? ExternalLibrary = null,
     string? ExternalAlias = null,
-    ClassTypeSymbol? DeclaringClass = null) : IrNode;
+    ClassTypeSymbol? DeclaringClass = null,
+    /// <summary>
+    /// Native, GC-stable backing cells for locals whose address is intentionally retained through
+    /// a stored pointer intrinsic.  Backends that do not implement this contract leave the
+    /// corresponding intrinsic on its ordinary failure path.
+    /// </summary>
+    ImmutableDictionary<IrLocal, IrLocal>? AddressableCells = null) : IrNode;
 
 public sealed record IrParameter(
     ParameterSymbol? Symbol,
@@ -240,6 +246,17 @@ public sealed record IrLocalAddressExpression(IrLocal Local)
 
 public sealed record IrAddressOfExpression(
     ProcedureSymbol Procedure,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
+/// <summary>
+/// A classic x86 pointer to a local that is backed by separately allocated native storage.
+/// <see cref="Local"/> remains the managed copy used by normal CLR ByRef calls; <see cref="Cell"/>
+/// owns the stable native representation.
+/// </summary>
+public sealed record IrAddressablePointerExpression(
+    IrLocal Local,
+    IrLocal Cell,
     TypeSymbol ResultType)
     : IrExpression(ResultType);
 
