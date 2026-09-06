@@ -1202,6 +1202,56 @@ public sealed class ClassTerminateGuaranteeExecutionTests
     }
 
     [TestMethod]
+    public void EmitManagedApplication_ContinuesAfterAnUnhandledTerminatorError()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateError", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "TerminateError.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="TerminateError"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                    Err.Raise 5
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim local As C
+                    Set local = New C
+                    Set local = Nothing
+                    Debug.Print "After release"
+                End Sub
+                """);
+
+            // Teardown errors cannot resume into a completed terminator. They must not abort the
+            // releasing procedure, and the object cannot enter the terminator a second time.
+            CollectionAssert.AreEqual(
+                new[] { "Terminate", "After release" },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_TerminatesAFieldReferenceCycleOnceAtProgramEnd()
     {
         var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateCycle", Guid.NewGuid().ToString("N"));
