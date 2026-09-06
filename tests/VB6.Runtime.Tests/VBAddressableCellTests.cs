@@ -152,6 +152,23 @@ public sealed class VBAddressableCellTests
         Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadDate(storage));
     }
 
+    [TestMethod]
+    public void CurrencyFacade_PreservesTheEightByteScaledInt64NativeCellContract()
+    {
+        var storage = VBAddressableStorage.CreateCurrency(VBCurrency.FromScaled(15_000));
+        var address = VBAddressableStorage.GetCurrencyNativeAddress(storage);
+
+        Assert.AreEqual(15_000L, Marshal.ReadInt64(address));
+        Marshal.WriteInt64(address, 25_000);
+        ForceFullCollection();
+        Assert.AreEqual(VBCurrency.FromScaled(25_000), VBAddressableStorage.ReadCurrency(storage));
+
+        VBAddressableStorage.WriteCurrency(storage, VBCurrency.FromScaled(30_000));
+        Assert.AreEqual(30_000L, Marshal.ReadInt64(address));
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadCurrency(storage));
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);

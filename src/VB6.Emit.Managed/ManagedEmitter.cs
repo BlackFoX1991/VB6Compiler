@@ -1043,6 +1043,14 @@ public sealed class ManagedEmitter
                 {
                     encoder.LoadConstantR8(0d);
                 }
+                else if (pair.Key.Type == TypeSymbol.Currency)
+                {
+                    encoder.LoadConstantI8(0L);
+                    encoder.Call(GetRuntimeMethodReference(Static(
+                        typeof(VBCurrency),
+                        nameof(VBCurrency.FromScaled),
+                        typeof(long))));
+                }
                 else
                 {
                     encoder.LoadConstantI4(0);
@@ -1844,7 +1852,9 @@ public sealed class ManagedEmitter
                 : type == TypeSymbol.Double
                 ? ("Double", typeof(double))
                 : type == TypeSymbol.Date
-                    ? ("Date", typeof(double))
+                ? ("Date", typeof(double))
+                : type == TypeSymbol.Currency
+                    ? ("Currency", typeof(VBCurrency))
                     : throw new NotSupportedException(
                         $"Addressable storage for VB6 type '{type.Name}' is not implemented.");
             return operation switch
