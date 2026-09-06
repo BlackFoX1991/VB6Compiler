@@ -21,7 +21,7 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-06 auf `main` / `f243a10` mit nicht committeten Änderungen, Lauf `20260906T090653Z-54b01849`:
+Messung vom 2026-09-06 auf `main` / `e9dc7c3`, Lauf `20260906T091216Z-f0f654b8`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
