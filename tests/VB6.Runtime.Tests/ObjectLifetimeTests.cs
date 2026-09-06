@@ -1,3 +1,6 @@
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+
 namespace VB6.Runtime.Tests;
 
 [TestClass]
@@ -138,6 +141,97 @@ public sealed class ObjectLifetimeTests
 
         VBObjectLifetime.Release(values);
         Assert.AreEqual(1, instance.Runs);
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void Transfer_ReleasesAnActivatedComObjectAfterItsLastStorageOwnerLeaves()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("RCW ownership is a Windows COM contract.");
+            return;
+        }
+
+        if (Type.GetTypeFromProgID("Scripting.Dictionary", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The Scripting.Dictionary COM class is not available.");
+            return;
+        }
+
+        var dictionary = VBInteraction.CreateObject("Scripting.Dictionary", string.Empty);
+        Assert.IsTrue(Marshal.IsComObject(dictionary));
+
+        object? first = VBObjectLifetime.TransferComActivation(null, dictionary);
+        object? alias = VBObjectLifetime.Replace(null, first);
+        first = VBObjectLifetime.Transfer(first, null);
+        Assert.AreEqual(0, Convert.ToInt32(VBDynamicDispatch.GetMember(alias, "Count")));
+
+        alias = VBObjectLifetime.Transfer(alias, null);
+
+        Assert.ThrowsExactly<InvalidComObjectException>(() => VBDynamicDispatch.GetMember(dictionary, "Count"));
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TransferContainers_ReleaseActivatedComObjectsWhenTheirStorageLeaves()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("RCW ownership is a Windows COM contract.");
+            return;
+        }
+
+        if (Type.GetTypeFromProgID("Scripting.Dictionary", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The Scripting.Dictionary COM class is not available.");
+            return;
+        }
+
+        var arrayDictionary = VBInteraction.CreateObject("Scripting.Dictionary", string.Empty);
+        var values = new VBArray<object?>(new VBArrayBound(0, 0));
+        values.TransferComActivationReference([0], arrayDictionary);
+        VBObjectLifetime.Release(values);
+
+        Assert.ThrowsExactly<InvalidComObjectException>(() => VBDynamicDispatch.GetMember(arrayDictionary, "Count"));
+
+        var collectionDictionary = VBInteraction.CreateObject("Scripting.Dictionary", string.Empty);
+        var collection = VBCollection.Create();
+        var missing = VBVariants.MissingValue();
+        VBCollection.AddComActivationValue(collection, collectionDictionary, missing, missing, missing);
+        VBObjectLifetime.Release(collection);
+
+        Assert.ThrowsExactly<InvalidComObjectException>(() => VBDynamicDispatch.GetMember(collectionDictionary, "Count"));
+    }
+
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void Transfer_PreservesTheComOwnershipAlreadyHandedThroughAFunctionReturn()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("RCW ownership is a Windows COM contract.");
+            return;
+        }
+
+        if (Type.GetTypeFromProgID("Scripting.Dictionary", throwOnError: false) is null)
+        {
+            Assert.Inconclusive("The Scripting.Dictionary COM class is not available.");
+            return;
+        }
+
+        var dictionary = VBInteraction.CreateObject("Scripting.Dictionary", string.Empty);
+        object? functionLocal = VBObjectLifetime.TransferComActivation(null, dictionary);
+
+        // Returning from a generated function retains the result before its local cleanup. The
+        // caller's Transfer moves that established storage reference; it must not adopt the raw
+        // RCW a second time.
+        VBObjectLifetime.Retain(functionLocal);
+        functionLocal = VBObjectLifetime.Transfer(functionLocal, null);
+        object? caller = VBObjectLifetime.Transfer(null, dictionary);
+        caller = VBObjectLifetime.Transfer(caller, null);
+
+        Assert.ThrowsExactly<InvalidComObjectException>(() => VBDynamicDispatch.GetMember(dictionary, "Count"));
     }
 
     private sealed class Ordered(string name, List<string> order)

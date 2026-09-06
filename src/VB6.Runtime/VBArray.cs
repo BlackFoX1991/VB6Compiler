@@ -132,16 +132,23 @@ public sealed class VBArray<T> : IVBArray
     public ref T GetReferenceAtFlatIndex(int index) => ref _items[index];
 
     /// <summary>
-    /// Stores a borrowed generated-class reference in an array slot. Retaining before releasing
-    /// is the array counterpart of a normal <c>Set left = right</c> assignment and keeps a
-    /// self-assignment alive.
+    /// Stores a borrowed object reference in an array slot. Retaining before releasing is the
+    /// array counterpart of a normal <c>Set left = right</c> assignment and keeps a self-assignment
+    /// alive.
     /// </summary>
     public void ReplaceReference(int[] indices, T value) =>
         ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: false);
 
-    /// <summary>Moves an already-owned generated-class reference into an array slot.</summary>
+    /// <summary>Moves an already-owned reference into an array slot.</summary>
     public void TransferReference(int[] indices, T value) =>
         ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
+
+    /// <summary>Moves a direct COM activation into an array slot.</summary>
+    public void TransferComActivationReference(int[] indices, T value)
+    {
+        VBObjectLifetime.AdoptComActivation(value);
+        ReplaceReferenceAtOffset(GetOffset(indices), value, transferOwnership: true);
+    }
 
     /// <summary>
     /// Stores a Variant value that has passed through its copy-on-assignment operation. A copied
@@ -157,6 +164,13 @@ public sealed class VBArray<T> : IVBArray
     /// <summary>Flat-index version that adopts a New/function-result reference.</summary>
     public void TransferReferenceAtFlatIndex(int index, T value) =>
         ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+
+    /// <summary>Flat-index form of <see cref="TransferComActivationReference"/>.</summary>
+    public void TransferComActivationReferenceAtFlatIndex(int index, T value)
+    {
+        VBObjectLifetime.AdoptComActivation(value);
+        ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+    }
 
     /// <summary>Flat-index form of <see cref="ReplaceCopiedVariant"/>.</summary>
     public void ReplaceCopiedVariantAtFlatIndex(int index, T value) =>
@@ -749,6 +763,20 @@ public static class VBArrayOperations
         }
 
         VBDynamicDispatch.SetDefaultMember(value, indices, element);
+    }
+
+    /// <summary>
+    /// Stores a direct COM activation in a Variant array element. The raw RCW reference becomes
+    /// the element's owner; ordinary generated procedure results continue through
+    /// <see cref="TransferElement(object?, object?[], object?)"/>.
+    /// </summary>
+    public static void TransferComActivationElement(object? value, int[] indices, object? element) =>
+        TransferComActivationElement(value, indices.Cast<object?>().ToArray(), element);
+
+    public static void TransferComActivationElement(object? value, object?[] indices, object? element)
+    {
+        VBObjectLifetime.AdoptComActivation(element);
+        TransferElement(value, indices, element);
     }
 
     /// <summary>

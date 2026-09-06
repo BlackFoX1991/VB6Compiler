@@ -1445,6 +1445,8 @@ public sealed class ManagedEmitter
                             ((ArrayTypeSymbol)element.Array.Type).ElementType,
                             IsBorrowedCopiedVariantArrayValue(value)
                                 ? nameof(VBArray<object>.ReplaceCopiedVariant)
+                                : IsDirectComActivation(value)
+                                    ? nameof(VBArray<object>.TransferComActivationReference)
                                 : OwnsLifetimeReference(value)
                                     ? nameof(VBArray<object>.TransferReference)
                                     : nameof(VBArray<object>.ReplaceReference),
@@ -1465,6 +1467,8 @@ public sealed class ManagedEmitter
                             ((ArrayTypeSymbol)element.Array.Type).ElementType,
                             IsBorrowedCopiedVariantArrayValue(value)
                                 ? nameof(VBArray<object>.ReplaceCopiedVariantAtFlatIndex)
+                                : IsDirectComActivation(value)
+                                    ? nameof(VBArray<object>.TransferComActivationReferenceAtFlatIndex)
                                 : OwnsLifetimeReference(value)
                                     ? nameof(VBArray<object>.TransferReferenceAtFlatIndex)
                                     : nameof(VBArray<object>.ReplaceReferenceAtFlatIndex),
@@ -1914,7 +1918,9 @@ public sealed class ManagedEmitter
 
             encoder.Call(GetRuntimeMethodReference(Static(
                 typeof(VBCollection),
-                OwnsLifetimeReference(call.Arguments[1].Expression)
+                IsDirectComActivation(call.Arguments[1].Expression)
+                    ? nameof(VBCollection.AddComActivationValue)
+                    : OwnsLifetimeReference(call.Arguments[1].Expression)
                     ? nameof(VBCollection.AddOwnedValue)
                     : nameof(VBCollection.AddValue),
                 typeof(VBCollection),
@@ -2110,17 +2116,29 @@ public sealed class ManagedEmitter
                 var targetParameter = call.Procedure.Parameters[index];
                 if (!call.Procedure.IsExternal &&
                     targetParameter.PassingMode == ParameterPassingMode.ByVal &&
-                    TracksLifetimeStorage(targetParameter.Type) &&
-                    !OwnsLifetimeReference(argument.Expression))
+                    TracksLifetimeStorage(targetParameter.Type))
                 {
-                    // The callee receives a distinct ByVal slot. A borrowed caller value gains
-                    // one owner for that slot; New and generated function results already carry
-                    // the reference that the callee adopts.
-                    encoder.OpCode(ILOpCode.Dup);
-                    encoder.Call(GetRuntimeMethodReference(Static(
-                        typeof(VBObjectLifetime),
-                        nameof(VBObjectLifetime.Retain),
-                        typeof(object))));
+                    if (IsDirectComActivation(argument.Expression))
+                    {
+                        // A direct activation has not reached any storage yet. The callee owns
+                        // its ByVal slot, so give that slot the raw RCW activation reference.
+                        encoder.OpCode(ILOpCode.Dup);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBObjectLifetime),
+                            nameof(VBObjectLifetime.AdoptComActivation),
+                            typeof(object))));
+                    }
+                    else if (!OwnsLifetimeReference(argument.Expression))
+                    {
+                        // The callee receives a distinct ByVal slot. A borrowed caller value gains
+                        // one owner for that slot; New and generated function results already carry
+                        // the reference that the callee adopts.
+                        encoder.OpCode(ILOpCode.Dup);
+                        encoder.Call(GetRuntimeMethodReference(Static(
+                            typeof(VBObjectLifetime),
+                            nameof(VBObjectLifetime.Retain),
+                            typeof(object))));
+                    }
                 }
             }
             EntityHandle target;
@@ -2946,6 +2964,8 @@ public sealed class ManagedEmitter
                 typeof(VBArrayOperations).GetMethod(
                     IsBorrowedCopiedVariantArrayValue(value)
                         ? nameof(VBArrayOperations.SetCopiedVariantElement)
+                        : IsDirectComActivation(value)
+                            ? nameof(VBArrayOperations.TransferComActivationElement)
                         : OwnsLifetimeReference(value)
                             ? nameof(VBArrayOperations.TransferElement)
                             : nameof(VBArrayOperations.SetElement),
@@ -5194,13 +5214,12 @@ public sealed class ManagedEmitter
             type is ClassTypeSymbol;
 
         /// <summary>
-        /// Generated VB6 classes participate in this counter even when they were emitted by a
-        /// referenced project: the shared runtime recognizes their registration. Runtime contracts
-        /// and imported COM classes have no counter state, so their native ownership remains intact.
+        /// Every VB6 object slot participates in the ownership protocol. Generated classes carry
+        /// their own terminator counter, while the runtime recognizes imported COM RCWs lazily and
+        /// leaves ordinary runtime/host objects as no-op entries.
         /// </summary>
         private static bool TracksObjectLifetime(TypeSymbol type) =>
-            type is ClassTypeSymbol classType &&
-            !classType.IsRuntimeObjectContract;
+            type is ClassTypeSymbol;
 
         /// <summary>
         /// A Variant may carry a generated class. Its opaque CLR storage still owns that class
@@ -5234,12 +5253,16 @@ public sealed class ManagedEmitter
             }
 
             if (expression is IrRuntimeCallExpression
-                {
-                    Method: IrRuntimeMethod.CollectionEnumerateValues
-                })
             {
-                // Enumeration materializes a new VBArray. Its storage owns retained references
-                // to the collection entries and the receiving local adopts that array reference.
+                Method: IrRuntimeMethod.CollectionEnumerateValues or
+                    IrRuntimeMethod.InteractionCreateComInstance or
+                    IrRuntimeMethod.InteractionCreateObject or
+                    IrRuntimeMethod.InteractionGetObject
+            })
+            {
+                // Enumeration materializes a new VBArray. COM activation returns a fresh RCW
+                // reference. In either case, the receiving storage adopts the result rather than
+                // retaining it as an alias.
                 return true;
             }
 
@@ -5256,6 +5279,25 @@ public sealed class ManagedEmitter
                    OwnsLifetimeReference(conversion.Arguments[0].Expression);
         }
 
+        /// <summary>
+        /// A direct activation is the only COM result that still owns a raw RCW reference. A
+        /// generated procedure return has already retained a VB6 storage slot, even when its
+        /// declared type is an imported COM class, and must therefore take the ordinary transfer
+        /// path instead of acquiring another RCW ownership.
+        /// </summary>
+        private static bool IsDirectComActivation(IrExpression expression) =>
+            expression is IrRuntimeCallExpression
+            {
+                Method: IrRuntimeMethod.InteractionCreateComInstance or
+                    IrRuntimeMethod.InteractionCreateObject or
+                    IrRuntimeMethod.InteractionGetObject
+            } ||
+            expression is IrRuntimeCallExpression
+            {
+                Method: IrRuntimeMethod.ObjectToVariant or IrRuntimeMethod.ObjectRequireOperand,
+                Arguments.Length: 1
+            } conversion && IsDirectComActivation(conversion.Arguments[0].Expression);
+
         private static bool IsCopiedVariantArrayValue(IrExpression expression) =>
             expression is IrRuntimeCallExpression
             {
@@ -5269,6 +5311,8 @@ public sealed class ManagedEmitter
         private static string LifetimeReplacementMethod(IrExpression value) =>
             IsBorrowedCopiedVariantArrayValue(value)
                 ? nameof(VBObjectLifetime.ReplaceCopiedVariant)
+                : IsDirectComActivation(value)
+                    ? nameof(VBObjectLifetime.TransferComActivation)
                 : OwnsLifetimeReference(value)
                     ? nameof(VBObjectLifetime.Transfer)
                     : nameof(VBObjectLifetime.Replace);
@@ -5276,6 +5320,8 @@ public sealed class ManagedEmitter
         private static string LifetimeFieldReplacementMethod(IrExpression value) =>
             IsBorrowedCopiedVariantArrayValue(value)
                 ? nameof(VBObjectLifetime.ReplaceCopiedVariantField)
+                : IsDirectComActivation(value)
+                    ? nameof(VBObjectLifetime.TransferComActivationField)
                 : OwnsLifetimeReference(value)
                     ? nameof(VBObjectLifetime.TransferField)
                     : nameof(VBObjectLifetime.ReplaceField);

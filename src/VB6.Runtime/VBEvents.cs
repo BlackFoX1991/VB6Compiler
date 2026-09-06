@@ -514,12 +514,13 @@ public static class VBEvents
     }
 
     /// <summary>
-    /// An advised sink is an owner just like a COM connection point owns its callback. The helper
-    /// centralizes the counter update so every CLR, host and COM subscription path has identical
-    /// lifetime behaviour.
+    /// An advised sink is an owner just like a COM connection point owns its callback, and the
+    /// subscription itself keeps its source alive until Unadvise. The helper centralizes both
+    /// counters so every CLR, host and COM subscription path has identical lifetime behaviour.
     /// </summary>
     private static void AddTrackedSubscriptionLocked(MethodSubscription subscription)
     {
+        VBObjectLifetime.Retain(subscription.Source);
         VBObjectLifetime.Retain(subscription.Target);
         MethodSubscriptions.Add(subscription);
     }
@@ -529,6 +530,7 @@ public static class VBEvents
         RemoveSubscriptionLocked(subscription);
         MethodSubscriptions.Remove(subscription);
         VBObjectLifetime.Release(subscription.Target);
+        VBObjectLifetime.Release(subscription.Source);
     }
 
     private static bool TrySubscribeClrEvent(

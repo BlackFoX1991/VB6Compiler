@@ -7716,3 +7716,22 @@ reist, aber gemeinsame Sprachsemantik nicht in eine globale Locale-Einstellung �
 Die Matrix steht bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**;
 `managed-r1-profiles` und die Profil-/Provenienzfläche sind jetzt `documented-verified`. Als
 nächste Karte folgt `managed-r2-lifetime`.
+
+## 2026-09-06 — R2, Schnitt 18: direkte COM-Aktivierungen besitzen ihren RCW-Anteil
+
+Die Runtime unterscheidet jetzt eine direkte COM-Aktivierung (`New` eines importierten Coclass,
+`CreateObject` oder `GetObject`) von einer normalen Objektübergabe. Nur die direkte Aktivierung
+überträgt ihren rohen RCW-Anteil in den ersten VB6-Speicherplatz; Aliasse, Arrays, Collections,
+Felder und `WithEvents` halten diesen Besitz anschließend bis zu ihrem letzten Slot. Geliehene
+RCWs behalten dagegen ausschließlich einen kontrollierten `IUnknown`-Hold, damit fremd gehaltene
+Wrapper nicht ungültig werden.
+
+Besonders wichtig ist die Rückgabegrenze: Eine erzeugte Funktion reicht ihren bereits vorhandenen
+Speicherbesitz an den Aufrufer weiter und erwirbt keinen zweiten RCW-Anteil. Runtime-Tests mit
+`Scripting.Dictionary` decken Alias-, Array- und Collection-Lebensdauer sowie diesen
+Rückgabeübergang ab; ein Emitter-Test prüft die getrennten Aufrufe für lokale Slots, `ByVal`,
+Arrays und `Collection.Add`.
+
+Die Matrix bleibt bewusst bei **162 Erwartungen: 144 implemented, 0 partial, 18 planned**.
+R2 ist nicht abgeschlossen: COM-Objekte aus fremden Memberrückgaben, host-geteilte Wrapper,
+exakte native Referenzzählung und unabhängige Fremdclient-Probes sind weiterhin offen.

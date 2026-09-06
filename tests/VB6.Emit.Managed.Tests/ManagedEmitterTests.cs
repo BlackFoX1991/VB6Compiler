@@ -331,6 +331,58 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    public void Emit_SeparatesDirectComActivationFromTransferredObjectOwnership()
+    {
+        var program = Lower("""
+            Function Pass(ByVal value As Object) As Object
+                Set Pass = value
+            End Function
+
+            Sub Main()
+                Dim direct As Object
+                Set direct = CreateObject("Scripting.Dictionary")
+                Set direct = Nothing
+
+                Dim returned As Object
+                Set returned = Pass(CreateObject("Scripting.Dictionary"))
+                Set returned = Nothing
+
+                Dim values() As Object
+                ReDim values(0 To 0)
+                Set values(0) = CreateObject("Scripting.Dictionary")
+
+                Dim items As Collection
+                Set items = New Collection
+                items.Add CreateObject("Scripting.Dictionary")
+            End Sub
+            """);
+
+        var result = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "ComActivationOwnership",
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        var runtimeMethods = RuntimeMemberNames(result.PeImage!);
+
+        var expectedMethods = new[]
+        {
+            (nameof(VBObjectLifetime), nameof(VBObjectLifetime.TransferComActivation)),
+            (nameof(VBObjectLifetime), nameof(VBObjectLifetime.AdoptComActivation)),
+            (nameof(VBObjectLifetime), nameof(VBObjectLifetime.Transfer)),
+            (nameof(VBCollection), nameof(VBCollection.AddComActivationValue))
+        };
+        foreach (var expected in expectedMethods)
+        {
+            Assert.IsTrue(
+                runtimeMethods.Contains(expected),
+                $"The emitter must reference {expected}. Emitted runtime methods: {string.Join(", ", runtimeMethods)}.");
+        }
+        Assert.IsTrue(
+            runtimeMethods.Any(method => method.Name == nameof(VBArray<object>.TransferComActivationReference)),
+            $"The emitter must use the COM-activation array store. Emitted runtime methods: {string.Join(", ", runtimeMethods)}.");
+    }
+
+    [TestMethod]
     public void Emit_AnnotatesAssemblyWithCompatibilityProfile()
     {
         var analysis = VBCompilation.Create(

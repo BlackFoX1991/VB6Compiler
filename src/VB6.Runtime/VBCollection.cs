@@ -59,8 +59,8 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         => AddCore(item, key, before, after, transferOwnership: false);
 
     /// <summary>
-    /// Adopts a freshly-created generated object or function result. The compiler emits this
-    /// path for <c>Collection.Add New C</c>; the construction reference becomes the entry owner.
+    /// Adopts a freshly-created generated object or function result. The compiler emits this path
+    /// for <c>Collection.Add New C</c>; the construction reference becomes the entry owner.
     /// </summary>
     public void AddOwned(
         object? item,
@@ -68,6 +68,20 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         [Optional] object? before,
         [Optional] object? after) =>
         AddCore(item, key, before, after, transferOwnership: true);
+
+    /// <summary>Moves a direct COM activation into the Collection entry.</summary>
+    public void AddComActivation(
+        object? item,
+        [Optional] object? key,
+        [Optional] object? before,
+        [Optional] object? after)
+    {
+        // Validate the insertion before consuming an activation's ownership. If it is rejected,
+        // normal CLR cleanup remains responsible for the raw result.
+        ValidateAddArguments(key, before, after, out var insertAt, out var normalizedKey);
+        VBObjectLifetime.AdoptComActivation(item);
+        InsertOwned(item, insertAt, normalizedKey);
+    }
 
     public void RetainObjectReferences()
     {
@@ -92,12 +106,29 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         object? after,
         bool transferOwnership)
     {
+        ValidateAddArguments(key, before, after, out var insertAt, out var normalizedKey);
+
+        if (!transferOwnership)
+        {
+            VBObjectLifetime.Retain(item);
+        }
+
+        InsertOwned(item, insertAt, normalizedKey);
+    }
+
+    private void ValidateAddArguments(
+        object? key,
+        object? before,
+        object? after,
+        out int insertAt,
+        out string? normalizedKey)
+    {
         if (!VBVariants.IsMissing(before) && !VBVariants.IsMissing(after))
         {
             throw InvalidCollectionArgument("Only one of Before and After may be specified.");
         }
 
-        var insertAt = _items.Count;
+        insertAt = _items.Count;
         if (!VBVariants.IsMissing(before))
         {
             insertAt = ResolveIndex(before, outOfRangeNumber: 5);
@@ -107,7 +138,7 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
             insertAt = checked(ResolveIndex(after, outOfRangeNumber: 5) + 1);
         }
 
-        string? normalizedKey = null;
+        normalizedKey = null;
         if (key is object nonNullKey && !VBVariants.IsMissing(nonNullKey))
         {
             normalizedKey = NormalizeKey(nonNullKey);
@@ -118,12 +149,10 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
                     $"This key is already associated with an element of this collection: '{normalizedKey}'.");
             }
         }
+    }
 
-        if (!transferOwnership)
-        {
-            VBObjectLifetime.Retain(item);
-        }
-
+    private void InsertOwned(object? item, int insertAt, string? normalizedKey)
+    {
         try
         {
             _items.Insert(insertAt, new Entry(item, normalizedKey));
@@ -164,6 +193,13 @@ public sealed class VBCollection : IVBObjectLifetimeContainer
         object? key,
         object? before,
         object? after) => collection.AddOwned(item, key, before, after);
+
+    public static void AddComActivationValue(
+        VBCollection collection,
+        object? item,
+        object? key,
+        object? before,
+        object? after) => collection.AddComActivation(item, key, before, after);
 
     public static void RemoveValue(VBCollection collection, object? index) => collection.Remove(index);
 

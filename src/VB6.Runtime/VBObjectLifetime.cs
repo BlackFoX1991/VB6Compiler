@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace VB6.Runtime;
 
@@ -15,9 +17,12 @@ namespace VB6.Runtime;
 ///
 /// Generated stores now report their ownership changes here: a newly constructed or returned
 /// object transfers its one reference into its destination, while an alias retains the source
-/// before it releases the old destination. The weak register remains the last line of defence for
-/// an object that escaped an uninstrumented boundary, and drains such instances at process exit.
-/// It is deliberately not used as evidence that an uninstrumented storage form has VB6 timing.
+/// before it releases the old destination. A COM activation is adopted by the same storage
+/// protocol: its RCW keeps one runtime reference until the last VB6 storage owner leaves, while a
+/// borrowed RCW is kept alive through an explicit IUnknown reference without invalidating a host
+/// owned wrapper. The weak register remains the last line of defence for an object that escaped an
+/// uninstrumented boundary, and drains such instances at process exit. It is deliberately not
+/// used as evidence that an uninstrumented storage form has VB6 timing.
 /// </summary>
 public static class VBObjectLifetime
 {
@@ -89,8 +94,8 @@ public static class VBObjectLifetime
     /// <summary>
     /// Records another generated storage owner. An array retains the objects in all of its
     /// elements for a copied descriptor; a generated class increments its own counter, including
-    /// one emitted by a referenced project that shares this runtime. Runtime contracts and COM
-    /// objects have no counter state, so their native ownership remains intact.
+    /// one emitted by a referenced project that shares this runtime. A COM object obtains an
+    /// explicit IUnknown hold while VB6 storage refers to it.
     /// </summary>
     public static void Retain(object? instance)
     {
@@ -100,8 +105,21 @@ public static class VBObjectLifetime
             return;
         }
 
-        if (instance is null || !States.TryGetValue(instance, out var state) ||
-            Volatile.Read(ref state.Terminating) != 0)
+        if (instance is null || !TryGetLifetimeState(instance, out var state))
+        {
+            return;
+        }
+
+        if (state.IsComObject)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                RetainComObject(instance, state);
+            }
+            return;
+        }
+
+        if (Volatile.Read(ref state.Terminating) != 0)
         {
             return;
         }
@@ -111,8 +129,9 @@ public static class VBObjectLifetime
 
     /// <summary>
     /// Drops one generated storage owner. Array storage releases its elements; for a generated
-    /// class, reaching zero calls <c>Class_Terminate</c> synchronously. This makes alias and
-    /// <c>Set ... = Nothing</c> timing observable instead of leaving it to the GC.
+    /// class, reaching zero calls <c>Class_Terminate</c> synchronously. A tracked COM activation
+    /// releases its RCW at the same boundary. This makes alias and <c>Set ... = Nothing</c> timing
+    /// observable instead of leaving it to the GC.
     /// </summary>
     public static void Release(object? instance)
     {
@@ -122,8 +141,21 @@ public static class VBObjectLifetime
             return;
         }
 
-        if (instance is null || !States.TryGetValue(instance, out var state) ||
-            Volatile.Read(ref state.Terminating) != 0)
+        if (instance is null || !States.TryGetValue(instance, out var state))
+        {
+            return;
+        }
+
+        if (state.IsComObject)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                ReleaseComObject(instance, state);
+            }
+            return;
+        }
+
+        if (Volatile.Read(ref state.Terminating) != 0)
         {
             return;
         }
@@ -158,6 +190,32 @@ public static class VBObjectLifetime
     }
 
     /// <summary>
+    /// Replaces a slot with a freshly activated COM object. Unlike a generated function result,
+    /// this raw RCW has not yet entered VB6 storage, so its activation reference becomes the
+    /// destination owner.
+    /// </summary>
+    public static object? TransferComActivation(object? current, object? replacement)
+    {
+        AdoptComActivation(replacement);
+        Release(current);
+        return replacement;
+    }
+
+    /// <summary>
+    /// Marks a freshly activated COM value as owned by its first VB6 storage destination. Generated
+    /// objects and values returned from generated procedures already carry a storage reference,
+    /// so callers must use this only for the direct <c>New</c>, <c>CreateObject</c> or
+    /// <c>GetObject</c> runtime result.
+    /// </summary>
+    public static void AdoptComActivation(object? instance)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            AdoptComObject(instance);
+        }
+    }
+
+    /// <summary>
     /// Replaces a Variant slot after its value-copy operation. Array values arrive as fresh
     /// independent storage whose elements were retained while copying; scalars and objects remain
     /// borrowed. Selecting the path from the runtime value keeps both cases correct.
@@ -186,6 +244,17 @@ public static class VBObjectLifetime
         ArgumentNullException.ThrowIfNull(instance);
         var field = GetField(instance.GetType(), fieldName);
         var current = field.GetValue(instance);
+        field.SetValue(instance, replacement);
+        Release(current);
+    }
+
+    /// <summary>Moves a direct COM activation into a generated class field.</summary>
+    public static void TransferComActivationField(object instance, string fieldName, object? replacement)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        var field = GetField(instance.GetType(), fieldName);
+        var current = field.GetValue(instance);
+        AdoptComActivation(replacement);
         field.SetValue(instance, replacement);
         Release(current);
     }
@@ -330,6 +399,107 @@ public static class VBObjectLifetime
     public static void SuppressPendingTerminatorsForEnd() =>
         Interlocked.Exchange(ref _suppressPendingTerminators, 1);
 
+    private static bool TryGetLifetimeState(object instance, out LifetimeState state)
+    {
+        if (States.TryGetValue(instance, out state!))
+        {
+            return true;
+        }
+
+        if (!OperatingSystem.IsWindows() || !Marshal.IsComObject(instance))
+        {
+            state = null!;
+            return false;
+        }
+
+        state = States.GetValue(instance, static _ => LifetimeState.CreateBorrowedComObject());
+        return true;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void AdoptComObject(object? instance)
+    {
+        if (instance is null || !OperatingSystem.IsWindows() || !Marshal.IsComObject(instance))
+        {
+            return;
+        }
+
+        var state = States.GetValue(instance, static _ => LifetimeState.CreateBorrowedComObject());
+        if (!state.IsComObject)
+        {
+            return;
+        }
+
+        lock (state)
+        {
+            if (state.References == 0)
+            {
+                state.ComIdentity = Marshal.GetIUnknownForObject(instance);
+            }
+
+            state.References++;
+            state.OwnedRcwReferences++;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void RetainComObject(object instance, LifetimeState state)
+    {
+        lock (state)
+        {
+            if (state.References == 0)
+            {
+                state.ComIdentity = Marshal.GetIUnknownForObject(instance);
+            }
+
+            state.References++;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void ReleaseComObject(object instance, LifetimeState state)
+    {
+        IntPtr identity = IntPtr.Zero;
+        var ownedRcwReferences = 0;
+        lock (state)
+        {
+            if (state.References <= 0)
+            {
+                return;
+            }
+
+            state.References--;
+            if (state.References != 0)
+            {
+                return;
+            }
+
+            identity = state.ComIdentity;
+            state.ComIdentity = IntPtr.Zero;
+            ownedRcwReferences = state.OwnedRcwReferences;
+            state.OwnedRcwReferences = 0;
+        }
+
+        if (identity != IntPtr.Zero)
+        {
+            _ = Marshal.Release(identity);
+        }
+
+        // Only an activation adopted by Transfer owns an RCW reference. Borrowed objects retain
+        // an IUnknown while VB6 storage refers to them, but their host-owned RCW stays valid.
+        for (var index = 0; index < ownedRcwReferences; index++)
+        {
+            try
+            {
+                _ = Marshal.ReleaseComObject(instance);
+            }
+            catch (InvalidComObjectException)
+            {
+                break;
+            }
+        }
+    }
+
     private static void ReleaseInstanceFields(object instance)
     {
         FieldInfo[] fields;
@@ -367,5 +537,14 @@ public static class VBObjectLifetime
         // The constructor's result has one owner until New transfers it into generated storage.
         public int References = 1;
         public int Terminating;
+        public bool IsComObject;
+        public IntPtr ComIdentity;
+        public int OwnedRcwReferences;
+
+        public static LifetimeState CreateBorrowedComObject() => new()
+        {
+            References = 0,
+            IsComObject = true
+        };
     }
 }
