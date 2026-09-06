@@ -184,7 +184,7 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-06 at `4ad1b7a` on `main` with uncommitted changes, run `20260906T134346Z-cfaa7fdc`:
+Measured on 2026-09-06 at `7c8a51e` on `main`, run `20260906T134850Z-3b0342fb`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
