@@ -4,13 +4,9 @@ using System.Reflection.PortableExecutable;
 namespace VB6.Compiler.Tests;
 
 /// <summary>
-/// <c>Class_Terminate</c> runs, but on the collector's schedule rather than VB6's. VB6 counts
-/// references and terminates the moment the last one goes; this runtime has a garbage collector,
-/// and the emitted class carries a finalizer instead.
-///
-/// The difference is observable and is deliberately not papered over: firing Terminate early —
-/// which is what a half-built reference count would do — runs a program's cleanup on a live
-/// object, and that is far worse than firing it late.
+/// <c>Class_Terminate</c> follows generated storage ownership synchronously. The emitted
+/// finalizer and shutdown register are a fallback for an uninstrumented escape or a reference
+/// cycle at normal process end, so a class declaring the event still needs its finalizer.
 /// </summary>
 [TestClass]
 public sealed class ClassTerminateExecutionTests

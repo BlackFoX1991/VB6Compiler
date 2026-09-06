@@ -1200,4 +1200,66 @@ public sealed class ClassTerminateGuaranteeExecutionTests
             }
         }
     }
+
+    [TestMethod]
+    public void EmitManagedApplication_TracksDeferredAsNewStorage()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TerminateAsNew", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var projectPath = Path.Combine(directory, "AsNew.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="AsNew"
+                Class=C; C.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "C.cls"), """
+                Option Explicit
+
+                Public Sub Touch()
+                End Sub
+
+                Private Sub Class_Terminate()
+                    Debug.Print "Terminate"
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Public Shared As New C
+
+                Sub Main()
+                    Dim local As New C
+                    local.Touch
+                    Shared.Touch
+                    Debug.Print "Aktiviert"
+                    Set local = Nothing
+                    Set Shared = Nothing
+                    Debug.Print "Freigegeben"
+                    local.Touch
+                    Shared.Touch
+                    Debug.Print "Reaktiviert"
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Aktiviert", "Terminate", "Terminate", "Freigegeben",
+                    "Reaktiviert", "Terminate", "Terminate"
+                },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }
