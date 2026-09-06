@@ -118,6 +118,23 @@ public sealed class VBAddressableCellTests
         Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadSingle(storage));
     }
 
+    [TestMethod]
+    public void DoubleFacade_PreservesTheEightByteIeee754NativeCellContract()
+    {
+        var storage = VBAddressableStorage.CreateDouble(1.5d);
+        var address = VBAddressableStorage.GetDoubleNativeAddress(storage);
+
+        Assert.AreEqual(BitConverter.DoubleToInt64Bits(1.5d), Marshal.ReadInt64(address));
+        Marshal.WriteInt64(address, BitConverter.DoubleToInt64Bits(2.5d));
+        ForceFullCollection();
+        Assert.AreEqual(2.5d, VBAddressableStorage.ReadDouble(storage));
+
+        VBAddressableStorage.WriteDouble(storage, 3d);
+        Assert.AreEqual(BitConverter.DoubleToInt64Bits(3d), Marshal.ReadInt64(address));
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadDouble(storage));
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);

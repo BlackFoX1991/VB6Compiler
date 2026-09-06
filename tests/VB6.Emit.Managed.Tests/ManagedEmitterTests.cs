@@ -87,6 +87,10 @@ public sealed class ManagedEmitterTests
                 value = value + 1
             End Sub
 
+            Sub BumpDouble(ByRef value As Double)
+                value = value + 1
+            End Sub
+
             Sub Main()
                 Dim value As Long
                 Dim pointer As Long
@@ -94,6 +98,7 @@ public sealed class ManagedEmitterTests
                 Dim byteValue As Byte
                 Dim booleanValue As Boolean
                 Dim singleValue As Single
+                Dim doubleValue As Double
                 value = 7
                 pointer = VarPtr(value)
                 Bump value
@@ -109,6 +114,9 @@ public sealed class ManagedEmitterTests
                 singleValue = 1.5
                 pointer = VarPtr(singleValue)
                 BumpSingle singleValue
+                doubleValue = 1.5
+                pointer = VarPtr(doubleValue)
+                BumpDouble doubleValue
                 Debug.Print value
             End Sub
             """);
@@ -150,6 +158,10 @@ public sealed class ManagedEmitterTests
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetSingleNativeAddress)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadSingle)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteSingle)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateDouble)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetDoubleNativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadDouble)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteDouble)),
                 (nameof(VBAddressableStorage), nameof(VBAddressableStorage.Dispose))
             },
             x86Methods);

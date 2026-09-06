@@ -14,14 +14,14 @@ Puffer; Skalare gehen direkt als ByRef-Adresse in den Aufruf. Dieser Puffer ist 
 ungültig und erfüllt den Speichervertrag eines gespeicherten Zeigers nicht.
 
 Als erste, absichtlich kleine gespeicherte-Ausnahme erzeugt die x86-Managed-Emission für
-`VarPtr(localLong)`, `VarPtr(localInteger)`, `VarPtr(localByte)`, `VarPtr(localBoolean)` und
-`VarPtr(localSingle)` native Vier-, Zwei-, Ein-, zwei- beziehungsweise vier Byte breite Zellen.
-Der Boolean-Zellwert verwendet dabei VB6s `-1`/`0`-Darstellung statt eines CLR-`bool`; der
-Single-Zellwert ist das unveränderte vier Byte breite IEEE-754-Layout. Normale Loads/Stores sowie
-CLR-ByRef-Write-backs werden mit diesen Zellen synchronisiert, und sie werden bei der
-Prozedurrückkehr freigegeben. Sie überstehen damit eine GC, solange der lokale Speicherplatz lebt.
-AnyCPU und x64 behalten für denselben Ausdruck Fehler 5; dort wird kein `IntPtr` in einen `Long`
-abgeschnitten.
+`VarPtr(localLong)`, `VarPtr(localInteger)`, `VarPtr(localByte)`, `VarPtr(localBoolean)`,
+`VarPtr(localSingle)` und `VarPtr(localDouble)` native Vier-, Zwei-, Ein-, zwei-, vier- und acht
+Byte breite Zellen. Der Boolean-Zellwert verwendet dabei VB6s `-1`/`0`-Darstellung statt eines
+CLR-`bool`; die Single- und Double-Zellwerte sind die unveränderten IEEE-754-Layouts. Normale
+Loads/Stores sowie CLR-ByRef-Write-backs werden mit diesen Zellen synchronisiert, und sie werden
+bei der Prozedurrückkehr freigegeben. Sie überstehen damit eine GC, solange der lokale
+Speicherplatz lebt. AnyCPU und x64 behalten für denselben Ausdruck Fehler 5; dort wird kein
+`IntPtr` in einen `Long` abgeschnitten.
 
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
@@ -83,6 +83,6 @@ keine der anderen Familien.
 Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
 separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
 allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert sind
-nur lokale `Long`-, `Integer`-, `Byte`-, `Boolean`- und `Single`-Slots im x86-Managed-Pfad.
-Außerhalb dieser Fälle und außerhalb des unmittelbaren `Declare`-Pfads gilt weiterhin die
-bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.
+nur lokale `Long`-, `Integer`-, `Byte`-, `Boolean`-, `Single`- und `Double`-Slots im
+x86-Managed-Pfad. Außerhalb dieser Fälle und außerhalb des unmittelbaren `Declare`-Pfads gilt
+weiterhin die bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.
