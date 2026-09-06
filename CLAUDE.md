@@ -26,8 +26,12 @@ erlaubte Erweiterungen bleiben profilabhängig.
 
 R0 ist geschlossen: `build.ps1` wertet Standardlauf, nativen x86-Lauf und Wiederholungen getrennt
 aus und schreibt `artifacts/verification-report.json`; die Statusregeln der Matrix prüfen Tests
-statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke. Nächste Karte ist
-`managed-r2-lifetime`.
+statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke.
+
+R1 ist ebenfalls geschlossen: Grammatik und Kontext, Array-/UDT-Formen, Operator- und
+Default-Member-Vertrag, Konvertierungs- und Promotionsmatrix, Standardbibliothek, Datei-Layouts
+gegen Rohbytes und die Profilgrenzen sind abgenommen. Elf Karten, davon vier Einzelbefunde, die
+beim Messen gefunden wurden. Nächste Karte ist `managed-r2-lifetime`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
 

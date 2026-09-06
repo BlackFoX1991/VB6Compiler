@@ -7765,3 +7765,26 @@ Der vorhandene rohe Fremdclient-Probe läuft danach gegen einen frisch gestartet
 R2 bleibt offen: Der Test misst keinen exakten nativen Referenzzähler und deckt keinen von einem
 fremden Host gleichzeitig geteilten Wrapper ab. Die Matrix bleibt daher bei **162 Erwartungen:
 144 implemented, 0 partial, 18 planned**.
+
+## 2026-09-06 — R1 als abgeschlossene Etappe geführt
+
+Alle elf R1-Karten standen seit Schnitt 17 auf `implemented` / `documented-verified`, die
+Etappe aber weiter unter „Aktive Restliste" — mit Überschrift, Prosa und einer Kartentabelle,
+die nur noch aus ihrer Kopfzeile bestand. Die Roadmap hat damit eine fertige Etappe als
+laufende Arbeit ausgewiesen. R1 steht jetzt neben R0 unter „Abgeschlossene Etappen", mit einer
+Nachweistabelle über alle elf Karten und den beiden Aussagegrenzen, die sonst verloren gegangen
+wären: Die Datei-Layouts sind gegen Rohbytes abgenommen, und die Get-/Put-Verträge stützen sich
+auf benannte VBA-Dokumentation statt auf einen Original-VB6-Lauf.
+
+Interessanter als der Umzug ist, warum ihn keine Prüfung gemeldet hat. Die vier Statusregeln aus
+R0 waren durchgehend grün, und zwar zu Recht: Sie verlangen, dass jede offene Karte in der
+Restliste steht und keine geschlossene mehr. R1 ist Karte für Karte geschlossen worden, und jede
+hat dabei ordentlich die Liste verlassen — bis die Tabelle leer war. Übrig blieb eine Überschrift
+ohne eine einzige ID, und darauf sieht eine Regel, die IDs sucht, nichts.
+
+Die fünfte Regel prüft deshalb die Aussage statt der Einträge: Die aktive Restliste muss genau die
+Etappen nennen, die noch eine offene Karte haben. Sie meldet eine kartenlose Überschrift, eine
+Etappe, die keine ihrer eigenen offenen Karten nennt, und den umgekehrten Fall einer Etappe mit
+offenen Karten, die aus der Liste verschwunden ist — der vorhandene Nachweis über die ganze Datei
+genügt dafür nicht, weil eine ID im Historienteil für ihn genauso aussieht. Alle drei Zweige
+wurden durch einmaliges Brechen gegengeprüft.

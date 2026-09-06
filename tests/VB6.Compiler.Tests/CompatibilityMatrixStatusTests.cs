@@ -12,6 +12,11 @@ namespace VB6.Compiler.Tests;
 /// they need a machine: a rule that is only ever confirmed manually is a rule that drifts on the
 /// first day nobody looks.
 ///
+/// A fifth rule was added after R1 drifted anyway: the active remainder list must name exactly the
+/// milestones that still have an open card. R1 was closed card by card, and each card duly left
+/// the list -- which emptied its table without removing its heading, so the roadmap went on
+/// presenting a finished milestone as the work in progress. Every rule above passed throughout.
+///
 /// The counts and the oracle rule are checked in <see cref="CompatibilityMatrixTests"/>.
 /// </summary>
 [TestClass]
@@ -145,6 +150,72 @@ public sealed class CompatibilityMatrixStatusTests
             0,
             missingFromRoadmap.Length,
             "Offene Karte fehlt in ROADMAP.md: " + string.Join(", ", missingFromRoadmap));
+    }
+
+    [TestMethod]
+    public void Matrix_ListsExactlyTheMilestonesThatStillHaveOpenCards()
+    {
+        var expectations = CompatibilityMatrix.LoadExpectations();
+        var roadmap = File.ReadAllText(
+            Path.Combine(CompatibilityMatrix.FindRepositoryRoot(), "docs", "ROADMAP.md"));
+
+        var openByMilestone = expectations
+            .Where(expectation => expectation.Implementation == "planned" && expectation.Milestone is not null)
+            .GroupBy(expectation => expectation.Milestone!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Select(e => e.Id).ToArray(), StringComparer.OrdinalIgnoreCase);
+
+        var sections = MilestoneSections(ActiveRemainderList(roadmap));
+        var complaints = new List<string>();
+
+        // Der Fall, an dem R1 vorbeigekommen ist: Die Karten waren geschlossen, aber Überschrift,
+        // Prosa und eine leere Tabelle standen weiter in der aktiven Restliste. Die Prüfung auf
+        // "geschlossene Karten-ID steht noch drin" greift dabei nicht -- es stand ja keine ID mehr
+        // da. Eine Etappe gehört genau so lange in die aktive Liste, wie sie eine offene Karte hat.
+        foreach (var (milestone, body) in sections)
+        {
+            if (!openByMilestone.TryGetValue(milestone, out var open))
+            {
+                complaints.Add(
+                    $"{milestone} hat keine offene Karte mehr und gehört unter '## Abgeschlossene Etappen'");
+                continue;
+            }
+
+            if (!open.Any(card => body.Contains(card, StringComparison.Ordinal)))
+            {
+                complaints.Add(
+                    $"{milestone} nennt keine seiner offenen Karten ({string.Join(", ", open)})");
+            }
+        }
+
+        // Die Gegenrichtung: Eine Etappe mit offenen Karten darf nicht aus der aktiven Liste
+        // verschwinden. Der Nachweis über die ganze Datei genügt dafür nicht -- eine ID im
+        // Historienteil sieht für ihn genauso aus wie eine in der Restliste.
+        var listed = sections.Select(section => section.Milestone).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var milestone in openByMilestone.Keys.Where(milestone => !listed.Contains(milestone)).Order(StringComparer.Ordinal))
+        {
+            complaints.Add(
+                $"{milestone} hat offene Karten ({string.Join(", ", openByMilestone[milestone])}), fehlt aber in der aktiven Restliste");
+        }
+
+        Assert.AreEqual(0, complaints.Count, string.Join(Environment.NewLine, complaints));
+    }
+
+    /// <summary>
+    /// The milestone sections of a roadmap span, each from its own heading to the next one.
+    /// </summary>
+    private static IReadOnlyList<(string Milestone, string Body)> MilestoneSections(string span)
+    {
+        var headings = Regex.Matches(span, @"^### (R[0-7]) ", RegexOptions.Multiline);
+        var sections = new List<(string, string)>(headings.Count);
+
+        for (var index = 0; index < headings.Count; index++)
+        {
+            var start = headings[index].Index;
+            var end = index + 1 < headings.Count ? headings[index + 1].Index : span.Length;
+            sections.Add((headings[index].Groups[1].Value, span[start..end]));
+        }
+
+        return sections;
     }
 
     /// <summary>

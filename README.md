@@ -398,7 +398,7 @@ live in [the compatibility matrix](docs/vb6-sp6-compatibility-matrix.json). The 
 M0–M10 sections are mapped to these milestones in the roadmap.
 
 1. R0: independent run accounting and automatic status/documentation checks. **Done.**
-2. R1: finite language/runtime inventory and conformance, including file layouts and locale.
+2. R1: finite language/runtime inventory and conformance, including file layouts and locale. **Done.**
 3. R2: last-reference object termination throughout the generated program and runtime.
 4. R3: GC-stable addressable storage, pointers and complete Declare/callback ABI.
 5. R4: COM output parameters, Automation layouts, real binary compatibility and server contracts.

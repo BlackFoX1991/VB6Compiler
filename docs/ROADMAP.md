@@ -144,23 +144,51 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 | `managed-r0-reporting` | `build.ps1`, `artifacts/verification-report.json`, `VerificationDocumentTests` |
 | `managed-r0-status-checks` | `CompatibilityMatrixStatusTests`, `CompatibilityMatrixTests`, `build.ps1 -UpdateVerificationDocs` |
 
-## Aktive Restliste
-
-Die 18 folgenden Karten sind `planned` / `not-yet-verified`. R0 ist geschlossen und steht als
-abgeschlossene Etappe darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
-dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
-Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
-
 ### R1 — Sprach- und Runtime-Verträge vervollständigen
 
-Nach R0; die Abhängigkeiten innerhalb der Etappe stehen auf den Karten.
+Geschlossen. Die elf Karten stehen als `implemented` / `documented-verified` in der Matrix und
+nicht mehr in der Restliste; die Nachweise sind hier festgehalten, damit sie nachvollziehbar
+bleiben.
 
-Zuerst messen, anschließend belegte Fehler korrigieren. Das Inventar wird aus dokumentierten Formen aufgebaut und ist endlich: keine dauerhaft offene Sammelzeile „alle weiteren Randfälle“. Jede gefundene Abweichung bekommt eine eigene Erwartung mit Eingabe, Ergebnis/Typ oder Diagnose. Ein bestandener Selbst-Roundtrip beweist weder ein Dateiformat noch eine native ABI; dafür sind unabhängige Bytes bzw. Fremdkomponenten erforderlich.
+Getragen hat die Etappe die Reihenfolge „erst messen, dann bauen". Jedes Inventar wurde aus
+dokumentierten Formen gebildet und blieb endlich — keine dauerhaft offene Sammelzeile „alle
+weiteren Randfälle". Mehrfach lautete der Befund, dass das Verhalten bereits stimmte und nur
+ungetestet war: In der Variant-Promotionstabelle waren alle 49 gemessenen Operandenpaare
+korrekt, und `managed-r1-intrinsics` erwies sich als Zusammenfassung von vierzehn bereits
+atomar dokumentierten Verträgen statt als fehlende Runtime-Familie. Die vier `r1-*`-Karten
+sind genau die dabei gefundenen echten Abweichungen — jeder Befund bekommt eine eigene
+Erwartung mit Eingabe, Ergebnis und Diagnose, statt in einer Sammelkarte zu verschwinden.
 
-Bei Datei-I/O erlaubte `Variant()`-Arrays von einem skalaren Variant mit Array-Inhalt sowie von Objektwerten unterscheiden. Die [Get-](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/get-statement) und [Put-Dokumentation](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/put-statement) beschreibt diese Unterschiede sowie Binary-/Random-Stringdeskriptoren. Diese VBA-Quellen sind ein benannter Vertragsbeleg, kein Original-VB6-Lauf. Dokumentierte Verbote werden als Negativfälle abgenommen; Widersprüche zwischen Quelle und bisherigem Test bleiben sichtbar, bis die Erwartung fachlich geklärt ist.
+Die Datei-Layouts wurden gegen Rohbytes abgenommen, nicht gegen einen Selbst-Roundtrip: Ein
+`Put`/`Get`-Paar bestätigt nur sich selbst. Die Get-/Put-Verträge stützen sich dabei auf
+benannte VBA-Dokumentation; das ist ein Vertragsbeleg, kein Original-VB6-Lauf, und deshalb
+bleiben die Erwartungen `documented-verified` statt `oracle-verified`. Ebenso festgeschrieben
+ist die Trennung zwischen einem deklarierten `Variant()`-Array, einem skalaren Variant mit
+Array-Inhalt und Objektwerten: Die beiden letzten werden mit ihrer dokumentierten Ablehnung
+abgenommen, statt einen Besitzvertrag zu erfinden.
 
-| Karte | Ziel und Abnahme |
+| Karte | Nachweis |
 | --- | --- |
+| `managed-r1-grammar` | `CompilationTests`, `DeclarationShapeExecutionTests`, `StatementShapeExecutionTests`, `EvaluationOrderExecutionTests`, `ModulePropertyExecutionTests` |
+| `managed-r1-udt-shapes` | `UdtShapeExecutionTests`, `DynamicUserDefinedTypeArrayExecutionTests`, `ReDimExecutionTests`, `ArrayBinderGuardTests` |
+| `managed-r1-operators` | `VariantArithmeticTests`, `VariantEqualityExecutionTests`, `VariantObjectDispatchExecutionTests` |
+| `managed-r1-conversions` | `VariantStateTests`, `CurrencyRuntimeTests`, `DateTimeRuntimeTests`, `VariantStateExecutionTests` |
+| `managed-r1-intrinsics` | `StringIntrinsicRuntimeTests`, `MathRuntimeTests`, `FinancialIntrinsicTests`, `FormatStringInputTests`, `StandardLibraryIntrinsicExecutionTests` |
+| `managed-r1-file-layout` | `FileRuntimeTests`, `FileIoExecutionTests`, `FileStatementGuardTests` |
+| `managed-r1-profiles` | `CultureIndependenceTests`, `FileStringIoExecutionTests`, `ScalarStringIntrinsicExecutionTests` |
+| `r1-grammar-return-error-number` | `GoSubReturnExecutionTests` |
+| `r1-grammar-invalid-form-diagnostics` | `UncoveredDiagnosticTests` |
+| `r1-grammar-array-option-base` | `ArrayExecutionTests` |
+| `r1-udt-nested-array-value-copy` | `FixedUdtArrayExecutionTests` |
+
+## Aktive Restliste
+
+Die 18 folgenden Karten sind `planned` / `not-yet-verified`. R0 und R1 sind geschlossen und
+stehen als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der
+Matrix; die dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits
+erfüllte fachliche Einzelverträge bleiben in der Matrix erhalten und werden nicht neu
+implementiert.
+
 ### R2 — Deterministische Objektlebensdauer
 
 Nach R1.
