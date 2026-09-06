@@ -15,17 +15,7 @@ public sealed class VBCallbackRegistryTests
             BindingFlags.Static | BindingFlags.NonPublic)!;
 
         var pointer = VBCallbackRegistry.GetFunctionPointer(method.MethodHandle, null);
-        var callbackAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .Single(assembly => assembly.GetName().Name == "VB6.Runtime.NativeCallbacks");
-        var callbackType = callbackAssembly
-            .GetTypes()
-            .Single(type =>
-            {
-                var invoke = type.GetMethod("Invoke");
-                return invoke?.ReturnType == typeof(int) &&
-                    invoke.GetParameters().Select(parameter => parameter.ParameterType)
-                        .SequenceEqual(new[] { typeof(int) });
-            });
+        var callbackType = GetIntCallbackType();
 
         // A native API may retain an AddressOf pointer after the managed call that created it has
         // returned. Collect twice to ensure this call depends on the registry, not a JIT-local
@@ -35,6 +25,24 @@ public sealed class VBCallbackRegistryTests
 
         var callback = Marshal.GetDelegateForFunctionPointer(pointer, callbackType);
         Assert.AreEqual(42, callback.DynamicInvoke(41));
+    }
+
+    [TestMethod]
+    public void AddressOfInstanceCallback_RetainsItsTargetAfterForcedCollection()
+    {
+        var firstPointer = CreateInstanceCallbackPointer(1);
+        var secondPointer = CreateInstanceCallbackPointer(2);
+        var callbackType = GetIntCallbackType();
+
+        // The factories have returned, so the registry is the only managed owner of both target
+        // objects. Retaining the thunk alone would not be enough if it lost its bound instance.
+        ForceFullCollection();
+        ForceFullCollection();
+
+        var first = Marshal.GetDelegateForFunctionPointer(firstPointer, callbackType);
+        var second = Marshal.GetDelegateForFunctionPointer(secondPointer, callbackType);
+        Assert.AreEqual(42, first.DynamicInvoke(41));
+        Assert.AreEqual(43, second.DynamicInvoke(41));
     }
 
     [TestMethod]
@@ -141,9 +149,34 @@ public sealed class VBCallbackRegistryTests
 
     private static int IncrementCallback(int value) => value + 1;
 
+    private static IntPtr CreateInstanceCallbackPointer(int offset)
+    {
+        var target = new OffsetCallback(offset);
+        var method = typeof(OffsetCallback).GetMethod(
+            nameof(OffsetCallback.Add),
+            BindingFlags.Instance | BindingFlags.Public)!;
+        return VBCallbackRegistry.GetFunctionPointer(method.MethodHandle, target);
+    }
+
+    private static Type GetIntCallbackType() => AppDomain.CurrentDomain.GetAssemblies()
+        .Single(assembly => assembly.GetName().Name == "VB6.Runtime.NativeCallbacks")
+        .GetTypes()
+        .Single(type =>
+        {
+            var invoke = type.GetMethod("Invoke");
+            return invoke?.ReturnType == typeof(int) &&
+                invoke.GetParameters().Select(parameter => parameter.ParameterType)
+                    .SequenceEqual(new[] { typeof(int) });
+        });
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
         GC.WaitForPendingFinalizers();
+    }
+
+    private sealed class OffsetCallback(int offset)
+    {
+        public int Add(int value) => value + offset;
     }
 }

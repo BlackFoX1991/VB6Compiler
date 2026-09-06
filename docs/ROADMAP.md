@@ -185,9 +185,10 @@ Adressierter Speicher erhält einen von der Runtime besessenen, GC-stabilen Spei
 
 Die Runtime verankert einen erzeugten `AddressOf`-Callback-Delegate derzeit prozessweit, damit ein
 nativer Aufrufer den zurückbehaltenen Funktionszeiger auch nach einer GC weiterhin aufrufen kann;
-ein Regressionstest mit erzwungener GC deckt diesen Teilvertrag ab. Das ist noch keine vollständige
-Callback-Ownership: explizites Abmelden, die ABI aller Signaturen und die Lebensdauer gespeicherter
-`VarPtr`/`StrPtr`-Adressen bleiben Gegenstand von R3.
+das gilt auch für das gebundene Klassenobjekt eines Instanz-Callbacks. Regressionstests mit
+erzwungener GC decken beide Teilverträge ab. Das ist noch keine vollständige Callback-Ownership:
+explizites Abmelden, die ABI aller Signaturen und die Lebensdauer gespeicherter `VarPtr`/`StrPtr`-
+Adressen bleiben Gegenstand von R3.
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
