@@ -7997,3 +7997,47 @@ einmal gebrochen und der x86-Lauf rot gesehen.
 `managed-r3-pointers` bleibt `planned`. Von den fünf Slot-Arten des Abnahmeschritts 1 sind drei
 bedient: Locals, Globals und der ByVal-Teil der Parameter. Offen sind ByRef-Parameter,
 Klassenfelder, UDT-Member, Arrayelemente und Variants.
+
+## 2026-09-07 — R3, Schnitt 27: gespeicherter VarPtr für flache UDTs
+
+Die erste Speicherfamilie, bei der nicht die Lebensdauer neu ist, sondern das Layout. Die Zelle
+gehört immer dem **ganzen** Datensatz; ein Memberzeiger ist die Blockadresse plus Offset. Anders
+herum ginge es nicht: `VarPtr(p) + 8` und `VarPtr(p.Z)` müssen dieselbe Adresse sein, sonst ist
+der Zeiger für ein `CopyMemory` über den ganzen Datensatz wertlos — und genau dafür steht er in
+Legacy-Code.
+
+Größe und Offsets kommen deshalb aus **einer** Quelle, dem Interop-Marshaller. `Marshal.SizeOf`
+ist dieselbe Zahl, die `LenB` schon beantwortet (`VBStrings` ruft sie für einen erzeugten UDT
+auf), und `Marshal.OffsetOf` liefert die Lage, die ein `Declare` sieht. Der Emitter rechnet keine
+Offsets; er reicht einen Pfad aus CLR-Feldnamen durch. Gemessen an einem `Type` aus `Long`,
+`Integer`, `Double` und einem geschachtelten Datensatz: 0, 4, 8, 16, 20 — das Vier-Byte-Packing
+mit zwei Byte Füllung hinter dem `Integer`.
+
+Daraus folgt eine Synchronisationsstelle, die es bei den Skalaren nicht gab. Eine
+**Memberzuweisung** schreibt in den CLR-Speicherplatz, nicht in die Zelle; ohne Nacharbeit wäre
+die Zelle danach veraltet. Jede Feldzuweisung verfolgt ihre Empfängerkette bis zur Wurzel und
+schreibt den ganzen Datensatz zurück, und die drei getrennten Zweige für das Rückschreiben nach
+einem Aufruf sind zu einem gemeinsamen Helfer geworden, der dieselbe Kette abläuft.
+
+Zwei Befunde beim Messen, beide eigene Fehler und beide erst im Lauf sichtbar:
+
+- `Type.GetField(name)` findet nur öffentliche Felder. Ein UDT-Member wird als
+  `FieldAttributes.Assembly` emittiert, also lieferte die Offsetsuche „The record has no member
+  'X'" — als VB6-Fehler 5, wieder ununterscheidbar von „nicht implementiert". `BindingFlags.
+  NonPublic` gehört dazu; der Runtime-Test baut die Emitterform mit `internal`-Membern nach,
+  damit die Bindung mitgeprüft wird.
+- Die Zusicherung, dass der Block vor dem ersten Schreiben genullt wird, ist **nicht** getestet,
+  und das steht so im Quelltext. Der Versuch, sie zu belegen, blieb grün, als die Nullung
+  entfernt wurde — auch mit vorher verschmutztem und freigegebenem Block derselben Größe. Die
+  Suite kann den Allocator nicht zwingen, dreckigen Speicher herauszugeben. Ein Test, der beim
+  Brechen des Codes grün bleibt, ist schlechter als keiner; er ist wieder entfernt worden. Die
+  Nullung bleibt, weil `StructureToPtr` die Füllbytes nicht anfasst und man sich auf den
+  Allocator nicht verlassen darf.
+
+Qualifiziert ist ein Datensatz, den der Marshaller ohne Nebenspeicher in einen flachen Block
+bewegt: Skalare, `String * n` (liegt inline) und geschachtelte Datensätze derselben Form. Ein
+Array-, Variant- oder variabel langes `String`-Member besitzt Speicher daneben; das bleibt bei
+Fehler 5, mit Ausführungs- und IR-Test als festgehaltenem Zustand.
+
+`managed-r3-pointers` bleibt `planned`. Offen sind ByRef-Parameter, Klassenfelder, Arrayelemente,
+Variants und die Datensätze mit eigenem Nebenspeicher.

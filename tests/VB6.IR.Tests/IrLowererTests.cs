@@ -486,6 +486,66 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredVarPtrForARecordMemberPointsIntoTheRecordCell()
+    {
+        var program = Lower("""
+            Private Type Innen
+                A As Long
+                B As Long
+            End Type
+
+            Private Type Punkt
+                X As Long
+                Tief As Innen
+            End Type
+
+            Sub Main()
+                Dim p As Punkt
+                Dim ganz As Long
+                Dim tief As Long
+                ganz = VarPtr(p)
+                tief = VarPtr(p.Tief.B)
+            End Sub
+            """);
+        var main = program.EntryPoint!;
+
+        // Eine Zelle, nicht zwei: Der Datensatz traegt sie, der Memberzeiger zeigt nur hinein.
+        // Sonst koennten VarPtr(p) + Offset und VarPtr(p.Tief.B) auseinanderlaufen.
+        Assert.AreEqual(1, main.AddressableCells!.Count);
+
+        var pointers = main.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .OfType<IrAddressablePointerExpression>()
+            .ToArray();
+        Assert.AreEqual(2, pointers.Length);
+        Assert.AreSame(pointers[0].Cell, pointers[1].Cell);
+        Assert.IsNull(pointers[0].MemberPath);
+        Assert.AreEqual("Tief.B", pointers[1].MemberPath);
+    }
+
+    [TestMethod]
+    public void Lower_StoredVarPtrForARecordWithItsOwnStorageStaysUnaddressable()
+    {
+        // Ein Arraymember besitzt Speicher neben dem Datensatz; sein Layout ist ein eigener
+        // Vertrag und nicht der, den der Marshaller fuer einen flachen Block kennt.
+        var program = Lower("""
+            Private Type MitFeld
+                Werte(3) As Long
+            End Type
+
+            Sub Main()
+                Dim f As MitFeld
+                Dim zeiger As Long
+                zeiger = VarPtr(f)
+            End Sub
+            """);
+
+        Assert.IsNull(program.EntryPoint!.AddressableCells);
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""

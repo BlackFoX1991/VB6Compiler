@@ -39,7 +39,11 @@ testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adopti
 `docs/R2-OBJECT-LIFETIME.md`.
 
 Aktive Karte ist `managed-r3-pointers`. Gespeicherte `VarPtr`/`StrPtr` tragen im x86-Pfad zwei
-Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals) und ByVal-Parameter. Ein
+Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
+UDTs. Bei einem UDT gehört die Zelle dem **ganzen** Datensatz, ein Memberzeiger ist Blockadresse
+plus Offset, und Größe wie Offsets kommen aus dem Interop-Marshaller — derselben Quelle, aus der
+`LenB` und ein `Declare` sie nehmen. Eine Memberzuweisung verfolgt ihre Empfängerkette bis zur
+Wurzel und schreibt den ganzen Datensatz in die Zelle zurück. Ein
 ByRef-Parameter bleibt ausdrücklich bei Fehler 5 — sein `VarPtr` müsste die Adresse des Aufrufers
 liefern, und eine eigene Zelle im Aufgerufenen wäre eine zweite, entkoppelte Kopie. Die Zelle einer Modulvariablen ist ein statisches
 Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module

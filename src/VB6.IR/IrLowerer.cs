@@ -4350,20 +4350,42 @@ public static class IrLowerer
                     Arguments.Length: 1
                 } invocation &&
                 (intrinsic == VBIntrinsicKind.VarPtr || intrinsic == VBIntrinsicKind.StrPtr) &&
-                StripConversions(invocation.Arguments[0].Expression) is BoundVariableExpression target)
+                StripConversions(invocation.Arguments[0].Expression) is { } argument)
             {
+                // p.Innen.X abwickeln: Die Zelle gehoert immer dem ganzen Datensatz, der Zeiger
+                // zeigt nur hinein. Anders koennten VarPtr(p) + Offset und VarPtr(p.X)
+                // auseinanderlaufen, und genau das ist der Punkt eines Record-Layouts.
+                string? memberPath = null;
+                while (intrinsic == VBIntrinsicKind.VarPtr &&
+                       argument is BoundMemberAccessExpression member)
+                {
+                    var name = _program.GetField(member.Member).Name;
+                    memberPath = memberPath is null ? name : name + "." + memberPath;
+                    argument = StripConversions(member.Receiver);
+                }
+
+                if (argument is not BoundVariableExpression target)
+                {
+                    pointer = null!;
+                    return false;
+                }
+
                 switch (target.Variable)
                 {
                     case LocalVariableSymbol localSymbol
                         when _locals.TryGetValue(localSymbol, out var local) &&
-                             IsAddressableStorage(intrinsic, local.Type):
+                             IsAddressableStorage(intrinsic, local.Type, memberPath):
                         if (!_addressableCells.TryGetValue(local, out var cell))
                         {
                             cell = NewLocal($"__varptr_cell_{local.Id}", TypeSymbol.Variant, compilerGenerated: true);
                             _addressableCells.Add(local, cell);
                         }
 
-                        pointer = new IrAddressablePointerExpression(local, cell, TypeSymbol.Long);
+                        pointer = new IrAddressablePointerExpression(
+                            local,
+                            cell,
+                            TypeSymbol.Long,
+                            memberPath);
                         return true;
 
                     // Nur ByVal: Ein ByVal-Parameter ist eine eigene Kopie und darf eine eigene
@@ -4372,7 +4394,7 @@ public static class IrLowerer
                     case ParameterSymbol parameterSymbol
                         when _parameters.TryGetValue(parameterSymbol, out var parameter) &&
                              parameter.PassingMode == ParameterPassingMode.ByVal &&
-                             IsAddressableStorage(intrinsic, parameter.Type):
+                             IsAddressableStorage(intrinsic, parameter.Type, memberPath):
                         if (!_addressableParameterCells.TryGetValue(parameter, out var parameterCell))
                         {
                             parameterCell = NewLocal(
@@ -4385,7 +4407,8 @@ public static class IrLowerer
                         pointer = new IrAddressableParameterPointerExpression(
                             parameter,
                             parameterCell,
-                            TypeSymbol.Long);
+                            TypeSymbol.Long,
+                            memberPath);
                         return true;
 
                     // Ein Klassenfeld ist ebenfalls ein ModuleVariableSymbol, hat aber keinen
@@ -4393,9 +4416,12 @@ public static class IrLowerer
                     case ModuleVariableSymbol moduleSymbol
                         when (_containingClass is null || !_program.TryGetClassField(moduleSymbol, out _)) &&
                              _program.TryGetGlobal(moduleSymbol, out var global) &&
-                             IsAddressableStorage(intrinsic, global.Type):
+                             IsAddressableStorage(intrinsic, global.Type, memberPath):
                         _program.MarkAddressableGlobal(global);
-                        pointer = new IrAddressableGlobalPointerExpression(global, TypeSymbol.Long);
+                        pointer = new IrAddressableGlobalPointerExpression(
+                            global,
+                            TypeSymbol.Long,
+                            memberPath);
                         return true;
                 }
             }
@@ -4404,10 +4430,35 @@ public static class IrLowerer
             return false;
         }
 
-        private static bool IsAddressableStorage(VBIntrinsicKind? intrinsic, TypeSymbol type) =>
-            intrinsic == VBIntrinsicKind.StrPtr
+        private static bool IsAddressableStorage(
+            VBIntrinsicKind? intrinsic,
+            TypeSymbol type,
+            string? memberPath)
+        {
+            // Ein Memberzeiger geht immer durch die Zelle des ganzen Datensatzes, also muss der
+            // Datensatz selbst adressierbar sein -- der Membertyp ist damit schon abgedeckt.
+            if (memberPath is not null)
+            {
+                return intrinsic == VBIntrinsicKind.VarPtr && IsAddressableRecord(type);
+            }
+
+            return intrinsic == VBIntrinsicKind.StrPtr
                 ? type == TypeSymbol.String
-                : IsAddressableScalar(type);
+                : IsAddressableScalar(type) || IsAddressableRecord(type);
+        }
+
+        /// <summary>
+        /// A user-defined type the interop marshaller can move to and from a native block
+        /// without allocating anything alongside it: scalars, fixed-length strings, which sit
+        /// inline, and nested records of the same shape. A variable-length String, an array or a
+        /// Variant member owns storage of its own, and its layout is a separate contract.
+        /// </summary>
+        private static bool IsAddressableRecord(TypeSymbol type) =>
+            type is UserDefinedTypeSymbol record &&
+            record.Members.All(member =>
+                IsAddressableScalar(member.Type) ||
+                member.Type is FixedLengthStringTypeSymbol ||
+                IsAddressableRecord(member.Type));
 
         private static bool IsAddressableScalar(TypeSymbol type) =>
             type == TypeSymbol.Boolean ||

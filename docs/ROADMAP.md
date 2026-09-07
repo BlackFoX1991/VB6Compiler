@@ -238,8 +238,9 @@ Write-back synchronisiert; die Zelle einer Modulvariablen ist ein statisches Beg
 faul an der `VarPtr`-Stelle entsteht, damit keine Modulinitialisierer-Reihenfolge nötig wird.
 Ein `Static`-Local ist dieselbe Speicherfamilie unter synthetischem Namen und faellt mit hinein.
 Ein ByVal-Parameter besitzt seine Kopie und bekommt eine prozedurweite Zelle, die mit dem
-ankommenden Argument startet. Klassenfelder, ByRef-Parameter, UDT-Member, Arrayelemente,
-Variants und AnyCPU/x64 behalten ihre
+ankommenden Argument startet. Ein flacher UDT bekommt eine Zelle fuer den ganzen Datensatz; Groesse und Memberoffsets kommen
+aus dem Interop-Marshaller. Klassenfelder, ByRef-Parameter, UDTs mit Array-, Variant- oder
+String-Member, Arrayelemente, Variants und AnyCPU/x64 behalten ihre
 ausdrückliche Fehler-5-Grenze. Die gemessene Grenztabelle und die Layoutfamilien stehen im
 Zerlegungsdokument.
 

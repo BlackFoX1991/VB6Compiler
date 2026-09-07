@@ -779,6 +779,155 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_ReportsWhyARecordWithItsOwnStorageCannotAnswer()
+    {
+        // Ein Arraymember besitzt Speicher neben dem Datensatz. Der Marshaller kennt fuer den
+        // flachen Block kein Layout, das ein Declare wiederfaende -- also lieber die erklaerte 5.
+        var output = VB6TestProgram.RunLines("""
+            Private Type MitFeld
+                Werte(3) As Long
+            End Type
+
+            Sub Main()
+                On Error Resume Next
+                Dim f As MitFeld
+                Dim zeiger As Long
+                zeiger = VarPtr(f)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "5" }, output);
+    }
+
+    [TestMethod]
+    public void EmitX86Application_KeepsARecordAndItsMembersInOneNativeBlock()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerRecordVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "RecordVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private Type Innen
+                    A As Long
+                    B As Long
+                End Type
+
+                Private Type Punkt
+                    X As Long
+                    Y As Integer
+                    Z As Double
+                    Tief As Innen
+                End Type
+
+                Private globalPunkt As Punkt
+
+                Sub Setze(ByRef ziel As Long)
+                    ziel = 4711
+                End Sub
+
+                Sub Main()
+                    Dim p As Punkt
+                    Dim basis As Long
+                    Dim z As Long
+                    Dim gelesen As Double
+
+                    p.X = 16909060
+                    basis = VarPtr(p)
+
+                    CopyMemory z, ByVal basis, 4
+                    Debug.Print z
+
+                    Debug.Print VarPtr(p.X) - basis
+                    Debug.Print VarPtr(p.Y) - basis
+                    Debug.Print VarPtr(p.Z) - basis
+                    Debug.Print VarPtr(p.Tief) - basis
+                    Debug.Print VarPtr(p.Tief.B) - basis
+
+                    p.Z = 2.5
+                    CopyMemory gelesen, ByVal (basis + 8), 8
+                    Debug.Print gelesen
+
+                    z = 99
+                    CopyMemory ByVal basis, z, 4
+                    Debug.Print p.X
+
+                    Setze p.Tief.A
+                    CopyMemory z, ByVal (basis + 16), 4
+                    Debug.Print z
+
+                    globalPunkt.Tief.B = 8
+                    CopyMemory z, ByVal (VarPtr(globalPunkt) + 20), 4
+                    Debug.Print z
+                    Debug.Print VarPtr(globalPunkt.Tief.B) - VarPtr(globalPunkt)
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("RecordVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // Die Offsets sind das eigentliche Ergebnis: 0, 4, 8, 16, 20 ist genau das
+            // Vier-Byte-Packing, das VB6 einem Type gibt -- zwei Byte Fuellung hinter dem
+            // Integer, damit das Double auf acht liegt.
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "16909060",
+                    "0", "4", "8", "16", "20",
+                    "2.5",
+                    "99",
+                    "4711",
+                    "8", "20"
+                },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

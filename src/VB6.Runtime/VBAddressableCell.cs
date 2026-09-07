@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace VB6.Runtime;
@@ -117,8 +118,105 @@ public static class VBAddressableStorage
 
         ~BStrCell() => Dispose();
     }
+    /// <summary>
+    /// One native block for a whole VB6 user-defined type.
+    ///
+    /// The size and the member offsets come from the interop marshaller, which is the same
+    /// source <c>LenB</c> already answers from and the same one a <c>Declare</c> sees. Anything
+    /// else would let <c>VarPtr(record) + n</c> and <c>VarPtr(record.member)</c> disagree.
+    ///
+    /// The block is zeroed before the first store: <see cref="Marshal.StructureToPtr"/> writes
+    /// the fields but not the padding between them, and a record copied whole would otherwise
+    /// carry whatever the allocator left there. VB6 hands out a zeroed record.
+    ///
+    /// This one is deliberately not covered by a test. The suite cannot make the allocator return
+    /// a dirty block -- it was tried, and removing the loop left the assertion green, which is
+    /// worse than no assertion at all. The guarantee is kept because relying on the allocator
+    /// would be relying on nothing.
+    /// </summary>
+    private sealed class RecordCell : IDisposable
+    {
+        private readonly Type _type;
+        private readonly int _size;
+        private IntPtr _storage;
+
+        public RecordCell(object value)
+        {
+            _type = value.GetType();
+            _size = Marshal.SizeOf(value);
+            _storage = Marshal.AllocCoTaskMem(_size);
+            for (var offset = 0; offset < _size; offset++)
+            {
+                Marshal.WriteByte(_storage, offset, 0);
+            }
+
+            Marshal.StructureToPtr(value, _storage, fDeleteOld: false);
+        }
+
+        public IntPtr GetNativeAddress()
+        {
+            ThrowIfDisposed();
+            return _storage;
+        }
+
+        public IntPtr GetMemberAddress(string path)
+        {
+            ThrowIfDisposed();
+            var type = _type;
+            var offset = 0L;
+            foreach (var name in path.Split('.'))
+            {
+                offset += Marshal.OffsetOf(type, name).ToInt64();
+
+                // NonPublic gehoert dazu: Ein VB6-UDT-Member wird als FieldAttributes.Assembly
+                // emittiert, und die Standardsuche von GetField findet nur oeffentliche Felder.
+                var field = type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
+                    throw new ArgumentException($"The record has no member '{name}'.", nameof(path));
+                type = field.FieldType;
+            }
+
+            return new IntPtr(_storage.ToInt64() + offset);
+        }
+
+        public object Read()
+        {
+            ThrowIfDisposed();
+            return Marshal.PtrToStructure(_storage, _type)!;
+        }
+
+        public void Write(object value)
+        {
+            ThrowIfDisposed();
+            if (value.GetType() != _type)
+            {
+                throw new ArgumentException(
+                    $"The addressable storage cell holds a '{_type.Name}'.",
+                    nameof(value));
+            }
+
+            Marshal.StructureToPtr(value, _storage, fDeleteOld: false);
+        }
+
+        public void Dispose()
+        {
+            if (_storage == IntPtr.Zero)
+            {
+                return;
+            }
+
+            Marshal.FreeCoTaskMem(_storage);
+            _storage = IntPtr.Zero;
+            GC.SuppressFinalize(this);
+        }
+
+        ~RecordCell() => Dispose();
+
+        private void ThrowIfDisposed() =>
+            ObjectDisposedException.ThrowIf(_storage == IntPtr.Zero, this);
+    }
 
     public static object CreateString(string value) => new BStrCell(value);
+    public static object CreateRecord(object value) => new RecordCell(value);
 
     public static object CreateBoolean(bool value) => VBAddressableCell<short>.Create(value ? (short)-1 : (short)0);
 
@@ -149,6 +247,14 @@ public static class VBAddressableStorage
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetStringNativeAddress(object storage) => GetString(storage).GetNativeAddress();
+    public static IntPtr GetRecordNativeAddress(object storage) => GetRecord(storage).GetNativeAddress();
+
+    /// <summary>
+    /// The address of one member, named by a dotted path from the record root. The offsets come
+    /// from the marshaller so a nested member lands where a Declare would find it.
+    /// </summary>
+    public static IntPtr GetRecordMemberNativeAddress(object storage, string path) =>
+        GetRecord(storage).GetMemberAddress(path);
 
     public static IntPtr GetByteNativeAddress(object storage) => GetByte(storage).GetNativeAddress();
 
@@ -177,6 +283,7 @@ public static class VBAddressableStorage
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
     public static string ReadString(object storage) => GetString(storage).Read();
+    public static object ReadRecord(object storage) => GetRecord(storage).Read();
 
     public static byte ReadByte(object storage) => GetByte(storage).Read();
 
@@ -205,6 +312,7 @@ public static class VBAddressableStorage
     public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
 
     public static void WriteString(object storage, string value) => GetString(storage).Write(value);
+    public static void WriteRecord(object storage, object value) => GetRecord(storage).Write(value);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
 
@@ -239,6 +347,7 @@ public static class VBAddressableStorage
     public static object EnsureBoolean(object? storage, bool value) => storage ?? CreateBoolean(value);
 
     public static object EnsureString(object? storage, string value) => storage ?? CreateString(value);
+    public static object EnsureRecord(object? storage, object value) => storage ?? CreateRecord(value);
 
     public static object EnsureByte(object? storage, byte value) => storage ?? CreateByte(value);
 
@@ -267,6 +376,7 @@ public static class VBAddressableStorage
     public static bool ReadBooleanOr(object? storage, bool current) => storage is null ? current : ReadBoolean(storage);
 
     public static string ReadStringOr(object? storage, string current) => storage is null ? current : ReadString(storage);
+    public static object ReadRecordOr(object? storage, object current) => storage is null ? current : ReadRecord(storage);
 
     public static byte ReadByteOr(object? storage, byte current) => storage is null ? current : ReadByte(storage);
 
@@ -305,6 +415,14 @@ public static class VBAddressableStorage
         if (storage is not null)
         {
             WriteString(storage, value);
+        }
+    }
+
+    public static void WriteRecordIfPresent(object? storage, object value)
+    {
+        if (storage is not null)
+        {
+            WriteRecord(storage, value);
         }
     }
 
@@ -419,6 +537,9 @@ public static class VBAddressableStorage
 
     private static BStrCell GetString(object storage) => storage as BStrCell
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 String BSTR.", nameof(storage));
+
+    private static RecordCell GetRecord(object storage) => storage as RecordCell
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 record.", nameof(storage));
 
     private static VBAddressableCell<byte> GetByte(object storage) => storage as VBAddressableCell<byte>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Byte.", nameof(storage));

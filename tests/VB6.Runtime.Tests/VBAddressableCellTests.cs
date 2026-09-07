@@ -323,6 +323,79 @@ public sealed class VBAddressableCellTests
         VBAddressableStorage.Dispose(storage);
     }
 
+    // Nachbau der Form, die der Emitter fuer ein VB6-Type erzeugt: sequentiell, Pack 4, und die
+    // Member sind Assembly-sichtbar, nicht public. Genau daran ist die Offsetsuche zuerst
+    // gescheitert, weil Type.GetField ohne NonPublic nichts findet.
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    internal struct Innen
+    {
+        internal int A;
+        internal int B;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    internal struct Punkt
+    {
+        internal int X;
+        internal short Y;
+        internal double Z;
+        internal Innen Tief;
+    }
+
+    [TestMethod]
+    public void RecordFacade_PlacesEveryMemberWhereTheMarshallerDoes()
+    {
+        var storage = VBAddressableStorage.CreateRecord(new Punkt { X = 16_909_060, Z = 1.5 });
+        var address = VBAddressableStorage.GetRecordNativeAddress(storage);
+
+        Assert.AreEqual(16_909_060, Marshal.ReadInt32(address));
+        Assert.AreEqual(address, VBAddressableStorage.GetRecordMemberNativeAddress(storage, "X"));
+        Assert.AreEqual(4L, Offset(storage, "Y"));
+        Assert.AreEqual(8L, Offset(storage, "Z"));
+        Assert.AreEqual(16L, Offset(storage, "Tief"));
+        Assert.AreEqual(20L, Offset(storage, "Tief.B"));
+
+        VBAddressableStorage.Dispose(storage);
+
+        long Offset(object cell, string path) =>
+            VBAddressableStorage.GetRecordMemberNativeAddress(cell, path).ToInt64() - address.ToInt64();
+    }
+
+    [TestMethod]
+    public void RecordFacade_CarriesNativeWritesBackIntoTheManagedValue()
+    {
+        var storage = VBAddressableStorage.CreateRecord(new Punkt { X = 1 });
+        var address = VBAddressableStorage.GetRecordNativeAddress(storage);
+
+        Marshal.WriteInt32(address, 123);
+        ForceFullCollection();
+        Assert.AreEqual(123, ((Punkt)VBAddressableStorage.ReadRecord(storage)).X);
+
+        VBAddressableStorage.WriteRecord(storage, new Punkt { X = 456 });
+        Assert.AreEqual(456, Marshal.ReadInt32(address));
+
+        // Die Zelle kennt genau einen Datensatztyp; ein anderer waere ein anderes Layout.
+        Assert.ThrowsException<ArgumentException>(() =>
+            VBAddressableStorage.WriteRecord(storage, new Innen { A = 1 }));
+
+        VBAddressableStorage.Dispose(storage);
+        Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadRecord(storage));
+    }
+
+    [TestMethod]
+    public void NullTolerantRecordFacade_LeavesTheOrdinarySlotInChargeUntilAnAddressIsAsked()
+    {
+        var current = new Punkt { X = 7 };
+        Assert.AreEqual(7, ((Punkt)VBAddressableStorage.ReadRecordOr(null, current)).X);
+        VBAddressableStorage.WriteRecordIfPresent(null, current);
+
+        var storage = VBAddressableStorage.EnsureRecord(null, current);
+        Assert.AreSame(storage, VBAddressableStorage.EnsureRecord(storage, new Punkt { X = 9 }));
+        Assert.AreEqual(7, ((Punkt)VBAddressableStorage.ReadRecordOr(storage, default(Punkt))).X);
+
+        VBAddressableStorage.Dispose(storage);
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);

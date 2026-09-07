@@ -72,6 +72,29 @@ des Aufrufers nicht finden lässt. Eine eigene Zelle wäre eine zweite, entkoppe
 würde eine Adresse liefern, die auf den falschen Speicher zeigt, und das ist schlechter als der
 ausdrückliche Fehler 5. Der Fall braucht eine eigene Entwurfsrunde über die Aufrufkonvention.
 
+Der vierte Slice nimmt den **flachen Datensatz** und ist die erste Familie, bei der nicht die
+Lebensdauer neu ist, sondern das Layout. Die Zelle gehört immer dem **ganzen** Datensatz; ein
+Memberzeiger ist die Blockadresse plus Offset. Anders herum ginge es nicht: `VarPtr(p) + 8` und
+`VarPtr(p.Z)` müssen dieselbe Adresse sein, sonst ist der Zeiger für ein `CopyMemory` über den
+ganzen Datensatz wertlos — und genau dafür wird er in Legacy-Code benutzt.
+
+Größe und Offsets kommen deshalb aus **einer** Quelle, dem Interop-Marshaller: `Marshal.SizeOf`
+ist dieselbe Zahl, die `LenB` schon beantwortet, und `Marshal.OffsetOf` liefert genau die Lage,
+die ein `Declare` sieht. Der Emitter berechnet keine Offsets selbst; er reicht einen Pfad aus
+CLR-Feldnamen durch. Gemessen an einem `Type` aus `Long`, `Integer`, `Double` und einem
+geschachtelten Datensatz ergibt das 0, 4, 8, 16 und 20 — das Vier-Byte-Packing von VB6, mit zwei
+Byte Füllung hinter dem `Integer`.
+
+Daraus folgt eine zusätzliche Synchronisationsstelle, die es bei den Skalaren nicht gab: Eine
+**Memberzuweisung** schreibt in den CLR-Speicherplatz, nicht in die Zelle. Jede Zuweisung an ein
+Feld verfolgt ihre Empfängerkette deshalb bis zur Wurzel und schreibt den ganzen Datensatz
+zurück; dasselbe gilt nach einem ByRef-Aufruf, der in ein Member hineingeschrieben hat.
+
+Qualifiziert ist ein Datensatz, den der Marshaller ohne Nebenspeicher in einen flachen Block
+bewegen kann: Skalare, `String * n` — das liegt inline — und geschachtelte Datensätze derselben
+Form. Ein Member mit variabler `String`-Länge, ein Array oder ein Variant besitzt Speicher neben
+dem Datensatz; sein Layout ist ein eigener Vertrag und bleibt bei Fehler 5.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -90,9 +113,10 @@ Stand nach dem Modulvariablen-Slice:
 | Modulvariable, String | Fehler 5 | Zelle |
 | `Static`-Local | Zelle | Zelle |
 | ByVal-Parameter | Zelle | Zelle |
+| flacher UDT, ganz und Member | Zelle | — |
+| UDT mit Array-, Variant- oder String-Member | Fehler 5 | Fehler 5 |
 | ByRef-Parameter | Fehler 5 | Fehler 5 |
 | Klassenfeld | Fehler 5 | Fehler 5 |
-| UDT-Member, ganzes UDT | Fehler 5 | Fehler 5 |
 | Arrayelement | Fehler 5 | Fehler 5 |
 | Variant | Fehler 5 | Fehler 5 |
 

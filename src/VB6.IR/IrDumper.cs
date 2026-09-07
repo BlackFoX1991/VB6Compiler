@@ -75,6 +75,9 @@ public static class IrDumper
         _ => "ret"
     };
 
+    private static string MemberSuffix(string? memberPath) =>
+        memberPath is null ? string.Empty : "." + memberPath;
+
     private static string FormatPlace(IrPlace place) => place switch
     {
         IrLocalPlace local => $"%{local.Local.Name}",
@@ -97,9 +100,12 @@ public static class IrDumper
         IrLoadExpression load => $"load {FormatPlace(load.Place)}",
         IrAddressExpression address => $"addr {FormatPlace(address.Place)}",
         IrLocalAddressExpression address => $"addr-local %{address.Local.Name}",
-        IrAddressablePointerExpression pointer => $"native-addr %{pointer.Local.Name}",
-        IrAddressableGlobalPointerExpression pointer => $"native-addr @{pointer.Global.Name}",
-        IrAddressableParameterPointerExpression pointer => $"native-addr ${pointer.Parameter.Name}",
+        IrAddressablePointerExpression pointer =>
+            $"native-addr %{pointer.Local.Name}{MemberSuffix(pointer.MemberPath)}",
+        IrAddressableGlobalPointerExpression pointer =>
+            $"native-addr @{pointer.Global.Name}{MemberSuffix(pointer.MemberPath)}",
+        IrAddressableParameterPointerExpression pointer =>
+            $"native-addr ${pointer.Parameter.Name}{MemberSuffix(pointer.MemberPath)}",
         IrRuntimeCallExpression call => $"runtime::{call.Method}(...) ",
         IrProcedureCallExpression call => $"call {call.Procedure.Name}(...) ",
         IrSyntheticCallExpression call => $"call {call.Procedure.Name}(...) ",

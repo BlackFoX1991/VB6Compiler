@@ -271,7 +271,8 @@ public sealed record IrAddressOfExpression(
 public sealed record IrAddressablePointerExpression(
     IrLocal Local,
     IrLocal Cell,
-    TypeSymbol ResultType)
+    TypeSymbol ResultType,
+    string? MemberPath = null)
     : IrExpression(ResultType);
 
 /// <summary>
@@ -281,17 +282,25 @@ public sealed record IrAddressablePointerExpression(
 /// </summary>
 public sealed record IrAddressableGlobalPointerExpression(
     IrGlobal Global,
-    TypeSymbol ResultType)
+    TypeSymbol ResultType,
+    string? MemberPath = null)
     : IrExpression(ResultType);
 
 /// <summary>
 /// A classic x86 pointer to a ByVal parameter, which is a private copy and therefore has its
 /// own procedure-scoped native cell. The cell is seeded from the incoming argument at entry.
 /// </summary>
+/// <summary>
+/// <see cref="IrAddressablePointerExpression.MemberPath"/> and its siblings name a member
+/// inside a record cell, as a dotted path of CLR field names from the root. The cell always
+/// belongs to the whole record; the pointer just points into it, so the record address and a
+/// member address cannot drift apart.
+/// </summary>
 public sealed record IrAddressableParameterPointerExpression(
     IrParameter Parameter,
     IrLocal Cell,
-    TypeSymbol ResultType)
+    TypeSymbol ResultType,
+    string? MemberPath = null)
     : IrExpression(ResultType);
 
 public sealed record IrRuntimeCallExpression(
