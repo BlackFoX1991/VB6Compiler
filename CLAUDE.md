@@ -300,6 +300,14 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   implizit: Der erste Entwurf öffnete sie beim ersten `CreateControl`, und jeder Hostkonsument,
   der Controls selbst anlegt, verlor damit für immer jedes Ereignis (sechs Tests). Wer eine neue
   Designer-Fläche ergänzt, emittiert beide Aufrufe.
+- **Ein synthetisiertes Begleitfeld braucht die Sichtbarkeit des Feldes, zu dem es gehört.** Die
+  `__varptr_cell_`-Zelle einer adressierten Modulvariablen bekam zuerst `FieldAttributes.Private`.
+  Innerhalb eines Moduls fällt das nie auf — erst ein `Static`-Local zeigt es, weil sein Global im
+  Modul `__CompilerGlobals` liegt und die adressierende Prozedur nicht. Der Zugriff scheitert dann
+  zur Laufzeit mit einer `FieldAccessException`, und `VBErrors.Set` bildet die auf den Sammelwert 5
+  ab — dieselbe Nummer, die „diese Speicherfamilie ist noch nicht implementiert" bedeutet. Der
+  Befund sah deshalb wie eine offene Karte aus statt wie ein Defekt. Wer ein Feld neben ein
+  bestehendes synthetisiert, gibt ihm dessen Zugriffsmaske, nicht die engste.
 - **Eine Form hat eine Default-Instanz, ein UserControl nicht.** `frmMain.Show` ohne `New` ist die
   übliche VB6-Art, ein zweites Fenster zu öffnen — die Form trägt `VB_PredeclaredId`, ihr Name ist
   eine Instanz. Im Compiler ist das ein globales `As New` (`VBProjectCompilation`), genau wie bei

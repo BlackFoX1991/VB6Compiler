@@ -557,6 +557,93 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitX86Application_KeepsAStaticLocalVarPtrSynchronizedAcrossCalls()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerStaticLocalVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            // Ein Static-Local ist Modulspeicher unter anderem Namen: Der Binder legt es als
+            // ModuleVariableSymbol in einem eigenen Modul ab, die adressierende Prozedur steht
+            // aber in ihrem. Genau diese Modulgrenze hat die Zelle zuerst unbrauchbar gemacht.
+            var assemblyPath = Path.Combine(directory, "StaticLocalVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Sub Schritt()
+                    Static gemerkt As Long
+                    Dim destination As Long
+                    Dim pointer As Long
+
+                    gemerkt = gemerkt + 1
+                    pointer = VarPtr(gemerkt)
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    destination = 100
+                    CopyMemory ByVal pointer, destination, 4
+                    Debug.Print gemerkt
+                End Sub
+
+                Sub Main()
+                    Schritt
+                    Schritt
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("StaticLocalVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // Der zweite Aufruf sieht die 101 des ersten: Der Speicherplatz ueberlebt die
+            // Prozedurrueckkehr, und die Zelle tut es mit ihm.
+            CollectionAssert.AreEqual(
+                new[] { "1", "100", "101", "100" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

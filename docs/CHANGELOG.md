@@ -7932,3 +7932,39 @@ wurden ebenso einmal gebrochen und der x86-Lauf rot gesehen.
 Abnahmeschritts 1 sind zwei bedient; ByRef-Parameter, Felder und Arrayelemente stehen aus, und
 die Familien für UDT, Variant und SAFEARRAY sind gar nicht angefasst. Die Matrixzahlen ändern
 sich dadurch nicht.
+
+## 2026-09-07 — R3, Schnitt 25: die Begleitzelle war nicht erreichbar
+
+Beim Nachmessen der verbliebenen Grenze fiel `Static`-Local auf: Der Binder legt so ein Local als
+`ModuleVariableSymbol` mit synthetischem Namen an, es ist also dieselbe Speicherfamilie, die
+Schnitt 24 gerade bedient hat. Der Lowerer erzeugte auch brav `native-addr`, und das emittierte
+Modul enthielt das Feld `__varptr_cell___static_…`. Trotzdem meldete der x86-Lauf Fehler 5.
+
+Die Ursache stand erst in `Err.Description`:
+
+```
+Attempt by method '__vb6_module_Module1.__vb6_ZeigeStatic()' to access field
+'__vb6_module___CompilerGlobals.__varptr_cell___static_Module1_bas_ZeigeStatic_gemerkt' failed.
+```
+
+Die Zelle bekam `FieldAttributes.Private`, das Datenfeld daneben `Assembly`. Solange Feld und
+zugreifende Prozedur im selben Modul liegen, fällt das nie auf — und genau so war der
+Emitter-Test aus Schnitt 24 gebaut. Ein `Static`-Local liegt dagegen im Modul
+`__CompilerGlobals`, seine Prozedur nicht.
+
+Das Tückische ist nicht der Fehler, sondern seine Nummer. `VBErrors.Set` bildet eine
+`FieldAccessException` auf den Sammelwert 5 ab — dieselbe 5, mit der eine noch nicht
+implementierte Speicherfamilie antwortet. Der Befund sah deshalb aus wie „`Static`-Locals sind
+noch offen" und stand schon so in der Grenztabelle. Ohne die Frage „warum eigentlich, das ist
+doch dieselbe Familie?" wäre daraus eine eigene Karte geworden statt eines Einzeilers.
+
+Die Zelle trägt jetzt die Zugriffsmaske des Feldes, zu dem sie gehört. Dazu zwei Nachweise: ein
+x86-Lauf, in dem ein `Static`-Local über zwei Aufrufe hinweg nativ gelesen und beschrieben wird,
+und ein Emitter-Test, der die Sichtbarkeit von Zelle und Datenfeld direkt vergleicht statt eine
+Konstante zu behaupten. Beide wurden gegen den zurückgenommenen Fix rot gesehen. Der
+Lower-Helfer der Emitter-Tests reicht außerdem jetzt die `StaticVariables` durch; ohne sie warf
+der Lowerer, weil das Global nie vordeklariert wurde.
+
+Die Grenztabelle in `docs/R3-ADDRESSABLE-STORAGE.md` ist entsprechend korrigiert und um die
+nachgemessenen Parameterformen ergänzt. Offen bleiben ByRef- und ByVal-Parameter, Klassenfelder,
+UDT-Member, Arrayelemente und Variants; `managed-r3-pointers` bleibt `planned`.

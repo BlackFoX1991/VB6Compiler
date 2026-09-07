@@ -51,6 +51,14 @@ Modulvariable gewöhnlich zuweist oder ByRef beschreibt, wird über den gespeich
 sichtbar. Ein Klassenfeld ist ausdrücklich **nicht** dabei — im Binder ist es ebenfalls ein
 `ModuleVariableSymbol`, hat aber keinen statischen Speicherplatz und bleibt bei Fehler 5.
 
+Ein `Static`-Local fällt ohne eigenen Aufwand mit hinein: Der Binder legt es als
+`ModuleVariableSymbol` mit synthetischem Namen an, es ist also dieselbe Speicherfamilie. Es hat
+die Zelle aber eine Zeit lang nur scheinbar bekommen. Weil sein Global in einem eigenen Modul
+liegt und die adressierende Prozedur nicht, scheiterte der Zugriff auf eine `private` Begleitzelle
+zur Laufzeit mit einer `FieldAccessException` — und die kommt als VB6-Fehler 5 heraus, also genau
+als das, was eine fehlende Unterstützung ebenfalls meldet. Die Zelle trägt deshalb dieselbe
+Sichtbarkeit wie das Datenfeld, zu dem sie gehört, und ein Emitter-Test vergleicht die beiden.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -67,10 +75,12 @@ Stand nach dem Modulvariablen-Slice:
 | lokaler String | Fehler 5 | Zelle |
 | Modulvariable, Skalar | Zelle | — |
 | Modulvariable, String | Fehler 5 | Zelle |
+| `Static`-Local | Zelle | Zelle |
 | Klassenfeld | Fehler 5 | Fehler 5 |
+| ByRef-Parameter | Fehler 5 | Fehler 5 |
+| ByVal-Parameter | Fehler 5 | Fehler 5 |
 | UDT-Member, ganzes UDT | Fehler 5 | Fehler 5 |
 | Arrayelement | Fehler 5 | Fehler 5 |
-| `Static`-Local | Fehler 5 | Fehler 5 |
 | Variant | Fehler 5 | Fehler 5 |
 
 Auf AnyCPU und x64 steht in jeder Zeile Fehler 5; dort wird kein `IntPtr` in einen `Long`

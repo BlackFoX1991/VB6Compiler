@@ -236,7 +236,8 @@ Implementiert sind bisher zwei Speicherfamilien, beide nur im x86-Managed-Pfad: 
 über `StrPtr`. Die Zellen bleiben über GC stabil und werden an Load, Store, ByRef-Adresse und
 Write-back synchronisiert; die Zelle einer Modulvariablen ist ein statisches Begleitfeld, das
 faul an der `VarPtr`-Stelle entsteht, damit keine Modulinitialisierer-Reihenfolge nötig wird.
-Klassenfelder, UDT-Member, Arrayelemente, `Static`-Locals, Variants und AnyCPU/x64 behalten ihre
+Ein `Static`-Local ist dieselbe Speicherfamilie unter synthetischem Namen und faellt mit hinein.
+Klassenfelder, Parameter, UDT-Member, Arrayelemente, Variants und AnyCPU/x64 behalten ihre
 ausdrückliche Fehler-5-Grenze. Die gemessene Grenztabelle und die Layoutfamilien stehen im
 Zerlegungsdokument.
 

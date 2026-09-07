@@ -321,6 +321,39 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    public void Emit_GivesAnAddressableCellTheSameReachAsTheFieldItBelongsTo()
+    {
+        // Ein Static-Local landet in einem eigenen Modul, seine Prozedur nicht. Eine private
+        // Zelle ist dort nicht erreichbar, und der Zugriff scheitert erst zur Laufzeit mit einer
+        // FieldAccessException -- als VB6-Fehler 5 sieht das aus wie eine fehlende Unterstuetzung.
+        var program = Lower("""
+            Sub Schritt()
+                Static gemerkt As Long
+                Dim pointer As Long
+                gemerkt = 7
+                pointer = VarPtr(gemerkt)
+            End Sub
+
+            Sub Main()
+                Schritt
+            End Sub
+            """);
+
+        var emitted = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "StaticLocalCellReach",
+            Platform: ManagedPlatform.X86,
+            EmitPortablePdb: false));
+        Assert.IsTrue(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));
+
+        var fields = FieldAccessibility(emitted.PeImage!);
+        var cell = fields.Single(field => field.Name.StartsWith("__varptr_cell_", StringComparison.Ordinal));
+        var data = fields.Single(field => field.Name == cell.Name["__varptr_cell_".Length..]);
+        Assert.AreEqual(data.Accessibility, cell.Accessibility);
+        Assert.AreEqual(FieldAttributes.Assembly, cell.Accessibility);
+    }
+
+
+    [TestMethod]
     public void Emit_IsDeterministicForSameInput()
     {
         var program = Lower("""
@@ -587,10 +620,24 @@ public sealed class ManagedEmitterTests
     {
         var analysis = VBCompilation.Create(source, "Module1.bas").Analyze();
         Assert.IsTrue(analysis.Success, string.Join(Environment.NewLine, analysis.Diagnostics));
-        return IrLowerer.Lower(new[]
-        {
-            new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!)
-        });
+        // Static-Locals sind Modulspeicher unter synthetischem Namen; ohne sie wirft der
+        // Lowerer beim ersten Zugriff, weil das Global nie vordeklariert wurde.
+        return IrLowerer.Lower(
+            new[] { new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!) },
+            analysis.SemanticModel!.StaticVariables);
+    }
+
+    private static (string Name, FieldAttributes Accessibility)[] FieldAccessibility(byte[] image)
+    {
+        using var stream = new MemoryStream(image, writable: false);
+        using var pe = new PEReader(stream);
+        var metadata = pe.GetMetadataReader();
+        return metadata.FieldDefinitions
+            .Select(handle => metadata.GetFieldDefinition(handle))
+            .Select(field => (
+                Name: metadata.GetString(field.Name),
+                Accessibility: field.Attributes & FieldAttributes.FieldAccessMask))
+            .ToArray();
     }
 
     private static string[] FieldNames(byte[] image)

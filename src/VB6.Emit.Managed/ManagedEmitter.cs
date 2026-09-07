@@ -444,8 +444,11 @@ public sealed class ManagedEmitter
                         EnsureHandle(actual, _globalHandles[global], "global field");
                         if (_globalCellHandles.TryGetValue(global, out var cell))
                         {
+                            // Assembly statt Private, wie beim Datenfeld daneben: Ein Static-Local
+                            // liegt im Modul __CompilerGlobals, die Prozedur, die es adressiert,
+                            // aber nicht. Private laesst den Zugriff nur im eigenen Typ zu.
                             var actualCell = _metadata.AddFieldDefinition(
-                                FieldAttributes.Private | FieldAttributes.Static,
+                                FieldAttributes.Assembly | FieldAttributes.Static,
                                 _metadata.GetOrAddString("__varptr_cell_" + global.Name),
                                 EncodeObjectFieldSignature());
                             EnsureHandle(actualCell, cell, "addressable global cell");
