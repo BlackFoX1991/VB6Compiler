@@ -2673,27 +2673,110 @@
       "dependsOn": [
         "managed-r2-lifetime"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Stabiler adressierbarer Speicher",
       "expected": {
-        "acceptance": "Gespeicherte VarPtr/StrPtr und ByRef-Aliase bleiben für ihre definierte Lebensdauer über GC gültig; native Schreibzugriffe, BSTR/VARIANT/SAFEARRAY/UDT, Freigabe und Reallokation prüfen."
+        "acceptance": "Slot-Instrumentierung für Skalare, flache Datensätze, eindimensionale Arrayelemente und beide String-Adressen über sieben Speicherfamilien; native Schreibzugriffe über GC, Synchronisierung an Load, Store, ByRef-Adresse und Rückschreiben."
+      },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.IR.Tests/IrLowererTests.cs",
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs",
+        "tests/VB6.Runtime.Tests/VBArrayTests.cs"
+      ],
+      "notes": "The documented x86 managed slices cover locals, module variables including Static locals, ByVal parameters, flat user-defined types, one-dimensional array elements, private instance fields and both String addresses. Public fields remain excluded because late binding reads the CLR field directly by reflection; AnyCPU and x64 never truncate an IntPtr to Long; UDTs with array, Variant or variable-length String members remain outside the flat record layout contract.",
+      "title": "Stabiler adressierbarer Speicher"
+    },
+    {
+      "id": "managed-r3-byref-alias",
+      "matrixEntry": "abi-declare-addressof",
+      "milestone": "R3",
+      "dependsOn": [
+        "managed-r3-pointers"
+      ],
+      "implementation": "planned",
+      "input": "ByRef-Alias adressierbarer Speicher",
+      "expected": {
+        "acceptance": "VarPtr auf einen ByRef-Parameter nennt die Adresse des Aufrufers; Aliase desselben Speicherplatzes erhalten dieselbe Zelle."
       },
       "verification": "not-yet-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
         "tests/VB6.IR.Tests/IrLowererTests.cs",
-        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
-        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs"
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
       ],
-      "notes": "Planned work: the listed regressions cover two storage families in the x86 managed path -- procedure locals and module-level variables -- for Long, signed eight-byte LongLong, four-byte LongPtr, Integer, unsigned two-byte UShort, unsigned four-byte UInteger, unsigned eight-byte ULong, Byte, two-byte Boolean, four-byte IEEE-754 Single, eight-byte IEEE-754 Double, eight-byte OLE-Automation Date and eight-byte scaled-Int64 Currency VarPtr cells, plus a StrPtr BSTR cell for both String families, each with GC-stable storage and CLR-ByRef synchronization. A module variable's cell is a static companion field created lazily at the VarPtr site, and a Static local is the same storage family under a synthesized name. A ByVal parameter owns its copy and gets a procedure-scoped cell seeded from the incoming argument. A flat user-defined type gets one cell for the whole record, with size and member offsets taken from the interop marshaller. A one-dimensional array element uses no cell: the array owns the only storage and is moved to the pinned object heap when the first pointer is taken. A private instance field carries one cell per object. A String slot answers both intrinsics, with StrPtr(s) being the Long stored at VarPtr(s). They are not passing evidence for the full acceptance contract (public fields, ByRef parameters, records with array/Variant/variable-length String members, rectangular array elements, whole arrays, Variants, native probes and further invalidation remain open).",
-      "title": "Stabiler adressierbarer Speicher"
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "ByRef-Aliase adressierbarer Speicher"
+    },
+    {
+      "id": "managed-r3-invalidation",
+      "matrixEntry": "abi-declare-addressof",
+      "milestone": "R3",
+      "dependsOn": [
+        "managed-r3-byref-alias"
+      ],
+      "implementation": "planned",
+      "input": "Invalidierung adressierbaren Speichers",
+      "expected": {
+        "acceptance": "Freigabe und Reallokation: ReDim, ReDim Preserve, Erase, Prozedurende und Objektende invalidieren kontrolliert und geben genau einmal frei."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs",
+        "tests/VB6.Runtime.Tests/VBArrayTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "Invalidierung adressierbaren Speichers"
+    },
+    {
+      "id": "managed-r3-safearray",
+      "matrixEntry": "abi-declare-addressof",
+      "milestone": "R3",
+      "dependsOn": [
+        "managed-r3-invalidation"
+      ],
+      "implementation": "planned",
+      "input": "SAFEARRAY-Speichervertrag",
+      "expected": {
+        "acceptance": "VarPtr auf ein ganzes Array trifft den Deskriptor; mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.Runtime.Tests/VBArrayTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "SAFEARRAY-Speichervertrag"
+    },
+    {
+      "id": "managed-r3-variant",
+      "matrixEntry": "abi-declare-addressof",
+      "milestone": "R3",
+      "dependsOn": [
+        "managed-r3-safearray"
+      ],
+      "implementation": "planned",
+      "input": "VARIANT-Speichervertrag",
+      "expected": {
+        "acceptance": "VarPtr auf einen Variant nennt den 16-Byte-VARIANT; Subtyp, Empty, Null, Nothing, BSTR und Fehlerwerte bleiben unterscheidbar."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.Runtime.Tests/VariantStateTests.cs"
+      ],
+      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "title": "VARIANT-Speichervertrag"
     },
     {
       "id": "managed-r3-callback-abi",
       "matrixEntry": "abi-declare-addressof",
       "milestone": "R3",
       "dependsOn": [
-        "managed-r3-pointers"
+        "managed-r3-variant"
       ],
       "implementation": "planned",
       "input": "Declare- und Callback-ABI vervollständigen",
@@ -3445,7 +3528,7 @@
         "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs",
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
       ],
-      "gap": "managed-r3-pointers: Stabiler adressierbarer Speicher; managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
+      "gap": "managed-r3-byref-alias: ByRef-Aliase; managed-r3-invalidation: Freigabe und Reallokation; managed-r3-safearray: SAFEARRAY-Deskriptor und mehrdimensionale Reihenfolge; managed-r3-variant: VARIANT-Speicher; managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
     },
     {
       "id": "profile-selection-and-provenance",

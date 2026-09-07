@@ -38,7 +38,7 @@ testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adopti
 übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am Leben hält. Details in
 `docs/R2-OBJECT-LIFETIME.md`.
 
-Aktive Karte ist `managed-r3-pointers`. Gespeicherte `VarPtr`/`StrPtr` tragen im x86-Pfad zwei
+Aktive Karte ist `managed-r3-byref-alias`. Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad zwei
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
 UDTs. Bei einem UDT gehört die Zelle dem **ganzen** Datensatz, ein Memberzeiger ist Blockadresse
 plus Offset, und Größe wie Offsets kommen aus dem Interop-Marshaller — derselben Quelle, aus der

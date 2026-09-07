@@ -211,9 +211,23 @@ festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, so
 | --- | --- |
 | `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
 
+## Abgenommene Teilverträge
+
+### R3 — Slot-Instrumentierung adressierbaren Speichers
+
+Der abgenommene x86-Managed-Slice erzeugt Runtime-besessenen, GC-stabilen Speicher für sieben
+Familien: Locals, Modulvariablen einschließlich `Static`-Locals, ByVal-Parameter, flache UDTs,
+eindimensionale Arrayelemente, private Instanzfelder und beide String-Adressen. Native Änderungen
+werden an Load, Store, ByRef-Adresse und Write-back synchronisiert; ein Arrayelement besitzt dabei
+bewusst keine Kopierzelle, sondern macht den Speicher seines Arrays unbeweglich.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r3-pointers` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests`, `VBArrayTests` |
+
 ## Aktive Restliste
 
-Die 17 folgenden Karten sind `planned` / `not-yet-verified`. R0, R1 und R2 sind geschlossen und
+Die 20 folgenden Karten sind `planned` / `not-yet-verified`. R0, R1 und R2 sind geschlossen und
 stehen als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der
 Matrix; die dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits
 erfüllte fachliche Einzelverträge bleiben in der Matrix erhalten und werden nicht neu
@@ -223,42 +237,20 @@ implementiert.
 
 Nach R2.
 
-Adressierter Speicher erhält einen von der Runtime besessenen, GC-stabilen Speichervertrag. ByRef-Aliase, native Layouts und Laufzeitverwaltung werden gemeinsam entworfen; lediglich für einen einzelnen Declare-Aufruf erzeugte Kopien erfüllen den Vertrag gespeicherter Zeiger nicht. Nicht adressierte Werte behalten ihren bisherigen schnellen Speicherpfad.
-
-Der verbindliche Zellentwurf, seine Layoutfamilien und die Reihenfolge von Slot-Instrumentierung
-bis Fremdclient-Probes stehen in [R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md). Er hält
-insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` umgewandelter
-Managed-Innenzeiger keine zulässige Abkürzung wäre.
-
-Implementiert sind bisher zwei Speicherfamilien, beide nur im x86-Managed-Pfad: **lokale** und
-**modulweite** Skalare (`Long`, `LongLong`, `LongPtr`, `Integer`, `UShort`, `UInteger`, `ULong`,
-`Byte`, `Boolean`, `Single`, `Double`, `Date`, `Currency`) über `VarPtr` und beide String-Formen
-über `StrPtr`. Die Zellen bleiben über GC stabil und werden an Load, Store, ByRef-Adresse und
-Write-back synchronisiert; die Zelle einer Modulvariablen ist ein statisches Begleitfeld, das
-faul an der `VarPtr`-Stelle entsteht, damit keine Modulinitialisierer-Reihenfolge nötig wird.
-Ein `Static`-Local ist dieselbe Speicherfamilie unter synthetischem Namen und faellt mit hinein.
-Ein ByVal-Parameter besitzt seine Kopie und bekommt eine prozedurweite Zelle, die mit dem
-ankommenden Argument startet. Ein flacher UDT bekommt eine Zelle fuer den ganzen Datensatz; Groesse und Memberoffsets kommen
-aus dem Interop-Marshaller. Ein eindimensionales Arrayelement kommt ohne Zelle aus: Das Array besitzt den einzigen Speicher
-und wird beim ersten Zeiger unbeweglich. Ein privates Instanzfeld traegt eine Zelle je Objekt. Ein String-Speicherplatz beantwortet beide
-Intrinsics: StrPtr die BSTR, VarPtr die Adresse der Variablen, an der dieser Zeiger steht. Public-Felder, ByRef-Parameter, UDTs mit
-Array-, Variant- oder String-Member, mehrdimensionale Arrayelemente, ganze Arrays, Variants und
-AnyCPU/x64 behalten ihre
-ausdrückliche Fehler-5-Grenze. Die gemessene Grenztabelle und die Layoutfamilien stehen im
-Zerlegungsdokument.
-
-`VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
-
-Die Runtime verankert einen erzeugten `AddressOf`-Callback-Delegate derzeit prozessweit, damit ein
-nativer Aufrufer den zurückbehaltenen Funktionszeiger auch nach einer GC weiterhin aufrufen kann;
-das gilt auch für das gebundene Klassenobjekt eines Instanz-Callbacks. Regressionstests mit
-erzwungener GC decken beide Teilverträge ab. Das ist noch keine vollständige Callback-Ownership:
-explizites Abmelden, die ABI aller Signaturen und die Lebensdauer gespeicherter `VarPtr`/`StrPtr`-
-Adressen bleiben Gegenstand von R3.
+ByRef-Parameter bleiben bis zur geänderten Aufrufkonvention bei Fehler 5, weil eine eigene Zelle
+im Aufgerufenen eine entkoppelte Kopie wäre. Public-Felder sind ebenfalls ausgeschlossen, weil
+späte Bindung das CLR-Feld direkt per Reflection liest. UDTs mit Array-, Variant- oder
+variablen String-Membern, mehrdimensionale und ganze Arrays sowie Variants haben eigene
+Layout-/Ownership-Karten; AnyCPU und x64 geben keinen in `Long` abgeschnittenen Zeiger aus. Die
+Grenztabelle, Layoutfamilien und die genaue Reihenfolge stehen in
+[R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md).
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r3-pointers` | **Stabiler adressierbarer Speicher:** Gespeicherte VarPtr/StrPtr und ByRef-Aliase bleiben für ihre definierte Lebensdauer über GC gültig; native Schreibzugriffe, BSTR/VARIANT/SAFEARRAY/UDT, Freigabe und Reallokation prüfen. |
+| `managed-r3-byref-alias` | **ByRef-Aliase adressierbarer Speicher:** VarPtr auf einen ByRef-Parameter nennt die Adresse des Aufrufers; Aliase desselben Speicherplatzes erhalten dieselbe Zelle. |
+| `managed-r3-invalidation` | **Invalidierung adressierbaren Speichers:** ReDim, ReDim Preserve, Erase, Prozedurende und Objektende invalidieren kontrolliert und geben genau einmal frei. |
+| `managed-r3-safearray` | **SAFEARRAY-Speichervertrag:** VarPtr auf ein ganzes Array trifft den Deskriptor; mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge. |
+| `managed-r3-variant` | **VARIANT-Speichervertrag:** VarPtr auf einen Variant nennt den 16-Byte-VARIANT; Subtyp, Empty, Null, Nothing, BSTR und Fehlerwerte bleiben unterscheidbar. |
 | `managed-r3-callback-abi` | **Declare- und Callback-ABI vervollständigen:** UDT-, Pointer-, String- und Array-Signaturen mit Ownership, Bounds und Write-back in x86 sowie unterstützten x64-Erweiterungen messen; zurückbehaltene Callbacks nach GC und beim Abmelden prüfen. |
 
 ### R4 — COM-Konsum, Emission und Binary Compatibility

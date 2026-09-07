@@ -1,7 +1,6 @@
 # R3 — Adressierbarer Speicher: Entwurfsvertrag
 
-Stand: 2026-09-07. Dieses Dokument zerlegt die noch offene Karte
-`managed-r3-pointers`; es erweitert weder den bereits geprüften kurzfristigen `Declare`-Pfad
+Stand: 2026-09-07. Dieses Dokument zerlegt die R3-Speicherkarten; es erweitert weder den bereits geprüften kurzfristigen `Declare`-Pfad
 noch erklärt ihn zum Ersatz für gespeicherte Zeiger.
 
 ## Ausgangspunkt
@@ -234,30 +233,32 @@ dem R4-Ownership-Vertrag und darf nicht als CLR-RCW-Innenadresse erscheinen.
 
 ## Durchführung und Abnahme
 
-1. **Slot-Instrumentierung:** Der IR markiert jede Address-taken-Stelle. Der Emitter erzeugt bzw.
-   findet die Zelle für Locals, ByRef-Parameter, Globals, Felder und Arrayelemente; alle weiteren
-   Zugriffe auf denselben Slot laufen über die Synchronisierung.
-2. **Skalar- und Recordpfad:** x86-Probes halten Zeiger über eine erzwungene GC, lesen und schreiben
-   native Bytes und prüfen ByRef-Aliase sowie die einmalige Freigabe bei Prozedurende.
-3. **String-, Variant- und Arraypfad:** BSTR-/VARIANT-/SAFEARRAY-Ownership, Bounds, Write-back,
-   `Erase` und `ReDim` werden mit unabhängigen nativen Probes geprüft. Der bestehende
-   call-scoped-`Declare`-Puffer bleibt ein eigener, kürzerer Vertrag.
-4. **Callback-Ownership:** Ein registrierter `AddressOf`-Thunk hält Delegate und gebundenes Ziel
-   über GC. Zusätzlich braucht R3 eine explizite Abmelde-/Freigabeidentität und einen
-   Fremdclient-Nachweis, dass nach dem Abmelden kein Callback mehr erreichbar ist.
+1. **Slot-Instrumentierung — `managed-r3-pointers` abgenommen, `managed-r3-byref-alias` offen:**
+   Der IR markiert jede Address-taken-Stelle. Der Emitter erzeugt bzw. findet die Zelle für Locals,
+   Globals einschließlich `Static`-Locals, ByVal-Parameter, flache UDTs, private Instanzfelder und
+   beide String-Adressen; eindimensionale Arrayelemente nutzen den einen unbeweglichen Arrayspeicher.
+   Alle diese Familien sind gemessen. Allein ein ByRef-Parameter braucht die Adresse der Zelle des
+   Aufrufers statt einer entkoppelten Zelle im Aufgerufenen.
+2. **Skalar- und Recordpfad — `managed-r3-pointers` abgenommen, `managed-r3-invalidation` offen:**
+   x86-Probes halten die unterstützten Zeiger über eine erzwungene GC und prüfen native Bytes,
+   Load/Store-, ByRef- und Write-back-Synchronisierung. Die gezielte Invalidierung durch `ReDim`,
+   `ReDim Preserve`, `Erase`, Prozedur- und Objektende bleibt eine eigene Karte. Die einmalige
+   Freigabe der Local-/ByVal-Zellen am Return-Terminator ist bereits gemessen: `Exit Sub` und
+   `On Error GoTo` haben je zwei Rückkehrpunkte; verlässt eine Ausnahme die Prozedur, räumt der
+   Finalizer auf.
+3. **String-, Variant- und Arraypfad — `managed-r3-pointers` für beide String-Adressen
+   abgenommen; `managed-r3-invalidation`, `managed-r3-safearray` und `managed-r3-variant` offen:**
+   BSTR-Zellen und eindimensionale Elemente folgen dem geschlossenen Slotvertrag. VARIANT- und
+   SAFEARRAY-Ownership, Descriptor, mehrdimensionale Reihenfolge, Bounds, `Erase` und `ReDim`
+   erhalten getrennte native Probes. Der bestehende call-scoped-`Declare`-Puffer bleibt ein eigener,
+   kürzerer Vertrag.
+4. **Callback-Ownership — `managed-r3-callback-abi` offen:** Ein registrierter `AddressOf`-Thunk
+   hält Delegate und gebundenes Ziel über GC. Zusätzlich braucht R3 eine explizite
+   Abmelde-/Freigabeidentität und einen Fremdclient-Nachweis, dass nach dem Abmelden kein Callback
+   mehr erreichbar ist.
 
-`managed-r3-pointers` und `managed-r3-callback-abi` bleiben bis zu diesen vollständigen
-End-to-End-Probes `planned`. Die vorhandenen Callback-GC-Regressionen belegen nur Schritt 4s
-erste Haltegarantie; die x86-Skalarzellen für Locals und Modulvariablen sind der engste Teil von
-Schritt 2 und schließen keine der anderen Familien. Von Schritt 1 sind damit zwei der fünf
-genannten Slot-Arten bedient: Locals und Globals. ByRef-Parameter, Felder und Arrayelemente
-stehen aus.
-
-Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
-separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
-allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert sind
-die `Long`-, `LongLong`-, `LongPtr`-, `Integer`-, `UShort`-, `UInteger`-, `ULong`-, `Byte`-,
-`Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots von Locals und Modulvariablen sowie
-`StrPtr` auf einem lokalen oder modulweiten String, jeweils im x86-Managed-Pfad.
-Außerhalb dieser Fälle und außerhalb des unmittelbaren `Declare`-Pfads gilt weiterhin die
-bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.
+Der gemessene x86-Managed-Stand schließt damit `managed-r3-pointers`: Die sieben genannten
+Speicherfamilien verwenden Runtime-besessenen Speicher statt einer CLR-Innenadresse. Die
+verbleibenden R3-Karten teilen die noch offene Fläche ohne Lücke auf: ByRef-Alias,
+Invalidierung, SAFEARRAY, VARIANT und Callback-ABI. Außerhalb dieser Verträge bleibt die
+ausdrückliche Fehler-5-Grenze bestehen.
