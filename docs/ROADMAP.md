@@ -230,24 +230,15 @@ bis Fremdclient-Probes stehen in [R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STOR
 insbesondere fest, dass `VarPtr` ein x86-`Long`-Vertrag ist und ein in `Long` umgewandelter
 Managed-Innenzeiger keine zulässige Abkürzung wäre.
 
-Der erste implementierte Ausschnitt ist bewusst enger: x86-Managed-Code kann `VarPtr` eines
-lokalen `Long`, `LongLong`, `LongPtr`, `Integer`, `UShort`, `UInteger`, `ULong`, `Byte`,
-`Boolean`, `Single`, `Double`, `Date` oder `Currency` speichern. Von der Runtime besessene
-native Vier-, Zwei-, Ein- und Acht-Byte-Zellen bleiben über GC stabil, werden an normalen Loads/Stores
-und CLR-ByRef-Write-backs synchronisiert und bei der Prozedurrückkehr freigegeben; `Boolean` nutzt
-dabei die klassische zwei Byte breite `-1`/`0`-Darstellung, `UShort`, `UInteger` und `ULong`
-vorzeichenlose zwei, vier beziehungsweise acht Byte breite Layouts, `LongLong` einen direkten
-signierten 64-Bit-Wert, `LongPtr` den expliziten x86-Vier-Byte-Vertrag, `Single` und `Double`
-ihre vier beziehungsweise acht Byte breiten IEEE-754-Layouts, `Date` das acht Byte breite
-OLE-Automation-Layout und `Currency` den mit 10.000 skalierten `Int64`-Wert. AnyCPU/x64 sowie
-alle anderen Speicherfamilien behalten ihre explizite Fehler-5-Grenze, bis ihr Layout und ihre
-Invalidierung abgenommen sind.
-
-Als getrennten lokalen String-Slice unterstützt der x86-Managed-Pfad außerdem
-`StrPtr(localString)`: eine Runtime-eigene BSTR bleibt bis zur Neuzuweisung oder
-Prozedurrückkehr gültig, native UTF-16-Schreibzugriffe werden beim nächsten String-Load sichtbar,
-und eine Neuzuweisung invalidiert die alte Adresse. Felder, Parameter, Arrays, Variant und
-`VarPtr(String)` bleiben außerhalb dieses Slice.
+Implementiert sind bisher zwei Speicherfamilien, beide nur im x86-Managed-Pfad: **lokale** und
+**modulweite** Skalare (`Long`, `LongLong`, `LongPtr`, `Integer`, `UShort`, `UInteger`, `ULong`,
+`Byte`, `Boolean`, `Single`, `Double`, `Date`, `Currency`) über `VarPtr` und beide String-Formen
+über `StrPtr`. Die Zellen bleiben über GC stabil und werden an Load, Store, ByRef-Adresse und
+Write-back synchronisiert; die Zelle einer Modulvariablen ist ein statisches Begleitfeld, das
+faul an der `VarPtr`-Stelle entsteht, damit keine Modulinitialisierer-Reihenfolge nötig wird.
+Klassenfelder, UDT-Member, Arrayelemente, `Static`-Locals, Variants und AnyCPU/x64 behalten ihre
+ausdrückliche Fehler-5-Grenze. Die gemessene Grenztabelle und die Layoutfamilien stehen im
+Zerlegungsdokument.
 
 `VarPtr`/`StrPtr`, BSTR, VARIANT, SAFEARRAY, UDTs und Callbacks müssen dieselben Lebensdauer- und Write-back-Regeln verwenden. Gültigkeit gilt für die definierte Speicherlebensdauer, nicht unbegrenzt nach Freigabe oder Reallokation. x86 ist das Legacy-Abnahmeziel; bestehende x64-Erweiterungen erhalten eigene Prüfungen.
 

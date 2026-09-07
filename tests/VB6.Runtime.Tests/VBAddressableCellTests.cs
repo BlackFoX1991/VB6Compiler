@@ -274,6 +274,55 @@ public sealed class VBAddressableCellTests
         Assert.ThrowsException<ObjectDisposedException>(() => VBAddressableStorage.ReadIntPtr32(storage));
     }
 
+    [TestMethod]
+    public void NullTolerantFacade_LeavesTheOrdinarySlotInChargeUntilAnAddressIsAsked()
+    {
+        // Die Zelle einer Modulvariablen entsteht erst beim ersten VarPtr. Solange sie fehlt,
+        // muessen Lesen und Schreiben den gewoehnlichen Feldwert durchreichen statt zu werfen --
+        // sonst braeuchte es einen Modulinitialisierer, den es ueber Modulgrenzen nicht gibt.
+        Assert.AreEqual(7, VBAddressableStorage.ReadInt32Or(null, 7));
+        VBAddressableStorage.WriteInt32IfPresent(null, 9);
+        Assert.AreEqual("abc", VBAddressableStorage.ReadStringOr(null, "abc"));
+        VBAddressableStorage.WriteStringIfPresent(null, "def");
+        Assert.AreEqual(1.5d, VBAddressableStorage.ReadDoubleOr(null, 1.5d));
+        Assert.AreEqual(VBCurrency.FromScaled(25_000L), VBAddressableStorage.ReadCurrencyOr(null, VBCurrency.FromScaled(25_000L)));
+    }
+
+    [TestMethod]
+    public void NullTolerantFacade_SeedsOneCellAndThenKeepsIt()
+    {
+        var storage = VBAddressableStorage.EnsureInt32(null, 16_909_060);
+        Assert.AreSame(storage, VBAddressableStorage.EnsureInt32(storage, 0));
+
+        var address = VBAddressableStorage.GetInt32NativeAddress(storage);
+        Assert.AreEqual(16_909_060, Marshal.ReadInt32(address));
+
+        // Ab jetzt ist die Zelle massgeblich: Ein nativer Schreibzugriff kommt beim Lesen an,
+        // und ein gewoehnlicher Schreibzugriff geht wieder in die Zelle.
+        Marshal.WriteInt32(address, 123);
+        ForceFullCollection();
+        Assert.AreEqual(123, VBAddressableStorage.ReadInt32Or(storage, 0));
+
+        VBAddressableStorage.WriteInt32IfPresent(storage, 84_281_096);
+        Assert.AreEqual(84_281_096, Marshal.ReadInt32(address));
+
+        VBAddressableStorage.Dispose(storage);
+    }
+
+    [TestMethod]
+    public void NullTolerantStringFacade_SeedsOneBStrCellAndThenKeepsIt()
+    {
+        var storage = VBAddressableStorage.EnsureString(null, "abc");
+        Assert.AreSame(storage, VBAddressableStorage.EnsureString(storage, "zzz"));
+        Assert.AreEqual("abc", VBAddressableStorage.ReadStringOr(storage, "zzz"));
+
+        VBAddressableStorage.WriteStringIfPresent(storage, "de");
+        var address = VBAddressableStorage.GetStringNativeAddress(storage);
+        Assert.AreEqual("de", Marshal.PtrToStringBSTR(address));
+
+        VBAddressableStorage.Dispose(storage);
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);

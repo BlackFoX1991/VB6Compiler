@@ -39,6 +39,10 @@ public static class IrLowerer
         private readonly VBCompatibilityProfile _compatibilityProfile;
         private readonly Dictionary<ModuleVariableSymbol, IrGlobal> _globals =
             new(ReferenceEqualityComparer.Instance);
+
+        // Programmweit, weil eine erst im spaeteren Modul entdeckte Zelle nicht mehr in die
+        // bereits gebaute Globals-Liste eines frueheren Moduls passt.
+        private readonly List<IrGlobal> _addressableGlobals = [];
         private readonly Dictionary<ModuleVariableSymbol, BoundExpression> _constantValues =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<string, BoundExpression> _constantValuesByName =
@@ -216,7 +220,32 @@ public static class IrLowerer
                 _types.Values.ToImmutableArray(),
                 entryPoint,
                 classes.ToImmutable(),
-                _compatibilityProfile);
+                _compatibilityProfile,
+                _addressableGlobals.ToImmutableArray());
+        }
+
+        /// <summary>
+        /// Answers the module-level variable behind a symbol without throwing. A constant never
+        /// has storage, so it never has an address either.
+        /// </summary>
+        public bool TryGetGlobal(ModuleVariableSymbol symbol, out IrGlobal global)
+        {
+            if (_globals.TryGetValue(symbol, out global!) && !global.IsConstant)
+            {
+                return true;
+            }
+
+            global = null!;
+            return false;
+        }
+
+        /// <summary>Records that the address of a module-level variable was taken.</summary>
+        public void MarkAddressableGlobal(IrGlobal global)
+        {
+            if (!_addressableGlobals.Contains(global))
+            {
+                _addressableGlobals.Add(global);
+            }
         }
 
         public IrGlobal GetGlobal(ModuleVariableSymbol symbol) =>
@@ -4299,13 +4328,14 @@ public static class IrLowerer
         }
 
         /// <summary>
-        /// The first retained-pointer slice deliberately covers only local VB6 Byte, Integer,
-        /// UShort, UInteger, ULong, Long, LongLong, LongPtr, Boolean, Single, Double, Date and Currency slots. Boolean is
-        /// represented by a separate two-byte -1/0 cell, LongLong by an eight-byte signed cell,
-        /// LongPtr by an x86 four-byte native-width cell, Single and Double use their IEEE-754
-        /// cells, Date uses its eight-byte Automation date layout, and Currency its scaled Int64
-        /// layout; strings, Variants, UDTs and aggregate storage need their own ABI layouts
-        /// before they can make the same promise.
+        /// The retained-pointer slices so far cover VB6 Byte, Integer, UShort, UInteger, ULong,
+        /// Long, LongLong, LongPtr, Boolean, Single, Double, Date and Currency in two storage
+        /// families: procedure locals and module-level variables. Boolean is represented by a
+        /// separate two-byte -1/0 cell, LongLong by an eight-byte signed cell, LongPtr by an x86
+        /// four-byte native-width cell, Single and Double use their IEEE-754 cells, Date uses its
+        /// eight-byte Automation date layout, and Currency its scaled Int64 layout; StrPtr adds a
+        /// BSTR cell for a String slot. UDT members, array elements, Static locals, Variants and
+        /// whole aggregates need their own ABI layouts before they can make the same promise.
         /// </summary>
         private bool TryLowerStoredVarPtr(BoundExpression expression, out IrExpression pointer)
         {
@@ -4315,27 +4345,42 @@ public static class IrLowerer
                     Arguments.Length: 1
                 } invocation &&
                 (intrinsic == VBIntrinsicKind.VarPtr || intrinsic == VBIntrinsicKind.StrPtr) &&
-                StripConversions(invocation.Arguments[0].Expression) is BoundVariableExpression
-                {
-                    Variable: LocalVariableSymbol localSymbol
-                } &&
-                _locals.TryGetValue(localSymbol, out var local) &&
-                ((intrinsic == VBIntrinsicKind.VarPtr && IsAddressableScalar(local.Type)) ||
-                 (intrinsic == VBIntrinsicKind.StrPtr && local.Type == TypeSymbol.String)))
+                StripConversions(invocation.Arguments[0].Expression) is BoundVariableExpression target)
             {
-                if (!_addressableCells.TryGetValue(local, out var cell))
+                switch (target.Variable)
                 {
-                    cell = NewLocal($"__varptr_cell_{local.Id}", TypeSymbol.Variant, compilerGenerated: true);
-                    _addressableCells.Add(local, cell);
-                }
+                    case LocalVariableSymbol localSymbol
+                        when _locals.TryGetValue(localSymbol, out var local) &&
+                             IsAddressableStorage(intrinsic, local.Type):
+                        if (!_addressableCells.TryGetValue(local, out var cell))
+                        {
+                            cell = NewLocal($"__varptr_cell_{local.Id}", TypeSymbol.Variant, compilerGenerated: true);
+                            _addressableCells.Add(local, cell);
+                        }
 
-                pointer = new IrAddressablePointerExpression(local, cell, TypeSymbol.Long);
-                return true;
+                        pointer = new IrAddressablePointerExpression(local, cell, TypeSymbol.Long);
+                        return true;
+
+                    // Ein Klassenfeld ist ebenfalls ein ModuleVariableSymbol, hat aber keinen
+                    // statischen Speicherplatz und bleibt deshalb bei Fehler 5.
+                    case ModuleVariableSymbol moduleSymbol
+                        when (_containingClass is null || !_program.TryGetClassField(moduleSymbol, out _)) &&
+                             _program.TryGetGlobal(moduleSymbol, out var global) &&
+                             IsAddressableStorage(intrinsic, global.Type):
+                        _program.MarkAddressableGlobal(global);
+                        pointer = new IrAddressableGlobalPointerExpression(global, TypeSymbol.Long);
+                        return true;
+                }
             }
 
             pointer = null!;
             return false;
         }
+
+        private static bool IsAddressableStorage(VBIntrinsicKind? intrinsic, TypeSymbol type) =>
+            intrinsic == VBIntrinsicKind.StrPtr
+                ? type == TypeSymbol.String
+                : IsAddressableScalar(type);
 
         private static bool IsAddressableScalar(TypeSymbol type) =>
             type == TypeSymbol.Boolean ||

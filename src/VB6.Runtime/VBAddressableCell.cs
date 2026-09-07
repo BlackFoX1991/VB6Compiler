@@ -230,6 +230,180 @@ public static class VBAddressableStorage
 
     public static void WriteIntPtr32(object storage, IntPtr value) => GetIntPtr32(storage).Write(checked((int)value.ToInt64()));
 
+    // Eine Modulvariable lebt so lange wie das Programm, ihre Zelle entsteht aber erst beim ersten
+    // VarPtr. Ein Modulinitialisierer müsste dafür über Modulgrenzen hinweg geordnet werden -- der
+    // Lowerer baut die Module nacheinander, und eine später entdeckte Zelle käme im früheren Modul
+    // zu spät. Deshalb sind die Zugriffspfade null-tolerant: Solange keine Adresse angefordert
+    // wurde, ist das gewöhnliche statische Feld allein maßgeblich.
+
+    public static object EnsureBoolean(object? storage, bool value) => storage ?? CreateBoolean(value);
+
+    public static object EnsureString(object? storage, string value) => storage ?? CreateString(value);
+
+    public static object EnsureByte(object? storage, byte value) => storage ?? CreateByte(value);
+
+    public static object EnsureInt32(object? storage, int value) => storage ?? CreateInt32(value);
+
+    public static object EnsureUInt32(object? storage, uint value) => storage ?? CreateUInt32(value);
+
+    public static object EnsureInt16(object? storage, short value) => storage ?? CreateInt16(value);
+
+    public static object EnsureUShort(object? storage, ushort value) => storage ?? CreateUShort(value);
+
+    public static object EnsureSingle(object? storage, float value) => storage ?? CreateSingle(value);
+
+    public static object EnsureDouble(object? storage, double value) => storage ?? CreateDouble(value);
+
+    public static object EnsureDate(object? storage, double value) => storage ?? CreateDate(value);
+
+    public static object EnsureCurrency(object? storage, VBCurrency value) => storage ?? CreateCurrency(value);
+
+    public static object EnsureInt64(object? storage, long value) => storage ?? CreateInt64(value);
+
+    public static object EnsureUInt64(object? storage, ulong value) => storage ?? CreateUInt64(value);
+
+    public static object EnsureIntPtr32(object? storage, IntPtr value) => storage ?? CreateIntPtr32(value);
+
+    public static bool ReadBooleanOr(object? storage, bool current) => storage is null ? current : ReadBoolean(storage);
+
+    public static string ReadStringOr(object? storage, string current) => storage is null ? current : ReadString(storage);
+
+    public static byte ReadByteOr(object? storage, byte current) => storage is null ? current : ReadByte(storage);
+
+    public static int ReadInt32Or(object? storage, int current) => storage is null ? current : ReadInt32(storage);
+
+    public static uint ReadUInt32Or(object? storage, uint current) => storage is null ? current : ReadUInt32(storage);
+
+    public static short ReadInt16Or(object? storage, short current) => storage is null ? current : ReadInt16(storage);
+
+    public static ushort ReadUShortOr(object? storage, ushort current) => storage is null ? current : ReadUShort(storage);
+
+    public static float ReadSingleOr(object? storage, float current) => storage is null ? current : ReadSingle(storage);
+
+    public static double ReadDoubleOr(object? storage, double current) => storage is null ? current : ReadDouble(storage);
+
+    public static double ReadDateOr(object? storage, double current) => storage is null ? current : ReadDate(storage);
+
+    public static VBCurrency ReadCurrencyOr(object? storage, VBCurrency current) => storage is null ? current : ReadCurrency(storage);
+
+    public static long ReadInt64Or(object? storage, long current) => storage is null ? current : ReadInt64(storage);
+
+    public static ulong ReadUInt64Or(object? storage, ulong current) => storage is null ? current : ReadUInt64(storage);
+
+    public static IntPtr ReadIntPtr32Or(object? storage, IntPtr current) => storage is null ? current : ReadIntPtr32(storage);
+
+    public static void WriteBooleanIfPresent(object? storage, bool value)
+    {
+        if (storage is not null)
+        {
+            WriteBoolean(storage, value);
+        }
+    }
+
+    public static void WriteStringIfPresent(object? storage, string value)
+    {
+        if (storage is not null)
+        {
+            WriteString(storage, value);
+        }
+    }
+
+    public static void WriteByteIfPresent(object? storage, byte value)
+    {
+        if (storage is not null)
+        {
+            WriteByte(storage, value);
+        }
+    }
+
+    public static void WriteInt32IfPresent(object? storage, int value)
+    {
+        if (storage is not null)
+        {
+            WriteInt32(storage, value);
+        }
+    }
+
+    public static void WriteUInt32IfPresent(object? storage, uint value)
+    {
+        if (storage is not null)
+        {
+            WriteUInt32(storage, value);
+        }
+    }
+
+    public static void WriteInt16IfPresent(object? storage, short value)
+    {
+        if (storage is not null)
+        {
+            WriteInt16(storage, value);
+        }
+    }
+
+    public static void WriteUShortIfPresent(object? storage, ushort value)
+    {
+        if (storage is not null)
+        {
+            WriteUShort(storage, value);
+        }
+    }
+
+    public static void WriteSingleIfPresent(object? storage, float value)
+    {
+        if (storage is not null)
+        {
+            WriteSingle(storage, value);
+        }
+    }
+
+    public static void WriteDoubleIfPresent(object? storage, double value)
+    {
+        if (storage is not null)
+        {
+            WriteDouble(storage, value);
+        }
+    }
+
+    public static void WriteDateIfPresent(object? storage, double value)
+    {
+        if (storage is not null)
+        {
+            WriteDate(storage, value);
+        }
+    }
+
+    public static void WriteCurrencyIfPresent(object? storage, VBCurrency value)
+    {
+        if (storage is not null)
+        {
+            WriteCurrency(storage, value);
+        }
+    }
+
+    public static void WriteInt64IfPresent(object? storage, long value)
+    {
+        if (storage is not null)
+        {
+            WriteInt64(storage, value);
+        }
+    }
+
+    public static void WriteUInt64IfPresent(object? storage, ulong value)
+    {
+        if (storage is not null)
+        {
+            WriteUInt64(storage, value);
+        }
+    }
+
+    public static void WriteIntPtr32IfPresent(object? storage, IntPtr value)
+    {
+        if (storage is not null)
+        {
+            WriteIntPtr32(storage, value);
+        }
+    }
+
     public static void Dispose(object storage)
     {
         if (storage is not IDisposable disposable)

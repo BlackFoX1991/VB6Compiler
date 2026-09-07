@@ -7892,3 +7892,43 @@ Was der Abschluss nicht behauptet: Nichts davon ist gegen einen Original-VB6-SP6
 gelaufen — die Verifikation bleibt `documented-verified`. Die Abnahme gilt für die acht benannten
 Besitzfamilien und die dokumentierten Grenzen, nicht als allgemeine Zusage über beliebige fremde
 Hosts mit eigenen Wrapper-Anteilen. Nächste Karte ist `managed-r3-pointers`.
+
+## 2026-09-07 — R3, Schnitt 24: gespeicherter VarPtr für Modulvariablen
+
+Zuerst gemessen, dann gebaut. Ein x86-Wegwerfprogramm hat die ganze `VarPtr`/`StrPtr`-Fläche
+abgefragt statt sie aus dem Quelltext herzuleiten: Es antworteten nur lokale Skalare und
+`StrPtr(localString)`; Modulvariable, UDT-Member, ganzes UDT, Arrayelement, `Static`-Local,
+`VarPtr(String)` und Variant lieferten Fehler 5. Die Tabelle steht jetzt in
+`docs/R3-ADDRESSABLE-STORAGE.md` und ist der Maßstab für die folgenden Schnitte.
+
+Dieser Schnitt nimmt davon die **Modulvariablen** — dieselben dreizehn Layoutfamilien wie beim
+Local, plus die BSTR-Zelle für `StrPtr`. Das Neue ist die Lebensdauer, nicht das Layout: Die
+Zelle ist ein statisches Begleitfeld unmittelbar hinter ihrem Datenfeld, und sie entsteht **faul
+an der `VarPtr`-Stelle** mit dem aktuellen Wert des Feldes.
+
+Der Umweg über die faule Erzeugung ist kein Geschmack. Ein Modulinitialisierer wäre die
+naheliegende Stelle, aber `IrLowerer` baut die Module nacheinander, und eine Zelle, die beim
+Lowern eines späteren Moduls entdeckt wird, passt nicht mehr in die bereits gebaute
+Globals-Liste eines früheren. Deshalb liegt die Menge der adressierten Modulvariablen am
+`IrProgram` statt am `IrModule`, und deshalb sind die Runtime-Zugriffe null-tolerant
+(`EnsureX`, `ReadXOr`, `WriteXIfPresent`): Vor dem ersten `VarPtr` ist allein das gewöhnliche
+statische Feld maßgeblich, danach die Zelle. Die vier Synchronisationsstellen des lokalen Pfads
+— Load, Store, ByRef-Adresse, Rückschreiben nach dem Aufruf — sind für `IrGlobalPlace`
+gespiegelt.
+
+Erst damit lässt sich etwas zeigen, was ein Local gar nicht kann: Eine *fremde* Prozedur, die die
+Variable gewöhnlich zuweist oder ByRef beschreibt, wird über den gespeicherten Zeiger sichtbar.
+Der x86-Lauf prüft genau das, zusätzlich zum nativen Lesen und Schreiben.
+
+Ein Befund beim Bauen, der ohne Gegenprobe unbemerkt geblieben wäre: Ein Klassenfeld ist im
+Binder ebenfalls ein `ModuleVariableSymbol` und liegt auch in der Globals-Tabelle des Lowerers —
+`LowerVariablePlace` unterscheidet es nur, weil es vorher `TryGetClassField` fragt. Ohne
+dieselbe Abfrage im `VarPtr`-Gatter bekäme ein Klassenfeld eine Zelle, für die es im Emitter
+kein Feld gibt, und aus dem ausdrücklichen Fehler 5 würde ein `VB6E0003`. Die Gegenprobe wurde
+einmal gefahren und lieferte genau diesen Emitter-Defekt; die Store- und Adress-Synchronisation
+wurden ebenso einmal gebrochen und der x86-Lauf rot gesehen.
+
+`managed-r3-pointers` bleibt `planned` / `not-yet-verified`. Von den fünf Slot-Arten des
+Abnahmeschritts 1 sind zwei bedient; ByRef-Parameter, Felder und Arrayelemente stehen aus, und
+die Familien für UDT, Variant und SAFEARRAY sind gar nicht angefasst. Die Matrixzahlen ändern
+sich dadurch nicht.

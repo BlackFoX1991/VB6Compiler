@@ -57,6 +57,13 @@ public sealed class ManagedEmitter
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrGlobal, FieldDefinitionHandle> _globalHandles =
             new(ReferenceEqualityComparer.Instance);
+
+        // Die Begleitzelle einer adressierten Modulvariablen. Sie liegt unmittelbar hinter
+        // ihrem Datenfeld, damit Reservierung und Definition dieselbe Reihenfolge sehen.
+        private readonly Dictionary<IrGlobal, FieldDefinitionHandle> _globalCellHandles =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<IrGlobal> _addressableGlobals =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrField, FieldDefinitionHandle> _fieldHandles =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrTypeDefinition, TypeDefinitionHandle> _udtHandles =
@@ -101,6 +108,10 @@ public sealed class ManagedEmitter
             _program = program;
             _options = options;
             _methodBodyStream = new MethodBodyStreamEncoder(_ilStream);
+            if (!program.AddressableGlobals.IsDefaultOrEmpty)
+            {
+                _addressableGlobals.UnionWith(program.AddressableGlobals);
+            }
         }
 
         public ManagedEmitResult Emit()
@@ -363,6 +374,10 @@ public sealed class ManagedEmitter
                     foreach (var global in plan.Module.Globals)
                     {
                         _globalHandles.Add(global, MetadataTokens.FieldDefinitionHandle(nextField++));
+                        if (HasAddressableCell(global))
+                        {
+                            _globalCellHandles.Add(global, MetadataTokens.FieldDefinitionHandle(nextField++));
+                        }
                     }
                     foreach (var method in plan.Module.Procedures)
                     {
@@ -427,6 +442,14 @@ public sealed class ManagedEmitter
                             _metadata.GetOrAddString(global.Name),
                             EncodeFieldSignature(global.Type));
                         EnsureHandle(actual, _globalHandles[global], "global field");
+                        if (_globalCellHandles.TryGetValue(global, out var cell))
+                        {
+                            var actualCell = _metadata.AddFieldDefinition(
+                                FieldAttributes.Private | FieldAttributes.Static,
+                                _metadata.GetOrAddString("__varptr_cell_" + global.Name),
+                                EncodeObjectFieldSignature());
+                            EnsureHandle(actualCell, cell, "addressable global cell");
+                        }
                     }
                 }
             }
@@ -1013,6 +1036,16 @@ public sealed class ManagedEmitter
             }
         }
 
+        /// <summary>
+        /// Whether a module variable gets its own native cell. The storage ABI is x86-only, so on
+        /// every other platform the field stays alone and VarPtr keeps reporting VB6 error 5.
+        /// </summary>
+        private bool HasAddressableCell(IrGlobal global) =>
+            _options.Platform == ManagedPlatform.X86 && _addressableGlobals.Contains(global);
+
+        private bool TryGetGlobalCell(IrGlobal global, out FieldDefinitionHandle cell) =>
+            _globalCellHandles.TryGetValue(global, out cell);
+
         private bool TryGetAddressableCell(IrProcedure procedure, IrLocal local, out IrLocal cell)
         {
             if (_options.Platform == ManagedPlatform.X86 &&
@@ -1117,6 +1150,9 @@ public sealed class ManagedEmitter
                     break;
                 case IrAddressablePointerExpression pointer:
                     EmitAddressablePointer(encoder, procedure, pointer);
+                    break;
+                case IrAddressableGlobalPointerExpression globalPointer:
+                    EmitAddressableGlobalPointer(encoder, globalPointer);
                     break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
@@ -1297,6 +1333,15 @@ public sealed class ManagedEmitter
                     encoder.LoadArgument(0);
                     break;
                 case IrGlobalPlace global:
+                    if (TryGetGlobalCell(global.Global, out var globalLoadCell))
+                    {
+                        encoder.OpCode(ILOpCode.Ldsfld);
+                        encoder.Token(globalLoadCell);
+                        encoder.OpCode(ILOpCode.Ldsfld);
+                        encoder.Token(_globalHandles[global.Global]);
+                        encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(global.Type, "ReadOr")));
+                        break;
+                    }
                     encoder.OpCode(ILOpCode.Ldsfld);
                     encoder.Token(_globalHandles[global.Global]);
                     break;
@@ -1411,6 +1456,14 @@ public sealed class ManagedEmitter
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, global.Type);
                     encoder.OpCode(ILOpCode.Stsfld);
                     encoder.Token(_globalHandles[global.Global]);
+                    if (TryGetGlobalCell(global.Global, out var globalStoreCell))
+                    {
+                        encoder.OpCode(ILOpCode.Ldsfld);
+                        encoder.Token(globalStoreCell);
+                        encoder.OpCode(ILOpCode.Ldsfld);
+                        encoder.Token(_globalHandles[global.Global]);
+                        encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(global.Type, "WriteIfPresent")));
+                    }
                     break;
                 case IrFieldPlace field:
                     // A field in a UDT is addressed through a managed pointer, which cannot be
@@ -1561,6 +1614,18 @@ public sealed class ManagedEmitter
                     encoder.LoadArgument(0);
                     break;
                 case IrGlobalPlace global:
+                    if (TryGetGlobalCell(global.Global, out var globalAddressCell))
+                    {
+                        // Wie beim Local: Der Aufgerufene schreibt in das gewoehnliche statische
+                        // Feld, also muss es vorher den Stand der nativen Zelle tragen.
+                        encoder.OpCode(ILOpCode.Ldsfld);
+                        encoder.Token(globalAddressCell);
+                        encoder.OpCode(ILOpCode.Ldsfld);
+                        encoder.Token(_globalHandles[global.Global]);
+                        encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(global.Type, "ReadOr")));
+                        encoder.OpCode(ILOpCode.Stsfld);
+                        encoder.Token(_globalHandles[global.Global]);
+                    }
                     encoder.OpCode(ILOpCode.Ldsflda);
                     encoder.Token(_globalHandles[global.Global]);
                     break;
@@ -1858,6 +1923,40 @@ public sealed class ManagedEmitter
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object))));
         }
 
+        private void EmitAddressableGlobalPointer(
+            InstructionEncoder encoder,
+            IrAddressableGlobalPointerExpression pointer)
+        {
+            if (TryGetGlobalCell(pointer.Global, out var cell))
+            {
+                // Die Zelle entsteht erst hier und uebernimmt den aktuellen Wert des Feldes. Ein
+                // Modulinitialisierer muesste dafuer ueber Modulgrenzen hinweg geordnet werden --
+                // vor dem ersten VarPtr gibt es aber gar nichts zu synchronisieren.
+                encoder.OpCode(ILOpCode.Ldsfld);
+                encoder.Token(cell);
+                encoder.OpCode(ILOpCode.Ldsfld);
+                encoder.Token(_globalHandles[pointer.Global]);
+                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pointer.Global.Type, "Ensure")));
+                encoder.OpCode(ILOpCode.Dup);
+                encoder.OpCode(ILOpCode.Stsfld);
+                encoder.Token(cell);
+                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pointer.Global.Type, "NativeAddress")));
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            // Ausserhalb von x86 gilt dieselbe Regel wie fuer Locals: lieber der ausdrueckliche
+            // VB-Fehler 5 als ein abgeschnittener Zeiger.
+            encoder.OpCode(ILOpCode.Ldsfld);
+            encoder.Token(_globalHandles[pointer.Global]);
+            if (pointer.Global.Type != TypeSymbol.String)
+            {
+                encoder.OpCode(ILOpCode.Box);
+                encoder.Token(GetTypeEntityHandle(pointer.Global.Type));
+            }
+            encoder.Call(GetRuntimeMethodReference(Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object))));
+        }
+
         private static MethodInfo AddressableStorageMethod(TypeSymbol type, string operation)
         {
             var (suffix, scalarType) = type == TypeSymbol.Boolean
@@ -1896,6 +1995,13 @@ public sealed class ManagedEmitter
                 "Read" => Static(typeof(VBAddressableStorage), "Read" + suffix, typeof(object)),
                 "NativeAddress" => Static(typeof(VBAddressableStorage), "Get" + suffix + "NativeAddress", typeof(object)),
                 "Write" => Static(typeof(VBAddressableStorage), "Write" + suffix, typeof(object), scalarType),
+                "Ensure" => Static(typeof(VBAddressableStorage), "Ensure" + suffix, typeof(object), scalarType),
+                "ReadOr" => Static(typeof(VBAddressableStorage), "Read" + suffix + "Or", typeof(object), scalarType),
+                "WriteIfPresent" => Static(
+                    typeof(VBAddressableStorage),
+                    "Write" + suffix + "IfPresent",
+                    typeof(object),
+                    scalarType),
                 _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
             };
         }
@@ -2218,6 +2324,17 @@ public sealed class ManagedEmitter
                     encoder.LoadLocal(cell.Id);
                     encoder.LoadLocal(local.Local.Id);
                     encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(local.Type, "Write")));
+                }
+
+                if (argument.Kind == IrCallArgumentKind.Address &&
+                    argument.Expression is IrAddressExpression { Place: IrGlobalPlace global } &&
+                    TryGetGlobalCell(global.Global, out var globalCell))
+                {
+                    encoder.OpCode(ILOpCode.Ldsfld);
+                    encoder.Token(globalCell);
+                    encoder.OpCode(ILOpCode.Ldsfld);
+                    encoder.Token(_globalHandles[global.Global]);
+                    encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(global.Type, "WriteIfPresent")));
                 }
 
                 if (argument.Kind == IrCallArgumentKind.Address && argument.WriteBackPlace is not null)
@@ -3154,6 +3271,18 @@ public sealed class ManagedEmitter
         {
             var blob = new BlobBuilder();
             EncodeType(new BlobEncoder(blob).FieldSignature(), type);
+            return _metadata.GetOrAddBlob(blob);
+        }
+
+        /// <summary>
+        /// The companion cell of an addressable module variable is untyped on purpose: one field
+        /// shape serves every scalar layout, and the runtime helpers already know which cell they
+        /// were handed.
+        /// </summary>
+        private BlobHandle EncodeObjectFieldSignature()
+        {
+            var blob = new BlobBuilder();
+            EncodeReflectionType(new BlobEncoder(blob).FieldSignature(), typeof(object));
             return _metadata.GetOrAddBlob(blob);
         }
 

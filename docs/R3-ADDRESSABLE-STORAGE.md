@@ -1,6 +1,6 @@
 # R3 — Adressierbarer Speicher: Entwurfsvertrag
 
-Stand: 2026-09-06. Dieses Dokument zerlegt die noch offene Karte
+Stand: 2026-09-07. Dieses Dokument zerlegt die noch offene Karte
 `managed-r3-pointers`; es erweitert weder den bereits geprüften kurzfristigen `Declare`-Pfad
 noch erklärt ihn zum Ersatz für gespeicherte Zeiger.
 
@@ -36,10 +36,45 @@ invalidiert die frühere Adresse kontrolliert; nach der Prozedurrückkehr wird d
 freigegeben. Dieser Local-Slice umfasst weder BSTR-Felder/Parameter/Arrays noch einen
 gespeicherten `VarPtr` eines String-Descriptors.
 
+Der zweite Slice nimmt dieselben Layoutfamilien für **Modulvariablen**. Der Unterschied liegt
+nicht im Layout, sondern in der Lebensdauer: Die Zelle ist ein statisches Begleitfeld unmittelbar
+hinter ihrem Datenfeld und lebt so lange wie das Programm. Sie entsteht **faul an der
+`VarPtr`-Stelle** und übernimmt dabei den aktuellen Wert des Feldes. Das ist keine Bequemlichkeit,
+sondern die einzige Stelle, an der die Zelle überhaupt entstehen kann: Der Lowerer baut die Module
+nacheinander, eine im späteren Modul entdeckte Zelle passt nicht mehr in die bereits gebaute
+Globals-Liste eines früheren, und ein Modulinitialisierer müsste über Modulgrenzen hinweg geordnet
+werden. Deshalb sind die Zugriffspfade null-tolerant: Vor dem ersten `VarPtr` ist allein das
+gewöhnliche statische Feld maßgeblich, danach die Zelle.
+
+Erst damit wird sichtbar, was ein Local nicht zeigen kann: Eine *fremde* Prozedur, die die
+Modulvariable gewöhnlich zuweist oder ByRef beschreibt, wird über den gespeicherten Zeiger
+sichtbar. Ein Klassenfeld ist ausdrücklich **nicht** dabei — im Binder ist es ebenfalls ein
+`ModuleVariableSymbol`, hat aber keinen statischen Speicherplatz und bleibt bei Fehler 5.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
 mehr nachverfolgt.
+
+## Gemessene Grenze
+
+Ein x86-Wegwerfprogramm hat die ganze Fläche abgefragt, statt sie aus dem Quelltext herzuleiten.
+Stand nach dem Modulvariablen-Slice:
+
+| Form | `VarPtr` | `StrPtr` |
+| --- | --- | --- |
+| lokaler Skalar | Zelle | — |
+| lokaler String | Fehler 5 | Zelle |
+| Modulvariable, Skalar | Zelle | — |
+| Modulvariable, String | Fehler 5 | Zelle |
+| Klassenfeld | Fehler 5 | Fehler 5 |
+| UDT-Member, ganzes UDT | Fehler 5 | Fehler 5 |
+| Arrayelement | Fehler 5 | Fehler 5 |
+| `Static`-Local | Fehler 5 | Fehler 5 |
+| Variant | Fehler 5 | Fehler 5 |
+
+Auf AnyCPU und x64 steht in jeder Zeile Fehler 5; dort wird kein `IntPtr` in einen `Long`
+abgeschnitten.
 
 ## Zielvertrag
 
@@ -90,14 +125,16 @@ dem R4-Ownership-Vertrag und darf nicht als CLR-RCW-Innenadresse erscheinen.
 
 `managed-r3-pointers` und `managed-r3-callback-abi` bleiben bis zu diesen vollständigen
 End-to-End-Probes `planned`. Die vorhandenen Callback-GC-Regressionen belegen nur Schritt 4s
-erste Haltegarantie; die neue x86-`Long`-Zelle ist nur der engste Teil von Schritt 2 und schließt
-keine der anderen Familien.
+erste Haltegarantie; die x86-Skalarzellen für Locals und Modulvariablen sind der engste Teil von
+Schritt 2 und schließen keine der anderen Familien. Von Schritt 1 sind damit zwei der fünf
+genannten Slot-Arten bedient: Locals und Globals. ByRef-Parameter, Felder und Arrayelemente
+stehen aus.
 
 Der erste Runtime-Baustein ist `VBAddressableCell<T>` für unmanaged Skalare: Er besitzt eine
 separate native Allokation, übersteht GC und lehnt Zugriffe nach `Dispose` ab. Noch keine
 allgemeine Lowering-/Emitter-Stelle erzeugt diese Zellen für eine VB6-Variable: Implementiert sind
-nur lokale `Long`-, `LongLong`-, `LongPtr`-, `Integer`-, `UShort`-, `UInteger`-, `ULong`-,
-`Byte`-, `Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots sowie
-`StrPtr(localString)` im x86-Managed-Pfad.
+die `Long`-, `LongLong`-, `LongPtr`-, `Integer`-, `UShort`-, `UInteger`-, `ULong`-, `Byte`-,
+`Boolean`-, `Single`-, `Double`-, `Date`- und `Currency`-Slots von Locals und Modulvariablen sowie
+`StrPtr` auf einem lokalen oder modulweiten String, jeweils im x86-Managed-Pfad.
 Außerhalb dieser Fälle und außerhalb des unmittelbaren `Declare`-Pfads gilt weiterhin die
 bestehende Fehler-5-Grenze für `VarPtr` und `StrPtr`.

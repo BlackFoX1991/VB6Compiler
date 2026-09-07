@@ -354,6 +354,209 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_ReportsWhyAModuleVariableVarPtrCannotAnswer()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Private total As Long
+            Private caption As String
+
+            Sub Main()
+                On Error Resume Next
+                Dim pointer As Long
+                total = 7
+                pointer = VarPtr(total)
+                Debug.Print Err.Number
+                Err.Clear
+                caption = "abc"
+                pointer = StrPtr(caption)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Die Zelle einer Modulvariablen ist genauso x86-gebunden wie die eines Locals.
+        CollectionAssert.AreEqual(new[] { "5", "5" }, output);
+    }
+
+    [TestMethod]
+    public void EmitManagedProject_LeavesAClassFieldWithoutAnAddressableCell()
+    {
+        // Ein Klassenfeld ist im Binder ebenfalls ein ModuleVariableSymbol, hat aber keinen
+        // statischen Speicherplatz. Ohne die Unterscheidung im Lowerer bekaeme es eine Zelle,
+        // fuer die es im Emitter kein Feld gibt -- und aus Fehler 5 wuerde ein Emitter-Defekt.
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerClassFieldVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "ClassFieldVarPtr.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="ClassFieldVarPtr"
+                Class=Counter; Counter.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Counter.cls"), """
+                Option Explicit
+
+                Private total As Long
+
+                Public Function PointerError() As Long
+                    Dim pointer As Long
+                    On Error Resume Next
+                    total = 7
+                    pointer = VarPtr(total)
+                    PointerError = Err.Number
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Sub Main()
+                    Dim item As New Counter
+                    Debug.Print item.PointerError()
+                End Sub
+                """);
+
+            CollectionAssert.AreEqual(
+                new[] { "5" },
+                VB6TestProgram.RunProjectLines(projectPath));
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitX86Application_KeepsAStoredModuleVariableVarPtrSynchronizedWithNativeWrites()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerStoredGlobalVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "StoredGlobalVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private total As Long
+                Private small As Integer
+                Private caption As String
+
+                Sub Bump(ByRef value As Long)
+                    value = value + 1
+                End Sub
+
+                Sub SetTotal(ByVal value As Long)
+                    total = value
+                End Sub
+
+                Sub Main()
+                    Dim destination As Long
+                    Dim pointer As Long
+
+                    total = 16909060
+                    pointer = VarPtr(total)
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    total = 123
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    destination = 84281096
+                    CopyMemory ByVal pointer, destination, 4
+                    Debug.Print total
+
+                    Bump total
+                    Debug.Print total
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    SetTotal 4711
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    Dim shortDestination As Integer
+                    Dim shortPointer As Long
+                    small = 1690
+                    shortPointer = VarPtr(small)
+                    CopyMemory shortDestination, ByVal shortPointer, 2
+                    Debug.Print shortDestination
+
+                    shortDestination = 8428
+                    CopyMemory ByVal shortPointer, shortDestination, 2
+                    Debug.Print small
+
+                    Dim character As Integer
+                    Dim stringPointer As Long
+                    caption = "abc"
+                    stringPointer = StrPtr(caption)
+                    CopyMemory character, ByVal stringPointer, 2
+                    Debug.Print character
+
+                    character = 90
+                    CopyMemory ByVal stringPointer, character, 2
+                    Debug.Print caption
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("StoredGlobalVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // Der Unterschied zum Local steht in den Zeilen vier bis sechs: Eine fremde Prozedur,
+            // die ByRef schreibt oder gewoehnlich zuweist, wird ueber den gespeicherten Zeiger
+            // sichtbar -- ein Local kann das gar nicht zeigen.
+            CollectionAssert.AreEqual(
+                new[] { "16909060", "123", "84281096", "84281097", "84281097", "4711", "1690", "8428", "97", "Zbc" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

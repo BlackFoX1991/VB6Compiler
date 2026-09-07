@@ -269,6 +269,58 @@ public sealed class ManagedEmitterTests
     }
 
     [TestMethod]
+    public void Emit_GivesAnAddressedModuleVariableALazyCompanionCell()
+    {
+        var program = Lower("""
+            Private total As Long
+
+            Sub Bump(ByRef value As Long)
+                value = value + 1
+            End Sub
+
+            Sub Main()
+                Dim pointer As Long
+                total = 7
+                pointer = VarPtr(total)
+                Bump total
+                Debug.Print total
+            End Sub
+            """);
+
+        var emitter = new ManagedEmitter();
+        var x86 = emitter.Emit(program, new ManagedEmitOptions(
+            "GlobalVarPtrX86",
+            Platform: ManagedPlatform.X86,
+            EmitPortablePdb: false));
+        var anyCpu = emitter.Emit(program, new ManagedEmitOptions(
+            "GlobalVarPtrAnyCpu",
+            Platform: ManagedPlatform.AnyCpu,
+            EmitPortablePdb: false));
+
+        Assert.IsTrue(x86.Success, string.Join(Environment.NewLine, x86.Diagnostics));
+        Assert.IsTrue(anyCpu.Success, string.Join(Environment.NewLine, anyCpu.Diagnostics));
+
+        // Die Zelle wird nicht im Modulinitialisierer angelegt, sondern an der VarPtr-Stelle --
+        // deshalb Ensure statt Create, und deshalb sind Lesen und Schreiben null-tolerant.
+        CollectionAssert.IsSubsetOf(
+            new[]
+            {
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.EnsureInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetInt32NativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadInt32Or)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteInt32IfPresent))
+            },
+            RuntimeMemberNames(x86.PeImage!));
+        CollectionAssert.Contains(FieldNames(x86.PeImage!), "__varptr_cell_total");
+
+        // Auf AnyCPU bleibt es beim Feld allein und beim ausdruecklichen VB-Fehler 5.
+        var anyCpuMethods = RuntimeMemberNames(anyCpu.PeImage!);
+        Assert.IsFalse(anyCpuMethods.Any(method => method.Parent == nameof(VBAddressableStorage)));
+        Assert.IsTrue(anyCpuMethods.Contains((nameof(VBMemory), nameof(VBMemory.VarPtr))));
+        CollectionAssert.DoesNotContain(FieldNames(anyCpu.PeImage!), "__varptr_cell_total");
+    }
+
+    [TestMethod]
     public void Emit_IsDeterministicForSameInput()
     {
         var program = Lower("""
@@ -539,6 +591,16 @@ public sealed class ManagedEmitterTests
         {
             new IrModuleInput("Module1", "Module1.bas", analysis.SemanticModel!)
         });
+    }
+
+    private static string[] FieldNames(byte[] image)
+    {
+        using var stream = new MemoryStream(image, writable: false);
+        using var pe = new PEReader(stream);
+        var metadata = pe.GetMetadataReader();
+        return metadata.FieldDefinitions
+            .Select(handle => metadata.GetString(metadata.GetFieldDefinition(handle).Name))
+            .ToArray();
     }
 
     private static (string Parent, string Name)[] RuntimeMemberNames(byte[] image)

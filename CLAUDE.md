@@ -36,7 +36,16 @@ beim Messen gefunden wurden.
 R2 ist geschlossen: Terminate beim Wegfall der letzten Referenz, mit dem nativen Zähler gegen eine
 testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adoption und Freigabe
 übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am Leben hält. Details in
-`docs/R2-OBJECT-LIFETIME.md`. Nächste Karte ist `managed-r3-pointers`.
+`docs/R2-OBJECT-LIFETIME.md`.
+
+Aktive Karte ist `managed-r3-pointers`. Gespeicherte `VarPtr`/`StrPtr` tragen im x86-Pfad zwei
+Speicherfamilien: Locals und Modulvariablen. Die Zelle einer Modulvariablen ist ein statisches
+Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module
+nacheinander, eine später entdeckte Zelle passt nicht mehr in ein früheres Modul, und ein
+Modulinitialisierer müsste über Modulgrenzen geordnet werden. Deshalb sind die Runtime-Zugriffe
+null-tolerant. Ein Klassenfeld ist im Binder ebenfalls ein `ModuleVariableSymbol`, hat aber keinen
+statischen Speicherplatz: Ohne diese Unterscheidung im Lowerer wird aus Fehler 5 ein
+Emitter-Defekt. Gemessene Grenztabelle in `docs/R3-ADDRESSABLE-STORAGE.md`.
 
 **Auf Eis gelegt — nicht ohne ausdrückliche Ansage anfassen:**
 

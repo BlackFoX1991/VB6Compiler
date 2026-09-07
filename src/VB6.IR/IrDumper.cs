@@ -98,6 +98,7 @@ public static class IrDumper
         IrAddressExpression address => $"addr {FormatPlace(address.Place)}",
         IrLocalAddressExpression address => $"addr-local %{address.Local.Name}",
         IrAddressablePointerExpression pointer => $"native-addr %{pointer.Local.Name}",
+        IrAddressableGlobalPointerExpression pointer => $"native-addr @{pointer.Global.Name}",
         IrRuntimeCallExpression call => $"runtime::{call.Method}(...) ",
         IrProcedureCallExpression call => $"call {call.Procedure.Name}(...) ",
         IrSyntheticCallExpression call => $"call {call.Procedure.Name}(...) ",

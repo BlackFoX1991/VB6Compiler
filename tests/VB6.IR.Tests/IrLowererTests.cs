@@ -382,6 +382,52 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredVarPtrForAModuleVariableRecordsAnAddressableGlobal()
+    {
+        var program = Lower("""
+            Private total As Long
+
+            Sub Main()
+                Dim pointer As Long
+                total = 7
+                pointer = VarPtr(total)
+            End Sub
+            """);
+        var main = program.EntryPoint!;
+
+        // Die Zelle einer Modulvariablen ist kein Local -- sie gehoert dem Programm, weil der
+        // Emitter sie als statisches Feld anlegt.
+        Assert.IsNull(main.AddressableCells);
+        var global = program.AddressableGlobals.Single();
+        Assert.AreEqual(TypeSymbol.Long, global.Type);
+
+        var pointer = main.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .OfType<IrAddressableGlobalPointerExpression>()
+            .Single();
+        Assert.AreSame(global, pointer.Global);
+        Assert.AreEqual(TypeSymbol.Long, pointer.ResultType);
+    }
+
+    [TestMethod]
+    public void Lower_StrPtrForAModuleStringRecordsAnAddressableGlobal()
+    {
+        var program = Lower("""
+            Private caption As String
+
+            Sub Main()
+                Dim pointer As Long
+                caption = "abc"
+                pointer = StrPtr(caption)
+            End Sub
+            """);
+
+        Assert.AreEqual(TypeSymbol.String, program.AddressableGlobals.Single().Type);
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""

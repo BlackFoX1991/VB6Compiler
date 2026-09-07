@@ -22,7 +22,14 @@ public sealed record IrProgram(
     ImmutableArray<IrTypeDefinition> TypeDefinitions,
     IrProcedure? EntryPoint,
     ImmutableArray<IrClassDefinition> ClassDefinitions = default,
-    VBCompatibilityProfile CompatibilityProfile = VBCompatibilityProfile.Deterministic) : IrNode;
+    VBCompatibilityProfile CompatibilityProfile = VBCompatibilityProfile.Deterministic,
+    /// <summary>
+    /// Module-level variables whose address was taken. Their companion storage cells are static
+    /// fields the emitter synthesizes; the set is program-level and not part of IrModule because
+    /// a cell discovered while lowering a later module can no longer be appended to an earlier
+    /// module that has already been built.
+    /// </summary>
+    ImmutableArray<IrGlobal> AddressableGlobals = default) : IrNode;
 
 public sealed record IrModule(
     string Name,
@@ -257,6 +264,16 @@ public sealed record IrAddressOfExpression(
 public sealed record IrAddressablePointerExpression(
     IrLocal Local,
     IrLocal Cell,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
+/// <summary>
+/// A classic x86 pointer to a module-level variable backed by separately allocated native
+/// storage. The cell is a static companion field created lazily at this very site and seeded
+/// with the variable's current value, so no module-initializer order has to be settled first.
+/// </summary>
+public sealed record IrAddressableGlobalPointerExpression(
+    IrGlobal Global,
     TypeSymbol ResultType)
     : IrExpression(ResultType);
 
