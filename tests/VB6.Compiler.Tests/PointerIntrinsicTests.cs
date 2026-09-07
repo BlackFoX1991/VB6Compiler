@@ -1066,6 +1066,253 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitX86Application_KeepsAnImmediateDeclarePointerAndAStoredOneOnTheSameStorage()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerImmediateAndStoredVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            // Ein Speicherplatz kann beide Formen tragen: den unmittelbaren ByVal VarPtr(x) eines
+            // Declare und einen gespeicherten Zeiger. Der unmittelbaren Form fehlte das
+            // Rueckschreiben in die Zelle, weil sie die Vorgabe-Argumentart traegt statt Address --
+            // ihr Schreibzugriff ging dadurch verloren, sobald derselbe Platz eine Zelle hatte.
+            var assemblyPath = Path.Combine(directory, "ImmediateAndStoredVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private globalWert As Long
+
+                Sub Main()
+                    Dim lokal As Long
+                    Dim gespeichert As Long
+                    Dim z As Long
+
+                    lokal = 1
+                    gespeichert = VarPtr(lokal)
+                    z = 99
+                    CopyMemory ByVal VarPtr(lokal), z, 4
+                    Debug.Print lokal
+                    z = 0
+                    CopyMemory z, ByVal gespeichert, 4
+                    Debug.Print z
+
+                    globalWert = 1
+                    gespeichert = VarPtr(globalWert)
+                    z = 77
+                    CopyMemory ByVal VarPtr(globalWert), z, 4
+                    Debug.Print globalWert
+                    z = 0
+                    CopyMemory z, ByVal gespeichert, 4
+                    Debug.Print z
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("ImmediateAndStoredVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[] { "99", "99", "77", "77" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitX86Project_GivesEveryInstanceItsOwnPrivateFieldCell()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerFieldVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "FieldVarPtr.vbp");
+            File.WriteAllText(projectPath, """
+                Type=Exe
+                Startup="Sub Main"
+                Name="FieldVarPtr"
+                Class=Puffer; Puffer.cls
+                Module=MainModule; MainModule.bas
+                """);
+            File.WriteAllText(Path.Combine(directory, "Puffer.cls"), """
+                Option Explicit
+
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private wert As Long
+                Private text As String
+                Public offen As Long
+
+                Private Sub Setze(ByRef ziel As Long)
+                    ziel = 4711
+                End Sub
+
+                Public Function Zeiger() As Long
+                    wert = 16909060
+                    Zeiger = VarPtr(wert)
+                End Function
+
+                Public Function LiesUeberZeiger() As Long
+                    Dim z As Long
+                    CopyMemory z, ByVal VarPtr(wert), 4
+                    LiesUeberZeiger = z
+                End Function
+
+                Public Sub SchreibeUeberZeiger(ByVal neu As Long)
+                    CopyMemory ByVal VarPtr(wert), neu, 4
+                End Sub
+
+                Public Function Adresse() As Long
+                    Adresse = VarPtr(wert)
+                End Function
+
+                Public Function LiesWert() As Long
+                    LiesWert = wert
+                End Function
+
+                Public Sub SetzeUeberByRef()
+                    Setze wert
+                End Sub
+
+                Public Function TextZeiger() As Long
+                    text = "abc"
+                    TextZeiger = StrPtr(text)
+                End Function
+
+                Public Function OffenerZeigerFehler() As Long
+                    Dim z As Long
+                    On Error Resume Next
+                    z = VarPtr(offen)
+                    OffenerZeigerFehler = Err.Number
+                End Function
+                """);
+            File.WriteAllText(Path.Combine(directory, "MainModule.bas"), """
+                Option Explicit
+
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Sub Main()
+                    Dim p As New Puffer
+                    Dim q As New Puffer
+
+                    Debug.Print (p.Zeiger() <> 0)
+                    Debug.Print p.LiesUeberZeiger()
+
+                    p.SchreibeUeberZeiger 99
+                    Debug.Print p.LiesWert()
+
+                    p.SetzeUeberByRef
+                    Debug.Print p.LiesWert()
+                    Debug.Print p.LiesUeberZeiger()
+
+                    Dim z As Long
+                    z = 12345
+                    CopyMemory ByVal p.Adresse(), z, 4
+                    Debug.Print p.LiesWert()
+                    Debug.Print p.LiesUeberZeiger()
+
+                    Debug.Print (p.Zeiger() <> q.Zeiger())
+                    Debug.Print (p.TextZeiger() <> 0)
+                    Debug.Print p.OffenerZeigerFehler()
+                End Sub
+                """);
+
+            var assemblyPath = Path.Combine(directory, "FieldVarPtr.dll");
+            var result = VBProjectCompilation.Create(projectPath).EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("FieldVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(
+                result.Success,
+                string.Join(Environment.NewLine, result.Lowering.Analysis.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // Die letzte Zeile ist die Grenze: Ein Public-Feld bleibt bei Fehler 5, weil die spaete
+            // Bindung es per Reflection direkt aus dem CLR-Feld liest und eine Zelle daneben dort
+            // unsichtbar waere. Die vorletzte: jede Instanz hat ihre eigene Zelle.
+            CollectionAssert.AreEqual(
+                new[] { "True", "16909060", "99", "4711", "4711", "12345", "12345", "True", "True", "5" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

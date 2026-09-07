@@ -29,7 +29,14 @@ public sealed record IrProgram(
     /// a cell discovered while lowering a later module can no longer be appended to an earlier
     /// module that has already been built.
     /// </summary>
-    ImmutableArray<IrGlobal> AddressableGlobals = default) : IrNode;
+    ImmutableArray<IrGlobal> AddressableGlobals = default,
+
+    /// <summary>
+    /// Private instance fields whose address was taken. Their companion cell is an instance
+    /// field beside the data field; it is freed by its own finalizer once the object it belongs
+    /// to is gone, which is the point past which VB6 does not define the pointer either.
+    /// </summary>
+    ImmutableArray<IrField> AddressableFields = default) : IrNode;
 
 public sealed record IrModule(
     string Name,
@@ -309,6 +316,18 @@ public sealed record IrAddressableParameterPointerExpression(
 /// will not move it again. An array reference travels, so a copy beside it could not be kept
 /// in step.
 /// </summary>
+/// <summary>
+/// A classic x86 pointer to a private instance field. The receiver is always <c>Me</c>: a
+/// public field is bound as a property from outside, so a field access from anywhere else does
+/// not reach this form.
+/// </summary>
+public sealed record IrAddressableFieldPointerExpression(
+    ClassTypeSymbol ClassType,
+    IrField Field,
+    TypeSymbol ResultType,
+    string? MemberPath = null)
+    : IrExpression(ResultType);
+
 public sealed record IrAddressableArrayPointerExpression(
     IrExpression Array,
     IrExpression Index,

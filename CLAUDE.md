@@ -50,7 +50,12 @@ Arrayreferenz reist, eine fremde Prozedur schreibt in dasselbe Objekt, und ein A
 würde dabei stillschweigend veralten. Stattdessen macht `VBArray<T>` beim ersten Zeiger seinen
 einen Speicher unbeweglich (Pinned Object Heap); die Elemente werden ohnehin als `ref T`
 herausgereicht, also gibt es danach keine Synchronisationsstelle mehr. Nur eindimensional:
-mehrdimensional ist die Reihenfolge hier zeilenweise, die eines SAFEARRAY spaltenweise. Ein
+mehrdimensional ist die Reihenfolge hier zeilenweise, die eines SAFEARRAY spaltenweise.
+
+Ein **privates Instanzfeld** verhält sich wie eine Modulvariable, nur pro Objekt; der Empfänger
+ist immer `Me`, weil ein `Public`-Feld von außen als Property gebunden wird. `Public` bleibt bei
+Fehler 5, weil `VBDynamicDispatch` so ein Feld per Reflection direkt liest und eine Zelle daneben
+dort unsichtbar wäre. Ein
 ByRef-Parameter bleibt ausdrücklich bei Fehler 5 — sein `VarPtr` müsste die Adresse des Aufrufers
 liefern, und eine eigene Zelle im Aufgerufenen wäre eine zweite, entkoppelte Kopie. Die Zelle einer Modulvariablen ist ein statisches
 Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module
@@ -321,6 +326,13 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   ab — dieselbe Nummer, die „diese Speicherfamilie ist noch nicht implementiert" bedeutet. Der
   Befund sah deshalb wie eine offene Karte aus statt wie ein Defekt. Wer ein Feld neben ein
   bestehendes synthetisiert, gibt ihm dessen Zugriffsmaske, nicht die engste.
+- **Ein Speicherplatz kann beide `VarPtr`-Formen tragen.** Der unmittelbare `ByVal VarPtr(x)` eines
+  `Declare` reicht die *verwaltete* Adresse des Platzes weiter, nicht die seiner Zelle — der
+  Aufgerufene schreibt also in den CLR-Platz, und die Zelle muss danach nachgezogen werden. Das
+  Rückschreiben hing an `IrCallArgumentKind.Address`, die unmittelbare Form trägt aber die
+  Vorgabeart: Ihr Schreibzugriff ging still verloren, sobald derselbe Platz auch einen
+  gespeicherten Zeiger hatte. Maßgeblich ist die Form des Ausdrucks (`IrAddressExpression`), nicht
+  die Argumentart. Wer eine neue Speicherfamilie ergänzt, prüft beide Formen auf demselben Platz.
 - **Eine Form hat eine Default-Instanz, ein UserControl nicht.** `frmMain.Show` ohne `New` ist die
   übliche VB6-Art, ein zweites Fenster zu öffnen — die Form trägt `VB_PredeclaredId`, ihr Name ist
   eine Instanz. Im Compiler ist das ein globales `As New` (`VBProjectCompilation`), genau wie bei

@@ -8077,3 +8077,52 @@ Deskriptor, nicht die Daten; das ist ein anderer Vertrag.
 
 `managed-r3-pointers` bleibt `planned`. Offen sind ByRef-Parameter, Klassenfelder, Variants,
 Datensätze mit eigenem Nebenspeicher, mehrdimensionale Arrays und das ganze Array.
+
+## 2026-09-07 — R3, Schnitt 29: private Instanzfelder, und ein Defekt der Schnitte davor
+
+Ein privates Instanzfeld verhält sich wie eine Modulvariable, nur pro Objekt: Die Zelle ist ein
+Instanzfeld neben dem Datenfeld, entsteht faul an der `VarPtr`-Stelle und wird von ihrem eigenen
+Finalizer freigegeben, wenn das Objekt weg ist. Weiter reicht VB6s Zusage für den Zeiger ohnehin
+nicht, also braucht es dafür keine eigene Lebensdauermaschinerie.
+
+Der Empfänger ist immer `Me`. Das ist kein Zufall und keine Einschränkung, die man später
+aufheben müsste: Ein `Public`-Feld wird von außen als Property gebunden, ein Feldzugriff von
+anderswo erreicht diese Form gar nicht. Damit entfällt die Frage, wie ein zusammengesetzter
+Empfänger zweimal ausgewertet würde — `ldarg.0` ist wiederholbar.
+
+Ein **`Public`-Feld** bleibt bei Fehler 5, und zwar aus einem inhaltlichen Grund: Die späte
+Bindung liest so ein Feld per Reflection direkt aus dem CLR-Feld (`VBDynamicDispatch`, siehe die
+Falle in `CLAUDE.md`). Eine Zelle daneben wäre auf diesem Weg unsichtbar, und der Zeiger zeigte
+auf etwas, das ein spät gebundener Schreibzugriff nie erreicht.
+
+### Der Defekt, den das Messen herausgeholt hat
+
+Die erste Messung zeigte, dass ein `CopyMemory ByVal VarPtr(feld), neu, 4` nicht ankam. Die
+Ursache liegt nicht bei den Feldern, sondern bei allen bisherigen Zellen-Familien.
+
+Ein Speicherplatz kann beide Zeigerformen tragen: den unmittelbaren `ByVal VarPtr(x)` eines
+`Declare` und einen gespeicherten Zeiger. Die unmittelbare Form reicht die **verwaltete** Adresse
+des Platzes weiter, nicht die der Zelle; der Aufgerufene schreibt also in den CLR-Platz, und die
+Zelle muss danach nachgezogen werden. Genau das tat das Rückschreiben nicht, weil es an
+`IrCallArgumentKind.Address` hing — und `LowerAnyPointerArgument` gibt der unmittelbaren Form die
+Vorgabeart. Der Schreibzugriff ging still verloren, sobald derselbe Platz auch eine Zelle hatte.
+
+Nachgemessen für Locals und Modulvariablen: `lokal` blieb bei 1, obwohl 99 geschrieben wurde —
+und der gespeicherte Zeiger las ebenfalls 1, weil beide Seiten die Zelle sahen und der
+Schreibzugriff im CLR-Platz verschwand. Maßgeblich ist jetzt die Form des Ausdrucks
+(`IrAddressExpression`), nicht die Argumentart. Der Fall hat einen eigenen Ausführungstest, der
+gegen die alte Bedingung rot wird.
+
+Das ist derselbe Fehlertyp wie schon zweimal in dieser Etappe: Die Zelle war da, der Lowerer
+stimmte, und trotzdem kam nichts an — sichtbar nur im Lauf, nicht beim Lesen. Der Eintrag in
+`CLAUDE.md` sagt jetzt, dass eine neue Speicherfamilie **beide** Formen auf demselben Platz
+prüfen muss.
+
+Drei Synchronisationsstellen für Feldzugriffe wurden je einmal gebrochen und rot gesehen; für die
+Adress-Stelle musste der Test dafür erst erweitert werden, weil er den gespeicherten Zeiger gar
+nicht zum Schreiben benutzt hatte und deshalb beide Speicher immer im Gleichstand waren.
+
+`managed-r3-pointers` bleibt `planned`. Von den fünf Slot-Arten des Abnahmeschritts 1 sind vier
+bedient: Locals, Globals, Felder und Arrayelemente. Offen ist der ByRef-Parameter, dazu
+Public-Felder, Variants, mehrdimensionale Arrays, ganze Arrays und Datensätze mit eigenem
+Nebenspeicher.

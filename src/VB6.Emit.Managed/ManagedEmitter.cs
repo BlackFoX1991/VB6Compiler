@@ -64,6 +64,10 @@ public sealed class ManagedEmitter
             new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<IrGlobal> _addressableGlobals =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<IrField, FieldDefinitionHandle> _fieldCellHandles =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<IrField> _addressableFields =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrField, FieldDefinitionHandle> _fieldHandles =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrTypeDefinition, TypeDefinitionHandle> _udtHandles =
@@ -111,6 +115,11 @@ public sealed class ManagedEmitter
             if (!program.AddressableGlobals.IsDefaultOrEmpty)
             {
                 _addressableGlobals.UnionWith(program.AddressableGlobals);
+            }
+
+            if (!program.AddressableFields.IsDefaultOrEmpty)
+            {
+                _addressableFields.UnionWith(program.AddressableFields);
             }
         }
 
@@ -358,6 +367,10 @@ public sealed class ManagedEmitter
                     foreach (var field in plan.Class.Fields)
                     {
                         _fieldHandles.Add(field, MetadataTokens.FieldDefinitionHandle(nextField++));
+                        if (HasAddressableCell(field))
+                        {
+                            _fieldCellHandles.Add(field, MetadataTokens.FieldDefinitionHandle(nextField++));
+                        }
                     }
                     foreach (var method in plan.Class.Methods)
                     {
@@ -431,6 +444,14 @@ public sealed class ManagedEmitter
                             _metadata.GetOrAddString(field.Name),
                             EncodeFieldSignature(field.Type));
                         EnsureHandle(actual, _fieldHandles[field], "class field");
+                        if (_fieldCellHandles.TryGetValue(field, out var fieldCell))
+                        {
+                            var actualFieldCell = _metadata.AddFieldDefinition(
+                                FieldAttributes.Private,
+                                _metadata.GetOrAddString("__varptr_cell_" + field.Name),
+                                EncodeObjectFieldSignature());
+                            EnsureHandle(actualFieldCell, fieldCell, "addressable field cell");
+                        }
                     }
                 }
                 else if (plan.Module is not null)
@@ -1050,6 +1071,17 @@ public sealed class ManagedEmitter
             _globalCellHandles.TryGetValue(global, out cell);
 
         /// <summary>
+        /// Whether a private instance field gets its own native cell. Like every other storage
+        /// family this is x86 only; elsewhere the field stands alone and VarPtr keeps reporting
+        /// VB6 error 5.
+        /// </summary>
+        private bool HasAddressableCell(IrField field) =>
+            _options.Platform == ManagedPlatform.X86 && _addressableFields.Contains(field);
+
+        private bool TryGetFieldCell(IrField field, out FieldDefinitionHandle cell) =>
+            _fieldCellHandles.TryGetValue(field, out cell);
+
+        /// <summary>
         /// Copies a slot back into the native cell that stands for it, if it has one. A member
         /// place is followed to the record it belongs to: the cell always covers the whole
         /// record, so a write anywhere inside it has to be pushed back as a whole.
@@ -1062,6 +1094,22 @@ public sealed class ManagedEmitter
             var root = place;
             while (root is IrFieldPlace field)
             {
+                if (TryGetFieldCell(field.Field, out var fieldCell))
+                {
+                    // Der Empfaenger darf zweimal ausgewertet werden: Eine Feldzelle entsteht nur
+                    // ueber Me, weil ein Public-Feld von aussen als Property gebunden wird.
+                    EmitFieldReceiver(encoder, procedure, field.Receiver);
+                    encoder.OpCode(ILOpCode.Ldfld);
+                    encoder.Token(fieldCell);
+                    EmitFieldReceiver(encoder, procedure, field.Receiver);
+                    encoder.OpCode(ILOpCode.Ldfld);
+                    encoder.Token(_fieldHandles[field.Field]);
+                    EmitAddressableCellBox(encoder, field.Type);
+                    encoder.Call(GetRuntimeMethodReference(
+                        AddressableStorageMethod(field.Type, "WriteIfPresent")));
+                    return;
+                }
+
                 root = field.Receiver;
             }
 
@@ -1239,6 +1287,9 @@ public sealed class ManagedEmitter
                     break;
                 case IrAddressableArrayPointerExpression arrayPointer:
                     EmitAddressableArrayPointer(encoder, procedure, arrayPointer);
+                    break;
+                case IrAddressableFieldPointerExpression fieldPointer:
+                    EmitAddressableFieldPointer(encoder, fieldPointer);
                     break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
@@ -1443,6 +1494,20 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
+                    if (TryGetFieldCell(field.Field, out var fieldLoadCell))
+                    {
+                        EmitFieldReceiver(encoder, procedure, field.Receiver);
+                        encoder.OpCode(ILOpCode.Ldfld);
+                        encoder.Token(fieldLoadCell);
+                        EmitFieldReceiver(encoder, procedure, field.Receiver);
+                        encoder.OpCode(ILOpCode.Ldfld);
+                        encoder.Token(_fieldHandles[field.Field]);
+                        EmitAddressableCellBox(encoder, field.Type);
+                        encoder.Call(GetRuntimeMethodReference(
+                            AddressableStorageMethod(field.Type, "ReadOr")));
+                        EmitAddressableCellCast(encoder, field.Type);
+                        break;
+                    }
                     EmitFieldReceiver(encoder, procedure, field.Receiver);
                     encoder.OpCode(ILOpCode.Ldfld);
                     encoder.Token(_fieldHandles[field.Field]);
@@ -1752,6 +1817,24 @@ public sealed class ManagedEmitter
                     encoder.Token(_globalHandles[global.Global]);
                     break;
                 case IrFieldPlace field:
+                    if (TryGetFieldCell(field.Field, out var fieldAddressCell))
+                    {
+                        // Wie bei den anderen Familien: Der Aufgerufene schreibt in das
+                        // gewoehnliche Feld, also muss es vorher den Stand der Zelle tragen.
+                        EmitFieldReceiver(encoder, procedure, field.Receiver);
+                        EmitFieldReceiver(encoder, procedure, field.Receiver);
+                        encoder.OpCode(ILOpCode.Ldfld);
+                        encoder.Token(fieldAddressCell);
+                        EmitFieldReceiver(encoder, procedure, field.Receiver);
+                        encoder.OpCode(ILOpCode.Ldfld);
+                        encoder.Token(_fieldHandles[field.Field]);
+                        EmitAddressableCellBox(encoder, field.Type);
+                        encoder.Call(GetRuntimeMethodReference(
+                            AddressableStorageMethod(field.Type, "ReadOr")));
+                        EmitAddressableCellCast(encoder, field.Type);
+                        encoder.OpCode(ILOpCode.Stfld);
+                        encoder.Token(_fieldHandles[field.Field]);
+                    }
                     EmitFieldReceiver(encoder, procedure, field.Receiver);
                     encoder.OpCode(ILOpCode.Ldflda);
                     encoder.Token(_fieldHandles[field.Field]);
@@ -2082,6 +2165,51 @@ public sealed class ManagedEmitter
         /// An array element needs no cell of its own: the array holds the only storage, and the
         /// runtime makes that storage immovable when the first pointer is asked for.
         /// </summary>
+        private void EmitAddressableFieldPointer(
+            InstructionEncoder encoder,
+            IrAddressableFieldPointerExpression pointer)
+        {
+            var data = _fieldHandles[pointer.Field];
+            if (TryGetFieldCell(pointer.Field, out var cell))
+            {
+                // Der Empfaenger ist immer Me, also ist ldarg.0 wiederholbar und nebenwirkungsfrei.
+                // Die Zelle wird -- wie bei einer Modulvariablen -- erst hier erzeugt und mit dem
+                // aktuellen Feldwert bestueckt; freigegeben wird sie vom eigenen Finalizer, wenn
+                // das Objekt weg ist. Weiter reicht die VB6-Zusage fuer den Zeiger ohnehin nicht.
+                encoder.LoadArgument(0);
+                encoder.LoadArgument(0);
+                encoder.OpCode(ILOpCode.Ldfld);
+                encoder.Token(cell);
+                encoder.LoadArgument(0);
+                encoder.OpCode(ILOpCode.Ldfld);
+                encoder.Token(data);
+                EmitAddressableCellBox(encoder, pointer.Field.Type);
+                encoder.Call(GetRuntimeMethodReference(
+                    AddressableStorageMethod(pointer.Field.Type, "Ensure")));
+                encoder.OpCode(ILOpCode.Stfld);
+                encoder.Token(cell);
+
+                encoder.LoadArgument(0);
+                encoder.OpCode(ILOpCode.Ldfld);
+                encoder.Token(cell);
+                EmitAddressableCellAddress(encoder, pointer.Field.Type, pointer.MemberPath);
+                return;
+            }
+
+            encoder.LoadArgument(0);
+            encoder.OpCode(ILOpCode.Ldfld);
+            encoder.Token(data);
+            if (pointer.Field.Type != TypeSymbol.String)
+            {
+                encoder.OpCode(ILOpCode.Box);
+                encoder.Token(GetTypeEntityHandle(pointer.Field.Type));
+            }
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBMemory),
+                nameof(VBMemory.VarPtr),
+                typeof(object))));
+        }
+
         private void EmitAddressableArrayPointer(
             InstructionEncoder encoder,
             IrProcedure procedure,
@@ -2552,8 +2680,10 @@ public sealed class ManagedEmitter
 
             foreach (var argument in call.Arguments)
             {
-                if (argument.Kind == IrCallArgumentKind.Address &&
-                    argument.Expression is IrAddressExpression address)
+                // Die Form des Ausdrucks entscheidet, nicht die Argumentart: Ein unmittelbares
+                // ByVal VarPtr(x) eines Declare reicht ebenfalls eine Adresse weiter, traegt aber
+                // die Vorgabeart. Ohne diesen Fall ginge sein Schreibzugriff an der Zelle vorbei.
+                if (argument.Expression is IrAddressExpression address)
                 {
                     // A CLR ByRef call writes to the ordinary slot. Keep the separately-owned
                     // native cell authoritative again before the stored pointer can be observed.

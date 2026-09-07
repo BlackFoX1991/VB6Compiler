@@ -118,6 +118,32 @@ hier zeilenweise, die eines VB6-SAFEARRAY spaltenweise — ein Zeiger über den 
 irreführend. Und `VarPtr` auf das **ganze Array** trifft in VB6 den Deskriptor, nicht die Daten;
 das ist ein eigener Vertrag, nicht dieser.
 
+Der sechste Slice nimmt das **private Instanzfeld**. Es verhält sich wie eine Modulvariable, nur
+pro Objekt: Die Zelle ist ein Instanzfeld neben dem Datenfeld, entsteht faul an der
+`VarPtr`-Stelle und wird von ihrem eigenen Finalizer freigegeben, wenn das Objekt weg ist —
+weiter reicht VB6s Zusage für den Zeiger ohnehin nicht.
+
+Der Empfänger ist dabei immer `Me`. Ein `Public`-Feld wird von außen als Property gebunden, ein
+Feldzugriff von anderswo erreicht diese Form also gar nicht — womit auch die Frage entfällt, wie
+ein zusammengesetzter Empfänger zweimal ausgewertet würde.
+
+Ein **`Public`-Feld** bleibt ausdrücklich bei Fehler 5, und zwar nicht aus Aufwandsgründen: Die
+späte Bindung liest ein öffentliches Feld per Reflection direkt aus dem CLR-Feld
+(`VBDynamicDispatch`). Eine Zelle daneben wäre auf diesem Weg unsichtbar, und der Zeiger zeigte
+auf etwas, das ein spät gebundener Schreibzugriff nie erreicht.
+
+### Ein Speicherplatz, zwei Zeigerformen
+
+Beim Messen dieses Slices kam ein Defekt der vorherigen heraus. Ein Speicherplatz kann beide
+Formen tragen: den unmittelbaren `ByVal VarPtr(x)` eines `Declare` und einen gespeicherten
+Zeiger. Die unmittelbare Form reicht die *verwaltete* Adresse des Speicherplatzes weiter, nicht
+die der Zelle — der Aufgerufene schreibt also in den CLR-Platz. Das Rückschreiben in die Zelle
+hing aber an `IrCallArgumentKind.Address`, und die unmittelbare Form trägt die Vorgabeart. Ihr
+Schreibzugriff ging deshalb verloren, sobald derselbe Platz eine Zelle hatte.
+
+Maßgeblich ist jetzt die Form des Ausdrucks (`IrAddressExpression`), nicht die Argumentart. Der
+Fall betraf Locals und Modulvariablen genauso und hat einen eigenen Ausführungstest.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -141,8 +167,9 @@ Stand nach dem Modulvariablen-Slice:
 | Arrayelement, eindimensional | unbeweglich | — |
 | Arrayelement, mehrdimensional | Fehler 5 | Fehler 5 |
 | ganzes Array | Fehler 5 | Fehler 5 |
+| Private Instanzfeld | Zelle | Zelle |
+| Public Instanzfeld | Fehler 5 | Fehler 5 |
 | ByRef-Parameter | Fehler 5 | Fehler 5 |
-| Klassenfeld | Fehler 5 | Fehler 5 |
 | Variant | Fehler 5 | Fehler 5 |
 
 Auf AnyCPU und x64 steht in jeder Zeile Fehler 5; dort wird kein `IntPtr` in einen `Long`

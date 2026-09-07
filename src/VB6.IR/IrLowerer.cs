@@ -43,6 +43,7 @@ public static class IrLowerer
         // Programmweit, weil eine erst im spaeteren Modul entdeckte Zelle nicht mehr in die
         // bereits gebaute Globals-Liste eines frueheren Moduls passt.
         private readonly List<IrGlobal> _addressableGlobals = [];
+        private readonly List<IrField> _addressableFields = [];
         private readonly Dictionary<ModuleVariableSymbol, BoundExpression> _constantValues =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<string, BoundExpression> _constantValuesByName =
@@ -221,7 +222,8 @@ public static class IrLowerer
                 entryPoint,
                 classes.ToImmutable(),
                 _compatibilityProfile,
-                _addressableGlobals.ToImmutableArray());
+                _addressableGlobals.ToImmutableArray(),
+                _addressableFields.ToImmutableArray());
         }
 
         /// <summary>
@@ -245,6 +247,15 @@ public static class IrLowerer
             if (!_addressableGlobals.Contains(global))
             {
                 _addressableGlobals.Add(global);
+            }
+        }
+
+        /// <summary>Records that the address of a private instance field was taken.</summary>
+        public void MarkAddressableField(IrField field)
+        {
+            if (!_addressableFields.Contains(field))
+            {
+                _addressableFields.Add(field);
             }
         }
 
@@ -4425,6 +4436,22 @@ public static class IrLowerer
                         pointer = new IrAddressableParameterPointerExpression(
                             parameter,
                             parameterCell,
+                            TypeSymbol.Long,
+                            memberPath);
+                        return true;
+
+                    // Nur Private: Ein Public-Feld wird von aussen als Property gebunden, und die
+                    // spaete Bindung liest es per Reflection direkt aus dem CLR-Feld. Eine Zelle
+                    // daneben waere auf diesem Weg unsichtbar und damit veraltet.
+                    case ModuleVariableSymbol fieldSymbol
+                        when _containingClass is not null &&
+                             !fieldSymbol.IsPublic &&
+                             _program.TryGetClassField(fieldSymbol, out var classField) &&
+                             IsAddressableStorage(intrinsic, classField.Type, memberPath):
+                        _program.MarkAddressableField(classField);
+                        pointer = new IrAddressableFieldPointerExpression(
+                            _containingClass,
+                            classField,
                             TypeSymbol.Long,
                             memberPath);
                         return true;

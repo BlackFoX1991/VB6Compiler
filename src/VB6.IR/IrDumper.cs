@@ -101,6 +101,8 @@ public static class IrDumper
         IrAddressExpression address => $"addr {FormatPlace(address.Place)}",
         IrLocalAddressExpression address => $"addr-local %{address.Local.Name}",
         IrAddressableArrayPointerExpression => "native-addr element",
+        IrAddressableFieldPointerExpression pointer =>
+            $"native-addr Me.{pointer.Field.Name}{MemberSuffix(pointer.MemberPath)}",
         IrAddressablePointerExpression pointer =>
             $"native-addr %{pointer.Local.Name}{MemberSuffix(pointer.MemberPath)}",
         IrAddressableGlobalPointerExpression pointer =>
