@@ -184,12 +184,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-07 at `2848253` on `r3-byval-varptr`, run `20260907T094634Z-34e1af37`:
+Measured on 2026-09-07 at `6d8e36c` on `r3-record-varptr`, run `20260907T105701Z-cdaf4dca`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1792 cases: 1792 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1799 cases: 1799 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
