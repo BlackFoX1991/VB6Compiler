@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using VB6.Runtime;
 
 namespace VB6.Runtime.Tests;
@@ -330,6 +331,58 @@ public sealed class VBArrayTests
         Assert.AreSame(VBVariants.NothingValue(), VBArrayOperations.CopyAssignedValue(VBVariants.NothingValue()));
         Assert.AreEqual("text", VBArrayOperations.CopyAssignedValue("text"));
         Assert.IsNull(VBArrayOperations.CopyAssignedValue(null));
+    }
+
+    [TestMethod]
+    public void ElementAddress_LaysTheElementsOutContiguouslyAndStopsTheCollectorMovingThem()
+    {
+        var array = new VBArray<int>(new VBArrayBound(5, 8));
+        array[5] = 16_909_060;
+
+        var first = array.GetElementNativeAddress(5);
+        Assert.AreNotEqual(IntPtr.Zero, first);
+        Assert.AreEqual(4L, array.GetElementNativeAddress(6).ToInt64() - first.ToInt64());
+        Assert.AreEqual(12L, array.GetElementNativeAddress(8).ToInt64() - first.ToInt64());
+        Assert.AreEqual(16_909_060, Marshal.ReadInt32(first));
+
+        // Der Speicher darf sich nicht mehr bewegen, und es gibt keinen zweiten: Was ueber die
+        // gewoehnliche Elementreferenz geschrieben wird, steht sofort an der Adresse.
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+        GC.WaitForPendingFinalizers();
+        Assert.AreEqual(first, array.GetElementNativeAddress(5));
+
+        array[5] = 4711;
+        Assert.AreEqual(4711, Marshal.ReadInt32(first));
+        Marshal.WriteInt32(first, 99);
+        Assert.AreEqual(99, array[5]);
+    }
+
+    [TestMethod]
+    public void ElementAddress_RefusesLayoutsItCannotPromise()
+    {
+        // Mehr als eine Dimension: Die physische Reihenfolge ist hier eine andere als die, die
+        // ein VB6-SAFEARRAY ablaeuft, also waere ein Zeiger ueber den Block irrefuehrend.
+        var rectangular = new VBArray<int>(new VBArrayBound(0, 1), new VBArrayBound(0, 1));
+        Assert.ThrowsException<NotSupportedException>(() => rectangular.GetElementNativeAddress(0));
+
+        // Ein Referenzelement hat gar kein flaches Layout.
+        var references = new VBArray<string>(new VBArrayBound(0, 1));
+        Assert.ThrowsException<NotSupportedException>(() => references.GetElementNativeAddress(0));
+    }
+
+    [TestMethod]
+    public void ElementAddress_IsReachableThroughTheNonGenericEntryPoint()
+    {
+        object array = new VBArray<short>(new VBArrayBound(0, 3));
+        Assert.AreEqual(
+            2L,
+            VBArrayOperations.ElementNativeAddress(array, 1).ToInt64() -
+                VBArrayOperations.ElementNativeAddress(array, 0).ToInt64());
+
+        Assert.ThrowsException<InvalidOperationException>(
+            () => VBArrayOperations.ElementNativeAddress(null, 0));
+        Assert.ThrowsException<ArgumentException>(
+            () => VBArrayOperations.ElementNativeAddress("kein Array", 0));
     }
 
     private sealed class MutableValue

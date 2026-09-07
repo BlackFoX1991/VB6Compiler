@@ -303,6 +303,18 @@ public sealed record IrAddressableParameterPointerExpression(
     string? MemberPath = null)
     : IrExpression(ResultType);
 
+/// <summary>
+/// A classic x86 pointer to one element of a VB6 array. There is no separate cell: the array
+/// owns the only storage, and answering the pointer moves that storage somewhere the collector
+/// will not move it again. An array reference travels, so a copy beside it could not be kept
+/// in step.
+/// </summary>
+public sealed record IrAddressableArrayPointerExpression(
+    IrExpression Array,
+    IrExpression Index,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
 public sealed record IrRuntimeCallExpression(
     IrRuntimeMethod Method,
     ImmutableArray<IrCallArgument> Arguments,

@@ -4352,6 +4352,24 @@ public static class IrLowerer
                 (intrinsic == VBIntrinsicKind.VarPtr || intrinsic == VBIntrinsicKind.StrPtr) &&
                 StripConversions(invocation.Arguments[0].Expression) is { } argument)
             {
+                // Ein Arrayelement bekommt keine Zelle: Das Array besitzt den einzigen
+                // Speicher, und der wird beim ersten Zeiger unbeweglich gemacht. Nur ein
+                // einzelner Index -- bei mehr als einer Dimension ist die physische Reihenfolge
+                // hier eine andere als die, die ein VB6-SAFEARRAY ablaeuft.
+                if (intrinsic == VBIntrinsicKind.VarPtr &&
+                    argument is BoundArrayAccessExpression
+                    {
+                        Indices.Length: 1
+                    } element &&
+                    IsAddressableScalar(element.ElementType))
+                {
+                    pointer = new IrAddressableArrayPointerExpression(
+                        new IrLoadExpression(LowerVariablePlace(element.Array)),
+                        LowerExpression(element.Indices[0]),
+                        TypeSymbol.Long);
+                    return true;
+                }
+
                 // p.Innen.X abwickeln: Die Zelle gehoert immer dem ganzen Datensatz, der Zeiger
                 // zeigt nur hinein. Anders koennten VarPtr(p) + Offset und VarPtr(p.X)
                 // auseinanderlaufen, und genau das ist der Punkt eines Record-Layouts.

@@ -1,5 +1,6 @@
 namespace VB6.Runtime;
 
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -56,6 +57,14 @@ public interface IVBArray : IVBObjectLifetimeContainer
     /// exactly where VB6's copy-on-assignment rule has to be applied.
     /// </summary>
     IVBArray CloneStorage();
+
+    /// <summary>
+    /// The native address of one element, for a stored VB6 <c>VarPtr</c>. Answering it moves the
+    /// element storage somewhere the collector will not move it again, so the address stays good
+    /// for the life of this array. Rank must be one: the physical order of a higher-rank array is
+    /// this implementation's, not the one a VB6 SAFEARRAY walks.
+    /// </summary>
+    IntPtr GetElementNativeAddress(int index);
 }
 
 /// <summary>
@@ -66,7 +75,10 @@ public interface IVBArray : IVBObjectLifetimeContainer
 public sealed class VBArray<T> : IVBArray
 {
     private readonly VBArrayBound[] _bounds;
-    private readonly T[] _items;
+    // Nicht readonly: Sobald jemand die Adresse eines Elements speichert, wandert der Inhalt in
+    // einen unbeweglichen Puffer, und dieses Feld zeigt danach dorthin.
+    private T[] _items;
+    private bool _immovable;
     private readonly string? _elementTypeName;
     private readonly short _elementVarType;
 
@@ -380,6 +392,45 @@ public sealed class VBArray<T> : IVBArray
         return _bounds[dimension - 1];
     }
 
+    /// <summary>
+    /// Moves the elements into the pinned object heap and answers the address of one of them.
+    ///
+    /// The elements are reached as <c>ref T</c> everywhere else, so there is nothing to mirror
+    /// and nothing to keep in step: making the one storage immovable is what a stored pointer
+    /// needs. A copy that lived beside the array would go stale the moment anything wrote through
+    /// a second reference to it, and an array reference travels.
+    ///
+    /// ReDim Preserve builds a new array and leaves this one behind, which is exactly VB6's rule
+    /// that a reallocation ends the old pointer's life. Erase clears in place and keeps it.
+    /// </summary>
+    public IntPtr GetElementNativeAddress(int index)
+    {
+        if (Rank != 1)
+        {
+            throw new NotSupportedException(
+                "A stored element pointer is defined for a one-dimensional VB6 array.");
+        }
+
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+        {
+            throw new NotSupportedException(
+                $"VB6 array elements of type '{typeof(T).Name}' have no flat native layout.");
+        }
+
+        var offset = GetOffset([index]);
+        if (!_immovable)
+        {
+            var pinned = GC.AllocateArray<T>(_items.Length, pinned: true);
+            Array.Copy(_items, pinned, _items.Length);
+            _items = pinned;
+            _immovable = true;
+        }
+
+        return _items.Length == 0
+            ? IntPtr.Zero
+            : Marshal.UnsafeAddrOfPinnedArrayElement(_items, offset);
+    }
+
     private int GetOffset(int[] indices)
     {
         ArgumentNullException.ThrowIfNull(indices);
@@ -414,6 +465,18 @@ public sealed class VBArray<T> : IVBArray
 public static class VBArrayOperations
 {
     public static bool IsAllocated(object? value) => value is IVBArray or Array;
+
+    /// <summary>
+    /// The stored-pointer entry point for a VB6 array element. The emitted program holds the
+    /// array as a reference and does not know the element type at this layer.
+    /// </summary>
+    public static IntPtr ElementNativeAddress(object? array, int index) => array switch
+    {
+        IVBArray vbArray => vbArray.GetElementNativeAddress(index),
+        null => throw new InvalidOperationException(
+            "The array must be allocated before an element address can be taken."),
+        _ => throw new ArgumentException("A VB6 array is required.", nameof(array))
+    };
 
     public static object RequireAllocated(object? value) => value ??
         throw new InvalidOperationException("The array must be allocated before file data can be read into it.");

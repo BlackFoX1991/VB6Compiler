@@ -1237,6 +1237,9 @@ public sealed class ManagedEmitter
                 case IrAddressableParameterPointerExpression parameterPointer:
                     EmitAddressableParameterPointer(encoder, procedure, parameterPointer);
                     break;
+                case IrAddressableArrayPointerExpression arrayPointer:
+                    EmitAddressableArrayPointer(encoder, procedure, arrayPointer);
+                    break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
                     break;
@@ -2073,6 +2076,37 @@ public sealed class ManagedEmitter
                 encoder.Token(GetTypeEntityHandle(pointer.Global.Type));
             }
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object))));
+        }
+
+        /// <summary>
+        /// An array element needs no cell of its own: the array holds the only storage, and the
+        /// runtime makes that storage immovable when the first pointer is asked for.
+        /// </summary>
+        private void EmitAddressableArrayPointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressableArrayPointerExpression pointer)
+        {
+            EmitExpression(encoder, procedure, pointer.Array);
+            EmitExpressionWithAssignmentConversion(encoder, procedure, pointer.Index, TypeSymbol.Long);
+            if (_options.Platform == ManagedPlatform.X86)
+            {
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBArrayOperations),
+                    nameof(VBArrayOperations.ElementNativeAddress),
+                    typeof(object),
+                    typeof(int))));
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            // Ausserhalb von x86 bleibt es beim erklaerten VB-Fehler 5. Der Index ist trotzdem
+            // ausgewertet worden, damit die Reihenfolge dieselbe bleibt.
+            encoder.OpCode(ILOpCode.Pop);
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBMemory),
+                nameof(VBMemory.VarPtr),
+                typeof(object))));
         }
 
         private void EmitAddressableParameterPointer(

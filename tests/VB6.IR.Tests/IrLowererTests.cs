@@ -546,6 +546,50 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredVarPtrForAnArrayElementNeedsNoCell()
+    {
+        var program = Lower("""
+            Sub Main()
+                Dim feld(3) As Long
+                Dim zeiger As Long
+                feld(1) = 7
+                zeiger = VarPtr(feld(1))
+            End Sub
+            """);
+        var main = program.EntryPoint!;
+
+        // Keine Zelle: Das Array besitzt den einzigen Speicher, und die Runtime macht ihn
+        // unbeweglich. Ein Abbild daneben wuerde veralten, sobald jemand ueber eine zweite
+        // Referenz auf das Array schreibt -- und eine Arrayreferenz reist.
+        Assert.IsNull(main.AddressableCells);
+        Assert.AreEqual(0, program.AddressableGlobals.Length);
+        Assert.IsInstanceOfType<IrAddressableArrayPointerExpression>(main.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .Single(value => value is IrAddressableArrayPointerExpression));
+    }
+
+    [TestMethod]
+    public void Lower_StoredVarPtrForARectangularArrayElementStaysUnaddressable()
+    {
+        // Bei mehr als einer Dimension ist die physische Reihenfolge hier eine andere als die,
+        // die ein VB6-SAFEARRAY ablaeuft. Ein Zeiger darauf waere ueber den Block irrefuehrend.
+        var program = Lower("""
+            Sub Main()
+                Dim feld(2, 2) As Long
+                Dim zeiger As Long
+                zeiger = VarPtr(feld(1, 1))
+            End Sub
+            """);
+
+        Assert.IsFalse(program.EntryPoint!.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Any(instruction => instruction.Value is IrAddressableArrayPointerExpression));
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""

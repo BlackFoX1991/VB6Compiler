@@ -239,8 +239,10 @@ faul an der `VarPtr`-Stelle entsteht, damit keine Modulinitialisierer-Reihenfolg
 Ein `Static`-Local ist dieselbe Speicherfamilie unter synthetischem Namen und faellt mit hinein.
 Ein ByVal-Parameter besitzt seine Kopie und bekommt eine prozedurweite Zelle, die mit dem
 ankommenden Argument startet. Ein flacher UDT bekommt eine Zelle fuer den ganzen Datensatz; Groesse und Memberoffsets kommen
-aus dem Interop-Marshaller. Klassenfelder, ByRef-Parameter, UDTs mit Array-, Variant- oder
-String-Member, Arrayelemente, Variants und AnyCPU/x64 behalten ihre
+aus dem Interop-Marshaller. Ein eindimensionales Arrayelement kommt ohne Zelle aus: Das Array besitzt den einzigen Speicher
+und wird beim ersten Zeiger unbeweglich. Klassenfelder, ByRef-Parameter, UDTs mit Array-,
+Variant- oder String-Member, mehrdimensionale Arrayelemente, ganze Arrays, Variants und
+AnyCPU/x64 behalten ihre
 ausdrückliche Fehler-5-Grenze. Die gemessene Grenztabelle und die Layoutfamilien stehen im
 Zerlegungsdokument.
 

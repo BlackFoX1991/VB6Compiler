@@ -95,6 +95,29 @@ bewegen kann: Skalare, `String * n` — das liegt inline — und geschachtelte D
 Form. Ein Member mit variabler `String`-Länge, ein Array oder ein Variant besitzt Speicher neben
 dem Datensatz; sein Layout ist ein eigener Vertrag und bleibt bei Fehler 5.
 
+Der fünfte Slice nimmt das **eindimensionale Arrayelement** und bricht dabei mit dem Muster der
+vier davor: Er legt *keine* Zelle an. Der Grund ist, dass eine Arrayreferenz reist. Bei einem
+Local, einer Modulvariablen, einem ByVal-Parameter und einem Datensatz ist der CLR-Speicherplatz
+der einzige Zugang, und ein Abbild daneben lässt sich an vier bekannten Stellen nachziehen. Ein
+Array wird dagegen als Referenz weitergereicht: Eine fremde Prozedur schreibt in dasselbe Objekt,
+ohne dass an der Aufrufstelle etwas davon zu sehen wäre. Ein Abbild würde dort stillschweigend
+veralten — und ein Zeiger, der auf veraltete Bytes zeigt, ist schlimmer als keiner.
+
+Stattdessen wird der **eine** Speicher unbeweglich. Die Elemente werden ohnehin überall als
+`ref T` in ein CLR-Array herausgereicht — daher funktioniert der unmittelbare `Declare`-Pfad
+bereits für mehrere Elemente am Stück. Beim ersten gespeicherten Zeiger wandert der Inhalt in den
+Pinned Object Heap; jede `ref`-Referenz darauf ist danach eine stabile native Adresse. Damit
+entfallen sämtliche Synchronisationsstellen, und die Aliasfrage löst sich von selbst.
+
+`ReDim Preserve` baut ein neues Array und lässt das alte zurück — genau VB6s Regel, dass eine
+Reallokation die Lebensdauer des alten Zeigers beendet. `Erase` leert an Ort und Stelle und
+behält ihn.
+
+Zwei Grenzen bleiben ausdrücklich: Bei **mehr als einer Dimension** ist die physische Reihenfolge
+hier zeilenweise, die eines VB6-SAFEARRAY spaltenweise — ein Zeiger über den Block wäre
+irreführend. Und `VarPtr` auf das **ganze Array** trifft in VB6 den Deskriptor, nicht die Daten;
+das ist ein eigener Vertrag, nicht dieser.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -115,9 +138,11 @@ Stand nach dem Modulvariablen-Slice:
 | ByVal-Parameter | Zelle | Zelle |
 | flacher UDT, ganz und Member | Zelle | — |
 | UDT mit Array-, Variant- oder String-Member | Fehler 5 | Fehler 5 |
+| Arrayelement, eindimensional | unbeweglich | — |
+| Arrayelement, mehrdimensional | Fehler 5 | Fehler 5 |
+| ganzes Array | Fehler 5 | Fehler 5 |
 | ByRef-Parameter | Fehler 5 | Fehler 5 |
 | Klassenfeld | Fehler 5 | Fehler 5 |
-| Arrayelement | Fehler 5 | Fehler 5 |
 | Variant | Fehler 5 | Fehler 5 |
 
 Auf AnyCPU und x64 steht in jeder Zeile Fehler 5; dort wird kein `IntPtr` in einen `Long`

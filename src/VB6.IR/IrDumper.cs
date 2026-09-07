@@ -100,6 +100,7 @@ public static class IrDumper
         IrLoadExpression load => $"load {FormatPlace(load.Place)}",
         IrAddressExpression address => $"addr {FormatPlace(address.Place)}",
         IrLocalAddressExpression address => $"addr-local %{address.Local.Name}",
+        IrAddressableArrayPointerExpression => "native-addr element",
         IrAddressablePointerExpression pointer =>
             $"native-addr %{pointer.Local.Name}{MemberSuffix(pointer.MemberPath)}",
         IrAddressableGlobalPointerExpression pointer =>

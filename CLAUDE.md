@@ -43,7 +43,14 @@ Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter 
 UDTs. Bei einem UDT gehört die Zelle dem **ganzen** Datensatz, ein Memberzeiger ist Blockadresse
 plus Offset, und Größe wie Offsets kommen aus dem Interop-Marshaller — derselben Quelle, aus der
 `LenB` und ein `Declare` sie nehmen. Eine Memberzuweisung verfolgt ihre Empfängerkette bis zur
-Wurzel und schreibt den ganzen Datensatz in die Zelle zurück. Ein
+Wurzel und schreibt den ganzen Datensatz in die Zelle zurück.
+
+Ein **Arrayelement** bricht mit diesem Muster und bekommt bewusst *keine* Zelle: Eine
+Arrayreferenz reist, eine fremde Prozedur schreibt in dasselbe Objekt, und ein Abbild daneben
+würde dabei stillschweigend veralten. Stattdessen macht `VBArray<T>` beim ersten Zeiger seinen
+einen Speicher unbeweglich (Pinned Object Heap); die Elemente werden ohnehin als `ref T`
+herausgereicht, also gibt es danach keine Synchronisationsstelle mehr. Nur eindimensional:
+mehrdimensional ist die Reihenfolge hier zeilenweise, die eines SAFEARRAY spaltenweise. Ein
 ByRef-Parameter bleibt ausdrücklich bei Fehler 5 — sein `VarPtr` müsste die Adresse des Aufrufers
 liefern, und eine eigene Zelle im Aufgerufenen wäre eine zweite, entkoppelte Kopie. Die Zelle einer Modulvariablen ist ein statisches
 Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module

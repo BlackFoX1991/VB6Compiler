@@ -928,6 +928,144 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_ReportsWhyARectangularArrayElementCannotAnswer()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                Dim feld(2, 2) As Long
+                Dim ganz(3) As Long
+                Dim zeiger As Long
+                zeiger = VarPtr(feld(1, 1))
+                Debug.Print Err.Number
+                Err.Clear
+                zeiger = VarPtr(ganz)
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        // Mehrdimensional: die physische Reihenfolge ist nicht die eines SAFEARRAY. Das ganze
+        // Array: VarPtr traefe in VB6 den Deskriptor, nicht die Daten -- ein eigener Vertrag.
+        CollectionAssert.AreEqual(new[] { "5", "5" }, output);
+    }
+
+    [TestMethod]
+    public void EmitX86Application_KeepsAnArrayElementPointerValidThroughEveryOtherWriter()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerArrayElementVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "ArrayElementVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private globalFeld(3) As Long
+
+                Sub SchreibeElement(ByRef feld() As Long)
+                    feld(2) = 555
+                End Sub
+
+                Sub Main()
+                    Dim fest(3) As Long
+                    Dim ab5(5 To 8) As Long
+                    Dim kurz(3) As Integer
+                    Dim dyn() As Long
+                    Dim z As Long
+                    Dim basis As Long
+                    Dim ballast As String
+                    Dim i As Long
+
+                    fest(0) = 16909060
+                    basis = VarPtr(fest(0))
+
+                    Debug.Print VarPtr(fest(1)) - basis
+                    Debug.Print VarPtr(fest(3)) - basis
+
+                    CopyMemory z, ByVal basis, 4
+                    Debug.Print z
+
+                    fest(0) = 4711
+                    CopyMemory z, ByVal basis, 4
+                    Debug.Print z
+
+                    z = 99
+                    CopyMemory ByVal basis, z, 4
+                    Debug.Print fest(0)
+
+                    For i = 1 To 2000
+                        ballast = ballast & "x"
+                    Next i
+                    CopyMemory z, ByVal basis, 4
+                    Debug.Print z
+
+                    SchreibeElement fest
+                    CopyMemory z, ByVal (basis + 8), 4
+                    Debug.Print z
+
+                    Debug.Print VarPtr(ab5(6)) - VarPtr(ab5(5))
+                    Debug.Print VarPtr(kurz(1)) - VarPtr(kurz(0))
+
+                    ReDim dyn(2)
+                    Debug.Print VarPtr(dyn(1)) - VarPtr(dyn(0))
+                    Debug.Print VarPtr(globalFeld(1)) - VarPtr(globalFeld(0))
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("ArrayElementVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // Zeile sechs und sieben sind der Punkt: Der Zeiger ueberlebt Speicherdruck, weil das
+            // Array selbst unbeweglich geworden ist, und er sieht den Schreibzugriff einer fremden
+            // Prozedur ueber die Arrayreferenz -- ein Abbild neben dem Array koennte das nicht.
+            CollectionAssert.AreEqual(
+                new[] { "4", "12", "16909060", "4711", "99", "99", "555", "4", "2", "4", "4" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

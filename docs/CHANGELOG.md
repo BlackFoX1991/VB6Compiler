@@ -8041,3 +8041,39 @@ Fehler 5, mit Ausführungs- und IR-Test als festgehaltenem Zustand.
 
 `managed-r3-pointers` bleibt `planned`. Offen sind ByRef-Parameter, Klassenfelder, Arrayelemente,
 Variants und die Datensätze mit eigenem Nebenspeicher.
+
+## 2026-09-07 — R3, Schnitt 28: gespeicherter VarPtr für Arrayelemente, ohne Zelle
+
+Dieser Schnitt bricht mit dem Muster der vier davor, und der Grund ist der Unterschied, den das
+Messen sichtbar gemacht hat: **Eine Arrayreferenz reist.**
+
+Bei einem Local, einer Modulvariablen, einem ByVal-Parameter und einem Datensatz ist der
+CLR-Speicherplatz der einzige Zugang; ein Abbild daneben lässt sich an vier bekannten Stellen
+nachziehen. Ein Array wird dagegen als Referenz weitergereicht. `SchreibeElement fest` schreibt
+in dasselbe Objekt, ohne dass an der Aufrufstelle etwas davon zu sehen wäre — ein Abbild wäre
+danach stillschweigend veraltet, und ein Zeiger auf veraltete Bytes ist schlimmer als keiner.
+
+Stattdessen wird der **eine** Speicher unbeweglich. Die Elemente gehen ohnehin überall als
+`ref T` in ein CLR-Array heraus — deshalb überträgt `CopyMemory ziel(0), fest(0), 8` schon vor
+diesem Schnitt zwei Elemente am Stück korrekt. Beim ersten gespeicherten Zeiger wandert der
+Inhalt in den Pinned Object Heap; jede `ref`-Referenz ist danach eine stabile native Adresse.
+Das Ergebnis ist weniger Code als bei den Zellen, nicht mehr: **keine einzige**
+Synchronisationsstelle im Emitter, nur der Aufruf an der `VarPtr`-Stelle.
+
+Gemessen: Abstände 4 bei `Long` und 2 bei `Integer`, Untergrenze ungleich null richtig, der
+Zeiger überlebt 2000 Stringverkettungen an Speicherdruck, und der Schreibzugriff einer fremden
+Prozedur über die Arrayreferenz kommt an. Die Gegenprobe — gewöhnliche statt unbeweglicher
+Allokation — macht den GC-Fall rot.
+
+`ReDim Preserve` baut ein neues Array und lässt das alte zurück; das ist genau VB6s Regel, dass
+eine Reallokation die Lebensdauer des alten Zeigers beendet. `Erase` leert an Ort und Stelle und
+behält ihn. Beides fällt aus dem Entwurf heraus, statt eigens gebaut zu werden.
+
+Zwei Grenzen bleiben ausdrücklich und mit Test festgehalten. Bei **mehr als einer Dimension** ist
+die physische Reihenfolge hier zeilenweise, die eines VB6-SAFEARRAY spaltenweise — ein Zeiger
+über den Block wäre irreführend, und `GetOffset` sagt im Quelltext seit jeher, dass die Reihenfolge
+an genau dieser Stelle gekapselt ist. Und `VarPtr` auf das **ganze Array** trifft in VB6 den
+Deskriptor, nicht die Daten; das ist ein anderer Vertrag.
+
+`managed-r3-pointers` bleibt `planned`. Offen sind ByRef-Parameter, Klassenfelder, Variants,
+Datensätze mit eigenem Nebenspeicher, mehrdimensionale Arrays und das ganze Array.
