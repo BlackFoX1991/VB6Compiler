@@ -144,6 +144,30 @@ Schreibzugriff ging deshalb verloren, sobald derselbe Platz eine Zelle hatte.
 Maßgeblich ist jetzt die Form des Ausdrucks (`IrAddressExpression`), nicht die Argumentart. Der
 Fall betraf Locals und Modulvariablen genauso und hat einen eigenen Ausführungstest.
 
+### Die beiden Adressen eines String-Speicherplatzes
+
+Ein String-Speicherplatz ist zwei Dinge, und jedes hat seine eigene Intrinsic: Die Variable hält
+einen Zeiger auf die BSTR. `StrPtr` beantwortet die BSTR, `VarPtr` die Adresse der Variablen. Die
+Beziehung zwischen beiden ist dokumentiert und exakt — **`StrPtr(s)` ist der `Long`, der an
+`VarPtr(s)` steht** — und damit prüfbar, ohne dass ein VB6-Orakel nötig wäre.
+
+Die BSTR-Zelle besitzt deshalb beides: einen Deskriptorplatz, der den BSTR-Zeiger hält, und die
+BSTR selbst. Der Deskriptor ist die maßgebliche Stelle — ein nativer Schreibzugriff, der den
+Zeiger austauscht, ist beim nächsten VB6-Lesen sichtbar, genau wie einer in die Zeichen hinein.
+
+Dabei fiel auf, dass der unmittelbare `ByVal VarPtr(s)`-Pfad eines `Declare` für einen String die
+falsche Adresse lieferte: die *verwaltete* Adresse des Speicherplatzes, an der ein Objektzeiger
+steht, nicht der Deskriptor. Für einen String fällt diese Form jetzt auf den gespeicherten Zeiger
+durch, damit beide Formen dieselbe Adresse nennen.
+
+### Freigabe bei Prozedurende
+
+Abnahmeschritt 2 verlangt die einmalige Freigabe am Prozedurende. Sie hängt am
+Return-Terminator, nicht an einer einzelnen Stelle am Textende: Gemessen an einer Prozedur mit
+`Exit Sub` und einer mit `On Error GoTo` hat jede **zwei** Rückkehrpunkte und je eine Zelle, und
+beide Wege räumen auf. Verlässt eine Ausnahme die Prozedur, greift der Finalizer der Zelle; das
+ist später, aber kein Leck, und die Adresse ist danach ohnehin außerhalb ihrer Lebensdauer.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -157,9 +181,9 @@ Stand nach dem Modulvariablen-Slice:
 | Form | `VarPtr` | `StrPtr` |
 | --- | --- | --- |
 | lokaler Skalar | Zelle | — |
-| lokaler String | Fehler 5 | Zelle |
+| lokaler String | Zelle (Variable) | Zelle (BSTR) |
 | Modulvariable, Skalar | Zelle | — |
-| Modulvariable, String | Fehler 5 | Zelle |
+| Modulvariable, String | Zelle (Variable) | Zelle (BSTR) |
 | `Static`-Local | Zelle | Zelle |
 | ByVal-Parameter | Zelle | Zelle |
 | flacher UDT, ganz und Member | Zelle | — |

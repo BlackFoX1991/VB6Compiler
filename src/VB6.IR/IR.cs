@@ -279,7 +279,8 @@ public sealed record IrAddressablePointerExpression(
     IrLocal Local,
     IrLocal Cell,
     TypeSymbol ResultType,
-    string? MemberPath = null)
+    string? MemberPath = null,
+    bool DescriptorAddress = false)
     : IrExpression(ResultType);
 
 /// <summary>
@@ -290,7 +291,8 @@ public sealed record IrAddressablePointerExpression(
 public sealed record IrAddressableGlobalPointerExpression(
     IrGlobal Global,
     TypeSymbol ResultType,
-    string? MemberPath = null)
+    string? MemberPath = null,
+    bool DescriptorAddress = false)
     : IrExpression(ResultType);
 
 /// <summary>
@@ -298,6 +300,10 @@ public sealed record IrAddressableGlobalPointerExpression(
 /// own procedure-scoped native cell. The cell is seeded from the incoming argument at entry.
 /// </summary>
 /// <summary>
+/// <see cref="IrAddressablePointerExpression.DescriptorAddress"/> and its siblings separate the
+/// two intrinsics on a String slot: VarPtr answers the address of the variable, StrPtr the BSTR
+/// it points to. For every other type the variable is the only address there is.
+///
 /// <see cref="IrAddressablePointerExpression.MemberPath"/> and its siblings name a member
 /// inside a record cell, as a dotted path of CLR field names from the root. The cell always
 /// belongs to the whole record; the pointer just points into it, so the record address and a
@@ -307,7 +313,8 @@ public sealed record IrAddressableParameterPointerExpression(
     IrParameter Parameter,
     IrLocal Cell,
     TypeSymbol ResultType,
-    string? MemberPath = null)
+    string? MemberPath = null,
+    bool DescriptorAddress = false)
     : IrExpression(ResultType);
 
 /// <summary>
@@ -325,7 +332,8 @@ public sealed record IrAddressableFieldPointerExpression(
     ClassTypeSymbol ClassType,
     IrField Field,
     TypeSymbol ResultType,
-    string? MemberPath = null)
+    string? MemberPath = null,
+    bool DescriptorAddress = false)
     : IrExpression(ResultType);
 
 public sealed record IrAddressableArrayPointerExpression(

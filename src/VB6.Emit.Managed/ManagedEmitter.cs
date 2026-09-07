@@ -2115,7 +2115,11 @@ public sealed class ManagedEmitter
             if (_options.Platform == ManagedPlatform.X86)
             {
                 encoder.LoadLocal(pointer.Cell.Id);
-                EmitAddressableCellAddress(encoder, pointer.Local.Type, pointer.MemberPath);
+                EmitAddressableCellAddress(
+                    encoder,
+                    pointer.Local.Type,
+                    pointer.MemberPath,
+                    pointer.DescriptorAddress);
                 return;
             }
 
@@ -2145,7 +2149,11 @@ public sealed class ManagedEmitter
                 encoder.OpCode(ILOpCode.Dup);
                 encoder.OpCode(ILOpCode.Stsfld);
                 encoder.Token(cell);
-                EmitAddressableCellAddress(encoder, pointer.Global.Type, pointer.MemberPath);
+                EmitAddressableCellAddress(
+                    encoder,
+                    pointer.Global.Type,
+                    pointer.MemberPath,
+                    pointer.DescriptorAddress);
                 return;
             }
 
@@ -2192,7 +2200,11 @@ public sealed class ManagedEmitter
                 encoder.LoadArgument(0);
                 encoder.OpCode(ILOpCode.Ldfld);
                 encoder.Token(cell);
-                EmitAddressableCellAddress(encoder, pointer.Field.Type, pointer.MemberPath);
+                EmitAddressableCellAddress(
+                    encoder,
+                    pointer.Field.Type,
+                    pointer.MemberPath,
+                    pointer.DescriptorAddress);
                 return;
             }
 
@@ -2245,7 +2257,11 @@ public sealed class ManagedEmitter
             if (TryGetAddressableCell(procedure, pointer.Parameter, out var cell))
             {
                 encoder.LoadLocal(cell.Id);
-                EmitAddressableCellAddress(encoder, pointer.Parameter.Type, pointer.MemberPath);
+                EmitAddressableCellAddress(
+                    encoder,
+                    pointer.Parameter.Type,
+                    pointer.MemberPath,
+                    pointer.DescriptorAddress);
                 return;
             }
 
@@ -2296,11 +2312,14 @@ public sealed class ManagedEmitter
         private void EmitAddressableCellAddress(
             InstructionEncoder encoder,
             TypeSymbol type,
-            string? memberPath)
+            string? memberPath,
+            bool descriptorAddress = false)
         {
             if (memberPath is null)
             {
-                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(type, "NativeAddress")));
+                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(
+                    type,
+                    descriptorAddress ? "DescriptorAddress" : "NativeAddress")));
             }
             else
             {
@@ -2354,6 +2373,10 @@ public sealed class ManagedEmitter
                 "Create" => Static(typeof(VBAddressableStorage), "Create" + suffix, scalarType),
                 "Read" => Static(typeof(VBAddressableStorage), "Read" + suffix, typeof(object)),
                 "NativeAddress" => Static(typeof(VBAddressableStorage), "Get" + suffix + "NativeAddress", typeof(object)),
+                "DescriptorAddress" => Static(
+                    typeof(VBAddressableStorage),
+                    nameof(VBAddressableStorage.GetStringDescriptorNativeAddress),
+                    typeof(object)),
                 "Write" => Static(typeof(VBAddressableStorage), "Write" + suffix, typeof(object), scalarType),
                 "Ensure" => Static(typeof(VBAddressableStorage), "Ensure" + suffix, typeof(object), scalarType),
                 "ReadOr" => Static(typeof(VBAddressableStorage), "Read" + suffix + "Or", typeof(object), scalarType),

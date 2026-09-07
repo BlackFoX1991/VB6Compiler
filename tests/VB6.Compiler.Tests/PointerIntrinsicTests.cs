@@ -1313,6 +1313,104 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitX86Application_SeparatesTheStringVariableFromItsBstr()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerStringVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            // Ein String-Speicherplatz ist zwei Dinge, und jedes hat seine Intrinsic: Die Variable
+            // haelt einen Zeiger auf die BSTR. Die dokumentierte Beziehung ist exakt und braucht
+            // dafuer kein VB6-Orakel -- StrPtr(s) ist der Long, der an VarPtr(s) steht.
+            var assemblyPath = Path.Combine(directory, "StringVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private globalText As String
+
+                Sub Main()
+                    Dim s As String
+                    Dim variablenZeiger As Long
+                    Dim inhaltsZeiger As Long
+                    Dim gelesen As Long
+                    Dim zeichen As Integer
+
+                    s = "abc"
+                    variablenZeiger = VarPtr(s)
+                    inhaltsZeiger = StrPtr(s)
+                    Debug.Print ((variablenZeiger <> 0) And (inhaltsZeiger <> 0))
+                    Debug.Print (variablenZeiger <> inhaltsZeiger)
+
+                    CopyMemory gelesen, ByVal variablenZeiger, 4
+                    Debug.Print (gelesen = inhaltsZeiger)
+
+                    s = "wxyz"
+                    CopyMemory gelesen, ByVal variablenZeiger, 4
+                    Debug.Print (gelesen = StrPtr(s))
+                    CopyMemory zeichen, ByVal gelesen, 2
+                    Debug.Print zeichen
+
+                    globalText = "de"
+                    CopyMemory gelesen, ByVal VarPtr(globalText), 4
+                    Debug.Print (gelesen = StrPtr(globalText))
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("StringVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // 119 ist "w": Nach der Neuzuweisung zeigt die Variable auf eine andere BSTR, und die
+            // letzte Zeile prueft, dass auch das unmittelbare ByVal VarPtr(x) eines Declare dieselbe
+            // Adresse nennt -- die verwaltete Adresse des Speicherplatzes waere dort ein
+            // Objektzeiger gewesen.
+            CollectionAssert.AreEqual(
+                new[] { "True", "True", "True", "True", "119", "True" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

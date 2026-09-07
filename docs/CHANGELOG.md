@@ -8126,3 +8126,32 @@ nicht zum Schreiben benutzt hatte und deshalb beide Speicher immer im Gleichstan
 bedient: Locals, Globals, Felder und Arrayelemente. Offen ist der ByRef-Parameter, dazu
 Public-Felder, Variants, mehrdimensionale Arrays, ganze Arrays und Datensätze mit eigenem
 Nebenspeicher.
+
+## 2026-09-07 — R3, Schnitt 30: die beiden Adressen eines String-Speicherplatzes
+
+Ein String-Speicherplatz ist zwei Dinge, und jedes hat seine Intrinsic: Die Variable hält einen
+Zeiger auf die BSTR. `StrPtr` beantwortet die BSTR, `VarPtr` die Adresse der Variablen. Bisher
+trug die Zelle nur die BSTR, und `VarPtr(s)` blieb bei Fehler 5.
+
+Der Reiz dieses Falls ist, dass er sich ohne VB6-Orakel prüfen lässt: Die dokumentierte Beziehung
+ist exakt — **`StrPtr(s)` ist der `Long`, der an `VarPtr(s)` steht**. Der Ausführungstest prüft
+genau diese Invariante, auch nach einer Neuzuweisung, bei der die Variable auf eine andere BSTR
+zeigt.
+
+Die Zelle besitzt deshalb jetzt beides: einen Deskriptorplatz mit dem BSTR-Zeiger und die BSTR.
+Der Deskriptor ist die maßgebliche Stelle, also ist ein nativer Schreibzugriff, der den Zeiger
+austauscht, beim nächsten VB6-Lesen sichtbar — genau wie einer in die Zeichen hinein.
+
+Dabei kam wieder ein Befund heraus: Der unmittelbare `ByVal VarPtr(s)`-Pfad eines `Declare`
+lieferte für einen String die *verwaltete* Adresse des Speicherplatzes. Dort steht ein
+Objektzeiger, nicht der Deskriptor — wer das an eine API weitergibt, die `LPSTR*` erwartet,
+übergibt Unsinn. Für einen String fällt diese Form jetzt auf den gespeicherten Zeiger durch, damit
+beide Formen dieselbe Adresse nennen; die Gegenprobe macht den Fall rot.
+
+Nebenbei belegt: Abnahmeschritt 2 verlangt die einmalige Freigabe am Prozedurende. Sie hängt am
+Return-Terminator, nicht an einer Stelle am Textende. Gemessen an einer Prozedur mit `Exit Sub`
+und einer mit `On Error GoTo`: je **zwei** Rückkehrpunkte, je eine Zelle, beide Wege räumen auf.
+Verlässt eine Ausnahme die Prozedur, greift der Finalizer der Zelle — später, aber kein Leck.
+
+`managed-r3-pointers` bleibt `planned`. Offen ist der ByRef-Parameter, dazu Public-Felder,
+Variants, mehrdimensionale Arrays, ganze Arrays und Datensätze mit eigenem Nebenspeicher.

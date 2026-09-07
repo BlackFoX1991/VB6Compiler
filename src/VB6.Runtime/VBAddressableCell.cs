@@ -70,34 +70,54 @@ public sealed class VBAddressableCell<T> : IDisposable
 /// </summary>
 public static class VBAddressableStorage
 {
+    /// <summary>
+    /// A VB6 String slot is two things, and both have their own intrinsic. The variable holds a
+    /// pointer to a BSTR: <c>StrPtr</c> answers the BSTR, <c>VarPtr</c> answers the address of
+    /// the variable. The documented relationship between them is exact -- <c>StrPtr(s)</c> is the
+    /// Long stored at <c>VarPtr(s)</c> -- so this cell owns both, and the descriptor slot is the
+    /// authority for which BSTR is current. A native write that swaps the pointer is therefore
+    /// visible on the next VB6 read, exactly like a native write into the characters is.
+    /// </summary>
     private sealed class BStrCell : IDisposable
     {
-        private IntPtr _storage;
+        private IntPtr _descriptor;
         private bool _disposed;
 
-        public BStrCell(string? value) => _storage = Marshal.StringToBSTR(value ?? string.Empty);
+        public BStrCell(string? value)
+        {
+            _descriptor = Marshal.AllocCoTaskMem(IntPtr.Size);
+            Marshal.WriteIntPtr(_descriptor, Marshal.StringToBSTR(value ?? string.Empty));
+        }
 
         public IntPtr GetNativeAddress()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return _storage;
+            return Marshal.ReadIntPtr(_descriptor);
+        }
+
+        public IntPtr GetDescriptorAddress()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _descriptor;
         }
 
         public string Read()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return Marshal.PtrToStringBSTR(_storage);
+            var storage = Marshal.ReadIntPtr(_descriptor);
+            return storage == IntPtr.Zero ? string.Empty : Marshal.PtrToStringBSTR(storage);
         }
 
         public void Write(string? value)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_storage != IntPtr.Zero)
+            var storage = Marshal.ReadIntPtr(_descriptor);
+            if (storage != IntPtr.Zero)
             {
-                Marshal.FreeBSTR(_storage);
+                Marshal.FreeBSTR(storage);
             }
 
-            _storage = Marshal.StringToBSTR(value ?? string.Empty);
+            Marshal.WriteIntPtr(_descriptor, Marshal.StringToBSTR(value ?? string.Empty));
         }
 
         public void Dispose()
@@ -107,11 +127,14 @@ public static class VBAddressableStorage
                 return;
             }
 
-            if (_storage != IntPtr.Zero)
+            var storage = Marshal.ReadIntPtr(_descriptor);
+            if (storage != IntPtr.Zero)
             {
-                Marshal.FreeBSTR(_storage);
+                Marshal.FreeBSTR(storage);
             }
-            _storage = IntPtr.Zero;
+
+            Marshal.FreeCoTaskMem(_descriptor);
+            _descriptor = IntPtr.Zero;
             _disposed = true;
             GC.SuppressFinalize(this);
         }
@@ -247,6 +270,13 @@ public static class VBAddressableStorage
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetStringNativeAddress(object storage) => GetString(storage).GetNativeAddress();
+
+    /// <summary>
+    /// The address of the String variable itself, which is what <c>VarPtr</c> answers. Reading a
+    /// Long there gives the same value as <c>StrPtr</c>.
+    /// </summary>
+    public static IntPtr GetStringDescriptorNativeAddress(object storage) =>
+        GetString(storage).GetDescriptorAddress();
     public static IntPtr GetRecordNativeAddress(object storage) => GetRecord(storage).GetNativeAddress();
 
     /// <summary>

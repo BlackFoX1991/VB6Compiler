@@ -55,7 +55,11 @@ mehrdimensional ist die Reihenfolge hier zeilenweise, die eines SAFEARRAY spalte
 Ein **privates Instanzfeld** verhält sich wie eine Modulvariable, nur pro Objekt; der Empfänger
 ist immer `Me`, weil ein `Public`-Feld von außen als Property gebunden wird. `Public` bleibt bei
 Fehler 5, weil `VBDynamicDispatch` so ein Feld per Reflection direkt liest und eine Zelle daneben
-dort unsichtbar wäre. Ein
+dort unsichtbar wäre.
+
+Ein **String-Speicherplatz** trägt beide Intrinsics: `StrPtr` die BSTR, `VarPtr` die Adresse der
+Variablen, an der dieser Zeiger steht. Die Invariante ist prüfbar ohne VB6-Orakel — `StrPtr(s)`
+ist der `Long` an `VarPtr(s)`. Ein
 ByRef-Parameter bleibt ausdrücklich bei Fehler 5 — sein `VarPtr` müsste die Adresse des Aufrufers
 liefern, und eine eigene Zelle im Aufgerufenen wäre eine zweite, entkoppelte Kopie. Die Zelle einer Modulvariablen ist ein statisches
 Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module

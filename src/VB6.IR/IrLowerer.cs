@@ -4331,10 +4331,16 @@ public static class IrLowerer
                 invocation.Arguments.Length == 1)
             {
                 var target = StripConversions(invocation.Arguments[0].Expression);
-                if (target is BoundVariableExpression or
-                    BoundArrayAccessExpression or
-                    BoundElementAccessExpression or
-                    BoundMemberAccessExpression)
+
+                // Fuer einen String ist die verwaltete Adresse des Speicherplatzes die falsche:
+                // Dort steht ein Objektzeiger, VB6 erwartet den Zeiger auf die BSTR. Dieser Fall
+                // faellt deshalb auf den gespeicherten Zeiger durch, damit beide Formen dieselbe
+                // Adresse nennen.
+                if (target.Type != TypeSymbol.String &&
+                    (target is BoundVariableExpression or
+                     BoundArrayAccessExpression or
+                     BoundElementAccessExpression or
+                     BoundMemberAccessExpression))
                 {
                     return new IrAddressExpression(LowerPlace(target));
                 }
@@ -4414,7 +4420,8 @@ public static class IrLowerer
                             local,
                             cell,
                             TypeSymbol.Long,
-                            memberPath);
+                            memberPath,
+                            IsStringDescriptor(intrinsic, local.Type));
                         return true;
 
                     // Nur ByVal: Ein ByVal-Parameter ist eine eigene Kopie und darf eine eigene
@@ -4437,7 +4444,8 @@ public static class IrLowerer
                             parameter,
                             parameterCell,
                             TypeSymbol.Long,
-                            memberPath);
+                            memberPath,
+                            IsStringDescriptor(intrinsic, parameter.Type));
                         return true;
 
                     // Nur Private: Ein Public-Feld wird von aussen als Property gebunden, und die
@@ -4453,7 +4461,8 @@ public static class IrLowerer
                             _containingClass,
                             classField,
                             TypeSymbol.Long,
-                            memberPath);
+                            memberPath,
+                            IsStringDescriptor(intrinsic, classField.Type));
                         return true;
 
                     // Ein Klassenfeld ist ebenfalls ein ModuleVariableSymbol, hat aber keinen
@@ -4466,7 +4475,8 @@ public static class IrLowerer
                         pointer = new IrAddressableGlobalPointerExpression(
                             global,
                             TypeSymbol.Long,
-                            memberPath);
+                            memberPath,
+                            IsStringDescriptor(intrinsic, global.Type));
                         return true;
                 }
             }
@@ -4474,6 +4484,13 @@ public static class IrLowerer
             pointer = null!;
             return false;
         }
+
+        /// <summary>
+        /// Whether the pointer is the address of a String variable rather than of its BSTR. The
+        /// documented relationship is exact: StrPtr(s) is the Long stored at VarPtr(s).
+        /// </summary>
+        private static bool IsStringDescriptor(VBIntrinsicKind? intrinsic, TypeSymbol type) =>
+            intrinsic == VBIntrinsicKind.VarPtr && type == TypeSymbol.String;
 
         private static bool IsAddressableStorage(
             VBIntrinsicKind? intrinsic,
@@ -4489,7 +4506,7 @@ public static class IrLowerer
 
             return intrinsic == VBIntrinsicKind.StrPtr
                 ? type == TypeSymbol.String
-                : IsAddressableScalar(type) || IsAddressableRecord(type);
+                : IsAddressableScalar(type) || IsAddressableRecord(type) || type == TypeSymbol.String;
         }
 
         /// <summary>
