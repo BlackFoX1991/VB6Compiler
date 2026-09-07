@@ -21,16 +21,16 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-07 auf `r3-string-varptr` / `a303f61`, Lauf `20260907T130250Z-c3e8564a`:
+Messung vom 2026-09-07 auf `main` / `2b43808`, Lauf `20260907T133916Z-d5287772`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1809 Fälle: 1809 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1809 Fälle: 1808 bestanden, 1 fehlgeschlagen | Nicht bestanden -- VB6.Compiler.Tests: test process exited with 1 |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
-Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
+Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **False**.
 Der Laufbericht liegt unter `artifacts/verification-report.json` und wird nicht versioniert.
 <!-- verification:roadmap-measurements:end -->
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **162 Erwartungen**, davon **145 implemented**, **0 partial** und **17 planned**;
-**145/162 documented-verified**, 17 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **166 Erwartungen**, davon **146 implemented**, **0 partial** und **20 planned**;
+**146/166 documented-verified**, 20 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
