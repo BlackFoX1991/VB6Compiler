@@ -644,6 +644,141 @@ public sealed class PointerIntrinsicTests
         }
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_ReportsWhyAByRefParameterVarPtrCannotAnswer()
+    {
+        // Der Zielvertrag verlangt, dass ein Alias dieselbe Zelle sieht. Eine eigene Zelle im
+        // Aufgerufenen waere eine zweite, entkoppelte Kopie -- der erklaerte Fehler 5 ist ehrlicher
+        // als eine Adresse, die auf den falschen Speicher zeigt.
+        var output = VB6TestProgram.RunLines("""
+            Sub Zeige(ByRef wert As Long)
+                On Error Resume Next
+                Dim pointer As Long
+                pointer = VarPtr(wert)
+                Debug.Print Err.Number
+            End Sub
+
+            Sub Main()
+                Dim wert As Long
+                wert = 7
+                Zeige wert
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "5" }, output);
+    }
+
+    [TestMethod]
+    public void EmitX86Application_KeepsAByValParameterVarPtrOnItsOwnCopy()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The stored VarPtr regression uses the Windows RtlMoveMemory probe.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the x86 VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerByValParameterVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "ByValParameterVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Sub Bump(ByRef value As Long)
+                    value = value + 1
+                End Sub
+
+                Sub ZeigeLong(ByVal wert As Long)
+                    Dim destination As Long
+                    Dim pointer As Long
+
+                    pointer = VarPtr(wert)
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    wert = 123
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+
+                    destination = 84281096
+                    CopyMemory ByVal pointer, destination, 4
+                    Debug.Print wert
+
+                    Bump wert
+                    Debug.Print wert
+                    CopyMemory destination, ByVal pointer, 4
+                    Debug.Print destination
+                End Sub
+
+                Sub ZeigeString(ByVal text As String)
+                    Dim character As Integer
+                    Dim pointer As Long
+
+                    pointer = StrPtr(text)
+                    CopyMemory character, ByVal pointer, 2
+                    Debug.Print character
+
+                    character = 90
+                    CopyMemory ByVal pointer, character, 2
+                    Debug.Print text
+                End Sub
+
+                Sub Main()
+                    Dim aufrufer As Long
+                    aufrufer = 16909060
+                    ZeigeLong aufrufer
+                    Debug.Print aufrufer
+                    ZeigeString "abc"
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("ByValParameterVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 stored-VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+
+            // Die vorletzte Zeile ist der eigentliche Punkt: Die Variable des Aufrufers steht
+            // unveraendert auf 16909060. Die Zelle gehoert der Kopie, nicht dem Original.
+            CollectionAssert.AreEqual(
+                new[] { "16909060", "123", "84281096", "84281097", "84281097", "16909060", "97", "Zbc" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static void DeleteTemporaryDirectory(string directory)
     {
         for (var attempt = 0; attempt < 10; attempt++)

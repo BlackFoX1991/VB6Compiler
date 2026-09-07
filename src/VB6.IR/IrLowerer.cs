@@ -851,6 +851,8 @@ public static class IrLowerer
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrLocal, IrLocal> _addressableCells =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<IrParameter, IrLocal> _addressableParameterCells =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<int, IrPlace> _withPlaces = new();
         private readonly Dictionary<int, int> _loopExits = new();
         private readonly Dictionary<string, int> _labels = new(StringComparer.OrdinalIgnoreCase);
@@ -949,7 +951,10 @@ public static class IrLowerer
                 DeclaringClass: _containingClass,
                 AddressableCells: _addressableCells.Count == 0
                     ? null
-                    : _addressableCells.ToImmutableDictionary());
+                    : _addressableCells.ToImmutableDictionary(),
+                AddressableParameterCells: _addressableParameterCells.Count == 0
+                    ? null
+                    : _addressableParameterCells.ToImmutableDictionary());
         }
 
         private void PredeclareLabels(BoundBlockStatement block)
@@ -4359,6 +4364,28 @@ public static class IrLowerer
                         }
 
                         pointer = new IrAddressablePointerExpression(local, cell, TypeSymbol.Long);
+                        return true;
+
+                    // Nur ByVal: Ein ByVal-Parameter ist eine eigene Kopie und darf eine eigene
+                    // Zelle haben. Ein ByRef-Parameter muesste die Adresse des Aufrufers
+                    // liefern; eine Zelle im Aufgerufenen waere eine zweite, entkoppelte Kopie.
+                    case ParameterSymbol parameterSymbol
+                        when _parameters.TryGetValue(parameterSymbol, out var parameter) &&
+                             parameter.PassingMode == ParameterPassingMode.ByVal &&
+                             IsAddressableStorage(intrinsic, parameter.Type):
+                        if (!_addressableParameterCells.TryGetValue(parameter, out var parameterCell))
+                        {
+                            parameterCell = NewLocal(
+                                $"__varptr_cell_arg{parameter.Index}",
+                                TypeSymbol.Variant,
+                                compilerGenerated: true);
+                            _addressableParameterCells.Add(parameter, parameterCell);
+                        }
+
+                        pointer = new IrAddressableParameterPointerExpression(
+                            parameter,
+                            parameterCell,
+                            TypeSymbol.Long);
                         return true;
 
                     // Ein Klassenfeld ist ebenfalls ein ModuleVariableSymbol, hat aber keinen

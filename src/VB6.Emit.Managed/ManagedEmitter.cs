@@ -1049,6 +1049,19 @@ public sealed class ManagedEmitter
         private bool TryGetGlobalCell(IrGlobal global, out FieldDefinitionHandle cell) =>
             _globalCellHandles.TryGetValue(global, out cell);
 
+        private bool TryGetAddressableCell(IrProcedure procedure, IrParameter parameter, out IrLocal cell)
+        {
+            if (_options.Platform == ManagedPlatform.X86 &&
+                procedure.AddressableParameterCells is not null &&
+                procedure.AddressableParameterCells.TryGetValue(parameter, out cell!))
+            {
+                return true;
+            }
+
+            cell = null!;
+            return false;
+        }
+
         private bool TryGetAddressableCell(IrProcedure procedure, IrLocal local, out IrLocal cell)
         {
             if (_options.Platform == ManagedPlatform.X86 &&
@@ -1064,12 +1077,12 @@ public sealed class ManagedEmitter
 
         private void EmitAddressableCellInitializers(InstructionEncoder encoder, IrProcedure procedure)
         {
-            if (_options.Platform != ManagedPlatform.X86 || procedure.AddressableCells is null)
+            if (_options.Platform != ManagedPlatform.X86)
             {
                 return;
             }
 
-            foreach (var pair in procedure.AddressableCells)
+            foreach (var pair in procedure.AddressableCells ?? ImmutableDictionary<IrLocal, IrLocal>.Empty)
             {
                 if (pair.Key.Type == TypeSymbol.String)
                 {
@@ -1107,16 +1120,27 @@ public sealed class ManagedEmitter
                 encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pair.Key.Type, "Create")));
                 encoder.StoreLocal(pair.Value.Id);
             }
+
+            // Ein ByVal-Parameter kommt mit einem Wert an; seine Zelle startet damit statt mit
+            // der Null, die ein frisches Local mitbringt.
+            foreach (var pair in procedure.AddressableParameterCells ??
+                ImmutableDictionary<IrParameter, IrLocal>.Empty)
+            {
+                encoder.LoadArgument(GetIlArgumentIndex(procedure, pair.Key.Index));
+                encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(pair.Key.Type, "Create")));
+                encoder.StoreLocal(pair.Value.Id);
+            }
         }
 
         private void EmitAddressableCellCleanup(InstructionEncoder encoder, IrProcedure procedure)
         {
-            if (_options.Platform != ManagedPlatform.X86 || procedure.AddressableCells is null)
+            if (_options.Platform != ManagedPlatform.X86)
             {
                 return;
             }
 
-            foreach (var cell in procedure.AddressableCells.Values)
+            foreach (var cell in (procedure.AddressableCells?.Values ?? Enumerable.Empty<IrLocal>())
+                .Concat(procedure.AddressableParameterCells?.Values ?? Enumerable.Empty<IrLocal>()))
             {
                 encoder.LoadLocal(cell.Id);
                 encoder.Call(GetRuntimeMethodReference(Static(
@@ -1156,6 +1180,9 @@ public sealed class ManagedEmitter
                     break;
                 case IrAddressableGlobalPointerExpression globalPointer:
                     EmitAddressableGlobalPointer(encoder, globalPointer);
+                    break;
+                case IrAddressableParameterPointerExpression parameterPointer:
+                    EmitAddressableParameterPointer(encoder, procedure, parameterPointer);
                     break;
                 case IrRuntimeCallExpression call:
                     EmitRuntimeCall(encoder, procedure, call);
@@ -1326,6 +1353,13 @@ public sealed class ManagedEmitter
                     encoder.LoadLocal(local.Local.Id);
                     break;
                 case IrParameterPlace parameter:
+                    if (TryGetAddressableCell(procedure, parameter.Parameter, out var parameterLoadCell))
+                    {
+                        encoder.LoadLocal(parameterLoadCell.Id);
+                        encoder.Call(GetRuntimeMethodReference(
+                            AddressableStorageMethod(parameter.Type, "Read")));
+                        break;
+                    }
                     encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     if (parameter.Parameter.PassingMode == ParameterPassingMode.ByRef)
                     {
@@ -1415,6 +1449,13 @@ public sealed class ManagedEmitter
                     }
                     EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
                     encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                    if (TryGetAddressableCell(procedure, parameter.Parameter, out var parameterStoreCell))
+                    {
+                        encoder.LoadLocal(parameterStoreCell.Id);
+                        encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                        encoder.Call(GetRuntimeMethodReference(
+                            AddressableStorageMethod(parameter.Type, "Write")));
+                    }
                     break;
                 case IrParameterPlace parameter:
                     if (TracksLifetimeStorage(parameter.Type))
@@ -1607,11 +1648,19 @@ public sealed class ManagedEmitter
                     if (parameter.Parameter.PassingMode == ParameterPassingMode.ByRef)
                     {
                         encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                        break;
                     }
-                    else
+
+                    if (TryGetAddressableCell(procedure, parameter.Parameter, out var parameterAddressCell))
                     {
-                        encoder.LoadArgumentAddress(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                        // Wie beim Local: Der Aufgerufene schreibt in den gewoehnlichen
+                        // Argumentplatz, also muss der vorher den Stand der Zelle tragen.
+                        encoder.LoadLocal(parameterAddressCell.Id);
+                        encoder.Call(GetRuntimeMethodReference(
+                            AddressableStorageMethod(parameter.Type, "Read")));
+                        encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     }
+                    encoder.LoadArgumentAddress(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
                     break;
                 case IrThisPlace:
                     encoder.LoadArgument(0);
@@ -1958,6 +2007,34 @@ public sealed class ManagedEmitter
                 encoder.Token(GetTypeEntityHandle(pointer.Global.Type));
             }
             encoder.Call(GetRuntimeMethodReference(Static(typeof(VBMemory), nameof(VBMemory.VarPtr), typeof(object))));
+        }
+
+        private void EmitAddressableParameterPointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressableParameterPointerExpression pointer)
+        {
+            if (TryGetAddressableCell(procedure, pointer.Parameter, out var cell))
+            {
+                encoder.LoadLocal(cell.Id);
+                encoder.Call(GetRuntimeMethodReference(
+                    AddressableStorageMethod(pointer.Parameter.Type, "NativeAddress")));
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            // Ausserhalb von x86 gilt dieselbe Regel wie fuer Locals und Modulvariablen: lieber
+            // der ausdrueckliche VB-Fehler 5 als ein abgeschnittener Zeiger.
+            encoder.LoadArgument(GetIlArgumentIndex(procedure, pointer.Parameter.Index));
+            if (pointer.Parameter.Type != TypeSymbol.String)
+            {
+                encoder.OpCode(ILOpCode.Box);
+                encoder.Token(GetTypeEntityHandle(pointer.Parameter.Type));
+            }
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBMemory),
+                nameof(VBMemory.VarPtr),
+                typeof(object))));
         }
 
         private static MethodInfo AddressableStorageMethod(TypeSymbol type, string operation)
@@ -2338,6 +2415,16 @@ public sealed class ManagedEmitter
                     encoder.OpCode(ILOpCode.Ldsfld);
                     encoder.Token(_globalHandles[global.Global]);
                     encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(global.Type, "WriteIfPresent")));
+                }
+
+                if (argument.Kind == IrCallArgumentKind.Address &&
+                    argument.Expression is IrAddressExpression { Place: IrParameterPlace parameter } &&
+                    TryGetAddressableCell(procedure, parameter.Parameter, out var parameterCell))
+                {
+                    encoder.LoadLocal(parameterCell.Id);
+                    encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                    encoder.Call(GetRuntimeMethodReference(
+                        AddressableStorageMethod(parameter.Type, "Write")));
                 }
 
                 if (argument.Kind == IrCallArgumentKind.Address && argument.WriteBackPlace is not null)

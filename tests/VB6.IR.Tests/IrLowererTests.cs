@@ -428,6 +428,64 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
+    public void Lower_StoredVarPtrForAByValParameterCreatesOneAddressableCell()
+    {
+        var program = Lower("""
+            Sub Zeige(ByVal wert As Long)
+                Dim pointer As Long
+                pointer = VarPtr(wert)
+            End Sub
+
+            Sub Main()
+                Zeige 7
+            End Sub
+            """);
+        var show = program.Modules
+            .SelectMany(module => module.Procedures)
+            .Single(procedure => procedure.Name == "__vb6_Zeige");
+
+        // Die Kopie eines ByVal-Parameters gehoert der Prozedur, ihre Zelle also auch: ein Local,
+        // kein statisches Feld wie bei einer Modulvariablen.
+        Assert.IsNull(show.AddressableCells);
+        Assert.IsNotNull(show.AddressableParameterCells);
+        var pair = show.AddressableParameterCells.Single();
+        Assert.AreEqual(TypeSymbol.Long, pair.Key.Type);
+        Assert.AreEqual(TypeSymbol.Variant, pair.Value.Type);
+
+        var pointer = show.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .OfType<IrAddressableParameterPointerExpression>()
+            .Single();
+        Assert.AreSame(pair.Key, pointer.Parameter);
+        Assert.AreSame(pair.Value, pointer.Cell);
+    }
+
+    [TestMethod]
+    public void Lower_StoredVarPtrForAByRefParameterStaysUnaddressable()
+    {
+        // Ein ByRef-Parameter muesste die Adresse des Aufrufers liefern. Eine eigene Zelle waere
+        // eine zweite, entkoppelte Kopie und damit schlechter als der ausdrueckliche Fehler 5.
+        var program = Lower("""
+            Sub Zeige(ByRef wert As Long)
+                Dim pointer As Long
+                pointer = VarPtr(wert)
+            End Sub
+
+            Sub Main()
+                Dim wert As Long
+                Zeige wert
+            End Sub
+            """);
+
+        foreach (var procedure in program.Modules.SelectMany(module => module.Procedures))
+        {
+            Assert.IsNull(procedure.AddressableParameterCells, procedure.Name);
+        }
+    }
+
+    [TestMethod]
     public void Lower_ForAndExitUseBranchesInsteadOfStructuredLoop()
     {
         var analysis = VBCompilation.Create("""

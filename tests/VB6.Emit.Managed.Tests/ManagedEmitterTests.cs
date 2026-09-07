@@ -627,6 +627,52 @@ public sealed class ManagedEmitterTests
             analysis.SemanticModel!.StaticVariables);
     }
 
+    [TestMethod]
+    public void Emit_SeedsAByValParameterCellFromTheIncomingArgument()
+    {
+        var program = Lower("""
+            Sub Zeige(ByVal wert As Long)
+                Dim pointer As Long
+                pointer = VarPtr(wert)
+                wert = wert + 1
+            End Sub
+
+            Sub Verweise(ByRef wert As Long)
+                Dim pointer As Long
+                pointer = VarPtr(wert)
+            End Sub
+
+            Sub Main()
+                Dim wert As Long
+                Zeige 7
+                Verweise wert
+            End Sub
+            """);
+
+        var x86 = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "ByValParameterCell",
+            Platform: ManagedPlatform.X86,
+            EmitPortablePdb: false));
+        Assert.IsTrue(x86.Success, string.Join(Environment.NewLine, x86.Diagnostics));
+
+        // Create statt Ensure: Die Zelle entsteht beim Prozedureintritt und uebernimmt dabei den
+        // Wert, mit dem der Parameter ankommt.
+        var methods = RuntimeMemberNames(x86.PeImage!);
+        CollectionAssert.IsSubsetOf(
+            new[]
+            {
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.CreateInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.GetInt32NativeAddress)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.ReadInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.WriteInt32)),
+                (nameof(VBAddressableStorage), nameof(VBAddressableStorage.Dispose))
+            },
+            methods);
+
+        // Der ByRef-Parameter daneben bekommt keine Zelle, sondern den erklaerten Fehler 5.
+        Assert.IsTrue(methods.Contains((nameof(VBMemory), nameof(VBMemory.VarPtr))));
+    }
+
     private static (string Name, FieldAttributes Accessibility)[] FieldAccessibility(byte[] image)
     {
         using var stream = new MemoryStream(image, writable: false);

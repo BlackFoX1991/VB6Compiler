@@ -7968,3 +7968,32 @@ der Lowerer, weil das Global nie vordeklariert wurde.
 Die Grenztabelle in `docs/R3-ADDRESSABLE-STORAGE.md` ist entsprechend korrigiert und um die
 nachgemessenen Parameterformen ergänzt. Offen bleiben ByRef- und ByVal-Parameter, Klassenfelder,
 UDT-Member, Arrayelemente und Variants; `managed-r3-pointers` bleibt `planned`.
+
+## 2026-09-07 — R3, Schnitt 26: gespeicherter VarPtr für ByVal-Parameter
+
+Ein ByVal-Parameter ist in VB6 eine private Kopie. Er hat damit seinen eigenen Speicherplatz und
+dieselbe Lebensdauer wie ein Local — die Zelle ist wieder ein Local, entsteht beim
+Prozedureintritt und wird bei der Rückkehr freigegeben. Der einzige Unterschied zum Local: Sie
+startet nicht mit Null, sondern mit dem Wert, mit dem das Argument ankommt.
+
+Der Nachweis prüft genau die Eigenschaft, die diesen Fall von allen bisherigen trennt. Der Lauf
+schreibt nativ über den gespeicherten Zeiger in die Kopie, ruft dann `Bump wert` ByRef auf und
+liest wieder — und danach steht die Variable des Aufrufers unverändert auf ihrem Ausgangswert.
+Die Zelle gehört der Kopie, nicht dem Original.
+
+Der **ByRef-Parameter** bleibt bei Fehler 5, und zwar als Entscheidung, nicht als Restarbeit.
+VB6 liefert für `VarPtr` auf einen ByRef-Parameter die Adresse des Aufrufers; der Zielvertrag in
+`docs/R3-ADDRESSABLE-STORAGE.md` schreibt das als „Aliase erhalten dieselbe Zelle" fest. Im
+erzeugten Code kommt beim Aufgerufenen aber nur ein Managed Pointer an, aus dem sich die Zelle
+des Aufrufers nicht finden lässt. Eine eigene Zelle wäre eine zweite, entkoppelte Kopie — sie
+lieferte eine Adresse, die auf den falschen Speicher zeigt. Das ist schlechter als der
+ausdrückliche Fehler 5, und der Fall bekommt eine eigene Entwurfsrunde über die
+Aufrufkonvention. Ein Ausführungstest hält die 5 als gewollten Zustand fest, ein IR-Test, dass
+gar keine Zelle entsteht.
+
+Die drei Synchronisationsstellen für `IrParameterPlace` — Load, Store, ByRef-Adresse — wurden je
+einmal gebrochen und der x86-Lauf rot gesehen.
+
+`managed-r3-pointers` bleibt `planned`. Von den fünf Slot-Arten des Abnahmeschritts 1 sind drei
+bedient: Locals, Globals und der ByVal-Teil der Parameter. Offen sind ByRef-Parameter,
+Klassenfelder, UDT-Member, Arrayelemente und Variants.

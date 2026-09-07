@@ -88,7 +88,14 @@ public sealed record IrProcedure(
     /// a stored pointer intrinsic.  Backends that do not implement this contract leave the
     /// corresponding intrinsic on its ordinary failure path.
     /// </summary>
-    ImmutableDictionary<IrLocal, IrLocal>? AddressableCells = null) : IrNode;
+    ImmutableDictionary<IrLocal, IrLocal>? AddressableCells = null,
+
+    /// <summary>
+    /// The same contract for a ByVal parameter, which owns its copy exactly like a local. A
+    /// ByRef parameter is deliberately absent: its address must be the caller's, and a cell of
+    /// its own would be a second, decoupled copy.
+    /// </summary>
+    ImmutableDictionary<IrParameter, IrLocal>? AddressableParameterCells = null) : IrNode;
 
 public sealed record IrParameter(
     ParameterSymbol? Symbol,
@@ -274,6 +281,16 @@ public sealed record IrAddressablePointerExpression(
 /// </summary>
 public sealed record IrAddressableGlobalPointerExpression(
     IrGlobal Global,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
+/// <summary>
+/// A classic x86 pointer to a ByVal parameter, which is a private copy and therefore has its
+/// own procedure-scoped native cell. The cell is seeded from the incoming argument at entry.
+/// </summary>
+public sealed record IrAddressableParameterPointerExpression(
+    IrParameter Parameter,
+    IrLocal Cell,
     TypeSymbol ResultType)
     : IrExpression(ResultType);
 

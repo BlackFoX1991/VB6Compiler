@@ -237,7 +237,9 @@ Implementiert sind bisher zwei Speicherfamilien, beide nur im x86-Managed-Pfad: 
 Write-back synchronisiert; die Zelle einer Modulvariablen ist ein statisches Begleitfeld, das
 faul an der `VarPtr`-Stelle entsteht, damit keine Modulinitialisierer-Reihenfolge nötig wird.
 Ein `Static`-Local ist dieselbe Speicherfamilie unter synthetischem Namen und faellt mit hinein.
-Klassenfelder, Parameter, UDT-Member, Arrayelemente, Variants und AnyCPU/x64 behalten ihre
+Ein ByVal-Parameter besitzt seine Kopie und bekommt eine prozedurweite Zelle, die mit dem
+ankommenden Argument startet. Klassenfelder, ByRef-Parameter, UDT-Member, Arrayelemente,
+Variants und AnyCPU/x64 behalten ihre
 ausdrückliche Fehler-5-Grenze. Die gemessene Grenztabelle und die Layoutfamilien stehen im
 Zerlegungsdokument.
 

@@ -59,6 +59,19 @@ zur Laufzeit mit einer `FieldAccessException` — und die kommt als VB6-Fehler 5
 als das, was eine fehlende Unterstützung ebenfalls meldet. Die Zelle trägt deshalb dieselbe
 Sichtbarkeit wie das Datenfeld, zu dem sie gehört, und ein Emitter-Test vergleicht die beiden.
 
+Der dritte Slice nimmt den **ByVal-Parameter**. Er ist in VB6 eine private Kopie, hat also seinen
+eigenen Speicherplatz und damit dieselbe Lebensdauer wie ein Local: Die Zelle ist wieder ein
+Local, entsteht beim Prozedureintritt und wird bei der Rückkehr freigegeben. Ein Unterschied
+bleibt: Sie startet nicht mit Null, sondern mit dem Wert, mit dem das Argument ankommt.
+
+Der **ByRef-Parameter** ist ausdrücklich nicht dabei, und zwar nicht aus Aufwandsgründen. Der
+Zielvertrag unten verlangt, dass Aliase desselben Speicherplatzes dieselbe Zelle sehen: In VB6
+liefert `VarPtr` auf einen ByRef-Parameter die Adresse des Aufrufers, nicht eine eigene. Im
+erzeugten Code kommt beim Aufgerufenen aber nur ein Managed Pointer an, aus dem sich die Zelle
+des Aufrufers nicht finden lässt. Eine eigene Zelle wäre eine zweite, entkoppelte Kopie — sie
+würde eine Adresse liefern, die auf den falschen Speicher zeigt, und das ist schlechter als der
+ausdrückliche Fehler 5. Der Fall braucht eine eigene Entwurfsrunde über die Aufrufkonvention.
+
 Ein Innenzeiger auf einen CLR-Local, ein Feld oder ein Arrayelement ist keine Alternative: Der GC
 kann Heapobjekte bewegen, ein String kann seine Repräsentation bei einer Zuweisung austauschen, und
 eine ReDim-Operation ersetzt ein Array. Ein in `Long` umgewandelter Managed-ByRef wird vom GC nicht
@@ -76,9 +89,9 @@ Stand nach dem Modulvariablen-Slice:
 | Modulvariable, Skalar | Zelle | — |
 | Modulvariable, String | Fehler 5 | Zelle |
 | `Static`-Local | Zelle | Zelle |
-| Klassenfeld | Fehler 5 | Fehler 5 |
+| ByVal-Parameter | Zelle | Zelle |
 | ByRef-Parameter | Fehler 5 | Fehler 5 |
-| ByVal-Parameter | Fehler 5 | Fehler 5 |
+| Klassenfeld | Fehler 5 | Fehler 5 |
 | UDT-Member, ganzes UDT | Fehler 5 | Fehler 5 |
 | Arrayelement | Fehler 5 | Fehler 5 |
 | Variant | Fehler 5 | Fehler 5 |

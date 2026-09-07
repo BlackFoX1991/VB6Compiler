@@ -39,7 +39,9 @@ testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adopti
 `docs/R2-OBJECT-LIFETIME.md`.
 
 Aktive Karte ist `managed-r3-pointers`. Gespeicherte `VarPtr`/`StrPtr` tragen im x86-Pfad zwei
-Speicherfamilien: Locals und Modulvariablen. Die Zelle einer Modulvariablen ist ein statisches
+Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals) und ByVal-Parameter. Ein
+ByRef-Parameter bleibt ausdrücklich bei Fehler 5 — sein `VarPtr` müsste die Adresse des Aufrufers
+liefern, und eine eigene Zelle im Aufgerufenen wäre eine zweite, entkoppelte Kopie. Die Zelle einer Modulvariablen ist ein statisches
 Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module
 nacheinander, eine später entdeckte Zelle passt nicht mehr in ein früheres Modul, und ein
 Modulinitialisierer müsste über Modulgrenzen geordnet werden. Deshalb sind die Runtime-Zugriffe
