@@ -68,6 +68,12 @@ public sealed class ManagedEmitter
             new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<IrField> _addressableFields =
             new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<IrParameter> _addressableByRefParameters =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<IrProcedure> _byRefAliasProcedures =
+            new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<IrProcedure, List<IrLocal>> _emitterLocals =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrField, FieldDefinitionHandle> _fieldHandles =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrTypeDefinition, TypeDefinitionHandle> _udtHandles =
@@ -121,6 +127,11 @@ public sealed class ManagedEmitter
             {
                 _addressableFields.UnionWith(program.AddressableFields);
             }
+
+            if (!program.AddressableByRefParameters.IsDefaultOrEmpty)
+            {
+                _addressableByRefParameters.UnionWith(program.AddressableByRefParameters);
+            }
         }
 
         public ManagedEmitResult Emit()
@@ -128,6 +139,7 @@ public sealed class ManagedEmitter
             AddAssemblyReferences();
             AddAssemblyAndModuleMetadata();
             BuildPlansAndAssignHandles();
+            PrepareByRefAliasProcedures();
             EmitFieldDefinitions();
             var parameterStarts = EmitParameters();
             var bodyOffsets = EmitMethodBodies();
@@ -1285,6 +1297,9 @@ public sealed class ManagedEmitter
                 case IrAddressableParameterPointerExpression parameterPointer:
                     EmitAddressableParameterPointer(encoder, procedure, parameterPointer);
                     break;
+                case IrAddressableByRefParameterPointerExpression byRefParameterPointer:
+                    EmitAddressableByRefParameterPointer(encoder, procedure, byRefParameterPointer);
+                    break;
                 case IrAddressableArrayPointerExpression arrayPointer:
                     EmitAddressableArrayPointer(encoder, procedure, arrayPointer);
                     break;
@@ -1461,6 +1476,11 @@ public sealed class ManagedEmitter
                     encoder.LoadLocal(local.Local.Id);
                     break;
                 case IrParameterPlace parameter:
+                    if (IsNativeByRefAliasParameter(procedure, parameter.Parameter))
+                    {
+                        EmitNativeByRefAliasParameterLoad(encoder, procedure, parameter.Parameter);
+                        break;
+                    }
                     if (TryGetAddressableCell(procedure, parameter.Parameter, out var parameterLoadCell))
                     {
                         encoder.LoadLocal(parameterLoadCell.Id);
@@ -1583,6 +1603,9 @@ public sealed class ManagedEmitter
                         encoder.Call(GetRuntimeMethodReference(
                             AddressableStorageMethod(parameter.Type, "Write")));
                     }
+                    break;
+                case IrParameterPlace parameter when IsNativeByRefAliasParameter(procedure, parameter.Parameter):
+                    EmitNativeByRefAliasParameterStore(encoder, procedure, parameter.Parameter, value);
                     break;
                 case IrParameterPlace parameter:
                     if (TracksLifetimeStorage(parameter.Type))
@@ -2279,6 +2302,39 @@ public sealed class ManagedEmitter
                 typeof(object))));
         }
 
+        private void EmitAddressableByRefParameterPointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressableByRefParameterPointerExpression pointer)
+        {
+            if (_options.Platform == ManagedPlatform.X86 &&
+                _byRefAliasProcedures.Contains(procedure))
+            {
+                // The caller supplied the cell's native address as the CLR T& argument.  It is
+                // already the exact location VarPtr must answer, not a second callee-owned cell.
+                encoder.LoadArgument(GetIlArgumentIndex(procedure, pointer.Parameter.Index));
+                if (pointer.MemberPath is not null)
+                {
+                    throw new NotSupportedException(
+                        "A ByRef VarPtr member needs its record alias call representation.");
+                }
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            // A callback, event handler or public class member can be reached from a call site
+            // the emitter did not rewrite.  Preserve the established explicit boundary instead
+            // of interpreting an ordinary managed address as a retained native pointer.
+            encoder.LoadArgument(GetIlArgumentIndex(procedure, pointer.Parameter.Index));
+            encoder.OpCode(ILOpCode.Conv_i);
+            encoder.OpCode(ILOpCode.Box);
+            encoder.Token(GetReflectionTypeReference(typeof(IntPtr)));
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBMemory),
+                nameof(VBMemory.VarPtr),
+                typeof(object))));
+        }
+
         /// <summary>
         /// A record leaves the cell boxed and has to come back to its static type; a scalar is
         /// already the type the helper signature names.
@@ -2533,6 +2589,7 @@ public sealed class ManagedEmitter
                 EmitExpression(encoder, procedure, call.Receiver);
             }
 
+            var byRefAliases = new List<ByRefAliasArgument>();
             for (var index = 0; index < call.Arguments.Length; index++)
             {
                 var argument = call.Arguments[index];
@@ -2595,6 +2652,19 @@ public sealed class ManagedEmitter
                     }
 
                     encoder.Call(GetDeclareArrayBufferAddressReference());
+                    continue;
+                }
+
+                if (TryEmitByRefAliasArgument(
+                        encoder,
+                        procedure,
+                        call,
+                        index,
+                        argument,
+                        parameter,
+                        out var byRefAlias))
+                {
+                    byRefAliases.Add(byRefAlias);
                     continue;
                 }
 
@@ -2699,6 +2769,15 @@ public sealed class ManagedEmitter
             if (call.ResultTemporary is not null)
             {
                 encoder.StoreLocal(call.ResultTemporary.Id);
+            }
+
+            // A native alias is authoritative after the call.  Pull it back before the ordinary
+            // address write-back below, otherwise that existing path would overwrite the native
+            // write with the stale CLR slot it was originally designed to repair in the opposite
+            // direction.
+            foreach (var byRefAlias in byRefAliases)
+            {
+                EmitByRefAliasReadBack(encoder, procedure, byRefAlias);
             }
 
             foreach (var argument in call.Arguments)
@@ -2851,6 +2930,242 @@ public sealed class ManagedEmitter
                 encoder.LoadLocal(call.ResultTemporary.Id);
             }
         }
+
+        /// <summary>
+        /// Replaces a managed ByRef argument with the caller's native cell only for a procedure
+        /// whose complete call surface was accepted up front.  A slot that has never needed a
+        /// cell gets a short-lived one for this call; its native value is copied back before that
+        /// cell is disposed.
+        /// </summary>
+        private bool TryEmitByRefAliasArgument(
+            InstructionEncoder encoder,
+            IrProcedure caller,
+            IrProcedureCallExpression call,
+            int index,
+            IrCallArgument argument,
+            ParameterSymbol? parameter,
+            out ByRefAliasArgument alias)
+        {
+            alias = null!;
+            if (_options.Platform != ManagedPlatform.X86 ||
+                parameter?.PassingMode != ParameterPassingMode.ByRef ||
+                argument.Kind != IrCallArgumentKind.Address ||
+                argument.Expression is not IrAddressExpression address ||
+                !TryGetByRefAliasCallee(call.Procedure, index, out var callee))
+            {
+                return false;
+            }
+
+            if (TryEmitExistingAddressableCellAliasAddress(encoder, caller, address.Place))
+            {
+                alias = new ByRefAliasArgument(address.Place, parameter.Type, null, null);
+                return true;
+            }
+
+            // A converted argument or an otherwise ordinary storage slot still needs a real
+            // native location for VarPtr in the callee.  Keep its cell and a typed read-back slot
+            // in the emitting method, behind the contiguous IR locals.
+            var cell = NewEmitterLocal(caller, "__byref_alias_cell", TypeSymbol.Variant);
+            var value = NewEmitterLocal(caller, "__byref_alias_value", parameter.Type);
+            EmitLoad(encoder, caller, address.Place);
+            EmitAddressableCellBox(encoder, parameter.Type);
+            encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(parameter.Type, "Create")));
+            encoder.StoreLocal(cell.Id);
+            encoder.LoadLocal(cell.Id);
+            EmitAddressableCellAddress(
+                encoder,
+                parameter.Type,
+                null,
+                descriptorAddress: parameter.Type == TypeSymbol.String);
+            encoder.OpCode(ILOpCode.Conv_i);
+            alias = new ByRefAliasArgument(address.Place, parameter.Type, cell, value);
+            return true;
+        }
+
+        private void EmitByRefAliasReadBack(
+            InstructionEncoder encoder,
+            IrProcedure caller,
+            ByRefAliasArgument alias)
+        {
+            if (alias.Cell is null || alias.Value is null)
+            {
+                // The native cell belongs to the original slot.  Reading the place goes through
+                // that cell, then the ordinary store refreshes the CLR mirror in the required
+                // native-to-managed direction.
+                EmitStore(encoder, caller, alias.Place, new IrLoadExpression(alias.Place));
+                return;
+            }
+
+            encoder.LoadLocal(alias.Cell.Id);
+            encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(alias.Type, "Read")));
+            EmitAddressableCellCast(encoder, alias.Type);
+            encoder.StoreLocal(alias.Value.Id);
+            EmitStore(
+                encoder,
+                caller,
+                alias.Place,
+                new IrLoadExpression(new IrLocalPlace(alias.Value)));
+            encoder.LoadLocal(alias.Cell.Id);
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBAddressableStorage),
+                nameof(VBAddressableStorage.Dispose),
+                typeof(object))));
+        }
+
+        /// <summary>
+        /// Pushes the native address held by an existing companion cell.  A field/global cell can
+        /// exist in metadata before its first VarPtr, so ensure it with the current CLR value at
+        /// this first alias call too.
+        /// </summary>
+        private bool TryEmitExistingAddressableCellAliasAddress(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrPlace place)
+        {
+            var root = place;
+            string? memberPath = null;
+            while (root is IrFieldPlace field)
+            {
+                if (TryGetFieldCell(field.Field, out var fieldCell))
+                {
+                    EmitEnsureAddressableFieldCell(encoder, procedure, field, fieldCell);
+                    EmitFieldReceiver(encoder, procedure, field.Receiver);
+                    encoder.OpCode(ILOpCode.Ldfld);
+                    encoder.Token(fieldCell);
+                    EmitAddressableCellAddress(
+                        encoder,
+                        field.Type,
+                        memberPath,
+                        descriptorAddress: memberPath is null && field.Type == TypeSymbol.String);
+                    encoder.OpCode(ILOpCode.Conv_i);
+                    return true;
+                }
+
+                memberPath = memberPath is null
+                    ? field.Field.Name
+                    : field.Field.Name + "." + memberPath;
+                root = field.Receiver;
+            }
+
+            switch (root)
+            {
+                case IrParameterPlace parameter
+                    when IsNativeByRefAliasParameter(procedure, parameter.Parameter):
+                    // An alias procedure received this parameter as the caller's native cell.
+                    // Forwarding it into another accepted alias procedure must preserve that exact
+                    // address rather than create the short-lived fallback cell below.
+                    encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                    return true;
+                case IrLocalPlace local when TryGetAddressableCell(procedure, local.Local, out var localCell):
+                    encoder.LoadLocal(localCell.Id);
+                    EmitAddressableCellAddress(
+                        encoder,
+                        local.Type,
+                        memberPath,
+                        descriptorAddress: memberPath is null && local.Type == TypeSymbol.String);
+                    encoder.OpCode(ILOpCode.Conv_i);
+                    return true;
+                case IrParameterPlace parameter
+                    when TryGetAddressableCell(procedure, parameter.Parameter, out var parameterCell):
+                    encoder.LoadLocal(parameterCell.Id);
+                    EmitAddressableCellAddress(
+                        encoder,
+                        parameter.Type,
+                        memberPath,
+                        descriptorAddress: memberPath is null && parameter.Type == TypeSymbol.String);
+                    encoder.OpCode(ILOpCode.Conv_i);
+                    return true;
+                case IrGlobalPlace global when TryGetGlobalCell(global.Global, out var globalCell):
+                    EmitEnsureAddressableGlobalCell(encoder, global, globalCell);
+                    encoder.OpCode(ILOpCode.Ldsfld);
+                    encoder.Token(globalCell);
+                    EmitAddressableCellAddress(
+                        encoder,
+                        global.Type,
+                        memberPath,
+                        descriptorAddress: memberPath is null && global.Type == TypeSymbol.String);
+                    encoder.OpCode(ILOpCode.Conv_i);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private void EmitEnsureAddressableGlobalCell(
+            InstructionEncoder encoder,
+            IrGlobalPlace global,
+            FieldDefinitionHandle cell)
+        {
+            encoder.OpCode(ILOpCode.Ldsfld);
+            encoder.Token(cell);
+            encoder.OpCode(ILOpCode.Ldsfld);
+            encoder.Token(_globalHandles[global.Global]);
+            EmitAddressableCellBox(encoder, global.Type);
+            encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(global.Type, "Ensure")));
+            encoder.OpCode(ILOpCode.Stsfld);
+            encoder.Token(cell);
+        }
+
+        private void EmitEnsureAddressableFieldCell(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrFieldPlace field,
+            FieldDefinitionHandle cell)
+        {
+            EmitFieldReceiver(encoder, procedure, field.Receiver);
+            EmitFieldReceiver(encoder, procedure, field.Receiver);
+            encoder.OpCode(ILOpCode.Ldfld);
+            encoder.Token(cell);
+            EmitFieldReceiver(encoder, procedure, field.Receiver);
+            encoder.OpCode(ILOpCode.Ldfld);
+            encoder.Token(_fieldHandles[field.Field]);
+            EmitAddressableCellBox(encoder, field.Type);
+            encoder.Call(GetRuntimeMethodReference(AddressableStorageMethod(field.Type, "Ensure")));
+            encoder.OpCode(ILOpCode.Stfld);
+            encoder.Token(cell);
+        }
+
+        private bool TryGetByRefAliasCallee(
+            ProcedureSymbol symbol,
+            int parameterIndex,
+            out IrProcedure procedure)
+        {
+            procedure = AllProcedures().FirstOrDefault(candidate =>
+                ReferenceEquals(candidate.Symbol, symbol) &&
+                _byRefAliasProcedures.Contains(candidate) &&
+                parameterIndex < candidate.Parameters.Length &&
+                _addressableByRefParameters.Contains(candidate.Parameters[parameterIndex]))!;
+            return procedure is not null;
+        }
+
+        private IrLocal NewEmitterLocal(IrProcedure procedure, string name, TypeSymbol type)
+        {
+            if (!_emitterLocals.TryGetValue(procedure, out var locals))
+            {
+                if (!procedure.Locals.Select((local, index) => local.Id == index).All(valid => valid))
+                {
+                    throw new InvalidOperationException(
+                        $"IR locals for '{procedure.Name}' must occupy contiguous IDs starting at zero.");
+                }
+
+                locals = [];
+                _emitterLocals.Add(procedure, locals);
+            }
+
+            var local = new IrLocal(
+                procedure.Locals.Length + locals.Count,
+                name,
+                type,
+                IsCompilerGenerated: true);
+            locals.Add(local);
+            return local;
+        }
+
+        private sealed record ByRefAliasArgument(
+            IrPlace Place,
+            TypeSymbol Type,
+            IrLocal? Cell,
+            IrLocal? Value);
 
         private void EmitNewStringBuilder(
             InstructionEncoder encoder,
@@ -3615,6 +3930,76 @@ public sealed class ManagedEmitter
             }
         }
 
+        private bool IsNativeByRefAliasParameter(IrProcedure procedure, IrParameter parameter) =>
+            _options.Platform == ManagedPlatform.X86 &&
+            _byRefAliasProcedures.Contains(procedure) &&
+            parameter.PassingMode == ParameterPassingMode.ByRef &&
+            _addressableByRefParameters.Contains(parameter);
+
+        /// <summary>
+        /// Reads a controlled ByRef alias without ever treating its native VB storage as a CLR
+        /// reference.  Most scalar and record layouts already agree with their CLR <c>T&amp;</c>
+        /// signature. Boolean and String are the two deliberate ABI adapters.
+        /// </summary>
+        private void EmitNativeByRefAliasParameterLoad(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrParameter parameter)
+        {
+            encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Index));
+            if (parameter.Type == TypeSymbol.String)
+            {
+                encoder.OpCode(ILOpCode.Conv_i);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBAddressableStorage),
+                    nameof(VBAddressableStorage.ReadStringDescriptor),
+                    typeof(IntPtr))));
+                return;
+            }
+
+            if (parameter.Type == TypeSymbol.Boolean)
+            {
+                // A VB Boolean owns two bytes (-1/0), while CLR bool owns one.  The low byte
+                // has the same truth value, and direct loads must not move the caller's cell.
+                encoder.OpCode(ILOpCode.Ldind_i1);
+                return;
+            }
+
+            EmitLoadIndirect(encoder, parameter.Type);
+        }
+
+        private void EmitNativeByRefAliasParameterStore(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrParameter parameter,
+            IrExpression value)
+        {
+            encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Index));
+            if (parameter.Type == TypeSymbol.String)
+            {
+                encoder.OpCode(ILOpCode.Conv_i);
+                EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBAddressableStorage),
+                    nameof(VBAddressableStorage.WriteStringDescriptor),
+                    typeof(IntPtr),
+                    typeof(string))));
+                return;
+            }
+
+            EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
+            if (parameter.Type == TypeSymbol.Boolean)
+            {
+                // Normalize CLR true (1) to the native VB6 Boolean bit pattern (-1).
+                encoder.OpCode(ILOpCode.Neg);
+                encoder.OpCode(ILOpCode.Conv_i2);
+                encoder.OpCode(ILOpCode.Stind_i2);
+                return;
+            }
+
+            EmitStoreIndirect(encoder, parameter.Type);
+        }
+
         private void EmitLoadIndirect(InstructionEncoder encoder, TypeSymbol type)
         {
             encoder.OpCode(ILOpCode.Ldobj);
@@ -3629,14 +4014,18 @@ public sealed class ManagedEmitter
 
         private StandaloneSignatureHandle EncodeLocalSignature(IrProcedure procedure)
         {
-            if (procedure.Locals.IsDefaultOrEmpty)
+            var emitterLocals = _emitterLocals.TryGetValue(procedure, out var allocated)
+                ? allocated
+                : [];
+            if (procedure.Locals.IsDefaultOrEmpty && emitterLocals.Count == 0)
             {
                 return default;
             }
 
             var blob = new BlobBuilder();
-            var variables = new BlobEncoder(blob).LocalVariableSignature(procedure.Locals.Length);
-            foreach (var local in procedure.Locals.OrderBy(local => local.Id))
+            var variables = new BlobEncoder(blob).LocalVariableSignature(
+                procedure.Locals.Length + emitterLocals.Count);
+            foreach (var local in procedure.Locals.OrderBy(local => local.Id).Concat(emitterLocals))
             {
                 EncodeType(variables.AddVariable().Type(isByRef: local.IsManagedAddress), local.Type);
             }
@@ -4399,6 +4788,247 @@ public sealed class ManagedEmitter
                 {
                     foreach (var method in plan.Module.Procedures) yield return method;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Selects the procedures whose ByRef VarPtr contract can be implemented without an
+        /// unobserved caller.  This runs after type planning, when the IR procedure set is closed;
+        /// walking the small IR graph also keeps this compiler decision independent of a second,
+        /// correctness-critical bound-tree walker.
+        /// </summary>
+        private void PrepareByRefAliasProcedures()
+        {
+            if (_options.Platform != ManagedPlatform.X86 || _addressableByRefParameters.Count == 0)
+            {
+                return;
+            }
+
+            var procedures = AllProcedures().ToArray();
+            var addressOfTargets = new HashSet<ProcedureSymbol>(ReferenceEqualityComparer.Instance);
+            var eventHandlers = new HashSet<ProcedureSymbol>(ReferenceEqualityComparer.Instance);
+            foreach (var procedure in procedures)
+            {
+                foreach (var expression in EnumerateProcedureExpressions(procedure))
+                {
+                    if (expression is IrAddressOfExpression addressOf)
+                    {
+                        addressOfTargets.Add(addressOf.Procedure);
+                    }
+                }
+
+                foreach (var handler in procedure.Blocks
+                    .SelectMany(block => block.Instructions)
+                    .OfType<IrSubscribeEventInstruction>()
+                    .Select(subscription => subscription.Handler))
+                {
+                    eventHandlers.Add(handler);
+                }
+            }
+
+            foreach (var procedure in procedures)
+            {
+                if (procedure.Symbol is null ||
+                    !procedure.Parameters.Any(parameter => _addressableByRefParameters.Contains(parameter)) ||
+                    addressOfTargets.Contains(procedure.Symbol) ||
+                    eventHandlers.Contains(procedure.Symbol) ||
+                    (procedure.DeclaringClass is not null && procedure.Symbol.IsPublic))
+                {
+                    continue;
+                }
+
+                _byRefAliasProcedures.Add(procedure);
+            }
+        }
+
+        private static IEnumerable<IrExpression> EnumerateProcedureExpressions(IrProcedure procedure)
+        {
+            foreach (var block in procedure.Blocks)
+            {
+                foreach (var instruction in block.Instructions)
+                {
+                    switch (instruction)
+                    {
+                        case IrStoreInstruction store:
+                            foreach (var expression in EnumeratePlaceExpressions(store.Target)) yield return expression;
+                            foreach (var expression in EnumerateExpressionTree(store.Value)) yield return expression;
+                            break;
+                        case IrVariantArraySetInstruction set:
+                            foreach (var expression in EnumerateExpressionTree(set.Array)) yield return expression;
+                            foreach (var argument in set.Arguments)
+                            {
+                                foreach (var expression in EnumerateExpressionTree(argument)) yield return expression;
+                            }
+                            foreach (var expression in EnumerateExpressionTree(set.Value)) yield return expression;
+                            break;
+                        case IrStoreAddressInstruction address:
+                            foreach (var expression in EnumerateExpressionTree(address.Address)) yield return expression;
+                            break;
+                        case IrEvaluateInstruction evaluate:
+                            foreach (var expression in EnumerateExpressionTree(evaluate.Expression)) yield return expression;
+                            break;
+                        case IrRaiseEventInstruction raiseEvent:
+                            foreach (var argument in raiseEvent.Arguments)
+                            {
+                                foreach (var expression in EnumerateExpressionTree(argument)) yield return expression;
+                            }
+                            break;
+                        case IrSubscribeEventInstruction subscribe:
+                            foreach (var expression in EnumerateExpressionTree(subscribe.Source)) yield return expression;
+                            foreach (var expression in EnumerateExpressionTree(subscribe.Target)) yield return expression;
+                            break;
+                    }
+                }
+
+                switch (block.Terminator)
+                {
+                    case IrConditionalTerminator conditional:
+                        foreach (var expression in EnumerateExpressionTree(conditional.Condition)) yield return expression;
+                        break;
+                    case IrGoSubReturnTerminator { ReturnIndex: not null } goSubReturn:
+                        foreach (var expression in EnumerateExpressionTree(goSubReturn.ReturnIndex)) yield return expression;
+                        break;
+                    case IrOnGoToTerminator onGoTo:
+                        foreach (var expression in EnumerateExpressionTree(onGoTo.Index)) yield return expression;
+                        break;
+                    case IrOnGoSubTerminator onGoSub:
+                        foreach (var expression in EnumerateExpressionTree(onGoSub.Index)) yield return expression;
+                        break;
+                    case IrReturnTerminator { Value: not null } returned:
+                        foreach (var expression in EnumerateExpressionTree(returned.Value)) yield return expression;
+                        break;
+                }
+            }
+        }
+
+        private static IEnumerable<IrExpression> EnumerateExpressionTree(IrExpression expression)
+        {
+            yield return expression;
+            switch (expression)
+            {
+                case IrLoadExpression load:
+                    foreach (var child in EnumeratePlaceExpressions(load.Place)) yield return child;
+                    break;
+                case IrAddressExpression address:
+                    foreach (var child in EnumeratePlaceExpressions(address.Place)) yield return child;
+                    break;
+                case IrAddressableArrayPointerExpression pointer:
+                    foreach (var child in EnumerateExpressionTree(pointer.Array)) yield return child;
+                    foreach (var child in EnumerateExpressionTree(pointer.Index)) yield return child;
+                    break;
+                case IrRuntimeCallExpression call:
+                    foreach (var argument in call.Arguments)
+                    {
+                        foreach (var child in EnumerateExpressionTree(argument.Expression)) yield return child;
+                    }
+                    break;
+                case IrProcedureCallExpression call:
+                    if (call.Receiver is not null)
+                    {
+                        foreach (var child in EnumerateExpressionTree(call.Receiver)) yield return child;
+                    }
+                    foreach (var argument in call.Arguments)
+                    {
+                        foreach (var child in EnumerateExpressionTree(argument.Expression)) yield return child;
+                    }
+                    break;
+                case IrSyntheticCallExpression call:
+                    if (call.Receiver is not null)
+                    {
+                        foreach (var child in EnumerateExpressionTree(call.Receiver)) yield return child;
+                    }
+                    foreach (var argument in call.Arguments)
+                    {
+                        foreach (var child in EnumerateExpressionTree(argument.Expression)) yield return child;
+                    }
+                    break;
+                case IrNewVBArrayExpression array:
+                    foreach (var bound in array.Bounds)
+                    {
+                        foreach (var child in EnumerateExpressionTree(bound.Lower)) yield return child;
+                        foreach (var child in EnumerateExpressionTree(bound.Upper)) yield return child;
+                    }
+                    break;
+                case IrTypeOfExpression typeOf:
+                    foreach (var child in EnumerateExpressionTree(typeOf.Expression)) yield return child;
+                    break;
+                case IrReDimPreserveExpression preserve:
+                    foreach (var child in EnumerateExpressionTree(preserve.Array)) yield return child;
+                    foreach (var bound in preserve.Bounds)
+                    {
+                        foreach (var child in EnumerateExpressionTree(bound.Lower)) yield return child;
+                        foreach (var child in EnumerateExpressionTree(bound.Upper)) yield return child;
+                    }
+                    break;
+                case IrEnsureClassExpression ensureClass:
+                    foreach (var child in EnumeratePlaceExpressions(ensureClass.Place)) yield return child;
+                    break;
+                case IrEnsureArrayExpression ensureArray:
+                    foreach (var child in EnumeratePlaceExpressions(ensureArray.Storage)) yield return child;
+                    foreach (var bound in ensureArray.Bounds)
+                    {
+                        foreach (var child in EnumerateExpressionTree(bound.Lower)) yield return child;
+                        foreach (var child in EnumerateExpressionTree(bound.Upper)) yield return child;
+                    }
+                    break;
+                case IrCopyArrayExpression copy:
+                    foreach (var child in EnumerateExpressionTree(copy.Source)) yield return child;
+                    break;
+                case IrArrayCallExpression arrayCall:
+                    foreach (var child in EnumerateExpressionTree(arrayCall.Array)) yield return child;
+                    foreach (var argument in arrayCall.Arguments)
+                    {
+                        foreach (var child in EnumerateExpressionTree(argument)) yield return child;
+                    }
+                    break;
+                case IrVariantArrayCallExpression variantArrayCall:
+                    foreach (var child in EnumerateExpressionTree(variantArrayCall.Array)) yield return child;
+                    foreach (var argument in variantArrayCall.Arguments)
+                    {
+                        foreach (var child in EnumerateExpressionTree(argument)) yield return child;
+                    }
+                    break;
+            }
+        }
+
+        private static IEnumerable<IrExpression> EnumeratePlaceExpressions(IrPlace place)
+        {
+            switch (place)
+            {
+                case IrFieldPlace field:
+                    foreach (var child in EnumeratePlaceExpressions(field.Receiver)) yield return child;
+                    break;
+                case IrArrayElementPlace element:
+                    foreach (var child in EnumerateExpressionTree(element.Array)) yield return child;
+                    foreach (var index in element.Indices)
+                    {
+                        foreach (var child in EnumerateExpressionTree(index)) yield return child;
+                    }
+                    break;
+                case IrArrayFlatElementPlace element:
+                    foreach (var child in EnumerateExpressionTree(element.Array)) yield return child;
+                    foreach (var child in EnumerateExpressionTree(element.Index)) yield return child;
+                    break;
+                case IrVariantArrayElementPlace element:
+                    foreach (var child in EnumerateExpressionTree(element.Array)) yield return child;
+                    foreach (var index in element.Indices)
+                    {
+                        foreach (var child in EnumerateExpressionTree(index)) yield return child;
+                    }
+                    break;
+                case IrIndirectPlace indirect:
+                    foreach (var child in EnumerateExpressionTree(indirect.Address)) yield return child;
+                    break;
+                case IrAccessorPlace accessor:
+                    if (accessor.Receiver is not null)
+                    {
+                        foreach (var child in EnumerateExpressionTree(accessor.Receiver)) yield return child;
+                    }
+                    foreach (var argument in accessor.Arguments)
+                    {
+                        foreach (var child in EnumerateExpressionTree(argument)) yield return child;
+                    }
+                    break;
             }
         }
 

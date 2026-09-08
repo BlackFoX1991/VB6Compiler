@@ -669,8 +669,50 @@ public sealed class ManagedEmitterTests
             },
             methods);
 
-        // Der ByRef-Parameter daneben bekommt keine Zelle, sondern den erklaerten Fehler 5.
-        Assert.IsTrue(methods.Contains((nameof(VBMemory), nameof(VBMemory.VarPtr))));
+        // Der ByRef-Parameter daneben bekommt ebenfalls keine eigene Zelle: Am kontrollierten
+        // Aufruf entsteht eine kurzlebige Zelle beim Aufrufer, daher faellt der alte Fehler-5-Pfad
+        // aus dem x86-Bild weg.
+        Assert.IsFalse(methods.Contains((nameof(VBMemory), nameof(VBMemory.VarPtr))));
+    }
+
+    [TestMethod]
+    public void Emit_LeavesUnrelatedProcedureLocalSignaturesUntouchedByByRefAliasTemporaries()
+    {
+        var program = Lower("""
+            Sub Alias(ByRef value As Long)
+                Dim pointer As Long
+                pointer = VarPtr(value)
+            End Sub
+
+            Sub Unrelated()
+                Debug.Print 1
+            End Sub
+
+            Sub Main()
+                Dim value As Long
+                Alias value
+                Unrelated
+            End Sub
+            """);
+
+        var emitted = new ManagedEmitter().Emit(program, new ManagedEmitOptions(
+            "ByRefAliasLocalSignature",
+            Platform: ManagedPlatform.X86,
+            EmitPortablePdb: false));
+        Assert.IsTrue(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));
+
+        using var stream = new MemoryStream(emitted.PeImage!, writable: false);
+        using var pe = new PEReader(stream);
+        var metadata = pe.GetMetadataReader();
+        var method = metadata.MethodDefinitions
+            .Select(handle => metadata.GetMethodDefinition(handle))
+            .Single(candidate => metadata.GetString(candidate.Name) == "__vb6_Unrelated");
+        var body = pe.GetMethodBody(method.RelativeVirtualAddress);
+
+        // Nur der aufrufende Main bekommt die zwei emitter-eigenen Hilfslokalen. Eine Prozedur
+        // ohne IR-Locals behÃ¤lt die leere lokale Signatur, statt versehentlich global erweitert
+        // zu werden.
+        Assert.IsTrue(body.LocalSignature.IsNil);
     }
 
     private static (string Name, FieldAttributes Accessibility)[] FieldAccessibility(byte[] image)

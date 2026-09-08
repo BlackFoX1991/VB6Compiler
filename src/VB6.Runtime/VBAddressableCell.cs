@@ -313,6 +313,43 @@ public static class VBAddressableStorage
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
     public static string ReadString(object storage) => GetString(storage).Read();
+
+    /// <summary>
+    /// Reads a VB6 String through the address of its BSTR descriptor.  A controlled ByRef alias
+    /// passes this address as a CLR <c>string&amp;</c> solely so the callee can keep the caller's
+    /// VarPtr identity; CLR must never dereference that native descriptor as an object reference.
+    /// </summary>
+    public static string ReadStringDescriptor(IntPtr descriptor)
+    {
+        if (descriptor == IntPtr.Zero)
+        {
+            throw new ArgumentNullException(nameof(descriptor));
+        }
+
+        var storage = Marshal.ReadIntPtr(descriptor);
+        return storage == IntPtr.Zero ? string.Empty : Marshal.PtrToStringBSTR(storage);
+    }
+
+    /// <summary>
+    /// Replaces the BSTR named by a native descriptor address.  Ownership stays with the
+    /// addressable cell, exactly like <see cref="WriteString"/> on the cell object itself.
+    /// </summary>
+    public static void WriteStringDescriptor(IntPtr descriptor, string? value)
+    {
+        if (descriptor == IntPtr.Zero)
+        {
+            throw new ArgumentNullException(nameof(descriptor));
+        }
+
+        var storage = Marshal.ReadIntPtr(descriptor);
+        if (storage != IntPtr.Zero)
+        {
+            Marshal.FreeBSTR(storage);
+        }
+
+        Marshal.WriteIntPtr(descriptor, Marshal.StringToBSTR(value ?? string.Empty));
+    }
+
     public static object ReadRecord(object storage) => GetRecord(storage).Read();
 
     public static byte ReadByte(object storage) => GetByte(storage).Read();

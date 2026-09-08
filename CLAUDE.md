@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 166 Erwartungen: 146 `implemented`, 0 `partial`, 20 `planned`;
-146 `documented-verified`, 20 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 166 Erwartungen: 147 `implemented`, 0 `partial`, 19 `planned`;
+147 `documented-verified`, 19 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -38,7 +38,7 @@ testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adopti
 übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am Leben hält. Details in
 `docs/R2-OBJECT-LIFETIME.md`.
 
-Aktive Karte ist `managed-r3-byref-alias`. Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad zwei
+Aktive Karte ist `managed-r3-invalidation`. Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
 UDTs. Bei einem UDT gehört die Zelle dem **ganzen** Datensatz, ein Memberzeiger ist Blockadresse
 plus Offset, und Größe wie Offsets kommen aus dem Interop-Marshaller — derselben Quelle, aus der
@@ -60,8 +60,11 @@ dort unsichtbar wäre.
 Ein **String-Speicherplatz** trägt beide Intrinsics: `StrPtr` die BSTR, `VarPtr` die Adresse der
 Variablen, an der dieser Zeiger steht. Die Invariante ist prüfbar ohne VB6-Orakel — `StrPtr(s)`
 ist der `Long` an `VarPtr(s)`. Ein
-ByRef-Parameter bleibt ausdrücklich bei Fehler 5 — sein `VarPtr` müsste die Adresse des Aufrufers
-liefern, und eine eigene Zelle im Aufgerufenen wäre eine zweite, entkoppelte Kopie. Die Zelle einer Modulvariablen ist ein statisches
+`managed-r3-byref-alias` reicht bei kontrollierten privaten x86-Aufrufen die Zelle des Aufrufers
+durch: `VarPtr` im Aufgerufenen liefert deshalb exakt dessen Adresse. Fehlt dem Argument eine
+eigene Zelle, verwendet der Aufruf eine temporäre Zelle mit Rückschreiben und Freigabe;
+`AddressOf`-Ziele, Ereignishandler und öffentliche Klassenmitglieder bleiben bei Fehler 5. Die
+Zelle einer Modulvariablen ist ein statisches
 Begleitfeld, das **faul an der `VarPtr`-Stelle** entsteht — der Lowerer baut die Module
 nacheinander, eine später entdeckte Zelle passt nicht mehr in ein früheres Modul, und ein
 Modulinitialisierer müsste über Modulgrenzen geordnet werden. Deshalb sind die Runtime-Zugriffe

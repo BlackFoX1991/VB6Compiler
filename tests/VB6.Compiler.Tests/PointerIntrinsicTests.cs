@@ -1158,6 +1158,229 @@ public sealed class PointerIntrinsicTests
     }
 
     [TestMethod]
+    public void EmitX86Application_AliasesByRefVarPtrToTheCallersNativeCell()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The ByRef VarPtr regression uses the Windows x86 host.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the ByRef VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerByRefVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "ByRefVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Sub Beobachte(ByRef wert As Long, ByVal erwarteteAdresse As Long)
+                    Dim zeiger As Long
+                    Dim neu As Long
+                    Dim gelesen As Long
+                    Dim ballast As String
+                    Dim i As Long
+
+                    zeiger = VarPtr(wert)
+                    Debug.Print (erwarteteAdresse = 0 Or zeiger = erwarteteAdresse)
+
+                    neu = 99
+                    CopyMemory ByVal zeiger, neu, 4
+                    wert = wert + 1
+                    For i = 1 To 2000
+                        ballast = ballast & "x"
+                    Next i
+                    CopyMemory gelesen, ByVal zeiger, 4
+                    Debug.Print gelesen
+                End Sub
+
+                Sub BeobachteBoolean(ByRef wert As Boolean, ByVal erwarteteAdresse As Long)
+                    Dim zeiger As Long
+
+                    zeiger = VarPtr(wert)
+                    Debug.Print zeiger = erwarteteAdresse
+                    Debug.Print wert
+                    wert = False
+                End Sub
+
+                Sub BeobachteString(ByRef wert As String, ByVal erwarteteAdresse As Long)
+                    Dim zeiger As Long
+
+                    zeiger = VarPtr(wert)
+                    Debug.Print zeiger = erwarteteAdresse
+                    Debug.Print wert
+                    wert = "aktualisiert"
+                End Sub
+
+                Sub PruefeWeitergabe(ByRef wert As Long, ByVal erwarteteAdresse As Long)
+                    Debug.Print VarPtr(wert) = erwarteteAdresse
+                    wert = wert + 1
+                End Sub
+
+                Sub LeiteWeiter(ByRef wert As Long, ByVal erwarteteAdresse As Long)
+                    Dim zeiger As Long
+
+                    zeiger = VarPtr(wert)
+                    PruefeWeitergabe wert, erwarteteAdresse
+                    Debug.Print zeiger = VarPtr(wert)
+                End Sub
+
+                Sub Main()
+                    Dim mitZelle As Long
+                    Dim ohneZelle As Long
+                    Dim weiter As Long
+                    Dim zeiger As Long
+                    Dim wahr As Boolean
+                    Dim text As String
+
+                    mitZelle = 42
+                    zeiger = VarPtr(mitZelle)
+                    Beobachte mitZelle, zeiger
+                    Debug.Print mitZelle
+
+                    ohneZelle = 7
+                    Beobachte ohneZelle, 0
+                    Debug.Print ohneZelle
+
+                    weiter = 5
+                    zeiger = VarPtr(weiter)
+                    LeiteWeiter weiter, zeiger
+                    Debug.Print weiter
+
+                    wahr = True
+                    zeiger = VarPtr(wahr)
+                    BeobachteBoolean wahr, zeiger
+                    Debug.Print wahr
+
+                    text = "vorher"
+                    zeiger = VarPtr(text)
+                    BeobachteString text, zeiger
+                    Debug.Print text
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("ByRefVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 ByRef VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[] { "True", "100", "100", "True", "100", "100", "True", "True", "6", "True", "True", "False", "True", "vorher", "aktualisiert" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitX86Application_LeavesAnAddressOfByRefProcedureAtError5()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The ByRef VarPtr regression uses the Windows x86 host.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the ByRef VarPtr contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerAddressOfByRefVarPtrTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "AddressOfByRefVarPtr.dll");
+            var result = VBCompilation.Create("""
+                Private Sub Beobachte(ByRef wert As Long)
+                    Dim zeiger As Long
+                    On Error Resume Next
+                    zeiger = VarPtr(wert)
+                    Debug.Print Err.Number
+                    Debug.Print Err.Description
+                End Sub
+
+                Sub Main()
+                    Dim callback As LongPtr
+                    Dim wert As Long
+                    callback = AddressOf Beobachte
+                    Beobachte wert
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("AddressOfByRefVarPtr", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 AddressOf ByRef VarPtr probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "5",
+                    "VarPtr is supported only as a ByVal As Any argument of a Declare, where the address is consumed immediately."
+                },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitX86Project_GivesEveryInstanceItsOwnPrivateFieldCell()
     {
         if (!OperatingSystem.IsWindows())

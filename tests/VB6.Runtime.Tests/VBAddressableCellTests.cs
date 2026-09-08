@@ -138,6 +138,20 @@ public sealed class VBAddressableCellTests
     }
 
     [TestMethod]
+    public void StringDescriptorFacade_ReadsAndReplacesTheBstrOwnedByTheAddressableCell()
+    {
+        var storage = VBAddressableStorage.CreateString("abc");
+        var descriptor = VBAddressableStorage.GetStringDescriptorNativeAddress(storage);
+
+        Assert.AreEqual("abc", VBAddressableStorage.ReadStringDescriptor(descriptor));
+        VBAddressableStorage.WriteStringDescriptor(descriptor, "xy");
+        Assert.AreEqual("xy", VBAddressableStorage.ReadString(storage));
+        Assert.AreEqual("xy", Marshal.PtrToStringBSTR(Marshal.ReadIntPtr(descriptor)));
+
+        VBAddressableStorage.Dispose(storage);
+    }
+
+    [TestMethod]
     public void BooleanFacade_UsesTheVb6TwoByteMinusOneTrueRepresentation()
     {
         var storage = VBAddressableStorage.CreateBoolean(true);

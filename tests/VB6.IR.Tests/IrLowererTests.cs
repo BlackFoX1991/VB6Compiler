@@ -463,10 +463,8 @@ public sealed class IrLowererTests
     }
 
     [TestMethod]
-    public void Lower_StoredVarPtrForAByRefParameterStaysUnaddressable()
+    public void Lower_StoredVarPtrForAByRefParameterRecordsTheCallerAliasContract()
     {
-        // Ein ByRef-Parameter muesste die Adresse des Aufrufers liefern. Eine eigene Zelle waere
-        // eine zweite, entkoppelte Kopie und damit schlechter als der ausdrueckliche Fehler 5.
         var program = Lower("""
             Sub Zeige(ByRef wert As Long)
                 Dim pointer As Long
@@ -475,14 +473,30 @@ public sealed class IrLowererTests
 
             Sub Main()
                 Dim wert As Long
-                Zeige wert
+            Zeige wert
             End Sub
             """);
 
+        var show = program.Modules
+            .SelectMany(module => module.Procedures)
+            .Single(procedure => procedure.Name == "__vb6_Zeige");
+
+        // Die Markierung gehoert dem Programm, weil erst der Emitter mit allen IR-Aufrufstellen
+        // entscheiden kann, ob die Zelle des Aufrufers sicher durchgereicht werden darf. Im
+        // Aufgerufenen entsteht weiterhin keine zweite Parameterzelle.
+        Assert.AreSame(show.Parameters.Single(), program.AddressableByRefParameters.Single());
         foreach (var procedure in program.Modules.SelectMany(module => module.Procedures))
         {
             Assert.IsNull(procedure.AddressableParameterCells, procedure.Name);
         }
+
+        var pointer = show.Blocks
+            .SelectMany(block => block.Instructions)
+            .OfType<IrStoreInstruction>()
+            .Select(instruction => instruction.Value)
+            .OfType<IrAddressableByRefParameterPointerExpression>()
+            .Single();
+        Assert.AreSame(show.Parameters.Single(), pointer.Parameter);
     }
 
     [TestMethod]

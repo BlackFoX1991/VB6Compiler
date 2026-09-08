@@ -36,7 +36,16 @@ public sealed record IrProgram(
     /// field beside the data field; it is freed by its own finalizer once the object it belongs
     /// to is gone, which is the point past which VB6 does not define the pointer either.
     /// </summary>
-    ImmutableArray<IrField> AddressableFields = default) : IrNode;
+    ImmutableArray<IrField> AddressableFields = default,
+
+    /// <summary>
+    /// ByRef parameters whose body takes their address through <c>VarPtr</c>.  They cannot own a
+    /// second cell: on a controlled x86 call the emitter passes the caller's native cell itself,
+    /// so both aliases name the same storage.  Procedures with a callback or externally callable
+    /// surface deliberately stay on the explicit error-5 path because not every call site is then
+    /// under the emitter's control.
+    /// </summary>
+    ImmutableArray<IrParameter> AddressableByRefParameters = default) : IrNode;
 
 public sealed record IrModule(
     string Name,
@@ -315,6 +324,18 @@ public sealed record IrAddressableParameterPointerExpression(
     TypeSymbol ResultType,
     string? MemberPath = null,
     bool DescriptorAddress = false)
+    : IrExpression(ResultType);
+
+/// <summary>
+/// A <c>VarPtr</c> of a ByRef parameter.  The parameter itself remains a CLR <c>T&amp;</c>; when its
+/// complete call surface is controlled by the managed emitter, every caller supplies the native
+/// cell of the aliased storage and this expression answers that very address.  Otherwise it keeps
+/// the established explicit error-5 path rather than manufacturing a detached cell.
+/// </summary>
+public sealed record IrAddressableByRefParameterPointerExpression(
+    IrParameter Parameter,
+    TypeSymbol ResultType,
+    string? MemberPath = null)
     : IrExpression(ResultType);
 
 /// <summary>

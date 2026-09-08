@@ -175,7 +175,7 @@ mehr nachverfolgt.
 ## Gemessene Grenze
 
 Ein x86-Wegwerfprogramm hat die ganze Fläche abgefragt, statt sie aus dem Quelltext herzuleiten.
-Stand nach dem Modulvariablen-Slice:
+Stand nach dem ByRef-Alias-Slice:
 
 | Form | `VarPtr` | `StrPtr` |
 | --- | --- | --- |
@@ -192,7 +192,7 @@ Stand nach dem Modulvariablen-Slice:
 | ganzes Array | Fehler 5 | Fehler 5 |
 | Private Instanzfeld | Zelle | Zelle |
 | Public Instanzfeld | Fehler 5 | Fehler 5 |
-| ByRef-Parameter | Fehler 5 | Fehler 5 |
+| ByRef-Parameter | Zelle des Aufrufers bei kontrolliertem privatem x86-Aufruf; sonst Fehler 5 | Fehler 5 |
 | Variant | Fehler 5 | Fehler 5 |
 
 Auf AnyCPU und x64 steht in jeder Zeile Fehler 5; dort wird kein `IntPtr` in einen `Long`
@@ -233,12 +233,16 @@ dem R4-Ownership-Vertrag und darf nicht als CLR-RCW-Innenadresse erscheinen.
 
 ## Durchführung und Abnahme
 
-1. **Slot-Instrumentierung — `managed-r3-pointers` abgenommen, `managed-r3-byref-alias` offen:**
+1. **Slot-Instrumentierung — `managed-r3-pointers` und `managed-r3-byref-alias` abgenommen:**
    Der IR markiert jede Address-taken-Stelle. Der Emitter erzeugt bzw. findet die Zelle für Locals,
    Globals einschließlich `Static`-Locals, ByVal-Parameter, flache UDTs, private Instanzfelder und
    beide String-Adressen; eindimensionale Arrayelemente nutzen den einen unbeweglichen Arrayspeicher.
-   Alle diese Familien sind gemessen. Allein ein ByRef-Parameter braucht die Adresse der Zelle des
-   Aufrufers statt einer entkoppelten Zelle im Aufgerufenen.
+   Ein adressierter ByRef-Parameter bekommt keine zweite Zelle im Aufgerufenen: Bei kontrollierten
+   privaten x86-Aufrufen übergibt der Emitter die native Zelle des Aufrufers. Fehlt sie dort noch,
+   übernimmt eine aufrufgebundene Zelle Rückschreiben und Freigabe. Die Probe misst
+   Zeigergleichheit, nativen Schreibzugriff und Speicherdruck für vorhandene wie temporäre Zellen;
+   Boolean bleibt -1/0, String läuft über die BSTR-Deskriptoradresse. `AddressOf`-Ziele,
+   Ereignishandler, öffentliche Klassenmitglieder und nicht-x86 bleiben bewusst bei Fehler 5.
 2. **Skalar- und Recordpfad — `managed-r3-pointers` abgenommen, `managed-r3-invalidation` offen:**
    x86-Probes halten die unterstützten Zeiger über eine erzwungene GC und prüfen native Bytes,
    Load/Store-, ByRef- und Write-back-Synchronisierung. Die gezielte Invalidierung durch `ReDim`,
@@ -257,8 +261,9 @@ dem R4-Ownership-Vertrag und darf nicht als CLR-RCW-Innenadresse erscheinen.
    Abmelde-/Freigabeidentität und einen Fremdclient-Nachweis, dass nach dem Abmelden kein Callback
    mehr erreichbar ist.
 
-Der gemessene x86-Managed-Stand schließt damit `managed-r3-pointers`: Die sieben genannten
-Speicherfamilien verwenden Runtime-besessenen Speicher statt einer CLR-Innenadresse. Die
-verbleibenden R3-Karten teilen die noch offene Fläche ohne Lücke auf: ByRef-Alias,
+Der gemessene x86-Managed-Stand schließt damit `managed-r3-pointers` und
+`managed-r3-byref-alias`: Die sieben genannten Speicherfamilien verwenden Runtime-besessenen
+Speicher statt einer CLR-Innenadresse, und kontrollierte ByRef-Aufrufe teilen die Zelle des
+Aufrufers. Die verbleibenden R3-Karten teilen die noch offene Fläche ohne Lücke auf:
 Invalidierung, SAFEARRAY, VARIANT und Callback-ABI. Außerhalb dieser Verträge bleibt die
 ausdrückliche Fehler-5-Grenze bestehen.

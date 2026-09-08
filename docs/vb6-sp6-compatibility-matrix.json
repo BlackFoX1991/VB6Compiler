@@ -2696,18 +2696,19 @@
       "dependsOn": [
         "managed-r3-pointers"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "ByRef-Alias adressierbarer Speicher",
       "expected": {
         "acceptance": "VarPtr auf einen ByRef-Parameter nennt die Adresse des Aufrufers; Aliase desselben Speicherplatzes erhalten dieselbe Zelle."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
         "tests/VB6.IR.Tests/IrLowererTests.cs",
-        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs"
+        "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
+        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "The x86 managed emitter passes the caller's native cell to a private procedure only when every call site is visible in IR: the procedure is neither an IrAddressOf target nor an event handler or public class member. A caller slot without its own cell receives a call-scoped cell that is copied back and released. Boolean uses its native -1/0 storage and String the BSTR descriptor address. Unsafe call shapes and every non-x86 target retain explicit error 5.",
       "title": "ByRef-Aliase adressierbarer Speicher"
     },
     {

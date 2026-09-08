@@ -44,6 +44,7 @@ public static class IrLowerer
         // bereits gebaute Globals-Liste eines frueheren Moduls passt.
         private readonly List<IrGlobal> _addressableGlobals = [];
         private readonly List<IrField> _addressableFields = [];
+        private readonly List<IrParameter> _addressableByRefParameters = [];
         private readonly Dictionary<ModuleVariableSymbol, BoundExpression> _constantValues =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<string, BoundExpression> _constantValuesByName =
@@ -223,7 +224,8 @@ public static class IrLowerer
                 classes.ToImmutable(),
                 _compatibilityProfile,
                 _addressableGlobals.ToImmutableArray(),
-                _addressableFields.ToImmutableArray());
+                _addressableFields.ToImmutableArray(),
+                _addressableByRefParameters.ToImmutableArray());
         }
 
         /// <summary>
@@ -256,6 +258,19 @@ public static class IrLowerer
             if (!_addressableFields.Contains(field))
             {
                 _addressableFields.Add(field);
+            }
+        }
+
+        /// <summary>
+        /// Records a ByRef parameter whose body asks for its caller's address.  The emitter waits
+        /// until it sees the complete IR program before deciding whether every possible call site
+        /// is under its control.
+        /// </summary>
+        public void MarkAddressableByRefParameter(IrParameter parameter)
+        {
+            if (!_addressableByRefParameters.Any(existing => ReferenceEquals(existing, parameter)))
+            {
+                _addressableByRefParameters.Add(parameter);
             }
         }
 
@@ -4448,6 +4463,21 @@ public static class IrLowerer
                             IsStringDescriptor(intrinsic, parameter.Type));
                         return true;
 
+                    // Ein ByRef-Parameter darf keine eigene Zelle bekommen: Sie waere eine
+                    // entkoppelte Kopie. Stattdessen merkt der Programmlowerer die Nachfrage;
+                    // der Emitter kann erst mit allen IR-Knoten entscheiden, ob jede Aufrufstelle
+                    // kontrolliert ist und dann die Zelle des Aufrufers durchreichen.
+                    case ParameterSymbol parameterSymbol
+                        when _parameters.TryGetValue(parameterSymbol, out var byRefParameter) &&
+                             byRefParameter.PassingMode == ParameterPassingMode.ByRef &&
+                             IsByRefAliasStorage(intrinsic, byRefParameter.Type, memberPath):
+                        _program.MarkAddressableByRefParameter(byRefParameter);
+                        pointer = new IrAddressableByRefParameterPointerExpression(
+                            byRefParameter,
+                            TypeSymbol.Long,
+                            memberPath);
+                        return true;
+
                     // Nur Private: Ein Public-Feld wird von aussen als Property gebunden, und die
                     // spaete Bindung liest es per Reflection direkt aus dem CLR-Feld. Eine Zelle
                     // daneben waere auf diesem Weg unsichtbar und damit veraltet.
@@ -4508,6 +4538,20 @@ public static class IrLowerer
                 ? type == TypeSymbol.String
                 : IsAddressableScalar(type) || IsAddressableRecord(type) || type == TypeSymbol.String;
         }
+
+        /// <summary>
+        /// The controlled alias call keeps the CLR parameter as <c>T&amp;</c>. Boolean and String
+        /// have their own emitter load/store adapters because their native VB6 representations
+        /// (two-byte -1/0 and BSTR descriptor) differ from CLR <c>bool</c>/<c>string</c>.
+        /// </summary>
+        private static bool IsByRefAliasStorage(
+            VBIntrinsicKind? intrinsic,
+            TypeSymbol type,
+            string? memberPath) =>
+            intrinsic == VBIntrinsicKind.VarPtr &&
+            memberPath is null &&
+            (IsAddressableScalar(type) || IsAddressableRecord(type) || type == TypeSymbol.String);
+
 
         /// <summary>
         /// A user-defined type the interop marshaller can move to and from a native block

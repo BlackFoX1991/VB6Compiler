@@ -109,6 +109,8 @@ public static class IrDumper
             $"native-addr @{pointer.Global.Name}{MemberSuffix(pointer.MemberPath)}",
         IrAddressableParameterPointerExpression pointer =>
             $"native-addr ${pointer.Parameter.Name}{MemberSuffix(pointer.MemberPath)}",
+        IrAddressableByRefParameterPointerExpression pointer =>
+            $"native-alias ${pointer.Parameter.Name}{MemberSuffix(pointer.MemberPath)}",
         IrRuntimeCallExpression call => $"runtime::{call.Method}(...) ",
         IrProcedureCallExpression call => $"call {call.Procedure.Name}(...) ",
         IrSyntheticCallExpression call => $"call {call.Procedure.Name}(...) ",

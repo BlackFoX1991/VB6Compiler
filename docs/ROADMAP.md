@@ -221,13 +221,20 @@ eindimensionale Arrayelemente, private Instanzfelder und beide String-Adressen. 
 werden an Load, Store, ByRef-Adresse und Write-back synchronisiert; ein Arrayelement besitzt dabei
 bewusst keine Kopierzelle, sondern macht den Speicher seines Arrays unbeweglich.
 
+Für kontrollierte private x86-Aufrufe reicht `managed-r3-byref-alias` genau diese Zelle als
+ByRef-Argument durch: `VarPtr` im Aufgerufenen ist damit die Adresse des Aufrufers. Fehlt dem
+Argument noch eine Zelle, übernimmt eine aufrufgebundene Zelle die Übergabe, das Rückschreiben und
+die Freigabe. `AddressOf`-Ziele, Ereignishandler und öffentliche Klassenmitglieder bleiben bei
+Fehler 5, weil der Emitter dort nicht jede Aufrufstelle kontrolliert.
+
 | Karte | Nachweis |
 | --- | --- |
 | `managed-r3-pointers` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests`, `VBArrayTests` |
+| `managed-r3-byref-alias` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests` |
 
 ## Aktive Restliste
 
-Die 20 folgenden Karten sind `planned` / `not-yet-verified`. R0, R1 und R2 sind geschlossen und
+Die 19 folgenden Karten sind `planned` / `not-yet-verified`. R0, R1 und R2 sind geschlossen und
 stehen als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der
 Matrix; die dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits
 erfüllte fachliche Einzelverträge bleiben in der Matrix erhalten und werden nicht neu
@@ -237,17 +244,19 @@ implementiert.
 
 Nach R2.
 
-ByRef-Parameter bleiben bis zur geänderten Aufrufkonvention bei Fehler 5, weil eine eigene Zelle
-im Aufgerufenen eine entkoppelte Kopie wäre. Public-Felder sind ebenfalls ausgeschlossen, weil
-späte Bindung das CLR-Feld direkt per Reflection liest. UDTs mit Array-, Variant- oder
-variablen String-Membern, mehrdimensionale und ganze Arrays sowie Variants haben eigene
-Layout-/Ownership-Karten; AnyCPU und x64 geben keinen in `Long` abgeschnittenen Zeiger aus. Die
-Grenztabelle, Layoutfamilien und die genaue Reihenfolge stehen in
+Der ByRef-Alias ist geschlossen: Bei kontrollierten privaten x86-Aufrufen reicht der Emitter die
+native Zelle des Aufrufers als ByRef-Argument durch; fehlt sie noch, übernimmt eine
+aufrufgebundene Zelle mit Rückschreiben und Freigabe. `AddressOf`-Ziele, Ereignishandler und
+öffentliche Klassenmitglieder bleiben bei Fehler 5, weil nicht alle ihre Aufrufstellen im IR
+sichtbar sind. Public-Felder sind ebenfalls ausgeschlossen, weil späte Bindung das CLR-Feld direkt
+per Reflection liest. UDTs mit Array-, Variant- oder variablen String-Membern, mehrdimensionale
+und ganze Arrays sowie Variants haben eigene Layout-/Ownership-Karten; AnyCPU und x64 geben keinen
+in `Long` abgeschnittenen Zeiger aus. Die Grenztabelle, Layoutfamilien und die genaue Reihenfolge
+stehen in
 [R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md).
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r3-byref-alias` | **ByRef-Aliase adressierbarer Speicher:** VarPtr auf einen ByRef-Parameter nennt die Adresse des Aufrufers; Aliase desselben Speicherplatzes erhalten dieselbe Zelle. |
 | `managed-r3-invalidation` | **Invalidierung adressierbaren Speichers:** ReDim, ReDim Preserve, Erase, Prozedurende und Objektende invalidieren kontrolliert und geben genau einmal frei. |
 | `managed-r3-safearray` | **SAFEARRAY-Speichervertrag:** VarPtr auf ein ganzes Array trifft den Deskriptor; mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge. |
 | `managed-r3-variant` | **VARIANT-Speichervertrag:** VarPtr auf einen Variant nennt den 16-Byte-VARIANT; Subtyp, Empty, Null, Nothing, BSTR und Fehlerwerte bleiben unterscheidbar. |
