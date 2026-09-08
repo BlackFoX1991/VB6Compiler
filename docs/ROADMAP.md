@@ -21,16 +21,16 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-08 auf `main` / `2ce0705`, Lauf `20260908T071152Z-e139a1f6`:
+Messung vom 2026-09-08 auf `main` / `b1491b5`, Lauf `20260908T072019Z-625089fb`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1813 Fälle: 1812 bestanden, 1 fehlgeschlagen | Nicht bestanden -- VB6.Compiler.Tests: test process exited with 1 |
+| Standardlauf, 13 Testprojekte | 1813 Fälle: 1813 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
-Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **False**.
+Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
 Der Laufbericht liegt unter `artifacts/verification-report.json` und wird nicht versioniert.
 <!-- verification:roadmap-measurements:end -->
 
