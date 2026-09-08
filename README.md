@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 166 expectations (146 implemented, 0 partial, 20 planned) with 146/166 documented-verified.
+The compatibility matrix contains 166 expectations (147 implemented, 0 partial, 19 planned) with 147/166 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -184,16 +184,16 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-07 at `6cfc93f` on `main`, run `20260907T134829Z-9f66f517`:
+Measured on 2026-09-08 at `2ce0705` on `main`, run `20260908T071152Z-e139a1f6`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1809 cases: 1809 passed, 0 failed | Serial run across every test project |
+| Standard serial run, 13 test projects | 1813 cases: 1812 passed, 1 failed | Not passing -- VB6.Compiler.Tests: test process exited with 1 |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
-Complete gate (standard run and native x86 run on the same source state): **True**.
+Complete gate (standard run and native x86 run on the same source state): **False**.
 The run report is written to `artifacts/verification-report.json` and is not versioned.
 <!-- verification:readme-measurements:end -->
 
@@ -203,8 +203,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **166 expectations**: **146 implemented**, **0 partial**, **20 planned**;
-**146 documented-verified**, **20 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **166 expectations**: **147 implemented**, **0 partial**, **19 planned**;
+**147 documented-verified**, **19 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status
