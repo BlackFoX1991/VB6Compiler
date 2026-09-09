@@ -929,7 +929,7 @@ public sealed class PointerIntrinsicTests
     }
 
     [TestMethod]
-    public void EmitManagedApplication_ReportsWhyARectangularArrayElementCannotAnswer()
+    public void EmitManagedApplication_KeepsBothArrayPointerFormsAtErrorFiveOutsideX86()
     {
         var output = VB6TestProgram.RunLines("""
             Sub Main()
@@ -945,8 +945,10 @@ public sealed class PointerIntrinsicTests
             End Sub
             """);
 
-        // Mehrdimensional: die physische Reihenfolge ist nicht die eines SAFEARRAY. Das ganze
-        // Array: VarPtr traefe in VB6 den Deskriptor, nicht die Daten -- ein eigener Vertrag.
+        // Beide Formen sind inzwischen gueltig -- aber `VarPtr` gibt einen `Long` zurueck, und
+        // ausserhalb von x86 gibt es dafuer keinen ehrlichen Wert. Ein abgeschnittener 64-Bit-
+        // Zeiger waere schlimmer als die Meldung. Der Test laeuft ueber AnyCPU und haelt deshalb
+        // die Plattformgrenze fest, nicht mehr die Dimensionalitaet.
         CollectionAssert.AreEqual(new[] { "5", "5" }, output);
     }
 
@@ -1371,6 +1373,108 @@ public sealed class PointerIntrinsicTests
                     "5",
                     "VarPtr is supported only as a ByVal As Any argument of a Declare, where the address is consumed immediately."
                 },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
+    public void EmitX86Application_AnswersSafeArrayOrderAndDescriptorFromCompiledCode()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The SAFEARRAY layout probe uses the Windows x86 host.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the SAFEARRAY contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerSafeArrayLayoutTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "SafeArrayLayout.dll");
+
+            // Der Runtime-Test misst VBArray<T> unmittelbar. Hier geht derselbe Vertrag durch die
+            // ganze Kette -- Binder, Lowerer, Emitter, Runtime -- und wird aus VB6-Quelltext
+            // beobachtet: die linkeste Dimension liegt zusammenhaengend, der Deskriptor traegt
+            // Rang und Elementbreite, und sein pvData zeigt auf das erste Element.
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Sub Main()
+                    Dim feld(1 To 2, 1 To 3) As Long
+                    Dim basis As Long
+                    Dim deskriptor As Long
+                    Dim rang As Integer
+                    Dim breite As Long
+                    Dim daten As Long
+                    Dim wert As Long
+
+                    feld(1, 1) = 11
+                    feld(2, 1) = 21
+                    feld(1, 2) = 12
+
+                    basis = VarPtr(feld(1, 1))
+
+                    ' Die linkeste Dimension ist zusammenhaengend: (2,1) folgt direkt auf (1,1).
+                    Debug.Print VarPtr(feld(2, 1)) - basis
+                    Debug.Print VarPtr(feld(1, 2)) - basis
+                    Debug.Print VarPtr(feld(2, 3)) - basis
+
+                    ' Ein nativer Schreibzugriff ueber den Zeiger ist beim naechsten VB6-Lesen da.
+                    wert = 4711
+                    CopyMemory ByVal VarPtr(feld(1, 2)), wert, 4
+                    Debug.Print feld(1, 2)
+
+                    ' VarPtr auf das ganze Array trifft den Deskriptor, nicht das erste Datenbyte.
+                    deskriptor = VarPtr(feld)
+                    Debug.Print deskriptor <> basis
+                    CopyMemory rang, ByVal deskriptor, 2
+                    Debug.Print rang
+                    CopyMemory breite, ByVal deskriptor + 4, 4
+                    Debug.Print breite
+                    CopyMemory daten, ByVal deskriptor + 12, 4
+                    Debug.Print daten = basis
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("SafeArrayLayout", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 SAFEARRAY layout probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[] { "4", "8", "20", "4711", "True", "2", "4", "True" },
                 VB6TestProgram.SplitLines(standardOutput),
                 standardOutput);
         }
