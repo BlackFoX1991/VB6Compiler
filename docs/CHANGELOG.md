@@ -8652,3 +8652,42 @@ zurück. Gemessen wird durchgehend an der **zurückgelesenen** Bibliothek, nicht
 (ein `Private Type` gehört nicht in die Bibliothek), und ohne `VT_RECORD`/`IRecordInfo` im
 Dispatchpfad beschriebe die Bibliothek einen Aufruf, den der Server nicht bedienen kann. Dazu
 fehlt die Abnahme durch einen echten Fremdclient über die Prozessgrenze.
+
+## Binary Compatibility, abgenommen mit einem gebauten Client
+
+`CompatibleMode=2` und `CompatibleEXE32` standen bisher nur im Eigenschaftenbeutel des Projekts —
+niemand las sie. Identitäten wurden bei jedem Build aus Namen abgeleitet. Für einen Client, der
+gegen eine frühere Version gebaut wurde, ist das der schlimmste Fehlerfall, den es gibt: Er hält
+eine CLSID, eine IID und eine DISPID, nie einen Namen. Der Server übersetzt weiter, registriert
+sich weiter, und der Client scheitert an der Aktivierung.
+
+Jetzt wird die Typbibliothek der genannten Komponente gelesen — eingebettet oder daneben liegend —
+und Bibliotheks-Id, CLSIDs, IIDs und DISPIDs daraus übernommen. Ein fehlender Vorgänger ist kein
+Fehler; die erste Version hat nichts, wozu sie kompatibel bleiben könnte.
+
+### Der Defekt, den erst der Client zeigte
+
+Die Abnahme läuft über einen Fremdclient in einem **eigenen Prozess**: Er aktiviert die *neue*
+Komponente registrierungsfrei über ihren comhost mit der CLSID der *alten* und ruft ein Mitglied
+über die DISPID der alten Bibliothek. Er kennt keinen einzigen Mitgliedsnamen.
+
+Der erste Lauf endete in `DISP_E_MEMBERNOTFOUND` — und zwar nicht wegen der Kompatibilität. Die
+DISPIDs der Typbibliothek waren **überhaupt nie** die, auf die der laufende Server antwortet: Die
+CLR liest ihre Nummern aus `DispIdAttribute`, die Bibliothek zählte selbst. Zwei unabhängige
+Nummerierungen für dieselben Mitglieder, jahrelang unbemerkt, weil jeder bisherige Test über
+`GetIDsOfNames` ging und damit über den Namen. Der Emitter vergibt sie jetzt in
+Deklarationsreihenfolge — so wie VB6 —, stempelt sie als Attribut, und die Bibliothek liest sie
+von dort. Das schließt zugleich die DISPID-Zusage aus `managed-r4-typelib-metadata`.
+
+### Was als Bruch gilt
+
+Nur Verluste. Ein weggefallenes Mitglied meldet `VB6E0004`, und die Emission bricht ab, bevor
+irgendetwas geschrieben wird — eine inkompatible Komponente unter den alten Identitäten
+auszuliefern wäre schlimmer, als sie nicht zu bauen. Ein hinzugekommenes Mitglied bricht nichts:
+Ein Client, der es nicht kennt, ruft es nicht. Diese Asymmetrie ist die ganze Regel.
+
+Gegenprobe gemessen: Ohne die übernommenen Nummern schiebt ein neues, alphabetisch früheres
+Mitglied das alte von 1 auf 2 — genau der stille Bruch, den die Einstellung verhindern soll.
+
+`managed-r4-binary-compatibility` steht auf `implemented` / `documented-verified`. R4 hat noch drei
+offene Karten.

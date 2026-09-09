@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `e05b668` mit nicht committeten Änderungen, Lauf `20260909T175802Z-37c6c885`:
+Messung vom 2026-09-09 auf `main` / `bf31edf` mit nicht committeten Änderungen, Lauf `20260909T183515Z-f922c736`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1844 Fälle: 1844 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1847 Fälle: 1847 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **158 implemented**, **0 partial** und **14 planned**;
-**158/172 documented-verified**, 14 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **159 implemented**, **0 partial** und **13 planned**;
+**159/172 documented-verified**, 13 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -320,9 +320,30 @@ einen ByRef-Slot, das Rückschreiben läuft über dasselbe Argumentarray, mit de
 Ausgeführt gegen ein registriertes `StdFont`: Der Klon trägt den Zustand des Originals, ist ein
 **anderes** Objekt und danach unabhängig.
 
+**Binary Compatibility** ist ebenfalls abgenommen. `CompatibleMode=2` mit `CompatibleEXE32` liest
+die Typbibliothek der genannten Komponente — eingebettet oder daneben liegend — und übernimmt
+Bibliotheks-Id, CLSIDs, IIDs und DISPIDs. Ein fehlender Vorgänger ist kein Fehler: Die erste
+Version einer Komponente hat nichts, wozu sie kompatibel bleiben könnte.
+
+Die Abnahme ist ein Fremdclient in einem **eigenen Prozess**. Er aktiviert die *neue* Komponente
+registrierungsfrei über ihren comhost mit der CLSID der *alten* und ruft ein Mitglied über die
+DISPID der alten Bibliothek auf. Er kennt keinen einzigen Mitgliedsnamen — genau wie ein Client,
+der gegen die Vorversion gebaut wurde.
+
+Dabei kam ein echter Defekt heraus: Die DISPIDs der Typbibliothek waren gar nicht die, auf die der
+laufende Server antwortet. Die CLR liest ihre Nummern aus `DispIdAttribute`, die Bibliothek zählte
+selbst — der Aufruf endete in `DISP_E_MEMBERNOTFOUND`. Der Emitter vergibt sie jetzt in
+Deklarationsreihenfolge und stempelt sie; die Bibliothek liest sie von dort. Damit stimmen
+TypeLib und Server über die Nummern überein, was auch `managed-r4-typelib-metadata` verlangt.
+
+Ein weggefallenes Mitglied meldet `VB6E0004` und bricht die Emission ab, bevor irgendetwas
+geschrieben wird. Ein hinzugekommenes ist verträglich — ein Client, der es nicht kennt, ruft es
+nicht.
+
 | Karte | Nachweis |
 | --- | --- |
 | `managed-r4-vtable-out` | `ComVTableExecutionTests` |
+| `managed-r4-binary-compatibility` | `BinaryCompatibilityTests`, `BinaryCompatibilityClientTests` |
 
 ## Aktive Restliste
 
@@ -348,7 +369,6 @@ ClassFactory-/IUnknown-Lebensdauer, Instancing, Event-Quellen und Connection-Poi
 | Karte | Ziel und Abnahme |
 | --- | --- |
 | `managed-r4-automation-layouts` | **Rohe Automation-Layouts abnehmen:** Aliase, Records, C-Arrays, verschachtelte Pointer und SAFEARRAY-Typen über unabhängige COM-Probes mit Layout- und Besitzprüfung in beide Richtungen abnehmen. |
-| `managed-r4-binary-compatibility` | **Binary Compatibility gegen ältere Komponente:** CompatibleMode/CompatibleEXE32 für bestehende Identitäten/Aufrufverträge auswerten; alter Client läuft nach kompatibler Änderung unverändert weiter, inkompatible Änderungen liefern Diagnose. |
 | `managed-r4-typelib-metadata` | **TypeLib-Metadaten vervollständigen:** Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein. Sechs dieser Punkte sind seit 2026-09-09 umgesetzt und an der zurückgelesenen Bibliothek gemessen; offen bleiben UDTs als `TKIND_RECORD` samt `VT_RECORD`-Marshalling und die Abnahme durch einen Fremdclient. |
 | `managed-r4-server-lifetime` | **Server- und Event-Ownership schließen:** IUnknown/ClassFactory, Instancing, Connection-Point-Enumeratoren, Attach/Detach und Shutdown per Fremdclient prüfen; vorhandene Enumeration-Stubs schließen. |
 

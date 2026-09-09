@@ -2972,16 +2972,18 @@
       "dependsOn": [
         "managed-r4-automation-layouts"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Binary Compatibility gegen ältere Komponente",
       "expected": {
         "acceptance": "CompatibleMode/CompatibleEXE32 für bestehende Identitäten/Aufrufverträge auswerten; alter Client läuft nach kompatibler Änderung unverändert weiter, inkompatible Änderungen liefern Diagnose."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs"
+        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs",
+        "tests/VB6.Compiler.Tests/BinaryCompatibilityTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/BinaryCompatibilityClientTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Abgenommen am 2026-09-09. CompatibleMode=2 mit CompatibleEXE32 liest die Typbibliothek der genannten Komponente -- eingebettet oder daneben liegend -- und uebernimmt daraus Bibliotheks-Id, CLSIDs, IIDs und DISPIDs; ein fehlender Vorgaenger ist kein Fehler, weil die erste Version einer Komponente nichts hat, wozu sie kompatibel bleiben koennte. Die Abnahme ist ein Fremdclient in einem eigenen Prozess: Er aktiviert die *neue* Komponente registrierungsfrei ueber ihren comhost mit der CLSID der *alten* und ruft ein Mitglied ueber die DISPID der alten Bibliothek auf -- er kennt keinen einzigen Mitgliedsnamen, genau wie ein gegen die Vorversion gebauter Client. Dabei wurde ein echter Defekt gefunden: Die DISPIDs der Typbibliothek waren gar nicht die, auf die der laufende Server antwortet (DISP_E_MEMBERNOTFOUND), weil die CLR ihre Nummern aus DispIdAttribute liest und die Bibliothek eigenstaendig zaehlte. Der Emitter vergibt die Nummern jetzt in Deklarationsreihenfolge, stempelt sie als DispIdAttribute, und die Bibliothek liest sie von dort. Ein weggefallenes Mitglied meldet VB6E0004 und bricht die Emission ab, bevor irgendetwas geschrieben wird; ein hinzugekommenes ist vertraeglich, weil ein Client, der es nicht kennt, es nicht ruft. Gegenprobe gemessen: Ohne die uebernommenen Nummern schiebt ein neues, alphabetisch frueheres Mitglied das alte von 1 auf 2.",
       "title": "Binary Compatibility gegen ältere Komponente"
     },
     {
@@ -3463,8 +3465,8 @@
         "bitness": "legacy project default is x86",
         "com": "Reference/Object entries retain COM identity and paths"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/ProjectCompilationTests.cs",
         "tests/VB6.Compiler.Tests/DirectManagedProjectExecutionTests.cs",
@@ -3473,9 +3475,11 @@
         "tests/VB6.ProjectSystem.Tests/VBProjectGroupLoaderTests.cs",
         "tests/VB6.ProjectSystem.Tests/VBProjectLoaderTests.cs",
         "tests/VB6.Compiler.Tests/ProjectDiagnosticCoverageTests.cs",
-        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs"
+        "tests/VB6.Compiler.Tests/ComIdentityStabilityTests.cs",
+        "tests/VB6.Compiler.Tests/BinaryCompatibilityTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/BinaryCompatibilityClientTests.cs"
       ],
-      "gap": "managed-r4-binary-compatibility: Binary Compatibility gegen ältere Komponente"
+      "gap": null
     },
     {
       "id": "project-persisted-designer-artifacts",
