@@ -57,6 +57,8 @@ public sealed class ManagedEmitter
         // laeuft über den ganzen Mitgliedergraph.
         private readonly Dictionary<ClassTypeSymbol, Dictionary<string, bool>> _comPropertyNames =
             new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ClassTypeSymbol, Dictionary<string, int>> _comDispIds =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ProcedureSymbol, MethodDefinitionHandle> _procedureSymbolHandles =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrGlobal, FieldDefinitionHandle> _globalHandles =
@@ -460,6 +462,11 @@ public sealed class ManagedEmitter
                             _metadata.GetOrAddString(field.Name),
                             EncodeFieldSignature(field.Type));
                         EnsureHandle(actual, _fieldHandles[field], "class field");
+                        if (field.IsPublic && !field.IsCompilerGenerated)
+                        {
+                            AddComDispId(actual, plan.Class.Symbol, field.Name);
+                        }
+
                         if (_fieldCellHandles.TryGetValue(field, out var fieldCell))
                         {
                             var actualFieldCell = _metadata.AddFieldDefinition(
@@ -4523,6 +4530,17 @@ public sealed class ManagedEmitter
                     parameterStarts[procedure]);
                 EnsureHandle(actual, _methodHandles[procedure], "method");
 
+                // Eine Property bekommt ihre DISPID an der Propertyzeile; ein Accessor traegt sie
+                // nicht doppelt.
+                if (procedure.DeclaringClass is { } declaringClass &&
+                    procedure.Symbol is { } memberSymbol &&
+                    !procedure.IsCompilerGenerated &&
+                    memberSymbol.PropertyAccessor is null &&
+                    !IsInterfaceImplementationProcedure(procedure))
+                {
+                    AddComDispId(actual, declaringClass, memberSymbol.Name);
+                }
+
                 // A COM local server is apartment-threaded, exactly like a forms application:
                 // both marshal calls through a message pump that only an STA provides.
                 if (procedure == _program.EntryPoint &&
@@ -4898,6 +4916,7 @@ public sealed class ManagedEmitter
                     PropertyAttributes.None,
                     _metadata.GetOrAddString(name),
                     _metadata.GetOrAddBlob(signature));
+                AddComDispId(property, definition.Symbol, name);
                 if (first.IsNil)
                 {
                     first = property;
@@ -5926,6 +5945,104 @@ public sealed class ManagedEmitter
                 _metadata.GetOrAddBlob(blob));
             _memberReferences.Add(key, handle);
             return handle;
+        }
+
+        /// <summary>
+        /// The DISPID of every member of one emitted type, keyed by its VB6 name.
+        ///
+        /// The emitter has to decide these, not the type library writer: the running object answers
+        /// on the ids the CLR reads from <see cref="DispIdAttribute"/>, and a library that numbered
+        /// them separately would describe calls that land on the wrong member -- measured as
+        /// DISP_E_MEMBERNOTFOUND from a client that called by number.
+        ///
+        /// The order is declaration order, the same one VB6 numbers in. Under Binary Compatibility a
+        /// known name keeps the number the old component published and a new one gets the next above
+        /// them all, so adding a member cannot renumber the others.
+        /// </summary>
+        private Dictionary<string, int> GetComDispIds(IrClassDefinition definition)
+        {
+            if (_comDispIds.TryGetValue(definition.Symbol, out var known))
+            {
+                return known;
+            }
+
+            known = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            _comDispIds[definition.Symbol] = known;
+
+            var typeName = definition.IsInterface ? definition.Symbol.Name : "_" + definition.Symbol.Name;
+            var next = 1;
+            var names = new List<string>();
+            foreach (var procedure in definition.Methods)
+            {
+                if (procedure.IsCompilerGenerated ||
+                    IsInterfaceImplementationProcedure(procedure) ||
+                    procedure.Symbol is not { } symbol ||
+                    string.Equals(procedure.Name, ".ctor", StringComparison.Ordinal) ||
+                    string.Equals(procedure.Name, "Finalize", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                names.Add(symbol.Name);
+            }
+
+            foreach (var field in definition.Fields)
+            {
+                if (field.IsPublic && !field.IsCompilerGenerated)
+                {
+                    names.Add(field.Name);
+                }
+            }
+
+            foreach (var name in names)
+            {
+                if (_options.CompatibleComMemberIds.TryGetValue(typeName + "\0" + name, out var kept))
+                {
+                    known[name] = kept;
+                    next = Math.Max(next, kept + 1);
+                }
+            }
+
+            foreach (var name in names)
+            {
+                if (!known.ContainsKey(name))
+                {
+                    known[name] = next++;
+                }
+            }
+
+            return known;
+        }
+
+        /// <summary>The DISPID of one member, when its type is published to COM.</summary>
+        private bool TryGetComDispId(ClassTypeSymbol classType, string memberName, out int dispId)
+        {
+            dispId = 0;
+            if (!_options.EnableComHosting || !classType.IsComExposed)
+            {
+                return false;
+            }
+
+            foreach (var plan in _typePlans)
+            {
+                if (plan.Class is { } definition && ReferenceEquals(definition.Symbol, classType))
+                {
+                    return GetComDispIds(definition).TryGetValue(memberName, out dispId);
+                }
+            }
+
+            return false;
+        }
+
+        private void AddComDispId(EntityHandle target, ClassTypeSymbol classType, string memberName)
+        {
+            if (TryGetComDispId(classType, memberName, out var dispId))
+            {
+                _metadata.AddCustomAttribute(
+                    target,
+                    GetAttributeConstructor(typeof(DispIdAttribute), typeof(int)),
+                    EncodeEnumAttribute(dispId));
+            }
         }
 
         /// <summary>
