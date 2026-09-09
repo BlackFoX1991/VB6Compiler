@@ -137,6 +137,182 @@ public sealed class TypeLibraryMemberSurfaceTests
         }
     }
 
+    /// <summary>
+    /// An <c>Optional</c> parameter and the library version are facts a foreign early-bound client
+    /// reads before it ever calls: without PARAMFLAG_FOPT every argument is mandatory to it, and a
+    /// library version invented next to the assembly version is exactly the disagreement this
+    /// contract forbids.
+    /// </summary>
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TypeLibrary_CarriesOptionalParametersAndTheProjectVersion()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type libraries are a Windows contract.");
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TypeLibOptional", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "Melderei.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name=Melderei
+                Class=Melder; Melder.cls
+                MajorVer=3
+                MinorVer=7
+                RevisionVer=2
+                """);
+            File.WriteAllText(Path.Combine(directory, "Melder.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1  'True
+                END
+                Attribute VB_Name = "Melder"
+                Attribute VB_Creatable = True
+                Attribute VB_PredeclaredId = False
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Public Sub Melde(ByVal Pflicht As Long, Optional ByVal Text As String = "hallo", Optional ByVal Zahl As Long = 4)
+                End Sub
+                """);
+
+            var assemblyPath = Path.Combine(directory, "Melderei.dll");
+            var emit = VBProjectCompilation.Create(projectPath).EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions(assemblyPath) { EnableComHosting = true });
+            Assert.IsTrue(emit.Success, string.Join(Environment.NewLine, emit.Lowering.Analysis.Diagnostics));
+
+            var typeLibraryPath = ManagedTypeLibraryWriter.Create(assemblyPath, ManagedPlatform.X86);
+            Marshal.ThrowExceptionForHR(LoadTypeLibEx(typeLibraryPath, 2, out var library));
+            try
+            {
+                // Die Bibliothek nennt die Version des Projekts, nicht eine eigene.
+                library!.GetLibAttr(out var libraryAttributes);
+                try
+                {
+                    var attribute = Marshal.PtrToStructure<TYPELIBATTR>(libraryAttributes);
+                    Assert.AreEqual(3, attribute.wMajorVerNum);
+                    Assert.AreEqual(7, attribute.wMinorVerNum);
+                }
+                finally
+                {
+                    library.ReleaseTLibAttr(libraryAttributes);
+                }
+
+                var parameters = ReadParameters(library, "_Melder", "Melde", out var optionalCount);
+
+                // cParamsOpt zaehlt die auslassbare Reihe am Ende.
+                Assert.AreEqual(2, optionalCount);
+                Assert.AreEqual(3, parameters.Count);
+                Assert.AreEqual(ParameterFlagNone, parameters[0].Flags);
+                Assert.IsNull(parameters[0].DefaultValue);
+                Assert.AreEqual(ParameterFlagOptional | ParameterFlagHasDefault, parameters[1].Flags);
+                Assert.AreEqual("hallo", parameters[1].DefaultValue);
+                Assert.AreEqual(ParameterFlagOptional | ParameterFlagHasDefault, parameters[2].Flags);
+                Assert.AreEqual(4, parameters[2].DefaultValue);
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(library!);
+            }
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private const int ParameterFlagNone = 0;
+    private const int ParameterFlagOptional = 0x0004;
+    private const int ParameterFlagHasDefault = 0x0020;
+
+    private sealed record Parameter(int Flags, object? DefaultValue);
+
+    /// <summary>
+    /// Reads the parameter descriptors of one member. <c>ELEMDESC</c> ends in a union, so
+    /// <c>wParamFlags</c> and the default value are read at hand-computed offsets rather than
+    /// through the marshalled structure -- the same rule the type library importer follows.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static List<Parameter> ReadParameters(
+        ITypeLib library,
+        string typeName,
+        string memberName,
+        out int optionalCount)
+    {
+        for (var index = 0; index < library.GetTypeInfoCount(); index++)
+        {
+            library.GetDocumentation(index, out var name, out _, out _, out _);
+            if (!string.Equals(name, typeName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            library.GetTypeInfo(index, out var info);
+            try
+            {
+                info.GetTypeAttr(out var attributes);
+                try
+                {
+                    var attribute = Marshal.PtrToStructure<TYPEATTR>(attributes);
+                    for (var function = 0; function < attribute.cFuncs; function++)
+                    {
+                        info.GetFuncDesc(function, out var descriptor);
+                        try
+                        {
+                            var func = Marshal.PtrToStructure<FUNCDESC>(descriptor);
+                            var buffer = new string[1];
+                            info.GetNames(func.memid, buffer, 1, out _);
+                            if (!string.Equals(buffer[0], memberName, StringComparison.Ordinal))
+                            {
+                                continue;
+                            }
+
+                            optionalCount = func.cParamsOpt;
+                            var elementSize = Marshal.SizeOf<ELEMDESC>();
+                            var parameters = new List<Parameter>();
+                            for (var parameter = 0; parameter < func.cParams; parameter++)
+                            {
+                                var element = IntPtr.Add(func.lprgelemdescParam, elementSize * parameter);
+                                var paramdesc = IntPtr.Add(element, IntPtr.Size * 2);
+                                var value = Marshal.ReadIntPtr(paramdesc);
+                                var flags = Marshal.ReadInt16(paramdesc, IntPtr.Size);
+                                parameters.Add(new Parameter(
+                                    flags,
+                                    value == IntPtr.Zero
+                                        ? null
+                                        : Marshal.GetObjectForNativeVariant(IntPtr.Add(value, 8))));
+                            }
+
+                            return parameters;
+                        }
+                        finally
+                        {
+                            info.ReleaseFuncDesc(descriptor);
+                        }
+                    }
+                }
+                finally
+                {
+                    info.ReleaseTypeAttr(attributes);
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(info);
+            }
+        }
+
+        Assert.Fail("The type library does not contain " + typeName + "." + memberName + ".");
+        optionalCount = 0;
+        return new List<Parameter>();
+    }
+
     private static void AssertPair(List<Member> members, string name, int indexParameters)
     {
         var getter = members.SingleOrDefault(member => member.Name == name && member.InvokeKind == InvokePropertyGet);
