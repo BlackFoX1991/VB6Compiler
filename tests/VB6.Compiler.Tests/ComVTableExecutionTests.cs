@@ -12,11 +12,12 @@ public sealed class ComVTableExecutionTests
     private const string StdOleLibraryId = "{00020430-0000-0000-C000-000000000046}";
 
     [TestMethod]
-    public void Analyze_ReportsAVTableMemberWithAnOutParameter()
+    public void EmitManagedProject_WritesBackAVTableOutParameter()
     {
-        if (!OperatingSystem.IsWindows())
+        if (!OperatingSystem.IsWindows() ||
+            Type.GetTypeFromProgID("StdFont", throwOnError: false) is null)
         {
-            Assert.Inconclusive("Type-library import requires Windows.");
+            Assert.Inconclusive("The registered StdFont fixture is not available.");
             return;
         }
 
@@ -37,28 +38,45 @@ public sealed class ComVTableExecutionTests
                 Module=Main; Main.bas
                 """);
 
-            // IFont.Clone traegt PARAMFLAG_FOUT, nicht FRETVAL: Sein letzter Parameter ist ein
-            // ByRef-Argument, in das der Server schreibt. Diese Form nimmt der vtable-Weg bewusst
-            // nicht -- und sie auf dem Dispatchweg zu lassen hiesse 438 zu melden, "Member nicht
-            // gefunden", fuer einen Member, den die Bibliothek beschreibt.
+            // IFont.Clone traegt PARAMFLAG_FOUT, nicht FRETVAL. Der Unterschied ist die ganze
+            // Karte: Ein RETVAL waere der Wert, den der Ausdruck liefert, und stuende gar nicht im
+            // Quelltext; ein Ausgabeparameter ist ein Argument, das das Programm mitgibt und
+            // danach liest. Die VB6-Form ist deshalb `f.Clone g` und nie `Set g = f.Clone` -- wer
+            // die beiden verwechselt, ruft den Server mit einem Nullzeiger und bekommt E_POINTER.
+            //
+            // Gemessen wird nicht nur, dass etwas ankommt, sondern dass es der richtige Klon ist:
+            // eigener Zustand vom Original, aber ein *anderes* Objekt, und danach unabhaengig.
             File.WriteAllText(Path.Combine(directory, "Main.bas"), """
                 Option Explicit
 
                 Sub Main()
                     Dim f As stdole.IFont
                     Set f = New stdole.StdFont
+                    f.Name = "Courier New"
+
                     Dim g As stdole.IFont
                     f.Clone g
+
+                    Debug.Print g Is Nothing
+                    Debug.Print g.Name
+                    Debug.Print g Is f
+
+                    g.Name = "Arial"
+                    Debug.Print f.Name
+                    Debug.Print g.Name
                 End Sub
                 """);
 
-            var analysis = VBProjectCompilation.Create(projectPath).Analyze();
-            var diagnostics = analysis.Units.SelectMany(unit => unit.Analysis.Diagnostics).ToArray();
-
-            Assert.IsFalse(analysis.Success);
-            Assert.IsTrue(
-                diagnostics.Any(diagnostic => diagnostic.Code == "VB6S0075"),
-                string.Join(" | ", diagnostics.Select(diagnostic => diagnostic.ToString())));
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "False",        // der Server hat in den Aufruferspeicher geschrieben
+                    "Courier New",  // und der Klon traegt den Zustand des Originals
+                    "False",        // es ist ein anderes Objekt, kein durchgereichter Zeiger
+                    "Courier New",  // beide sind danach unabhaengig
+                    "Arial"
+                },
+                VB6TestProgram.SplitLines(VB6TestProgram.RunProject(projectPath)));
         }
         finally
         {
