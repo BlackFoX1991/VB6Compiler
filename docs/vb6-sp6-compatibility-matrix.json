@@ -3000,7 +3000,7 @@
       "testRefs": [
         "tests/VB6.Compiler.Tests/TypeLibraryWriterTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Gemessene Baseline vom 2026-09-09, aus einer Sonde ueber den Writer: Eine VB6-Klasse mit einem gewoehnlichen Property-Get/Let-Paar kann heute **gar keine** Typbibliothek erzeugen -- CreateTypeLib2 bricht mit TYPE_E_AMBIGUOUSNAME ab. Ursache ist, dass der Writer jedem Member eine eigene DISPID gibt und dabei Funktionsindex und memid gleichsetzt; in COM ist eine Property aber ein Member mit einer DISPID, dessen Accessoren sich nur durch die INVOKEKIND unterscheiden. Ein erster Reparaturversuch (DISPID pro Name, Namen einmal pro DISPID setzen) brachte den Aufruf bis TYPE_E_DUPLICATEID weiter und ist damit noch nicht fertig; er wurde bewusst nicht eingecheckt, weil ein halb reparierter Writer schlechter ist als ein bekannter Befund. Weiter offen und noch nicht gemessen: Ereignisquellen-Interface, optionale Parameter (cParamsOpt ist konstant 0), UDTs als TKIND_RECORD und die Bibliotheksversion, die fest auf 1.0 steht statt aus MajorVer/MinorVer des Projekts zu kommen.",
       "title": "TypeLib-Metadaten vervollständigen"
     },
     {
