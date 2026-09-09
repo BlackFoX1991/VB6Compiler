@@ -9,6 +9,69 @@ namespace VB6.Compiler.Tests;
 public sealed class FileIoExecutionTests
 {
     [TestMethod]
+    public void EmitManagedApplication_ReadsAByteCountWithInputBAndChangesTheDrive()
+    {
+        // InputB liest Bytes, nicht Zeichen: Im Deterministic-Profil sind vier Bytes zwei
+        // UTF-16-Zeichen. Das ist derselbe Byte-Begriff, in dem LeftB, MidB und InStrB zaehlen.
+        //
+        // ChDrive nimmt nur den Laufwerksbuchstaben -- ein voller Pfad wechselt das Laufwerk und
+        // nicht das Verzeichnis. Windows fuehrt je Laufwerk ein aktuelles Verzeichnis, und dort
+        // landet der Wechsel.
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim s As String
+                Dim vorher As String
+
+                Open "inputb.txt" For Output As #1
+                Print #1, "ABCDEF"
+                Close #1
+
+                Open "inputb.txt" For Input As #1
+                s = InputB$(4, #1)
+                Debug.Print Len(s)
+                Close #1
+                Kill "inputb.txt"
+
+                vorher = CurDir$
+                ChDrive vorher
+                Debug.Print CurDir$ = vorher
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "2", "True" }, lines);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_CallsAnAllOptionalIntrinsicWithoutParentheses()
+    {
+        // Der Regressionsfall zu einem Defekt, der beim Ergaenzen von ChDrive auffiel: Eine
+        // Funktion, deren Parameter alle optional sind, gab ohne Klammern eine leere
+        // Argumentliste weiter. Der Emitter stellte dann zu wenige Werte auf den Stack -- keine
+        // Diagnose, sondern eine ungueltige Assembly.
+        //
+        // `Dir$` ohne Klammern ist genau das kanonische VB6-Muster zum Weiterzaehlen einer
+        // Dateisuche, also traf es idiomatischen Legacy-Code.
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim name As String
+                Dim anzahl As Long
+
+                Debug.Print Len(CurDir$) > 0
+                Debug.Print Len(CurDir) > 0
+
+                name = Dir$("*.keinetreffer")
+                Do While Len(name) > 0
+                    anzahl = anzahl + 1
+                    name = Dir$
+                Loop
+                Debug.Print anzahl
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "True", "True", "0" }, lines);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_WritesAndReadsBinaryFiles()
     {
         Run("""

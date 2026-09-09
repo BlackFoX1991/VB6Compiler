@@ -7,6 +7,51 @@ namespace VB6.Compiler.Tests;
 public sealed class StandardLibraryHostContractExecutionTests
 {
     [TestMethod]
+    public void EmitManagedApplication_ExecutesTheHeadlessContractsOfTheAddedHostIntrinsics()
+    {
+        // Vier dokumentierte VB6-Namen, die bis 09/2026 gar nicht gebunden haben. Der Headless-
+        // Vertrag ist hier der Prueflauf: Beep bleibt still statt zu raten, DoEvents zaehlt keine
+        // Formulare, und die beiden, die ohne UI nichts ausrichten koennen, melden ihre
+        // dokumentierte Fehlernummer statt folgenlos durchzulaufen.
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                On Error Resume Next
+                Dim offen As Integer
+
+                Beep
+                Debug.Print Err.Number
+
+                Err.Clear
+                offen = DoEvents()
+                Debug.Print offen & "/" & Err.Number
+
+                Err.Clear
+                DoEvents
+                Debug.Print Err.Number
+
+                Err.Clear
+                AppActivate "Kein solches Fenster"
+                Debug.Print Err.Number
+
+                Err.Clear
+                SavePicture Nothing, "unerreichbar.bmp"
+                Debug.Print Err.Number
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "0",    // Beep ist headless still, aber kein Fehler
+                "0/0",  // DoEvents als Funktion: keine offenen Formulare
+                "0",    // und dieselbe Runtime traegt die Anweisungsform
+                "5",    // AppActivate findet ohne Host kein Fenster
+                "481"   // SavePicture: Nothing ist kein Bild -- Argumentfehler, nicht Hostfehler
+            },
+            lines);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_ExecutesIIfRgbAndHeadlessInteractionContracts()
     {
         var lines = VB6TestProgram.RunLines("""

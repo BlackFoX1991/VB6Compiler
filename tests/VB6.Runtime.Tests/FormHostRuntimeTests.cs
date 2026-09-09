@@ -214,7 +214,7 @@ public sealed class FormHostRuntimeTests
 
         public object? CreatedControl { get; private set; }
 
-        public void DoEvents() => DoEventsCount++;
+        public int DoEvents() => ++DoEventsCount;
 
         public void SendKeys(string keys, bool wait)
         {

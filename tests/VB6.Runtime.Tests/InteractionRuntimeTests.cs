@@ -616,9 +616,7 @@ public sealed class InteractionRuntimeTests
 
         public void SetPrinterState(VBPrinterState printer) => _printer = printer;
 
-        public void DoEvents()
-        {
-        }
+        public int DoEvents() => 0;
 
         public bool TryShowMessageBox(string prompt, int buttons, string title, out short result)
         {

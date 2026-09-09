@@ -14,6 +14,35 @@ namespace VB6.Compiler.Tests;
 public sealed class StatementShapeExecutionTests
 {
     [TestMethod]
+    public void EmitManagedApplication_EndsTheProgramAtStop()
+    {
+        // In der IDE bricht Stop in den Debugger. Eine kompilierte EXE hat keinen, und dort
+        // beendet Stop das Programm wie End -- was hier daran sichtbar ist, dass die Zeile
+        // dahinter nicht mehr laeuft.
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print "vorher"
+                Stop
+                Debug.Print "danach"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "vorher" }, lines);
+    }
+
+    [TestMethod]
+    public void EmitManagedApplication_EndsTheProgramAtStopBetweenColons()
+    {
+        var lines = VB6TestProgram.RunLines("""
+            Sub Main()
+                Debug.Print "a" : Stop : Debug.Print "b"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "a" }, lines);
+    }
+
+    [TestMethod]
     public void EmitManagedApplication_CallsASubWithAndWithoutParentheses()
     {
         var output = VB6TestProgram.RunLines("""

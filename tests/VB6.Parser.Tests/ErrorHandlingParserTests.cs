@@ -13,6 +13,27 @@ namespace VB6.Parser.Tests;
 public sealed class ErrorHandlingParserTests
 {
     [TestMethod]
+    public void Parse_StopIsItsOwnStatement()
+    {
+        var statement = (StopStatementSyntax)ParseSingleStatement("Stop");
+
+        Assert.AreEqual("Stop", statement.StopToken.Text);
+    }
+
+    [TestMethod]
+    public void Parse_StopDoesNotClaimAMemberNamedStop()
+    {
+        // VB6 reserviert das Wort, erlaubt es aber nach einem Punkt -- und `.Stop` ist eine
+        // gewoehnliche Methode auf mehreren Stock-Controls. Deshalb ist Stop hier kein
+        // Keyword-Token, sondern wird an der Anweisungsstelle erkannt: Ein Keyword haette jedes
+        // `control.Stop` zum Parserfehler gemacht, weil der Parser nach einem Punkt an mehr als
+        // einem Dutzend Stellen einen Identifier erwartet.
+        var statement = ParseSingleStatement("player.Stop");
+
+        Assert.IsNotInstanceOfType<StopStatementSyntax>(statement);
+    }
+
+    [TestMethod]
     public void Parse_OnErrorGoToLabel()
     {
         var statement = (OnErrorStatementSyntax)ParseSingleStatement("On Error GoTo NotOptimize");
