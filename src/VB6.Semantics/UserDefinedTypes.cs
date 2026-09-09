@@ -74,6 +74,13 @@ public sealed record UserDefinedTypeSymbol : TypeSymbol
     public ImmutableArray<UserDefinedTypeMemberSymbol> Members => _definition.Members;
     public bool MembersDefined => _definition.IsDefined;
 
+    /// <summary>
+    /// True for a <c>Public Type</c>. A <c>Private Type</c> exists only inside its own module and
+    /// must not appear in a type library or a registration -- the same rule a Private class module
+    /// follows.
+    /// </summary>
+    public bool IsPublic { get; init; } = true;
+
     public bool TryGetMember(string name, out UserDefinedTypeMemberSymbol member) =>
         _definition.MemberMap.TryGetValue(name, out member!);
 

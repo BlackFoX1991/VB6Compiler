@@ -50,7 +50,7 @@ public sealed class UserDefinedTypeDeclarationBinder
             var isPrivate = IsPrivate(declaration);
             var symbol = !isPrivate && _externalTypes.TryGetValue(declaration.Identifier.Text, out var predeclared)
                 ? predeclared
-                : new UserDefinedTypeSymbol(declaration.Identifier.Text);
+                : new UserDefinedTypeSymbol(declaration.Identifier.Text) { IsPublic = !isPrivate };
 
             if (!types.TryAdd(symbol.Name, symbol))
             {
