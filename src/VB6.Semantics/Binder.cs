@@ -1746,6 +1746,7 @@ public sealed class Binder
             FileInputStatementSyntax fileInput => BindFileInput(fileInput, variables, procedures),
             WidthStatementSyntax width => BindWidth(width, variables, procedures),
             EndStatementSyntax => new BoundEndStatement(),
+            StopStatementSyntax => new BoundStopStatement(),
             QualifiedInvocationStatementSyntax qualified => BindQualifiedInvocation(
                 qualified,
                 variables,
@@ -5199,7 +5200,16 @@ public sealed class Binder
             procedure.IsFunction &&
             procedure.Parameters.All(parameter => parameter.IsOptional))
         {
-            return new BoundInvocationExpression(procedure, ImmutableArray<BoundArgument>.Empty);
+            // Die weggelassenen Optionalen brauchen ihre Defaults auch hier. Der Klammerpfad
+            // setzt sie ein, dieser gab eine leere Argumentliste weiter -- der Emitter stellte
+            // dann zu wenige Werte auf den Stack, und daraus wurde kein Uebersetzungsfehler,
+            // sondern eine ungueltige Assembly. Sichtbar an `Dir$` ohne Klammern, dem
+            // kanonischen VB6-Muster zum Weiterzaehlen einer Dateisuche.
+            return new BoundInvocationExpression(
+                procedure,
+                procedure.Parameters
+                    .Select(parameter => new BoundArgument(parameter, CreateDefaultArgument(procedure, parameter)))
+                    .ToImmutableArray());
         }
 
         if (!_optionExplicit && _activeLocals is not null)
