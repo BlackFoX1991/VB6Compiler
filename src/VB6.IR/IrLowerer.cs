@@ -120,18 +120,6 @@ public static class IrLowerer
                             DeclaringClass: containingClass));
                     }
 
-                    if (!containingClass.IsInterfaceContract)
-                    {
-                        classProcedures.Insert(0, LowerClassConstructor(containingClass));
-                        if (TryGetClassProcedure(
-                                containingClass,
-                                "Class_Terminate",
-                                null,
-                                out _))
-                        {
-                            classProcedures.Add(LowerClassFinalizer(containingClass));
-                        }
-                    }
                     var fields = !containingClass.IsInterfaceContract &&
                         _classVariables.TryGetValue(containingClass, out var variables)
                         ? variables
@@ -139,6 +127,26 @@ public static class IrLowerer
                             .Select(variable => _classFields[variable.Symbol])
                             .ToImmutableArray()
                         : ImmutableArray<IrField>.Empty;
+                    if (!containingClass.IsInterfaceContract)
+                    {
+                        var hasTerminator = TryGetClassProcedure(
+                            containingClass,
+                            "Class_Terminate",
+                            null,
+                            out _);
+                        // A private field cell owns unmanaged storage.  It needs the same exact
+                        // object-end route as Class_Terminate even when the user did not declare a
+                        // terminator of their own.
+                        var hasAddressableField = fields.Any(_addressableFields.Contains);
+                        var needsLifetimeCleanup = hasTerminator || hasAddressableField;
+                        classProcedures.Insert(
+                            0,
+                            LowerClassConstructor(containingClass, needsLifetimeCleanup));
+                        if (needsLifetimeCleanup)
+                        {
+                            classProcedures.Add(LowerClassFinalizer(containingClass));
+                        }
+                    }
                     classes.Add(new IrClassDefinition(
                         containingClass,
                         Mangle(containingClass.Name),
@@ -378,7 +386,9 @@ public static class IrLowerer
             return new ProcedureLowerer(this, procedure, variables).Lower();
         }
 
-        private IrProcedure LowerClassConstructor(ClassTypeSymbol classType)
+        private IrProcedure LowerClassConstructor(
+            ClassTypeSymbol classType,
+            bool needsLifetimeCleanup)
         {
             var instructions = ImmutableArray.CreateBuilder<IrInstruction>();
 
@@ -503,10 +513,11 @@ public static class IrLowerer
                         new IrLoadExpression(new IrThisPlace(classType)))));
             }
 
-            // A class with a terminator joins the register that guarantees the terminator runs.
-            // This sits after Class_Initialize on purpose: an object whose initializer failed was
-            // never created in VB6 terms, and it gets no Terminate.
-            if (TryGetClassProcedure(classType, "Class_Terminate", null, out _))
+            // A class with a terminator or a private addressable field joins the register that
+            // guarantees the final cleanup runs. This sits after Class_Initialize on purpose: an
+            // object whose initializer failed was never created in VB6 terms, and it gets no
+            // Terminate or owned-cell cleanup.
+            if (needsLifetimeCleanup)
             {
                 instructions.Add(new IrEvaluateInstruction(
                     new IrRuntimeCallExpression(

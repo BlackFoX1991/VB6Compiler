@@ -6,7 +6,8 @@ using System.Runtime.Versioning;
 namespace VB6.Runtime;
 
 /// <summary>
-/// Coordinates the lifetime of generated classes that carry <c>Class_Terminate</c>.
+/// Coordinates the lifetime of generated classes that carry <c>Class_Terminate</c> or native
+/// addressable field storage.
 ///
 /// VB6 counts references and terminates the moment the last one goes. This runtime has a collector
 /// instead, so the emitted class carries a finalizer — and a finalizer is not a promise: the CLR
@@ -42,8 +43,9 @@ public static class VBObjectLifetime
     private static int _pruneThreshold = 64;
 
     /// <summary>
-    /// Records an instance that carries a terminator. Called from the generated constructor of a
-    /// class with <c>Class_Terminate</c>; a class without one is not registered and pays nothing.
+    /// Records an instance that needs deterministic teardown. Called from the generated
+    /// constructor of a class with <c>Class_Terminate</c> or an addressable field cell; ordinary
+    /// classes without either remain unregistered.
     /// </summary>
     public static void Register(object? instance)
     {
@@ -379,21 +381,19 @@ public static class VBObjectLifetime
             }
         }
 
-        if (terminator is null)
+        if (terminator is not null)
         {
-            return;
-        }
-
-        try
-        {
-            terminator.Invoke(instance, null);
-        }
-        catch (TargetInvocationException)
-        {
-            // Teardown is the wrong moment to take the process down. VB6 runs terminators while
-            // the program is already ending, and an error there cannot be handled by code that
-            // has stopped running -- and on the finalizer thread an escaping exception would kill
-            // the process outright, which no VB6 program does.
+            try
+            {
+                terminator.Invoke(instance, null);
+            }
+            catch (TargetInvocationException)
+            {
+                // Teardown is the wrong moment to take the process down. VB6 runs terminators while
+                // the program is already ending, and an error there cannot be handled by code that
+                // has stopped running -- and on the finalizer thread an escaping exception would kill
+                // the process outright, which no VB6 program does.
+            }
         }
 
         // An event connection owns its sink. Once either end terminates, detach every matching
@@ -559,6 +559,16 @@ public static class VBObjectLifetime
         foreach (var field in fields)
         {
             var value = field.GetValue(instance);
+            if (value is IVBAddressableStorageCell cell)
+            {
+                // A VarPtr cell belongs to the instance, not to the managed object graph.  Clear
+                // its CLR edge first so re-entrant termination cannot see a cell that was already
+                // freed, then release its native block exactly once through its idempotent owner.
+                field.SetValue(instance, null);
+                cell.Dispose();
+                continue;
+            }
+
             if (value is null ||
                 (value is not IVBObjectLifetimeContainer && !States.TryGetValue(value, out _)))
             {

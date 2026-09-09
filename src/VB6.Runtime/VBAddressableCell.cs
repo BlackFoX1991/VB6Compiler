@@ -4,6 +4,13 @@ using System.Runtime.InteropServices;
 namespace VB6.Runtime;
 
 /// <summary>
+/// Identifies native cells that are owned by generated addressable storage rather than by a
+/// user-visible CLR object.  Object teardown uses this narrow marker so it never mistakes an
+/// arbitrary <see cref="IDisposable"/> field for a VB6 resource it may close.
+/// </summary>
+internal interface IVBAddressableStorageCell : IDisposable;
+
+/// <summary>
 /// Owns one native, GC-stable storage cell for an unmanaged value.
 /// </summary>
 /// <remarks>
@@ -13,7 +20,7 @@ namespace VB6.Runtime;
 /// not yet connected arbitrary VB6 slots to this primitive, so creating a cell alone does not
 /// widen the public <c>VarPtr</c>/<c>StrPtr</c> surface.
 /// </remarks>
-public sealed class VBAddressableCell<T> : IDisposable
+public sealed class VBAddressableCell<T> : IVBAddressableStorageCell
     where T : unmanaged
 {
     private IntPtr _storage;
@@ -78,7 +85,7 @@ public static class VBAddressableStorage
     /// authority for which BSTR is current. A native write that swaps the pointer is therefore
     /// visible on the next VB6 read, exactly like a native write into the characters is.
     /// </summary>
-    private sealed class BStrCell : IDisposable
+    private sealed class BStrCell : IVBAddressableStorageCell
     {
         private IntPtr _descriptor;
         private bool _disposed;
@@ -157,7 +164,7 @@ public static class VBAddressableStorage
     /// worse than no assertion at all. The guarantee is kept because relying on the allocator
     /// would be relying on nothing.
     /// </summary>
-    private sealed class RecordCell : IDisposable
+    private sealed class RecordCell : IVBAddressableStorageCell
     {
         private readonly Type _type;
         private readonly int _size;

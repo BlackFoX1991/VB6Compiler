@@ -33,8 +33,8 @@ public sealed record IrProgram(
 
     /// <summary>
     /// Private instance fields whose address was taken. Their companion cell is an instance
-    /// field beside the data field; it is freed by its own finalizer once the object it belongs
-    /// to is gone, which is the point past which VB6 does not define the pointer either.
+    /// field beside the data field; the object lifetime route frees it exactly once when the
+    /// instance ends, which is the point past which VB6 does not define the pointer either.
     /// </summary>
     ImmutableArray<IrField> AddressableFields = default,
 
