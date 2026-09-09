@@ -807,6 +807,73 @@ public static class VBFiles
         return TextEncoding(compatibilityProfile).GetString(bytes, 0, offset);
     }
 
+    /// <summary>Reads a byte payload with the deterministic profile.</summary>
+    public static string InputB(long numberOfBytes, int fileNumber)
+        => InputB(numberOfBytes, fileNumber, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Reads <paramref name="numberOfBytes"/> bytes of payload, not that many characters.
+    ///
+    /// This is the file-side member of the byte-oriented family beside <c>LeftB</c>, <c>MidB</c>
+    /// and <c>InStrB</c>, and it answers in the same representation those functions count in: the
+    /// active ANSI code page under <c>VB6Sp6</c>, the stable UTF-16 byte form otherwise.
+    ///
+    /// The BOM is skipped exactly as <c>Input</c> skips it. The two share a file handle, and a
+    /// reader that consumed a different number of bytes than its sibling would leave the position
+    /// somewhere neither of them expects.
+    /// </summary>
+    public static string InputB(long numberOfBytes, int fileNumber, VBCompatibilityProfile compatibilityProfile)
+    {
+        if (numberOfBytes < 0 || numberOfBytes > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(numberOfBytes));
+        }
+
+        var stream = GetStream(fileNumber);
+        SkipUtf8Bom(stream, compatibilityProfile);
+        var bytes = new byte[(int)numberOfBytes];
+        var offset = 0;
+        while (offset < bytes.Length)
+        {
+            var read = stream.Read(bytes, offset, bytes.Length - offset);
+            if (read == 0)
+            {
+                break;
+            }
+
+            offset += read;
+        }
+
+        return VBStrings.FromByteString(bytes, offset, compatibilityProfile);
+    }
+
+    /// <summary>
+    /// Changes the current drive.
+    ///
+    /// Windows keeps a current directory per drive, and <see cref="Directory.SetCurrentDirectory"/>
+    /// with a bare drive specifier resolves to exactly that -- which is what VB6 ChDrive does.
+    /// Measured rather than assumed: "C:" lands on the drive's current directory, and an
+    /// unavailable drive throws instead of silently doing nothing.
+    /// </summary>
+    public static void ChangeDrive(string drive)
+    {
+        ArgumentNullException.ThrowIfNull(drive);
+        var value = drive.Trim();
+        if (value.Length == 0)
+        {
+            // VB6 ignores an empty ChDrive argument rather than reporting an error.
+            return;
+        }
+
+        // Nur der erste Buchstabe zaehlt: ChDrive "C:\Temp" wechselt auf C, es ist kein ChDir.
+        if (!char.IsLetter(value[0]))
+        {
+            throw new ArgumentException("ChDrive expects a drive letter.", nameof(drive));
+        }
+
+        Directory.SetCurrentDirectory(value[0] + ":");
+    }
+
     private static void ConsumeLineFeed(FileStream stream)
     {
         var next = stream.ReadByte();

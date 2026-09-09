@@ -2521,6 +2521,19 @@ public static class VBStrings
         return DecodeByteSlice([(byte)charCode], 0, 1, profile);
     }
 
+    /// <summary>
+    /// Turns a raw byte payload into the byte-oriented string the B-family works on.
+    ///
+    /// <c>InputB</c> is the file-side sibling of <c>LeftB</c>, <c>MidB</c> and <c>InStrB</c>, and
+    /// it has to answer bytes in the same representation those functions count in. Sharing this
+    /// entry point keeps one place deciding what a byte string is per profile.
+    /// </summary>
+    public static string FromByteString(byte[] bytes, int count, VBCompatibilityProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+        return DecodeByteSlice(bytes, 0, count, profile);
+    }
+
     private static byte[] EncodeByteString(string value, VBCompatibilityProfile profile) =>
         (profile == VBCompatibilityProfile.Deterministic
             ? Encoding.Unicode
