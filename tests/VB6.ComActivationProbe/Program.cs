@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
 
 namespace VB6.ComActivationProbe;
@@ -31,6 +32,11 @@ internal static class Program
         if (args.Length == 4 && string.Equals(args[0], "--actctx", StringComparison.Ordinal))
         {
             return InvokeThroughActivationContext(args[1], args[2], int.Parse(args[3]));
+        }
+
+        if (args.Length == 6 && string.Equals(args[0], "--events", StringComparison.Ordinal))
+        {
+            return ReceiveEvents(args[1], args[2], args[3], int.Parse(args[4]), args[5]);
         }
 
         if (args.Length != 2)
@@ -264,6 +270,141 @@ internal static class Program
             finally
             {
                 Marshal.Release(dispatch);
+            }
+        }
+        finally
+        {
+            DeactivateActCtx(0, cookie);
+            ReleaseActCtx(handle);
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// The sink a client hands to a connection point. It is a plain COM-visible object with the
+    /// event as a method -- exactly what a VB6 client's <c>WithEvents</c> variable amounts to.
+    /// </summary>
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDual)]
+    public sealed class EventSink
+    {
+        public string Received { get; private set; } = string.Empty;
+
+        public void Fertig(int stand) => Received = "Fertig:" + stand;
+    }
+
+    /// <summary>
+    /// Binds the event source the way a client with the type library does: it asks the connection
+    /// point container for the source interface *by its IID from the library*, advises a sink,
+    /// and then calls a member that raises the event. Nothing here knows the server's internals.
+    /// </summary>
+    private static int ReceiveEvents(
+        string manifestPath,
+        string classIdText,
+        string sourceIidText,
+        int dispId,
+        string expected)
+    {
+        var initialization = CoInitializeEx(IntPtr.Zero, CoInitApartmentThreaded);
+        if (initialization < 0 && initialization != unchecked((int)0x80010106))
+        {
+            Console.WriteLine($"coinit=0x{initialization:X8}");
+            return 0;
+        }
+
+        var context = new ActCtx
+        {
+            cbSize = Marshal.SizeOf<ActCtx>(),
+            lpSource = manifestPath
+        };
+        var handle = CreateActCtx(ref context);
+        if (handle == new IntPtr(-1))
+        {
+            Console.WriteLine($"createactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        if (!ActivateActCtx(handle, out var cookie))
+        {
+            Console.WriteLine($"activateactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        try
+        {
+            var classId = Guid.Parse(classIdText);
+            var unknownIid = new Guid("00000000-0000-0000-C000-000000000046");
+            var activation = CoCreateInstance(ref classId, IntPtr.Zero, ClsCtxInprocServer, ref unknownIid, out var unknown);
+            if (activation != 0)
+            {
+                Console.WriteLine($"cocreate=0x{activation:X8}");
+                return 0;
+            }
+
+            var server = Marshal.GetObjectForIUnknown(unknown);
+            var container = server as IConnectionPointContainer;
+            if (container is null)
+            {
+                Console.WriteLine("noconnectionpointcontainer");
+                return 0;
+            }
+
+            var sourceIid = Guid.Parse(sourceIidText);
+            container.FindConnectionPoint(ref sourceIid, out var point);
+            if (point is null)
+            {
+                Console.WriteLine("noconnectionpoint");
+                return 0;
+            }
+
+            point.GetConnectionInterface(out var reported);
+            var sink = new EventSink();
+            point.Advise(sink, out var connection);
+            try
+            {
+                // Der Aufruf geht ueber IDispatch am rohen Zeiger, nicht ueber das verwaltete
+                // Objekt: In-Proc gibt Marshal.GetObjectForIUnknown die Instanz selbst heraus, und
+                // ein Aufruf darauf waere gar kein COM-Aufruf mehr.
+                var dispatchIid = new Guid("00020400-0000-0000-C000-000000000046");
+                var queryResult = Marshal.QueryInterface(unknown, in dispatchIid, out var dispatch);
+                if (queryResult != 0)
+                {
+                    Console.WriteLine($"queryinterface=0x{queryResult:X8}");
+                    return 0;
+                }
+
+                try
+                {
+                    var vtable = Marshal.ReadIntPtr(dispatch);
+                    var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+                        Marshal.ReadIntPtr(vtable, IntPtr.Size * 6));
+                    var parameters = new NativeDispParams();
+                    var iid = Guid.Empty;
+                    var hresult = invoke(
+                        dispatch,
+                        dispId,
+                        ref iid,
+                        1033,
+                        DispatchMethod,
+                        ref parameters,
+                        IntPtr.Zero,
+                        IntPtr.Zero,
+                        out _);
+                    Console.WriteLine(
+                        $"iid={reported:D} received={sink.Received} expected={expected} " +
+                        $"match={string.Equals(sink.Received, expected, StringComparison.Ordinal)} " +
+                        $"invoke=0x{hresult:X8}");
+                }
+                finally
+                {
+                    Marshal.Release(dispatch);
+                }
+            }
+            finally
+            {
+                point.Unadvise(connection);
+                Marshal.Release(unknown);
             }
         }
         finally
