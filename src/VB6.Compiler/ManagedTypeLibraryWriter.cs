@@ -165,16 +165,18 @@ internal static class ManagedTypeLibraryWriter
     {
         var dispIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-        // Unter Binary Compatibility behaelt ein bekanntes Mitglied seine Nummer, und ein neues
-        // bekommt eine oberhalb aller alten. Sonst wuerde das Hinzufuegen eines Mitglieds die
-        // uebrigen umnummerieren -- ein gebauter Client ruft danach das falsche auf.
+        // Die Nummer kommt aus der Assembly: Der laufende Server antwortet auf die DISPID, die die
+        // CLR aus DispIdAttribute liest. Eine hier eigenstaendig vergebene Nummer beschriebe einen
+        // Aufruf, der beim falschen Mitglied landet -- gemessen als DISP_E_MEMBERNOTFOUND.
         var nextDispId = 1;
         foreach (var member in members)
         {
-            if (keptIds.TryGetValue(typeName + "\0" + member.Name, out var keptId))
+            var declared = member.DispId ??
+                (keptIds.TryGetValue(typeName + "\0" + member.Name, out var keptId) ? keptId : (int?)null);
+            if (declared is { } id)
             {
-                dispIds[member.Name] = keptId;
-                nextDispId = Math.Max(nextDispId, keptId + 1);
+                dispIds[member.Name] = id;
+                nextDispId = Math.Max(nextDispId, id + 1);
             }
         }
 
@@ -455,7 +457,8 @@ internal static class ManagedTypeLibraryWriter
                         StripPrefix(method.Name, "__vb6_"),
                         InvokeFunc,
                         ToVariantType(method.ReturnType),
-                        method.GetParameters().Select(ToComParameter).ToList()));
+                        method.GetParameters().Select(ToComParameter).ToList(),
+                        ReadDispId(method)));
                 }
 
                 interfaces.Add(new ComInterface(
@@ -496,7 +499,8 @@ internal static class ManagedTypeLibraryWriter
                         method.Name,
                         InvokeFunc,
                         ToVariantType(method.ReturnType),
-                        method.GetParameters().Select(ToComParameter).ToList()));
+                        method.GetParameters().Select(ToComParameter).ToList(),
+                        ReadDispId(method)));
                 }
 
                 // Ein Public-Feld ist in VB6 ein Get/Let-Paar, im Emitter aber ein CLR-Feld mit
@@ -512,7 +516,8 @@ internal static class ManagedTypeLibraryWriter
                         field.Name,
                         InvokePropertyGet,
                         ToVariantType(field.FieldType),
-                        new List<ComParameter>()));
+                        new List<ComParameter>(),
+                        ReadDispId(field)));
                     members.Add(new ComMember(
                         field.Name,
                         InvokePropertyPut,
@@ -520,7 +525,8 @@ internal static class ManagedTypeLibraryWriter
                         new List<ComParameter>
                         {
                             new("value", ToVariantType(field.FieldType), false, null)
-                        }));
+                        },
+                        ReadDispId(field)));
                 }
 
                 foreach (var property in type
@@ -537,7 +543,8 @@ internal static class ManagedTypeLibraryWriter
                             property.Name,
                             InvokePropertyGet,
                             ToVariantType(property.PropertyType),
-                            indices));
+                            indices,
+                            ReadDispId(property)));
                     }
 
                     if (property.CanWrite)
@@ -549,7 +556,8 @@ internal static class ManagedTypeLibraryWriter
                             new List<ComParameter>(indices)
                             {
                                 new("value", ToVariantType(property.PropertyType), false, null)
-                            }));
+                            },
+                            ReadDispId(property)));
                     }
                 }
 
@@ -669,7 +677,19 @@ internal static class ManagedTypeLibraryWriter
         string Name,
         int InvokeKind,
         short ReturnType,
-        List<ComParameter> Parameters);
+        List<ComParameter> Parameters,
+        int? DispId = null);
+
+    /// <summary>
+    /// The DISPID the assembly declares for a member, or <c>null</c> when it carries none. This is
+    /// the number the running object answers on, so the library must not invent its own.
+    /// </summary>
+    private static int? ReadDispId(MemberInfo member)
+    {
+        var attribute = CustomAttributeData.GetCustomAttributes(member).FirstOrDefault(candidate =>
+            candidate.AttributeType.FullName == typeof(DispIdAttribute).FullName);
+        return attribute?.ConstructorArguments is [{ Value: int dispId }] ? dispId : null;
+    }
 
     private sealed record ComParameter(
         string Name,
