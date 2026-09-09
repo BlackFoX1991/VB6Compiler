@@ -4599,14 +4599,32 @@ public sealed class ManagedEmitter
                 }
                 else if (plan.Udt is not null)
                 {
+                    // Ein Public Type ist Teil der Automationsflaeche: Ohne oeffentliche
+                    // Sichtbarkeit, ComVisible und eine GUID gibt es fuer ihn kein IRecordInfo,
+                    // und ein Mitglied, das ihn zurueckgibt, scheitert beim Marshalling.
+                    var publishRecord = _options.EnableComHosting && plan.Udt.Symbol.IsPublic;
+                    var udtAttributes = TypeAttributes.Sealed | TypeAttributes.SequentialLayout |
+                        TypeAttributes.BeforeFieldInit |
+                        (publishRecord ? TypeAttributes.Public : TypeAttributes.NotPublic);
                     actual = _metadata.AddTypeDefinition(
-                        TypeAttributes.NotPublic | TypeAttributes.Sealed | TypeAttributes.SequentialLayout | TypeAttributes.BeforeFieldInit,
+                        udtAttributes,
                         _metadata.GetOrAddString("VB6.Generated"),
                         _metadata.GetOrAddString(plan.Udt.Name),
                         _systemValueType,
                         plan.FirstField,
                         plan.FirstMethod);
                     _metadata.AddTypeLayout(actual, 4, 0);
+                    if (publishRecord)
+                    {
+                        _metadata.AddCustomAttribute(
+                            actual,
+                            GetAttributeConstructor(typeof(ComVisibleAttribute), typeof(bool)),
+                            EncodeBooleanAttribute(true));
+                        _metadata.AddCustomAttribute(
+                            actual,
+                            GetAttributeConstructor(typeof(GuidAttribute), typeof(string)),
+                            EncodeStringAttribute(GetRecordIdentity(plan.Udt.Symbol).ToString("D")));
+                    }
                 }
                 else if (plan.Class is not null)
                 {
@@ -6200,6 +6218,21 @@ public sealed class ManagedEmitter
             blob.WriteSerializedString(value);
             blob.WriteUInt16(0);
             return _metadata.GetOrAddBlob(blob);
+        }
+
+        /// <summary>The COM identity of a published record, derived like a class identity.</summary>
+        private Guid GetRecordIdentity(UserDefinedTypeSymbol record)
+        {
+            if (_options.CompatibleComIdentities.TryGetValue("record\0" + record.Name, out var kept))
+            {
+                return kept;
+            }
+
+            var identity = _options.AssemblyName + "\0record\0" + record.Name;
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(identity)).AsSpan(0, 16).ToArray();
+            bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+            bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+            return new Guid(bytes);
         }
 
         private Guid GetComIdentity(string kind, ClassTypeSymbol classType)
