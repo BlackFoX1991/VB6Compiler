@@ -1383,6 +1383,149 @@ public sealed class PointerIntrinsicTests
     }
 
     [TestMethod]
+    public void EmitX86Application_KeepsEveryVariantSubtypeVisibleInItsNativeVariant()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The VARIANT storage probe uses the Windows x86 host.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the VARIANT contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerVariantStorageTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "VariantStorage.dll");
+
+            // Die Abnahmebedingung der Karte, aus VB6-Quelltext beobachtet: Der Zeiger nennt den
+            // VARIANT selbst, und die sechs Zustaende bleiben unterscheidbar. Empty, Null und
+            // Nothing sind verwaltet alle "kein Wert" -- nativ sind es 0, 1 und 9.
+            //
+            // 4711 wird bewusst als Integer gelesen (VT_I2): VB6 waehlt fuer ein Ganzzahlliteral
+            // den schmalsten Subtyp, und die Zelle bildet ab, was da steht, nicht was der
+            // Deklarationstyp waere.
+            var result = VBCompilation.Create("""
+                Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+                Private g As Variant
+
+                Sub ByValFamilie(ByVal v As Variant)
+                    Dim p As Long
+                    Dim vt As Integer
+                    p = VarPtr(v)
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+                    v = Null
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+                End Sub
+
+                Sub Main()
+                    Dim v As Variant
+                    Dim p As Long
+                    Dim vt As Integer
+                    Dim nutz As Long
+
+                    p = VarPtr(v)
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+
+                    v = Null
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+
+                    v = 4711
+                    CopyMemory vt, ByVal p, 2
+                    CopyMemory nutz, ByVal p + 8, 4
+                    Debug.Print vt & "/" & nutz
+
+                    v = "abc"
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+
+                    Set v = Nothing
+                    CopyMemory vt, ByVal p, 2
+                    CopyMemory nutz, ByVal p + 8, 4
+                    Debug.Print vt & "/" & nutz
+
+                    v = CVErr(9)
+                    CopyMemory vt, ByVal p, 2
+                    CopyMemory nutz, ByVal p + 8, 4
+                    Debug.Print vt & "/" & nutz
+
+                    Debug.Print p = VarPtr(v)
+
+                    ByValFamilie "text"
+
+                    g = 4711
+                    p = VarPtr(g)
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+                    g = "abc"
+                    CopyMemory vt, ByVal p, 2
+                    Debug.Print vt
+                    Debug.Print p = VarPtr(g)
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("VariantStorage", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 VARIANT storage probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "0",        // Empty
+                    "1",        // Null
+                    "2/4711",   // Integer-Subtyp mit seiner Nutzlast
+                    "8",        // BSTR
+                    "9/0",      // Nothing: Objektzeiger auf nichts, nicht Empty
+                    "10/9",     // Fehlerwert mit seiner Nummer
+                    "True",     // die Adresse ueberlebt jede Zuweisung
+                    "8",        // ByVal-Parameter: kommt als BSTR an
+                    "1",        // und folgt seiner eigenen Zuweisung
+                    "2",        // Modulvariable: die Zelle uebernimmt den aktuellen Wert
+                    "8",
+                    "True"
+                },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitX86Application_AnswersSafeArrayOrderAndDescriptorFromCompiledCode()
     {
         if (!OperatingSystem.IsWindows())
