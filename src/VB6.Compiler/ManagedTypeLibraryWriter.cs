@@ -60,8 +60,8 @@ internal static class ManagedTypeLibraryWriter
 
         var libraryName = Path.GetFileNameWithoutExtension(assemblyPath);
         var outputPath = Path.Combine(Path.GetDirectoryName(assemblyPath)!, libraryName + ".tlb");
-        var (version, classes) = ReadComAssembly(assemblyPath);
-        if (classes.Count == 0)
+        var (version, classes, interfaces) = ReadComAssembly(assemblyPath);
+        if (classes.Count == 0 && interfaces.Count == 0)
         {
             throw new ManagedArtifactException(
                 $"The managed assembly '{assemblyPath}' contains no ComVisible classes with COM identities.");
@@ -85,12 +85,31 @@ internal static class ManagedTypeLibraryWriter
             library.SetVersion((ushort)version.Major, (ushort)version.Minor);
             library.SetLcid(0);
 
-            foreach (var comClass in classes)
+            // Die Schnittstellen zuerst und bis zum Ende offen: Eine Coclass verweist ueber
+            // AddRefTypeInfo auf ihre ITypeInfo, und wer die vorher freigibt, trennt den RCW --
+            // derselbe Grund, aus dem eine Klasse ihre eigene Dispinterface festhaelt.
+            var written = new Dictionary<string, ICreateTypeInfo2>(StringComparer.OrdinalIgnoreCase);
+            try
             {
-                WriteClass(library, libraryName, comClass);
-            }
+                foreach (var comInterface in interfaces)
+                {
+                    written.Add(comInterface.Name, WriteInterface(library, comInterface));
+                }
 
-            library.SaveAllChanges();
+                foreach (var comClass in classes)
+                {
+                    WriteClass(library, libraryName, comClass, written);
+                }
+
+                library.SaveAllChanges();
+            }
+            finally
+            {
+                foreach (var info in written.Values)
+                {
+                    Marshal.ReleaseComObject(info);
+                }
+            }
         }
         finally
         {
@@ -100,7 +119,54 @@ internal static class ManagedTypeLibraryWriter
         return outputPath;
     }
 
-    private static void WriteClass(ICreateTypeLib2 library, string libraryName, ComClass comClass)
+    /// <summary>
+    /// Writes one <c>Implements</c>-able VB6 class as a dispinterface.
+    ///
+    /// It carries the plain name rather than an underscored one: the emitter maps a
+    /// PublicNotCreatable class module to a CLR interface with no coclass beside it, so this type
+    /// *is* what a client names in <c>Dim x As IZaehler</c>. Its GUID is the one the assembly
+    /// carries, not a derived one -- QueryInterface answers for that IID, and a library naming a
+    /// different one would describe an interface nobody can reach.
+    /// </summary>
+    private static ICreateTypeInfo2 WriteInterface(ICreateTypeLib2 library, ComInterface comInterface)
+    {
+        library.CreateTypeInfo(comInterface.Name, TypeKind.TKIND_DISPATCH, out var info);
+        var interfaceId = comInterface.InterfaceId;
+        info.SetGuid(ref interfaceId);
+        info.SetTypeFlags(TypeFlagDispatchable);
+        AddMembers(info, comInterface.Members);
+        info.LayOut();
+        return info;
+    }
+
+    /// <summary>
+    /// Adds the members of one type, giving every name a single DISPID. A Get/Let pair is one
+    /// member with two invoke kinds, so both accessors share it; two DISPIDs for one name are
+    /// ambiguous to oleaut32. The function index of AddFuncDesc counts entries and is independent
+    /// of the DISPID.
+    /// </summary>
+    private static void AddMembers(ICreateTypeInfo2 info, List<ComMember> members)
+    {
+        var dispIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var nextDispId = 1;
+        var index = 0;
+        foreach (var member in members)
+        {
+            if (!dispIds.TryGetValue(member.Name, out var dispId))
+            {
+                dispId = nextDispId++;
+                dispIds[member.Name] = dispId;
+            }
+
+            AddMember(info, member, index++, dispId);
+        }
+    }
+
+    private static void WriteClass(
+        ICreateTypeLib2 library,
+        string libraryName,
+        ComClass comClass,
+        Dictionary<string, ICreateTypeInfo2> interfaces)
     {
         // VB6 names the members interface after the class with a leading underscore, and the
         // coclass keeps the plain name so that a client writes New Klasse rather than New _Klasse.
@@ -111,23 +177,7 @@ internal static class ManagedTypeLibraryWriter
             dispatchInfo.SetGuid(DeriveIdentity(libraryName, "interface", comClass.Name));
             dispatchInfo.SetTypeFlags(TypeFlagDispatchable);
 
-            // Ein Get/Let-Paar ist in COM *ein* Mitglied mit zwei Aufrufarten, also mit einer
-            // gemeinsamen DISPID. Zwei DISPIDs fuer denselben Namen weist oleaut32 ab, und der
-            // Funktionsindex von AddFuncDesc ist davon unabhaengig -- er zaehlt die Eintraege.
-            var dispIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            var nextDispId = 1;
-            var index = 0;
-            foreach (var member in comClass.Members)
-            {
-                if (!dispIds.TryGetValue(member.Name, out var dispId))
-                {
-                    dispId = nextDispId++;
-                    dispIds[member.Name] = dispId;
-                }
-
-                AddMember(dispatchInfo, member, index++, dispId);
-            }
-
+            AddMembers(dispatchInfo, comClass.Members);
             dispatchInfo.LayOut();
 
             // The coclass points at the interface, so the interface has to stay alive until the
@@ -141,6 +191,23 @@ internal static class ManagedTypeLibraryWriter
                 coClassInfo.AddRefTypeInfo((ITypeInfo)dispatchInfo, out var reference);
                 coClassInfo.AddImplType(0, reference);
                 coClassInfo.SetImplTypeFlags(0, ImplTypeFlagDefault);
+
+                // Was die Klasse implementiert, gehoert an die Coclass, nicht auf ihre
+                // Standardschnittstelle. Ein Client, der IZaehler will, fragt danach per
+                // QueryInterface -- IZaehler_Zaehle auf _Melder waere ein zweiter, falscher Weg.
+                var slot = 1u;
+                foreach (var implemented in comClass.Interfaces)
+                {
+                    if (!interfaces.TryGetValue(implemented, out var implementedInfo))
+                    {
+                        continue;
+                    }
+
+                    coClassInfo.AddRefTypeInfo((ITypeInfo)implementedInfo, out var implementedReference);
+                    coClassInfo.AddImplType(slot, implementedReference);
+                    slot++;
+                }
+
                 coClassInfo.LayOut();
             }
             finally
@@ -304,7 +371,8 @@ internal static class ManagedTypeLibraryWriter
     /// architecture". Every ActiveX DLL built with COM hosting died there, with an unhandled
     /// exception rather than a diagnostic.
     /// </summary>
-    private static (Version Version, List<ComClass> Classes) ReadComAssembly(string assemblyPath)
+    private static (Version Version, List<ComClass> Classes, List<ComInterface> Interfaces) ReadComAssembly(
+        string assemblyPath)
     {
         var resolver = new PathAssemblyResolver(
             Directory.EnumerateFiles(Path.GetDirectoryName(assemblyPath)!, "*.dll")
@@ -317,6 +385,39 @@ internal static class ManagedTypeLibraryWriter
         {
             var assembly = context.LoadFromAssemblyPath(assemblyPath);
             var classes = new List<ComClass>();
+
+            // Ein PublicNotCreatable-Klassenmodul wird zu einer CLR-Schnittstelle; ihre Mitglieder
+            // tragen das __vb6_-Praefix, das der Lowerer setzt, damit sie nicht mit einem
+            // gleichnamigen Klassenmitglied zusammenfallen.
+            var interfaces = new List<ComInterface>();
+            foreach (var type in assembly.GetTypes()
+                         .Where(type => type.IsInterface && type.Namespace == "VB6.Generated")
+                         .OrderBy(type => type.FullName, StringComparer.Ordinal))
+            {
+                if (!TryReadComIdentity(type, out var interfaceId))
+                {
+                    continue;
+                }
+
+                var interfaceMembers = new List<ComMember>();
+                foreach (var method in type
+                             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                             .Where(method => !method.IsSpecialName)
+                             .OrderBy(method => method.Name, StringComparer.Ordinal))
+                {
+                    interfaceMembers.Add(new ComMember(
+                        StripPrefix(method.Name, "__vb6_"),
+                        InvokeFunc,
+                        ToVariantType(method.ReturnType),
+                        method.GetParameters().Select(ToComParameter).ToList()));
+                }
+
+                interfaces.Add(new ComInterface(
+                    StripPrefix(type.Name, "__vb6_interface_"),
+                    interfaceId,
+                    interfaceMembers));
+            }
+
             foreach (var type in assembly.GetTypes()
                          .Where(type => type.IsClass && !type.IsAbstract && type.Namespace == "VB6.Generated")
                          .OrderBy(type => type.FullName, StringComparer.Ordinal))
@@ -328,10 +429,19 @@ internal static class ManagedTypeLibraryWriter
                     continue;
                 }
 
+                // Was eine implementierte Schnittstelle traegt, gehoert an sie -- nicht als
+                // Iface_Member noch einmal auf die Standardschnittstelle der Klasse.
+                var implemented = type.GetInterfaces()
+                    .Where(candidate => candidate.Namespace == "VB6.Generated")
+                    .Select(candidate => StripPrefix(candidate.Name, "__vb6_interface_"))
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToList();
+
                 var members = new List<ComMember>();
                 foreach (var method in type
                              .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                              .Where(method => !method.IsSpecialName)
+                             .Where(method => !IsInterfaceForwarder(method.Name, implemented))
                              .OrderBy(method => method.Name, StringComparer.Ordinal))
                 {
                     members.Add(new ComMember(
@@ -395,10 +505,14 @@ internal static class ManagedTypeLibraryWriter
                     }
                 }
 
-                classes.Add(new ComClass(type.Name.Replace("__vb6_class_", string.Empty, StringComparison.Ordinal), classId, members));
+                classes.Add(new ComClass(
+                    StripPrefix(type.Name, "__vb6_class_"),
+                    classId,
+                    members,
+                    implemented));
             }
 
-            return (assembly.GetName().Version ?? new Version(1, 0, 0, 0), classes);
+            return (assembly.GetName().Version ?? new Version(1, 0, 0, 0), classes, interfaces);
         }
     }
 
@@ -449,7 +563,36 @@ internal static class ManagedTypeLibraryWriter
         _ => VarEnum.VT_VARIANT
     });
 
-    private sealed record ComClass(string Name, Guid ClassId, List<ComMember> Members);
+    private static string StripPrefix(string name, string prefix) =>
+        name.StartsWith(prefix, StringComparison.Ordinal) ? name[prefix.Length..] : name;
+
+    /// <summary>
+    /// True for the method a class carries for one member of an interface it implements. VB6 names
+    /// it <c>Interface_Member</c>, and it belongs to that interface rather than to the class's own
+    /// default interface.
+    /// </summary>
+    private static bool IsInterfaceForwarder(string methodName, List<string> implemented)
+    {
+        foreach (var name in implemented)
+        {
+            if (methodName.Length > name.Length + 1 &&
+                methodName.StartsWith(name, StringComparison.OrdinalIgnoreCase) &&
+                methodName[name.Length] == '_')
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed record ComClass(
+        string Name,
+        Guid ClassId,
+        List<ComMember> Members,
+        List<string> Interfaces);
+
+    private sealed record ComInterface(string Name, Guid InterfaceId, List<ComMember> Members);
 
     private sealed record ComMember(
         string Name,
