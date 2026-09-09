@@ -143,7 +143,14 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         AttachGeneratedControlEvents(vbObject, control, name);
     }
 
-    public void DoEvents() => Application.DoEvents();
+    /// <summary>
+    /// Yields to the message loop and answers the open form count, which is what VB6 returns.
+    /// </summary>
+    public int DoEvents()
+    {
+        Application.DoEvents();
+        return Application.OpenForms.Count;
+    }
 
     public void SendKeys(string keys, bool wait)
     {

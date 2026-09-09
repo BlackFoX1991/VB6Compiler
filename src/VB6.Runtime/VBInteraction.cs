@@ -42,10 +42,48 @@ public static class VBInteraction
     /// </summary>
     public static Func<string, string, object?>? GetObjectSink { get; set; }
 
-    /// <summary>Yields to the configured UI host's message pump.</summary>
-    public static void DoEvents()
+    /// <summary>
+    /// Yields to the configured UI host's message pump and answers the number of open forms.
+    ///
+    /// VB6 has both forms: <c>DoEvents</c> as a statement and <c>x = DoEvents()</c> as a function
+    /// returning the open form count. The runtime carries one method for both; the statement form
+    /// simply discards the result. Headless execution answers 0 deterministically.
+    /// </summary>
+    public static int DoEvents() => Host?.DoEvents() ?? 0;
+
+    /// <summary>Sounds the system bell through the UI host; headless execution stays silent.</summary>
+    public static void Beep() => Host?.Beep();
+
+    /// <summary>
+    /// Activates another application window. VB6 reports error 5 when the window cannot be found,
+    /// and a host that cannot activate anything answers the same way rather than doing nothing.
+    /// </summary>
+    public static void AppActivate(object title, bool wait)
     {
-        Host?.DoEvents();
+        ArgumentNullException.ThrowIfNull(title);
+        if (Host?.TryActivateApplication(title, wait) != true)
+        {
+            throw new VB6RuntimeErrorException(5, "AppActivate could not find the requested window.");
+        }
+    }
+
+    /// <summary>
+    /// Writes a picture to a file. A missing picture is VB6 error 481, an unavailable imaging
+    /// surface is error 5 -- the same distinction VB6 makes between a bad argument and an
+    /// operation the host cannot perform.
+    /// </summary>
+    public static void SavePicture(object? picture, string fileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        if (picture is not VBPicture value)
+        {
+            throw new VB6RuntimeErrorException(481, VBErrors.ErrorText(481));
+        }
+
+        if (Host?.TrySavePicture(value, fileName) != true)
+        {
+            throw new VB6RuntimeErrorException(5, "SavePicture needs a UI host with an imaging surface.");
+        }
     }
 
     /// <summary>

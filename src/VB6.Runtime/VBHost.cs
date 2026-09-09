@@ -11,7 +11,28 @@ public interface IVB6Host
     /// <summary>Compatibility contract selected for this host instance.</summary>
     VBCompatibilityProfile CompatibilityProfile => VBCompatibilityProfile.Deterministic;
 
-    void DoEvents();
+    /// <summary>
+    /// Yields to the host message loop and answers the number of open forms, which is what VB6
+    /// returns. A host without forms answers 0, and so does the headless default.
+    /// </summary>
+    int DoEvents();
+
+    /// <summary>
+    /// Sounds the system bell. Headless execution stays silent rather than guessing at a console
+    /// beep, because a build server has no user to hear it.
+    /// </summary>
+    void Beep()
+    {
+    }
+
+    /// <summary>
+    /// Activates another application window by title or task id. Returning <see langword="false"/>
+    /// is the headless answer and lets the runtime report the documented VB6 error.
+    /// </summary>
+    bool TryActivateApplication(object title, bool wait) => false;
+
+    /// <summary>Writes a picture to a file. Headless execution has no imaging surface.</summary>
+    bool TrySavePicture(VBPicture picture, string fileName) => false;
 
     /// <summary>Shows a VB6 menu through the configured UI host.</summary>
     void PopupMenu(object? menu, int flags, float x, float y)
