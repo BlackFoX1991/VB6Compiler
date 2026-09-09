@@ -3489,12 +3489,51 @@ public static class IrLowerer
                 property.Parameters.IsEmpty &&
                 _program.TryGetClassField(classType, property.Name, out var field))
             {
+                EmitAsNewInstantiation(receiver);
                 fieldPlace = new IrFieldPlace(LowerPlace(receiver), field);
                 return true;
             }
 
             fieldPlace = null!;
             return false;
+        }
+
+        /// <summary>
+        /// Creates the instance behind an <c>As New</c> variable when a field access is the first
+        /// use of it.
+        ///
+        /// Exactly four access forms trigger the deferred creation: using the variable as a value,
+        /// calling a method on it, reading a declared <c>Property Get</c>, and reaching a
+        /// <c>Public</c> field. The first three lower their receiver as an *expression* and pass
+        /// through <see cref="LowerVariableRead"/>, which is the only place that inserts the
+        /// ensure. A field needs an <see cref="IrPlace"/> instead and therefore goes through
+        /// <c>LowerPlace</c>, straight past it -- so <c>Dim c As New K</c> followed by <c>c.N</c>
+        /// raised error 91 while a method call on the same line worked.
+        ///
+        /// That list is the inventory this defect was missing. A new access form has to be checked
+        /// against it, because nothing else here will notice a fifth one.
+        /// </summary>
+        private void EmitAsNewInstantiation(BoundExpression receiver)
+        {
+            if (receiver is not BoundVariableExpression variable)
+            {
+                return;
+            }
+
+            if (variable.Variable is LocalVariableSymbol { IsAsNew: true } local &&
+                local.Type is ClassTypeSymbol localClass &&
+                _locals.TryGetValue(local, out var irLocal))
+            {
+                Emit(new IrEvaluateInstruction(new IrEnsureLocalClassExpression(irLocal, localClass)));
+                return;
+            }
+
+            if (variable.Variable is ModuleVariableSymbol { IsAsNew: true, IsConstant: false } moduleVariable &&
+                moduleVariable.Type is ClassTypeSymbol moduleClass)
+            {
+                Emit(new IrEvaluateInstruction(
+                    new IrEnsureClassExpression(LowerVariablePlace(moduleVariable), moduleClass)));
+            }
         }
 
         private static ProcedureSymbol? TryGetExternalPropertyProcedure(
