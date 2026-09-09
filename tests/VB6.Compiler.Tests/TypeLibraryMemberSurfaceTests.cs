@@ -324,6 +324,85 @@ public sealed class TypeLibraryMemberSurfaceTests
         }
     }
 
+    /// <summary>
+    /// An event is a contract of the *client*: the sink implements the source interface. Without
+    /// that interface in the library nothing tells a foreign client what to implement, and the
+    /// events of the class are invisible to it -- the connection point would be there with nobody
+    /// able to describe what arrives through it.
+    /// </summary>
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TypeLibrary_PublishesTheEventSourceInterface()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type libraries are a Windows contract.");
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TypeLibEvents", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "Melderei.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name=Melderei
+                Class=Melder; Melder.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Melder.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1  'True
+                END
+                Attribute VB_Name = "Melder"
+                Attribute VB_Creatable = True
+                Attribute VB_PredeclaredId = False
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Public Event Fertig(ByVal Stand As Long)
+                Public Event Abbruch()
+
+                Public Sub Melde()
+                    RaiseEvent Fertig(3)
+                End Sub
+                """);
+
+            var assemblyPath = Path.Combine(directory, "Melderei.dll");
+            var emit = VBProjectCompilation.Create(projectPath).EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions(assemblyPath) { EnableComHosting = true });
+            Assert.IsTrue(emit.Success, string.Join(Environment.NewLine, emit.Lowering.Analysis.Diagnostics));
+
+            var typeLibraryPath = ManagedTypeLibraryWriter.Create(assemblyPath, ManagedPlatform.X86);
+
+            // VB6 nennt die Ereignisquelle __Klasse; ihre Mitglieder sind die Ereignisse mit
+            // ihren Argumenten.
+            var events = ReadMembers(typeLibraryPath, "__Melder");
+            Assert.AreEqual(2, events.Count);
+            Assert.AreEqual(0, events.Single(member => member.Name == "Abbruch").ParameterCount);
+            Assert.AreEqual(1, events.Single(member => member.Name == "Fertig").ParameterCount);
+
+            // Ein Ereignis ist kein Mitglied der Standardschnittstelle.
+            var members = ReadMembers(typeLibraryPath, "_Melder");
+            Assert.AreEqual(1, members.Count);
+            Assert.AreEqual("Melde", members[0].Name);
+
+            // Die Coclass fuehrt sie als Quelle: FSOURCE sagt, dass der Client sie implementiert.
+            var implemented = ReadImplementedTypes(typeLibraryPath, "Melder");
+            var source = implemented.Single(entry => entry.Name == "__Melder");
+            Assert.AreEqual(ImplTypeFlagSource, source.Flags & ImplTypeFlagSource);
+            Assert.AreEqual(ImplTypeFlagDefault, source.Flags & ImplTypeFlagDefault);
+            Assert.AreEqual(0, implemented.Single(entry => entry.Name == "_Melder").Flags & ImplTypeFlagSource);
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private const int ImplTypeFlagSource = 0x0002;
     private const int ImplTypeFlagDefault = 0x0001;
 
     private static Guid ReadAssemblyInterfaceId(string assemblyPath, string interfaceName)
