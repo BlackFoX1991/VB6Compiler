@@ -8474,3 +8474,70 @@ Der Ausführungstest deckt alle vier Formen samt Zeitpunkt ab, ein IR-Test hält
 **R2 ist damit wieder geschlossen** — die Etappe war seit der Neuplanung am selben Tag offen.
 `l1-02-i-object-members-lifecycle` steht wieder auf `implemented`. Offen bleiben die vier
 R1-Karten und R4 bis R7.
+
+## 2026-09-09 — R1, Schnitt 38: die sieben fehlenden Namen, und ein achter Befund
+
+Die vier Restkarten aus der Neuplanung abgearbeitet. Sieben dokumentierte VB6-Namen, die gar nicht
+banden, sind jetzt da — und beim Nachtragen fiel ein Defekt auf, den niemand gesucht hatte.
+
+### `Stop` ist bewusst kein Keyword
+
+Die naheliegende Umsetzung wäre ein Keyword-Token gewesen, so wie `End` oder `Resume` eines haben.
+Sie wäre falsch. VB6 reserviert das Wort, erlaubt es aber **nach einem Punkt**, und `.Stop` ist
+eine gewöhnliche Methode auf mehreren Stock-Controls. Dieser Parser erwartet nach einem Punkt an
+über einem Dutzend Stellen einen Identifier; ein Keyword hätte also jedes `control.Stop` zum
+Parserfehler gemacht — eine Verschlechterung der Legacy-Kompatibilität, um ein Statement zu
+gewinnen. `Stop` wird deshalb an der Anweisungsstelle erkannt, und ein Parser-Test hält fest, dass
+ein Member namens `Stop` weiter parst.
+
+Gesenkt wird wie `End`: In der IDE bricht `Stop` in den Debugger, eine kompilierte EXE hat keinen.
+Eigener Bound-Knoten trotzdem, damit eine spätere IDE die beiden unterscheiden kann.
+
+### Host-Namen und der Hostvertrag
+
+`Beep`, `AppActivate` und `SavePicture` folgen dem etablierten Muster: `VB6.Runtime` definiert den
+host-neutralen Vertrag, `VB6.Runtime.WinForms` setzt ihn gegen echte Fenster um, headless verhält
+sich deterministisch. `Beep` bleibt dabei still — ein Buildserver hat niemanden, der eine
+Konsolenglocke hört. `AppActivate` und `SavePicture` melden ihre dokumentierte Fehlernummer, statt
+folgenlos durchzulaufen; ein folgenloser Aufruf wäre die schlechtere Antwort.
+
+`DoEvents` ist von `Sub` auf `Function` gewechselt und liefert jetzt die Zahl offener Formulare.
+Das ändert `IVBHost` selbst, weshalb die Karte getrennt geführt war. Die klammerlose
+Anweisungsform bindet unverändert weiter und verwirft den Wert.
+
+`ChDrive` nimmt nur den Laufwerksbuchstaben; ein voller Pfad wechselt das Laufwerk, nicht das
+Verzeichnis. Gemessen statt angenommen: Windows führt je Laufwerk ein aktuelles Verzeichnis, und
+`SetCurrentDirectory` mit bloßem Laufwerk landet genau dort — das ist VB6s Verhalten.
+
+`InputB` liest Bytes statt Zeichen und benutzt denselben Byte-Begriff wie `LeftB`, `MidB` und
+`InStrB`, über einen gemeinsamen Einstiegspunkt. Vier Bytes sind im Deterministic-Profil zwei
+UTF-16-Zeichen.
+
+### Der achte Befund
+
+`Debug.Print Left$(CurDir$, 2)` starb mit einer `InvalidProgramException`. Nicht wegen `ChDrive` —
+wegen `CurDir$`.
+
+Eine Funktion, deren Parameter **alle** optional sind, gab ohne Klammern eine leere Argumentliste
+weiter. Der Emitter stellte dann weniger Werte auf den Stack, als die Signatur nimmt: keine
+Diagnose, sondern eine ungültige Assembly, und das Programm starb vor seiner ersten Anweisung. Der
+Klammerpfad füllte die Defaults immer, weshalb `CurDir$("C")` lief und `CurDir$` nicht.
+
+Das war kein Randfall. `Dir$` ohne Klammern ist das kanonische VB6-Muster zum Weiterzählen einer
+Dateisuche:
+
+```vb
+name = Dir$("*.txt")
+Do While Len(name) > 0
+    name = Dir$
+Loop
+```
+
+Genau diese Schleife erzeugte eine unausführbare Assembly. Der Fall steht jetzt als
+`r1-intrinsics-bare-name-optionals` mit eigenem Regressionstest da, Gegenprobe gesehen.
+
+### Abnahme
+
+**R1 ist geschlossen** — sechzehn Karten. Damit sind R0 bis R3 abgeschlossen; offen bleiben R4 bis
+R7, und die verlangen durchgehend etwas, das der Compiler nicht allein herstellen kann: einen
+Fremdclient über die Prozessgrenze, registrierte native Komponenten, eine laufende Anwendung.

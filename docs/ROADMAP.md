@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `eab06dc` mit nicht committeten Änderungen, Lauf `20260909T111221Z-2c4fac6f`:
+Messung vom 2026-09-09 auf `main` / `9c85b1d` mit nicht committeten Änderungen, Lauf `20260909T120649Z-c0837bc1`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1830 Fälle: 1830 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1837 Fälle: 1837 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **150 implemented**, **2 partial** und **19 planned**;
-**152/171 documented-verified**, 19 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **157 implemented**, **0 partial** und **15 planned**;
+**157/172 documented-verified**, 15 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -144,6 +144,101 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 | `managed-r0-reporting` | `build.ps1`, `artifacts/verification-report.json`, `VerificationDocumentTests` |
 | `managed-r0-status-checks` | `CompatibilityMatrixStatusTests`, `CompatibilityMatrixTests`, `build.ps1 -UpdateVerificationDocs` |
 
+### R1 — Sprach- und Runtime-Verträge vervollständigen
+
+Geschlossen. Sechzehn Karten stehen als `implemented` / `documented-verified` in der Matrix.
+
+Die Etappe war zwischenzeitlich wieder offen. Der Breitendurchgang vom 2026-09-09 hat gezeigt,
+dass die Inventare der beiden Sammelkarten aus den **vorhandenen Tests** gebildet waren und nicht
+aus den dokumentierten Formen — sie belegten damit Qualität statt Vollständigkeit. Sieben Namen
+banden gar nicht: `Beep`, `AppActivate`, `SavePicture`, `ChDrive`, `InputB`, `Stop` und `DoEvents`
+in seiner Funktionsform. Alle sind nachgetragen, jeder mit eigener Karte.
+
+Beim Nachtragen fiel ein achter Befund auf, den niemand gesucht hatte: Eine Funktion, deren
+Parameter alle optional sind, gab ohne Klammern eine leere Argumentliste weiter und erzeugte eine
+ungültige Assembly. `Dir$` ohne Klammern ist das kanonische VB6-Muster zum Weiterzählen einer
+Dateisuche — es traf also idiomatischen Legacy-Code, nicht einen Randfall.
+
+Zwei Entscheidungen daraus sind festgehalten: `Stop` ist bewusst **kein** Keyword-Token, weil VB6
+ein reserviertes Wort nach einem Punkt erlaubt und `.Stop` eine gewöhnliche Control-Methode ist.
+Und `DoEvents` ist jetzt eine Funktion, was den `IVBHost`-Vertrag geändert hat; die klammerlose
+Anweisungsform bindet unverändert weiter.
+
+Getragen hat die Etappe die Reihenfolge „erst messen, dann bauen". Jedes Inventar wurde aus
+dokumentierten Formen gebildet und blieb endlich — keine dauerhaft offene Sammelzeile „alle
+weiteren Randfälle". Mehrfach lautete der Befund, dass das Verhalten bereits stimmte und nur
+ungetestet war: In der Variant-Promotionstabelle waren alle 49 gemessenen Operandenpaare
+korrekt, und `managed-r1-intrinsics` erwies sich als Zusammenfassung von vierzehn bereits
+atomar dokumentierten Verträgen statt als fehlende Runtime-Familie. Die vier `r1-*`-Karten
+sind genau die dabei gefundenen echten Abweichungen — jeder Befund bekommt eine eigene
+Erwartung mit Eingabe, Ergebnis und Diagnose, statt in einer Sammelkarte zu verschwinden.
+
+Die Datei-Layouts wurden gegen Rohbytes abgenommen, nicht gegen einen Selbst-Roundtrip: Ein
+`Put`/`Get`-Paar bestätigt nur sich selbst. Die Get-/Put-Verträge stützen sich dabei auf
+benannte VBA-Dokumentation; das ist ein Vertragsbeleg, kein Original-VB6-Lauf, und deshalb
+bleiben die Erwartungen `documented-verified` statt `oracle-verified`. Ebenso festgeschrieben
+ist die Trennung zwischen einem deklarierten `Variant()`-Array, einem skalaren Variant mit
+Array-Inhalt und Objektwerten: Die beiden letzten werden mit ihrer dokumentierten Ablehnung
+abgenommen, statt einen Besitzvertrag zu erfinden.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r1-grammar` | `CompilationTests`, `DeclarationShapeExecutionTests`, `StatementShapeExecutionTests`, `EvaluationOrderExecutionTests`, `ModulePropertyExecutionTests` |
+| `managed-r1-udt-shapes` | `UdtShapeExecutionTests`, `DynamicUserDefinedTypeArrayExecutionTests`, `ReDimExecutionTests`, `ArrayBinderGuardTests` |
+| `managed-r1-operators` | `VariantArithmeticTests`, `VariantEqualityExecutionTests`, `VariantObjectDispatchExecutionTests` |
+| `managed-r1-conversions` | `VariantStateTests`, `CurrencyRuntimeTests`, `DateTimeRuntimeTests`, `VariantStateExecutionTests` |
+| `managed-r1-intrinsics` | `StringIntrinsicRuntimeTests`, `MathRuntimeTests`, `FinancialIntrinsicTests`, `FormatStringInputTests`, `StandardLibraryIntrinsicExecutionTests` |
+| `managed-r1-file-layout` | `FileRuntimeTests`, `FileIoExecutionTests`, `FileStatementGuardTests` |
+| `managed-r1-profiles` | `CultureIndependenceTests`, `FileStringIoExecutionTests`, `ScalarStringIntrinsicExecutionTests` |
+| `r1-grammar-return-error-number` | `GoSubReturnExecutionTests` |
+| `r1-grammar-invalid-form-diagnostics` | `UncoveredDiagnosticTests` |
+| `r1-grammar-array-option-base` | `ArrayExecutionTests` |
+| `r1-udt-nested-array-value-copy` | `FixedUdtArrayExecutionTests` |
+| `r1-intrinsics-missing-host-names` | `StandardLibraryHostContractExecutionTests`, `FileIoExecutionTests` |
+| `r1-intrinsics-doevents-return` | `StandardLibraryHostContractExecutionTests`, `FormHostRuntimeTests` |
+| `r1-intrinsics-bare-name-optionals` | `FileIoExecutionTests` |
+| `r1-strings-inputb` | `FileIoExecutionTests`, `FileRuntimeTests` |
+| `r1-grammar-stop-statement` | `ErrorHandlingParserTests`, `StatementShapeExecutionTests` |
+
+
+### R2 — Deterministische Objektlebensdauer
+
+Geschlossen. Terminate erfolgt beim Wegfall der letzten Referenz; der vollständige Besitzvertrag
+mit seinen acht Familien und den sechs Abnahmeschritten steht in
+[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md).
+
+Die Etappe war zwischenzeitlich wieder offen. Nicht die Lebensdauer, sondern die **Erzeugung**:
+`l1-02-i-object-members-lifecycle` sagt „As New creates lazily" zu, und das hielt für drei der
+vier Zugriffsformen. Ein Zugriff auf ein `Public`-Feld instanziierte nicht nach — lesend,
+schreibend und über ein Arrayfeld, bei Locals wie bei Modulvariablen. Ursache war eine Zeile:
+Ein Feldzugriff braucht einen Platz und lief damit an der einzigen Stelle vorbei, die die
+Nachinstanziierung einsetzt. Die vier auslösenden Zugriffsformen stehen seither als Inventar an
+der Fixstelle, weil nichts sonst eine fünfte bemerken würde.
+
+Erzeugte Klassen sind über Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-,
+Array- und Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler,
+reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt. Für COM
+trägt jede Wertgrenze einen eigenen Helfer: direkte Aktivierung, fremdes Memberergebnis und
+geliehener Wert sind unterschiedliche Verträge, und ein late-bound CLR-Ergebnis ist keiner von
+beiden.
+
+Der Nachweis ist in drei Stufen geführt, weil jede allein zu wenig sagt. Der **native Zähler**
+wird gegen eine testeigene IUnknown-Identität gelesen: Jeder Übergang kehrt exakt auf seinen
+Ausgangswert zurück, erzwungene GC-Läufe bewegen nichts, ein Release ohne Retain ist folgenlos.
+Der **verwaltete Mithalter** überlebt Adoption und Freigabe durch VB6, weil Adoption einen Anteil
+am Wrapper verbraucht und jedes gemarshallte COM-Ergebnis seinen eigenen mitbringt. Und über die
+**Prozessgrenze** hält ein fremder Client den Server am Leben, nachdem die Runtime alle Slots
+geleert hat; erst seine Freigabe beendet ihn.
+
+Die Aussagegrenze steht ausdrücklich dabei: Die Zähler, die ein Client liest, gehören seinem
+Proxy, nicht dem Objekt im Server. Der Grenzfall einer Adoption ohne eigenen Anteil ist als Test
+festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, sondern als Wächter.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
+| `r2-asnew-field-instantiation` | `AsNewExecutionTests`, `ClassInstanceExecutionTests` |
+
 ### R3 — Adressierbarer Speicher und native ABI
 
 Geschlossen. Alle sechs Karten stehen als `implemented` / `documented-verified` in der Matrix und
@@ -204,114 +299,16 @@ Prozessende, weil eine native Seite den Zeiger unbegrenzt behalten darf.
 | `managed-r3-variant` | `PointerIntrinsicTests`, `VBAddressableCellTests`, `VariantStateTests` |
 | `managed-r3-callback-abi` | `DeclarePInvokeExecutionTests`, `AddressOfExecutionTests`, `VBCallbackRegistryTests` |
 
-### R2 — Deterministische Objektlebensdauer
-
-Geschlossen. Terminate erfolgt beim Wegfall der letzten Referenz; der vollständige Besitzvertrag
-mit seinen acht Familien und den sechs Abnahmeschritten steht in
-[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md).
-
-Die Etappe war zwischenzeitlich wieder offen. Nicht die Lebensdauer, sondern die **Erzeugung**:
-`l1-02-i-object-members-lifecycle` sagt „As New creates lazily" zu, und das hielt für drei der
-vier Zugriffsformen. Ein Zugriff auf ein `Public`-Feld instanziierte nicht nach — lesend,
-schreibend und über ein Arrayfeld, bei Locals wie bei Modulvariablen. Ursache war eine Zeile:
-Ein Feldzugriff braucht einen Platz und lief damit an der einzigen Stelle vorbei, die die
-Nachinstanziierung einsetzt. Die vier auslösenden Zugriffsformen stehen seither als Inventar an
-der Fixstelle, weil nichts sonst eine fünfte bemerken würde.
-
-Erzeugte Klassen sind über Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-,
-Array- und Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler,
-reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt. Für COM
-trägt jede Wertgrenze einen eigenen Helfer: direkte Aktivierung, fremdes Memberergebnis und
-geliehener Wert sind unterschiedliche Verträge, und ein late-bound CLR-Ergebnis ist keiner von
-beiden.
-
-Der Nachweis ist in drei Stufen geführt, weil jede allein zu wenig sagt. Der **native Zähler**
-wird gegen eine testeigene IUnknown-Identität gelesen: Jeder Übergang kehrt exakt auf seinen
-Ausgangswert zurück, erzwungene GC-Läufe bewegen nichts, ein Release ohne Retain ist folgenlos.
-Der **verwaltete Mithalter** überlebt Adoption und Freigabe durch VB6, weil Adoption einen Anteil
-am Wrapper verbraucht und jedes gemarshallte COM-Ergebnis seinen eigenen mitbringt. Und über die
-**Prozessgrenze** hält ein fremder Client den Server am Leben, nachdem die Runtime alle Slots
-geleert hat; erst seine Freigabe beendet ihn.
-
-Die Aussagegrenze steht ausdrücklich dabei: Die Zähler, die ein Client liest, gehören seinem
-Proxy, nicht dem Objekt im Server. Der Grenzfall einer Adoption ohne eigenen Anteil ist als Test
-festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, sondern als Wächter.
-
-| Karte | Nachweis |
-| --- | --- |
-| `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
-| `r2-asnew-field-instantiation` | `AsNewExecutionTests`, `ClassInstanceExecutionTests` |
-
-## Abgenommene Teilverträge
-
-Hier stehen Etappen, deren Nachweise gemessen und gültig sind, die aber einen benannten Rest
-haben. Der Nachweis bleibt wahr für das, was er belegt; die offenen Karten stehen zusätzlich in
-der aktiven Restliste darunter.
-
-### R1 — Sprach- und Runtime-Verträge vervollständigen
-
-Elf Karten sind abgenommen und stehen als `implemented` / `documented-verified` in der Matrix.
-Die beiden Sammelkarten `managed-r1-grammar` und `managed-r1-intrinsics` stehen seit dem
-Breitendurchgang vom 2026-09-09 auf `partial`: Ihre Inventare waren aus den vorhandenen Tests
-gebildet, nicht aus den dokumentierten Formen, und Einzelsonden haben sieben Namen gefunden, die
-gar nicht binden. Das entwertet die geführten Nachweise nicht — es begrenzt ihre Reichweite.
-
-Getragen hat die Etappe die Reihenfolge „erst messen, dann bauen". Jedes Inventar wurde aus
-dokumentierten Formen gebildet und blieb endlich — keine dauerhaft offene Sammelzeile „alle
-weiteren Randfälle". Mehrfach lautete der Befund, dass das Verhalten bereits stimmte und nur
-ungetestet war: In der Variant-Promotionstabelle waren alle 49 gemessenen Operandenpaare
-korrekt, und `managed-r1-intrinsics` erwies sich als Zusammenfassung von vierzehn bereits
-atomar dokumentierten Verträgen statt als fehlende Runtime-Familie. Die vier `r1-*`-Karten
-sind genau die dabei gefundenen echten Abweichungen — jeder Befund bekommt eine eigene
-Erwartung mit Eingabe, Ergebnis und Diagnose, statt in einer Sammelkarte zu verschwinden.
-
-Die Datei-Layouts wurden gegen Rohbytes abgenommen, nicht gegen einen Selbst-Roundtrip: Ein
-`Put`/`Get`-Paar bestätigt nur sich selbst. Die Get-/Put-Verträge stützen sich dabei auf
-benannte VBA-Dokumentation; das ist ein Vertragsbeleg, kein Original-VB6-Lauf, und deshalb
-bleiben die Erwartungen `documented-verified` statt `oracle-verified`. Ebenso festgeschrieben
-ist die Trennung zwischen einem deklarierten `Variant()`-Array, einem skalaren Variant mit
-Array-Inhalt und Objektwerten: Die beiden letzten werden mit ihrer dokumentierten Ablehnung
-abgenommen, statt einen Besitzvertrag zu erfinden.
-
-| Karte | Nachweis |
-| --- | --- |
-| `managed-r1-grammar` | `CompilationTests`, `DeclarationShapeExecutionTests`, `StatementShapeExecutionTests`, `EvaluationOrderExecutionTests`, `ModulePropertyExecutionTests` |
-| `managed-r1-udt-shapes` | `UdtShapeExecutionTests`, `DynamicUserDefinedTypeArrayExecutionTests`, `ReDimExecutionTests`, `ArrayBinderGuardTests` |
-| `managed-r1-operators` | `VariantArithmeticTests`, `VariantEqualityExecutionTests`, `VariantObjectDispatchExecutionTests` |
-| `managed-r1-conversions` | `VariantStateTests`, `CurrencyRuntimeTests`, `DateTimeRuntimeTests`, `VariantStateExecutionTests` |
-| `managed-r1-intrinsics` | `StringIntrinsicRuntimeTests`, `MathRuntimeTests`, `FinancialIntrinsicTests`, `FormatStringInputTests`, `StandardLibraryIntrinsicExecutionTests` |
-| `managed-r1-file-layout` | `FileRuntimeTests`, `FileIoExecutionTests`, `FileStatementGuardTests` |
-| `managed-r1-profiles` | `CultureIndependenceTests`, `FileStringIoExecutionTests`, `ScalarStringIntrinsicExecutionTests` |
-| `r1-grammar-return-error-number` | `GoSubReturnExecutionTests` |
-| `r1-grammar-invalid-form-diagnostics` | `UncoveredDiagnosticTests` |
-| `r1-grammar-array-option-base` | `ArrayExecutionTests` |
-| `r1-udt-nested-array-value-copy` | `FixedUdtArrayExecutionTests` |
-
 ## Aktive Restliste
 
-Die 19 folgenden Karten sind `planned` / `not-yet-verified`. R0, R2 und R3 sind geschlossen; R1
-steht als abgenommener Teilvertrag darüber und taucht hier mit seinem gemessenen Rest wieder auf.
-Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen legen
-die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben in der Matrix
-erhalten und werden nicht neu implementiert.
+Die 15 folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R3 sind geschlossen und stehen
+als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
+dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
+Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
 
-Vier dieser Karten sind am 2026-09-09 durch einen gemessenen Breitendurchgang dazugekommen — 54
-Einzelsonden durch `vb6c` und ein ausgeführtes Projekt. Sie sind alle vom selben Typ: Das Inventar
-einer Sammelkarte war aus den vorhandenen Tests gebildet statt aus den dokumentierten Formen, und
-belegte deshalb Qualität statt Vollständigkeit. Das ist der Fehler, gegen den die R1-Arbeitsweise
-ausdrücklich gebaut war; er ist zweimal trotzdem passiert. Jeder Befund bekommt wie in R1 eine
-eigene Karte mit Eingabe, Ergebnis und Diagnose, statt in einer Sammelkarte zu verschwinden.
-
-### R1 — Fehlende Standardnamen und Statements
-
-Sofort ausführbar; hängt an nichts Offenem.
-
-| Karte | Ziel und Abnahme |
-| --- | --- |
-| `r1-intrinsics-missing-host-names` | **Host- und Dateisystem-Intrinsics:** `Beep`, `AppActivate`, `SavePicture` und `ChDrive` binden über ihre dokumentierte Signatur; die drei host-nahen laufen über einen `IVBHost`-Vertrag mit deterministischem Headless-Verhalten. |
-| `r1-intrinsics-doevents-return` | **`DoEvents` als Funktion:** Die Ausdrucksform liefert die Zahl offener Formulare statt `VB6S0010`; die klammerlose Anweisungsform bindet weiter. Ändert den `IVBHost`-Vertrag. |
-| `r1-strings-inputb` | **`InputB` als Byte-Geschwister von `Input`:** liest Bytes der Nutzlast, nicht UTF-16-Zeichen; Profilgrenze wie bei der übrigen Byte-Familie. |
-| `r1-grammar-stop-statement` | **`Stop` als Anweisung:** eigener Syntax-/Bound-Knoten, gesenkt wie `End`, weil eine kompilierte VB6-EXE bei `Stop` beendet. Kein `VB6S0005` mehr. |
+Was von hier an offen ist, verlangt durchgehend etwas, das der Compiler nicht allein herstellen
+kann: einen echten Fremdclient über die Prozessgrenze, registrierte native Komponenten, eine
+laufende Anwendung. Das ist der Grund, warum R4 die schwerste Etappe ist und nicht die größte.
 
 ### R4 — COM-Konsum, Emission und Binary Compatibility
 
