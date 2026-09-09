@@ -1,2 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Die eigene IDispatch-Flaeche baut ihre vtable aus Funktionszeigern: Ein verwaltetes
+         Interface kann IID_IDispatch nicht tragen, die CLR gibt es nicht heraus (gemessen:
+         E_NOINTERFACE). Nur dafuer ist unsicherer Code an. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
 </Project>

@@ -676,7 +676,11 @@ public static class VBDynamicDispatch
             RequireTarget(target).GetType().FullName,
             memberName);
 
-    private static object? ConvertArgument(object? value, Type parameterType)
+    /// <summary>
+    /// Die eine Konvertierungsregel der Runtime. Auch die eigene Dispatch-Flaeche benutzt sie: Zwei
+    /// Regeln fuer dasselbe waeren zwei Sprachen.
+    /// </summary>
+    internal static object? ConvertArgument(object? value, Type parameterType)
     {
         var targetType = parameterType.IsByRef
             ? parameterType.GetElementType()!

@@ -21,10 +21,33 @@ namespace VB6.Runtime;
 // even so, because every member below is an explicit interface implementation.
 [ComVisible(true)]
 [ClassInterface(ClassInterfaceType.None)]
-public abstract class VBComEventSource : IConnectionPointContainer
+public abstract class VBComEventSource : IConnectionPointContainer, ICustomQueryInterface
 {
     private readonly List<VBComConnectionPoint> _connectionPoints = new();
     private readonly object _sync = new();
+
+    /// <summary>
+    /// Answers <c>IDispatch</c> with this project's own surface instead of the CLR's class
+    /// interface.
+    ///
+    /// The difference is not cosmetic: the CLR numbers members by its own rule, resolves names
+    /// under the CLR type name, and refuses a record value outright. All three are decisions a VB6
+    /// server has to make itself, and the type library beside it already states them. Everything
+    /// other than IDispatch stays with the CLR, COM identity included.
+    /// </summary>
+    CustomQueryInterfaceResult ICustomQueryInterface.GetInterface(ref Guid iid, out IntPtr ppv)
+    {
+        ppv = IntPtr.Zero;
+        if (!OperatingSystem.IsWindows() || iid != DispatchInterfaceId)
+        {
+            return CustomQueryInterfaceResult.NotHandled;
+        }
+
+        ppv = VBComDispatchSurface.Create(this);
+        return CustomQueryInterfaceResult.Handled;
+    }
+
+    private static readonly Guid DispatchInterfaceId = new("00020400-0000-0000-C000-000000000046");
 
     /// <summary>
     /// Enumerates the connection points this object has handed out.
