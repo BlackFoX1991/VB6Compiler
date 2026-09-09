@@ -30,6 +30,7 @@ internal static class ManagedTypeLibraryWriter
     private const int TypeFlagDispatchable = 0x1000;   // TYPEFLAG_FDISPATCHABLE
     private const int TypeFlagCanCreate = 0x0002;      // TYPEFLAG_FCANCREATE
     private const int ImplTypeFlagDefault = 0x0001;    // IMPLTYPEFLAG_FDEFAULT
+    private const int ImplTypeFlagSource = 0x0002;     // IMPLTYPEFLAG_FSOURCE
 
     private const int InvokeFunc = 1;
     private const int InvokePropertyGet = 2;
@@ -206,6 +207,17 @@ internal static class ManagedTypeLibraryWriter
                     coClassInfo.AddRefTypeInfo((ITypeInfo)implementedInfo, out var implementedReference);
                     coClassInfo.AddImplType(slot, implementedReference);
                     slot++;
+                }
+
+                // Die Ereignisquelle traegt FSOURCE: Diese Schnittstelle implementiert nicht der
+                // Server, sondern der Client. Ohne das Flag sieht ein Client sie als weitere
+                // aufrufbare Schnittstelle und findet die Ereignisse nie.
+                if (comClass.EventSource is { } eventSource &&
+                    interfaces.TryGetValue(eventSource, out var eventSourceInfo))
+                {
+                    coClassInfo.AddRefTypeInfo((ITypeInfo)eventSourceInfo, out var eventSourceReference);
+                    coClassInfo.AddImplType(slot, eventSourceReference);
+                    coClassInfo.SetImplTypeFlags(slot, ImplTypeFlagSource | ImplTypeFlagDefault);
                 }
 
                 coClassInfo.LayOut();
@@ -429,6 +441,8 @@ internal static class ManagedTypeLibraryWriter
                     continue;
                 }
 
+                var eventSource = TryReadEventSourceName(type);
+
                 // Was eine implementierte Schnittstelle traegt, gehoert an sie -- nicht als
                 // Iface_Member noch einmal auf die Standardschnittstelle der Klasse.
                 var implemented = type.GetInterfaces()
@@ -509,7 +523,8 @@ internal static class ManagedTypeLibraryWriter
                     StripPrefix(type.Name, "__vb6_class_"),
                     classId,
                     members,
-                    implemented));
+                    implemented,
+                    eventSource));
             }
 
             return (assembly.GetName().Version ?? new Version(1, 0, 0, 0), classes, interfaces);
@@ -586,11 +601,33 @@ internal static class ManagedTypeLibraryWriter
         return false;
     }
 
+    /// <summary>
+    /// The event source interface a class names in <c>ComSourceInterfaces</c>, or <c>null</c> when
+    /// it declares no events. The attribute holds a full type name; the library needs the VB6 name.
+    /// </summary>
+    private static string? TryReadEventSourceName(Type type)
+    {
+        var attribute = CustomAttributeData.GetCustomAttributes(type).FirstOrDefault(candidate =>
+            candidate.AttributeType.FullName == typeof(ComSourceInterfacesAttribute).FullName);
+        if (attribute?.ConstructorArguments is not [{ Value: string names }] ||
+            string.IsNullOrWhiteSpace(names))
+        {
+            return null;
+        }
+
+        // Das Attribut erlaubt mehrere, null-getrennte Namen; ein VB6-Klassenmodul hat genau eine
+        // Ereignisquelle.
+        var first = names.Split('\0', StringSplitOptions.RemoveEmptyEntries)[0];
+        var simple = first[(first.LastIndexOf('.') + 1)..];
+        return StripPrefix(simple, "__vb6_interface_");
+    }
+
     private sealed record ComClass(
         string Name,
         Guid ClassId,
         List<ComMember> Members,
-        List<string> Interfaces);
+        List<string> Interfaces,
+        string? EventSource);
 
     private sealed record ComInterface(string Name, Guid InterfaceId, List<ComMember> Members);
 
