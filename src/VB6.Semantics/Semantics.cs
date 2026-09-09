@@ -238,6 +238,7 @@ public enum VBIntrinsicKind
     IsObject,
     InStr,
     InStrB,
+    InputB,
     InStrRev,
     StrComp,
     Replace,
@@ -248,12 +249,16 @@ public enum VBIntrinsicKind
     StrConv,
     Int,
     DoEvents,
+    Beep,
+    AppActivate,
+    SavePicture,
     Kill,
     Dir,
     FileCopy,
     MkDir,
     RmDir,
     ChDir,
+    ChDrive,
     CurDir,
     GetAttr,
     SetAttr,
@@ -606,6 +611,7 @@ public enum BoundNodeKind
     ExitLoopStatement,
     ReturnStatement,
     EndStatement,
+    StopStatement,
     SelectCaseStatement,
     DebugPrintStatement,
     DebugAssertStatement,
@@ -763,6 +769,15 @@ public sealed record BoundReturnStatement()
 
 public sealed record BoundEndStatement()
     : BoundStatement(BoundNodeKind.EndStatement);
+
+/// <summary>
+/// VB6 <c>Stop</c>. In the IDE it breaks into the debugger; a compiled EXE has none, and there it
+/// ends the program exactly like <c>End</c>. This keeps its own node rather than reusing
+/// <see cref="BoundEndStatement"/> so a later IDE can tell the two apart -- they lower the same
+/// way today, but they are not the same statement.
+/// </summary>
+public sealed record BoundStopStatement()
+    : BoundStatement(BoundNodeKind.StopStatement);
 
 public abstract record BoundCaseClause;
 

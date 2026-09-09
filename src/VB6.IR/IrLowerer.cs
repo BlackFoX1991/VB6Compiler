@@ -1275,6 +1275,13 @@ public static class IrLowerer
                         IrRuntimeMethod.EndProgram,
                         TypeSymbol.Error)));
                     break;
+                // Stop beendet in einer kompilierten EXE wie End; nur die IDE braecht in den
+                // Debugger. Eigener Bound-Knoten, dieselbe Senkung.
+                case BoundStopStatement:
+                    Emit(new IrEvaluateInstruction(Runtime(
+                        IrRuntimeMethod.EndProgram,
+                        TypeSymbol.Error)));
+                    break;
                 case BoundOnErrorStatement onError:
                     _resumeNext = onError.Mode == BoundErrorHandlingMode.ResumeNext;
                     _errorHandler = onError.Mode == BoundErrorHandlingMode.GoToLabel
@@ -5408,6 +5415,7 @@ public static class IrLowerer
             "VBFiles.Length" => IrRuntimeMethod.FileLength,
             "VBFiles.EndOfFile" => IrRuntimeMethod.FileEndOfFile,
             "VBFiles.Input" => IrRuntimeMethod.FileInput,
+            "VBFiles.InputB" => IrRuntimeMethod.FileInputB,
             "VBFiles.Position" => IrRuntimeMethod.FilePosition,
             "VBFiles.Location" => IrRuntimeMethod.FileLocation,
             "VBFiles.Reset" => IrRuntimeMethod.FileReset,
@@ -5420,12 +5428,16 @@ public static class IrLowerer
             "VBFiles.MakeDirectory" => IrRuntimeMethod.FileMakeDirectory,
             "VBFiles.RemoveDirectory" => IrRuntimeMethod.FileRemoveDirectory,
             "VBFiles.ChangeDirectory" => IrRuntimeMethod.FileChangeDirectory,
+            "VBFiles.ChangeDrive" => IrRuntimeMethod.FileChangeDrive,
             "VBFiles.CurrentDirectory" => IrRuntimeMethod.FileCurrentDirectory,
             "VBFiles.GetAttributes" => IrRuntimeMethod.FileGetAttributes,
             "VBFiles.SetAttributes" => IrRuntimeMethod.FileSetAttributes,
             "VBFiles.FileDateTime" => IrRuntimeMethod.FileDateTime,
             "VBFiles.FileLength" => IrRuntimeMethod.FileLengthByPath,
             "VBInteraction.DoEvents" => IrRuntimeMethod.InteractionDoEvents,
+            "VBInteraction.Beep" => IrRuntimeMethod.InteractionBeep,
+            "VBInteraction.AppActivate" => IrRuntimeMethod.InteractionAppActivate,
+            "VBInteraction.SavePicture" => IrRuntimeMethod.InteractionSavePicture,
             "VBInteraction.MsgBox" => IrRuntimeMethod.InteractionMsgBox,
             "VBInteraction.InputBox" => IrRuntimeMethod.InteractionInputBox,
             "VBInteraction.Load" => IrRuntimeMethod.InteractionLoad,
