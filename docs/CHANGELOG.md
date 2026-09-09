@@ -8155,3 +8155,87 @@ Verlässt eine Ausnahme die Prozedur, greift der Finalizer der Zelle — später
 
 `managed-r3-pointers` bleibt `planned`. Offen ist der ByRef-Parameter, dazu Public-Felder,
 Variants, mehrdimensionale Arrays, ganze Arrays und Datensätze mit eigenem Nebenspeicher.
+
+## 2026-09-07 — R3, Schnitt 31: die Speicherkarte nach Familien aufgeteilt
+
+Kein Code, nur Zuschnitt. `managed-r3-pointers` war eine Karte für sieben Speicherfamilien mit
+sehr unterschiedlichem Aufwand, und ihr Status sagte deshalb nie etwas Brauchbares: Sie blieb
+`planned`, während sechs Familien längst standen. Aufgeteilt in den abgenommenen Slot-Vertrag,
+den ByRef-Alias, die Invalidierung, den SAFEARRAY-Vertrag, den VARIANT-Vertrag und das
+Callback-ABI. Jede trägt jetzt ihre eigene Abnahme, und die Restliste sagt, woran man ist.
+
+## 2026-09-08 — R3, Schnitt 32: die Zelle des Aufrufers als ByRef-Argument
+
+`VarPtr` auf einen ByRef-Parameter muss in VB6 die Adresse des Aufrufers liefern, nicht eine
+eigene. Schnitt 26 hatte den Fall deshalb ausdrücklich ausgelassen: Beim Aufgerufenen kommt nur
+ein Managed Pointer an, aus dem sich die Zelle des Aufrufers nicht finden lässt, und eine eigene
+Zelle wäre eine zweite, entkoppelte Kopie — eine Adresse auf den falschen Speicher, also
+schlechter als der ausdrückliche Fehler 5.
+
+Der Ausweg führt über die Aufrufstelle statt über den Aufgerufenen. Bei einem kontrollierten
+privaten x86-Aufruf reicht der Emitter die vorhandene Zelle des Arguments als ByRef-Argument
+durch; `VarPtr` im Aufgerufenen ist damit exakt die Adresse des Aufrufers. Hat das Argument noch
+keine Zelle, übernimmt eine aufrufgebundene Zelle die Übergabe, das Rückschreiben und die
+Freigabe.
+
+Die Grenze ist die Kontrolle über die Aufrufstelle: `AddressOf`-Ziele, Ereignishandler und
+öffentliche Klassenmitglieder bleiben bei Fehler 5, weil der Emitter dort nicht jede Aufrufstelle
+sieht. Boolean und String brauchen eigene Load-/Store-Adapter, weil ihre nativen Darstellungen —
+zwei Byte -1/0 und ein BSTR-Deskriptor — nicht die des CLR sind.
+
+## 2026-09-09 — R3, Schnitt 33: Invalidierung und der SAFEARRAY-Deskriptor
+
+Zwei Karten, ein Schnitt, sechs Commits.
+
+### Invalidierung
+
+Ein adressierbares Feld besitzt unverwalteten Speicher. Es braucht deshalb denselben exakten Weg
+ans Objektende wie `Class_Terminate` — auch dann, wenn der Benutzer gar keinen Terminator
+geschrieben hat. Der Lowerer registriert eine Klasse jetzt für die Lebensdauerbehandlung, sobald
+sie eines von beiden hat, und der Abbau gibt die Zelle über eine enge Markerschnittstelle frei,
+statt jedes `IDisposable`-Feld für eine VB6-Ressource zu halten, die er schließen darf. Die
+CLR-Kante wird vor der nativen Freigabe genullt, damit eine reentrante Terminierung keine bereits
+freigegebene Zelle sieht.
+
+Der Ausführungstest misst, was VB6 für einen gespeicherten Zeiger über eine Reallokation zusagt:
+`ReDim` und `ReDim Preserve` beenden beide die alte Adresse, `Erase` auf einem festen Array leert
+an Ort und Stelle und behält sie, und `Erase` auf einem dynamischen Array gibt die Variable frei,
+weshalb die nächste Elementadresse Fehler 9 meldet.
+
+### SAFEARRAY
+
+Schnitt 28 hatte zwei Grenzen ausdrücklich stehen lassen: mehr als eine Dimension, und `VarPtr`
+auf das ganze Array. Beide fallen an derselben Stelle. Der gepinnte Puffer bekommt einen echten
+`oleaut32`-Deskriptor mit `FADF_STATIC`, der genau auf ihn zeigt — kein Abbild, also auch nichts,
+was veralten kann.
+
+Die Reihenfolge war der eigentliche Inhalt der ersten Grenze: SAFEARRAY-Daten laufen die linkeste
+Dimension zuerst, die verwaltete Aufzählung die rechteste. Der Umzug transponiert deshalb genau
+einmal. Belegt ist das nicht durch die eigene Rechnung, sondern durch zwei Sonden gegen
+`oleaut32` — eine füllt über `SafeArrayPutElement` und liest den Rohpuffer, die andere liest die
+Deskriptorbytes und macht sichtbar, dass die Bounds dort rechts zuerst stehen, obwohl die API sie
+links zuerst nimmt.
+
+### Der Befund beim Messen
+
+Beim Nachmessen der Elementtypen kam eine Lücke heraus, die vorher niemand sehen konnte. Die
+Auswahl war eine Ausschlussliste — BSTR, IDispatch, VARIANT, IUnknown raus, alles andere rein —
+und ließ damit `VT_BOOL` durch. Ein VB6 `Boolean` ist zwei Byte breit, sein Speicher ist ein
+einbyteiges CLR-`bool`; der Deskriptor hätte doppelt so viel Speicher versprochen, wie da ist,
+und ein nativer Leser wäre über das Pufferende gelaufen. Lautlos, weil ihn auf keiner Seite jemand
+prüft.
+
+Ersetzt durch eine Invariante statt einer Liste: Ein VARTYPE ist brauchbar, wenn sein
+`cbElements` die Schrittweite des CLR-Puffers ist. Damit fällt `VT_BOOL` heraus, und BSTR,
+VARIANT und die Schnittstellenzeiger fallen ohne eigene Klausel heraus, weil sie keine flache
+Breite haben. `VT_BOOL` steht mit seinen echten zwei Byte in der Breitentabelle — es wegzulassen
+hätte es zwar auch abgelehnt, aber mit der falschen Begründung.
+
+Die Regel einmal gebrochen und rot gesehen: Ohne den Breitenvergleich fällt genau ein Fall, und
+zwar mit „erwartete Ausnahme, aber es wurde keine ausgelöst" — der Deskriptor wäre also wirklich
+gebaut worden.
+
+Beide Karten bleiben `planned`. Offen sind vier Punkte, die beim Review herauskamen: die
+ungezählte Deskriptorfreigabe über `ReleaseObjectReferences`, der Finalizer auf jedem
+`VBArray<T>`, der verlorene `Array.Copy`-Pfad in `ReDimPreserve` und ein Test für die
+`FADF_STATIC`-Annahme, auf der die ganze Freigabe steht.

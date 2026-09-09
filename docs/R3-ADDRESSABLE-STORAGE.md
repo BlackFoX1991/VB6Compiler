@@ -112,10 +112,29 @@ entfallen sämtliche Synchronisationsstellen, und die Aliasfrage löst sich von 
 Reallokation die Lebensdauer des alten Zeigers beendet. `Erase` leert an Ort und Stelle und
 behält ihn.
 
-Zwei Grenzen bleiben ausdrücklich: Bei **mehr als einer Dimension** ist die physische Reihenfolge
-hier zeilenweise, die eines VB6-SAFEARRAY spaltenweise — ein Zeiger über den Block wäre
-irreführend. Und `VarPtr` auf das **ganze Array** trifft in VB6 den Deskriptor, nicht die Daten;
-das ist ein eigener Vertrag, nicht dieser.
+Zwei Grenzen blieben zunächst ausdrücklich offen: mehr als eine Dimension, und `VarPtr` auf das
+ganze Array. Beide hat `managed-r3-safearray` aufgehoben, und zwar an derselben Stelle — der
+gepinnte Puffer bekommt einen **echten oleaut32-Deskriptor**, der genau auf ihn zeigt.
+
+Die Reihenfolge war der eigentliche Grund für die erste Grenze: SAFEARRAY-Daten laufen die
+**linkeste** Dimension zuerst, die verwaltete Aufzählung die rechteste. Der Umzug in den Pinned
+Object Heap transponiert deshalb genau einmal, und ab da wählt jeder Indexzugriff das native
+Layout. Gemessen wird das nicht gegen die eigene Rechnung, sondern gegen `oleaut32`: Eine Sonde
+füllt einen Deskriptor über `SafeArrayPutElement` und liest den Rohpuffer zurück; eine zweite
+liest die Deskriptorbytes und macht damit sichtbar, dass die Bounds dort **rechts zuerst** stehen,
+obwohl die API ihre Indizes links zuerst nimmt.
+
+Der Deskriptor trägt `FADF_STATIC`, weil `pvData` ein CLR-Array ist und nicht ihm gehört.
+`VarPtr` auf das ganze Array nennt diesen Deskriptor, nie das erste Datenbyte.
+
+Welche Elementtypen das dürfen, entscheidet **eine** Regel statt einer Ausschlussliste: Das
+`cbElements` des VARTYPE muss die Schrittweite des CLR-Puffers sein. VB6 `Boolean` fällt damit
+heraus — es ist `VT_BOOL` und zwei Byte breit, der Speicher ist ein einbyteiges CLR-`bool`, und
+ein Deskriptor daraus verspräche doppelt so viel Speicher wie da ist. Beide Zahlen sind gemessen,
+nicht angenommen. BSTR, VARIANT und die Schnittstellenzeiger fallen ohne eigene Klausel heraus,
+weil sie überhaupt keine flache Breite haben. Der Lowerer lehnt Boolean zusätzlich früher ab; die
+beiden Prüfungen müssen zusammenbleiben, sonst wird aus einem gemeldeten Fehler 5 ein nativer
+Überlauf.
 
 Der sechste Slice nimmt das **private Instanzfeld**. Es verhält sich wie eine Modulvariable, nur
 pro Objekt: Die Zelle ist ein Instanzfeld neben dem Datenfeld, entsteht faul an der
