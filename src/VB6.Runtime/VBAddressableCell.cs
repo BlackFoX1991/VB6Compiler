@@ -148,6 +148,90 @@ public static class VBAddressableStorage
 
         ~BStrCell() => Dispose();
     }
+
+    /// <summary>
+    /// One native <c>VARIANT</c> for a VB6 Variant slot.
+    ///
+    /// A Variant is a CLR <see cref="object"/> everywhere else in the runtime, so unlike a scalar
+    /// there is no managed storage whose bytes could simply be exposed. The cell owns the sixteen
+    /// bytes VB6 promises and converts in both directions on every access.
+    ///
+    /// The subtype is the whole point of the contract: Empty, Null and Nothing are all "no value"
+    /// in managed terms -- a null reference and two marker singletons -- but they are three
+    /// different VARIANTs (<c>VT_EMPTY</c>, <c>VT_NULL</c>, <c>VT_DISPATCH</c> with a null
+    /// pointer), and a native reader must be able to tell them apart. The mapping is therefore
+    /// written out rather than delegated to <see cref="Marshal.GetNativeVariantForObject"/>, which
+    /// knows nothing about those markers and would collapse them.
+    ///
+    /// The union sits at offset 8 on both bitnesses -- <c>vt</c> plus three reserved words -- but
+    /// the whole struct is 16 bytes on x86 and 24 on x64, because the x64 union carries a
+    /// <c>BRECORD</c> of two pointers. Getting that wrong is not theoretical: the same mistake in
+    /// <c>VBComDispatch</c> silently killed the fast IDispatch path for years.
+    /// </summary>
+    private sealed class VariantCell : IVBAddressableStorageCell
+    {
+        // Ein VARIANT ist auf x86 sechzehn und auf x64 vierundzwanzig Byte breit; die Union
+        // beginnt auf beiden hinter vt und drei reservierten Words.
+        private const int DataOffset = 8;
+        private static readonly int VariantSize = IntPtr.Size == sizeof(long) ? 24 : 16;
+
+        private IntPtr _storage;
+        private bool _disposed;
+
+        public VariantCell(object? value)
+        {
+            _storage = Marshal.AllocCoTaskMem(VariantSize);
+            for (var offset = 0; offset < VariantSize; offset++)
+            {
+                Marshal.WriteByte(_storage, offset, 0);
+            }
+
+            WriteValue(value);
+        }
+
+        public IntPtr GetNativeAddress()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _storage;
+        }
+
+        public object? Read()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return VBNativeVariant.Read(_storage, DataOffset);
+        }
+
+        public void Write(object? value)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            WriteValue(value);
+        }
+
+        private void WriteValue(object? value)
+        {
+            // VariantClear gibt eine gehaltene BSTR frei und nullt vt. Es ist der dokumentierte
+            // Weg und deckt damit auch alles ab, was ein nativer Schreibzugriff hinterlassen hat.
+            _ = VBNativeVariant.VariantClear(_storage);
+            VBNativeVariant.Write(_storage, DataOffset, value);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _ = VBNativeVariant.VariantClear(_storage);
+            Marshal.FreeCoTaskMem(_storage);
+            _storage = IntPtr.Zero;
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
+
+        ~VariantCell() => Dispose();
+    }
+
     /// <summary>
     /// One native block for a whole VB6 user-defined type.
     ///
@@ -246,6 +330,9 @@ public static class VBAddressableStorage
     }
 
     public static object CreateString(string value) => new BStrCell(value);
+
+    /// <summary>Creates the native VARIANT cell behind a stored <c>VarPtr</c> of a Variant slot.</summary>
+    public static object CreateVariant(object? value) => new VariantCell(value);
     public static object CreateRecord(object value) => new RecordCell(value);
 
     public static object CreateBoolean(bool value) => VBAddressableCell<short>.Create(value ? (short)-1 : (short)0);
@@ -277,6 +364,9 @@ public static class VBAddressableStorage
     public static IntPtr GetBooleanNativeAddress(object storage) => GetBoolean(storage).GetNativeAddress();
 
     public static IntPtr GetStringNativeAddress(object storage) => GetString(storage).GetNativeAddress();
+
+    /// <summary>Returns the address of the native VARIANT a stored Variant pointer names.</summary>
+    public static IntPtr GetVariantNativeAddress(object storage) => GetVariant(storage).GetNativeAddress();
 
     /// <summary>
     /// The address of the String variable itself, which is what <c>VarPtr</c> answers. Reading a
@@ -320,6 +410,8 @@ public static class VBAddressableStorage
     public static bool ReadBoolean(object storage) => GetBoolean(storage).Read() != 0;
 
     public static string ReadString(object storage) => GetString(storage).Read();
+    /// <summary>Reads the Variant value currently held in the native VARIANT.</summary>
+    public static object? ReadVariant(object storage) => GetVariant(storage).Read();
 
     /// <summary>
     /// Reads a VB6 String through the address of its BSTR descriptor.  A controlled ByRef alias
@@ -386,6 +478,8 @@ public static class VBAddressableStorage
     public static void WriteBoolean(object storage, bool value) => GetBoolean(storage).Write(value ? (short)-1 : (short)0);
 
     public static void WriteString(object storage, string value) => GetString(storage).Write(value);
+    /// <summary>Replaces the native VARIANT contents, releasing whatever it held.</summary>
+    public static void WriteVariant(object storage, object? value) => GetVariant(storage).Write(value);
     public static void WriteRecord(object storage, object value) => GetRecord(storage).Write(value);
 
     public static void WriteByte(object storage, byte value) => GetByte(storage).Write(value);
@@ -421,6 +515,8 @@ public static class VBAddressableStorage
     public static object EnsureBoolean(object? storage, bool value) => storage ?? CreateBoolean(value);
 
     public static object EnsureString(object? storage, string value) => storage ?? CreateString(value);
+    /// <summary>Creates the Variant cell lazily at the VarPtr site, carrying the current value.</summary>
+    public static object EnsureVariant(object? storage, object? value) => storage ?? CreateVariant(value);
     public static object EnsureRecord(object? storage, object value) => storage ?? CreateRecord(value);
 
     public static object EnsureByte(object? storage, byte value) => storage ?? CreateByte(value);
@@ -450,6 +546,9 @@ public static class VBAddressableStorage
     public static bool ReadBooleanOr(object? storage, bool current) => storage is null ? current : ReadBoolean(storage);
 
     public static string ReadStringOr(object? storage, string current) => storage is null ? current : ReadString(storage);
+    /// <summary>Before the first VarPtr the CLR slot is authoritative; after it, the cell is.</summary>
+    public static object? ReadVariantOr(object? storage, object? current) =>
+        storage is null ? current : ReadVariant(storage);
     public static object ReadRecordOr(object? storage, object current) => storage is null ? current : ReadRecord(storage);
 
     public static byte ReadByteOr(object? storage, byte current) => storage is null ? current : ReadByte(storage);
@@ -609,6 +708,8 @@ public static class VBAddressableStorage
     private static VBAddressableCell<short> GetBoolean(object storage) => storage as VBAddressableCell<short>
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Boolean.", nameof(storage));
 
+    private static VariantCell GetVariant(object storage) => storage as VariantCell
+        ?? throw new ArgumentException("The addressable storage cell must hold a VB6 Variant.", nameof(storage));
     private static BStrCell GetString(object storage) => storage as BStrCell
         ?? throw new ArgumentException("The addressable storage cell must hold a VB6 String BSTR.", nameof(storage));
 

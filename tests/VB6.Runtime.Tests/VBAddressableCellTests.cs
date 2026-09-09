@@ -410,6 +410,111 @@ public sealed class VBAddressableCellTests
         VBAddressableStorage.Dispose(storage);
     }
 
+    [TestMethod]
+    public void VariantCell_KeepsEverySubtypeDistinctInTheNativeVariant()
+    {
+        // Die Abnahmebedingung der Karte: Subtyp, Empty, Null, Nothing, BSTR und Fehlerwerte
+        // bleiben unterscheidbar. In verwalteten Begriffen sind Empty, Null und Nothing alle
+        // "kein Wert" -- eine Nullreferenz und zwei Marker --, nativ sind es drei verschiedene
+        // VARIANTs. Gemessen wird deshalb das vt-Feld selbst, nicht nur der Rueckweg.
+        var dataOffset = 8;
+
+        AssertVariant(null, 0, cell => { });
+        AssertVariant(VBVariants.NullValue(), 1, cell => { });
+        AssertVariant(
+            VBVariants.NothingValue(),
+            9,
+            address => Assert.AreEqual(IntPtr.Zero, Marshal.ReadIntPtr(address, dataOffset)));
+        AssertVariant(
+            "abc",
+            8,
+            address => Assert.AreEqual("abc", Marshal.PtrToStringBSTR(Marshal.ReadIntPtr(address, dataOffset))));
+        AssertVariant(
+            new VBErrorValue(9),
+            10,
+            address => Assert.AreEqual(9, Marshal.ReadInt32(address, dataOffset)));
+        AssertVariant(
+            VBVariants.MissingValue(),
+            10,
+            address => Assert.AreEqual(unchecked((int)0x80020004), Marshal.ReadInt32(address, dataOffset)));
+
+        AssertVariant((short)7, 2, address => Assert.AreEqual((short)7, Marshal.ReadInt16(address, dataOffset)));
+        AssertVariant(4711, 3, address => Assert.AreEqual(4711, Marshal.ReadInt32(address, dataOffset)));
+        AssertVariant(true, 11, address => Assert.AreEqual((short)-1, Marshal.ReadInt16(address, dataOffset)));
+        AssertVariant((byte)200, 17, address => Assert.AreEqual((byte)200, Marshal.ReadByte(address, dataOffset)));
+        AssertVariant(
+            2.5d,
+            5,
+            address => Assert.AreEqual(2.5d, BitConverter.Int64BitsToDouble(Marshal.ReadInt64(address, dataOffset))));
+
+        // VT_UI4 statt der 20, die VarType meldet: VB6 kennt keinen vorzeichenlosen 32-Bit-
+        // Variant, der Deskriptor muss trotzdem sagen, was die Nutzlast wirklich ist.
+        AssertVariant(7u, 19, address => Assert.AreEqual(7, Marshal.ReadInt32(address, dataOffset)));
+    }
+
+    [TestMethod]
+    public void VariantCell_RoundTripsAndReleasesItsPreviousString()
+    {
+        var cell = VBAddressableStorage.CreateVariant("erste");
+        try
+        {
+            Assert.AreEqual("erste", VBAddressableStorage.ReadVariant(cell));
+
+            // Eine Neuzuweisung muss die alte BSTR freigeben; VariantClear ist der Weg dafuer.
+            // Sichtbar ist hier nur, dass der Deskriptor danach die neue Zeichenkette nennt --
+            // ein Leck faellt erst als solches auf, wenn es jemand misst.
+            VBAddressableStorage.WriteVariant(cell, "zweite");
+            Assert.AreEqual("zweite", VBAddressableStorage.ReadVariant(cell));
+
+            VBAddressableStorage.WriteVariant(cell, VBVariants.NullValue());
+            Assert.AreSame(VBVariants.NullValue(), VBAddressableStorage.ReadVariant(cell));
+            Assert.AreEqual(1, VBVariants.VarType(VBAddressableStorage.ReadVariant(cell)));
+
+            // Die Adresse bleibt dieselbe -- ein gespeicherter Zeiger ueberlebt jede Zuweisung.
+            var address = VBAddressableStorage.GetVariantNativeAddress(cell);
+            VBAddressableStorage.WriteVariant(cell, 42);
+            Assert.AreEqual(address, VBAddressableStorage.GetVariantNativeAddress(cell));
+            Assert.AreEqual(42, VBAddressableStorage.ReadVariant(cell));
+        }
+        finally
+        {
+            ((IDisposable)cell).Dispose();
+        }
+    }
+
+    [TestMethod]
+    public void VariantCell_RefusesAValueWhoseStorageLivesBesideTheVariant()
+    {
+        // Ein Objekt, ein Array oder ein UDT besitzt Speicher neben dem VARIANT. Das ist ein
+        // eigener Vertrag, und ein halb gefuellter Deskriptor waere schlechter als die Meldung.
+        Assert.ThrowsException<NotSupportedException>(
+            () => VBAddressableStorage.CreateVariant(new VBArray<int>(new VBArrayBound(0, 1))));
+    }
+
+    private static void AssertVariant(object? value, short expectedVarType, Action<IntPtr> inspect)
+    {
+        var cell = VBAddressableStorage.CreateVariant(value);
+        try
+        {
+            var address = VBAddressableStorage.GetVariantNativeAddress(cell);
+            Assert.AreEqual(
+                expectedVarType,
+                Marshal.ReadInt16(address),
+                $"vt für '{value ?? "Empty"}'");
+            inspect(address);
+
+            var roundTripped = VBAddressableStorage.ReadVariant(cell);
+            Assert.AreEqual(
+                VBVariants.VarType(value),
+                VBVariants.VarType(roundTripped),
+                $"VarType nach dem Rückweg für '{value ?? "Empty"}'");
+        }
+        finally
+        {
+            ((IDisposable)cell).Dispose();
+        }
+    }
+
     private static void ForceFullCollection()
     {
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
