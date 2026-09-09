@@ -20,6 +20,11 @@ public sealed class ObjectLifetimeTests
         private void __vb6_Class_Terminate() => throw new InvalidOperationException("boom");
     }
 
+    private sealed class AddressableOwner
+    {
+        public object? Cell;
+    }
+
     [TestMethod]
     public void RunTerminator_RunsTheTerminatorOnce()
     {
@@ -92,6 +97,21 @@ public sealed class ObjectLifetimeTests
     {
         VBObjectLifetime.Register(null);
         VBObjectLifetime.RunTerminator(null);
+    }
+
+    [TestMethod]
+    public void RunTerminator_ReleasesAnAddressableFieldCellWithoutAUserTerminator()
+    {
+        var owner = new AddressableOwner { Cell = VBAddressableStorage.CreateInt32(42) };
+        var cell = owner.Cell;
+
+        VBObjectLifetime.Register(owner);
+        VBObjectLifetime.RunTerminator(owner);
+        VBObjectLifetime.RunTerminator(owner);
+
+        Assert.IsNull(owner.Cell, "The object must not retain a dangling native cell after teardown.");
+        Assert.ThrowsExactly<ObjectDisposedException>(
+            () => VBAddressableStorage.GetInt32NativeAddress(cell!));
     }
 
     [TestMethod]

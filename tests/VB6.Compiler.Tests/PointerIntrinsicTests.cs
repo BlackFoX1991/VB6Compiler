@@ -1381,6 +1381,99 @@ public sealed class PointerIntrinsicTests
     }
 
     [TestMethod]
+    public void EmitX86Application_ObservesArrayPointerInvalidationAcrossReDimAndErase()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The array invalidation probe uses the Windows x86 host.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the array invalidation contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerArrayPointerInvalidationTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "ArrayPointerInvalidation.dll");
+            var result = VBCompilation.Create("""
+                Sub Main()
+                    Dim dynamisch() As Long
+                    Dim fest(0 To 0) As Long
+                    Dim alt As Long
+                    Dim neu As Long
+
+                    ReDim dynamisch(0)
+                    dynamisch(0) = 10
+                    alt = VarPtr(dynamisch(0))
+                    ReDim dynamisch(0)
+                    neu = VarPtr(dynamisch(0))
+                    Debug.Print alt = neu
+
+                    alt = neu
+                    ReDim Preserve dynamisch(1)
+                    neu = VarPtr(dynamisch(0))
+                    Debug.Print alt = neu
+
+                    fest(0) = 42
+                    alt = VarPtr(fest(0))
+                    Erase fest
+                    neu = VarPtr(fest(0))
+                    Debug.Print alt = neu
+                    Debug.Print fest(0)
+
+                    ReDim dynamisch(0)
+                    alt = VarPtr(dynamisch(0))
+                    Erase dynamisch
+                    On Error Resume Next
+                    neu = VarPtr(dynamisch(0))
+                    Debug.Print Err.Number
+                    Debug.Print Err.Description
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("ArrayPointerInvalidation", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 array invalidation probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[] { "False", "False", "True", "0", "9", "Subscript out of range" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitX86Project_GivesEveryInstanceItsOwnPrivateFieldCell()
     {
         if (!OperatingSystem.IsWindows())
