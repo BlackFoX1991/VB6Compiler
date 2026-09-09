@@ -2953,16 +2953,17 @@
       "dependsOn": [
         "managed-r4-vtable-out"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Rohe Automation-Layouts abnehmen",
       "expected": {
         "acceptance": "Aliase, Records, C-Arrays, verschachtelte Pointer und SAFEARRAY-Typen über unabhängige COM-Probes mit Layout- und Besitzprüfung in beide Richtungen abnehmen."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/ComInteropExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/ComInteropExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/AutomationLayoutTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Abgenommen am 2026-09-09 an registrierten Fremdbibliotheken, nicht an eigens gebauten Fixtures -- eine eigene Fixture belegt nur, dass der Importer mit sich selbst uebereinstimmt. Zuerst gemessen, welche der fuenf Formen auf dieser Maschine ueberhaupt vorkommen: Aliase und Records in stdole (GUID 16 Byte mit C-Array-Feld, EXCEPINFO, DISPPARAMS), das C-Array als GUID.Data4, verschachtelte Zeiger in IFont.Clone und IUnknown.QueryInterface, echte VT_SAFEARRAY-Mitglieder erst in taskschd (IEmailAction.Attachments) und mshtml (IHTMLDocument2.write). Ergebnis: Ein skalarer Alias loest auf seinen Basistyp auf -- ueber alle Aliase der Bibliothek gegen deren eigenes tdescAlias geprueft, nicht gegen eine Liste im Test. Ein C-Array-Feld behaelt seine festen Grenzen (Data4 als 0:7). Ein Zeigerparameter wird genau eine Ebene aufgeloest: IFont** ist ein ByRef-IFont; eine zweite Ebene bleibt ein undurchsichtiger nativer Zeiger. Der Record traegt auf x86 -- der Plattform, auf die ein Legacy-Projekt und der native OCX-Pfad festgelegt sind -- exakt das native Layout: LenB(EXCEPINFO) ist 32, ausgefuehrt auf dem x86-Host, und die Erwartung ist aus den Felddeskriptoren der Bibliothek gerechnet statt hingeschrieben. Der SAFEARRAY laeuft in beide Richtungen durch einen echten Out-of-Process-Server (Schedule.Service): hinein ein VB6-Array mit Grenzen 1:2, heraus VarType 8204 mit denselben Grenzen und Werten, und das eigene Array des Aufrufers ist danach unveraendert -- der Server kopiert, er uebernimmt nicht. Gemessene Abweichung, bewusst nicht geaendert: Auf x64 stimmt das Recordlayout nicht, aus zwei getrennten Gruenden -- VB6 packt einen UDT auf 4, das native x64-ABI richtet auf 8 aus, und ein Zeigerfeld, das VB6 Long nennt, ist dort 8 Byte breit. Beides sind Entscheidungen ueber die moderne Erweiterung, nicht ueber VB6.",
       "title": "Rohe Automation-Layouts abnehmen"
     },
     {
@@ -3523,8 +3524,8 @@
         "bitness": "x86 ABI is normative for VB6Sp6",
         "com": "IUnknown/IDispatch identity and reference counting are explicit"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
@@ -3535,9 +3536,10 @@
         "tests/VB6.Runtime.Tests/ComInteropRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/ComInteropExecutionTests.cs",
         "tests/VB6.Compiler.Tests/NamedArgumentExecutionTests.cs",
-        "tests/VB6.Compiler.Tests/ComVTableExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/ComVTableExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/AutomationLayoutTests.cs"
       ],
-      "gap": "managed-r4-vtable-out: VTable-Ausgabeparameter; managed-r4-automation-layouts: Rohe Automation-Layouts abnehmen"
+      "gap": null
     },
     {
       "id": "com-server-and-typelib-emission",

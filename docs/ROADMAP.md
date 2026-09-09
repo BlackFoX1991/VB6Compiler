@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `bf31edf` mit nicht committeten Änderungen, Lauf `20260909T183515Z-f922c736`:
+Messung vom 2026-09-09 auf `main` / `9664a20` mit nicht committeten Änderungen, Lauf `20260909T190441Z-4dbd2109`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1847 Fälle: 1847 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1851 Fälle: 1851 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **159 implemented**, **0 partial** und **13 planned**;
-**159/172 documented-verified**, 13 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **160 implemented**, **0 partial** und **12 planned**;
+**160/172 documented-verified**, 12 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -340,10 +340,32 @@ Ein weggefallenes Mitglied meldet `VB6E0004` und bricht die Emission ab, bevor i
 geschrieben wird. Ein hinzugekommenes ist verträglich — ein Client, der es nicht kennt, ruft es
 nicht.
 
+**Die rohen Automation-Layouts** sind abgenommen — an registrierten Fremdbibliotheken, nicht an
+eigens gebauten Fixtures: Eine eigene Fixture belegt nur, dass der Importer mit sich selbst
+übereinstimmt. Zuerst wurde gemessen, welche der fünf Formen auf der Maschine überhaupt vorkommen;
+echte `VT_SAFEARRAY`-Mitglieder finden sich erst in `taskschd` und `mshtml`.
+
+Ein skalarer Alias löst auf seinen Basistyp auf — über *alle* Aliase der Bibliothek gegen deren
+eigenes `tdescAlias` geprüft, nicht gegen eine Liste im Test. Ein C-Array-Feld behält seine festen
+Grenzen (`GUID.Data4` als `0:7`). Ein Zeigerparameter wird genau eine Ebene aufgelöst; eine zweite
+bleibt ein undurchsichtiger nativer Zeiger. Der Record trägt auf x86 exakt das native Layout —
+`LenB(EXCEPINFO)` ist 32, ausgeführt auf dem x86-Host, und die Erwartung ist aus den
+Felddeskriptoren der Bibliothek gerechnet statt hingeschrieben.
+
+Der SAFEARRAY läuft durch einen echten Out-of-Process-Server (`Schedule.Service`): hinein ein
+VB6-Array mit den Grenzen 1:2, heraus `VarType` 8204 mit denselben Grenzen und Werten, und das
+eigene Array des Aufrufers ist danach unverändert — der Server kopiert, er übernimmt nicht.
+
+Gemessene Abweichung, bewusst nicht geändert: Auf **x64** stimmt das Recordlayout nicht, aus zwei
+getrennten Gründen — VB6 packt einen UDT auf 4, das native x64-ABI richtet auf 8 aus, und ein
+Zeigerfeld, das VB6 `Long` nennt, ist dort 8 Byte breit. Beides sind Entscheidungen über die
+moderne Erweiterung, nicht über VB6.
+
 | Karte | Nachweis |
 | --- | --- |
 | `managed-r4-vtable-out` | `ComVTableExecutionTests` |
 | `managed-r4-binary-compatibility` | `BinaryCompatibilityTests`, `BinaryCompatibilityClientTests` |
+| `managed-r4-automation-layouts` | `AutomationLayoutTests` |
 
 ## Aktive Restliste
 
@@ -368,7 +390,6 @@ ClassFactory-/IUnknown-Lebensdauer, Instancing, Event-Quellen und Connection-Poi
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r4-automation-layouts` | **Rohe Automation-Layouts abnehmen:** Aliase, Records, C-Arrays, verschachtelte Pointer und SAFEARRAY-Typen über unabhängige COM-Probes mit Layout- und Besitzprüfung in beide Richtungen abnehmen. |
 | `managed-r4-typelib-metadata` | **TypeLib-Metadaten vervollständigen:** Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein. Sechs dieser Punkte sind seit 2026-09-09 umgesetzt und an der zurückgelesenen Bibliothek gemessen; offen bleiben UDTs als `TKIND_RECORD` samt `VT_RECORD`-Marshalling und die Abnahme durch einen Fremdclient. |
 | `managed-r4-server-lifetime` | **Server- und Event-Ownership schließen:** IUnknown/ClassFactory, Instancing, Connection-Point-Enumeratoren, Attach/Detach und Shutdown per Fremdclient prüfen; vorhandene Enumeration-Stubs schließen. |
 

@@ -8691,3 +8691,45 @@ Mitglied das alte von 1 auf 2 — genau der stille Bruch, den die Einstellung ve
 
 `managed-r4-binary-compatibility` steht auf `implemented` / `documented-verified`. R4 hat noch drei
 offene Karten.
+
+## Rohe Automation-Layouts, gemessen an fremden Bibliotheken
+
+Die fünf Formen dieser Karte — Aliase, Records, C-Arrays, verschachtelte Zeiger, SAFEARRAYs —
+waren im Importer weitgehend umgesetzt, aber nicht abgenommen. Genau das Muster, vor dem die
+Projektregel warnt: Die Umsetzung ist hier meist weiter als ihre Absicherung.
+
+Zuerst wurde deshalb gemessen, welche Formen auf dieser Maschine überhaupt vorkommen. `stdole`
+trägt Aliase und Records (`GUID` mit einem C-Array-Feld, `EXCEPINFO`, `DISPPARAMS`) und die
+verschachtelten Zeiger (`IFont.Clone`, `IUnknown.QueryInterface`). Echte `VT_SAFEARRAY`-Mitglieder
+gibt es dort **nicht** — sie finden sich erst in `taskschd` (`IEmailAction.Attachments`) und
+`mshtml` (`IHTMLDocument2.write`). Ohne diesen Vorlauf wäre die SAFEARRAY-Abnahme gegen eine selbst
+gebaute Fixture gelaufen, und die belegt nur, dass der Importer mit sich selbst übereinstimmt.
+
+### Was gemessen wurde
+
+Ein skalarer Alias löst auf seinen Basistyp auf. Geprüft wird das über **alle** Aliase der
+Bibliothek gegen deren eigenes `tdescAlias`, nicht gegen eine Liste im Test: Ändert sich die
+Bibliothek, fällt das auf, statt eine veraltete Konstante stehenzulassen.
+
+Ein C-Array-Feld behält seine festen Grenzen — `GUID.Data4` kommt als `0:7` an. Ein
+Zeigerparameter wird genau eine Ebene aufgelöst: `IFont**` ist ein ByRef-`IFont`, und eine zweite
+Ebene bleibt ein undurchsichtiger nativer Zeiger statt einer geratenen Zahl.
+
+Der Record trägt auf **x86** exakt das native Layout: `LenB(EXCEPINFO)` ist 32, ausgeführt auf dem
+x86-Host, und die Erwartung ist aus den Felddeskriptoren der Bibliothek gerechnet statt
+hingeschrieben.
+
+Der SAFEARRAY läuft in beide Richtungen durch einen echten Out-of-Process-Server
+(`Schedule.Service`): hinein ein VB6-Array mit den Grenzen 1:2, heraus `VarType` 8204 mit denselben
+Grenzen und Werten — und das eigene Array des Aufrufers ist danach unverändert. Der Server kopiert,
+er übernimmt nicht; das ist die Besitzprüfung, die die Karte verlangt.
+
+### Die Abweichung, die stehen bleibt
+
+Auf **x64** stimmt das Recordlayout nicht, und zwar aus zwei getrennten Gründen: VB6 packt einen
+UDT auf 4, während das native x64-ABI auf 8 ausrichtet, und ein Zeigerfeld, das VB6 `Long` nennt,
+ist dort 8 Byte breit. Beides sind Entscheidungen über die moderne Erweiterung, nicht über VB6 —
+und x86 ist die Plattform, auf die ein Legacy-Projekt und der native OCX-Pfad festgelegt sind.
+
+`managed-r4-automation-layouts` steht auf `implemented` / `documented-verified`. R4 hat noch zwei
+offene Karten.
