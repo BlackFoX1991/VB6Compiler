@@ -110,4 +110,99 @@ public sealed class ComEventSourceRuntimeTests
         one.GetConnectionInterface(out var reported);
         Assert.AreEqual(Guid.Empty, reported);
     }
+
+    [TestMethod]
+    public void EnumConnections_FollowsTheComEnumeratorContract()
+    {
+        var source = new TestSource();
+        var container = (IConnectionPointContainer)source;
+        var interfaceId = Guid.Empty;
+        container.FindConnectionPoint(ref interfaceId, out var point);
+        Assert.IsNotNull(point);
+
+        point.Advise(new RecordingSink(), out var first);
+        point.Advise(new RecordingSink(), out var second);
+
+        point.EnumConnections(out var connections);
+
+        // Next fuellt hoechstens so viele Elemente, wie da sind, und antwortet S_OK nur, wenn es
+        // die ganze Anfrage bedienen konnte. Beides ist Erfolg -- ein Client laeuft bis S_FALSE.
+        var buffer = new CONNECTDATA[2];
+        var fetched = Marshal.AllocCoTaskMem(sizeof(int));
+        try
+        {
+            Assert.AreEqual(0, connections.Next(1, buffer, fetched));
+            Assert.AreEqual(1, Marshal.ReadInt32(fetched));
+            Assert.AreEqual(first, buffer[0].dwCookie);
+
+            // Eine Anfrage ueber den Rest hinaus liefert S_FALSE mit der tatsaechlichen Zahl.
+            Assert.AreEqual(1, connections.Next(2, buffer, fetched));
+            Assert.AreEqual(1, Marshal.ReadInt32(fetched));
+            Assert.AreEqual(second, buffer[0].dwCookie);
+
+            Assert.AreEqual(1, connections.Next(1, buffer, fetched));
+            Assert.AreEqual(0, Marshal.ReadInt32(fetched));
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(fetched);
+        }
+
+        // pceltFetched darf null sein. Bedingungslos hindurchzuschreiben laesst genau diesen
+        // Aufrufer mit einer Zugriffsverletzung stehen.
+        connections.Reset();
+        Assert.AreEqual(0, connections.Next(1, buffer, IntPtr.Zero));
+        Assert.AreEqual(first, buffer[0].dwCookie);
+
+        // Ein Klon traegt die Position mit und laeuft danach unabhaengig weiter.
+        connections.Clone(out var clone);
+        Assert.AreEqual(0, clone.Next(1, buffer, IntPtr.Zero));
+        Assert.AreEqual(second, buffer[0].dwCookie);
+        Assert.AreEqual(0, connections.Skip(1));
+        Assert.AreEqual(1, connections.Skip(1));
+    }
+
+    [TestMethod]
+    public void EnumConnections_KeepsWalkingAfterTheSinkUnadvises()
+    {
+        // COM sagt nicht, was ein Enumerator tut, wenn sich die Sammlung darunter aendert. Ein
+        // Schnappschuss ist die einzige Antwort, die nicht mitten im Durchlauf eines Clients
+        // fehlschlagen kann -- und genau das misst dieser Fall.
+        var source = new TestSource();
+        var container = (IConnectionPointContainer)source;
+        var interfaceId = Guid.Empty;
+        container.FindConnectionPoint(ref interfaceId, out var point);
+        Assert.IsNotNull(point);
+        point.Advise(new RecordingSink(), out var cookie);
+
+        point.EnumConnections(out var connections);
+        point.Unadvise(cookie);
+
+        var buffer = new CONNECTDATA[1];
+        Assert.AreEqual(0, connections.Next(1, buffer, IntPtr.Zero));
+        Assert.AreEqual(cookie, buffer[0].dwCookie);
+    }
+
+    [TestMethod]
+    public void EnumConnectionPoints_ReturnsTheContainersPoints()
+    {
+        // Wer die Interface-Id kennt, fragt direkt danach und braucht das hier nie. Ein
+        // generischer Client -- ein Objektbrowser, ein Skripthost, der den Container abläuft --
+        // faengt hier an, und eine Ablehnung hiesse fuer ihn: kein einziges Ereignis.
+        var source = new TestSource();
+        var container = (IConnectionPointContainer)source;
+        var interfaceId = Guid.Empty;
+        container.FindConnectionPoint(ref interfaceId, out var expected);
+
+        container.EnumConnectionPoints(out var points);
+        var buffer = new IConnectionPoint[2];
+        Assert.AreEqual(0, points.Next(1, buffer, IntPtr.Zero));
+        Assert.AreSame(expected, buffer[0]);
+        Assert.AreEqual(1, points.Next(1, buffer, IntPtr.Zero));
+
+        points.Reset();
+        points.Clone(out var clone);
+        Assert.AreEqual(0, clone.Next(1, buffer, IntPtr.Zero));
+        Assert.AreSame(expected, buffer[0]);
+    }
 }
