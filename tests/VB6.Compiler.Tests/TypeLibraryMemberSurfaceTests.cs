@@ -227,6 +227,219 @@ public sealed class TypeLibraryMemberSurfaceTests
         }
     }
 
+    /// <summary>
+    /// An implemented interface belongs to the coclass, not onto the class's own default
+    /// interface. A client that wants <c>IZaehler</c> asks for it by IID; an
+    /// <c>IZaehler_Zaehle</c> function on <c>_Melder</c> would be a second, wrong way in -- and
+    /// the interface itself would be missing from the library entirely.
+    /// </summary>
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TypeLibrary_PublishesAnImplementedInterfaceOnTheCoclass()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type libraries are a Windows contract.");
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TypeLibInterface", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "Zaehlerei.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name=Zaehlerei
+                Class=Melder; Melder.cls
+                Class=IZaehler; IZaehler.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "IZaehler.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1  'True
+                END
+                Attribute VB_Name = "IZaehler"
+                Attribute VB_Creatable = False
+                Attribute VB_PredeclaredId = False
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Public Sub Zaehle(ByVal Um As Long)
+                End Sub
+                """);
+            File.WriteAllText(Path.Combine(directory, "Melder.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1  'True
+                END
+                Attribute VB_Name = "Melder"
+                Attribute VB_Creatable = True
+                Attribute VB_PredeclaredId = False
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Implements IZaehler
+
+                Private mStand As Long
+
+                Private Sub IZaehler_Zaehle(ByVal Um As Long)
+                    mStand = mStand + Um
+                End Sub
+
+                Public Sub Melde()
+                End Sub
+                """);
+
+            var assemblyPath = Path.Combine(directory, "Zaehlerei.dll");
+            var emit = VBProjectCompilation.Create(projectPath).EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions(assemblyPath) { EnableComHosting = true });
+            Assert.IsTrue(emit.Success, string.Join(Environment.NewLine, emit.Lowering.Analysis.Diagnostics));
+
+            var typeLibraryPath = ManagedTypeLibraryWriter.Create(assemblyPath, ManagedPlatform.X86);
+
+            // Die Schnittstelle steht als eigener Typ in der Bibliothek.
+            var interfaceMembers = ReadMembers(typeLibraryPath, "IZaehler");
+            Assert.AreEqual(1, interfaceMembers.Count);
+            Assert.AreEqual("Zaehle", interfaceMembers[0].Name);
+
+            // Und ihre Mitglieder stehen *nicht* zusaetzlich auf der Standardschnittstelle.
+            var classMembers = ReadMembers(typeLibraryPath, "_Melder");
+            Assert.IsFalse(classMembers.Any(member =>
+                member.Name.Contains('_', StringComparison.Ordinal)));
+            Assert.AreEqual(1, classMembers.Count(member => member.Name == "Melde"));
+
+            // Die Coclass nennt beide, die eigene als Standard.
+            var implemented = ReadImplementedTypes(typeLibraryPath, "Melder");
+            CollectionAssert.AreEqual(new[] { "_Melder", "IZaehler" }, implemented.Select(entry => entry.Name).ToArray());
+            Assert.AreEqual(ImplTypeFlagDefault, implemented[0].Flags & ImplTypeFlagDefault);
+
+            // Die IID der Bibliothek ist die der Assembly -- QueryInterface antwortet auf diese.
+            Assert.AreEqual(ReadAssemblyInterfaceId(assemblyPath, "IZaehler"), ReadTypeIdentity(typeLibraryPath, "IZaehler"));
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private const int ImplTypeFlagDefault = 0x0001;
+
+    private static Guid ReadAssemblyInterfaceId(string assemblyPath, string interfaceName)
+    {
+        using var stream = File.OpenRead(assemblyPath);
+        using var reader = new System.Reflection.PortableExecutable.PEReader(stream);
+        var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(reader);
+        foreach (var handle in metadata.TypeDefinitions)
+        {
+            var definition = metadata.GetTypeDefinition(handle);
+            if (metadata.GetString(definition.Name) != "__vb6_interface_" + interfaceName)
+            {
+                continue;
+            }
+
+            foreach (var attributeHandle in definition.GetCustomAttributes())
+            {
+                var attribute = metadata.GetCustomAttribute(attributeHandle);
+                var blob = metadata.GetBlobReader(attribute.Value);
+                blob.ReadUInt16();
+                var text = blob.ReadSerializedString();
+                if (Guid.TryParse(text, out var identity))
+                {
+                    return identity;
+                }
+            }
+        }
+
+        Assert.Fail("The assembly has no interface " + interfaceName + ".");
+        return Guid.Empty;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Guid ReadTypeIdentity(string typeLibraryPath, string typeName)
+    {
+        Marshal.ThrowExceptionForHR(LoadTypeLibEx(typeLibraryPath, 2, out var library));
+        try
+        {
+            for (var index = 0; index < library!.GetTypeInfoCount(); index++)
+            {
+                library.GetDocumentation(index, out var name, out _, out _, out _);
+                if (!string.Equals(name, typeName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                library.GetTypeInfo(index, out var info);
+                info.GetTypeAttr(out var attributes);
+                try
+                {
+                    return Marshal.PtrToStructure<TYPEATTR>(attributes).guid;
+                }
+                finally
+                {
+                    info.ReleaseTypeAttr(attributes);
+                    Marshal.ReleaseComObject(info);
+                }
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(library!);
+        }
+
+        Assert.Fail("The type library does not contain " + typeName + ".");
+        return Guid.Empty;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static List<(string Name, int Flags)> ReadImplementedTypes(string typeLibraryPath, string typeName)
+    {
+        Marshal.ThrowExceptionForHR(LoadTypeLibEx(typeLibraryPath, 2, out var library));
+        try
+        {
+            for (var index = 0; index < library!.GetTypeInfoCount(); index++)
+            {
+                library.GetDocumentation(index, out var name, out _, out _, out _);
+                if (!string.Equals(name, typeName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                library.GetTypeInfo(index, out var info);
+                info.GetTypeAttr(out var attributes);
+                try
+                {
+                    var attribute = Marshal.PtrToStructure<TYPEATTR>(attributes);
+                    var result = new List<(string, int)>();
+                    for (var slot = 0; slot < attribute.cImplTypes; slot++)
+                    {
+                        info.GetRefTypeOfImplType(slot, out var reference);
+                        info.GetRefTypeInfo(reference, out var implemented);
+                        implemented.GetDocumentation(-1, out var implementedName, out _, out _, out _);
+                        info.GetImplTypeFlags(slot, out var flags);
+                        result.Add((implementedName, (int)flags));
+                        Marshal.ReleaseComObject(implemented);
+                    }
+
+                    return result;
+                }
+                finally
+                {
+                    info.ReleaseTypeAttr(attributes);
+                    Marshal.ReleaseComObject(info);
+                }
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(library!);
+        }
+
+        Assert.Fail("The type library does not contain " + typeName + ".");
+        return new List<(string, int)>();
+    }
+
     private const int ParameterFlagNone = 0;
     private const int ParameterFlagOptional = 0x0004;
     private const int ParameterFlagHasDefault = 0x0020;
