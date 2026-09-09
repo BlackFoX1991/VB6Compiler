@@ -3019,7 +3019,7 @@
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Teilfortschritt am 2026-09-09: Die beiden Enumeration-Stubs sind geschlossen. EnumConnectionPoints und EnumConnections warfen NotImplementedException; ein Client, der die Interface-Id kennt, braucht sie nie, ein generischer faengt dort an -- und eine Ablehnung hiess fuer ihn, das Objekt habe gar keine Ereignisquelle. Beide enumerieren jetzt einen Schnappschuss, weil COM nicht festlegt, was ein Enumerator bei Aenderung der Sammlung tut, und ein Schnappschuss die einzige Antwort ist, die einen Client nicht mitten im Durchlauf fallenlaesst. Der Vertrag ist in beide Richtungen gemessen: S_OK nur bei vollstaendig bedienter Anfrage, sonst S_FALSE, und pceltFetched darf null sein. IUnknown/ClassFactory samt Aggregationsablehnung und LockServer, Instancing ueber VB_Exposed/VB_Creatable, Attach/Detach mit CONNECT_E_NOCONNECTION fuer einen unbekannten Cookie und der Shutdown per Fremdclient ueber die Prozessgrenze sind bereits abgedeckt. Offen bleibt die Abnahme gegen einen Fremdclient, der die Ereignisquelle ueber die Typbibliothek bindet -- deshalb die dependsOn auf managed-r4-typelib-metadata.",
       "title": "Server- und Event-Ownership schließen"
     },
     {
