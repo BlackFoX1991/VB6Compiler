@@ -1303,6 +1303,12 @@ public sealed class ManagedEmitter
                 case IrAddressableArrayPointerExpression arrayPointer:
                     EmitAddressableArrayPointer(encoder, procedure, arrayPointer);
                     break;
+                case IrAddressableSafeArrayElementPointerExpression safeArrayElementPointer:
+                    EmitAddressableSafeArrayElementPointer(encoder, procedure, safeArrayElementPointer);
+                    break;
+                case IrAddressableSafeArrayDescriptorPointerExpression safeArrayDescriptorPointer:
+                    EmitAddressableSafeArrayDescriptorPointer(encoder, procedure, safeArrayDescriptorPointer);
+                    break;
                 case IrAddressableFieldPointerExpression fieldPointer:
                     EmitAddressableFieldPointer(encoder, fieldPointer);
                     break;
@@ -2266,6 +2272,65 @@ public sealed class ManagedEmitter
             // Ausserhalb von x86 bleibt es beim erklaerten VB-Fehler 5. Der Index ist trotzdem
             // ausgewertet worden, damit die Reihenfolge dieselbe bleibt.
             encoder.OpCode(ILOpCode.Pop);
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBMemory),
+                nameof(VBMemory.VarPtr),
+                typeof(object))));
+        }
+
+        /// <summary>
+        /// A multi-dimensional element pointer keeps its indices in VB source order. The runtime
+        /// owns the SAFEARRAY descriptor and maps that order onto the native layout, so the
+        /// emitter never computes an offset of its own.
+        /// </summary>
+        private void EmitAddressableSafeArrayElementPointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressableSafeArrayElementPointerExpression pointer)
+        {
+            EmitExpression(encoder, procedure, pointer.Array);
+            EmitInt32Array(encoder, procedure, pointer.Indices);
+            if (_options.Platform == ManagedPlatform.X86)
+            {
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBArrayOperations),
+                    nameof(VBArrayOperations.ElementNativeAddress),
+                    typeof(object),
+                    typeof(int[]))));
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
+            // Ausserhalb von x86 bleibt es beim erklaerten VB-Fehler 5. Die Indizes sind trotzdem
+            // ausgewertet worden, damit die Reihenfolge dieselbe bleibt.
+            encoder.OpCode(ILOpCode.Pop);
+            encoder.Call(GetRuntimeMethodReference(Static(
+                typeof(VBMemory),
+                nameof(VBMemory.VarPtr),
+                typeof(object))));
+        }
+
+        /// <summary>
+        /// <c>VarPtr</c> on a whole array names its SAFEARRAY descriptor, never the first data
+        /// byte. There is no index to evaluate, so the non-x86 path needs no discard before it
+        /// falls back to the declared error 5.
+        /// </summary>
+        private void EmitAddressableSafeArrayDescriptorPointer(
+            InstructionEncoder encoder,
+            IrProcedure procedure,
+            IrAddressableSafeArrayDescriptorPointerExpression pointer)
+        {
+            EmitExpression(encoder, procedure, pointer.Array);
+            if (_options.Platform == ManagedPlatform.X86)
+            {
+                encoder.Call(GetRuntimeMethodReference(Static(
+                    typeof(VBArrayOperations),
+                    nameof(VBArrayOperations.DescriptorNativeAddress),
+                    typeof(object))));
+                encoder.OpCode(ILOpCode.Conv_i4);
+                return;
+            }
+
             encoder.Call(GetRuntimeMethodReference(Static(
                 typeof(VBMemory),
                 nameof(VBMemory.VarPtr),
