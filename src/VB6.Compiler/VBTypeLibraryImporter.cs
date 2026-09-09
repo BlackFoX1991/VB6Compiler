@@ -393,13 +393,33 @@ internal static class VBTypeLibraryImporter
             return string.Empty;
         }
 
+        const short ParamFlagOut = 0x2;
         var elementSize = Marshal.SizeOf<ELEMDESC>();
+
+        // wParamFlags darf nicht ueber die gemarshallte Struktur gelesen werden: ELEMDESC endet in
+        // einer Union, und der Marshaller waehlt den falschen Arm. Der Offset ist deshalb von Hand
+        // gerechnet -- dieselbe Stelle, an der HasOnlyInputParameters liest.
+        var flagOffset = Marshal.SizeOf<TYPEDESC>() + IntPtr.Size;
         var types = new List<string>(count);
         for (var index = 0; index < count; index++)
         {
-            var element = Marshal.PtrToStructure<ELEMDESC>(
-                IntPtr.Add(function.lprgelemdescParam, index * elementSize));
-            types.Add(((short)(element.tdesc.vt & VariantTypeMask)).ToString(CultureInfo.InvariantCulture));
+            var address = IntPtr.Add(function.lprgelemdescParam, index * elementSize);
+            var element = Marshal.PtrToStructure<ELEMDESC>(address);
+            var description = element.tdesc;
+            var isOut = (Marshal.ReadInt16(address, flagOffset) & ParamFlagOut) != 0;
+
+            // Ein Ausgabeparameter ist immer ein Zeiger auf den Platz, in den der Server schreibt.
+            // Aufgeloest wird genau eine Ebene: Was dahinter steht, ist der Typ des Werts -- bei
+            // IFont.Clone also ein Interfacezeiger, nicht der Zeiger auf ihn.
+            if (isOut &&
+                (description.vt & VariantTypeMask) == VtPtr &&
+                description.lpValue != IntPtr.Zero)
+            {
+                description = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+            }
+
+            var vt = ((short)(description.vt & VariantTypeMask)).ToString(CultureInfo.InvariantCulture);
+            types.Add(isOut ? "o" + vt : vt);
         }
 
         return string.Join(",", types);
@@ -589,12 +609,12 @@ internal static class VBTypeLibraryImporter
                             {
                                 IsLateBound = true,
                                 ComDispId = function.memid,
-                                ComVTableSlot = record.Kind == TYPEKIND.TKIND_INTERFACE &&
-                                    HasOnlyInputParameters(function)
+                                // Ein Ausgabeparameter schliesst den vtable-Weg nicht mehr aus: Er
+                                // bekommt Aufruferspeicher und ein Rueckschreiben. Die Slotnummer
+                                // haengt damit nur noch daran, dass es eine Interface-vtable gibt.
+                                ComVTableSlot = record.Kind == TYPEKIND.TKIND_INTERFACE
                                     ? function.oVft / IntPtr.Size
                                     : null,
-                                ComVTableOutParameters = record.Kind == TYPEKIND.TKIND_INTERFACE &&
-                                    !HasOnlyInputParameters(function),
                                 ComParameterTypes = record.Kind == TYPEKIND.TKIND_INTERFACE
                                     ? ReadVTableParameterTypes(function)
                                     : null,
@@ -728,10 +748,23 @@ internal static class VBTypeLibraryImporter
         {
             var pointer = IntPtr.Add(function.lprgelemdescParam, index * elementSize);
             var element = Marshal.PtrToStructure<ELEMDESC>(pointer);
-            var type = ReadParameterType(element.tdesc, typeInfo, libraryName, types);
             var parameterDescription = Marshal.PtrToStructure<PARAMDESC>(
                 IntPtr.Add(pointer, Marshal.SizeOf<TYPEDESC>()));
             var flags = parameterDescription.wParamFlags;
+
+            // Ein Ausgabeparameter ist ein Zeiger auf den Platz, in den der Server schreibt: Der
+            // VB6-Typ ist das, worauf er zeigt. IFont.Clone deklariert IFont**, und ohne diese
+            // eine aufgeloeste Ebene hiesse der Parameter Object -- womit `f.Clone g` mit einem
+            // `g As IFont` an der ByRef-Typpruefung scheiterte, obwohl genau das die VB6-Form ist.
+            var description = element.tdesc;
+            if ((flags & PARAMFLAG.PARAMFLAG_FOUT) != 0 &&
+                (description.vt & VariantTypeMask) == VtPtr &&
+                description.lpValue != IntPtr.Zero)
+            {
+                description = Marshal.PtrToStructure<TYPEDESC>(description.lpValue);
+            }
+
+            var type = ReadParameterType(description, typeInfo, libraryName, types);
             var passingMode = (flags & PARAMFLAG.PARAMFLAG_FOUT) != 0 ||
                 IsParameterByRef(element.tdesc)
                 ? ParameterPassingMode.ByRef
