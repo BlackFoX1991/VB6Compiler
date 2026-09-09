@@ -67,8 +67,8 @@ internal static class ManagedTypeLibraryWriter
 
         var libraryName = Path.GetFileNameWithoutExtension(assemblyPath);
         var outputPath = Path.Combine(Path.GetDirectoryName(assemblyPath)!, libraryName + ".tlb");
-        var (version, classes, interfaces) = ReadComAssembly(assemblyPath);
-        if (classes.Count == 0 && interfaces.Count == 0)
+        var (version, classes, interfaces, records) = ReadComAssembly(assemblyPath);
+        if (classes.Count == 0 && interfaces.Count == 0 && records.Count == 0)
         {
             throw new ManagedArtifactException(
                 $"The managed assembly '{assemblyPath}' contains no ComVisible classes with COM identities.");
@@ -100,9 +100,16 @@ internal static class ManagedTypeLibraryWriter
             var written = new Dictionary<string, ICreateTypeInfo2>(StringComparer.OrdinalIgnoreCase);
             try
             {
+                // Records zuerst: Ein Mitglied verweist ueber AddRefTypeInfo auf sie, und ein
+                // Verweis auf einen Typ, den es noch nicht gibt, gibt es nicht.
+                foreach (var record in records)
+                {
+                    written.Add(record.Name, WriteRecord(library, record));
+                }
+
                 foreach (var comInterface in interfaces)
                 {
-                    written.Add(comInterface.Name, WriteInterface(library, comInterface, keptIds));
+                    written.Add(comInterface.Name, WriteInterface(library, comInterface, keptIds, written));
                 }
 
                 foreach (var comClass in classes)
@@ -129,6 +136,51 @@ internal static class ManagedTypeLibraryWriter
     }
 
     /// <summary>
+    /// Writes one public VB6 <c>Type</c> as a TKIND_RECORD.
+    ///
+    /// The field offsets are not written: <c>LayOut</c> computes them from the field types and the
+    /// alignment, which is the same rule the emitted struct follows. A record needs its GUID -- an
+    /// automation client resolves <c>IRecordInfo</c> by it, and without one a member that returns
+    /// the record cannot be marshalled at all.
+    /// </summary>
+    private static ICreateTypeInfo2 WriteRecord(ICreateTypeLib2 library, ComRecord record)
+    {
+        library.CreateTypeInfo(record.Name, TypeKind.TKIND_RECORD, out var info);
+        var recordId = record.RecordId;
+        info.SetGuid(ref recordId);
+
+        var size = Marshal.SizeOf<VARDESC>();
+        for (var index = 0; index < record.Fields.Count; index++)
+        {
+            var field = record.Fields[index];
+            var descriptor = Marshal.AllocCoTaskMem(size);
+            try
+            {
+                var variable = new VARDESC
+                {
+                    memid = -1,           // MEMBERID_NIL: ein Recordfeld hat keine DISPID
+                    elemdescVar = new ELEMDESC
+                    {
+                        tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = field.VariantType }
+                    },
+                    wVarFlags = 0,
+                    varkind = VARKIND.VAR_PERINSTANCE
+                };
+                Marshal.StructureToPtr(variable, descriptor, false);
+                info.AddVarDesc((uint)index, descriptor);
+                info.SetVarName((uint)index, field.Name);
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(descriptor);
+            }
+        }
+
+        info.LayOut();
+        return info;
+    }
+
+    /// <summary>
     /// Writes one <c>Implements</c>-able VB6 class as a dispinterface.
     ///
     /// It carries the plain name rather than an underscored one: the emitter maps a
@@ -140,13 +192,14 @@ internal static class ManagedTypeLibraryWriter
     private static ICreateTypeInfo2 WriteInterface(
         ICreateTypeLib2 library,
         ComInterface comInterface,
-        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds)
+        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds,
+        IReadOnlyDictionary<string, ICreateTypeInfo2> records)
     {
         library.CreateTypeInfo(comInterface.Name, TypeKind.TKIND_DISPATCH, out var info);
         var interfaceId = comInterface.InterfaceId;
         info.SetGuid(ref interfaceId);
         info.SetTypeFlags(TypeFlagDispatchable);
-        AddMembers(info, comInterface.Name, comInterface.Members, keptIds);
+        AddMembers(info, comInterface.Name, comInterface.Members, keptIds, records);
         info.LayOut();
         return info;
     }
@@ -161,7 +214,8 @@ internal static class ManagedTypeLibraryWriter
         ICreateTypeInfo2 info,
         string typeName,
         List<ComMember> members,
-        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds)
+        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds,
+        IReadOnlyDictionary<string, ICreateTypeInfo2> records)
     {
         var dispIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -189,7 +243,7 @@ internal static class ManagedTypeLibraryWriter
                 dispIds[member.Name] = dispId;
             }
 
-            AddMember(info, member, index++, dispId);
+            AddMember(info, member, index++, dispId, records);
         }
     }
 
@@ -209,12 +263,12 @@ internal static class ManagedTypeLibraryWriter
         {
             // Unter Binary Compatibility behaelt die Standardschnittstelle ihre IID: Ein
             // fruehgebundener Client haelt genau die fest.
-            dispatchInfo.SetGuid(kept.TryGetValue("interface " + interfaceName, out var keptInterfaceId)
+            dispatchInfo.SetGuid(kept.TryGetValue("interface\0" + interfaceName, out var keptInterfaceId)
                 ? keptInterfaceId
                 : DeriveIdentity(libraryName, "interface", comClass.Name));
             dispatchInfo.SetTypeFlags(TypeFlagDispatchable);
 
-            AddMembers(dispatchInfo, interfaceName, comClass.Members, keptIds);
+            AddMembers(dispatchInfo, interfaceName, comClass.Members, keptIds, interfaces);
             dispatchInfo.LayOut();
 
             // The coclass points at the interface, so the interface has to stay alive until the
@@ -269,7 +323,32 @@ internal static class ManagedTypeLibraryWriter
         }
     }
 
-    private static void AddMember(ICreateTypeInfo2 info, ComMember member, int index, int dispId)
+    /// <summary>
+    /// The type descriptor of one member type. A record is VT_USERDEFINED, and the type it names
+    /// travels as an HREFTYPE that only the *referencing* type info can hand out -- lpValue holds
+    /// that handle directly rather than a pointer to it.
+    /// </summary>
+    private static TYPEDESC Describe(
+        ICreateTypeInfo2 info,
+        short variantType,
+        string? recordName,
+        IReadOnlyDictionary<string, ICreateTypeInfo2> records)
+    {
+        if (recordName is null || !records.TryGetValue(recordName, out var record))
+        {
+            return new TYPEDESC { lpValue = IntPtr.Zero, vt = variantType };
+        }
+
+        info.AddRefTypeInfo((ITypeInfo)record, out var reference);
+        return new TYPEDESC { lpValue = (IntPtr)reference, vt = (short)VarEnum.VT_USERDEFINED };
+    }
+
+    private static void AddMember(
+        ICreateTypeInfo2 info,
+        ComMember member,
+        int index,
+        int dispId,
+        IReadOnlyDictionary<string, ICreateTypeInfo2> records)
     {
         var parameterCount = member.Parameters.Count;
         var elementSize = Marshal.SizeOf<ELEMDESC>();
@@ -297,7 +376,7 @@ internal static class ManagedTypeLibraryWriter
 
                 var element = new ELEMDESC
                 {
-                    tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = described.VariantType },
+                    tdesc = Describe(info, described.VariantType, described.RecordName, records),
                     desc = new ELEMDESC.DESCUNION
                     {
                         paramdesc = new PARAMDESC
@@ -332,7 +411,7 @@ internal static class ManagedTypeLibraryWriter
                 lprgelemdescParam = parameters,
                 elemdescFunc = new ELEMDESC
                 {
-                    tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = member.ReturnType }
+                    tdesc = Describe(info, member.ReturnType, member.ReturnRecordName, records)
                 },
                 wFuncFlags = 0
             };
@@ -419,8 +498,8 @@ internal static class ManagedTypeLibraryWriter
     /// architecture". Every ActiveX DLL built with COM hosting died there, with an unhandled
     /// exception rather than a diagnostic.
     /// </summary>
-    private static (Version Version, List<ComClass> Classes, List<ComInterface> Interfaces) ReadComAssembly(
-        string assemblyPath)
+    private static (Version Version, List<ComClass> Classes, List<ComInterface> Interfaces, List<ComRecord> Records)
+        ReadComAssembly(string assemblyPath)
     {
         var resolver = new PathAssemblyResolver(
             Directory.EnumerateFiles(Path.GetDirectoryName(assemblyPath)!, "*.dll")
@@ -433,6 +512,32 @@ internal static class ManagedTypeLibraryWriter
         {
             var assembly = context.LoadFromAssemblyPath(assemblyPath);
             var classes = new List<ComClass>();
+
+            // Ein Public Type traegt seit 09/2026 ComVisible und eine GUID; ein Private Type nicht,
+            // und der gehoert -- wie ein Private-Klassenmodul -- nicht in die Bibliothek.
+            var records = new List<ComRecord>();
+            foreach (var type in assembly.GetTypes()
+                         .Where(type => type.IsValueType && !type.IsEnum && type.Namespace == "VB6.Generated")
+                         .OrderBy(type => type.FullName, StringComparer.Ordinal))
+            {
+                if (!TryReadComIdentity(type, out var recordId))
+                {
+                    continue;
+                }
+
+                records.Add(new ComRecord(
+                    StripPrefix(type.Name, "__vb6_udt_"),
+                    recordId,
+                    type.GetFields(BindingFlags.Public | BindingFlags.NonPublic |
+                                   BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                        .Select(field => new ComParameter(
+                            field.Name,
+                            ToVariantType(field.FieldType),
+                            false,
+                            null))
+                        .ToList()));
+            }
+
 
             // Ein PublicNotCreatable-Klassenmodul wird zu einer CLR-Schnittstelle; ihre Mitglieder
             // tragen das __vb6_-Praefix, das der Lowerer setzt, damit sie nicht mit einem
@@ -458,7 +563,8 @@ internal static class ManagedTypeLibraryWriter
                         InvokeFunc,
                         ToVariantType(method.ReturnType),
                         method.GetParameters().Select(ToComParameter).ToList(),
-                        ReadDispId(method)));
+                        ReadDispId(method),
+                        RecordNameOf(method.ReturnType)));
                 }
 
                 interfaces.Add(new ComInterface(
@@ -500,7 +606,8 @@ internal static class ManagedTypeLibraryWriter
                         InvokeFunc,
                         ToVariantType(method.ReturnType),
                         method.GetParameters().Select(ToComParameter).ToList(),
-                        ReadDispId(method)));
+                        ReadDispId(method),
+                        RecordNameOf(method.ReturnType)));
                 }
 
                 // Ein Public-Feld ist in VB6 ein Get/Let-Paar, im Emitter aber ein CLR-Feld mit
@@ -569,7 +676,7 @@ internal static class ManagedTypeLibraryWriter
                     eventSource));
             }
 
-            return (assembly.GetName().Version ?? new Version(1, 0, 0, 0), classes, interfaces);
+            return (assembly.GetName().Version ?? new Version(1, 0, 0, 0), classes, interfaces, records);
         }
     }
 
@@ -617,8 +724,21 @@ internal static class ManagedTypeLibraryWriter
         TypeCode.DateTime => VarEnum.VT_DATE,
         TypeCode.String => VarEnum.VT_BSTR,
         _ when type == typeof(void) => VarEnum.VT_VOID,
+        // Ein veroeffentlichter Record ist VT_USERDEFINED; welcher, sagt die HREFTYPE, die erst
+        // beim Schreiben des Mitglieds entsteht.
+        _ when RecordNameOf(type) is not null => VarEnum.VT_USERDEFINED,
         _ => VarEnum.VT_VARIANT
     });
+
+    /// <summary>
+    /// The library name of a published record type, or <c>null</c> for anything else. A record the
+    /// emitter did not publish -- a Private Type -- has no COM identity and stays a Variant.
+    /// </summary>
+    private static string? RecordNameOf(Type type) =>
+        type.IsValueType && !type.IsEnum && !type.IsPrimitive &&
+        type.Namespace == "VB6.Generated" && TryReadComIdentity(type, out _)
+            ? StripPrefix(type.Name, "__vb6_udt_")
+            : null;
 
     private static string StripPrefix(string name, string prefix) =>
         name.StartsWith(prefix, StringComparison.Ordinal) ? name[prefix.Length..] : name;
@@ -673,12 +793,15 @@ internal static class ManagedTypeLibraryWriter
 
     private sealed record ComInterface(string Name, Guid InterfaceId, List<ComMember> Members);
 
+    private sealed record ComRecord(string Name, Guid RecordId, List<ComParameter> Fields);
+
     private sealed record ComMember(
         string Name,
         int InvokeKind,
         short ReturnType,
         List<ComParameter> Parameters,
-        int? DispId = null);
+        int? DispId = null,
+        string? ReturnRecordName = null);
 
     /// <summary>
     /// The DISPID the assembly declares for a member, or <c>null</c> when it carries none. This is
@@ -695,7 +818,8 @@ internal static class ManagedTypeLibraryWriter
         string Name,
         short VariantType,
         bool IsOptional,
-        object? DefaultValue);
+        object? DefaultValue,
+        string? RecordName = null);
 
     /// <summary>
     /// One reflected parameter as the library describes it. The optionality comes from the
@@ -706,7 +830,8 @@ internal static class ManagedTypeLibraryWriter
         parameter.Name ?? "value",
         ToVariantType(parameter.ParameterType),
         parameter.IsOptional,
-        parameter.HasDefaultValue ? parameter.RawDefaultValue : null);
+        parameter.HasDefaultValue ? parameter.RawDefaultValue : null,
+        RecordNameOf(parameter.ParameterType));
 
     private sealed class TypeLibraryAssemblyLoadContext : System.Runtime.Loader.AssemblyLoadContext
     {
