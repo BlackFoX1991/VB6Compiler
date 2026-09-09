@@ -81,7 +81,7 @@ public sealed class VBArray<T> : IVBArray, IDisposable
     // Puffer. Der SAFEARRAY-Descriptor zeigt dann auf genau diesen einen Speicher.
     private T[] _items;
     private bool _safeArrayOrder;
-    private IntPtr _safeArray;
+    private SafeArrayDescriptorHandle? _safeArray;
     private readonly string? _elementTypeName;
     private readonly short _elementVarType;
 
@@ -426,21 +426,23 @@ public sealed class VBArray<T> : IVBArray, IDisposable
     public IntPtr GetSafeArrayNativeAddress()
     {
         EnsureNativeSafeArray();
-        return _safeArray;
+        return _safeArray!.DangerousGetHandle();
     }
 
-    /// <summary>Releases a descriptor owned by this array; the pinned CLR buffer remains CLR-owned.</summary>
-    public void Dispose()
-    {
-        DisposeNativeSafeArray();
-        GC.SuppressFinalize(this);
-    }
-
-    ~VBArray() => DisposeNativeSafeArray();
+    /// <summary>
+    /// Releases a descriptor owned by this array; the pinned CLR buffer remains CLR-owned.
+    ///
+    /// Der Typ selbst hat bewusst **keinen** Finalizer. Ein Array ist die haeufigste Allokation im
+    /// erzeugten Code, und fast keines sieht je einen Zeiger; ein Finalizer hier haette jedes
+    /// davon ueber die Finalizer-Queue und durch zwei GC-Zyklen geschickt. Stattdessen ist der
+    /// Deskriptor selbst ein <see cref="SafeHandle"/> -- finalisierbar wird nur, wer wirklich
+    /// einen hat, und die einmalige Freigabe erledigt der Handle statt eines eigenen Interlocked.
+    /// </summary>
+    public void Dispose() => DisposeNativeSafeArray();
 
     private void EnsureNativeSafeArray()
     {
-        if (_safeArray != IntPtr.Zero)
+        if (_safeArray is not null)
         {
             return;
         }
@@ -475,11 +477,23 @@ public sealed class VBArray<T> : IVBArray, IDisposable
             throw new OutOfMemoryException("Windows Automation could not allocate a SAFEARRAY descriptor.");
         }
 
+        // Bis der eigene Datenpuffer freigegeben ist, gehoert er noch OleAut32 -- ein Fehler davor
+        // muss deshalb ueber SafeArrayDestroy aufraeumen. Danach nie wieder: ab da zeigt pvData
+        // auf CLR-Speicher, und SafeArrayDestroy wuerde ihn ueberschreiben.
         try
         {
             ThrowIfSafeArrayFailure(
                 VBArrayNativeStorage.SafeArrayDestroyData(safeArray),
                 "release the transient SAFEARRAY data buffer");
+        }
+        catch
+        {
+            _ = VBArrayNativeStorage.SafeArrayDestroy(safeArray);
+            throw;
+        }
+
+        try
+        {
             var features = unchecked((ushort)Marshal.ReadInt16(safeArray, sizeof(short)));
             Marshal.WriteInt16(safeArray, sizeof(short), unchecked((short)(features | SafeArrayStatic)));
             Marshal.WriteIntPtr(
@@ -488,24 +502,16 @@ public sealed class VBArray<T> : IVBArray, IDisposable
                 pinned.Length == 0 ? IntPtr.Zero : Marshal.UnsafeAddrOfPinnedArrayElement(pinned, 0));
             _items = pinned;
             _safeArrayOrder = true;
-            _safeArray = safeArray;
+            _safeArray = new SafeArrayDescriptorHandle(safeArray);
         }
         catch
         {
-            _ = VBArrayNativeStorage.SafeArrayDestroy(safeArray);
+            _ = VBArrayNativeStorage.SafeArrayDestroyDescriptor(safeArray);
             throw;
         }
     }
 
-    private void DisposeNativeSafeArray()
-    {
-        var safeArray = Interlocked.Exchange(ref _safeArray, IntPtr.Zero);
-        if (safeArray != IntPtr.Zero)
-        {
-            // FADF_STATIC says the descriptor does not own pvData, which is a pinned CLR array.
-            _ = VBArrayNativeStorage.SafeArrayDestroy(safeArray);
-        }
-    }
+    private void DisposeNativeSafeArray() => Interlocked.Exchange(ref _safeArray, null)?.Dispose();
 
     /// <summary>
     /// Chooses the SAFEARRAY element type for the pinned CLR buffer and refuses every VARTYPE
@@ -675,6 +681,34 @@ public sealed class VBArray<T> : IVBArray, IDisposable
 }
 
 /// <summary>
+/// Owns one SAFEARRAY descriptor whose <c>pvData</c> points at a pinned CLR array.
+///
+/// Der Handle traegt die Freigabe, nicht das Array: So wird nur finalisierbar, wer wirklich einen
+/// Deskriptor angelegt hat, und <see cref="SafeHandle"/> garantiert die einmalige Freigabe auch
+/// bei nebenlaeufigem Dispose.
+///
+/// Freigegeben wird ausschliesslich der **Deskriptor**. Gemessen gegen OleAut32:
+/// <c>SafeArrayDestroy</c> ueberschreibt die Nutzdaten mit Nullen, und zwar auch mit gesetztem
+/// <c>FADF_STATIC</c> -- das Flag beschreibt den Besitz, es schuetzt den Puffer nicht. Hier zeigt
+/// <c>pvData</c> auf ein gepinntes CLR-Array, ein Destroy loeschte also stillschweigend den Inhalt
+/// eines noch lebenden VB6-Arrays. Einen eigenen Puffer hat OleAut32 nach dem
+/// <c>SafeArrayDestroyData</c> bei der Erzeugung ohnehin nicht mehr.
+/// </summary>
+internal sealed class SafeArrayDescriptorHandle : SafeHandle
+{
+    internal SafeArrayDescriptorHandle(IntPtr descriptor)
+        : base(IntPtr.Zero, ownsHandle: true)
+    {
+        SetHandle(descriptor);
+    }
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    protected override bool ReleaseHandle() =>
+        VBArrayNativeStorage.SafeArrayDestroyDescriptor(handle) >= 0;
+}
+
+/// <summary>
 /// The tiny non-generic Automation boundary used by every <see cref="VBArray{T}"/> native
 /// descriptor.  CLR metadata does not permit a P/Invoke declaration on a generic type.
 /// </summary>
@@ -704,6 +738,9 @@ internal static class VBArrayNativeStorage
 
     [DllImport("oleaut32.dll")]
     internal static extern int SafeArrayDestroy(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    internal static extern int SafeArrayDestroyDescriptor(IntPtr safeArray);
 }
 
 /// <summary>Late-bound array operations for Variant values.</summary>
