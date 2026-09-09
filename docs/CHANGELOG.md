@@ -8293,3 +8293,61 @@ werden 171, aus 19 offenen Karten 24.
 Nebenbei zwei Korrekturen an `CLAUDE.md`: Der Satz, `Public S As String * 5` sei ein Parserfehler,
 ist weg — die Form übersetzt in einer `.cls`, gemessen. Und die vier Zugriffsformen, die `As New`
 auslösen, stehen jetzt als Falle da, statt einzeln entdeckt zu werden.
+
+## 2026-09-09 — R3, Schnitt 34: Invalidierung und SAFEARRAY abgenommen
+
+Die vier Punkte aus dem Review von Schnitt 33 abgearbeitet. Zwei davon waren Aufräumarbeit, einer
+ein Messergebnis, und einer ein echter Speicherfehler.
+
+### Der Speicherfehler
+
+Die Freigabe des Deskriptors stand auf einer Annahme, die niemand geprüft hatte: `FADF_STATIC`
+sage OleAut32, dass `pvData` ihm nicht gehört, also fasse es den Puffer nicht an. Die Messung hat
+sie widerlegt. `SafeArrayDestroy` überschreibt die Nutzdaten mit Nullen — mit gesetztem Flag
+**genau wie ohne**. Das Flag beschreibt den Besitz, es schützt den Speicher nicht.
+
+Bei uns zeigt `pvData` auf ein gepinntes CLR-Array. Ein `Erase` oder ein Objektende hätte damit
+den Inhalt eines noch lebenden VB6-Arrays gelöscht: keine Ausnahme, keine Fehlernummer, einfach
+lauter Nullen — und sichtbar erst irgendwo ganz anders. `SafeArrayDestroyDescriptor` lässt den
+Puffer unangetastet, und einen eigenen Puffer hat OleAut32 nach dem `SafeArrayDestroyData` bei der
+Erzeugung ohnehin nicht mehr.
+
+Der Test hält beide Richtungen fest, weil erst der Unterschied die Regel belegt. Genau so ist der
+Fehler auch aufgefallen: Der Test war als Bestätigung der Annahme geschrieben und wurde rot.
+
+### Der Finalizer
+
+`VBArray<T>` trug einen Finalizer, damit ein weggeworfener Deskriptor nicht leckt — und schickte
+damit **jedes** VB6-Array über die Finalizer-Queue und durch zwei GC-Zyklen, obwohl fast keines je
+einen Zeiger sieht. Der Deskriptor ist jetzt selbst ein `SafeHandle`. Finalisierbar wird nur, wer
+wirklich einen hat, und die einmalige Freigabe garantiert der Handle statt eines eigenen
+`Interlocked`.
+
+### Der verlorene Kopierpfad
+
+Der Platz für die SAFEARRAY-Reihenfolge hatte `ReDim Preserve` seinen `Array.Copy` gekostet: Jeder
+Fall lief elementweise über den Indexmapper, auch Rang 1 — der häufigste im erzeugten Code und
+eigentlich ein einziger Kopiervorgang. In verwalteter Reihenfolge hängt die letzte Dimension
+zusammen, die erhaltene Nutzlast ist also eine Folge von Blöcken. Nur ein Array, das ein Zeiger
+schon in SAFEARRAY-Reihenfolge gebracht hat, braucht den Umweg.
+
+### Die Messung, die nichts gefunden hat
+
+Ein Array wird nicht referenzgezählt: `VBObjectLifetime.Release` reicht für einen Container sofort
+durch. Seit Schnitt 33 gibt das den Deskriptor frei — also hätte jede Stelle, die einen Slot
+freigibt, während ein anderer dasselbe Array nennt, einen gültigen Zeiger ungültig gemacht.
+Gemessen über ByRef-Aufruf, Variant-Zuweisung, Variant-Übergabe und Leeren des Variants: keine
+solche Stelle ist erreichbar. Das bleibt als x86-Ausführungstest stehen, nicht als Kommentar — wer
+eine neue Freigabestelle ergänzt, sieht es dort und nicht an einem `CopyMemory` ins Leere.
+
+### Abnahme
+
+Dazu kam der fehlende Ausführungsnachweis über den kompilierten Pfad: Die SAFEARRAY-Reihenfolge
+war nur auf Runtime-Ebene belegt. Ein x86-Programm misst sie jetzt aus VB6-Quelltext über Binder,
+Lowerer, Emitter und Runtime — Strides 4/8/20 in einem `(1 To 2, 1 To 3)`-Feld, ein
+`CopyMemory`-Schreibzugriff beim nächsten Lesen sichtbar, und Rang, Elementbreite und `pvData` aus
+dem Deskriptor gelesen. Gegenprobe durch Umkehren der Indexreihenfolge: rot.
+
+`managed-r3-invalidation` und `managed-r3-safearray` stehen damit auf `implemented` /
+`documented-verified`. R3 hat noch zwei offene Karten: `managed-r3-variant` und
+`managed-r3-callback-abi`.

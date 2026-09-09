@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `6184fe6` mit nicht committeten Änderungen, Lauf `20260909T065923Z-0e821f6b`:
+Messung vom 2026-09-09 auf `main` / `ff4b034` mit nicht committeten Änderungen, Lauf `20260909T072423Z-e7ba94df`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1819 Fälle: 1819 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1823 Fälle: 1822 bestanden, 1 fehlgeschlagen | Nicht bestanden -- VB6.Compiler.Tests: test process exited with 1 |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **144 implemented**, **3 partial** und **24 planned**;
-**147/171 documented-verified**, 24 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **146 implemented**, **3 partial** und **22 planned**;
+**149/171 documented-verified**, 22 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -238,14 +238,37 @@ Argument noch eine Zelle, übernimmt eine aufrufgebundene Zelle die Übergabe, d
 die Freigabe. `AddressOf`-Ziele, Ereignishandler und öffentliche Klassenmitglieder bleiben bei
 Fehler 5, weil der Emitter dort nicht jede Aufrufstelle kontrolliert.
 
+Die **Invalidierung** ist abgenommen und schließt alle fünf Enden ausführend ab: `ReDim` und
+`ReDim Preserve` beenden die alte Adresse, `Erase` auf einem festen Array leert an Ort und Stelle
+und behält sie, `Erase` auf einem dynamischen Array gibt die Variable frei und die nächste
+Elementadresse meldet Fehler 9. Das Prozedurende hängt am Return-Terminator, nicht an einer Stelle
+am Textende. Das Objektende hat eine eigene Route bekommen: Eine Klasse mit adressierbarem Feld
+registriert sich auch ohne `Class_Terminate`, und die Zelle wird über eine enge
+Markerschnittstelle freigegeben statt dadurch, dass irgendein `IDisposable`-Feld gefunden wird.
+
+Der **SAFEARRAY-Vertrag** hebt die beiden Grenzen auf, die der Slot-Vertrag stehen ließ. Der
+gepinnte Puffer trägt einen echten `oleaut32`-Deskriptor; `VarPtr` auf das ganze Array nennt ihn,
+mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge. Beides ist gegen Windows Automation
+gemessen und zusätzlich aus VB6-Quelltext über die ganze Kette beobachtet.
+
+Beim Messen kamen zwei Befunde heraus, die beim Lesen nicht sichtbar waren. Die Elementauswahl war
+eine Ausschlussliste und ließ `VT_BOOL` durch — zwei Byte breit über einem einbyteigen CLR-`bool`,
+also ein Deskriptor, der doppelt so viel Speicher verspricht wie da ist. Ersetzt durch eine
+Invariante: `cbElements` muss die CLR-Schrittweite sein. Und die Freigabe stand auf der Annahme,
+`FADF_STATIC` halte OleAut32 von den Nutzdaten fern; die Messung hat sie widerlegt.
+`SafeArrayDestroy` nullt den Puffer auch mit gesetztem Flag, also gibt jetzt ausschließlich
+`SafeArrayDestroyDescriptor` frei.
+
 | Karte | Nachweis |
 | --- | --- |
 | `managed-r3-pointers` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests`, `VBArrayTests` |
 | `managed-r3-byref-alias` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests` |
+| `managed-r3-invalidation` | `PointerIntrinsicTests`, `ObjectLifetimeTests`, `VBAddressableCellTests`, `VBArrayTests` |
+| `managed-r3-safearray` | `PointerIntrinsicTests`, `VBArrayTests` |
 
 ## Aktive Restliste
 
-Die 24 folgenden Karten sind `planned` / `not-yet-verified`. Nur R0 ist geschlossen; R1 und R2
+Die 22 folgenden Karten sind `planned` / `not-yet-verified`. Nur R0 ist geschlossen; R1 und R2
 stehen als abgenommene Teilverträge darüber und tauchen hier mit ihrem gemessenen Rest wieder auf.
 Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen legen
 die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben in der Matrix
@@ -292,10 +315,11 @@ in `Long` abgeschnittenen Zeiger aus. Die Grenztabelle, Layoutfamilien und die g
 stehen in
 [R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md).
 
+Invalidierung und SAFEARRAY-Vertrag sind abgenommen und stehen als Teilverträge oben. Offen
+bleiben zwei Karten.
+
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r3-invalidation` | **Invalidierung adressierbaren Speichers:** ReDim, ReDim Preserve, Erase, Prozedurende und Objektende invalidieren kontrolliert und geben genau einmal frei. |
-| `managed-r3-safearray` | **SAFEARRAY-Speichervertrag:** VarPtr auf ein ganzes Array trifft den Deskriptor; mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge. |
 | `managed-r3-variant` | **VARIANT-Speichervertrag:** VarPtr auf einen Variant nennt den 16-Byte-VARIANT; Subtyp, Empty, Null, Nothing, BSTR und Fehlerwerte bleiben unterscheidbar. |
 | `managed-r3-callback-abi` | **Declare- und Callback-ABI vervollständigen:** UDT-, Pointer-, String- und Array-Signaturen mit Ownership, Bounds und Write-back in x86 sowie unterstützten x64-Erweiterungen messen; zurückbehaltene Callbacks nach GC und beim Abmelden prüfen. |
 

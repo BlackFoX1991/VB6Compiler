@@ -2829,18 +2829,19 @@
       "dependsOn": [
         "managed-r3-byref-alias"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Invalidierung adressierbaren Speichers",
       "expected": {
         "acceptance": "Freigabe und Reallokation: ReDim, ReDim Preserve, Erase, Prozedurende und Objektende invalidieren kontrolliert und geben genau einmal frei."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs",
         "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs",
         "tests/VB6.Runtime.Tests/VBArrayTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Alle fünf Enden sind ausführend gemessen. ReDim und ReDim Preserve beenden die alte Adresse, Erase auf einem festen Array leert an Ort und Stelle und behält sie, Erase auf einem dynamischen Array gibt die Variable frei und die nächste Elementadresse meldet Fehler 9. Das Prozedurende hängt am Return-Terminator und nicht an einer Stelle am Textende: gemessen an einer Prozedur mit Exit Sub und einer mit On Error GoTo, je zwei Rückkehrpunkte, je eine Freigabe. Das Objektende hat eine eigene Route bekommen -- eine Klasse mit adressierbarem Feld registriert sich auch ohne Class_Terminate, und die Zelle wird über eine enge Markerschnittstelle freigegeben, nicht dadurch, dass irgendein IDisposable-Feld gefunden wird. Genau einmal ist zweifach abgesichert: die CLR-Kante wird vor der nativen Freigabe genullt, und ein zweiter Abbau desselben Objekts ist folgenlos. Der Array-Deskriptor liegt in einem SafeHandle, der die einmalige Freigabe auch nebenläufig garantiert.",
       "title": "Invalidierung adressierbaren Speichers"
     },
     {
@@ -2850,17 +2851,17 @@
       "dependsOn": [
         "managed-r3-invalidation"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "SAFEARRAY-Speichervertrag",
       "expected": {
         "acceptance": "VarPtr auf ein ganzes Array trifft den Deskriptor; mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
         "tests/VB6.Runtime.Tests/VBArrayTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Der gepinnte Puffer trägt einen echten oleaut32-Deskriptor mit FADF_STATIC; VarPtr auf das ganze Array nennt ihn, nie das erste Datenbyte. Die Reihenfolge ist gegen oleaut32 gemessen, nicht hergeleitet: eine Sonde füllt über SafeArrayPutElement und liest den Rohpuffer, eine zweite liest die Deskriptorbytes und macht die rechts-zuerst-Speicherung der Bounds sichtbar. Derselbe Vertrag ist zusätzlich aus VB6-Quelltext über die ganze Kette beobachtet: Strides 4/8/20 in einem (1 To 2, 1 To 3)-Feld, ein CopyMemory-Schreibzugriff beim nächsten Lesen sichtbar, und Rang, Elementbreite und pvData aus dem Deskriptor gelesen. Die Elementauswahl ist eine Invariante statt einer Ausschlussliste -- cbElements muss die CLR-Schrittweite sein --, weshalb VT_BOOL über einem einbyteigen CLR-bool ausscheidet. Die Freigabe nimmt ausschliesslich SafeArrayDestroyDescriptor: SafeArrayDestroy nullt die Nutzdaten auch mit gesetztem FADF_STATIC, was gemessen und in beiden Richtungen als Test festgehalten ist. Documented-verified, nicht oracle-verified: gemessen gegen Windows Automation und die dokumentierten SAFEARRAY-Verträge, nicht gegen einen Originalcompiler.",
       "title": "SAFEARRAY-Speichervertrag"
     },
     {
@@ -3643,7 +3644,7 @@
         "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs",
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
       ],
-      "gap": "managed-r3-byref-alias: ByRef-Aliase; managed-r3-invalidation: Freigabe und Reallokation; managed-r3-safearray: SAFEARRAY-Deskriptor und mehrdimensionale Reihenfolge; managed-r3-variant: VARIANT-Speicher; managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
+      "gap": "managed-r3-variant: VARIANT-Speicher; managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
     },
     {
       "id": "profile-selection-and-provenance",
