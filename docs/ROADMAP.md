@@ -21,7 +21,7 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `9c85b1d` mit nicht committeten Änderungen, Lauf `20260909T120649Z-c0837bc1`:
+Messung vom 2026-09-09 auf `main` / `7eaaa46` mit nicht committeten Änderungen, Lauf `20260909T124905Z-76daa3bf`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **157 implemented**, **0 partial** und **15 planned**;
-**157/172 documented-verified**, 15 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **158 implemented**, **0 partial** und **14 planned**;
+**158/172 documented-verified**, 14 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -299,9 +299,34 @@ Prozessende, weil eine native Seite den Zeiger unbegrenzt behalten darf.
 | `managed-r3-variant` | `PointerIntrinsicTests`, `VBAddressableCellTests`, `VariantStateTests` |
 | `managed-r3-callback-abi` | `DeclarePInvokeExecutionTests`, `AddressOfExecutionTests`, `VBCallbackRegistryTests` |
 
+## Abgenommene Teilverträge
+
+Karten, die geschlossen sind, während ihre Etappe noch offene hat. Der Nachweis steht hier, die
+Etappe selbst weiter unten in der Restliste.
+
+### R4 — COM-Konsum, Emission und Binary Compatibility
+
+Der **VTable-Ausgabeparameter** ist abgenommen. Gemessen wurde zuerst: Eine Sonde über die echte
+`stdole`-Typbibliothek liest für `IFont.Clone` einen Parameter mit `wParamFlags = 0x2`, also
+`PARAMFLAG_FOUT` und nicht `FRETVAL`, bei Slot 20 und Rückgabe `VT_HRESULT`.
+
+Der Unterschied ist der ganze Vertrag: Ein RETVAL ist der Wert, den der Ausdruck liefert und der
+gar nicht im Quelltext steht; ein Ausgabeparameter ist ein Argument, das das Programm mitgibt und
+danach liest. Die VB6-Form ist deshalb `f.Clone g` und nie `Set g = f.Clone`.
+
+Der Importer löst für so einen Parameter genau eine Zeigerebene auf — `IFont**` wird `IFont` —,
+sonst hieße er `Object` und `f.Clone g` scheiterte an der ByRef-Typprüfung. Der Delegat bekommt
+einen ByRef-Slot, das Rückschreiben läuft über dasselbe Argumentarray, mit dem der Aufruf kam.
+Ausgeführt gegen ein registriertes `StdFont`: Der Klon trägt den Zustand des Originals, ist ein
+**anderes** Objekt und danach unabhängig.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r4-vtable-out` | `ComVTableExecutionTests` |
+
 ## Aktive Restliste
 
-Die 15 folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R3 sind geschlossen und stehen
+Die 14 folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R3 sind geschlossen und stehen
 als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
@@ -314,7 +339,7 @@ laufende Anwendung. Das ist der Grund, warum R4 die schwerste Etappe ist und nic
 
 Nach R3.
 
-Der bestehende VTable-Pfad weist Ausgabeparameter mit `VB6S0075` ab. Er erhält echten Aufruferspeicher und Rückschreiben; FOUT und FRETVAL bleiben unterschiedliche Verträge. Rohe Layouts werden in beide Richtungen mit unabhängigen Probes geprüft.
+Der VTable-Ausgabeparameter ist abgenommen und steht als Teilvertrag darüber. Rohe Layouts werden weiterhin in beide Richtungen mit unabhängigen Probes geprüft.
 
 Heute werden COM-Identitäten aus Namen abgeleitet und Version/Binary-Compatibility-Einstellungen gelesen. Das ersetzt nicht die Auswertung der mit `CompatibleEXE32` angegebenen älteren Komponente. Die Abnahme verlangt einen bereits gebauten Fremdclient, der nach einer kompatiblen Serveränderung weiterläuft; inkompatible Änderungen müssen diagnostiziert werden. TypeLib, Assembly und Host müssen identische DISPIDs, Signaturen, Interfaces und Versionsinformationen liefern.
 
@@ -322,7 +347,6 @@ ClassFactory-/IUnknown-Lebensdauer, Instancing, Event-Quellen und Connection-Poi
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r4-vtable-out` | **VTable-Ausgabeparameter:** PARAMFLAG_FOUT, FIN/FOUT und FRETVAL korrekt unterscheiden; stdole.IFont.Clone mit echtem Aufruferspeicher und Write-back ausführen statt VB6S0075. |
 | `managed-r4-automation-layouts` | **Rohe Automation-Layouts abnehmen:** Aliase, Records, C-Arrays, verschachtelte Pointer und SAFEARRAY-Typen über unabhängige COM-Probes mit Layout- und Besitzprüfung in beide Richtungen abnehmen. |
 | `managed-r4-binary-compatibility` | **Binary Compatibility gegen ältere Komponente:** CompatibleMode/CompatibleEXE32 für bestehende Identitäten/Aufrufverträge auswerten; alter Client läuft nach kompatibler Änderung unverändert weiter, inkompatible Änderungen liefern Diagnose. |
 | `managed-r4-typelib-metadata` | **TypeLib-Metadaten vervollständigen:** Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein. |

@@ -8541,3 +8541,59 @@ Genau diese Schleife erzeugte eine unausführbare Assembly. Der Fall steht jetzt
 **R1 ist geschlossen** — sechzehn Karten. Damit sind R0 bis R3 abgeschlossen; offen bleiben R4 bis
 R7, und die verlangen durchgehend etwas, das der Compiler nicht allein herstellen kann: einen
 Fremdclient über die Prozessgrenze, registrierte native Komponenten, eine laufende Anwendung.
+
+## 2026-09-09 — R4, Schnitt 39: der VTable-Ausgabeparameter
+
+Erste R4-Karte. Nach der Regel „erst messen, dann bauen" fing der Schnitt mit einer Sonde über die
+echte `stdole`-Typbibliothek an, nicht mit Code.
+
+### Was die Messung ergab
+
+Für `IFont.Clone`: `cParams=1`, `oVft=160` also Slot 20, Rückgabe `VT_HRESULT`, und
+`wParamFlags=0x2` — **PARAMFLAG_FOUT, nicht FRETVAL**. `IsEqual` und `SetRatio` tragen `0x1`
+(FIN). Damit ist bestätigt, was `CLAUDE.md` behauptet hatte, und zwar am Objekt statt aus der
+Erinnerung.
+
+Beim Schreiben der Sonde bin ich prompt in die Nachbarfalle getappt: Der `vt` einer `TYPEDESC`
+steht **nicht** an Offset 0. Die Struktur beginnt mit einer Union (`lptdesc`/`lpadesc`/`hreftype`),
+`vt` folgt erst dahinter. Der erste Lauf meldete deshalb `vt=9296` und `vt=-2032` — Bruchstücke
+eines Zeigers, gelesen als Typcode. Die Flags stimmten schon, weil der Importer ihren Offset
+ohnehin von Hand rechnet.
+
+### Der Unterschied, um den es geht
+
+Ein RETVAL ist der Wert, den der VB6-Ausdruck liefert; er steht gar nicht im Quelltext. Ein
+Ausgabeparameter ist ein Argument, das das Programm mitgibt und danach liest. Die VB6-Form von
+`Clone` ist deshalb `f.Clone g` und nie `Set g = f.Clone` — wer beides verwechselt, ruft den
+Server mit einem Nullzeiger und bekommt `E_POINTER`.
+
+### Der Umbau
+
+Der Importer löst für einen Ausgabeparameter genau eine Zeigerebene auf: `IFont**` wird `IFont`.
+Ohne das hieße der Parameter `Object`, und `f.Clone g` mit einem `g As IFont` scheiterte an der
+ByRef-Typprüfung — an einer Prüfung also, die richtig ist, aber mit dem falschen Typ verglich.
+Dieselbe Auflösung steht in der kodierten Parameterliste, die die Runtime parst, mit einem
+vorangestellten `o`; so können Compiler und Runtime keine verschiedenen Meinungen darüber
+entwickeln, in welches Argument der Server schreibt.
+
+Der Delegat bekommt für einen Ausgabeparameter einen ByRef-Slot — damit überlässt er das Anlegen
+und Zurückschreiben der Marshalling-Schicht, statt einen Puffer von Hand zu verwalten. Das
+Ergebnis reist über dasselbe Argumentarray zurück, mit dem der Aufruf kam: Es ist eine Referenz,
+und der erzeugte Code liest danach daraus in die VB6-Variable.
+
+Damit wird aus dem Aufruf im Lowerer eine Folge statt eines einzelnen Ausdrucks — das Array muss
+den Aufruf überleben. Ein Argument ohne Speicherplatz bekommt einfach kein Rückschreiben; VB6
+lässt die Form zu, der Server schreibt dann ins Leere, und der Aufruf selbst bleibt gültig.
+
+### Abnahme
+
+Ausgeführt gegen ein registriertes `StdFont`: `Err` 0, `g` ist nicht `Nothing`, trägt „Courier
+New" vom Original, ist ein **anderes** Objekt als `f`, und nach `g.Name = "Arial"` bleibt
+`f.Name` unverändert. Erst diese Kombination unterscheidet einen echten Ausgabeparameter von einer
+zurückgegebenen Referenz — nur zu prüfen, dass „etwas ankommt", hätte auch ein durchgereichter
+Zeiger bestanden.
+
+`VB6S0075` ist entfallen, ebenso das Importflag, das es trug: Beides liest niemand mehr.
+
+`managed-r4-vtable-out` steht auf `implemented` / `documented-verified`. R4 hat noch vier offene
+Karten.

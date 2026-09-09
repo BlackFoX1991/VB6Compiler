@@ -2934,16 +2934,16 @@
       "dependsOn": [
         "managed-r3-callback-abi"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "VTable-Ausgabeparameter",
       "expected": {
         "acceptance": "PARAMFLAG_FOUT, FIN/FOUT und FRETVAL korrekt unterscheiden; stdole.IFont.Clone mit echtem Aufruferspeicher und Write-back ausführen statt VB6S0075."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/ComVTableExecutionTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Zuerst gemessen, dann gebaut: Eine Sonde über die echte stdole-Typbibliothek liest für IFont.Clone cParams=1, Slot 20, Rückgabe VT_HRESULT und wParamFlags=0x2 -- PARAMFLAG_FOUT, nicht FRETVAL; IsEqual und SetRatio tragen 0x1 (FIN). Der Unterschied ist der ganze Vertrag: Ein RETVAL ist der Wert, den der Ausdruck liefert und der gar nicht im Quelltext steht; ein Ausgabeparameter ist ein Argument, das das Programm mitgibt und danach liest. Die VB6-Form ist deshalb `f.Clone g` und nie `Set g = f.Clone`. Der Importer löst für einen Ausgabeparameter genau eine Zeigerebene auf -- IFont** wird IFont --, sonst hieße der Parameter Object und `f.Clone g` scheiterte an der ByRef-Typprüfung. Dieselbe Auflösung steht in der kodierten Parameterliste, die die Runtime parst, mit einem vorangestellten o, damit beide Seiten nicht auseinanderlaufen. Der Delegat bekommt für so einen Parameter einen ByRef-Slot, das Rückschreiben läuft über dasselbe Argumentarray, mit dem der Aufruf kam. Ausgeführt gegen ein registriertes StdFont: Err 0, der Klon trägt den Zustand des Originals, ist ein *anderes* Objekt und danach unabhängig -- erst diese Kombination unterscheidet einen echten Ausgabeparameter von einer zurückgegebenen Referenz. VB6S0075 und das Importflag, das es trug, sind entfallen, weil beides niemand mehr liest.",
       "title": "VTable-Ausgabeparameter"
     },
     {
