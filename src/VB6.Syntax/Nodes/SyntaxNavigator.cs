@@ -66,6 +66,7 @@ public static class SyntaxNavigator
                 ? line.LineKeyword
                 : GetFirstToken(line.Target),
             EndStatementSyntax end => end.EndKeyword,
+            StopStatementSyntax stop => stop.StopToken,
             SkippedStatementSyntax skipped => skipped.Token,
             _ => null
         };

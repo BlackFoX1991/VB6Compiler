@@ -665,6 +665,7 @@ public sealed record CircleStatementSyntax(
     ExpressionSyntax? AspectExpression,
     ExpressionSyntax? Target = null) : StatementSyntax(SyntaxKind.CircleStatement);
 public sealed record EndStatementSyntax(SyntaxToken EndKeyword) : StatementSyntax(SyntaxKind.EndStatement);
+public sealed record StopStatementSyntax(SyntaxToken StopToken) : StatementSyntax(SyntaxKind.StopStatement);
 public sealed record LiteralExpressionSyntax(SyntaxToken LiteralToken) : ExpressionSyntax(SyntaxKind.LiteralExpression);
 public sealed record NameExpressionSyntax(SyntaxToken IdentifierToken) : ExpressionSyntax(SyntaxKind.NameExpression);
 public sealed record NewExpressionSyntax(

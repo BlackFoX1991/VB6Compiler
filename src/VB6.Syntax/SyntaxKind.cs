@@ -199,5 +199,6 @@ public enum SyntaxKind
     LinePoint,
     PSetStatement,
     CircleStatement,
-    EndStatement
+    EndStatement,
+    StopStatement
 }

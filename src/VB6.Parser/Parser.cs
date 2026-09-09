@@ -1198,6 +1198,7 @@ public sealed class Parser
             SyntaxKind.IdentifierToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.DotToken when LooksLikeMemberAssignment() => ParseMemberAssignmentStatement(),
             SyntaxKind.DotToken when LooksLikeQualifiedCall() => ParseQualifiedInvocationStatement(),
+            SyntaxKind.IdentifierToken when LooksLikeStopStatement() => new StopStatementSyntax(NextToken()),
             SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken => ParseAssignmentStatement(),
             SyntaxKind.IdentifierToken when LooksLikeQualifiedCall() => ParseQualifiedInvocationStatement(),
             SyntaxKind.IdentifierToken => ParseInvocationStatement(),
@@ -1536,6 +1537,20 @@ public sealed class Parser
     /// a member assignment up to the point where the equals sign would be; anything else on the
     /// line is an argument list.
     /// </summary>
+    /// <summary>
+    /// <c>Stop</c> is a statement that stands alone on its line.
+    ///
+    /// It is deliberately recognised here instead of becoming a keyword token. VB6 reserves the
+    /// word, so nothing may be named <c>Stop</c> -- but VB6 also allows a reserved word after a
+    /// dot, and <c>.Stop</c> is an ordinary method on several stock controls. This parser expects
+    /// an identifier after a dot in more than a dozen places, so a keyword token would turn every
+    /// <c>control.Stop</c> into a parse error. Recognising the statement form keeps both working.
+    /// </summary>
+    private bool LooksLikeStopStatement() =>
+        Current.Kind == SyntaxKind.IdentifierToken &&
+        string.Equals(Current.Text, "Stop", StringComparison.OrdinalIgnoreCase) &&
+        Peek(1).Kind is SyntaxKind.NewLineToken or SyntaxKind.ColonToken or SyntaxKind.EndOfFileToken;
+
     private bool LooksLikeQualifiedCall()
     {
         if (Current.Kind == SyntaxKind.DotToken)
