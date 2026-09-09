@@ -23,6 +23,11 @@ internal static class Program
             return InvokeByDispId(args[1], args[2], int.Parse(args[3]), int.Parse(args[4]));
         }
 
+        if (args.Length == 4 && string.Equals(args[0], "--variant", StringComparison.Ordinal))
+        {
+            return InvokeForVariant(args[1], args[2], int.Parse(args[3]));
+        }
+
         if (args.Length != 2)
         {
             Console.Error.WriteLine(
@@ -152,6 +157,90 @@ internal static class Program
                 try
                 {
                     Console.WriteLine(InvokeOneInt32ByDispId(objectPointer, dispId, argument));
+                    return 0;
+                }
+                finally
+                {
+                    Marshal.Release(objectPointer);
+                }
+            }
+            finally
+            {
+                Marshal.Release(factoryPointer);
+            }
+        }
+        finally
+        {
+            NativeLibrary.Free(module);
+        }
+    }
+
+    /// <summary>
+    /// Calls a member without arguments and prints the VARTYPE that comes back, or the HRESULT the
+    /// server answered with. Used to see what a foreign client actually receives for a member whose
+    /// type the library describes -- a record among them.
+    /// </summary>
+    private static int InvokeForVariant(string comHostPath, string classIdText, int dispId)
+    {
+        var module = NativeLibrary.Load(comHostPath);
+        try
+        {
+            var getClassObject = Marshal.GetDelegateForFunctionPointer<DllGetClassObjectDelegate>(
+                NativeLibrary.GetExport(module, "DllGetClassObject"));
+            var clsid = Guid.Parse(classIdText);
+            var classFactoryIid = new Guid("00000001-0000-0000-C000-000000000046");
+            var dispatchIid = new Guid("00020400-0000-0000-C000-000000000046");
+            var factoryHResult = getClassObject(ref clsid, ref classFactoryIid, out var factoryPointer);
+            if (factoryHResult != 0)
+            {
+                Console.WriteLine($"factory=0x{factoryHResult:X8}");
+                return 0;
+            }
+
+            try
+            {
+                var createInstance = GetClassFactoryCreateInstance(factoryPointer);
+                var createHResult = createInstance(
+                    factoryPointer,
+                    IntPtr.Zero,
+                    ref dispatchIid,
+                    out var objectPointer);
+                if (createHResult != 0)
+                {
+                    Console.WriteLine($"create=0x{createHResult:X8}");
+                    return 0;
+                }
+
+                try
+                {
+                    var vtable = Marshal.ReadIntPtr(objectPointer);
+                    var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+                        Marshal.ReadIntPtr(vtable, IntPtr.Size * 6));
+                    var result = Marshal.AllocCoTaskMem(VariantSize);
+                    try
+                    {
+                        ClearNativeMemory(result);
+                        var parameters = new NativeDispParams();
+                        var iid = Guid.Empty;
+                        var hresult = invoke(
+                            objectPointer,
+                            dispId,
+                            ref iid,
+                            1033,
+                            DispatchMethod,
+                            ref parameters,
+                            result,
+                            IntPtr.Zero,
+                            out _);
+                        Console.WriteLine(hresult == 0
+                            ? $"vt={Marshal.ReadInt16(result)}"
+                            : $"invoke=0x{hresult:X8}");
+                    }
+                    finally
+                    {
+                        Marshal.FreeCoTaskMem(result);
+                    }
+
                     return 0;
                 }
                 finally
