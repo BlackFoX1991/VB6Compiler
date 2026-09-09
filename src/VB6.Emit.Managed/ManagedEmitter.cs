@@ -5928,6 +5928,34 @@ public sealed class ManagedEmitter
             return handle;
         }
 
+        /// <summary>
+        /// Finds the synthesized event source interface of a class. Its name is looked up in the
+        /// emitted type plans rather than rebuilt from the class name, so the two cannot drift
+        /// apart when the mangling changes.
+        /// </summary>
+        private bool TryGetEventSourceInterface(
+            ClassTypeSymbol classType,
+            out IrClassDefinition sourceInterface)
+        {
+            sourceInterface = null!;
+            if (classType.Events.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            foreach (var plan in _typePlans)
+            {
+                if (plan.Class is { IsInterface: true } candidate &&
+                    string.Equals(candidate.Symbol.Name, "__" + classType.Name, StringComparison.Ordinal))
+                {
+                    sourceInterface = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void AddComTypeMetadata(TypeDefinitionHandle typeHandle, IrClassDefinition classDefinition)
         {
             var classType = classDefinition.Symbol;
@@ -5976,6 +6004,18 @@ public sealed class ManagedEmitter
                         typeHandle,
                         GetAttributeConstructor(typeof(ProgIdAttribute), typeof(string)),
                         EncodeStringAttribute(GetComProgId(classType)));
+                }
+
+                // Die Ereignisquelle steht als eigener Typ daneben (der Lowerer synthetisiert
+                // sie); dieses Attribut ist die einzige Stelle, die sagt, *welcher* Typ das ist.
+                // Ohne es beschreibt die Metadaten nichts, was ein Fremdclient implementieren
+                // muss, um die Ereignisse zu empfangen.
+                if (TryGetEventSourceInterface(classType, out var sourceInterface))
+                {
+                    _metadata.AddCustomAttribute(
+                        typeHandle,
+                        GetAttributeConstructor(typeof(ComSourceInterfacesAttribute), typeof(string)),
+                        EncodeStringAttribute("VB6.Generated.__vb6_interface_" + Sanitize(sourceInterface.Name)));
                 }
             }
         }
