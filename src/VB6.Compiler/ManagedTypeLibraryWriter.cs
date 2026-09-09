@@ -34,6 +34,7 @@ internal static class ManagedTypeLibraryWriter
     private const int InvokeFunc = 1;
     private const int InvokePropertyGet = 2;
     private const int InvokePropertyPut = 4;
+    private const int InvokePropertyPutRef = 8;
 
     public static string Create(string managedAssemblyPath, ManagedPlatform platform)
     {
@@ -101,10 +102,21 @@ internal static class ManagedTypeLibraryWriter
             dispatchInfo.SetGuid(DeriveIdentity(libraryName, "interface", comClass.Name));
             dispatchInfo.SetTypeFlags(TypeFlagDispatchable);
 
-            var dispId = 1;
+            // Ein Get/Let-Paar ist in COM *ein* Mitglied mit zwei Aufrufarten, also mit einer
+            // gemeinsamen DISPID. Zwei DISPIDs fuer denselben Namen weist oleaut32 ab, und der
+            // Funktionsindex von AddFuncDesc ist davon unabhaengig -- er zaehlt die Eintraege.
+            var dispIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var nextDispId = 1;
+            var index = 0;
             foreach (var member in comClass.Members)
             {
-                AddMember(dispatchInfo, member, dispId++);
+                if (!dispIds.TryGetValue(member.Name, out var dispId))
+                {
+                    dispId = nextDispId++;
+                    dispIds[member.Name] = dispId;
+                }
+
+                AddMember(dispatchInfo, member, index++, dispId);
             }
 
             dispatchInfo.LayOut();
@@ -133,7 +145,7 @@ internal static class ManagedTypeLibraryWriter
         }
     }
 
-    private static void AddMember(ICreateTypeInfo2 info, ComMember member, int dispId)
+    private static void AddMember(ICreateTypeInfo2 info, ComMember member, int index, int dispId)
     {
         var parameterCount = member.ParameterTypes.Count;
         var elementSize = Marshal.SizeOf<ELEMDESC>();
@@ -146,14 +158,14 @@ internal static class ManagedTypeLibraryWriter
 
         try
         {
-            for (var index = 0; index < parameterCount; index++)
+            for (var parameter = 0; parameter < parameterCount; parameter++)
             {
                 var element = new ELEMDESC
                 {
-                    tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = member.ParameterTypes[index] }
+                    tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = member.ParameterTypes[parameter] }
                 };
-                Marshal.StructureToPtr(element, IntPtr.Add(parameters, elementSize * index), false);
-                names[index + 1] = member.ParameterNames[index];
+                Marshal.StructureToPtr(element, IntPtr.Add(parameters, elementSize * parameter), false);
+                names[parameter + 1] = member.ParameterNames[parameter];
             }
 
             var function = new FUNCDESC
@@ -175,8 +187,15 @@ internal static class ManagedTypeLibraryWriter
             };
             Marshal.StructureToPtr(function, descriptor, false);
 
-            info.AddFuncDesc((uint)(dispId - 1), descriptor);
-            info.SetFuncAndParamNames((uint)(dispId - 1), names, (uint)names.Length);
+            info.AddFuncDesc((uint)index, descriptor);
+
+            // Der Wertparameter eines propput hat in COM keinen eigenen Namen: er ist die rechte
+            // Seite der Zuweisung. Wird er trotzdem benannt, meldet SetFuncAndParamNames
+            // TYPE_E_ELEMENTNOTFOUND -- der Name gehoert zu keinem benennbaren Element.
+            var nameCount = member.InvokeKind is InvokePropertyPut or InvokePropertyPutRef
+                ? names.Length - 1
+                : names.Length;
+            info.SetFuncAndParamNames((uint)index, names, (uint)nameCount);
         }
         finally
         {
@@ -248,18 +267,50 @@ internal static class ManagedTypeLibraryWriter
                         method.GetParameters().Select(parameter => parameter.Name ?? "value").ToList()));
                 }
 
+                // Ein Public-Feld ist in VB6 ein Get/Let-Paar, im Emitter aber ein CLR-Feld mit
+                // Assembly-Sichtbarkeit -- dieselbe Regel, nach der VBDynamicDispatch es findet.
+                // Ohne diesen Durchgang fehlt es in der Bibliothek, obwohl der Server es bedient.
+                foreach (var field in type
+                             .GetFields(BindingFlags.Public | BindingFlags.NonPublic |
+                                        BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                             .Where(field => field.IsAssembly)
+                             .OrderBy(field => field.Name, StringComparer.Ordinal))
+                {
+                    members.Add(new ComMember(
+                        field.Name,
+                        InvokePropertyGet,
+                        ToVariantType(field.FieldType),
+                        new List<short>(),
+                        new List<string>()));
+                    members.Add(new ComMember(
+                        field.Name,
+                        InvokePropertyPut,
+                        (short)VarEnum.VT_VOID,
+                        new List<short> { ToVariantType(field.FieldType) },
+                        new List<string> { "value" }));
+                }
+
                 foreach (var property in type
                              .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                              .OrderBy(property => property.Name, StringComparer.Ordinal))
                 {
+                    // Eine indizierte Property tragen beide Aufrufarten: der Getter die Indizes,
+                    // der Setter die Indizes und dahinter den Wert.
+                    var indexTypes = property.GetIndexParameters()
+                        .Select(parameter => ToVariantType(parameter.ParameterType))
+                        .ToList();
+                    var indexNames = property.GetIndexParameters()
+                        .Select(parameter => parameter.Name ?? "index")
+                        .ToList();
+
                     if (property.CanRead)
                     {
                         members.Add(new ComMember(
                             property.Name,
                             InvokePropertyGet,
                             ToVariantType(property.PropertyType),
-                            new List<short>(),
-                            new List<string>()));
+                            indexTypes,
+                            indexNames));
                     }
 
                     if (property.CanWrite)
@@ -268,8 +319,8 @@ internal static class ManagedTypeLibraryWriter
                             property.Name,
                             InvokePropertyPut,
                             (short)VarEnum.VT_VOID,
-                            new List<short> { ToVariantType(property.PropertyType) },
-                            new List<string> { "value" }));
+                            new List<short>(indexTypes) { ToVariantType(property.PropertyType) },
+                            new List<string>(indexNames) { "value" }));
                     }
                 }
 
