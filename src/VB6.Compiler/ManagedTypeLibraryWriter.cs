@@ -44,9 +44,15 @@ internal static class ManagedTypeLibraryWriter
     // Ein VARIANT ist auf x64 24 Bytes, nicht 16 -- seine Union traegt BRECORD mit zwei Zeigern.
     private static readonly int VariantSize = IntPtr.Size == 8 ? 24 : 16;
 
-    public static string Create(string managedAssemblyPath, ManagedPlatform platform)
+    public static string Create(
+        string managedAssemblyPath,
+        ManagedPlatform platform,
+        System.Collections.Immutable.ImmutableDictionary<string, Guid>? compatibleIdentities = null,
+        System.Collections.Immutable.ImmutableDictionary<string, int>? compatibleMemberIds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(managedAssemblyPath);
+        var kept = compatibleIdentities ?? System.Collections.Immutable.ImmutableDictionary<string, Guid>.Empty;
+        var keptIds = compatibleMemberIds ?? System.Collections.Immutable.ImmutableDictionary<string, int>.Empty;
         if (!OperatingSystem.IsWindows())
         {
             throw new ManagedArtifactException("Type library generation is supported only on Windows.");
@@ -80,7 +86,9 @@ internal static class ManagedTypeLibraryWriter
         try
         {
             library.SetName(libraryName);
-            library.SetGuid(DeriveIdentity(libraryName, "library", libraryName));
+            library.SetGuid(kept.TryGetValue(VBBinaryCompatibility.LibraryKey, out var keptLibraryId)
+                ? keptLibraryId
+                : DeriveIdentity(libraryName, "library", libraryName));
             // Dieselben Zahlen wie die Assembly -- ein fruehgebundener Client bindet an sie, und
             // zwei getrennt erfundene Versionen sind genau die Abweichung, die diese Karte verbietet.
             library.SetVersion((ushort)version.Major, (ushort)version.Minor);
@@ -94,12 +102,12 @@ internal static class ManagedTypeLibraryWriter
             {
                 foreach (var comInterface in interfaces)
                 {
-                    written.Add(comInterface.Name, WriteInterface(library, comInterface));
+                    written.Add(comInterface.Name, WriteInterface(library, comInterface, keptIds));
                 }
 
                 foreach (var comClass in classes)
                 {
-                    WriteClass(library, libraryName, comClass, written);
+                    WriteClass(library, libraryName, comClass, written, kept, keptIds);
                 }
 
                 library.SaveAllChanges();
@@ -129,13 +137,16 @@ internal static class ManagedTypeLibraryWriter
     /// carries, not a derived one -- QueryInterface answers for that IID, and a library naming a
     /// different one would describe an interface nobody can reach.
     /// </summary>
-    private static ICreateTypeInfo2 WriteInterface(ICreateTypeLib2 library, ComInterface comInterface)
+    private static ICreateTypeInfo2 WriteInterface(
+        ICreateTypeLib2 library,
+        ComInterface comInterface,
+        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds)
     {
         library.CreateTypeInfo(comInterface.Name, TypeKind.TKIND_DISPATCH, out var info);
         var interfaceId = comInterface.InterfaceId;
         info.SetGuid(ref interfaceId);
         info.SetTypeFlags(TypeFlagDispatchable);
-        AddMembers(info, comInterface.Members);
+        AddMembers(info, comInterface.Name, comInterface.Members, keptIds);
         info.LayOut();
         return info;
     }
@@ -146,10 +157,27 @@ internal static class ManagedTypeLibraryWriter
     /// ambiguous to oleaut32. The function index of AddFuncDesc counts entries and is independent
     /// of the DISPID.
     /// </summary>
-    private static void AddMembers(ICreateTypeInfo2 info, List<ComMember> members)
+    private static void AddMembers(
+        ICreateTypeInfo2 info,
+        string typeName,
+        List<ComMember> members,
+        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds)
     {
         var dispIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        // Unter Binary Compatibility behaelt ein bekanntes Mitglied seine Nummer, und ein neues
+        // bekommt eine oberhalb aller alten. Sonst wuerde das Hinzufuegen eines Mitglieds die
+        // uebrigen umnummerieren -- ein gebauter Client ruft danach das falsche auf.
         var nextDispId = 1;
+        foreach (var member in members)
+        {
+            if (keptIds.TryGetValue(typeName + "\0" + member.Name, out var keptId))
+            {
+                dispIds[member.Name] = keptId;
+                nextDispId = Math.Max(nextDispId, keptId + 1);
+            }
+        }
+
         var index = 0;
         foreach (var member in members)
         {
@@ -167,7 +195,9 @@ internal static class ManagedTypeLibraryWriter
         ICreateTypeLib2 library,
         string libraryName,
         ComClass comClass,
-        Dictionary<string, ICreateTypeInfo2> interfaces)
+        Dictionary<string, ICreateTypeInfo2> interfaces,
+        System.Collections.Immutable.ImmutableDictionary<string, Guid> kept,
+        System.Collections.Immutable.ImmutableDictionary<string, int> keptIds)
     {
         // VB6 names the members interface after the class with a leading underscore, and the
         // coclass keeps the plain name so that a client writes New Klasse rather than New _Klasse.
@@ -175,10 +205,14 @@ internal static class ManagedTypeLibraryWriter
         library.CreateTypeInfo(interfaceName, TypeKind.TKIND_DISPATCH, out var dispatchInfo);
         try
         {
-            dispatchInfo.SetGuid(DeriveIdentity(libraryName, "interface", comClass.Name));
+            // Unter Binary Compatibility behaelt die Standardschnittstelle ihre IID: Ein
+            // fruehgebundener Client haelt genau die fest.
+            dispatchInfo.SetGuid(kept.TryGetValue("interface " + interfaceName, out var keptInterfaceId)
+                ? keptInterfaceId
+                : DeriveIdentity(libraryName, "interface", comClass.Name));
             dispatchInfo.SetTypeFlags(TypeFlagDispatchable);
 
-            AddMembers(dispatchInfo, comClass.Members);
+            AddMembers(dispatchInfo, interfaceName, comClass.Members, keptIds);
             dispatchInfo.LayOut();
 
             // The coclass points at the interface, so the interface has to stay alive until the
