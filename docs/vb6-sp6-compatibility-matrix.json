@@ -1388,7 +1388,7 @@
     },
     {
       "id": "l1-02-i-object-members-lifecycle",
-      "implementation": "partial",
+      "implementation": "implemented",
       "matrixEntry": "language-operators-and-variants",
       "input": "Let/Set assignment, As New activation, Collection members, Implements contracts, Events and WithEvents handlers",
       "expected": {
@@ -1406,7 +1406,7 @@
         "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
         "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs"
       ],
-      "notes": "Offen ist genau eine der vier Zugriffsformen, die As New ausloesen: ein Zugriff auf ein Public-Feld instanziiert nicht nach und meldet Fehler 91 statt zu erzeugen (r2-asnew-field-instantiation). Werteverwendung, Methodenaufruf und Property Get erzeugen wie zugesagt. Alles Folgende ist gemessen und bleibt gueltig. Let and Set choose value versus object assignment and honour default members, As New creates on first use, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before. Class_Terminate is guaranteed to run: it used to hang on a finalizer alone, and since the CLR runs no pending finalizers at process exit, a measurement found it never ran at all -- not on Set x = Nothing, not at scope exit, not at program end. A weak register drains it at shutdown, newest first, and an object whose Class_Initialize failed is not registered because VB6 gives it no Terminate either. The timing is deliberately not claimed to match VB6: that needs a reference count, and half a reference count would fire Terminate on a live object."
+      "notes": "Alle vier Zugriffsformen, die As New ausloesen, erzeugen: Werteverwendung, Methodenaufruf, Property Get und Feldzugriff. Der Feldzugriff kam bis 09/2026 nicht dort an (r2-asnew-field-instantiation). Let and Set choose value versus object assignment and honour default members, As New creates on first use, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before. Class_Terminate is guaranteed to run: it used to hang on a finalizer alone, and since the CLR runs no pending finalizers at process exit, a measurement found it never ran at all -- not on Set x = Nothing, not at scope exit, not at program end. A weak register drains it at shutdown, newest first, and an object whose Class_Initialize failed is not registered because VB6 gives it no Terminate either. The timing is deliberately not claimed to match VB6: that needs a reference count, and half a reference count would fire Terminate on a live object."
     },
     {
       "id": "l1-02-j-nested-error-resume",
@@ -2737,20 +2737,19 @@
       "dependsOn": [
         "managed-r2-lifetime"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Dim c As New K, danach lesender und schreibender Zugriff auf ein Public-Feld von K; dasselbe für eine Modulvariable Private m As New K",
       "expected": {
         "instantiation": "der Feldzugriff ist eine erste Verwendung und erzeugt die Instanz, wie Methodenaufruf, Property Get und Werteverwendung es bereits tun",
         "errors": "kein Fehler 91 und keine unbehandelte NullReferenceException mehr",
         "inventory": "die vier Zugriffsformen, die As New auslösen, sind als Inventar festgehalten statt einzeln entdeckt zu werden"
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs",
-        "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
-        "tests/VB6.IR.Tests/IrLowererTests.cs"
+        "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-09 an einem ausgeführten .vbp mit einer Klasse aus nichts als Public N As Long: Set c = New K funktioniert, c.Bump und c.P funktionieren, c.N wirft eine NullReferenceException und unter On Error Resume Next Fehler 91. Ursache ist eine Zeile: TryGetClassFieldPlace senkt den Empfänger mit LowerPlace, und die Nachinstanziierung hängt allein an LowerVariableRead. Kein Test der Suite und keine Stelle im VISIA-Korpus trifft die Form -- alle As-New-Tests benutzen ein Property Get.",
+      "notes": "Gemessen am 2026-09-09 an einem ausgeführten .vbp mit einer Klasse aus nichts als Public N As Long: Set c = New K funktionierte, c.Bump und c.P funktionierten, c.N warf eine NullReferenceException und unter On Error Resume Next Fehler 91 -- lesend, schreibend und über ein Arrayfeld, für Locals wie für Modulvariablen. Ursache war eine Zeile: TryGetClassFieldPlace senkte den Empfänger mit LowerPlace, und die Nachinstanziierung hängt allein an LowerVariableRead. Kein Test der Suite und keine Stelle im VISIA-Korpus traf die Form, weil alle As-New-Tests ein Property Get benutzten. Behoben, indem die Ensure-Form als eigene Anweisung vor dem Zugriff steht; nachgemessen ist auch die Identität, denn eine Ensure ohne Rückschreiben hätte je Zugriff ein frisches Objekt erzeugt und Schreibzugriffe still verloren. Die vier auslösenden Zugriffsformen -- Werteverwendung, Methodenaufruf, Property Get, Feldzugriff -- stehen als Inventar an der Fixstelle und in CLAUDE.md. Der Ausführungstest deckt alle vier samt Erzeugungszeitpunkt ab, ein IR-Test hält die Übersetzungsentscheidung fest, und beide wurden durch Zurücknehmen des Fixes rot gesehen.",
       "title": "As New instanziiert auch beim Feldzugriff"
     },
     {
@@ -3302,9 +3301,8 @@
         "bitness": "agnostic except LongPtr",
         "com": "none"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
-      "gap": "l1-02-i-object-members-lifecycle, r2-asnew-field-instantiation",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",

@@ -8436,3 +8436,41 @@ Fehler 5, statt halb zu marshallen.
 `managed-r3-invalidation`, `managed-r3-safearray`, `managed-r3-variant` und
 `managed-r3-callback-abi`. Die Etappe steht unter den abgeschlossenen; offen sind die R1-/R2-Reste
 aus der Neuplanung und R4 bis R7.
+
+## 2026-09-09 — R2, Schnitt 37: `As New` erzeugt auch beim Feldzugriff
+
+Der einzige bekannte Absturz im Bestand, und die Ursache war eine Zeile.
+
+`As New` wird von genau vier Zugriffsformen ausgelöst: Werteverwendung, Methodenaufruf,
+`Property Get` und Feldzugriff. Die ersten drei senken ihren Empfänger als **Ausdruck** und laufen
+dabei durch `LowerVariableRead` — die einzige Stelle, die die Nachinstanziierung einsetzt. Ein
+Feldzugriff braucht dagegen einen `IrPlace` und geht über `LowerPlace` daran vorbei.
+
+`Dim c As New K` gefolgt von `c.N` meldete deshalb Fehler 91, ohne Handler eine unbehandelte
+`NullReferenceException` — während ein Methodenaufruf auf derselben Variablen funktionierte.
+Betroffen waren Lesen, Schreiben und ein Arrayfeld, bei Locals wie bei Modulvariablen.
+
+### Warum es niemand gesehen hat
+
+Alle `As New`-Tests der Suite benutzen ein deklariertes `Property Get`, keiner ein nacktes
+`Public`-Feld. Und der VISIA-Korpus kann es nicht treffen: Er hat vier `As New`-Stellen, alle
+greifen über Methoden oder Properties zu — und er wird ohnehin nur analysiert, nicht ausgeführt.
+
+Das ist das fünfte Symptom der Doppelnatur des `Public`-Feldes, die in `CLAUDE.md` schon zweimal
+beschrieben stand: im Binder eine Property, im Emitter ein Feld, und hier ein Platz statt eines
+Ausdrucks. Die vier Zugriffsformen stehen jetzt als Inventar an der Fixstelle, weil nichts sonst
+eine fünfte bemerken würde.
+
+### Nachgemessen
+
+Nicht nur, dass kein Fehler mehr kommt, sondern dass es **dieselbe** Instanz ist: Eine Ensure ohne
+Rückschreiben hätte je Zugriff ein frisches Objekt erzeugt und Schreibzugriffe still verloren.
+Gemessen über Wert, Arrayfeld, Modulvariable, `Feld + Methode` gemischt und `ref Is d` — alles
+konsistent, und der Erzeugungszeitpunkt bleibt der erste Zugriff, nicht die Deklaration.
+
+Der Ausführungstest deckt alle vier Formen samt Zeitpunkt ab, ein IR-Test hält die
+Übersetzungsentscheidung fest. Beide gegen den zurückgenommenen Fix rot gesehen.
+
+**R2 ist damit wieder geschlossen** — die Etappe war seit der Neuplanung am selben Tag offen.
+`l1-02-i-object-members-lifecycle` steht wieder auf `implemented`. Offen bleiben die vier
+R1-Karten und R4 bis R7.

@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `9d7f100` mit nicht committeten Änderungen, Lauf `20260909T081125Z-4f757405`:
+Messung vom 2026-09-09 auf `main` / `eab06dc` mit nicht committeten Änderungen, Lauf `20260909T111221Z-2c4fac6f`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1828 Fälle: 1828 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1830 Fälle: 1830 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **148 implemented**, **3 partial** und **20 planned**;
-**151/171 documented-verified**, 20 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **150 implemented**, **2 partial** und **19 planned**;
+**152/171 documented-verified**, 19 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -204,6 +204,44 @@ Prozessende, weil eine native Seite den Zeiger unbegrenzt behalten darf.
 | `managed-r3-variant` | `PointerIntrinsicTests`, `VBAddressableCellTests`, `VariantStateTests` |
 | `managed-r3-callback-abi` | `DeclarePInvokeExecutionTests`, `AddressOfExecutionTests`, `VBCallbackRegistryTests` |
 
+### R2 — Deterministische Objektlebensdauer
+
+Geschlossen. Terminate erfolgt beim Wegfall der letzten Referenz; der vollständige Besitzvertrag
+mit seinen acht Familien und den sechs Abnahmeschritten steht in
+[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md).
+
+Die Etappe war zwischenzeitlich wieder offen. Nicht die Lebensdauer, sondern die **Erzeugung**:
+`l1-02-i-object-members-lifecycle` sagt „As New creates lazily" zu, und das hielt für drei der
+vier Zugriffsformen. Ein Zugriff auf ein `Public`-Feld instanziierte nicht nach — lesend,
+schreibend und über ein Arrayfeld, bei Locals wie bei Modulvariablen. Ursache war eine Zeile:
+Ein Feldzugriff braucht einen Platz und lief damit an der einzigen Stelle vorbei, die die
+Nachinstanziierung einsetzt. Die vier auslösenden Zugriffsformen stehen seither als Inventar an
+der Fixstelle, weil nichts sonst eine fünfte bemerken würde.
+
+Erzeugte Klassen sind über Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-,
+Array- und Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler,
+reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt. Für COM
+trägt jede Wertgrenze einen eigenen Helfer: direkte Aktivierung, fremdes Memberergebnis und
+geliehener Wert sind unterschiedliche Verträge, und ein late-bound CLR-Ergebnis ist keiner von
+beiden.
+
+Der Nachweis ist in drei Stufen geführt, weil jede allein zu wenig sagt. Der **native Zähler**
+wird gegen eine testeigene IUnknown-Identität gelesen: Jeder Übergang kehrt exakt auf seinen
+Ausgangswert zurück, erzwungene GC-Läufe bewegen nichts, ein Release ohne Retain ist folgenlos.
+Der **verwaltete Mithalter** überlebt Adoption und Freigabe durch VB6, weil Adoption einen Anteil
+am Wrapper verbraucht und jedes gemarshallte COM-Ergebnis seinen eigenen mitbringt. Und über die
+**Prozessgrenze** hält ein fremder Client den Server am Leben, nachdem die Runtime alle Slots
+geleert hat; erst seine Freigabe beendet ihn.
+
+Die Aussagegrenze steht ausdrücklich dabei: Die Zähler, die ein Client liest, gehören seinem
+Proxy, nicht dem Objekt im Server. Der Grenzfall einer Adoption ohne eigenen Anteil ist als Test
+festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, sondern als Wächter.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
+| `r2-asnew-field-instantiation` | `AsNewExecutionTests`, `ClassInstanceExecutionTests` |
+
 ## Abgenommene Teilverträge
 
 Hier stehen Etappen, deren Nachweise gemessen und gültig sind, die aber einen benannten Rest
@@ -249,50 +287,15 @@ abgenommen, statt einen Besitzvertrag zu erfinden.
 | `r1-grammar-array-option-base` | `ArrayExecutionTests` |
 | `r1-udt-nested-array-value-copy` | `FixedUdtArrayExecutionTests` |
 
-### R2 — Deterministische Objektlebensdauer
-
-Abgenommen. Terminate erfolgt beim Wegfall der letzten Referenz; `managed-r2-lifetime` steht
-unverändert als `implemented` / `documented-verified` in der Matrix. Der vollständige
-Besitzvertrag mit seinen acht Familien und den sechs Abnahmeschritten steht in
-[R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md).
-
-Offen ist nicht die Lebensdauer, sondern die **Erzeugung**: `l1-02-i-object-members-lifecycle`
-sagt „As New creates lazily" zu, und das hält für drei der vier Zugriffsformen. Ein Zugriff auf
-ein `Public`-Feld instanziiert nicht nach. Die Karte steht deshalb auf `partial`, der Befund als
-`r2-asnew-field-instantiation` in der Restliste.
-
-Erzeugte Klassen sind über Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-,
-Array- und Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler,
-reentrante Terminierung, Zyklen, `End` und referenzierte Projektassemblies abgedeckt. Für COM
-trägt jede Wertgrenze einen eigenen Helfer: direkte Aktivierung, fremdes Memberergebnis und
-geliehener Wert sind unterschiedliche Verträge, und ein late-bound CLR-Ergebnis ist keiner von
-beiden.
-
-Der Nachweis ist in drei Stufen geführt, weil jede allein zu wenig sagt. Der **native Zähler**
-wird gegen eine testeigene IUnknown-Identität gelesen: Jeder Übergang kehrt exakt auf seinen
-Ausgangswert zurück, erzwungene GC-Läufe bewegen nichts, ein Release ohne Retain ist folgenlos.
-Der **verwaltete Mithalter** überlebt Adoption und Freigabe durch VB6, weil Adoption einen Anteil
-am Wrapper verbraucht und jedes gemarshallte COM-Ergebnis seinen eigenen mitbringt. Und über die
-**Prozessgrenze** hält ein fremder Client den Server am Leben, nachdem die Runtime alle Slots
-geleert hat; erst seine Freigabe beendet ihn.
-
-Die Aussagegrenze steht ausdrücklich dabei: Die Zähler, die ein Client liest, gehören seinem
-Proxy, nicht dem Objekt im Server. Der Grenzfall einer Adoption ohne eigenen Anteil ist als Test
-festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, sondern als Wächter.
-
-| Karte | Nachweis |
-| --- | --- |
-| `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
-
 ## Aktive Restliste
 
-Die 20 folgenden Karten sind `planned` / `not-yet-verified`. Nur R0 ist geschlossen; R1 und R2
-stehen als abgenommene Teilverträge darüber und tauchen hier mit ihrem gemessenen Rest wieder auf.
+Die 19 folgenden Karten sind `planned` / `not-yet-verified`. R0, R2 und R3 sind geschlossen; R1
+steht als abgenommener Teilvertrag darüber und taucht hier mit seinem gemessenen Rest wieder auf.
 Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen legen
 die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben in der Matrix
 erhalten und werden nicht neu implementiert.
 
-Fünf dieser Karten sind am 2026-09-09 durch einen gemessenen Breitendurchgang dazugekommen — 54
+Vier dieser Karten sind am 2026-09-09 durch einen gemessenen Breitendurchgang dazugekommen — 54
 Einzelsonden durch `vb6c` und ein ausgeführtes Projekt. Sie sind alle vom selben Typ: Das Inventar
 einer Sammelkarte war aus den vorhandenen Tests gebildet statt aus den dokumentierten Formen, und
 belegte deshalb Qualität statt Vollständigkeit. Das ist der Fehler, gegen den die R1-Arbeitsweise
@@ -309,14 +312,6 @@ Sofort ausführbar; hängt an nichts Offenem.
 | `r1-intrinsics-doevents-return` | **`DoEvents` als Funktion:** Die Ausdrucksform liefert die Zahl offener Formulare statt `VB6S0010`; die klammerlose Anweisungsform bindet weiter. Ändert den `IVBHost`-Vertrag. |
 | `r1-strings-inputb` | **`InputB` als Byte-Geschwister von `Input`:** liest Bytes der Nutzlast, nicht UTF-16-Zeichen; Profilgrenze wie bei der übrigen Byte-Familie. |
 | `r1-grammar-stop-statement` | **`Stop` als Anweisung:** eigener Syntax-/Bound-Knoten, gesenkt wie `End`, weil eine kompilierte VB6-EXE bei `Stop` beendet. Kein `VB6S0005` mehr. |
-
-### R2 — Erzeugung bei `As New`
-
-Nach R1 nicht erforderlich; unabhängig ausführbar.
-
-| Karte | Ziel und Abnahme |
-| --- | --- |
-| `r2-asnew-field-instantiation` | **`As New` instanziiert auch beim Feldzugriff:** Der Zugriff auf ein `Public`-Feld ist eine erste Verwendung und erzeugt die Instanz — kein Fehler 91, keine unbehandelte `NullReferenceException`. Die vier auslösenden Zugriffsformen werden als Inventar festgehalten. |
 
 ### R4 — COM-Konsum, Emission und Binary Compatibility
 
