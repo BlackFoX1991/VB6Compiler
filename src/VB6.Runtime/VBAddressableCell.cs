@@ -591,6 +591,18 @@ public static class VBAddressableStorage
         }
     }
 
+    /// <summary>
+    /// Null-tolerant write for a module variable: its cell only comes into being at the
+    /// <c>VarPtr</c> site, so every store before that has nothing to synchronize.
+    /// </summary>
+    public static void WriteVariantIfPresent(object? storage, object? value)
+    {
+        if (storage is not null)
+        {
+            WriteVariant(storage, value);
+        }
+    }
+
     public static void WriteRecordIfPresent(object? storage, object value)
     {
         if (storage is not null)
