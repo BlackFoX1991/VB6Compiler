@@ -6,6 +6,37 @@ namespace VB6.Runtime.Tests;
 [TestClass]
 public sealed class VBArrayTests
 {
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativeSafeArrayBound
+    {
+        public NativeSafeArrayBound(uint elementCount, int lowerBound)
+        {
+            ElementCount = elementCount;
+            LowerBound = lowerBound;
+        }
+
+        public readonly uint ElementCount;
+        public readonly int LowerBound;
+    }
+
+    [DllImport("oleaut32.dll")]
+    private static extern IntPtr SafeArrayCreate(
+        ushort variantType,
+        uint dimensionCount,
+        [In] NativeSafeArrayBound[] bounds);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayPutElement(IntPtr safeArray, int[] indices, ref int value);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayAccessData(IntPtr safeArray, out IntPtr data);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayUnaccessData(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayDestroy(IntPtr safeArray);
+
     [TestMethod]
     public void Array_PreservesNonZeroLowerBounds()
     {
@@ -358,16 +389,110 @@ public sealed class VBArrayTests
     }
 
     [TestMethod]
-    public void ElementAddress_RefusesLayoutsItCannotPromise()
+    public void ElementAddress_UsesSafeArrayOrderForEveryScalarDimension()
     {
-        // Mehr als eine Dimension: Die physische Reihenfolge ist hier eine andere als die, die
-        // ein VB6-SAFEARRAY ablaeuft, also waere ein Zeiger ueber den Block irrefuehrend.
-        var rectangular = new VBArray<int>(new VBArrayBound(0, 1), new VBArrayBound(0, 1));
-        Assert.ThrowsException<NotSupportedException>(() => rectangular.GetElementNativeAddress(0));
+        var rectangular = new VBArray<int>(
+            new VBArrayBound(5, 6),
+            new VBArrayBound(10, 12));
+        rectangular[5, 10] = 1;
+        rectangular[6, 10] = 2;
+        rectangular[5, 11] = 3;
+
+        var first = rectangular.GetElementNativeAddress(5, 10);
+        Assert.AreEqual(4L, rectangular.GetElementNativeAddress(6, 10).ToInt64() - first.ToInt64());
+        Assert.AreEqual(8L, rectangular.GetElementNativeAddress(5, 11).ToInt64() - first.ToInt64());
+        Assert.AreEqual(1, Marshal.ReadInt32(first));
+        Assert.AreEqual(2, Marshal.ReadInt32(first, sizeof(int)));
+        Assert.AreEqual(3, Marshal.ReadInt32(first, 2 * sizeof(int)));
+
+        Marshal.WriteInt32(first, 2 * sizeof(int), 99);
+        Assert.AreEqual(99, rectangular[5, 11]);
+
+        var descriptor = rectangular.GetSafeArrayNativeAddress();
+        Assert.AreEqual(2, Marshal.ReadInt16(descriptor));
+        Assert.AreEqual(sizeof(int), Marshal.ReadInt32(descriptor, sizeof(int)));
+        var dataOffset = IntPtr.Size == sizeof(long) ? 16 : 12;
+        Assert.AreEqual(first, Marshal.ReadIntPtr(descriptor, dataOffset));
+        var boundsOffset = dataOffset + IntPtr.Size;
+        // OleAut32 stores the descriptor bounds rightmost first even though its API takes source
+        // indices leftmost first.  Reading the bytes makes that otherwise invisible ABI turn
+        // explicit and keeps the element-stride assertion above independent from this header.
+        Assert.AreEqual(3, Marshal.ReadInt32(descriptor, boundsOffset));
+        Assert.AreEqual(10, Marshal.ReadInt32(descriptor, boundsOffset + sizeof(int)));
+        Assert.AreEqual(2, Marshal.ReadInt32(descriptor, boundsOffset + 2 * sizeof(int)));
+        Assert.AreEqual(5, Marshal.ReadInt32(descriptor, boundsOffset + 3 * sizeof(int)));
 
         // Ein Referenzelement hat gar kein flaches Layout.
         var references = new VBArray<string>(new VBArrayBound(0, 1));
         Assert.ThrowsException<NotSupportedException>(() => references.GetElementNativeAddress(0));
+    }
+
+    [TestMethod]
+    public void ElementAddress_RefusesASubtypeThatIsWiderThanItsClrStorage()
+    {
+        // VB6 Boolean ist VT_BOOL, und der Deskriptor wuerde damit zwei Byte je Element ueber
+        // einem ein Byte breiten CLR-bool[] versprechen. Ein nativer Leser laeuft dann ueber das
+        // Ende des Puffers hinaus -- lautlos, weil ihn auf keiner Seite jemand prueft. Deshalb
+        // antwortet weder ein Element noch der Deskriptor.
+        var declared = new VBArray<bool>(null, (short)VarEnum.VT_BOOL, new VBArrayBound(0, 3));
+        Assert.ThrowsException<NotSupportedException>(() => declared.GetElementNativeAddress(0));
+        Assert.ThrowsException<NotSupportedException>(() => declared.GetSafeArrayNativeAddress());
+
+        // Ohne deklarierten Subtyp gibt es fuer bool ueberhaupt keine Zuordnung. Der Weg ueber die
+        // oeffentliche Runtime-API endet genauso, denn der Schutz sitzt hier und nicht im Lowerer.
+        var undeclared = new VBArray<bool>(new VBArrayBound(0, 3));
+        Assert.ThrowsException<NotSupportedException>(() => undeclared.GetElementNativeAddress(0));
+        Assert.ThrowsException<NotSupportedException>(
+            () => VBArrayOperations.ElementNativeAddress(undeclared, 0));
+    }
+
+    [TestMethod]
+    public void ElementAddress_AcceptsASubtypeWhoseWidthMatchesItsClrStorage()
+    {
+        // Gegenprobe zur Breitenregel: VT_DATE ist ein eigener Subtyp ueber demselben acht Byte
+        // breiten Double, VT_I2 einer ueber Short. Beide muessen weiter antworten -- sonst haette
+        // die Pruefung nur gelernt, alles Ungewohnte abzulehnen.
+        var dates = new VBArray<double>(null, (short)VarEnum.VT_DATE, new VBArrayBound(0, 1));
+        Assert.AreEqual(
+            (long)sizeof(double),
+            dates.GetElementNativeAddress(1).ToInt64() - dates.GetElementNativeAddress(0).ToInt64());
+
+        var integers = new VBArray<short>(null, (short)VarEnum.VT_I2, new VBArrayBound(0, 1));
+        Assert.AreEqual(
+            (long)sizeof(short),
+            integers.GetElementNativeAddress(1).ToInt64() -
+                integers.GetElementNativeAddress(0).ToInt64());
+    }
+
+    [TestMethod]
+    public void WindowsAutomation_DeclaresATwoByteElementForVtBool()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The VT_BOOL element width is a Windows Automation contract.");
+            return;
+        }
+
+        // Die Ablehnung oben steht auf zwei gemessenen Zahlen, nicht auf einer Annahme: was
+        // OleAut32 als cbElements fuer VT_BOOL eintraegt, und wie breit ein CLR-bool[] wirklich
+        // ist. Erst der Unterschied macht den Deskriptor unbrauchbar.
+        var safeArray = SafeArrayCreate((ushort)VarEnum.VT_BOOL, 1, [new NativeSafeArrayBound(2, 0)]);
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        try
+        {
+            // cbElements steht hinter cDims und fFeatures.
+            Assert.AreEqual(2, Marshal.ReadInt32(safeArray, 2 * sizeof(short)));
+        }
+        finally
+        {
+            Assert.AreEqual(0, SafeArrayDestroy(safeArray));
+        }
+
+        var managed = GC.AllocateArray<bool>(2, pinned: true);
+        Assert.AreEqual(
+            1L,
+            Marshal.UnsafeAddrOfPinnedArrayElement(managed, 1).ToInt64() -
+                Marshal.UnsafeAddrOfPinnedArrayElement(managed, 0).ToInt64());
     }
 
     [TestMethod]
@@ -379,10 +504,58 @@ public sealed class VBArrayTests
             VBArrayOperations.ElementNativeAddress(array, 1).ToInt64() -
                 VBArrayOperations.ElementNativeAddress(array, 0).ToInt64());
 
-        Assert.ThrowsException<InvalidOperationException>(
+        var unallocated = Assert.ThrowsException<VB6RuntimeErrorException>(
             () => VBArrayOperations.ElementNativeAddress(null, 0));
+        Assert.AreEqual(9, unallocated.Number);
+        Assert.AreEqual("Subscript out of range", unallocated.Message);
         Assert.ThrowsException<ArgumentException>(
             () => VBArrayOperations.ElementNativeAddress("kein Array", 0));
+    }
+
+    [TestMethod]
+    public void WindowsAutomation_SafeArrayDataAdvancesTheLeftmostDimensionFirst()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("SAFEARRAY layout is a Windows Automation contract.");
+            return;
+        }
+
+        var safeArray = SafeArrayCreate(
+            (ushort)VarEnum.VT_I4,
+            2,
+            [new NativeSafeArrayBound(2, 0), new NativeSafeArrayBound(3, 0)]);
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        try
+        {
+            var values = new[] { 1, 2, 3, 4, 5, 6 };
+            for (var right = 0; right < 3; right++)
+            {
+                for (var left = 0; left < 2; left++)
+                {
+                    var value = values[left + right * 2];
+                    Assert.AreEqual(0, SafeArrayPutElement(safeArray, [left, right], ref value));
+                }
+            }
+
+            Assert.AreEqual(0, SafeArrayAccessData(safeArray, out var data));
+            try
+            {
+                CollectionAssert.AreEqual(
+                    values,
+                    Enumerable.Range(0, values.Length)
+                        .Select(index => Marshal.ReadInt32(data, index * sizeof(int)))
+                        .ToArray());
+            }
+            finally
+            {
+                Assert.AreEqual(0, SafeArrayUnaccessData(safeArray));
+            }
+        }
+        finally
+        {
+            Assert.AreEqual(0, SafeArrayDestroy(safeArray));
+        }
     }
 
     private sealed class MutableValue
