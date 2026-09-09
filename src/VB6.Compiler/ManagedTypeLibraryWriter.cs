@@ -36,6 +36,13 @@ internal static class ManagedTypeLibraryWriter
     private const int InvokePropertyPut = 4;
     private const int InvokePropertyPutRef = 8;
 
+    private const int ParameterFlagNone = 0;           // PARAMFLAG_NONE
+    private const int ParameterFlagOptional = 0x0004;  // PARAMFLAG_FOPT
+    private const int ParameterFlagHasDefault = 0x0020; // PARAMFLAG_FHASDEFAULT
+
+    // Ein VARIANT ist auf x64 24 Bytes, nicht 16 -- seine Union traegt BRECORD mit zwei Zeigern.
+    private static readonly int VariantSize = IntPtr.Size == 8 ? 24 : 16;
+
     public static string Create(string managedAssemblyPath, ManagedPlatform platform)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(managedAssemblyPath);
@@ -53,7 +60,7 @@ internal static class ManagedTypeLibraryWriter
 
         var libraryName = Path.GetFileNameWithoutExtension(assemblyPath);
         var outputPath = Path.Combine(Path.GetDirectoryName(assemblyPath)!, libraryName + ".tlb");
-        var classes = ReadComClasses(assemblyPath);
+        var (version, classes) = ReadComAssembly(assemblyPath);
         if (classes.Count == 0)
         {
             throw new ManagedArtifactException(
@@ -73,7 +80,9 @@ internal static class ManagedTypeLibraryWriter
         {
             library.SetName(libraryName);
             library.SetGuid(DeriveIdentity(libraryName, "library", libraryName));
-            library.SetVersion(1, 0);
+            // Dieselben Zahlen wie die Assembly -- ein fruehgebundener Client bindet an sie, und
+            // zwei getrennt erfundene Versionen sind genau die Abweichung, die diese Karte verbietet.
+            library.SetVersion((ushort)version.Major, (ushort)version.Minor);
             library.SetLcid(0);
 
             foreach (var comClass in classes)
@@ -147,25 +156,52 @@ internal static class ManagedTypeLibraryWriter
 
     private static void AddMember(ICreateTypeInfo2 info, ComMember member, int index, int dispId)
     {
-        var parameterCount = member.ParameterTypes.Count;
+        var parameterCount = member.Parameters.Count;
         var elementSize = Marshal.SizeOf<ELEMDESC>();
         var parameters = parameterCount == 0
             ? IntPtr.Zero
             : Marshal.AllocCoTaskMem(elementSize * parameterCount);
         var descriptor = Marshal.AllocCoTaskMem(Marshal.SizeOf<FUNCDESC>());
         var names = new string[parameterCount + 1];
+        var defaults = new List<IntPtr>();
         names[0] = member.Name;
 
         try
         {
             for (var parameter = 0; parameter < parameterCount; parameter++)
             {
+                var described = member.Parameters[parameter];
+                var flags = described.IsOptional ? ParameterFlagOptional : ParameterFlagNone;
+                var defaultValue = IntPtr.Zero;
+                if (described.IsOptional && described.DefaultValue is not null)
+                {
+                    defaultValue = AllocateParameterDefault(described.DefaultValue);
+                    defaults.Add(defaultValue);
+                    flags |= ParameterFlagHasDefault;
+                }
+
                 var element = new ELEMDESC
                 {
-                    tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = member.ParameterTypes[parameter] }
+                    tdesc = new TYPEDESC { lpValue = IntPtr.Zero, vt = described.VariantType },
+                    desc = new ELEMDESC.DESCUNION
+                    {
+                        paramdesc = new PARAMDESC
+                        {
+                            lpVarValue = defaultValue,
+                            wParamFlags = (PARAMFLAG)flags
+                        }
+                    }
                 };
                 Marshal.StructureToPtr(element, IntPtr.Add(parameters, elementSize * parameter), false);
-                names[parameter + 1] = member.ParameterNames[parameter];
+                names[parameter + 1] = described.Name;
+            }
+
+            // cParamsOpt zaehlt die zusammenhaengende Reihe auslassbarer Argumente am Ende. Ein
+            // Client liest daran ab, wie viele er weglassen darf; steht hier 0, sind alle Pflicht.
+            var optional = 0;
+            for (var parameter = parameterCount - 1; parameter >= 0 && member.Parameters[parameter].IsOptional; parameter--)
+            {
+                optional++;
             }
 
             var function = new FUNCDESC
@@ -175,7 +211,7 @@ internal static class ManagedTypeLibraryWriter
                 invkind = (INVOKEKIND)member.InvokeKind,
                 callconv = CALLCONV.CC_STDCALL,
                 cParams = (short)parameterCount,
-                cParamsOpt = 0,
+                cParamsOpt = (short)optional,
                 oVft = 0,
                 cScodes = 0,
                 lprgelemdescParam = parameters,
@@ -204,7 +240,46 @@ internal static class ManagedTypeLibraryWriter
             {
                 Marshal.FreeCoTaskMem(parameters);
             }
+
+            foreach (var defaultValue in defaults)
+            {
+                FreeParameterDefault(defaultValue);
+            }
         }
+    }
+
+    /// <summary>
+    /// Allocates the <c>PARAMDESCEX</c> a PARAMFLAG_FHASDEFAULT parameter points at: a byte count
+    /// followed by the default as a VARIANT.
+    ///
+    /// The VARIANT starts at offset 8 in both bit widths -- its union carries a <c>double</c>, so
+    /// the field is 8-byte aligned and the 4-byte count is padded out. Written by hand rather than
+    /// as a struct because .NET has no PARAMDESCEX, and the value has to survive until LayOut.
+    /// </summary>
+    private static IntPtr AllocateParameterDefault(object value)
+    {
+        var variantOffset = 8;
+        var size = variantOffset + VariantSize;
+        var block = Marshal.AllocCoTaskMem(size);
+        for (var offset = 0; offset < size; offset++)
+        {
+            Marshal.WriteByte(block, offset, 0);
+        }
+
+        Marshal.WriteInt32(block, 0, size);
+        Marshal.GetNativeVariantForObject(value, IntPtr.Add(block, variantOffset));
+        return block;
+    }
+
+    private static void FreeParameterDefault(IntPtr block)
+    {
+        if (block == IntPtr.Zero)
+        {
+            return;
+        }
+
+        VariantClear(IntPtr.Add(block, 8));
+        Marshal.FreeCoTaskMem(block);
     }
 
     /// <summary>
@@ -229,7 +304,7 @@ internal static class ManagedTypeLibraryWriter
     /// architecture". Every ActiveX DLL built with COM hosting died there, with an unhandled
     /// exception rather than a diagnostic.
     /// </summary>
-    private static List<ComClass> ReadComClasses(string assemblyPath)
+    private static (Version Version, List<ComClass> Classes) ReadComAssembly(string assemblyPath)
     {
         var resolver = new PathAssemblyResolver(
             Directory.EnumerateFiles(Path.GetDirectoryName(assemblyPath)!, "*.dll")
@@ -263,8 +338,7 @@ internal static class ManagedTypeLibraryWriter
                         method.Name,
                         InvokeFunc,
                         ToVariantType(method.ReturnType),
-                        method.GetParameters().Select(parameter => ToVariantType(parameter.ParameterType)).ToList(),
-                        method.GetParameters().Select(parameter => parameter.Name ?? "value").ToList()));
+                        method.GetParameters().Select(ToComParameter).ToList()));
                 }
 
                 // Ein Public-Feld ist in VB6 ein Get/Let-Paar, im Emitter aber ein CLR-Feld mit
@@ -280,14 +354,15 @@ internal static class ManagedTypeLibraryWriter
                         field.Name,
                         InvokePropertyGet,
                         ToVariantType(field.FieldType),
-                        new List<short>(),
-                        new List<string>()));
+                        new List<ComParameter>()));
                     members.Add(new ComMember(
                         field.Name,
                         InvokePropertyPut,
                         (short)VarEnum.VT_VOID,
-                        new List<short> { ToVariantType(field.FieldType) },
-                        new List<string> { "value" }));
+                        new List<ComParameter>
+                        {
+                            new("value", ToVariantType(field.FieldType), false, null)
+                        }));
                 }
 
                 foreach (var property in type
@@ -296,12 +371,7 @@ internal static class ManagedTypeLibraryWriter
                 {
                     // Eine indizierte Property tragen beide Aufrufarten: der Getter die Indizes,
                     // der Setter die Indizes und dahinter den Wert.
-                    var indexTypes = property.GetIndexParameters()
-                        .Select(parameter => ToVariantType(parameter.ParameterType))
-                        .ToList();
-                    var indexNames = property.GetIndexParameters()
-                        .Select(parameter => parameter.Name ?? "index")
-                        .ToList();
+                    var indices = property.GetIndexParameters().Select(ToComParameter).ToList();
 
                     if (property.CanRead)
                     {
@@ -309,8 +379,7 @@ internal static class ManagedTypeLibraryWriter
                             property.Name,
                             InvokePropertyGet,
                             ToVariantType(property.PropertyType),
-                            indexTypes,
-                            indexNames));
+                            indices));
                     }
 
                     if (property.CanWrite)
@@ -319,15 +388,17 @@ internal static class ManagedTypeLibraryWriter
                             property.Name,
                             InvokePropertyPut,
                             (short)VarEnum.VT_VOID,
-                            new List<short>(indexTypes) { ToVariantType(property.PropertyType) },
-                            new List<string>(indexNames) { "value" }));
+                            new List<ComParameter>(indices)
+                            {
+                                new("value", ToVariantType(property.PropertyType), false, null)
+                            }));
                     }
                 }
 
                 classes.Add(new ComClass(type.Name.Replace("__vb6_class_", string.Empty, StringComparison.Ordinal), classId, members));
             }
 
-            return classes;
+            return (assembly.GetName().Version ?? new Version(1, 0, 0, 0), classes);
         }
     }
 
@@ -384,8 +455,24 @@ internal static class ManagedTypeLibraryWriter
         string Name,
         int InvokeKind,
         short ReturnType,
-        List<short> ParameterTypes,
-        List<string> ParameterNames);
+        List<ComParameter> Parameters);
+
+    private sealed record ComParameter(
+        string Name,
+        short VariantType,
+        bool IsOptional,
+        object? DefaultValue);
+
+    /// <summary>
+    /// One reflected parameter as the library describes it. The optionality comes from the
+    /// metadata the emitter writes, so an <c>Optional</c> in VB6 reaches a foreign client as
+    /// PARAMFLAG_FOPT rather than as a required argument.
+    /// </summary>
+    private static ComParameter ToComParameter(ParameterInfo parameter) => new(
+        parameter.Name ?? "value",
+        ToVariantType(parameter.ParameterType),
+        parameter.IsOptional,
+        parameter.HasDefaultValue ? parameter.RawDefaultValue : null);
 
     private sealed class TypeLibraryAssemblyLoadContext : System.Runtime.Loader.AssemblyLoadContext
     {
@@ -401,6 +488,9 @@ internal static class ManagedTypeLibraryWriter
             return path is null ? null : LoadFromAssemblyPath(path);
         }
     }
+
+    [DllImport("oleaut32.dll")]
+    private static extern int VariantClear(IntPtr variant);
 
     [DllImport("oleaut32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
     private static extern int CreateTypeLib2(
