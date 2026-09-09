@@ -18,6 +18,14 @@ param(
 
     [string] $ReportPath = 'artifacts/verification-report.json',
 
+    # Wie viele übersprungene Fälle das Gate noch verträgt. Ein übersprungener Fall ist kein
+    # bestandener -- dieselbe Regel, nach der ein fehlender nativer Lauf das Gate offen lässt.
+    # Die Suite hat über 130 Fälle, die sich selbst überspringen, wenn ihre Voraussetzung fehlt:
+    # der x86-Host, eine registrierte Fremdbibliothek, ein OCX, ein Dienst. Auf einer Maschine, wo
+    # etwas davon fehlt, läuft die Suite grün und misst weniger -- und genau das soll sichtbar
+    # sein statt still. Wer in einer solchen Umgebung baut, nennt die Zahl ausdrücklich.
+    [int] $MaxSkippedCases = 0,
+
     # Documents are never written by an ordinary build. This switch says so out loud, and it
     # refuses to stamp a document from a partial run.
     [switch] $UpdateVerificationDocs
@@ -161,7 +169,12 @@ function New-TestRunRecord {
     $record.total = [int]$counters.total
     $record.passed = [int]$counters.passed
     $record.failed = [int]$counters.failed + [int]$counters.error + [int]$counters.aborted + [int]$counters.timeout
-    $record.skipped = [int]$counters.notExecuted
+
+    # Nicht notExecuted: Ein Fall, der sich per Assert.Inconclusive überspringt, landet dort
+    # *nicht* -- gemessen steht er in keinem der Zählerattribute, nur die Differenz zwischen
+    # total und executed zeigt ihn. Vorher las diese Zeile notExecuted und meldete deshalb
+    # immer 0; der Bericht behauptete Skips zu zählen und tat es nie.
+    $record.skipped = [Math]::Max(0, [int]$counters.total - [int]$counters.executed)
 
     if ($ExitCode -ne 0) {
         $record.reason = "test process exited with $ExitCode"
@@ -202,7 +215,8 @@ function Get-VerificationRegions {
     $standardCases = ($standard | Measure-Object -Property total -Sum).Sum
     $standardPassed = ($standard | Measure-Object -Property passed -Sum).Sum
     $standardFailing = @($standard | Where-Object { $_.outcome -ne 'passed' })
-    $standardFailed = $standardCases - $standardPassed
+    $standardSkipped = [int](@($standard | Measure-Object -Property skipped -Sum).Sum)
+    $standardFailed = $standardCases - $standardPassed - $standardSkipped
     if ($standardFailed -lt 0) { $standardFailed = 0 }
 
     $standardLimitDe = 'Serieller Lauf über alle Testprojekte'
@@ -245,7 +259,7 @@ Messung vom $date auf ``$branch`` / ``$commit``$dirtyDe, Lauf ``$($Report.runId)
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | ``TreatWarningsAsErrors``: eine Warnung bricht den Build ab |
-| Standardlauf, $($standard.Count) Testprojekte | $standardCases Fälle: $standardPassed bestanden, $standardFailed fehlgeschlagen | $standardLimitDe |
+| Standardlauf, $($standard.Count) Testprojekte | $standardCases Fälle: $standardPassed bestanden, $standardFailed fehlgeschlagen, $standardSkipped übersprungen | $standardLimitDe |
 | Nativer x86-Lauf mit ``VB6_REQUIRE_NATIVE_OCX=1`` | $nativeResultDe | $nativeLimitDe |
 | VISIA-Analyse | $($Report.visia.analyzed)/$($Report.visia.items) Projektitems, $($Report.visia.errors) Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |$rerunRowsDe
 
@@ -264,7 +278,7 @@ Measured on $date at ``$commit`` on ``$branch``$dirtyEn, run ``$($Report.runId)`
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | ``TreatWarningsAsErrors``: one warning fails the build |
-| Standard serial run, $($standard.Count) test projects | $standardCases cases: $standardPassed passed, $standardFailed failed | $standardLimitEn |
+| Standard serial run, $($standard.Count) test projects | $standardCases cases: $standardPassed passed, $standardFailed failed, $standardSkipped skipped | $standardLimitEn |
 | Native x86 run with ``VB6_REQUIRE_NATIVE_OCX=1`` | $nativeResultEn | $nativeLimitEn |
 | VISIA analysis | $($Report.visia.analyzed)/$($Report.visia.items) project items, $($Report.visia.errors) diagnostics | Analysis and binding only, not application runtime behavior |$rerunRowsEn
 
@@ -556,7 +570,14 @@ try {
 
     # A filtered or project-restricted run measured a subset. It can fail the gate, never complete it.
     $partial = [bool]$Filter -or [bool]$Project
-    $standardComplete = $gateRuns.Count -gt 0 -and $failedGateRuns.Count -eq 0 -and $visia.outcome -eq 'passed' -and -not $partial
+
+    # A skipped case is not a passed one. The suite skips itself where a precondition is missing --
+    # an x86 host, a registered library, an OCX, a service -- and such a run is green while measuring
+    # less. The gate says so instead of hiding it; -MaxSkippedCases states an expectation out loud.
+    $skippedCases = [int](@($gateRuns | Measure-Object -Property skipped -Sum).Sum)
+    $skipsWithinExpectation = $skippedCases -le $MaxSkippedCases
+
+    $standardComplete = $gateRuns.Count -gt 0 -and $failedGateRuns.Count -eq 0 -and $visia.outcome -eq 'passed' -and -not $partial -and $skipsWithinExpectation
     $nativeRun = @($runs | Where-Object { $_.kind -eq 'native-x86' }) | Select-Object -First 1
     $nativeComplete = $null -ne $nativeRun -and $nativeRun.outcome -eq 'passed'
 
@@ -589,6 +610,9 @@ try {
         gate          = [ordered]@{
             standardComplete = $standardComplete
             nativeComplete   = $nativeComplete
+            skippedCases     = $skippedCases
+            maxSkippedCases  = $MaxSkippedCases
+            skipsWithinExpectation = $skipsWithinExpectation
             # A missing native run is not a passed native run.
             complete         = $standardComplete -and $nativeComplete
         }
@@ -608,10 +632,17 @@ try {
 
         $cases = ($inGroup | Measure-Object -Property total -Sum).Sum
         $passed = ($inGroup | Measure-Object -Property passed -Sum).Sum
+        $skipped = ($inGroup | Measure-Object -Property skipped -Sum).Sum
         $failing = @($inGroup | Where-Object { $_.outcome -ne 'passed' })
-        Write-Host "  $group : $cases case(s), $passed passed, $($failing.Count) project(s) not passing"
+        Write-Host "  $group : $cases case(s), $passed passed, $skipped skipped, $($failing.Count) project(s) not passing"
         foreach ($failure in $failing) {
             Write-Host "      $($failure.project): $($failure.reason)"
+        }
+
+        # Wo etwas übersprungen wurde, gehört der Name dazu -- eine Zahl allein sagt nicht, welche
+        # Voraussetzung auf dieser Maschine gefehlt hat.
+        foreach ($skipping in @($inGroup | Where-Object { $_.skipped -gt 0 })) {
+            Write-Host "      $($skipping.project): $($skipping.skipped) case(s) skipped"
         }
     }
 
@@ -622,6 +653,10 @@ try {
 
     if ($rerunRuns.Count -gt 0) {
         Write-Host '  reruns are recorded separately and never turn a failed overall run green.'
+    }
+
+    if (-not $skipsWithinExpectation) {
+        Write-Host "  skipped: $skippedCases case(s) over the expected $MaxSkippedCases. A skipped case is not a passed one; the gate stays incomplete."
     }
 
     Write-Host "  gate complete: $($report.gate.complete)"

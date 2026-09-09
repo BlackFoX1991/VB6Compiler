@@ -228,6 +228,16 @@ Wo eine Übersetzungsentscheidung geprüft werden soll statt der Ausgabe, wird g
 Der Skriptpfad baut seriell und testet die 13 Projekte einzeln; ein solutionweiter `dotnet test`
 startet die E2E-Projekte parallel und ist deshalb kein kanonischer Messlauf.
 
+**Ein übersprungener Fall ist kein bestandener.** Über 130 Fälle überspringen sich selbst, wenn
+ihre Voraussetzung fehlt — der x86-Host, eine registrierte Fremdbibliothek, ein OCX, ein Dienst.
+Auf einer Maschine ohne diese Dinge läuft die Suite grün und misst weniger. Seit 09/2026 zählt
+`build.ps1` die Skips pro Projekt, nennt sie in der Konsole und im Laufbericht, und das Gate fällt,
+sobald ihre Zahl `-MaxSkippedCases` (Vorgabe 0) übersteigt — dieselbe Regel, nach der ein fehlender
+nativer Lauf das Gate offen lässt. Der Build schlägt deswegen **nicht** fehl; die Vollständigkeits-
+zusage fällt. Wer in einer Umgebung baut, in der etwas legitim fehlt, nennt die Zahl ausdrücklich.
+Die Zählung kommt aus `total - executed`: Ein `Assert.Inconclusive` landet **nicht** in
+`notExecuted`, und genau deshalb meldete der Bericht davor immer 0.
+
 **Wenn Tests mit `FileLoadException` scheitern, ist es kein Testfehler.** Meldungen wie
 `Could not load file or assembly ... Zugriff verweigert` oder `... Falscher Parameter
 (E_INVALIDARG)` betreffen die nach `tests/*/bin/` kopierten Projekt-DLLs. Die Dateien sind
@@ -272,7 +282,7 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-09 auf `9c133f3` mit nicht committeten Änderungen: 1853 Standardfälle in 13 Projekten,
+Stand der Prüfung 2026-09-09 auf `d2da853` mit nicht committeten Änderungen: 1853 Standardfälle in 13 Projekten,
 1853 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.

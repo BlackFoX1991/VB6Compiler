@@ -8811,3 +8811,28 @@ schnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander au
 ein eigenes `IDispatch` für die erzeugten Klassen — berührt jede COM-gehostete Klasse. Das als
 Anhängsel einer Metadatenkarte zu erledigen wäre genau die Art von Sammelkarte, an der R1 und R2
 schon einmal gescheitert sind.
+
+## Die Skip-Schranke, und der Zähler, der nie zählte
+
+Der Laufbericht führte seit R0 ein Feld `skipped` pro Projekt. Es stand immer auf 0 — auch dann,
+wenn Fälle übersprungen wurden. Gemessen mit einem Wegwerftest, der nichts tut als
+`Assert.Inconclusive`: Die TRX-Zähler zeigen `inconclusive="0"` und `notExecuted="0"`, aber
+`total="4"` bei `executed="3"`. Ein übersprungener Fall steht in **keinem** Zählerattribut; nur die
+Differenz zeigt ihn. Die Zeile las `notExecuted` und meldete deshalb dauerhaft 0. Der Bericht
+behauptete etwas zu zählen und tat es nie.
+
+Jetzt kommt die Zahl aus `total - executed`, sie steht pro Projekt in der Konsole und im Bericht,
+und das Gate fällt, sobald sie `-MaxSkippedCases` übersteigt — Vorgabe 0. Das ist dieselbe Regel
+wie beim nativen Lauf: Ein fehlender Nachweis ist kein erbrachter. Der Build schlägt deswegen
+nicht fehl; die Vollständigkeitszusage fällt, und die Konsole sagt, welches Projekt wie viel
+übersprungen hat.
+
+Beide Richtungen gemessen: Mit einem absichtlich überspringenden Fall steht `standardComplete` auf
+`False` und die Konsole nennt Projekt und Zahl; mit `-MaxSkippedCases 1` steht sie wieder auf
+`True`. Auf dieser Maschine überspringt derzeit nichts — die 136 skipfähigen Fälle finden alle
+ihre Voraussetzung.
+
+Das trifft vor allem CI: Dort fehlen MSCOMCTL, die RichTextBox-Typbibliothek und die
+VB6-Redistributables, und seit dieser Runde auch die frisch dazugekommenen R4-Abnahmen, die einen
+x86-Host, `stdole2.tlb` oder einen registrierten Dienst brauchen. Der nächste CI-Lauf zeigt zum
+ersten Mal, wie viel dort tatsächlich übersprungen wird, statt es grün zu verschweigen.
