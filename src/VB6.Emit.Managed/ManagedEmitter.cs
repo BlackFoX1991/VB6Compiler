@@ -1224,6 +1224,13 @@ public sealed class ManagedEmitter
                     encoder.LoadConstantI4(0);
                     encoder.OpCode(ILOpCode.Conv_i);
                 }
+                else if (pair.Key.Type == TypeSymbol.Variant)
+                {
+                    // Ein frischer Variant ist Empty, und Empty ist die Nullreferenz. Der
+                    // Durchfall auf ldc.i4.0 wuerde hier einen int32 gegen einen object-Parameter
+                    // stellen -- kein Uebersetzungsfehler, sondern eine ungueltige Assembly.
+                    encoder.OpCode(ILOpCode.Ldnull);
+                }
                 else
                 {
                     encoder.LoadConstantI4(0);
@@ -1566,6 +1573,11 @@ public sealed class ManagedEmitter
             switch (place)
             {
                 case IrLocalPlace local:
+                    // Die Zellensynchronisation haengt am Speicherplatz, nicht am Weg dorthin.
+                    // Sie stand frueher nur hinter dem gewoehnlichen Store, und der
+                    // lebensdauerverwaltete Zweig sprang mit break daran vorbei -- unsichtbar,
+                    // solange keine adressierbare Familie auch Lebensdauer trug. Ein Variant
+                    // traegt beides, und seine Zelle blieb dadurch stumm auf VT_EMPTY stehen.
                     if (TracksLifetimeStorage(local.Type))
                     {
                         EmitLifetimeAwareStore(
@@ -1575,10 +1587,13 @@ public sealed class ManagedEmitter
                             value,
                             () => encoder.LoadLocal(local.Local.Id),
                             () => encoder.StoreLocal(local.Local.Id));
-                        break;
                     }
-                    EmitExpressionWithAssignmentConversion(encoder, procedure, value, local.Type);
-                    encoder.StoreLocal(local.Local.Id);
+                    else
+                    {
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, local.Type);
+                        encoder.StoreLocal(local.Local.Id);
+                    }
+
                     if (TryGetAddressableCell(procedure, local.Local, out var cell))
                     {
                         encoder.LoadLocal(cell.Id);
@@ -1597,10 +1612,13 @@ public sealed class ManagedEmitter
                             value,
                             () => encoder.LoadArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index)),
                             () => encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index)));
-                        break;
                     }
-                    EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
-                    encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                    else
+                    {
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, parameter.Type);
+                        encoder.StoreArgument(GetIlArgumentIndex(procedure, parameter.Parameter.Index));
+                    }
+
                     if (TryGetAddressableCell(procedure, parameter.Parameter, out var parameterStoreCell))
                     {
                         encoder.LoadLocal(parameterStoreCell.Id);
@@ -1651,11 +1669,14 @@ public sealed class ManagedEmitter
                                 encoder.OpCode(ILOpCode.Stsfld);
                                 encoder.Token(_globalHandles[global.Global]);
                             });
-                        break;
                     }
-                    EmitExpressionWithAssignmentConversion(encoder, procedure, value, global.Type);
-                    encoder.OpCode(ILOpCode.Stsfld);
-                    encoder.Token(_globalHandles[global.Global]);
+                    else
+                    {
+                        EmitExpressionWithAssignmentConversion(encoder, procedure, value, global.Type);
+                        encoder.OpCode(ILOpCode.Stsfld);
+                        encoder.Token(_globalHandles[global.Global]);
+                    }
+
                     if (TryGetGlobalCell(global.Global, out var globalStoreCell))
                     {
                         encoder.OpCode(ILOpCode.Ldsfld);
@@ -2482,6 +2503,10 @@ public sealed class ManagedEmitter
                 ? ("Date", typeof(double))
                 : type == TypeSymbol.Currency
                 ? ("Currency", typeof(VBCurrency))
+                // Ein Variant reist ohnehin als object: Der CLR-Platz und der Zellenparameter
+                // haben denselben Typ, es wird also nichts geboxt und nichts konvertiert.
+                : type == TypeSymbol.Variant
+                ? ("Variant", typeof(object))
                 // Ein Datensatz reist als object durch die Runtime: Die Zelle kann nicht ueber
                 // den erzeugten Structtyp generisch sein, den es beim Uebersetzen der Runtime
                 // noch nicht gibt.
