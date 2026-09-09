@@ -59,12 +59,14 @@ public interface IVBArray : IVBObjectLifetimeContainer
     IVBArray CloneStorage();
 
     /// <summary>
-    /// The native address of one element, for a stored VB6 <c>VarPtr</c>. Answering it moves the
-    /// element storage somewhere the collector will not move it again, so the address stays good
-    /// for the life of this array. Rank must be one: the physical order of a higher-rank array is
-    /// this implementation's, not the one a VB6 SAFEARRAY walks.
+    /// The native address of one element, for a stored VB6 <c>VarPtr</c>. Answering it
+    /// materializes the one native SAFEARRAY storage used by both element and whole-array
+    /// pointers, so the address stays good for the life of this array.
     /// </summary>
-    IntPtr GetElementNativeAddress(int index);
+    IntPtr GetElementNativeAddress(params int[] indices);
+
+    /// <summary>Returns the native SAFEARRAY descriptor owned by this VB6 array.</summary>
+    IntPtr GetSafeArrayNativeAddress();
 }
 
 /// <summary>
@@ -72,15 +74,19 @@ public interface IVBArray : IVBObjectLifetimeContainer
 /// lower bound so Option Base, LBound/UBound and ReDim can be implemented without losing VB6
 /// semantics.
 /// </summary>
-public sealed class VBArray<T> : IVBArray
+public sealed class VBArray<T> : IVBArray, IDisposable
 {
     private readonly VBArrayBound[] _bounds;
-    // Nicht readonly: Sobald jemand die Adresse eines Elements speichert, wandert der Inhalt in
-    // einen unbeweglichen Puffer, und dieses Feld zeigt danach dorthin.
+    // Nicht readonly: Beim ersten gespeicherten Pointer wandert der Inhalt in einen pinned
+    // Puffer. Der SAFEARRAY-Descriptor zeigt dann auf genau diesen einen Speicher.
     private T[] _items;
-    private bool _immovable;
+    private bool _safeArrayOrder;
+    private IntPtr _safeArray;
     private readonly string? _elementTypeName;
     private readonly short _elementVarType;
+
+    private const ushort SafeArrayStatic = 0x0002;
+    private static readonly int SafeArrayDataOffset = IntPtr.Size == sizeof(long) ? 16 : 12;
 
     public VBArray(params VBArrayBound[] bounds)
         : this(null, 0, bounds)
@@ -132,16 +138,16 @@ public sealed class VBArray<T> : IVBArray
     public ref T this[params int[] indices] => ref _items[GetOffset(indices)];
 
     /// <summary>
-    /// Returns one value by physical array order. The IR uses this for For Each so enumeration can
-    /// be lowered to ordinary basic blocks without making IEnumerable an IR-level concept.
+    /// Returns one value in VB array order. The IR uses this for For Each so enumeration can be
+    /// lowered to ordinary basic blocks without making IEnumerable an IR-level concept.
     /// </summary>
-    public T GetValueAtFlatIndex(int index) => _items[index];
+    public T GetValueAtFlatIndex(int index) => _items[GetPhysicalOffsetForFlatIndex(index)];
 
     /// <summary>
-    /// Returns a writable reference by physical array order. Record I/O uses this when a dynamic
-    /// array member has to be populated element by element after its descriptor is read.
+    /// Returns a writable reference in VB array order. Record I/O uses this when a dynamic array
+    /// member has to be populated element by element after its descriptor is read.
     /// </summary>
-    public ref T GetReferenceAtFlatIndex(int index) => ref _items[index];
+    public ref T GetReferenceAtFlatIndex(int index) => ref _items[GetPhysicalOffsetForFlatIndex(index)];
 
     /// <summary>
     /// Stores a borrowed object reference in an array slot. Retaining before releasing is the
@@ -181,29 +187,32 @@ public sealed class VBArray<T> : IVBArray
 
     /// <summary>Flat-index version used by compiler paths that already resolved VB6 bounds.</summary>
     public void ReplaceReferenceAtFlatIndex(int index, T value) =>
-        ReplaceReferenceAtOffset(index, value, transferOwnership: false);
+        ReplaceReferenceAtOffset(GetPhysicalOffsetForFlatIndex(index), value, transferOwnership: false);
 
     /// <summary>Flat-index version that adopts a New/function-result reference.</summary>
     public void TransferReferenceAtFlatIndex(int index, T value) =>
-        ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+        ReplaceReferenceAtOffset(GetPhysicalOffsetForFlatIndex(index), value, transferOwnership: true);
 
     /// <summary>Flat-index form of <see cref="TransferComActivationReference"/>.</summary>
     public void TransferComActivationReferenceAtFlatIndex(int index, T value)
     {
         VBObjectLifetime.AdoptComActivation(value);
-        ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+        ReplaceReferenceAtOffset(GetPhysicalOffsetForFlatIndex(index), value, transferOwnership: true);
     }
 
     /// <summary>Flat-index form of <see cref="ReplaceComMemberResultReference"/>.</summary>
     public void ReplaceComMemberResultReferenceAtFlatIndex(int index, T value)
     {
         VBObjectLifetime.RetainOrAdoptComResult(value);
-        ReplaceReferenceAtOffset(index, value, transferOwnership: true);
+        ReplaceReferenceAtOffset(GetPhysicalOffsetForFlatIndex(index), value, transferOwnership: true);
     }
 
     /// <summary>Flat-index form of <see cref="ReplaceCopiedVariant"/>.</summary>
     public void ReplaceCopiedVariantAtFlatIndex(int index, T value) =>
-        ReplaceReferenceAtOffset(index, value, transferOwnership: value is IVBArray);
+        ReplaceReferenceAtOffset(
+            GetPhysicalOffsetForFlatIndex(index),
+            value,
+            transferOwnership: value is IVBArray);
 
     object? IVBArray.GetObjectValue(int[] indices) => this[indices];
 
@@ -215,7 +224,11 @@ public sealed class VBArray<T> : IVBArray
 
     void IVBObjectLifetimeContainer.RetainObjectReferences() => RetainElements();
 
-    void IVBObjectLifetimeContainer.ReleaseObjectReferences() => ReleaseElements();
+    void IVBObjectLifetimeContainer.ReleaseObjectReferences()
+    {
+        ReleaseElements();
+        DisposeNativeSafeArray();
+    }
 
     IVBArray IVBArray.CloneStorage() => Clone();
 
@@ -252,14 +265,17 @@ public sealed class VBArray<T> : IVBArray
         var clone = new VBArray<T>(elementTypeName, elementVarType, _bounds);
         if (elementCloner is null)
         {
-            Array.Copy(_items, clone._items, _items.Length);
+            for (var index = 0; index < _items.Length; index++)
+            {
+                clone._items[index] = GetValueAtFlatIndex(index);
+            }
             clone.RetainElements();
             return clone;
         }
 
         for (var index = 0; index < _items.Length; index++)
         {
-            clone._items[index] = elementCloner(_items[index]);
+            clone._items[index] = elementCloner(GetValueAtFlatIndex(index));
             VBObjectLifetime.Retain(clone._items[index]);
         }
 
@@ -267,15 +283,15 @@ public sealed class VBArray<T> : IVBArray
     }
 
     /// <summary>
-    /// Enumerates array values in VB array order. The rightmost dimension advances first, which is
-    /// also the physical order used by the current storage mapping. Values are returned by value so
-    /// a For Each control variable cannot accidentally alias an array slot by reference.
+    /// Enumerates array values in VB array order. The rightmost dimension advances first. Native
+    /// SAFEARRAY storage uses the complementary physical order, so this intentionally goes
+    /// through the order mapper instead of exposing the backing buffer.
     /// </summary>
     public IEnumerable<T> EnumerateValues()
     {
         for (var index = 0; index < _items.Length; index++)
         {
-            yield return _items[index];
+            yield return GetValueAtFlatIndex(index);
         }
     }
 
@@ -313,28 +329,22 @@ public sealed class VBArray<T> : IVBArray
         }
 
         var resized = new VBArray<T>(_elementTypeName, _elementVarType, bounds);
-        var oldLastLength = _bounds[lastDimension].Length;
-        var newLastLength = bounds[lastDimension].Length;
-        var preservedLastLength = Math.Min(oldLastLength, newLastLength);
-        var rows = 1;
-        for (var dimension = 0; dimension < Rank - 1; dimension++)
-        {
-            rows = checked(rows * _bounds[dimension].Length);
-        }
+        var preservedLastLength = Math.Min(_bounds[lastDimension].Length, bounds[lastDimension].Length);
 
-        if (oldLastLength == 0 || newLastLength == 0)
+        if (preservedLastLength == 0)
         {
             return resized;
         }
 
-        for (var row = 0; row < rows; row++)
+        var indices = _bounds.Select(bound => bound.Lower).ToArray();
+        for (var index = 0; index < Length; index++)
         {
-            Array.Copy(
-                _items,
-                row * oldLastLength,
-                resized._items,
-                row * newLastLength,
-                preservedLastLength);
+            if (indices[lastDimension] - _bounds[lastDimension].Lower < preservedLastLength)
+            {
+                resized._items[resized.GetOffset(indices)] = GetValueAtFlatIndex(index);
+            }
+
+            IncrementIndices(indices);
         }
 
         return resized;
@@ -393,42 +403,240 @@ public sealed class VBArray<T> : IVBArray
     }
 
     /// <summary>
-    /// Moves the elements into the pinned object heap and answers the address of one of them.
-    ///
-    /// The elements are reached as <c>ref T</c> everywhere else, so there is nothing to mirror
-    /// and nothing to keep in step: making the one storage immovable is what a stored pointer
-    /// needs. A copy that lived beside the array would go stale the moment anything wrote through
-    /// a second reference to it, and an array reference travels.
-    ///
-    /// ReDim Preserve builds a new array and leaves this one behind, which is exactly VB6's rule
-    /// that a reallocation ends the old pointer's life. Erase clears in place and keeps it.
+    /// Returns the native address of an element in the shared SAFEARRAY backing store.  There is
+    /// deliberately no mirror: ordinary VB reads and writes still reach <see cref="_items"/>, and
+    /// the descriptor names that same pinned storage.  A foreign write is therefore visible at
+    /// the next managed access without a compiler-side synchronization point.
     /// </summary>
-    public IntPtr GetElementNativeAddress(int index)
+    public IntPtr GetElementNativeAddress(params int[] indices)
     {
-        if (Rank != 1)
-        {
-            throw new NotSupportedException(
-                "A stored element pointer is defined for a one-dimensional VB6 array.");
-        }
-
-        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-        {
-            throw new NotSupportedException(
-                $"VB6 array elements of type '{typeof(T).Name}' have no flat native layout.");
-        }
-
-        var offset = GetOffset([index]);
-        if (!_immovable)
-        {
-            var pinned = GC.AllocateArray<T>(_items.Length, pinned: true);
-            Array.Copy(_items, pinned, _items.Length);
-            _items = pinned;
-            _immovable = true;
-        }
-
+        ArgumentNullException.ThrowIfNull(indices);
+        _ = GetOffset(indices); // validate before allocating native state
+        EnsureNativeSafeArray();
         return _items.Length == 0
             ? IntPtr.Zero
-            : Marshal.UnsafeAddrOfPinnedArrayElement(_items, offset);
+            : Marshal.UnsafeAddrOfPinnedArrayElement(_items, GetOffset(indices));
+    }
+
+    /// <summary>
+    /// Returns the SAFEARRAY descriptor rather than its data buffer.  This is the whole-array
+    /// <c>VarPtr</c> contract; callers that need an element address use
+    /// <see cref="GetElementNativeAddress(int[])"/> instead.
+    /// </summary>
+    public IntPtr GetSafeArrayNativeAddress()
+    {
+        EnsureNativeSafeArray();
+        return _safeArray;
+    }
+
+    /// <summary>Releases a descriptor owned by this array; the pinned CLR buffer remains CLR-owned.</summary>
+    public void Dispose()
+    {
+        DisposeNativeSafeArray();
+        GC.SuppressFinalize(this);
+    }
+
+    ~VBArray() => DisposeNativeSafeArray();
+
+    private void EnsureNativeSafeArray()
+    {
+        if (_safeArray != IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("SAFEARRAY addressable storage requires Windows Automation.");
+        }
+
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() ||
+            !TryGetNativeSafeArrayElementType(out var elementType))
+        {
+            throw new NotSupportedException(
+                $"VB6 array elements of type '{typeof(T).Name}' have no shared flat SAFEARRAY layout.");
+        }
+
+        // SAFEARRAY data advances the leftmost VB dimension first.  Existing arrays use the
+        // rightmost-first order for managed enumeration, so transpose exactly once while moving
+        // into the pinned backing buffer.  Every subsequent index lookup selects this layout.
+        var pinned = GC.AllocateArray<T>(_items.Length, pinned: true);
+        for (var index = 0; index < _items.Length; index++)
+        {
+            pinned[GetSafeArrayOffsetForFlatIndex(index)] = _items[index];
+        }
+
+        var bounds = _bounds
+            .Select(bound => new VBArrayNativeStorage.SafeArrayBound((uint)bound.Length, bound.Lower))
+            .ToArray();
+        var safeArray = VBArrayNativeStorage.SafeArrayCreate(elementType, (uint)Rank, bounds);
+        if (safeArray == IntPtr.Zero)
+        {
+            throw new OutOfMemoryException("Windows Automation could not allocate a SAFEARRAY descriptor.");
+        }
+
+        try
+        {
+            ThrowIfSafeArrayFailure(
+                VBArrayNativeStorage.SafeArrayDestroyData(safeArray),
+                "release the transient SAFEARRAY data buffer");
+            var features = unchecked((ushort)Marshal.ReadInt16(safeArray, sizeof(short)));
+            Marshal.WriteInt16(safeArray, sizeof(short), unchecked((short)(features | SafeArrayStatic)));
+            Marshal.WriteIntPtr(
+                safeArray,
+                SafeArrayDataOffset,
+                pinned.Length == 0 ? IntPtr.Zero : Marshal.UnsafeAddrOfPinnedArrayElement(pinned, 0));
+            _items = pinned;
+            _safeArrayOrder = true;
+            _safeArray = safeArray;
+        }
+        catch
+        {
+            _ = VBArrayNativeStorage.SafeArrayDestroy(safeArray);
+            throw;
+        }
+    }
+
+    private void DisposeNativeSafeArray()
+    {
+        var safeArray = Interlocked.Exchange(ref _safeArray, IntPtr.Zero);
+        if (safeArray != IntPtr.Zero)
+        {
+            // FADF_STATIC says the descriptor does not own pvData, which is a pinned CLR array.
+            _ = VBArrayNativeStorage.SafeArrayDestroy(safeArray);
+        }
+    }
+
+    /// <summary>
+    /// Chooses the SAFEARRAY element type for the pinned CLR buffer and refuses every VARTYPE
+    /// whose native element width disagrees with that buffer.
+    ///
+    /// The descriptor hands out memory the CLR owns, so a VARTYPE is only usable when its
+    /// <c>cbElements</c> is exactly the stride of the backing array. VB6 <c>Boolean</c> is why
+    /// this is more than bookkeeping: it is declared <c>VT_BOOL</c>, whose element is two bytes,
+    /// while the storage is a one-byte CLR <see cref="bool"/>. A descriptor built from the
+    /// declared type alone would advertise twice the memory that exists, and a native reader
+    /// would walk off the end of the buffer -- silently, because nothing on either side checks.
+    ///
+    /// Width is therefore the rule, not a list of excluded types: BSTR, VARIANT and the
+    /// interface pointers are refused because they have no flat width at all, and a mismatch is
+    /// refused rather than repaired. A declared element type is the contract; disagreeing with
+    /// it is never fixed by quietly substituting a different one.
+    /// </summary>
+    private bool TryGetNativeSafeArrayElementType(out ushort elementType)
+    {
+        elementType = _elementVarType is > 0 and <= 0x0FFF
+            ? unchecked((ushort)_elementVarType)
+            : GetClrSafeArrayElementType();
+        return elementType != 0 &&
+            GetNativeSafeArrayElementSize(elementType) == Unsafe.SizeOf<T>();
+    }
+
+    private static ushort GetClrSafeArrayElementType()
+    {
+        var type = typeof(T);
+        if (type.IsEnum)
+        {
+            type = Enum.GetUnderlyingType(type);
+        }
+
+        return type == typeof(byte) ? (ushort)VarEnum.VT_UI1
+            : type == typeof(sbyte) ? (ushort)VarEnum.VT_I1
+            : type == typeof(short) ? (ushort)VarEnum.VT_I2
+            : type == typeof(ushort) ? (ushort)VarEnum.VT_UI2
+            : type == typeof(int) ? (ushort)VarEnum.VT_I4
+            : type == typeof(uint) ? (ushort)VarEnum.VT_UI4
+            : type == typeof(long) ? (ushort)VarEnum.VT_I8
+            : type == typeof(ulong) ? (ushort)VarEnum.VT_UI8
+            : type == typeof(float) ? (ushort)VarEnum.VT_R4
+            : type == typeof(double) ? (ushort)VarEnum.VT_R8
+            : type == typeof(IntPtr) ? (ushort)(IntPtr.Size == sizeof(int)
+                ? (ushort)VarEnum.VT_I4
+                : (ushort)VarEnum.VT_I8)
+            : type == typeof(VBCurrency) ? (ushort)VarEnum.VT_CY
+            : (ushort)0;
+    }
+
+    /// <summary>
+    /// The native <c>cbElements</c> of one SAFEARRAY element, or zero for a VARTYPE that has no
+    /// flat fixed-width layout to share with a CLR array.
+    ///
+    /// <c>VT_BOOL</c> is listed with its real two bytes on purpose. Leaving it out would reject
+    /// it as well, but for the wrong reason: it is a perfectly known Automation type, and what
+    /// disqualifies it here is that VB6 <c>Boolean</c> is stored one byte wide. Naming its true
+    /// width keeps the rejection honest and survives a future two-byte representation.
+    /// </summary>
+    private static int GetNativeSafeArrayElementSize(ushort elementType) => elementType switch
+    {
+        (ushort)VarEnum.VT_I1 or (ushort)VarEnum.VT_UI1 => 1,
+        (ushort)VarEnum.VT_I2 or (ushort)VarEnum.VT_UI2 or (ushort)VarEnum.VT_BOOL => 2,
+        (ushort)VarEnum.VT_I4 or (ushort)VarEnum.VT_UI4 or (ushort)VarEnum.VT_R4 => 4,
+        (ushort)VarEnum.VT_I8 or (ushort)VarEnum.VT_UI8 or (ushort)VarEnum.VT_R8 or
+            (ushort)VarEnum.VT_DATE or (ushort)VarEnum.VT_CY => 8,
+        _ => 0
+    };
+
+    private static void ThrowIfSafeArrayFailure(int hresult, string operation)
+    {
+        if (hresult < 0)
+        {
+            Marshal.ThrowExceptionForHR(hresult, new IntPtr(-1));
+            throw new InvalidOperationException($"SAFEARRAY could not {operation}.");
+        }
+    }
+
+    private int GetPhysicalOffsetForFlatIndex(int index) =>
+        _safeArrayOrder ? GetSafeArrayOffsetForFlatIndex(index) : ValidateFlatIndex(index);
+
+    private int GetSafeArrayOffsetForFlatIndex(int index)
+    {
+        index = ValidateFlatIndex(index);
+        if (Rank == 1)
+        {
+            return index;
+        }
+
+        Span<int> relativeIndices = stackalloc int[Rank];
+        var remainder = index;
+        for (var dimension = Rank - 1; dimension >= 0; dimension--)
+        {
+            relativeIndices[dimension] = remainder % _bounds[dimension].Length;
+            remainder /= _bounds[dimension].Length;
+        }
+
+        var offset = 0;
+        var stride = 1;
+        for (var dimension = 0; dimension < Rank; dimension++)
+        {
+            offset = checked(offset + checked(relativeIndices[dimension] * stride));
+            stride = checked(stride * _bounds[dimension].Length);
+        }
+
+        return offset;
+    }
+
+    private int ValidateFlatIndex(int index)
+    {
+        if ((uint)index >= (uint)_items.Length)
+        {
+            throw new IndexOutOfRangeException($"Array index {index} is outside the allocated storage.");
+        }
+
+        return index;
+    }
+
+    private void IncrementIndices(int[] indices)
+    {
+        for (var dimension = Rank - 1; dimension >= 0; dimension--)
+        {
+            if (indices[dimension] < _bounds[dimension].Upper)
+            {
+                indices[dimension]++;
+                return;
+            }
+
+            indices[dimension] = _bounds[dimension].Lower;
+        }
     }
 
     private int GetOffset(int[] indices)
@@ -439,11 +647,15 @@ public sealed class VBArray<T> : IVBArray
             throw new IndexOutOfRangeException($"Expected {Rank} array subscript(s), got {indices.Length}.");
         }
 
-        // The exact physical layout is intentionally encapsulated here. Language semantics only
-        // depend on bounds and indexing; later native/COM interop can adapt layout in this one place.
+        // The exact physical layout is intentionally encapsulated here. Managed arrays retain the
+        // original rightmost-first iteration order; once a stored pointer materializes a native
+        // SAFEARRAY, its leftmost dimension is contiguous instead.
         var offset = 0;
         var stride = 1;
-        for (var dimension = Rank - 1; dimension >= 0; dimension--)
+        var first = _safeArrayOrder ? 0 : Rank - 1;
+        var last = _safeArrayOrder ? Rank : -1;
+        var step = _safeArrayOrder ? 1 : -1;
+        for (var dimension = first; dimension != last; dimension += step)
         {
             var bound = _bounds[dimension];
             var index = indices[dimension];
@@ -459,6 +671,39 @@ public sealed class VBArray<T> : IVBArray
 
         return offset;
     }
+
+}
+
+/// <summary>
+/// The tiny non-generic Automation boundary used by every <see cref="VBArray{T}"/> native
+/// descriptor.  CLR metadata does not permit a P/Invoke declaration on a generic type.
+/// </summary>
+internal static class VBArrayNativeStorage
+{
+    [StructLayout(LayoutKind.Sequential)]
+    internal readonly struct SafeArrayBound
+    {
+        internal SafeArrayBound(uint elementCount, int lowerBound)
+        {
+            ElementCount = elementCount;
+            LowerBound = lowerBound;
+        }
+
+        internal readonly uint ElementCount;
+        internal readonly int LowerBound;
+    }
+
+    [DllImport("oleaut32.dll")]
+    internal static extern IntPtr SafeArrayCreate(
+        ushort variantType,
+        uint dimensionCount,
+        [In] SafeArrayBound[] bounds);
+
+    [DllImport("oleaut32.dll")]
+    internal static extern int SafeArrayDestroyData(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    internal static extern int SafeArrayDestroy(IntPtr safeArray);
 }
 
 /// <summary>Late-bound array operations for Variant values.</summary>
@@ -473,8 +718,23 @@ public static class VBArrayOperations
     public static IntPtr ElementNativeAddress(object? array, int index) => array switch
     {
         IVBArray vbArray => vbArray.GetElementNativeAddress(index),
-        null => throw new InvalidOperationException(
-            "The array must be allocated before an element address can be taken."),
+        null => throw new VB6RuntimeErrorException(9, VBErrors.ErrorText(9)),
+        _ => throw new ArgumentException("A VB6 array is required.", nameof(array))
+    };
+
+    /// <summary>Returns an element address for every SAFEARRAY dimension in VB source order.</summary>
+    public static IntPtr ElementNativeAddress(object? array, int[] indices) => array switch
+    {
+        IVBArray vbArray => vbArray.GetElementNativeAddress(indices),
+        null => throw new VB6RuntimeErrorException(9, VBErrors.ErrorText(9)),
+        _ => throw new ArgumentException("A VB6 array is required.", nameof(array))
+    };
+
+    /// <summary>Returns the native SAFEARRAY descriptor named by <c>VarPtr(array)</c>.</summary>
+    public static IntPtr DescriptorNativeAddress(object? array) => array switch
+    {
+        IVBArray vbArray => vbArray.GetSafeArrayNativeAddress(),
+        null => throw new VB6RuntimeErrorException(9, VBErrors.ErrorText(9)),
         _ => throw new ArgumentException("A VB6 array is required.", nameof(array))
     };
 
