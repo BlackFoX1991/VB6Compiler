@@ -18,12 +18,18 @@ internal static class Program
             return HoldLocalServer(args[1]);
         }
 
+        if (args.Length == 5 && string.Equals(args[0], "--dispid", StringComparison.Ordinal))
+        {
+            return InvokeByDispId(args[1], args[2], int.Parse(args[3]), int.Parse(args[4]));
+        }
+
         if (args.Length != 2)
         {
             Console.Error.WriteLine(
                 "Usage: VB6.ComActivationProbe <comhost.dll> <clsid> | " +
                 "VB6.ComActivationProbe --local-server <clsid> | " +
-                "VB6.ComActivationProbe --local-server-hold <clsid>");
+                "VB6.ComActivationProbe --local-server-hold <clsid> | " +
+                "VB6.ComActivationProbe --dispid <comhost.dll> <clsid> <dispid> <argument>");
             return 2;
         }
 
@@ -102,6 +108,108 @@ internal static class Program
         finally
         {
             NativeLibrary.Free(module);
+        }
+    }
+
+    /// <summary>
+    /// Activates a class by CLSID and calls one member by DISPID -- no name is used anywhere.
+    ///
+    /// That is what an already-built client does: it was compiled against an earlier version of
+    /// the component and carries the numbers, not the names. If a rebuild renumbers or re-identifies
+    /// anything, this call is the one that breaks.
+    /// </summary>
+    private static int InvokeByDispId(string comHostPath, string classIdText, int dispId, int argument)
+    {
+        var module = NativeLibrary.Load(comHostPath);
+        try
+        {
+            var getClassObject = Marshal.GetDelegateForFunctionPointer<DllGetClassObjectDelegate>(
+                NativeLibrary.GetExport(module, "DllGetClassObject"));
+            var clsid = Guid.Parse(classIdText);
+            var classFactoryIid = new Guid("00000001-0000-0000-C000-000000000046");
+            var dispatchIid = new Guid("00020400-0000-0000-C000-000000000046");
+            var factoryHResult = getClassObject(ref clsid, ref classFactoryIid, out var factoryPointer);
+            if (factoryHResult != 0)
+            {
+                Console.Error.WriteLine($"DllGetClassObject failed: 0x{factoryHResult:X8}");
+                return factoryHResult;
+            }
+
+            try
+            {
+                var createInstance = GetClassFactoryCreateInstance(factoryPointer);
+                var createHResult = createInstance(
+                    factoryPointer,
+                    IntPtr.Zero,
+                    ref dispatchIid,
+                    out var objectPointer);
+                if (createHResult != 0)
+                {
+                    Console.Error.WriteLine($"IClassFactory.CreateInstance failed: 0x{createHResult:X8}");
+                    return createHResult;
+                }
+
+                try
+                {
+                    Console.WriteLine(InvokeOneInt32ByDispId(objectPointer, dispId, argument));
+                    return 0;
+                }
+                finally
+                {
+                    Marshal.Release(objectPointer);
+                }
+            }
+            finally
+            {
+                Marshal.Release(factoryPointer);
+            }
+        }
+        finally
+        {
+            NativeLibrary.Free(module);
+        }
+    }
+
+    private static int InvokeOneInt32ByDispId(IntPtr dispatch, int dispId, int argument)
+    {
+        var vtable = Marshal.ReadIntPtr(dispatch);
+        var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+            Marshal.ReadIntPtr(vtable, IntPtr.Size * 6));
+        var arguments = Marshal.AllocCoTaskMem(VariantSize);
+        var resultVariant = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            ClearNativeMemory(arguments);
+            ClearNativeMemory(resultVariant);
+            Marshal.WriteInt16(arguments, VariantI4);
+            Marshal.WriteInt32(arguments, VariantDataOffset, argument);
+            var parameters = new NativeDispParams
+            {
+                Arguments = arguments,
+                ArgumentCount = 1
+            };
+            var iid = Guid.Empty;
+            var invokeHResult = invoke(
+                dispatch,
+                dispId,
+                ref iid,
+                1033,
+                DispatchMethod,
+                ref parameters,
+                resultVariant,
+                IntPtr.Zero,
+                out _);
+            if (invokeHResult != 0)
+            {
+                throw new InvalidOperationException($"IDispatch.Invoke failed: 0x{invokeHResult:X8}");
+            }
+
+            return Marshal.ReadInt32(resultVariant, VariantDataOffset);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(resultVariant);
+            Marshal.FreeCoTaskMem(arguments);
         }
     }
 
