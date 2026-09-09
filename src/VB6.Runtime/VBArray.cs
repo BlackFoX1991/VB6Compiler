@@ -336,6 +336,29 @@ public sealed class VBArray<T> : IVBArray, IDisposable
             return resized;
         }
 
+        // Solange kein Zeiger einen Deskriptor erzwungen hat, sind Quell- und Zielspeicher beide
+        // in VB-Reihenfolge und zeilenweise zusammenhaengend: Dann ist die erhaltene Nutzlast eine
+        // Folge von Bloecken, und Array.Copy ist der ganze Umzug. Rang 1 ist dabei der haeufigste
+        // Fall im erzeugten Code und wird ein einziger Kopiervorgang. Erst der SAFEARRAY-Fall
+        // braucht den Umweg ueber die Indizes, weil dort die linkeste Dimension zusammenhaengt.
+        if (!_safeArrayOrder)
+        {
+            var oldLastLength = _bounds[lastDimension].Length;
+            var newLastLength = bounds[lastDimension].Length;
+            var rows = Length / oldLastLength;
+            for (var row = 0; row < rows; row++)
+            {
+                Array.Copy(
+                    _items,
+                    row * oldLastLength,
+                    resized._items,
+                    row * newLastLength,
+                    preservedLastLength);
+            }
+
+            return resized;
+        }
+
         var indices = _bounds.Select(bound => bound.Lower).ToArray();
         for (var index = 0; index < Length; index++)
         {
