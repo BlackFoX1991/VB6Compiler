@@ -450,8 +450,6 @@ public sealed record ProcedureSymbol(
     /// modelled here, and a call to it is reported rather than routed somewhere that would answer
     /// "member not found" for a member the library plainly describes.
     /// </summary>
-    public bool ComVTableOutParameters { get; init; }
-
     public ProcedureSymbol(string name)
         : this(name, ImmutableArray<ParameterSymbol>.Empty, null)
     {

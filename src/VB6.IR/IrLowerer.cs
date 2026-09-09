@@ -3357,8 +3357,11 @@ public static class IrLowerer
             if (requested.ComVTableSlot is int slot &&
                 receiver.Type is ClassTypeSymbol { ComInterfaceId: Guid interfaceId })
             {
-                return ConvertDynamicResult(
-                    new IrRuntimeCallExpression(
+                var parameterTypes = requested.ComParameterTypes ?? string.Empty;
+                var outParameters = ComVTableOutParameterIndices(parameterTypes);
+
+                IrRuntimeCallExpression Invoke(IrExpression argumentList) =>
+                    new(
                         IrRuntimeMethod.ComVTableInvoke,
                         ImmutableArray.Create(
                             new IrCallArgument(LowerExpression(receiver)),
@@ -3366,15 +3369,59 @@ public static class IrLowerer
                                 interfaceId.ToString("B", System.Globalization.CultureInfo.InvariantCulture),
                                 TypeSymbol.String)),
                             new IrCallArgument(new IrConstantExpression(slot, TypeSymbol.Long)),
-                            new IrCallArgument(new IrConstantExpression(
-                                requested.ComParameterTypes ?? string.Empty,
-                                TypeSymbol.String)),
+                            new IrCallArgument(new IrConstantExpression(parameterTypes, TypeSymbol.String)),
                             new IrCallArgument(new IrConstantExpression(
                                 (int)(requested.ComReturnType ?? 24),
                                 TypeSymbol.Integer)),
-                            new IrCallArgument(LowerDynamicArguments(
-                                arguments.Select(argument => argument.Expression)))),
-                        TypeSymbol.Variant),
+                            new IrCallArgument(argumentList)),
+                        TypeSymbol.Variant);
+
+                if (outParameters.IsEmpty)
+                {
+                    return ConvertDynamicResult(
+                        Invoke(LowerDynamicArguments(arguments.Select(argument => argument.Expression))),
+                        requested.ReturnType ?? TypeSymbol.Variant);
+                }
+
+                // Ein Ausgabeparameter macht aus dem Aufruf eine Folge: Das Argumentarray muss den
+                // Aufruf ueberleben, damit der geschriebene Wert danach in die VB6-Variable
+                // zurueckgelesen werden kann. Die Runtime schreibt in genau dieses Array.
+                var argumentArrayType = new ArrayTypeSymbol(TypeSymbol.Variant);
+                var argumentLocal = NewLocal("__vtable_args", argumentArrayType, compilerGenerated: true);
+                var argumentPlace = new IrLocalPlace(argumentLocal);
+                Emit(new IrStoreInstruction(
+                    argumentPlace,
+                    LowerDynamicArguments(arguments.Select(argument => argument.Expression))));
+
+                var resultLocal = NewLocal("__vtable_result", TypeSymbol.Variant, compilerGenerated: true);
+                var resultPlace = new IrLocalPlace(resultLocal);
+                Emit(new IrStoreInstruction(resultPlace, Invoke(new IrLoadExpression(argumentPlace))));
+
+                foreach (var index in outParameters)
+                {
+                    if (index >= arguments.Length ||
+                        TryLowerPlace(arguments[index].Expression) is not { } target)
+                    {
+                        // Ein Ausdruck ohne Speicherplatz kann nichts empfangen. VB6 laesst das
+                        // zu -- der Server schreibt dann ins Leere -- und der Aufruf selbst bleibt
+                        // gueltig, also wird hier nur das Rueckschreiben ausgelassen.
+                        continue;
+                    }
+
+                    Emit(new IrStoreInstruction(
+                        target,
+                        ConvertDynamicResult(
+                            new IrVariantArrayCallExpression(
+                                IrVariantArrayOperation.GetElement,
+                                new IrLoadExpression(argumentPlace),
+                                ImmutableArray.Create<IrExpression>(
+                                    new IrConstantExpression(index, TypeSymbol.Long)),
+                                TypeSymbol.Variant),
+                            target.Type)));
+                }
+
+                return ConvertDynamicResult(
+                    new IrLoadExpression(resultPlace),
                     requested.ReturnType ?? TypeSymbol.Variant);
             }
 
@@ -3694,6 +3741,32 @@ public static class IrLowerer
                     : IrRuntimeMethod.DynamicSetIndexedMember,
                 lowered.ToImmutable(),
                 TypeSymbol.Error);
+        }
+
+        /// <summary>
+        /// The positions the type library marked <c>PARAMFLAG_FOUT</c>, taken from the same
+        /// encoded parameter list the runtime parses. An out marker is an <c>o</c> in front of the
+        /// VARIANT type, so the two sides cannot drift apart into different opinions about which
+        /// argument the server writes into.
+        /// </summary>
+        private static ImmutableArray<int> ComVTableOutParameterIndices(string parameterTypes)
+        {
+            if (parameterTypes.Length == 0 || !parameterTypes.Contains('o', StringComparison.Ordinal))
+            {
+                return ImmutableArray<int>.Empty;
+            }
+
+            var parts = parameterTypes.Split(',');
+            var indices = ImmutableArray.CreateBuilder<int>();
+            for (var index = 0; index < parts.Length; index++)
+            {
+                if (parts[index].StartsWith('o'))
+                {
+                    indices.Add(index);
+                }
+            }
+
+            return indices.ToImmutable();
         }
 
         private IrExpression LowerDynamicArguments(IEnumerable<BoundExpression> arguments)

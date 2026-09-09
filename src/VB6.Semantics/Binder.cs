@@ -4551,20 +4551,9 @@ public sealed class Binder
             return false;
         }
 
-        if (candidate.ComVTableOutParameters)
-        {
-            // The member writes into storage the caller supplies. Leaving it on the dispatch route
-            // would answer 438 -- "member not found" -- for a member the type library describes,
-            // which points at the wrong thing entirely.
-            Report(
-                "VB6S0075",
-                $"Member '{memberName}' of interface '{classType.Name}' has an out parameter, " +
-                "which the vtable call contract does not model yet.",
-                span);
-            procedure = candidate;
-            return true;
-        }
-
+        // Ein Ausgabeparameter schliesst den vtable-Weg nicht mehr aus. Der Aufruf legt den
+        // Speicher an, in den der Server schreibt, und der erzeugte Code liest ihn danach in die
+        // VB6-Variable zurueck -- das ist die ByRef-Form, die die Typbibliothek beschreibt.
         if (candidate.ComVTableSlot is null)
         {
             return false;
