@@ -399,7 +399,21 @@ internal static class VBIntrinsicSymbols
             Parameter("Green", TypeSymbol.Long),
             Parameter("Blue", TypeSymbol.Long)),
         Function("QBColor", VBIntrinsicKind.QBColor, "VBFunctions.QBColor", TypeSymbol.Long, Parameter("Color", TypeSymbol.Integer)),
-        Sub("DoEvents", VBIntrinsicKind.DoEvents, "VBInteraction.DoEvents"),
+        // DoEvents ist in VB6 beides: Anweisung und Funktion mit der Zahl offener Formulare.
+        Function("DoEvents", VBIntrinsicKind.DoEvents, "VBInteraction.DoEvents", TypeSymbol.Integer),
+        Sub("Beep", VBIntrinsicKind.Beep, "VBInteraction.Beep"),
+        Sub(
+            "AppActivate",
+            VBIntrinsicKind.AppActivate,
+            "VBInteraction.AppActivate",
+            Parameter("Title", TypeSymbol.Variant),
+            OptionalParameter("Wait", TypeSymbol.Boolean, false)),
+        Sub(
+            "SavePicture",
+            VBIntrinsicKind.SavePicture,
+            "VBInteraction.SavePicture",
+            Parameter("Picture", TypeSymbol.Variant),
+            Parameter("FileName", TypeSymbol.String)),
         Sub("Cls", VBIntrinsicKind.Cls, "VBInteraction.Cls"),
         Function(
             "Point",
@@ -418,6 +432,7 @@ internal static class VBIntrinsicSymbols
         Sub("MkDir", VBIntrinsicKind.MkDir, "VBFiles.MakeDirectory", Parameter("Path", TypeSymbol.String)),
         Sub("RmDir", VBIntrinsicKind.RmDir, "VBFiles.RemoveDirectory", Parameter("Path", TypeSymbol.String)),
         Sub("ChDir", VBIntrinsicKind.ChDir, "VBFiles.ChangeDirectory", Parameter("Path", TypeSymbol.String)),
+        Sub("ChDrive", VBIntrinsicKind.ChDrive, "VBFiles.ChangeDrive", Parameter("Drive", TypeSymbol.String)),
         Function(
             "CurDir",
             VBIntrinsicKind.CurDir,
@@ -680,6 +695,7 @@ internal static class VBIntrinsicSymbols
         Function("EOF", VBIntrinsicKind.EOF, "VBFiles.EndOfFile", TypeSymbol.Boolean, Parameter("FileNumber", TypeSymbol.Long)),
         Function("Loc", VBIntrinsicKind.Loc, "VBFiles.Location", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
         Function("Input", VBIntrinsicKind.Input, "VBFiles.Input", TypeSymbol.String, Parameter("NumberOfCharacters", TypeSymbol.LongLong), Parameter("FileNumber", TypeSymbol.Long)),
+        Function("InputB", VBIntrinsicKind.InputB, "VBFiles.InputB", TypeSymbol.String, Parameter("NumberOfBytes", TypeSymbol.LongLong), Parameter("FileNumber", TypeSymbol.Long)),
         Function("Seek", VBIntrinsicKind.Seek, "VBFiles.Position", TypeSymbol.LongLong, Parameter("FileNumber", TypeSymbol.Long)),
 
         Function("CByte", VBIntrinsicKind.CByte, "VBConversions.CByte", TypeSymbol.Byte, Parameter("Expression", TypeSymbol.Variant)),

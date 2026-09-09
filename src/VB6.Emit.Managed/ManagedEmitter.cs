@@ -2140,7 +2140,8 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.FileLineInput or
                      IrRuntimeMethod.FileInputField or
                      IrRuntimeMethod.FileInputValue or
-                     IrRuntimeMethod.FileInput)
+                     IrRuntimeMethod.FileInput or
+                     IrRuntimeMethod.FileInputB)
             {
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
@@ -5963,6 +5964,9 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.DynamicSetIndexedMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.SetIndexedMember), typeof(object), typeof(string), typeof(VBArray<object>), typeof(object));
             if (m == IrRuntimeMethod.DynamicInvokeMember) return Static(typeof(VBDynamicDispatch), nameof(VBDynamicDispatch.InvokeMember), typeof(object), typeof(string), typeof(VBArray<object>));
             if (m == IrRuntimeMethod.InteractionDoEvents) return Static(typeof(VBInteraction), "DoEvents");
+            if (m == IrRuntimeMethod.InteractionBeep) return Static(typeof(VBInteraction), "Beep");
+            if (m == IrRuntimeMethod.InteractionAppActivate) return Static(typeof(VBInteraction), "AppActivate", typeof(object), typeof(bool));
+            if (m == IrRuntimeMethod.InteractionSavePicture) return Static(typeof(VBInteraction), "SavePicture", typeof(object), typeof(string));
             if (m == IrRuntimeMethod.InteractionMsgBox) return Static(typeof(VBInteraction), "MsgBox", typeof(string), typeof(int), typeof(string));
             if (m == IrRuntimeMethod.InteractionInputBox) return Static(typeof(VBInteraction), "InputBox", typeof(string), typeof(string), typeof(string), typeof(float), typeof(float), typeof(string), typeof(int));
             if (m == IrRuntimeMethod.ObjectLifetimeRegister) return Static(typeof(VBObjectLifetime), nameof(VBObjectLifetime.Register), typeof(object));
@@ -6319,6 +6323,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileMakeDirectory => Static(typeof(VBFiles), nameof(VBFiles.MakeDirectory), typeof(string)),
                 IrRuntimeMethod.FileRemoveDirectory => Static(typeof(VBFiles), nameof(VBFiles.RemoveDirectory), typeof(string)),
                 IrRuntimeMethod.FileChangeDirectory => Static(typeof(VBFiles), nameof(VBFiles.ChangeDirectory), typeof(string)),
+                IrRuntimeMethod.FileChangeDrive => Static(typeof(VBFiles), nameof(VBFiles.ChangeDrive), typeof(string)),
                 IrRuntimeMethod.FileCurrentDirectory => Static(typeof(VBFiles), nameof(VBFiles.CurrentDirectory), typeof(string)),
                 IrRuntimeMethod.FileGetAttributes => Static(typeof(VBFiles), nameof(VBFiles.GetAttributes), typeof(string)),
                 IrRuntimeMethod.FileSetAttributes => Static(typeof(VBFiles), nameof(VBFiles.SetAttributes), typeof(string), typeof(int)),
@@ -6333,6 +6338,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileInputField => Static(typeof(VBFiles), "InputField", typeof(int), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileInputValue => Static(typeof(VBFiles), nameof(VBFiles.InputValue), typeof(int), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileInput => Static(typeof(VBFiles), "Input", typeof(long), typeof(int), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FileInputB => Static(typeof(VBFiles), "InputB", typeof(long), typeof(int), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileGetVariant => ResolveFileVariantGet(call, out skippedArgument),
                 IrRuntimeMethod.FileGetRawVariant => Static(typeof(VBFiles), nameof(VBFiles.GetRawVariant), typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
