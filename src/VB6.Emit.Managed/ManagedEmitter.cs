@@ -5977,7 +5977,9 @@ public sealed class ManagedEmitter
                 GetAttributeConstructor(typeof(ComVisibleAttribute), typeof(bool)),
                 EncodeBooleanAttribute(true));
 
-            var identity = GetComIdentity("class", classType);
+            // Die Art gehoert in den Schluessel: In einer Typbibliothek sind Coclass und
+            // Schnittstelle zwei Eintraege, und Binary Compatibility haelt beide getrennt fest.
+            var identity = GetComIdentity(classDefinition.IsInterface ? "interface" : "class", classType);
             _metadata.AddCustomAttribute(
                 typeHandle,
                 GetAttributeConstructor(typeof(GuidAttribute), typeof(string)),
@@ -6085,6 +6087,13 @@ public sealed class ManagedEmitter
 
         private Guid GetComIdentity(string kind, ClassTypeSymbol classType)
         {
+            // Binary Compatibility schlaegt die Ableitung: Ein gebauter Client haelt eine CLSID
+            // fest, keinen Namen.
+            if (_options.CompatibleComIdentities.TryGetValue(kind + "\0" + classType.Name, out var kept))
+            {
+                return kept;
+            }
+
             var identity = _options.AssemblyName + "\0" + kind + "\0" + classType.Name;
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(identity)).AsSpan(0, 16).ToArray();
             bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);

@@ -68,6 +68,25 @@ public sealed record ManagedEmitOptions(
     /// separately.
     /// </summary>
     public Version Version { get; init; } = new(1, 0, 0, 0);
+
+    /// <summary>
+    /// COM identities taken from a previously built component under VB6 Binary Compatibility.
+    /// The key is <c>kind\0name</c>, the same shape the derivation uses, so a name that appears
+    /// here keeps the identity the old component published instead of getting a derived one.
+    ///
+    /// This is what makes an already-built client keep working: it holds a CLSID and an IID, not
+    /// a name. Deriving fresh ones on every build silently orphans it.
+    /// </summary>
+    public ImmutableDictionary<string, Guid> CompatibleComIdentities { get; init; } =
+        ImmutableDictionary<string, Guid>.Empty;
+
+    /// <summary>
+    /// DISPIDs a previously built component published, keyed <c>type\0member</c>. A client calls
+    /// by number, so a member that keeps its name and changes its id is just as broken as one that
+    /// disappeared -- and adding a member must not renumber the ones already there.
+    /// </summary>
+    public ImmutableDictionary<string, int> CompatibleComMemberIds { get; init; } =
+        ImmutableDictionary<string, int>.Empty;
 }
 
 public sealed record ManagedEmitDiagnostic(string Code, string Message);
