@@ -4565,8 +4565,16 @@ public static class IrLowerer
 
             return intrinsic == VBIntrinsicKind.StrPtr
                 ? type == TypeSymbol.String
-                : IsAddressableScalar(type) || IsAddressableRecord(type) || type == TypeSymbol.String;
+                : IsAddressableScalar(type) ||
+                  IsAddressableRecord(type) ||
+                  type == TypeSymbol.String ||
+                  type == TypeSymbol.Variant;
         }
+
+        // Variant steht bewusst nicht in IsAddressableScalar: Der Datensatzvertrag schliesst ein
+        // Variant-Member ausdruecklich aus, weil es Speicher neben dem Datensatz besitzt. Ein
+        // Variant als eigener Speicherplatz ist dagegen adressierbar -- seine Zelle traegt den
+        // ganzen VARIANT, nicht nur den Wert darin.
 
         /// <summary>
         /// The controlled alias call keeps the CLR parameter as <c>T&amp;</c>. Boolean and String
