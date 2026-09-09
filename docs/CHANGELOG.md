@@ -8785,3 +8785,29 @@ Die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek sc
 dieser Stelle aus. Wer Records tragen will, muss `IDispatch` für die erzeugten Klassen selbst
 implementieren, statt sich auf die CLR-Marshalling-Schicht zu verlassen — ein eigener Schnitt, und
 keine Ergänzung dieser Karte.
+
+## R4 ist geschlossen
+
+Die letzte offene Abnahme war die, die den ganzen Meilenstein charakterisiert: Ein **Fremdclient in
+einem eigenen Prozess** bindet die Ereignisquelle über die Typbibliothek. Er aktiviert die Klasse
+registrierungsfrei über den Aktivierungskontext des Manifests, fragt den Verbindungspunkt-Container
+nach der Ereignisquelle **mit der IID, die die Bibliothek nennt**, meldet eine Senke an und ruft ein
+Mitglied über die DISPID der Bibliothek. Der Verbindungspunkt meldet genau diese IID zurück, das
+Ereignis kommt mit seinem Argument an, `Unadvise` räumt wieder ab.
+
+Jede Identität in diesem Test stammt aus der emittierten Bibliothek, keine aus dem Compiler. Das ist
+der Punkt: Ein Client bindet an das, was die Bibliothek sagt — antwortet der Server auf etwas
+anderes, kommt nie ein Ereignis an. Möglich wurde die Abnahme erst, nachdem
+`managed-r4-typelib-metadata` die Quellschnittstelle `__Klasse` überhaupt in die Bibliothek
+geschrieben hatte.
+
+Damit stehen alle fünf R4-Karten auf `implemented` / `documented-verified`:
+`managed-r4-vtable-out`, `managed-r4-automation-layouts`, `managed-r4-typelib-metadata`,
+`managed-r4-binary-compatibility` und `managed-r4-server-lifetime`.
+
+Der Aufrufvertrag für **UDT-Werte** ist bewusst abgetrennt und heißt jetzt
+`managed-r5-record-dispatch`. Der Grund steht gemessen in der Karte: Die AutoDual-Klassen-
+schnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander aus, und der Ausweg —
+ein eigenes `IDispatch` für die erzeugten Klassen — berührt jede COM-gehostete Klasse. Das als
+Anhängsel einer Metadatenkarte zu erledigen wäre genau die Art von Sammelkarte, an der R1 und R2
+schon einmal gescheitert sind.

@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `9664a20` mit nicht committeten Änderungen, Lauf `20260909T190441Z-4dbd2109`:
+Messung vom 2026-09-09 auf `main` / `9c133f3` mit nicht committeten Änderungen, Lauf `20260909T200058Z-8a275d34`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1851 Fälle: 1851 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1853 Fälle: 1853 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **172 Erwartungen**, davon **160 implemented**, **0 partial** und **12 planned**;
-**160/172 documented-verified**, 12 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **173 Erwartungen**, davon **162 implemented**, **0 partial** und **11 planned**;
+**162/173 documented-verified**, 11 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -299,12 +299,15 @@ Prozessende, weil eine native Seite den Zeiger unbegrenzt behalten darf.
 | `managed-r3-variant` | `PointerIntrinsicTests`, `VBAddressableCellTests`, `VariantStateTests` |
 | `managed-r3-callback-abi` | `DeclarePInvokeExecutionTests`, `AddressOfExecutionTests`, `VBCallbackRegistryTests` |
 
-## Abgenommene Teilverträge
-
-Karten, die geschlossen sind, während ihre Etappe noch offene hat. Der Nachweis steht hier, die
-Etappe selbst weiter unten in der Restliste.
-
 ### R4 — COM-Konsum, Emission und Binary Compatibility
+
+Geschlossen. Alle fünf Karten stehen als `implemented` / `documented-verified` in der Matrix. Die
+Abnahmen verlangten durchgehend etwas, das der Compiler nicht allein herstellen kann: einen echten
+Fremdclient über die Prozessgrenze, registrierte Fremdbibliotheken, eine reg-freie Aktivierung.
+
+Der Aufrufvertrag für UDT-Werte selbst ist als `managed-r5-record-dispatch` abgetrennt: Er
+verlangt ein eigenes `IDispatch` für die erzeugten Klassen und berührt damit jede COM-gehostete
+Klasse. Die Begründung steht in der Karte und ist gemessen.
 
 Der **VTable-Ausgabeparameter** ist abgenommen. Gemessen wurde zuerst: Eine Sonde über die echte
 `stdole`-Typbibliothek liest für `IFont.Clone` einen Parameter mit `wParamFlags = 0x2`, also
@@ -361,37 +364,45 @@ getrennten Gründen — VB6 packt einen UDT auf 4, das native x64-ABI richtet au
 Zeigerfeld, das VB6 `Long` nennt, ist dort 8 Byte breit. Beides sind Entscheidungen über die
 moderne Erweiterung, nicht über VB6.
 
+**Die TypeLib-Metadaten** sind abgenommen. Ausgangspunkt war ein harter Befund: Eine Klasse mit
+einem gewöhnlichen `Property Get`/`Let`-Paar konnte **gar keine** Typbibliothek erzeugen. Die
+Ursache lag im Emitter, nicht im Writer — ein VB6-Property-Paar wurde als zwei gleichnamige
+CLR-Methoden emittiert, ohne CLR-Property, und zwei Funktionen mit einem Namen sind in einer
+Bibliothek mehrdeutig.
+
+Heute ist eine Property **ein** Mitglied mit zwei Aufrufarten auf **einer** DISPID — auch
+indiziert, auch als Get/Set-Paar, auch ein `Public`-Feld. Ein `Optional`-Parameter trägt
+`PARAMFLAG_FOPT` und seine Vorgabe als `PARAMDESCEX`, `cParamsOpt` zählt die auslassbare Reihe.
+Die Version kommt aus dem `.vbp` über die Assembly in die Bibliothek. Eine implementierte
+Schnittstelle ist ein eigener Typ unter der IID der Assembly und hängt an der Coclass. Ein
+Klassenmodul mit Ereignissen bekommt die Quelle `__Klasse` mit `IMPLTYPEFLAG_FSOURCE`. Ein
+`Public Type` steht als `TKIND_RECORD` in der Bibliothek und wird von seinen Mitgliedern als
+`VT_USERDEFINED` genannt; ein `Private Type` bleibt draußen.
+
+Die DISPIDs stimmen zwischen Bibliothek und laufendem Server überein — dazu kam der Befund aus
+Binary Compatibility, dass sie das vorher **nie** taten. Gemessen wird an der zurückgelesenen
+Bibliothek und, für die Aufrufbarkeit, an einem Fremdclient im eigenen Prozess.
+
+Was der Aufruf eines **UDT-Wertes** verlangt, ist danach als eigener Vertrag abgetrennt:
+`managed-r5-record-dispatch`. Der Grund steht dort und ist gemessen — die AutoDual-Klassen-
+schnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander aus.
+
 | Karte | Nachweis |
 | --- | --- |
 | `managed-r4-vtable-out` | `ComVTableExecutionTests` |
 | `managed-r4-binary-compatibility` | `BinaryCompatibilityTests`, `BinaryCompatibilityClientTests` |
 | `managed-r4-automation-layouts` | `AutomationLayoutTests` |
+| `managed-r4-typelib-metadata` | `TypeLibraryMemberSurfaceTests`, `TypeLibraryWriterTests` |
 
 ## Aktive Restliste
 
-Die 14 folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R3 sind geschlossen und stehen
+Die folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R4 sind geschlossen und stehen
 als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
 dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
 Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
 
 Was von hier an offen ist, verlangt durchgehend etwas, das der Compiler nicht allein herstellen
-kann: einen echten Fremdclient über die Prozessgrenze, registrierte native Komponenten, eine
-laufende Anwendung. Das ist der Grund, warum R4 die schwerste Etappe ist und nicht die größte.
-
-### R4 — COM-Konsum, Emission und Binary Compatibility
-
-Nach R3.
-
-Der VTable-Ausgabeparameter ist abgenommen und steht als Teilvertrag darüber. Rohe Layouts werden weiterhin in beide Richtungen mit unabhängigen Probes geprüft.
-
-Heute werden COM-Identitäten aus Namen abgeleitet und Version/Binary-Compatibility-Einstellungen gelesen. Das ersetzt nicht die Auswertung der mit `CompatibleEXE32` angegebenen älteren Komponente. Die Abnahme verlangt einen bereits gebauten Fremdclient, der nach einer kompatiblen Serveränderung weiterläuft; inkompatible Änderungen müssen diagnostiziert werden. TypeLib, Assembly und Host müssen identische DISPIDs, Signaturen, Interfaces und Versionsinformationen liefern.
-
-ClassFactory-/IUnknown-Lebensdauer, Instancing, Event-Quellen und Connection-Point-Enumeratoren werden vervollständigt. Die vorhandene Aktivierung über comhost, registry-free Manifest und ActiveX-EXE bleibt als bereits gemessene Grundlage erhalten.
-
-| Karte | Ziel und Abnahme |
-| --- | --- |
-| `managed-r4-typelib-metadata` | **TypeLib-Metadaten vervollständigen:** Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein. Sechs dieser Punkte sind seit 2026-09-09 umgesetzt und an der zurückgelesenen Bibliothek gemessen; offen bleiben UDTs als `TKIND_RECORD` samt `VT_RECORD`-Marshalling und die Abnahme durch einen Fremdclient. |
-| `managed-r4-server-lifetime` | **Server- und Event-Ownership schließen:** IUnknown/ClassFactory, Instancing, Connection-Point-Enumeratoren, Attach/Detach und Shutdown per Fremdclient prüfen; vorhandene Enumeration-Stubs schließen. |
+kann: einen unabhängigen Container, registrierte native Komponenten, eine laufende Anwendung.
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 
@@ -405,6 +416,7 @@ Die Grafikimplementierung arbeitet derzeit auf verwalteten Bitmaps. Entscheidend
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
+| `managed-r5-record-dispatch` | **UDT-Werte über eine eigene Dispatch-Fläche tragen:** Ein Fremdclient ruft ein Mitglied mit UDT-Rückgabe und mit UDT-Parameter auf und liest die Feldwerte; Besitz und Layout stimmen in beide Richtungen. Verlangt eigenes `IDispatch` für die erzeugten Klassen — die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander aus (gemessen 2026-09-09). |
 | `managed-r5-stream-persistence` | **Stream-basierte Control-Persistenz:** IPersistStreamInit-Zustand laden/sichern; InitNew, fehlende Schnittstelle und beschädigten Stream mit einer passenden Control-Fixture prüfen. |
 | `managed-r5-usercontrol-ole` | **Generierte UserControls im Fremdcontainer:** Kompilierte ctl-Komponente unabhängig aktivieren, zeichnen, speichern, laden und freigeben; OLE View/In-Place, Ambient Properties und Events prüfen. |
 | `managed-r5-property-pages` | **PropertyPage-COM-Vertrag:** Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt. |

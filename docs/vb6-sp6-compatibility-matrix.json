@@ -2994,12 +2994,12 @@
       "dependsOn": [
         "managed-r4-binary-compatibility"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "TypeLib-Metadaten vervollständigen",
       "expected": {
-        "acceptance": "Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein."
+        "acceptance": "Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen; skalare Mitglieder sind über die beschriebenen DISPIDs von einem Fremdclient aufrufbar. Der Aufrufvertrag für UDT-Werte selbst gehört zu managed-r5-record-dispatch."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/TypeLibraryWriterTests.cs",
         "tests/VB6.Compiler.Tests/TypeLibraryMemberSurfaceTests.cs"
@@ -3014,17 +3014,37 @@
       "dependsOn": [
         "managed-r4-typelib-metadata"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Server- und Event-Ownership schließen",
       "expected": {
         "acceptance": "IUnknown/ClassFactory, Instancing, Connection-Point-Enumeratoren, Attach/Detach und Shutdown per Fremdclient prüfen; vorhandene Enumeration-Stubs schließen."
       },
+      "verification": "documented-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/EventSourceClientTests.cs"
+      ],
+      "notes": "Teilfortschritt am 2026-09-09: Die beiden Enumeration-Stubs sind geschlossen. EnumConnectionPoints und EnumConnections warfen NotImplementedException; ein Client, der die Interface-Id kennt, braucht sie nie, ein generischer faengt dort an -- und eine Ablehnung hiess fuer ihn, das Objekt habe gar keine Ereignisquelle. Beide enumerieren jetzt einen Schnappschuss, weil COM nicht festlegt, was ein Enumerator bei Aenderung der Sammlung tut, und ein Schnappschuss die einzige Antwort ist, die einen Client nicht mitten im Durchlauf fallenlaesst. Der Vertrag ist in beide Richtungen gemessen: S_OK nur bei vollstaendig bedienter Anfrage, sonst S_FALSE, und pceltFetched darf null sein. IUnknown/ClassFactory samt Aggregationsablehnung und LockServer, Instancing ueber VB_Exposed/VB_Creatable, Attach/Detach mit CONNECT_E_NOCONNECTION fuer einen unbekannten Cookie und der Shutdown per Fremdclient ueber die Prozessgrenze sind bereits abgedeckt. Abgeschlossen am 2026-09-09 mit genau der Abnahme, die noch fehlte: Ein Fremdclient in einem eigenen Prozess aktiviert die Klasse registrierungsfrei ueber den Aktivierungskontext des Manifests, fragt den Verbindungspunkt-Container nach der Ereignisquelle **mit der IID, die die Typbibliothek nennt**, meldet eine Senke an und ruft ein Mitglied ueber die DISPID der Bibliothek. Der Verbindungspunkt meldet genau diese IID zurueck, das Ereignis kommt mit seinem Argument bei der Senke an, und Unadvise raeumt sie wieder ab. Jede Identitaet im Test stammt aus der emittierten Bibliothek, keine aus dem Compiler -- das ist der Punkt: Ein Client bindet an das, was die Bibliothek sagt, und antwortet der Server auf etwas anderes, kommt nie ein Ereignis an. Moeglich wurde das erst, nachdem managed-r4-typelib-metadata die Quellschnittstelle __Klasse ueberhaupt in die Bibliothek geschrieben hat.",
+      "title": "Server- und Event-Ownership schließen"
+    },
+    {
+      "id": "managed-r5-record-dispatch",
+      "matrixEntry": "com-server-and-typelib-emission",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r4-typelib-metadata"
+      ],
+      "implementation": "planned",
+      "input": "UDT-Werte über eine eigene Dispatch-Fläche tragen",
+      "expected": {
+        "acceptance": "Ein Fremdclient ruft ein Mitglied mit UDT-Rückgabe und mit UDT-Parameter auf und liest die Feldwerte; Besitz und Layout stimmen in beide Richtungen."
+      },
       "verification": "not-yet-verified",
       "testRefs": [
-        "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs"
+        "tests/VB6.Compiler.Tests/TypeLibraryMemberSurfaceTests.cs"
       ],
-      "notes": "Teilfortschritt am 2026-09-09: Die beiden Enumeration-Stubs sind geschlossen. EnumConnectionPoints und EnumConnections warfen NotImplementedException; ein Client, der die Interface-Id kennt, braucht sie nie, ein generischer faengt dort an -- und eine Ablehnung hiess fuer ihn, das Objekt habe gar keine Ereignisquelle. Beide enumerieren jetzt einen Schnappschuss, weil COM nicht festlegt, was ein Enumerator bei Aenderung der Sammlung tut, und ein Schnappschuss die einzige Antwort ist, die einen Client nicht mitten im Durchlauf fallenlaesst. Der Vertrag ist in beide Richtungen gemessen: S_OK nur bei vollstaendig bedienter Anfrage, sonst S_FALSE, und pceltFetched darf null sein. IUnknown/ClassFactory samt Aggregationsablehnung und LockServer, Instancing ueber VB_Exposed/VB_Creatable, Attach/Detach mit CONNECT_E_NOCONNECTION fuer einen unbekannten Cookie und der Shutdown per Fremdclient ueber die Prozessgrenze sind bereits abgedeckt. Offen bleibt die Abnahme gegen einen Fremdclient, der die Ereignisquelle ueber die Typbibliothek bindet -- deshalb die dependsOn auf managed-r4-typelib-metadata.",
-      "title": "Server- und Event-Ownership schließen"
+      "notes": "Abgetrennt am 2026-09-09 aus managed-r4-typelib-metadata, nachdem gemessen war, dass der beschreibende Teil vollstaendig ist und der Aufruf trotzdem nicht geht. Die Bibliothek traegt den Record als TKIND_RECORD, das Mitglied nennt ihn als VT_USERDEFINED, die Assembly traegt ihn als oeffentlichen ComVisible-Typ mit GUID, und das Manifest fuehrt die Bibliothek. Der Aufruf endet dennoch in 0x80131515 -- auch mit per RegisterTypeLibForUser registrierter Bibliothek, auch mit registrierter Klasse, auch ueber einen Client, der den Aktivierungskontext des Manifests aktiviert und per CoCreateInstance erzeugt (ein Long kommt auf demselben Weg als vt=3 zurueck). Der Grund ist strukturell: Gibt man der Assembly ein GuidAttribute auf die geschriebene Bibliothek, damit die CLR sie findet, behandelt sie diese als die exportierte Bibliothek der Assembly und sucht ihre Typen unter den CLR-Namen (__vb6_class_Geber) statt unter den VB6-Namen (Geber, _Geber) -- danach scheitert selbst das Long-Mitglied mit TYPE_E_ELEMENTNOTFOUND. Die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek schliessen einander an dieser Stelle aus. Der Weg ist deshalb, IDispatch fuer die erzeugten Klassen selbst zu implementieren (ClassInterfaceType.None plus eigene GetIDsOfNames/Invoke ueber VBDynamicDispatch, IRecordInfo aus der eigenen Bibliothek). Das ist zugleich der Schnitt, der DISPIDs, Signaturen und Marshalling vollstaendig in die Hand des Compilers legt -- und er beruehrt jede COM-gehostete Klasse, weshalb er nicht als Anhaengsel einer Metadatenkarte laufen darf.",
+      "title": "UDT-Werte über eine eigene Dispatch-Fläche tragen"
     },
     {
       "id": "managed-r5-stream-persistence",
@@ -3567,9 +3587,11 @@
         "tests/VB6.Compiler.Cli.Tests/CliProcessTests.cs",
         "tests/VB6.Compiler.Tests/ComArtifactArchitectureTests.cs",
         "tests/VB6.Compiler.Tests/TypeLibraryWriterTests.cs",
-        "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs"
+        "tests/VB6.Compiler.Tests/TypeLibraryMemberSurfaceTests.cs",
+        "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/EventSourceClientTests.cs"
       ],
-      "gap": "managed-r4-typelib-metadata: TypeLib-Metadaten vervollständigen; managed-r4-server-lifetime: Server- und Event-Ownership schließen"
+      "gap": "managed-r5-record-dispatch: UDT-Werte über eine eigene Dispatch-Fläche tragen"
     },
     {
       "id": "forms-lifecycle-and-intrinsic-controls",

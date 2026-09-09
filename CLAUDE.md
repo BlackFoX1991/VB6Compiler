@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 172 Erwartungen: 160 `implemented`, 0 `partial`, 12 `planned`;
-160 `documented-verified`, 12 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 173 Erwartungen: 162 `implemented`, 0 `partial`, 11 `planned`;
+162 `documented-verified`, 11 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -28,28 +28,27 @@ R0 ist geschlossen: `build.ps1` wertet Standardlauf, nativen x86-Lauf und Wieder
 aus und schreibt `artifacts/verification-report.json`; die Statusregeln der Matrix prüfen Tests
 statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke.
 
-R1 ist **abgenommen mit Rest**: Grammatik und Kontext, Array-/UDT-Formen, Operator- und
-Default-Member-Vertrag, Konvertierungs- und Promotionsmatrix, Standardbibliothek, Datei-Layouts
-gegen Rohbytes und die Profilgrenzen sind gemessen. Elf Karten, davon vier Einzelbefunde, die
-beim Messen gefunden wurden. Seit 2026-09-09 stehen `managed-r1-grammar` und
-`managed-r1-intrinsics` jedoch auf `partial`: Ein Breitendurchgang mit Einzelsonden fand sieben
-dokumentierte Namen, die überhaupt nicht binden — `Beep`, `AppActivate`, `SavePicture`, `ChDrive`,
-`InputB`, `Stop` und `DoEvents` in seiner Funktionsform.
+R1 und R2 sind geschlossen. Ihre Sammelkarten hatten zwischendurch einen Rest, und der ist der
+Grund, warum diese Datei so viel über Messen redet: Ihre Inventare waren aus den **vorhandenen
+Tests** gebildet statt aus den dokumentierten Formen. Sie belegten damit Qualität, nicht
+Vollständigkeit — sieben dokumentierte Standardnamen banden überhaupt nicht, und `As New`
+instanziierte beim Zugriff auf ein `Public`-Feld nicht nach. Kein Test der Suite und keine Stelle
+im VISIA-Korpus traf diese Formen. Ein Inventar, das nur prüft, was schon geprüft wird, ist keines.
 
-R2 ist ebenfalls **abgenommen mit Rest**: Terminate beim Wegfall der letzten Referenz, mit dem
-nativen Zähler gegen eine testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der
-Adoption und Freigabe übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am
-Leben hält. Details in `docs/R2-OBJECT-LIFETIME.md`. Offen ist nicht die Lebensdauer, sondern die
-Erzeugung: `As New` instanziiert beim Zugriff auf ein `Public`-Feld nicht nach
-(`r2-asnew-field-instantiation`).
+R4 ist ebenfalls geschlossen, mit fünf Karten. Was dort abgenommen wurde, verlangte durchgehend
+etwas, das der Compiler nicht allein herstellen kann: einen Fremdclient über die Prozessgrenze
+(Binary Compatibility, Ereignisquelle), registrierte Fremdbibliotheken (rohe Automation-Layouts),
+eine reg-freie Aktivierung über den Aktivierungskontext des Manifests. Zwei Befunde daraus sind
+dauerhaft wichtig: Die DISPIDs der Typbibliothek und die des laufenden Servers waren **nie**
+dieselben, weil die CLR ihre Nummern aus `DispIdAttribute` liest — der Emitter vergibt sie jetzt.
+Und ein VB6-Property-Paar wurde als zwei gleichnamige CLR-Methoden emittiert, weshalb eine Klasse
+mit `Property Get`/`Let` gar keine Typbibliothek erzeugen konnte.
 
-**Beide Reste sind derselbe Fehler**, und er ist der Grund, warum diese Datei so viel über
-Messen redet: Die Inventare der beiden Sammelkarten waren aus den **vorhandenen Tests** gebildet
-statt aus den dokumentierten Formen. Sie belegten damit Qualität, nicht Vollständigkeit — und
-kein Test der Suite und keine Stelle im VISIA-Korpus trifft die fehlenden Formen. Ein Inventar,
-das nur prüft, was schon geprüft wird, ist keines.
+Offen bleibt daraus `managed-r5-record-dispatch`: Ein UDT-Wert lässt sich über die
+AutoDual-Klassenschnittstelle der CLR nicht übergeben, und der Ausweg — ein eigenes `IDispatch`
+für die erzeugten Klassen — berührt jede COM-gehostete Klasse.
 
-Aktive Karte ist `managed-r3-invalidation`. Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
+Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
 UDTs. Bei einem UDT gehört die Zelle dem **ganzen** Datensatz, ein Memberzeiger ist Blockadresse
 plus Offset, und Größe wie Offsets kommen aus dem Interop-Marshaller — derselben Quelle, aus der
@@ -273,8 +272,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-09 auf `9664a20` mit nicht committeten Änderungen: 1851 Standardfälle in 13 Projekten,
-1851 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
+Stand der Prüfung 2026-09-09 auf `9c133f3` mit nicht committeten Änderungen: 1853 Standardfälle in 13 Projekten,
+1853 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
