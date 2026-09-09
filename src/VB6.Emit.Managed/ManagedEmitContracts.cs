@@ -60,6 +60,14 @@ public sealed record ManagedEmitOptions(
     /// core remains headless; this flag only applies to projects whose startup object is a Form.
     /// </summary>
     public bool EnableWinFormsHost { get; init; }
+
+    /// <summary>
+    /// The version of the emitted assembly, taken from the project's <c>MajorVer</c>,
+    /// <c>MinorVer</c> and <c>RevisionVer</c>. A type library carries the same major and minor
+    /// numbers, and a foreign client binds against them -- so the two must not be invented
+    /// separately.
+    /// </summary>
+    public Version Version { get; init; } = new(1, 0, 0, 0);
 }
 
 public sealed record ManagedEmitDiagnostic(string Code, string Message);

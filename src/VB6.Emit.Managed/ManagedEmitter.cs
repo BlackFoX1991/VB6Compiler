@@ -220,7 +220,7 @@ public sealed class ManagedEmitter
                 default);
             var assembly = _metadata.AddAssembly(
                 _metadata.GetOrAddString(_options.AssemblyName),
-                new Version(1, 0, 0, 0),
+                _options.Version,
                 default,
                 default,
                 AssemblyFlags.None,
@@ -535,10 +535,29 @@ public sealed class ManagedEmitter
 
                 foreach (var parameter in procedure.Parameters.OrderBy(parameter => parameter.Index))
                 {
+                    // Optional gehoert in die Metadaten, nicht nur in den Binder: Ein
+                    // fruehgebundener Fremdclient liest die Auslassbarkeit hier, und die
+                    // Typbibliothek wird daraus geschrieben.
+                    var constant = GetParameterConstant(parameter);
+                    var parameterAttributes = ParameterAttributes.None;
+                    if (parameter.Symbol?.IsOptional == true)
+                    {
+                        parameterAttributes |= ParameterAttributes.Optional;
+                        if (constant is not null)
+                        {
+                            parameterAttributes |= ParameterAttributes.HasDefault;
+                        }
+                    }
+
                     var parameterHandle = _metadata.AddParameter(
-                        ParameterAttributes.None,
+                        parameterAttributes,
                         _metadata.GetOrAddString(parameter.Name),
                         parameter.Index + 1);
+                    if (parameterAttributes.HasFlag(ParameterAttributes.HasDefault))
+                    {
+                        _metadata.AddConstant(parameterHandle, constant);
+                    }
+
                     if (parameter.Type == TypeSymbol.Variant &&
                         !(procedure.IsExternal && parameter.Symbol?.IsAny == true))
                     {
@@ -4144,6 +4163,39 @@ public sealed class ManagedEmitter
             var blob = new BlobBuilder();
             EncodeReflectionType(new BlobEncoder(blob).FieldSignature(), typeof(object));
             return _metadata.GetOrAddBlob(blob);
+        }
+
+        /// <summary>
+        /// The metadata constant for an optional parameter's default, or <c>null</c> when the value
+        /// has no constant form. Only a ByVal scalar gets one: a constant behind a ByRef parameter
+        /// describes a value the callee may write to, and the metadata form cannot say that.
+        /// </summary>
+        private static object? GetParameterConstant(IrParameter parameter)
+        {
+            if (parameter.Symbol is not { IsOptional: true, DefaultValue: { } value } ||
+                parameter.PassingMode != ParameterPassingMode.ByVal)
+            {
+                return null;
+            }
+
+            try
+            {
+                var culture = System.Globalization.CultureInfo.InvariantCulture;
+                if (parameter.Type == TypeSymbol.Boolean) return Convert.ToBoolean(value, culture);
+                if (parameter.Type == TypeSymbol.Byte) return Convert.ToByte(value, culture);
+                if (parameter.Type == TypeSymbol.Integer) return Convert.ToInt16(value, culture);
+                if (parameter.Type == TypeSymbol.Long) return Convert.ToInt32(value, culture);
+                if (parameter.Type == TypeSymbol.LongLong) return Convert.ToInt64(value, culture);
+                if (parameter.Type == TypeSymbol.Single) return Convert.ToSingle(value, culture);
+                if (parameter.Type == TypeSymbol.Double) return Convert.ToDouble(value, culture);
+                if (parameter.Type == TypeSymbol.String) return Convert.ToString(value, culture);
+            }
+            catch (Exception exception) when (exception is FormatException or OverflowException or InvalidCastException)
+            {
+                return null;
+            }
+
+            return null;
         }
 
         private BlobHandle EncodeMethodSignature(IrProcedure procedure)

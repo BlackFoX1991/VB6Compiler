@@ -178,6 +178,7 @@ public static class DirectManagedCompilation
             CreateProjectSourceDocuments(lowering.Analysis),
             outputKind);
         actualOptions = WithProjectResources(actualOptions, lowering.Analysis.Project);
+        actualOptions = WithProjectVersion(actualOptions, lowering.Analysis.Project);
         var program = lowering.Program;
         if (isLocalServer)
         {
@@ -464,6 +465,44 @@ public static class DirectManagedCompilation
     /// by <c>ResFile32=</c> into the executable itself, which is what makes LoadResString work in a
     /// deployed program without shipping the .res beside it.
     /// </summary>
+    /// <summary>
+    /// Carries the project's version into the emitted assembly, and from there into the type
+    /// library. A legacy <c>.vbp</c> keeps its version in <c>MajorVer</c>/<c>MinorVer</c>/
+    /// <c>RevisionVer</c>; the public option default stays 1.0.0.0, so the project boundary decides
+    /// this the same way it decides the target platform.
+    /// </summary>
+    private static ManagedEmitOptions WithProjectVersion(
+        ManagedEmitOptions options,
+        VB6.ProjectSystem.VBProject project)
+    {
+        var major = ReadVersionPart(project, "MajorVer");
+        var minor = ReadVersionPart(project, "MinorVer");
+        var revision = ReadVersionPart(project, "RevisionVer");
+        if (major is null && minor is null && revision is null)
+        {
+            return options;
+        }
+
+        // VB6 shows the three numbers as Major.Minor.Revision, so the third CLR component carries
+        // the revision and the fourth stays 0.
+        return options with { Version = new Version(major ?? 1, minor ?? 0, revision ?? 0, 0) };
+    }
+
+    private static int? ReadVersionPart(VB6.ProjectSystem.VBProject project, string name)
+    {
+        foreach (var property in project.Properties)
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(property.Value, out var value) &&
+                value is >= 0 and <= ushort.MaxValue)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private static ManagedEmitOptions WithProjectResources(
         ManagedEmitOptions options,
         VB6.ProjectSystem.VBProject project)
