@@ -18,7 +18,8 @@ internal static class ManagedComManifestWriter
         string managedAssemblyPath,
         string comHostPath,
         ManagedPlatform platform,
-        string? manifestPath = null)
+        string? manifestPath = null,
+        string? typeLibraryPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(managedAssemblyPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(comHostPath);
@@ -101,11 +102,82 @@ internal static class ManagedComManifestWriter
             }
 
             writer.WriteEndElement();
+
+            // Die Typbibliothek gehoert in dieselbe Aktivierungsumgebung. Ohne sie findet ein
+            // Client die Beschreibung nur ueber die Registrierung, und alles, was zur Laufzeit
+            // aufgeloest werden muss -- IRecordInfo fuer einen Record, die Schnittstelle eines
+            // fruehgebundenen Aufrufs -- steht ihm registrierungsfrei nicht zur Verfuegung.
+            if (typeLibraryPath is not null &&
+                File.Exists(typeLibraryPath) &&
+                OperatingSystem.IsWindows() &&
+                TryReadTypeLibraryIdentity(typeLibraryPath, out var libraryId, out var libraryVersion))
+            {
+                writer.WriteStartElement("file", ManifestNamespace);
+                writer.WriteAttributeString("name", Path.GetFileName(typeLibraryPath));
+                writer.WriteStartElement("typelib", ManifestNamespace);
+                writer.WriteAttributeString("tlbid", libraryId.ToString("B").ToUpperInvariant());
+                writer.WriteAttributeString("version", libraryVersion);
+                writer.WriteAttributeString("helpdir", string.Empty);
+                writer.WriteAttributeString("resourceid", "0");
+                writer.WriteAttributeString("flags", "HASDISKIMAGE");
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+            }
+
             writer.WriteEndElement();
         }
 
         return outputPath;
     }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static bool TryReadTypeLibraryIdentity(string path, out Guid libraryId, out string version)
+    {
+        libraryId = Guid.Empty;
+        version = "1.0";
+        try
+        {
+            var hresult = LoadTypeLibEx(path, RegKindNone, out var library);
+            if (hresult != 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                library.GetLibAttr(out var attributes);
+                try
+                {
+                    var attribute = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.TYPELIBATTR>(
+                        attributes);
+                    libraryId = attribute.guid;
+                    version = attribute.wMajorVerNum + "." + attribute.wMinorVerNum;
+                    return true;
+                }
+                finally
+                {
+                    library.ReleaseTLibAttr(attributes);
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(library);
+            }
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+    }
+
+    // REGKIND_NONE: die Bibliothek wird gelesen, nicht registriert.
+    private const int RegKindNone = 2;
+
+    [DllImport("oleaut32.dll", CharSet = CharSet.Unicode)]
+    private static extern int LoadTypeLibEx(
+        [MarshalAs(UnmanagedType.LPWStr)] string szFile,
+        int regKind,
+        [MarshalAs(UnmanagedType.Interface)] out System.Runtime.InteropServices.ComTypes.ITypeLib typeLibrary);
 
     private static System.Collections.Immutable.ImmutableArray<ComClassIdentity> ReadComClasses(
         string assemblyPath)

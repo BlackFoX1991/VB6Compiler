@@ -8733,3 +8733,29 @@ und x86 ist die Plattform, auf die ein Legacy-Projekt und der native OCX-Pfad fe
 
 `managed-r4-automation-layouts` steht auf `implemented` / `documented-verified`. R4 hat noch zwei
 offene Karten.
+
+## Records in der Typbibliothek, und wo der Aufruf hängt
+
+Ein `Public Type` gehört in die Automationsfläche, ein `Private Type` nicht — dieselbe Regel wie
+bei einem Klassenmodul. Der Unterschied stand seit jeher in der Syntax, aber nicht im Symbol: Der
+UDT trug seine VB6-Sichtbarkeit nicht bis in den Emitter. Jetzt tut er es, und daran hängen drei
+Dinge: Der öffentliche Record wird als öffentlicher ComVisible-Typ mit eigener GUID abgelegt, er
+steht in der Bibliothek als `TKIND_RECORD` mit seinen Feldern, und ein Mitglied, das ihn
+zurückgibt, nennt ihn als `VT_USERDEFINED` statt als Variant. Das Manifest führt die Typbibliothek
+jetzt ebenfalls, damit eine registrierungsfreie Aktivierung sie überhaupt finden kann.
+
+Der Aufruf selbst scheitert weiterhin — und das ist der Grund, warum
+`managed-r4-typelib-metadata` offen bleibt. Gemessen mit einem Fremdclient gegen einen
+ActiveX-DLL-Server: Ein `Long` kommt als `vt=3` zurück, ein Mitglied mit UDT-Rückgabe endet in
+`0x80131515`. Die Ursache liegt nach dieser Runde nicht mehr in den Metadaten: Die CLR baut für
+einen Recordrückgabewert ein `VT_RECORD` und braucht dafür `IRecordInfo`, das über
+`GetRecordInfoFromGuids` aus einer **auflösbaren** Typbibliothek kommt — aus der Registrierung
+oder einem aktivierten Kontext. Der Messclient lädt den comhost direkt und aktiviert keinen
+Kontext; eine Registrierung braucht Administratorrechte. Die Abnahme des letzten Stücks verlangt
+deshalb entweder einen Client, der den Aktivierungskontext des Manifests selbst aktiviert, oder
+eine registrierte Komponente.
+
+Nebenbefund aus derselben Runde, behoben: In einem String-Literal des Typbibliotheksschreibers
+stand ein **echtes NUL-Byte** statt der Escape-Folge `\0` — ein Nebenprodukt einer skriptgesteuerten
+Änderung. Der Compiler nimmt das an, die Datei liest sich danach als binär, und `grep` verweigert
+sie.

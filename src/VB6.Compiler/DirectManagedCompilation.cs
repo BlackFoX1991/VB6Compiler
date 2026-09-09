@@ -884,7 +884,8 @@ internal static class ManagedArtifactWriter
                 comManifestPath = ManagedComManifestWriter.Create(
                     managedAssemblyPath,
                     comHostPath,
-                    options.Platform);
+                    options.Platform,
+                    typeLibraryPath: typeLibraryPath);
             }
         }
 
