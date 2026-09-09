@@ -53,6 +53,10 @@ public sealed class ManagedEmitter
         private readonly MethodBodyStreamEncoder _methodBodyStream;
         private readonly Dictionary<IrProcedure, MethodDefinitionHandle> _methodHandles =
             new(ReferenceEqualityComparer.Instance);
+        // Identitaet, nicht Wertgleichheit: ClassTypeSymbol ist ein record, und sein Vergleich
+        // laeuft über den ganzen Mitgliedergraph.
+        private readonly Dictionary<ClassTypeSymbol, Dictionary<string, bool>> _comPropertyNames =
+            new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<ProcedureSymbol, MethodDefinitionHandle> _procedureSymbolHandles =
             new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IrGlobal, FieldDefinitionHandle> _globalHandles =
@@ -4443,6 +4447,13 @@ public sealed class ManagedEmitter
                 {
                     attributes |= MethodAttributes.Virtual;
                 }
+                if (TryGetComPropertyName(procedure, out _, out _))
+                {
+                    // Ein Accessor traegt SpecialName, sonst ist er neben seiner Property noch
+                    // einmal eine gewoehnliche Methode -- und der Typbibliotheksschreiber
+                    // veroeffentlicht get_Wert dann zusaetzlich zu Wert.
+                    attributes |= MethodAttributes.SpecialName;
+                }
 
                 var implementation = isInterfaceMethod
                     ? MethodImplAttributes.IL | MethodImplAttributes.Managed
@@ -4559,6 +4570,7 @@ public sealed class ManagedEmitter
                         plan.FirstMethod);
                 }
                 EnsureHandle(actual, plan.TypeHandle, "type");
+                EmitComProperties(actual, plan);
 
                 if (plan.Class is { IsInterface: false } classPlan &&
                     classPlan.Symbol.DefaultPropertyName is { Length: > 0 } defaultMemberName)
@@ -4667,7 +4679,193 @@ public sealed class ManagedEmitter
                 return procedure.Name;
             }
 
+            // Ein VB6-Property-Paar wurde bis 09/2026 als zwei gleichnamige CLR-Methoden
+            // emittiert. Der CLR ist das erlaubt -- es sind Ueberladungen --, einer Typbibliothek
+            // nicht: Zwei Funktionen mit einem Namen sind dort mehrdeutig, und CreateTypeLib2
+            // wies die ganze Bibliothek mit TYPE_E_AMBIGUOUSNAME ab. Eine Klasse mit einem
+            // gewoehnlichen Get/Let-Paar konnte deshalb gar keine erzeugen.
+            //
+            // Die Accessoren heissen jetzt wie in jeder CLR-Property, und die Property selbst
+            // traegt den VB6-Namen; damit sehen AutoDual-Schnittstelle und Typbibliothek
+            // dasselbe, was ein frueh gebundener Client erwartet.
+            if (TryGetComPropertyName(procedure, out var propertyName, out var isGetter))
+            {
+                return (isGetter ? "get_" : "set_") + propertyName;
+            }
+
             return procedure.Symbol?.Name ?? procedure.Name;
+        }
+
+        /// <summary>
+        /// Whether this procedure is one accessor of a VB6 property that the COM surface should
+        /// publish as a CLR property. <c>Property Set</c> joins <c>Property Let</c> as the setter:
+        /// VB6 separates them by whether the value is an object, the CLR does not.
+        /// </summary>
+        private bool TryGetComPropertyName(IrProcedure procedure, out string name, out bool isGetter)
+        {
+            name = string.Empty;
+            isGetter = false;
+            if (!_options.EnableComHosting ||
+                procedure.DeclaringClass is null ||
+                IsInterfaceProcedure(procedure) ||
+                IsInterfaceImplementationProcedure(procedure) ||
+                procedure.Symbol?.PropertyAccessor is not { } accessor)
+            {
+                return false;
+            }
+
+            // Die Entscheidung gilt fuer den *Namen*, nicht fuer den einzelnen Accessor: Wird nur
+            // einer von zweien zur Property, steht der andere als gleichnamige Funktion daneben,
+            // und die Typbibliothek ist wieder mehrdeutig.
+            if (!IsPublishableComProperty(procedure.DeclaringClass, procedure.Symbol.Name))
+            {
+                return false;
+            }
+
+            name = procedure.Symbol.Name;
+            isGetter = accessor == PropertyAccessorKind.Get;
+            return true;
+        }
+
+        /// <summary>
+        /// True when every declared accessor of this name fits the CLR property shape: at most one
+        /// parameterless getter and at most one single-argument setter.
+        ///
+        /// An indexed property keeps its method form -- it has no measured contract yet. So does a
+        /// name that carries both <c>Property Let</c> and <c>Property Set</c>: VB6 separates them by
+        /// whether the value is an object, the CLR has one setter, and two setter rows on one
+        /// property are invalid metadata.
+        /// </summary>
+        private bool IsPublishableComProperty(ClassTypeSymbol declaringClass, string name)
+        {
+            if (!_comPropertyNames.TryGetValue(declaringClass, out var known))
+            {
+                known = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                _comPropertyNames[declaringClass] = known;
+            }
+            else if (known.TryGetValue(name, out var cached))
+            {
+                return cached;
+            }
+
+            var getters = 0;
+            var setters = 0;
+            var indexCount = -1;
+            var publishable = true;
+            foreach (var property in declaringClass.Properties)
+            {
+                if (!string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Der Setter traegt den Wert als letztes Argument, der Getter nicht. Beide muessen
+                // deshalb dieselbe Zahl von Indexargumenten nennen, sonst waeren es zwei
+                // verschiedene Properties mit einem Namen.
+                var indices = property.Accessor == PropertyAccessorKind.Get
+                    ? property.Parameters.Length
+                    : property.Parameters.Length - 1;
+                if (property.Accessor == PropertyAccessorKind.Get)
+                {
+                    getters++;
+                }
+                else
+                {
+                    setters++;
+                }
+
+                publishable &= indices >= 0 && (indexCount < 0 || indexCount == indices);
+                indexCount = indices;
+            }
+
+            publishable &= getters <= 1 && setters <= 1;
+            known[name] = publishable;
+            return publishable;
+        }
+
+        /// <summary>
+        /// Publishes the VB6 properties of one class as CLR properties.
+        ///
+        /// The rows have to be added here rather than beside the methods: a PropertyMap points at
+        /// the first property of its type, so the properties of a type must be contiguous and the
+        /// map rows must follow type order. This loop already runs in exactly that order.
+        /// </summary>
+        private void EmitComProperties(TypeDefinitionHandle typeHandle, TypePlan plan)
+        {
+            if (plan.Class is not { IsInterface: false } definition || !_options.EnableComHosting)
+            {
+                return;
+            }
+
+            var accessors = new Dictionary<string, (IrProcedure? Getter, IrProcedure? Setter)>(
+                StringComparer.OrdinalIgnoreCase);
+            var order = new List<string>();
+            foreach (var procedure in definition.Methods)
+            {
+                if (!TryGetComPropertyName(procedure, out var name, out var isGetter))
+                {
+                    continue;
+                }
+
+                if (!accessors.TryGetValue(name, out var pair))
+                {
+                    order.Add(name);
+                    pair = (null, null);
+                }
+
+                accessors[name] = isGetter ? (procedure, pair.Setter) : (pair.Getter, procedure);
+            }
+
+            var first = default(PropertyDefinitionHandle);
+            foreach (var name in order)
+            {
+                var (getter, setter) = accessors[name];
+                var setterParameters = setter?.Parameters.OrderBy(parameter => parameter.Index).ToList();
+                var indexParameters = getter is not null
+                    ? getter.Parameters.OrderBy(parameter => parameter.Index).ToList()
+                    : setterParameters!.Take(setterParameters!.Count - 1).ToList();
+                var propertyType = getter?.ReturnType ?? setterParameters![^1].Type;
+                var signature = new BlobBuilder();
+                new BlobEncoder(signature)
+                    .PropertySignature(isInstanceProperty: true)
+                    .Parameters(
+                        indexParameters.Count,
+                        returnType => EncodeType(returnType.Type(), propertyType),
+                        parameters =>
+                        {
+                            foreach (var parameter in indexParameters)
+                            {
+                                EncodeType(
+                                    parameters.AddParameter()
+                                        .Type(parameter.PassingMode == ParameterPassingMode.ByRef),
+                                    parameter.Type);
+                            }
+                        });
+
+                var property = _metadata.AddProperty(
+                    PropertyAttributes.None,
+                    _metadata.GetOrAddString(name),
+                    _metadata.GetOrAddBlob(signature));
+                if (first.IsNil)
+                {
+                    first = property;
+                }
+
+                if (getter is not null)
+                {
+                    _metadata.AddMethodSemantics(property, MethodSemanticsAttributes.Getter, _methodHandles[getter]);
+                }
+
+                if (setter is not null)
+                {
+                    _metadata.AddMethodSemantics(property, MethodSemanticsAttributes.Setter, _methodHandles[setter]);
+                }
+            }
+
+            if (!first.IsNil)
+            {
+                _metadata.AddPropertyMap(typeHandle, first);
+            }
         }
 
         private string GetExternalProcedureName(ProcedureSymbol procedure) =>
