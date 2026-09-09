@@ -363,6 +363,25 @@ public sealed record IrAddressableArrayPointerExpression(
     TypeSymbol ResultType)
     : IrExpression(ResultType);
 
+/// <summary>
+/// A stored x86 pointer to an element of a multi-dimensional SAFEARRAY.  The indices remain in
+/// VB source order; the runtime owns the descriptor and maps that order to its native layout.
+/// </summary>
+public sealed record IrAddressableSafeArrayElementPointerExpression(
+    IrExpression Array,
+    ImmutableArray<IrExpression> Indices,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
+/// <summary>
+/// The descriptor address answered by <c>VarPtr(array)</c>.  It is intentionally distinct from
+/// an element pointer: the former names the SAFEARRAY header, never its first data byte.
+/// </summary>
+public sealed record IrAddressableSafeArrayDescriptorPointerExpression(
+    IrExpression Array,
+    TypeSymbol ResultType)
+    : IrExpression(ResultType);
+
 public sealed record IrRuntimeCallExpression(
     IrRuntimeMethod Method,
     ImmutableArray<IrCallArgument> Arguments,

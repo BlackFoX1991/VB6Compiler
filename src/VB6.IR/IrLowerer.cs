@@ -4395,20 +4395,38 @@ public static class IrLowerer
                 (intrinsic == VBIntrinsicKind.VarPtr || intrinsic == VBIntrinsicKind.StrPtr) &&
                 StripConversions(invocation.Arguments[0].Expression) is { } argument)
             {
-                // Ein Arrayelement bekommt keine Zelle: Das Array besitzt den einzigen
-                // Speicher, und der wird beim ersten Zeiger unbeweglich gemacht. Nur ein
-                // einzelner Index -- bei mehr als einer Dimension ist die physische Reihenfolge
-                // hier eine andere als die, die ein VB6-SAFEARRAY ablaeuft.
+                // Ein Arrayelement bekommt keine Zelle: Das Array besitzt den einzigen Speicher,
+                // und beim ersten Zeiger materialisiert die Runtime daraus einen SAFEARRAY. Die
+                // Indizes bleiben in VB-Quellreihenfolge; nur die Runtime kennt die native
+                // Speicherreihenfolge.
                 if (intrinsic == VBIntrinsicKind.VarPtr &&
                     argument is BoundArrayAccessExpression
-                    {
-                        Indices.Length: 1
-                    } element &&
-                    IsAddressableScalar(element.ElementType))
+                    { } element &&
+                    IsSafeArrayAddressableElement(element.ElementType))
                 {
-                    pointer = new IrAddressableArrayPointerExpression(
-                        new IrLoadExpression(LowerVariablePlace(element.Array)),
-                        LowerExpression(element.Indices[0]),
+                    var array = new IrLoadExpression(LowerVariablePlace(element.Array));
+                    pointer = element.Indices.Length == 1
+                        ? new IrAddressableArrayPointerExpression(
+                            array,
+                            LowerExpression(element.Indices[0]),
+                            TypeSymbol.Long)
+                        : new IrAddressableSafeArrayElementPointerExpression(
+                            array,
+                            element.Indices.Select(LowerExpression).ToImmutableArray(),
+                            TypeSymbol.Long);
+                    return true;
+                }
+
+                // VarPtr on an array names its SAFEARRAY descriptor, never the data at element
+                // zero. An unallocated dynamic array is still evaluated by the Runtime and
+                // answers VB6 error 9 instead of exposing a null CLR reference.
+                if (intrinsic == VBIntrinsicKind.VarPtr &&
+                    argument is BoundVariableExpression arrayVariable &&
+                    arrayVariable.Type is ArrayTypeSymbol arrayType &&
+                    IsSafeArrayAddressableElement(arrayType.ElementType))
+                {
+                    pointer = new IrAddressableSafeArrayDescriptorPointerExpression(
+                        new IrLoadExpression(LowerVariablePlace(arrayVariable.Variable)),
                         TypeSymbol.Long);
                     return true;
                 }
@@ -4591,6 +4609,17 @@ public static class IrLowerer
             type == TypeSymbol.Double ||
             type == TypeSymbol.Date ||
             type == TypeSymbol.Currency;
+
+        // Boolean has a two-byte VB6 representation but a one-byte CLR backing array; it needs
+        // a dedicated conversion buffer rather than a descriptor that falsely advertises its
+        // native stride. The other retained scalar families have one shared flat representation.
+        //
+        // This is the earlier of two guards, not the only one: VBArray<T> refuses the same shape
+        // by comparing the VARTYPE's cbElements against the CLR element stride, because the
+        // runtime entry point is public and does not go through this lowering. Both must keep
+        // agreeing -- widening one alone turns a reported error 5 into a native overrun.
+        private static bool IsSafeArrayAddressableElement(TypeSymbol type) =>
+            type != TypeSymbol.Boolean && IsAddressableScalar(type);
 
         private IrCallArgument LowerAnyPointerArgument(BoundExpression expression)
         {
