@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `ec74093` mit nicht committeten Änderungen, Lauf `20260909T075751Z-6d481f01`:
+Messung vom 2026-09-09 auf `main` / `9d7f100` mit nicht committeten Änderungen, Lauf `20260909T081125Z-4f757405`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1827 Fälle: 1827 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1828 Fälle: 1828 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **147 implemented**, **3 partial** und **21 planned**;
-**150/171 documented-verified**, 21 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **148 implemented**, **3 partial** und **20 planned**;
+**151/171 documented-verified**, 20 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -144,6 +144,66 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 | `managed-r0-reporting` | `build.ps1`, `artifacts/verification-report.json`, `VerificationDocumentTests` |
 | `managed-r0-status-checks` | `CompatibilityMatrixStatusTests`, `CompatibilityMatrixTests`, `build.ps1 -UpdateVerificationDocs` |
 
+### R3 — Adressierbarer Speicher und native ABI
+
+Geschlossen. Alle sechs Karten stehen als `implemented` / `documented-verified` in der Matrix und
+nicht mehr in der Restliste.
+
+Der x86-Managed-Slice erzeugt Runtime-besessenen, GC-stabilen Speicher für sieben
+Familien: Locals, Modulvariablen einschließlich `Static`-Locals, ByVal-Parameter, flache UDTs,
+eindimensionale Arrayelemente, private Instanzfelder und beide String-Adressen. Native Änderungen
+werden an Load, Store, ByRef-Adresse und Write-back synchronisiert; ein Arrayelement besitzt dabei
+bewusst keine Kopierzelle, sondern macht den Speicher seines Arrays unbeweglich.
+
+Für kontrollierte private x86-Aufrufe reicht `managed-r3-byref-alias` genau diese Zelle als
+ByRef-Argument durch: `VarPtr` im Aufgerufenen ist damit die Adresse des Aufrufers. Fehlt dem
+Argument noch eine Zelle, übernimmt eine aufrufgebundene Zelle die Übergabe, das Rückschreiben und
+die Freigabe. `AddressOf`-Ziele, Ereignishandler und öffentliche Klassenmitglieder bleiben bei
+Fehler 5, weil der Emitter dort nicht jede Aufrufstelle kontrolliert.
+
+Die **Invalidierung** ist abgenommen und schließt alle fünf Enden ausführend ab: `ReDim` und
+`ReDim Preserve` beenden die alte Adresse, `Erase` auf einem festen Array leert an Ort und Stelle
+und behält sie, `Erase` auf einem dynamischen Array gibt die Variable frei und die nächste
+Elementadresse meldet Fehler 9. Das Prozedurende hängt am Return-Terminator, nicht an einer Stelle
+am Textende. Das Objektende hat eine eigene Route bekommen: Eine Klasse mit adressierbarem Feld
+registriert sich auch ohne `Class_Terminate`, und die Zelle wird über eine enge
+Markerschnittstelle freigegeben statt dadurch, dass irgendein `IDisposable`-Feld gefunden wird.
+
+Der **SAFEARRAY-Vertrag** hebt die beiden Grenzen auf, die der Slot-Vertrag stehen ließ. Der
+gepinnte Puffer trägt einen echten `oleaut32`-Deskriptor; `VarPtr` auf das ganze Array nennt ihn,
+mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge. Beides ist gegen Windows Automation
+gemessen und zusätzlich aus VB6-Quelltext über die ganze Kette beobachtet.
+
+Der **VARIANT-Vertrag** ist die einzige Familie, die keinen verwalteten Speicherplatz freilegen
+kann: Ein Variant reist überall sonst als CLR-`object`. Die Zelle besitzt die sechzehn Byte
+deshalb selbst und rechnet bei jedem Zugriff in beide Richtungen um. Der Subtyp ist dabei der
+ganze Punkt — Empty, Null und Nothing sind verwaltet alle die Abwesenheit eines Werts, nativ aber
+`VT_EMPTY`, `VT_NULL` und `VT_DISPATCH` mit Nullzeiger. Gemessen über alle drei Speicherfamilien.
+
+Beim Messen kamen zwei Befunde heraus, die beim Lesen nicht sichtbar waren. Die Elementauswahl war
+eine Ausschlussliste und ließ `VT_BOOL` durch — zwei Byte breit über einem einbyteigen CLR-`bool`,
+also ein Deskriptor, der doppelt so viel Speicher verspricht wie da ist. Ersetzt durch eine
+Invariante: `cbElements` muss die CLR-Schrittweite sein. Und die Freigabe stand auf der Annahme,
+`FADF_STATIC` halte OleAut32 von den Nutzdaten fern; die Messung hat sie widerlegt.
+`SafeArrayDestroy` nullt den Puffer auch mit gesetztem Flag, also gibt jetzt ausschließlich
+`SafeArrayDestroyDescriptor` frei.
+
+
+Das **Declare- und Callback-ABI** war beim Nachmessen bereits vollständig: 39 Fälle decken UDT-,
+Zeiger-, String- und Array-Signaturen mit Besitz, Grenzen und Rückschreiben ab, und die
+x64-Seite läuft mit, weil die Ausführungsfälle AnyCPU sind. Ergänzt wurde der eine fehlende Fall,
+ein aufgehobener `AddressOf`-Zeiger, der nach echtem Speicherdruck über eine native API weiter
+gerufen wird. Zum Abmelden gibt es bewusst keinen Weg: Die Registry hält den Delegaten bis zum
+Prozessende, weil eine native Seite den Zeiger unbegrenzt behalten darf.
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r3-pointers` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests`, `VBArrayTests` |
+| `managed-r3-byref-alias` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests` |
+| `managed-r3-invalidation` | `PointerIntrinsicTests`, `ObjectLifetimeTests`, `VBAddressableCellTests`, `VBArrayTests` |
+| `managed-r3-safearray` | `PointerIntrinsicTests`, `VBArrayTests` |
+| `managed-r3-variant` | `PointerIntrinsicTests`, `VBAddressableCellTests`, `VariantStateTests` |
+| `managed-r3-callback-abi` | `DeclarePInvokeExecutionTests`, `AddressOfExecutionTests`, `VBCallbackRegistryTests` |
+
 ## Abgenommene Teilverträge
 
 Hier stehen Etappen, deren Nachweise gemessen und gültig sind, die aber einen benannten Rest
@@ -224,58 +284,9 @@ festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, so
 | --- | --- |
 | `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
 
-### R3 — Slot-Instrumentierung adressierbaren Speichers
-
-Der abgenommene x86-Managed-Slice erzeugt Runtime-besessenen, GC-stabilen Speicher für sieben
-Familien: Locals, Modulvariablen einschließlich `Static`-Locals, ByVal-Parameter, flache UDTs,
-eindimensionale Arrayelemente, private Instanzfelder und beide String-Adressen. Native Änderungen
-werden an Load, Store, ByRef-Adresse und Write-back synchronisiert; ein Arrayelement besitzt dabei
-bewusst keine Kopierzelle, sondern macht den Speicher seines Arrays unbeweglich.
-
-Für kontrollierte private x86-Aufrufe reicht `managed-r3-byref-alias` genau diese Zelle als
-ByRef-Argument durch: `VarPtr` im Aufgerufenen ist damit die Adresse des Aufrufers. Fehlt dem
-Argument noch eine Zelle, übernimmt eine aufrufgebundene Zelle die Übergabe, das Rückschreiben und
-die Freigabe. `AddressOf`-Ziele, Ereignishandler und öffentliche Klassenmitglieder bleiben bei
-Fehler 5, weil der Emitter dort nicht jede Aufrufstelle kontrolliert.
-
-Die **Invalidierung** ist abgenommen und schließt alle fünf Enden ausführend ab: `ReDim` und
-`ReDim Preserve` beenden die alte Adresse, `Erase` auf einem festen Array leert an Ort und Stelle
-und behält sie, `Erase` auf einem dynamischen Array gibt die Variable frei und die nächste
-Elementadresse meldet Fehler 9. Das Prozedurende hängt am Return-Terminator, nicht an einer Stelle
-am Textende. Das Objektende hat eine eigene Route bekommen: Eine Klasse mit adressierbarem Feld
-registriert sich auch ohne `Class_Terminate`, und die Zelle wird über eine enge
-Markerschnittstelle freigegeben statt dadurch, dass irgendein `IDisposable`-Feld gefunden wird.
-
-Der **SAFEARRAY-Vertrag** hebt die beiden Grenzen auf, die der Slot-Vertrag stehen ließ. Der
-gepinnte Puffer trägt einen echten `oleaut32`-Deskriptor; `VarPtr` auf das ganze Array nennt ihn,
-mehrdimensionale Elemente liegen in SAFEARRAY-Reihenfolge. Beides ist gegen Windows Automation
-gemessen und zusätzlich aus VB6-Quelltext über die ganze Kette beobachtet.
-
-Der **VARIANT-Vertrag** ist die einzige Familie, die keinen verwalteten Speicherplatz freilegen
-kann: Ein Variant reist überall sonst als CLR-`object`. Die Zelle besitzt die sechzehn Byte
-deshalb selbst und rechnet bei jedem Zugriff in beide Richtungen um. Der Subtyp ist dabei der
-ganze Punkt — Empty, Null und Nothing sind verwaltet alle die Abwesenheit eines Werts, nativ aber
-`VT_EMPTY`, `VT_NULL` und `VT_DISPATCH` mit Nullzeiger. Gemessen über alle drei Speicherfamilien.
-
-Beim Messen kamen zwei Befunde heraus, die beim Lesen nicht sichtbar waren. Die Elementauswahl war
-eine Ausschlussliste und ließ `VT_BOOL` durch — zwei Byte breit über einem einbyteigen CLR-`bool`,
-also ein Deskriptor, der doppelt so viel Speicher verspricht wie da ist. Ersetzt durch eine
-Invariante: `cbElements` muss die CLR-Schrittweite sein. Und die Freigabe stand auf der Annahme,
-`FADF_STATIC` halte OleAut32 von den Nutzdaten fern; die Messung hat sie widerlegt.
-`SafeArrayDestroy` nullt den Puffer auch mit gesetztem Flag, also gibt jetzt ausschließlich
-`SafeArrayDestroyDescriptor` frei.
-
-| Karte | Nachweis |
-| --- | --- |
-| `managed-r3-pointers` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests`, `VBArrayTests` |
-| `managed-r3-byref-alias` | `PointerIntrinsicTests`, `IrLowererTests`, `ManagedEmitterTests`, `VBAddressableCellTests` |
-| `managed-r3-invalidation` | `PointerIntrinsicTests`, `ObjectLifetimeTests`, `VBAddressableCellTests`, `VBArrayTests` |
-| `managed-r3-safearray` | `PointerIntrinsicTests`, `VBArrayTests` |
-| `managed-r3-variant` | `PointerIntrinsicTests`, `VBAddressableCellTests`, `VariantStateTests` |
-
 ## Aktive Restliste
 
-Die 21 folgenden Karten sind `planned` / `not-yet-verified`. Nur R0 ist geschlossen; R1 und R2
+Die 20 folgenden Karten sind `planned` / `not-yet-verified`. Nur R0 ist geschlossen; R1 und R2
 stehen als abgenommene Teilverträge darüber und tauchen hier mit ihrem gemessenen Rest wieder auf.
 Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen legen
 die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben in der Matrix
@@ -306,28 +317,6 @@ Nach R1 nicht erforderlich; unabhängig ausführbar.
 | Karte | Ziel und Abnahme |
 | --- | --- |
 | `r2-asnew-field-instantiation` | **`As New` instanziiert auch beim Feldzugriff:** Der Zugriff auf ein `Public`-Feld ist eine erste Verwendung und erzeugt die Instanz — kein Fehler 91, keine unbehandelte `NullReferenceException`. Die vier auslösenden Zugriffsformen werden als Inventar festgehalten. |
-
-### R3 — Adressierbarer Speicher und native ABI
-
-Nach R2.
-
-Der ByRef-Alias ist geschlossen: Bei kontrollierten privaten x86-Aufrufen reicht der Emitter die
-native Zelle des Aufrufers als ByRef-Argument durch; fehlt sie noch, übernimmt eine
-aufrufgebundene Zelle mit Rückschreiben und Freigabe. `AddressOf`-Ziele, Ereignishandler und
-öffentliche Klassenmitglieder bleiben bei Fehler 5, weil nicht alle ihre Aufrufstellen im IR
-sichtbar sind. Public-Felder sind ebenfalls ausgeschlossen, weil späte Bindung das CLR-Feld direkt
-per Reflection liest. UDTs mit Array-, Variant- oder variablen String-Membern, mehrdimensionale
-und ganze Arrays sowie Variants haben eigene Layout-/Ownership-Karten; AnyCPU und x64 geben keinen
-in `Long` abgeschnittenen Zeiger aus. Die Grenztabelle, Layoutfamilien und die genaue Reihenfolge
-stehen in
-[R3-ADDRESSABLE-STORAGE.md](R3-ADDRESSABLE-STORAGE.md).
-
-Invalidierung, SAFEARRAY- und VARIANT-Vertrag sind abgenommen und stehen als Teilverträge oben.
-Offen bleibt eine Karte.
-
-| Karte | Ziel und Abnahme |
-| --- | --- |
-| `managed-r3-callback-abi` | **Declare- und Callback-ABI vervollständigen:** UDT-, Pointer-, String- und Array-Signaturen mit Ownership, Bounds und Write-back in x86 sowie unterstützten x64-Erweiterungen messen; zurückbehaltene Callbacks nach GC und beim Abmelden prüfen. |
 
 ### R4 — COM-Konsum, Emission und Binary Compatibility
 

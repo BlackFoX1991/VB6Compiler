@@ -2892,16 +2892,18 @@
       "dependsOn": [
         "managed-r3-variant"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Declare- und Callback-ABI vervollständigen",
       "expected": {
         "acceptance": "UDT-, Pointer-, String- und Array-Signaturen mit Ownership, Bounds und Write-back in x86 sowie unterstützten x64-Erweiterungen messen; zurückbehaltene Callbacks nach GC und beim Abmelden prüfen."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs"
+        "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Der Befund beim Nachmessen war, dass die Fläche bereits trägt: 39 Fälle decken UDT-Signaturen einschließlich Vier-Byte-Packing und fester Stringfelder, LongPtr- und As-Any-Zeiger, ANSI- und Wide-Strings mit Rückschreiben, SAFEARRAY-Parameter und -Rückgaben, Variant-, String- und Objektarray-Callbacks mit Ersetzung sowie native LongPtr-Arrays ab. Bounds reisen mit: gemessen über Grenzen wie -1 To 0, 1 To 2 und 5 To 8, jeweils mit Rückschreiben an LBound. Die x64-Seite ist nicht getrennt gebaut, sondern läuft mit -- die EmitManagedApplication-Fälle sind AnyCPU und damit auf einem 64-Bit-Host x64. Ergänzt wurde der Fall, der fehlte: ein aufgehobener AddressOf-Zeiger, der nach echtem Speicherdruck über eine native API weiter gerufen wird. Zum Abmelden gibt es bewusst keinen Weg: VBCallbackRegistry hält den Delegaten bis zum Prozessende, weil eine native Seite den Zeiger unbegrenzt behalten darf, und ein Abmelden würde ihn ins Leere zeigen lassen. Ein UDT mit variabler String-Länge meldet den dokumentierten Fehler 5 statt zu marshallen. Documented-verified, nicht oracle-verified: gemessen gegen Windows-APIs und dokumentierte ABI-Verträge, nicht gegen einen Originalcompiler.",
       "title": "Declare- und Callback-ABI vervollständigen"
     },
     {
@@ -3635,17 +3637,17 @@
         "bitness": "x86 only for VB6Sp6",
         "com": "Automation callbacks use VARIANT/SAFEARRAY ownership rules"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/DeclarePInvokeExecutionTests.cs",
         "tests/VB6.Parser.Tests/DeclareParserTests.cs",
         "tests/VB6.Compiler.Tests/AddressOfExecutionTests.cs",
         "tests/VB6.Parser.Tests/AddressOfParserTests.cs",
         "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs",
+        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs",
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
-      ],
-      "gap": "managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
+      ]
     },
     {
       "id": "profile-selection-and-provenance",

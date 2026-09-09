@@ -686,4 +686,55 @@ public sealed class AddressOfExecutionTests
             methods.Single(method => method.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
     }
 
+    [TestMethod]
+    public void EmitManagedApplication_KeepsAStoredCallbackPointerCallableUnderMemoryPressure()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The retained callback test requires Windows.");
+            return;
+        }
+
+        // Die uebrigen Faelle nehmen AddressOf unmittelbar an der Aufrufstelle. VB6-Code hebt den
+        // Zeiger aber typischerweise auf und benutzt ihn spaeter -- und genau dann haengt alles
+        // daran, dass die Registry den Delegaten haelt. Sie tut das absichtlich bis zum
+        // Prozessende, weil native Seiten den Zeiger unbegrenzt behalten duerfen; es gibt bewusst
+        // kein Abmelden, das ihn wieder ungueltig machen koennte.
+        //
+        // Der Speicherdruck dazwischen ist der eigentliche Test: Ohne die Registry haette der
+        // Delegat keinen verwalteten Halter mehr, und der Thunk zeigte danach ins Leere.
+        var output = VB6TestProgram.Run("""
+            Private Declare Function EnumSystemLocalesA Lib "kernel32" Alias "EnumSystemLocalesA" (ByVal callback As LongPtr, ByVal flags As Long) As Long
+            Private aufrufe As Long
+            Private gemerkt As LongPtr
+
+            Private Function Callback(ByVal localeName As String) As Long
+                aufrufe = aufrufe + 1
+                Callback = 1
+            End Function
+
+            Sub Main()
+                Dim i As Long
+                Dim ballast As String
+                Dim status As Long
+
+                gemerkt = AddressOf Callback
+                Debug.Print gemerkt <> 0
+
+                For i = 1 To 20000
+                    ballast = ballast & "x"
+                    If Len(ballast) > 4000 Then ballast = ""
+                Next i
+
+                status = EnumSystemLocalesA(gemerkt, 0)
+                Debug.Print status <> 0
+                Debug.Print aufrufe > 0
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "True", "True", "True" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
 }

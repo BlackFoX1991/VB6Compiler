@@ -8403,3 +8403,36 @@ Vertrag und wird ausdrücklich abgewiesen statt halb geschrieben.
 
 `managed-r3-variant` steht auf `implemented` / `documented-verified`. R3 hat noch eine offene
 Karte: `managed-r3-callback-abi`.
+
+## 2026-09-09 — R3, Schnitt 36: das Callback-ABI war schon da, der Nachweis nicht
+
+Die letzte R3-Karte, und der Befund ist der, vor dem `CLAUDE.md` warnt: Die Umsetzung war weiter
+als ihre Absicherung. Statt zu bauen wurde gemessen.
+
+39 vorhandene Fälle decken die Fläche der Karte bereits ab — UDT-Signaturen samt
+Vier-Byte-Packing und festen Stringfeldern, `LongPtr`- und `As Any`-Zeiger, ANSI- und
+Wide-Strings mit Rückschreiben, SAFEARRAY-Parameter und -Rückgaben, Variant-, String- und
+Objektarray-Callbacks mit Ersetzung, native `LongPtr`-Arrays. Grenzen reisen mit: `-1 To 0`,
+`1 To 2` und `5 To 8` sind jeweils mit Rückschreiben an `LBound` gemessen. Die x64-Seite ist nicht
+getrennt gebaut, sie läuft mit — die `EmitManagedApplication`-Fälle sind AnyCPU und damit auf
+einem 64-Bit-Host x64.
+
+Eine Sonde über die ganze Kartenfläche hat einen einzigen fehlenden Nachweis gefunden: Alle
+`AddressOf`-Fälle nehmen den Zeiger unmittelbar an der Aufrufstelle. Legacy-Code hebt ihn
+typischerweise in einer Variablen auf und benutzt ihn später — und genau dann hängt alles daran,
+dass die Registry den Delegaten hält. Der Fall ist ergänzt: Zeiger merken, echten Speicherdruck
+erzeugen, danach über eine native API rufen.
+
+Zum „Abmelden" aus der Abnahmebedingung gibt es bewusst keinen Weg, und das ist kein Versäumnis.
+`VBCallbackRegistry` hält den Delegaten bis zum Prozessende, weil eine native Seite den Zeiger
+unbegrenzt behalten darf; ein Abmelden würde ihn ins Leere zeigen lassen. VB6 gibt für `AddressOf`
+ebenfalls keine Lebensdauer zurück. Die Entscheidung steht jetzt als Test da, damit sie niemand
+zu einem Use-after-free „repariert".
+
+Nebenbei bestätigt: Ein UDT mit variabler String-Länge meldet an `VarPtr` den dokumentierten
+Fehler 5, statt halb zu marshallen.
+
+**R3 ist geschlossen.** Sechs Karten: `managed-r3-pointers`, `managed-r3-byref-alias`,
+`managed-r3-invalidation`, `managed-r3-safearray`, `managed-r3-variant` und
+`managed-r3-callback-abi`. Die Etappe steht unter den abgeschlossenen; offen sind die R1-/R2-Reste
+aus der Neuplanung und R4 bis R7.
