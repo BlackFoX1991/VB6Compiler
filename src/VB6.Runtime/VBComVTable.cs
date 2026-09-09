@@ -77,7 +77,7 @@ public static class VBComVTable
                 VBErrors.Raise(430, interfaceId, "Class does not support the expected interface", string.Empty, 0);
             }
 
-            return InvokeSlot(self, slot, declaredTypes, returnType, values);
+            return InvokeSlot(self, slot, declaredTypes, returnType, arguments, values);
         }
         finally
         {
@@ -93,22 +93,40 @@ public static class VBComVTable
         }
     }
 
-    private static readonly ConcurrentDictionary<string, short[]> ParameterTypeCache =
+    private static readonly ConcurrentDictionary<string, VTableParameter[]> ParameterTypeCache =
         new(StringComparer.Ordinal);
 
-    private static short[] ParseParameterTypes(string parameterTypes) =>
+    /// <summary>
+    /// One declared vtable parameter: its VARIANT type, and whether the server writes into it.
+    ///
+    /// An out parameter is not the same thing as a retval. A retval is the value the VB6
+    /// expression yields and is invisible in the source; an out parameter is a ByRef argument the
+    /// program passes and reads afterwards. <c>stdole.IFont.Clone</c> carries PARAMFLAG_FOUT, so
+    /// its VB6 form is <c>f.Clone g</c> and never <c>Set g = f.Clone</c> -- confusing the two
+    /// calls the server with a null pointer and earns E_POINTER.
+    /// </summary>
+    private readonly record struct VTableParameter(short VariantType, bool IsOut);
+
+    private static VTableParameter[] ParseParameterTypes(string parameterTypes) =>
         parameterTypes.Length == 0
             ? []
             : ParameterTypeCache.GetOrAdd(parameterTypes, key => key
                 .Split(',')
-                .Select(part => short.Parse(part, System.Globalization.CultureInfo.InvariantCulture))
+                .Select(part => part.StartsWith('o')
+                    ? new VTableParameter(
+                        short.Parse(part[1..], System.Globalization.CultureInfo.InvariantCulture),
+                        IsOut: true)
+                    : new VTableParameter(
+                        short.Parse(part, System.Globalization.CultureInfo.InvariantCulture),
+                        IsOut: false))
                 .ToArray());
 
     private static object? InvokeSlot(
         IntPtr self,
         int slot,
-        short[] parameterTypes,
+        VTableParameter[] parameterTypes,
         short returnType,
+        VBArray<object> argumentStorage,
         object?[] arguments)
     {
         var vtable = Marshal.ReadIntPtr(self);
@@ -121,9 +139,16 @@ public static class VBComVTable
         callArguments[0] = self;
         for (var index = 0; index < parameterTypes.Length; index++)
         {
-            callArguments[index + 1] = ConvertArgument(
-                index < arguments.Length ? arguments[index] : null,
-                parameterTypes[index]);
+            var parameter = parameterTypes[index];
+
+            // Ein Ausgabeparameter braucht Aufruferspeicher, den der Server fuellt. Der Wert, den
+            // das Programm mitgibt, interessiert dabei nicht -- DynamicInvoke boxt den Nullwert
+            // und schreibt das Ergebnis in dieselbe Box zurueck.
+            callArguments[index + 1] = parameter.IsOut
+                ? DefaultOf(parameter.VariantType)
+                : ConvertArgument(
+                    index < arguments.Length ? arguments[index] : null,
+                    parameter.VariantType);
         }
 
         if (hasResult)
@@ -138,6 +163,18 @@ public static class VBComVTable
             // number a VB6 program would see through IDispatch.
             var error = VBComDispatch.MapComException(0, hresult, "COM", string.Empty, string.Empty, 0);
             VBErrors.Raise(error.Number, error.Source, error.Description, error.HelpFile, error.HelpContext);
+        }
+
+        // Das Rueckschreiben geht durch dasselbe Array, mit dem der Aufruf kam: Es ist eine
+        // Referenz, der erzeugte Code liest daraus danach in die VB6-Variable zurueck.
+        for (var index = 0; index < parameterTypes.Length; index++)
+        {
+            if (parameterTypes[index].IsOut && index < argumentStorage.Length)
+            {
+                argumentStorage.ReplaceCopiedVariantAtFlatIndex(
+                    index,
+                    ConvertResult(callArguments[index + 1], parameterTypes[index].VariantType)!);
+            }
         }
 
         return hasResult ? ConvertResult(callArguments[^1], returnType) : null;
@@ -206,9 +243,9 @@ public static class VBComVTable
     /// pointer, the declared arguments, and a trailing out-parameter for the value, all returning
     /// the HRESULT.
     /// </summary>
-    private static Type GetDelegateType(short[] parameterTypes, short returnType)
+    private static Type GetDelegateType(VTableParameter[] parameterTypes, short returnType)
     {
-        var key = string.Join(",", parameterTypes) + "|" + returnType;
+        var key = string.Join(",", parameterTypes.Select(p => (p.IsOut ? "o" : string.Empty) + p.VariantType)) + "|" + returnType;
         return DelegateTypes.GetOrAdd(key, _ =>
         {
             var hasResult = returnType != (short)VarEnum.VT_VOID;
@@ -216,7 +253,13 @@ public static class VBComVTable
             signature[0] = typeof(IntPtr);
             for (var index = 0; index < parameterTypes.Length; index++)
             {
-                signature[index + 1] = MarshalTypeOf(parameterTypes[index]);
+                // Ein Ausgabeparameter ist im ABI ein Zeiger auf den Platz des Aufrufers. Als
+                // ByRef-Slot ueberlaesst die Marshalling-Schicht das Anlegen und Zurueckschreiben
+                // der Laufzeit, statt dass hier ein Puffer von Hand verwaltet wird.
+                var marshalType = MarshalTypeOf(parameterTypes[index].VariantType);
+                signature[index + 1] = parameterTypes[index].IsOut
+                    ? marshalType.MakeByRefType()
+                    : marshalType;
             }
 
             if (hasResult)
