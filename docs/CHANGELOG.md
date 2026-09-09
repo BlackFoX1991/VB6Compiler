@@ -8351,3 +8351,55 @@ dem Deskriptor gelesen. Gegenprobe durch Umkehren der Indexreihenfolge: rot.
 `managed-r3-invalidation` und `managed-r3-safearray` stehen damit auf `implemented` /
 `documented-verified`. R3 hat noch zwei offene Karten: `managed-r3-variant` und
 `managed-r3-callback-abi`.
+
+## 2026-09-09 — R3, Schnitt 35: der VARIANT-Speichervertrag
+
+Die einzige Speicherfamilie, die keinen verwalteten Platz freilegen kann. Ein Variant reist
+überall sonst als CLR-`object`; es gibt keine Bytes, auf die man einfach zeigen könnte. Die Zelle
+besitzt die sechzehn Byte deshalb selbst — vierundzwanzig auf x64, wo die Union einen `BRECORD`
+aus zwei Zeigern trägt — und rechnet bei jedem Zugriff in beide Richtungen um.
+
+### Warum die Abbildung ausgeschrieben ist
+
+Der Subtyp ist der ganze Vertrag. Verwaltet sind Empty, Null und Nothing alle „kein Wert": eine
+Nullreferenz und zwei Marker-Singletons. Nativ sind es drei verschiedene VARIANTs — `VT_EMPTY`,
+`VT_NULL` und `VT_DISPATCH` mit Nullzeiger —, und ein nativer Leser muss sie auseinanderhalten
+können. `Marshal.GetNativeVariantForObject` kennt die Marker nicht und würde alle drei zu
+`VT_EMPTY` zusammenziehen, also steht die Tabelle von Hand da.
+
+Dabei fällt eine Feinheit auf, die festgehalten gehört: Die VARTYPE-Codes sind die **OLE**-Codes,
+und die sind nicht immer das, was `VarType` meldet. VB6 kennt keinen vorzeichenlosen 32-Bit-
+Variant, also antwortet `VarType` für ein `uint` mit 20; der Deskriptor muss trotzdem `VT_UI4`
+sagen, weil das die Nutzlast ist. Der Rückweg bildet auf denselben CLR-Typ ab, `VarType` bleibt
+über die Runde also unverändert.
+
+### Zwei Emitter-Defekte, die nur ein Variant zeigen konnte
+
+Der erste war sofort sichtbar: Der Anfangswert einer Zelle hatte keinen Zweig für Variant und fiel
+auf `ldc.i4.0` durch — ein `int32` gegen einen `object`-Parameter. Kein Übersetzungsfehler,
+sondern eine ungültige Assembly; das Programm starb mit `InvalidProgramException`, bevor eine
+einzige Anweisung lief.
+
+Der zweite war leiser und interessanter. Die Zellensynchronisation gehört zum Speicherplatz, nicht
+zum Weg dorthin — sie stand aber nur hinter dem gewöhnlichen Store, und der lebensdauerverwaltete
+Zweig sprang mit `break` daran vorbei. Das konnte niemand sehen, solange keine adressierbare
+Familie auch Lebensdauer trug: Ein Variant trägt beides. Die Adresse stimmte, die Zelle blieb
+stumm auf `VT_EMPTY` stehen, und zwar über jede Zuweisung hinweg. Local, ByVal-Parameter und
+Modulvariable hatten dieselbe Form; alle drei sind repariert.
+
+Das ist derselbe Fehlertyp wie in Schnitt 29 und 33: Die Zelle war da, der Lowerer stimmte, und
+trotzdem kam nichts an — sichtbar nur im Lauf.
+
+### Abnahme
+
+Gemessen aus VB6-Quelltext über alle drei Speicherfamilien, jeweils das `vt`-Feld selbst und nicht
+nur der Rückweg: Empty 0, Null 1, Integer 2 mit Nutzlast, BSTR 8, Nothing 9 mit Nullzeiger, Fehler
+10 mit seiner Nummer, und die Adresse überlebt jede Zuweisung. Dass `v = 4711` als `VT_I2`
+herauskommt, ist kein Fehler — VB6 wählt für ein Ganzzahlliteral den schmalsten Subtyp, und die
+Zelle bildet ab, was im Platz steht, nicht was die Deklaration erlauben würde.
+
+Ein Objekt, ein Array oder ein UDT-Wert besitzt Speicher neben dem VARIANT. Das ist ein eigener
+Vertrag und wird ausdrücklich abgewiesen statt halb geschrieben.
+
+`managed-r3-variant` steht auf `implemented` / `documented-verified`. R3 hat noch eine offene
+Karte: `managed-r3-callback-abi`.

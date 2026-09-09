@@ -2871,17 +2871,18 @@
       "dependsOn": [
         "managed-r3-safearray"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "VARIANT-Speichervertrag",
       "expected": {
         "acceptance": "VarPtr auf einen Variant nennt den 16-Byte-VARIANT; Subtyp, Empty, Null, Nothing, BSTR und Fehlerwerte bleiben unterscheidbar."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs",
+        "tests/VB6.Runtime.Tests/VBAddressableCellTests.cs",
         "tests/VB6.Runtime.Tests/VariantStateTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Die Zelle besitzt die sechzehn Byte selbst -- vierundzwanzig auf x64, wo die Union einen BRECORD aus zwei Zeigern traegt --, denn ein Variant reist sonst als CLR-object und hat keine Bytes, die man freilegen koennte. Die Subtypabbildung ist ausgeschrieben statt an Marshal.GetNativeVariantForObject delegiert: Empty, Null und Nothing sind verwaltet alle die Abwesenheit eines Werts, nativ aber VT_EMPTY, VT_NULL und VT_DISPATCH mit Nullzeiger, und die Delegation wuerde alle drei zu VT_EMPTY zusammenziehen. Gemessen aus VB6-Quelltext ueber alle drei Speicherfamilien: Local, ByVal-Parameter mit ankommendem Wert und Modulvariable, deren Zelle an der VarPtr-Stelle den aktuellen Wert uebernimmt; die Adresse ueberlebt jede Zuweisung. Beim Bauen kamen zwei Emitter-Defekte heraus, die kein Variant-fremder Pfad zeigen konnte: der Anfangswert einer Zelle fiel auf ldc.i4.0 durch und ergab eine ungueltige Assembly, und die Zellensynchronisation sass nur hinter dem gewoehnlichen Store, weshalb der lebensdauerverwaltete Zweig sie ueberspringen liess. Objekte, Arrays und UDT-Werte besitzen Speicher neben dem VARIANT und werden ausdruecklich abgewiesen statt halb geschrieben.",
       "title": "VARIANT-Speichervertrag"
     },
     {
@@ -3644,7 +3645,7 @@
         "tests/VB6.Runtime.Tests/VBCallbackRegistryTests.cs",
         "tests/VB6.Compiler.Tests/PointerIntrinsicTests.cs"
       ],
-      "gap": "managed-r3-variant: VARIANT-Speicher; managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
+      "gap": "managed-r3-callback-abi: Declare- und Callback-ABI vervollständigen"
     },
     {
       "id": "profile-selection-and-provenance",
