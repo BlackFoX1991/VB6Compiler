@@ -8762,3 +8762,26 @@ Nebenbefund aus derselben Runde, behoben: In einem String-Literal des Typbibliot
 stand ein **echtes NUL-Byte** statt der Escape-Folge `\0` — ein Nebenprodukt einer skriptgesteuerten
 Änderung. Der Compiler nimmt das an, die Datei liest sich danach als binär, und `grep` verweigert
 sie.
+
+## Warum ein Record nicht an den Metadaten hängt
+
+Nachtrag zur Runde davor, mit dem Befund, der die Frage entscheidet.
+
+Erst die naheliegenden Schritte, beide gemessen und beide wirkungslos: Die Typbibliothek per
+`RegisterTypeLibForUser` registrieren — das braucht keine Administratorrechte — ändert am
+`0x80131515` nichts. Auch die Klasse zusätzlich unter `HKCU\Software\Classes` zu registrieren
+ändert nichts.
+
+Der letzte Versuch war, der Assembly ein `GuidAttribute` zu geben, das auf die geschriebene
+Bibliothek zeigt, damit die CLR sie über `GetTypeLibGuidForAssembly` überhaupt findet. Das
+Ergebnis ist der eigentliche Befund: Die CLR behandelt eine so auffindbare Bibliothek als die
+**exportierte Bibliothek dieser Assembly** und sucht deren Typen unter den **CLR-Namen** —
+`__vb6_class_Geber`. Unsere Bibliothek trägt die VB6-Namen, `Geber` und `_Geber`, weil genau die
+ein VB6-Client braucht. Danach scheiterte der Aufruf mit `TYPE_E_ELEMENTNOTFOUND`, und zwar auch
+für das `Long`-Mitglied, das vorher funktionierte. Der Versuch wurde zurückgenommen.
+
+Damit ist die Frage beantwortet: Ein Record lässt sich **nicht** durch weitere Metadaten auflösen.
+Die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander an
+dieser Stelle aus. Wer Records tragen will, muss `IDispatch` für die erzeugten Klassen selbst
+implementieren, statt sich auf die CLR-Marshalling-Schicht zu verlassen — ein eigener Schnitt, und
+keine Ergänzung dieser Karte.
