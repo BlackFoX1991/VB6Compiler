@@ -1381,6 +1381,107 @@ public sealed class PointerIntrinsicTests
     }
 
     [TestMethod]
+    public void EmitX86Application_KeepsAnArrayDescriptorAcrossEveryReleasingPath()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The descriptor ownership probe uses the Windows x86 host.");
+            return;
+        }
+
+        var dotnetHost = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "dotnet",
+            "dotnet.exe");
+        if (!File.Exists(dotnetHost))
+        {
+            Assert.Inconclusive("The x86 .NET host required by the descriptor ownership contract is unavailable.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "VB6CompilerArrayDescriptorOwnershipTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var assemblyPath = Path.Combine(directory, "ArrayDescriptorOwnership.dll");
+
+            // Ein Array wird nicht referenzgezaehlt: VBObjectLifetime.Release reicht fuer einen
+            // Container sofort an ReleaseObjectReferences durch, und das gibt den Deskriptor frei.
+            // Jede Stelle, die einen Slot freigibt, waehrend ein anderer dasselbe Array nennt,
+            // wuerde einen noch gueltigen VB6-Zeiger stillschweigend ungueltig machen.
+            //
+            // Gemessen ist heute keine solche Stelle erreichbar. Dieser Test ist der Waechter
+            // darueber: Wer eine neue Freigabestelle ergaenzt, sieht hier, ob sie ein lebendes
+            // Array trifft -- und nicht erst der, dessen CopyMemory ins Leere zeigt.
+            var result = VBCompilation.Create("""
+                Sub NimmByRef(ByRef f() As Long)
+                    f(0) = f(0) + 1
+                End Sub
+
+                Sub NimmVariant(ByVal v As Variant)
+                    Debug.Print UBound(v)
+                End Sub
+
+                Sub Main()
+                    Dim a(0 To 3) As Long
+                    Dim erster As Long
+                    Dim v As Variant
+
+                    a(0) = 7
+                    a(3) = 99
+                    erster = VarPtr(a)
+
+                    NimmByRef a
+                    Debug.Print VarPtr(a) = erster
+
+                    v = a
+                    Debug.Print VarPtr(a) = erster
+
+                    NimmVariant v
+                    Debug.Print VarPtr(a) = erster
+
+                    v = Empty
+                    Debug.Print VarPtr(a) = erster
+
+                    Debug.Print a(0)
+                    Debug.Print a(3)
+                End Sub
+                """, "Module1.bas").EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions("ArrayDescriptorOwnership", Platform: ManagedPlatform.X86));
+            Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+            var startInfo = new ProcessStartInfo(dotnetHost)
+            {
+                WorkingDirectory = directory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add(assemblyPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The x86 descriptor ownership probe could not start.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.AreEqual(0, process.ExitCode, standardError);
+            CollectionAssert.AreEqual(
+                new[] { "True", "True", "3", "True", "True", "8", "99" },
+                VB6TestProgram.SplitLines(standardOutput),
+                standardOutput);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [TestMethod]
     public void EmitX86Application_ObservesArrayPointerInvalidationAcrossReDimAndErase()
     {
         if (!OperatingSystem.IsWindows())

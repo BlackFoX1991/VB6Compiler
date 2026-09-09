@@ -37,6 +37,12 @@ public sealed class VBArrayTests
     [DllImport("oleaut32.dll")]
     private static extern int SafeArrayDestroy(IntPtr safeArray);
 
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayDestroyData(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayDestroyDescriptor(IntPtr safeArray);
+
     [TestMethod]
     public void Array_PreservesNonZeroLowerBounds()
     {
@@ -493,6 +499,95 @@ public sealed class VBArrayTests
             1L,
             Marshal.UnsafeAddrOfPinnedArrayElement(managed, 1).ToInt64() -
                 Marshal.UnsafeAddrOfPinnedArrayElement(managed, 0).ToInt64());
+    }
+
+    [TestMethod]
+    public void WindowsAutomation_ClearsStaticDataOnDestroyButNotOnDestroyDescriptor()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("SAFEARRAY teardown is a Windows Automation contract.");
+            return;
+        }
+
+        // Die Freigabe von VBArray<T> stand zuerst auf der Annahme, FADF_STATIC halte OleAut32
+        // von den Nutzdaten fern. Diese Messung hat sie widerlegt: Das Flag beschreibt den
+        // Besitz, es schuetzt den Puffer nicht. SafeArrayDestroy nullt die Daten auch mit
+        // gesetztem Flag -- und pvData zeigt bei uns auf ein gepinntes CLR-Array, also haette ein
+        // Destroy den Inhalt eines noch lebenden VB6-Arrays stillschweigend geloescht.
+        //
+        // Beide Richtungen stehen hier, weil erst der Unterschied die Regel belegt. Wer die
+        // Freigabe anfasst, sieht an diesem Test, warum es SafeArrayDestroyDescriptor sein muss.
+        CollectionAssert.AreEqual(
+            new[] { 0, 0, 0, 0 },
+            MeasurePinnedDataAfterTeardown(destroyDescriptorOnly: false),
+            "SafeArrayDestroy schreibt in fremden Speicher, trotz FADF_STATIC.");
+
+        CollectionAssert.AreEqual(
+            new[] { 0x5A5A5A5A, 0x11111111, 0x22222222, 0x3C3C3C3C },
+            MeasurePinnedDataAfterTeardown(destroyDescriptorOnly: true),
+            "SafeArrayDestroyDescriptor gibt nur den Deskriptor frei.");
+    }
+
+    [TestMethod]
+    public void Dispose_ReleasesTheDescriptorWithoutTouchingTheArrayContents()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("SAFEARRAY teardown is a Windows Automation contract.");
+            return;
+        }
+
+        // Der Regressionsfall zur Messung darueber: Ein Array ueberlebt die Freigabe seines
+        // Deskriptors. Die erste Fassung rief SafeArrayDestroy und haette hier lauter Nullen
+        // gelesen -- ohne Ausnahme, ohne Fehlernummer, einfach weg.
+        var array = new VBArray<int>(new VBArrayBound(1, 4));
+        array[1] = 11;
+        array[2] = 22;
+        array[3] = 33;
+        array[4] = 44;
+
+        Assert.AreNotEqual(IntPtr.Zero, array.GetSafeArrayNativeAddress());
+        array.Dispose();
+
+        CollectionAssert.AreEqual(
+            new[] { 11, 22, 33, 44 },
+            array.EnumerateValues().ToArray());
+
+        // Und der naechste Zeiger baut einen neuen Deskriptor, statt den freigegebenen zu nennen.
+        var again = array.GetSafeArrayNativeAddress();
+        Assert.AreNotEqual(IntPtr.Zero, again);
+        Assert.AreEqual(22, Marshal.ReadInt32(array.GetElementNativeAddress(2)));
+        array.Dispose();
+    }
+
+    /// <summary>
+    /// Builds the same static descriptor over a pinned CLR buffer that <c>VBArray&lt;T&gt;</c>
+    /// builds, tears it down one of the two ways, and reports what is left in the buffer.
+    /// </summary>
+    private static int[] MeasurePinnedDataAfterTeardown(bool destroyDescriptorOnly)
+    {
+        const ushort FadfStatic = 0x0002;
+        var dataOffset = IntPtr.Size == sizeof(long) ? 16 : 12;
+
+        var pinned = GC.AllocateArray<int>(4, pinned: true);
+        pinned[0] = 0x5A5A5A5A;
+        pinned[1] = 0x11111111;
+        pinned[2] = 0x22222222;
+        pinned[3] = 0x3C3C3C3C;
+
+        var safeArray = SafeArrayCreate((ushort)VarEnum.VT_I4, 1, [new NativeSafeArrayBound(4, 0)]);
+        Assert.AreNotEqual(IntPtr.Zero, safeArray);
+        Assert.AreEqual(0, SafeArrayDestroyData(safeArray));
+
+        var features = unchecked((ushort)Marshal.ReadInt16(safeArray, sizeof(short)));
+        Marshal.WriteInt16(safeArray, sizeof(short), unchecked((short)(features | FadfStatic)));
+        Marshal.WriteIntPtr(safeArray, dataOffset, Marshal.UnsafeAddrOfPinnedArrayElement(pinned, 0));
+
+        Assert.AreEqual(
+            0,
+            destroyDescriptorOnly ? SafeArrayDestroyDescriptor(safeArray) : SafeArrayDestroy(safeArray));
+        return pinned;
     }
 
     [TestMethod]
