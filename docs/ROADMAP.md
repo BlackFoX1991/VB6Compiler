@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `7eaaa46` mit nicht committeten Änderungen, Lauf `20260909T124905Z-76daa3bf`:
+Messung vom 2026-09-09 auf `main` / `e05b668` mit nicht committeten Änderungen, Lauf `20260909T175802Z-37c6c885`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1837 Fälle: 1837 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1844 Fälle: 1844 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -349,7 +349,7 @@ ClassFactory-/IUnknown-Lebensdauer, Instancing, Event-Quellen und Connection-Poi
 | --- | --- |
 | `managed-r4-automation-layouts` | **Rohe Automation-Layouts abnehmen:** Aliase, Records, C-Arrays, verschachtelte Pointer und SAFEARRAY-Typen über unabhängige COM-Probes mit Layout- und Besitzprüfung in beide Richtungen abnehmen. |
 | `managed-r4-binary-compatibility` | **Binary Compatibility gegen ältere Komponente:** CompatibleMode/CompatibleEXE32 für bestehende Identitäten/Aufrufverträge auswerten; alter Client läuft nach kompatibler Änderung unverändert weiter, inkompatible Änderungen liefern Diagnose. |
-| `managed-r4-typelib-metadata` | **TypeLib-Metadaten vervollständigen:** Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein. |
+| `managed-r4-typelib-metadata` | **TypeLib-Metadaten vervollständigen:** Interfaces, Properties, Events, optionale Parameter, DISPIDs, Versionen und UDTs müssen in TypeLib/Assembly/Host/Registrierung übereinstimmen und von Fremdclients aufrufbar sein. Sechs dieser Punkte sind seit 2026-09-09 umgesetzt und an der zurückgelesenen Bibliothek gemessen; offen bleiben UDTs als `TKIND_RECORD` samt `VT_RECORD`-Marshalling und die Abnahme durch einen Fremdclient. |
 | `managed-r4-server-lifetime` | **Server- und Event-Ownership schließen:** IUnknown/ClassFactory, Instancing, Connection-Point-Enumeratoren, Attach/Detach und Shutdown per Fremdclient prüfen; vorhandene Enumeration-Stubs schließen. |
 
 ### R5 — Forms, ActiveX und persistierte Artefakte

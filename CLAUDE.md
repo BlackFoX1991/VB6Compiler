@@ -273,8 +273,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-09 auf `7eaaa46` mit nicht committeten Änderungen: 1837 Standardfälle in 13 Projekten,
-1837 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
+Stand der Prüfung 2026-09-09 auf `e05b668` mit nicht committeten Änderungen: 1844 Standardfälle in 13 Projekten,
+1844 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->

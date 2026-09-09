@@ -8597,3 +8597,58 @@ Zeiger bestanden.
 
 `managed-r4-vtable-out` steht auf `implemented` / `documented-verified`. R4 hat noch vier offene
 Karten.
+
+## Die Typbibliothek beschreibt die Automationsfläche
+
+Ausgangspunkt war ein einzelner, harter Befund: Eine Klasse mit einem gewöhnlichen
+`Property Get`/`Let`-Paar konnte **gar keine** Typbibliothek erzeugen — `CreateTypeLib2` brach mit
+`TYPE_E_AMBIGUOUSNAME` ab. Die Ursache lag nicht im Writer, sondern im Emitter: Ein VB6-Property-Paar
+wurde als **zwei gleichnamige CLR-Methoden** emittiert, ohne CLR-Property. Der Writer sah damit
+wirklich zwei Funktionen mit einem Namen, und OLE hatte recht. Drei frühere Reparaturversuche
+allein im Writer sind daran gescheitert und wurden verworfen.
+
+### Was jetzt in der Bibliothek steht
+
+Ein Property ist **ein** Mitglied mit zwei Aufrufarten auf **einer** DISPID. Dafür emittiert der
+Emitter eine echte `PropertyDefinition` mit `MethodSemantics`; die Accessoren heißen `get_`/`set_`
+und tragen `SpecialName`, sonst stünden sie zusätzlich als gewöhnliche Funktionen daneben. Das
+gilt auch für die indizierte Property — ihre Indexargumente stehen in der Propertysignatur, der
+Setter trägt sie plus den Wert — und für ein `Public`-Feld, das der Emitter als CLR-Feld ablegt
+und das VB6 trotzdem als Get/Let-Paar zeigt. Ein Name mit zwei Settern (`Let` **und** `Set`)
+bleibt bewusst in Methodenform: Zwei Setter an einer Property wären ungültige Metadaten.
+
+Ein `Optional`-Parameter existierte bisher nur im Binder. Jetzt trägt die Parameterzeile
+`Optional`, eine ByVal-Vorgabe wird eine Metadatenkonstante, und die Bibliothek schreibt daraus
+`PARAMFLAG_FOPT`, `FHASDEFAULT` mit einem handgebauten `PARAMDESCEX` und `cParamsOpt` für die
+auslassbare Reihe am Ende. Das Layout ist gemessen, nicht angenommen: Der `VARIANT` beginnt in
+beiden Bitbreiten bei Offset 8, und die Vorgaben kommen beim Zurücklesen als ihre eigenen Werte
+heraus.
+
+Die Bibliotheksversion kommt aus der Assembly, deren Version aus `MajorVer`/`MinorVer`/
+`RevisionVer` des Projekts. Vorher stand an beiden Stellen eine erfundene 1.0 — sie stimmten
+zufällig überein, und genau das verlangt die Karte gerade nicht.
+
+Eine implementierte Schnittstelle war überhaupt nicht in der Bibliothek, während ihre Mitglieder
+ein zweites Mal als `IZaehler_Zaehle` auf der Standardschnittstelle der Klasse standen. Sie ist
+jetzt ein eigener Typ unter der IID, die die Assembly trägt — die, auf die `QueryInterface`
+antwortet —, hängt an der Coclass, und die Weiterleitungen sind von der Standardschnittstelle
+verschwunden.
+
+Ein Ereignis ist ein Vertrag des **Clients**: Die Senke implementiert die Quellschnittstelle.
+Die gab es nicht, also beschrieb nichts, was ein Fremdclient implementieren muss. Der Lowerer
+synthetisiert jetzt `__Klasse` wie VB6 selbst, der Emitter benennt sie über `ComSourceInterfaces`,
+und an der Coclass trägt sie `IMPLTYPEFLAG_FSOURCE`.
+
+### Gegenproben
+
+Beide neuen Regeln wurden einmal gebrochen und rot gesehen: Ohne `SpecialName` steht `get_Wert`
+wieder neben `Wert`; mit einer DISPID pro Mitglied statt pro Name kommt `TYPE_E_AMBIGUOUSNAME`
+zurück. Gemessen wird durchgehend an der **zurückgelesenen** Bibliothek, nicht am Schreibaufruf.
+
+### Was offen bleibt
+
+`managed-r4-typelib-metadata` bleibt `planned`. Ein UDT steht weiter als `VT_VARIANT` statt als
+`TKIND_RECORD`, und das ist kein Writer-Detail: Dem Symbol fehlt die Public/Private-Unterscheidung
+(ein `Private Type` gehört nicht in die Bibliothek), und ohne `VT_RECORD`/`IRecordInfo` im
+Dispatchpfad beschriebe die Bibliothek einen Aufruf, den der Server nicht bedienen kann. Dazu
+fehlt die Abnahme durch einen echten Fremdclient über die Prozessgrenze.
