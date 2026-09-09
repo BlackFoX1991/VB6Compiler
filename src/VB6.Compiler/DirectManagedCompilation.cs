@@ -179,6 +179,33 @@ public static class DirectManagedCompilation
             outputKind);
         actualOptions = WithProjectResources(actualOptions, lowering.Analysis.Project);
         actualOptions = WithProjectVersion(actualOptions, lowering.Analysis.Project);
+
+        // Binary Compatibility, bevor irgendetwas emittiert wird: Die Identitaeten der alten
+        // Komponente bestimmen die neuen, und ein weggefallenes Mitglied ist ein Fehler, kein
+        // Hinweis -- ein gebauter Client ruft es weiterhin auf.
+        var compatibility = OperatingSystem.IsWindows()
+            ? VBBinaryCompatibility.Read(lowering.Analysis.Project)
+            : VBBinaryCompatibility.Surface.Empty;
+        if (!compatibility.IsEmpty)
+        {
+            actualOptions = actualOptions with
+            {
+                CompatibleComIdentities = compatibility.Identities,
+                CompatibleComMemberIds = compatibility.MemberIds
+            };
+            var breaks = CheckBinaryCompatibility(compatibility, lowering.Program);
+            if (breaks.Length > 0)
+            {
+                return new VBProjectManagedApplicationEmitResult(
+                    lowering,
+                    new ManagedEmitResult(false, breaks, null, null),
+                    null,
+                    null,
+                    null,
+                    null);
+            }
+        }
+
         var program = lowering.Program;
         if (isLocalServer)
         {
@@ -465,6 +492,61 @@ public static class DirectManagedCompilation
     /// by <c>ResFile32=</c> into the executable itself, which is what makes LoadResString work in a
     /// deployed program without shipping the .res beside it.
     /// </summary>
+    /// <summary>
+    /// Compares the automation surface of the compatible component with this build.
+    ///
+    /// Only losses are breaks. A member that was published and is gone leaves an already-built
+    /// client calling into nothing; a member that is new cannot break one, because a client that
+    /// does not know it never calls it. That asymmetry is the whole rule VB6 applies here.
+    /// </summary>
+    private static ImmutableArray<ManagedEmitDiagnostic> CheckBinaryCompatibility(
+        VBBinaryCompatibility.Surface compatibility,
+        IrProgram program)
+    {
+        var diagnostics = ImmutableArray.CreateBuilder<ManagedEmitDiagnostic>();
+        foreach (var (typeName, members) in compatibility.Members)
+        {
+            // Die Standardschnittstelle heisst _Klasse, die Ereignisquelle __Klasse; beide
+            // beschreiben dieselbe Klasse.
+            var className = typeName.TrimStart('_');
+            if (className.Length == 0)
+            {
+                continue;
+            }
+
+            var definition = program.ClassDefinitions.FirstOrDefault(candidate =>
+                string.Equals(candidate.Symbol.Name, className, StringComparison.OrdinalIgnoreCase));
+            if (definition is null)
+            {
+                diagnostics.Add(new ManagedEmitDiagnostic(
+                    "VB6E0004",
+                    $"Binary compatibility: the compatible component publishes '{className}', " +
+                    "which this build no longer contains."));
+                continue;
+            }
+
+            foreach (var member in members)
+            {
+                if (HasMember(definition.Symbol, member))
+                {
+                    continue;
+                }
+
+                diagnostics.Add(new ManagedEmitDiagnostic(
+                    "VB6E0004",
+                    $"Binary compatibility: the compatible component publishes '{className}.{member}', " +
+                    "which this build no longer contains."));
+            }
+        }
+
+        return diagnostics.ToImmutable();
+    }
+
+    private static bool HasMember(ClassTypeSymbol classType, string name) =>
+        classType.Procedures.Any(procedure => string.Equals(procedure.Name, name, StringComparison.OrdinalIgnoreCase)) ||
+        classType.Properties.Any(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)) ||
+        classType.Events.Any(@event => string.Equals(@event.Name, name, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
     /// Carries the project's version into the emitted assembly, and from there into the type
     /// library. A legacy <c>.vbp</c> keeps its version in <c>MajorVer</c>/<c>MinorVer</c>/
@@ -783,7 +865,7 @@ internal static class ManagedArtifactWriter
             // cannot see the classes without one, whether they live in-process or not.
             if (OperatingSystem.IsWindows())
             {
-                typeLibraryPath = ManagedTypeLibraryWriter.Create(managedAssemblyPath, options.Platform);
+                typeLibraryPath = ManagedTypeLibraryWriter.Create(managedAssemblyPath, options.Platform, options.CompatibleComIdentities, options.CompatibleComMemberIds);
             }
         }
         else if (options.EnableComHosting)
@@ -795,7 +877,7 @@ internal static class ManagedArtifactWriter
             // COM hosting itself is already Windows-only, so this cannot be reached elsewhere.
             if (OperatingSystem.IsWindows())
             {
-                typeLibraryPath = ManagedTypeLibraryWriter.Create(managedAssemblyPath, options.Platform);
+                typeLibraryPath = ManagedTypeLibraryWriter.Create(managedAssemblyPath, options.Platform, options.CompatibleComIdentities, options.CompatibleComMemberIds);
             }
             if (options.EnableComManifest)
             {
