@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 166 Erwartungen: 147 `implemented`, 0 `partial`, 19 `planned`;
-147 `documented-verified`, 19 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 171 Erwartungen: 144 `implemented`, 3 `partial`, 24 `planned`;
+147 `documented-verified`, 24 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -28,15 +28,26 @@ R0 ist geschlossen: `build.ps1` wertet Standardlauf, nativen x86-Lauf und Wieder
 aus und schreibt `artifacts/verification-report.json`; die Statusregeln der Matrix prüfen Tests
 statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke.
 
-R1 ist ebenfalls geschlossen: Grammatik und Kontext, Array-/UDT-Formen, Operator- und
+R1 ist **abgenommen mit Rest**: Grammatik und Kontext, Array-/UDT-Formen, Operator- und
 Default-Member-Vertrag, Konvertierungs- und Promotionsmatrix, Standardbibliothek, Datei-Layouts
-gegen Rohbytes und die Profilgrenzen sind abgenommen. Elf Karten, davon vier Einzelbefunde, die
-beim Messen gefunden wurden.
+gegen Rohbytes und die Profilgrenzen sind gemessen. Elf Karten, davon vier Einzelbefunde, die
+beim Messen gefunden wurden. Seit 2026-09-09 stehen `managed-r1-grammar` und
+`managed-r1-intrinsics` jedoch auf `partial`: Ein Breitendurchgang mit Einzelsonden fand sieben
+dokumentierte Namen, die überhaupt nicht binden — `Beep`, `AppActivate`, `SavePicture`, `ChDrive`,
+`InputB`, `Stop` und `DoEvents` in seiner Funktionsform.
 
-R2 ist geschlossen: Terminate beim Wegfall der letzten Referenz, mit dem nativen Zähler gegen eine
-testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der Adoption und Freigabe
-übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am Leben hält. Details in
-`docs/R2-OBJECT-LIFETIME.md`.
+R2 ist ebenfalls **abgenommen mit Rest**: Terminate beim Wegfall der letzten Referenz, mit dem
+nativen Zähler gegen eine testeigene IUnknown-Identität gemessen, einem verwalteten Mithalter, der
+Adoption und Freigabe übersteht, und einem Fremdclient, der den Server über die Prozessgrenze am
+Leben hält. Details in `docs/R2-OBJECT-LIFETIME.md`. Offen ist nicht die Lebensdauer, sondern die
+Erzeugung: `As New` instanziiert beim Zugriff auf ein `Public`-Feld nicht nach
+(`r2-asnew-field-instantiation`).
+
+**Beide Reste sind derselbe Fehler**, und er ist der Grund, warum diese Datei so viel über
+Messen redet: Die Inventare der beiden Sammelkarten waren aus den **vorhandenen Tests** gebildet
+statt aus den dokumentierten Formen. Sie belegten damit Qualität, nicht Vollständigkeit — und
+kein Test der Suite und keine Stelle im VISIA-Korpus trifft die fehlenden Formen. Ein Inventar,
+das nur prüft, was schon geprüft wird, ist keines.
 
 Aktive Karte ist `managed-r3-invalidation`. Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
@@ -262,10 +273,10 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-08 auf `b1491b5`: 1813 Standardfälle in 13 Projekten,
-1813 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 81/81 bestanden, 0 übersprungen.
+Stand der Prüfung 2026-09-09 auf `6184fe6` mit nicht committeten Änderungen: 1819 Standardfälle in 13 Projekten,
+1819 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
-Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
+Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
 
 Standardlauf, x86-Lauf und Wiederholungen werden nie addiert — die früher genannte 1698 war genau
@@ -404,14 +415,25 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
 - **Ein `Public`-Feld einer Klasse ist keine Variable, sondern eine Property.** `Binder.cs`
   löst `c.N` über `classType.TryGetProperty(...)` auf. Diese Modellierung hat vier Symptome
   erzeugt: `Bump c.N` mit `ByRef` verlor **still** das Rückschreiben, `Set c.ObjFeld = …` meldete
-  `VB6S0064`, `c.Nums(1)` meldete `VB6S0006`, und `Public S As String * 5` ist ein Parserfehler.
-  Die ersten drei sind behoben — `PropertySymbol.IsFieldBacked` unterscheidet die synthetisierte
+  `VB6S0064`, `c.Nums(1)` meldete `VB6S0006`, und `Public S As String * 5` war ein Parserfehler.
+  Alle vier sind behoben — `PropertySymbol.IsFieldBacked` unterscheidet die synthetisierte
   Feld-Property jetzt von einem echten `Property Get`, und der Binder verzweigt darauf. **Der
   Marker ist die einzige Unterscheidung; die synthetisierte Property bleibt bewusst
   parameterlos.** Wer ihr Parameter gäbe, um Indizierung zu ermöglichen, macht sie von einer
-  echten indizierten Property ununterscheidbar. Alle vier Symptome sind behoben.
-  Gegenprobe: ByRef funktioniert über Locals, Globals, UDT-Member und Array-Elemente. Wer hier
+  echten indizierten Property ununterscheidbar.
+  Gegenprobe: ByRef funktioniert über Locals, Globals, UDT-Member und Array-Elemente, und
+  `Public S As String * 5` übersetzt in einer `.cls` (gemessen 2026-09-09). Wer hier
   etwas anfasst, prüft alle vier Symptome.
+- **`As New` wird von genau vier Zugriffsformen ausgelöst — der Feldzugriff ist die vergessene.**
+  Werteverwendung, Methodenaufruf und `Property Get` senken ihren Empfänger als *Ausdruck* und
+  laufen dabei durch `LowerVariableRead`, die einzige Stelle, die `IrEnsureLocalClassExpression`
+  bzw. `IrEnsureClassExpression` einsetzt. Ein `Public`-Feld nimmt einen anderen Weg:
+  `TryGetClassFieldPlace` braucht einen `IrPlace` und senkt deshalb mit `LowerPlace` — an der
+  Ensure-Form vorbei. `Dim c As New K` gefolgt von `c.N` wirft damit eine `NullReferenceException`,
+  unter `On Error` Fehler 91. Das ist das fünfte Symptom der beiden Fallen darüber: im Binder eine
+  Property, im Emitter ein Feld, und hier ein Platz statt eines Ausdrucks. Wer eine neue
+  Zugriffsform ergänzt, prüft sie gegen diese Liste — sie ist das Inventar, das gefehlt hat.
+  Offen als `r2-asnew-field-instantiation`.
 - **Zur Laufzeit ist dasselbe `Public`-Feld wieder ein Feld, keine Property.** Der Binder
   modelliert es als Get/Let-Property, der Emitter bildet es auf ein **CLR-Feld** ab. Wer im
   Laufzeitdispatch nach Mitgliedern sucht, muss deshalb Methoden, Properties **und** Felder

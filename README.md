@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 166 expectations (147 implemented, 0 partial, 19 planned) with 147/166 documented-verified.
+The compatibility matrix contains 171 expectations (144 implemented, 3 partial, 24 planned) with 147/171 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -184,16 +184,16 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-08 at `b1491b5` on `main`, run `20260908T072019Z-625089fb`:
+Measured on 2026-09-09 at `6184fe6` on `main` with uncommitted changes, run `20260909T065923Z-0e821f6b`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1813 cases: 1813 passed, 0 failed | Serial run across every test project |
-| Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 passed, 0 skipped | Separate x86 run of the WinForms tests |
+| Standard serial run, 13 test projects | 1819 cases: 1819 passed, 0 failed | Serial run across every test project |
+| Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | not run | A missing native run is not a passed one; the gate stays open |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
-Complete gate (standard run and native x86 run on the same source state): **True**.
+Complete gate (standard run and native x86 run on the same source state): **False**.
 The run report is written to `artifacts/verification-report.json` and is not versioned.
 <!-- verification:readme-measurements:end -->
 
@@ -203,8 +203,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **166 expectations**: **147 implemented**, **0 partial**, **19 planned**;
-**147 documented-verified**, **19 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **171 expectations**: **144 implemented**, **3 partial**, **24 planned**;
+**147 documented-verified**, **24 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status
@@ -398,8 +398,14 @@ live in [the compatibility matrix](docs/vb6-sp6-compatibility-matrix.json). The 
 M0–M10 sections are mapped to these milestones in the roadmap.
 
 1. R0: independent run accounting and automatic status/documentation checks. **Done.**
-2. R1: finite language/runtime inventory and conformance, including file layouts and locale. **Done.**
-3. R2: last-reference object termination throughout the generated program and runtime. **Done.**
+2. R1: finite language/runtime inventory and conformance, including file layouts and locale.
+   **Accepted with a measured remainder** — a probe sweep on 2026-09-09 found seven documented
+   names that do not bind at all (`Beep`, `AppActivate`, `SavePicture`, `ChDrive`, `InputB`,
+   `Stop`, and `DoEvents` in its function form). The inventory had been built from the existing
+   tests rather than from the documented forms.
+3. R2: last-reference object termination throughout the generated program and runtime.
+   **Accepted with a measured remainder** — termination itself holds; creation does not. `As New`
+   fails to instantiate on a `Public` field access.
 4. R3: GC-stable addressable storage, pointers and complete Declare/callback ABI.
 5. R4: COM output parameters, Automation layouts, real binary compatibility and server contracts.
 6. R5: Forms, external ActiveX/OLE hosting, persistence, PropertyPages and enterprise artifacts.

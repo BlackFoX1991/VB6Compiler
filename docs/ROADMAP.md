@@ -1,6 +1,6 @@
 # Roadmap
 
-Stand: 2026-09-06. Eine aktive Restliste für den Managed-Abschluss.
+Stand: 2026-09-09. Eine aktive Restliste für den Managed-Abschluss.
 Die chronologische Historie steht in [CHANGELOG.md](CHANGELOG.md).
 
 ## Produktziel und Grenzen
@@ -21,16 +21,16 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-08 auf `main` / `b1491b5`, Lauf `20260908T072019Z-625089fb`:
+Messung vom 2026-09-09 auf `main` / `6184fe6` mit nicht committeten Änderungen, Lauf `20260909T065923Z-0e821f6b`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1813 Fälle: 1813 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
-| Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 81/81 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
+| Standardlauf, 13 Testprojekte | 1819 Fälle: 1819 bestanden, 0 fehlgeschlagen | Serieller Lauf über alle Testprojekte |
+| Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
-Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
+Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **False**.
 Der Laufbericht liegt unter `artifacts/verification-report.json` und wird nicht versioniert.
 <!-- verification:roadmap-measurements:end -->
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **166 Erwartungen**, davon **147 implemented**, **0 partial** und **19 planned**;
-**147/166 documented-verified**, 19 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **171 Erwartungen**, davon **144 implemented**, **3 partial** und **24 planned**;
+**147/171 documented-verified**, 24 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -144,11 +144,19 @@ jeden Marker bleibt von Hand geschrieben — generiert werden die Zahlen und ihr
 | `managed-r0-reporting` | `build.ps1`, `artifacts/verification-report.json`, `VerificationDocumentTests` |
 | `managed-r0-status-checks` | `CompatibilityMatrixStatusTests`, `CompatibilityMatrixTests`, `build.ps1 -UpdateVerificationDocs` |
 
+## Abgenommene Teilverträge
+
+Hier stehen Etappen, deren Nachweise gemessen und gültig sind, die aber einen benannten Rest
+haben. Der Nachweis bleibt wahr für das, was er belegt; die offenen Karten stehen zusätzlich in
+der aktiven Restliste darunter.
+
 ### R1 — Sprach- und Runtime-Verträge vervollständigen
 
-Geschlossen. Die elf Karten stehen als `implemented` / `documented-verified` in der Matrix und
-nicht mehr in der Restliste; die Nachweise sind hier festgehalten, damit sie nachvollziehbar
-bleiben.
+Elf Karten sind abgenommen und stehen als `implemented` / `documented-verified` in der Matrix.
+Die beiden Sammelkarten `managed-r1-grammar` und `managed-r1-intrinsics` stehen seit dem
+Breitendurchgang vom 2026-09-09 auf `partial`: Ihre Inventare waren aus den vorhandenen Tests
+gebildet, nicht aus den dokumentierten Formen, und Einzelsonden haben sieben Namen gefunden, die
+gar nicht binden. Das entwertet die geführten Nachweise nicht — es begrenzt ihre Reichweite.
 
 Getragen hat die Etappe die Reihenfolge „erst messen, dann bauen". Jedes Inventar wurde aus
 dokumentierten Formen gebildet und blieb endlich — keine dauerhaft offene Sammelzeile „alle
@@ -183,10 +191,15 @@ abgenommen, statt einen Besitzvertrag zu erfinden.
 
 ### R2 — Deterministische Objektlebensdauer
 
-Geschlossen. Terminate erfolgt beim Wegfall der letzten Referenz; die Karte steht als
-`implemented` / `documented-verified` in der Matrix. Der vollständige Besitzvertrag mit seinen
-acht Familien und den sechs Abnahmeschritten steht in
+Abgenommen. Terminate erfolgt beim Wegfall der letzten Referenz; `managed-r2-lifetime` steht
+unverändert als `implemented` / `documented-verified` in der Matrix. Der vollständige
+Besitzvertrag mit seinen acht Familien und den sechs Abnahmeschritten steht in
 [R2-OBJECT-LIFETIME.md](R2-OBJECT-LIFETIME.md).
+
+Offen ist nicht die Lebensdauer, sondern die **Erzeugung**: `l1-02-i-object-members-lifecycle`
+sagt „As New creates lazily" zu, und das hält für drei der vier Zugriffsformen. Ein Zugriff auf
+ein `Public`-Feld instanziiert nicht nach. Die Karte steht deshalb auf `partial`, der Befund als
+`r2-asnew-field-instantiation` in der Restliste.
 
 Erzeugte Klassen sind über Aliase, Selbstzuweisung, ByRef/ByVal, Rückgaben, Felder, Variant-,
 Array- und Collection-Speicher, `WithEvents`, behandelte Fehler, Initialisierungsfehler,
@@ -211,8 +224,6 @@ festgehalten, obwohl ihn kein erzeugter Pfad erreicht — nicht als Nachweis, so
 | --- | --- |
 | `managed-r2-lifetime` | `ObjectLifetimeTests`, `ComReferenceCountTests`, `ClassTerminateGuaranteeExecutionTests`, `WithEventsExecutionTests`, `ManagedEmitterTests`, `LocalServerActivationTests` |
 
-## Abgenommene Teilverträge
-
 ### R3 — Slot-Instrumentierung adressierbaren Speichers
 
 Der abgenommene x86-Managed-Slice erzeugt Runtime-besessenen, GC-stabilen Speicher für sieben
@@ -234,11 +245,37 @@ Fehler 5, weil der Emitter dort nicht jede Aufrufstelle kontrolliert.
 
 ## Aktive Restliste
 
-Die 19 folgenden Karten sind `planned` / `not-yet-verified`. R0, R1 und R2 sind geschlossen und
-stehen als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der
-Matrix; die dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits
-erfüllte fachliche Einzelverträge bleiben in der Matrix erhalten und werden nicht neu
-implementiert.
+Die 24 folgenden Karten sind `planned` / `not-yet-verified`. Nur R0 ist geschlossen; R1 und R2
+stehen als abgenommene Teilverträge darüber und tauchen hier mit ihrem gemessenen Rest wieder auf.
+Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen legen
+die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben in der Matrix
+erhalten und werden nicht neu implementiert.
+
+Fünf dieser Karten sind am 2026-09-09 durch einen gemessenen Breitendurchgang dazugekommen — 54
+Einzelsonden durch `vb6c` und ein ausgeführtes Projekt. Sie sind alle vom selben Typ: Das Inventar
+einer Sammelkarte war aus den vorhandenen Tests gebildet statt aus den dokumentierten Formen, und
+belegte deshalb Qualität statt Vollständigkeit. Das ist der Fehler, gegen den die R1-Arbeitsweise
+ausdrücklich gebaut war; er ist zweimal trotzdem passiert. Jeder Befund bekommt wie in R1 eine
+eigene Karte mit Eingabe, Ergebnis und Diagnose, statt in einer Sammelkarte zu verschwinden.
+
+### R1 — Fehlende Standardnamen und Statements
+
+Sofort ausführbar; hängt an nichts Offenem.
+
+| Karte | Ziel und Abnahme |
+| --- | --- |
+| `r1-intrinsics-missing-host-names` | **Host- und Dateisystem-Intrinsics:** `Beep`, `AppActivate`, `SavePicture` und `ChDrive` binden über ihre dokumentierte Signatur; die drei host-nahen laufen über einen `IVBHost`-Vertrag mit deterministischem Headless-Verhalten. |
+| `r1-intrinsics-doevents-return` | **`DoEvents` als Funktion:** Die Ausdrucksform liefert die Zahl offener Formulare statt `VB6S0010`; die klammerlose Anweisungsform bindet weiter. Ändert den `IVBHost`-Vertrag. |
+| `r1-strings-inputb` | **`InputB` als Byte-Geschwister von `Input`:** liest Bytes der Nutzlast, nicht UTF-16-Zeichen; Profilgrenze wie bei der übrigen Byte-Familie. |
+| `r1-grammar-stop-statement` | **`Stop` als Anweisung:** eigener Syntax-/Bound-Knoten, gesenkt wie `End`, weil eine kompilierte VB6-EXE bei `Stop` beendet. Kein `VB6S0005` mehr. |
+
+### R2 — Erzeugung bei `As New`
+
+Nach R1 nicht erforderlich; unabhängig ausführbar.
+
+| Karte | Ziel und Abnahme |
+| --- | --- |
+| `r2-asnew-field-instantiation` | **`As New` instanziiert auch beim Feldzugriff:** Der Zugriff auf ein `Public`-Feld ist eine erste Verwendung und erzeugt die Instanz — kein Fehler 91, keine unbehandelte `NullReferenceException`. Die vier auslösenden Zugriffsformen werden als Inventar festgehalten. |
 
 ### R3 — Adressierbarer Speicher und native ABI
 

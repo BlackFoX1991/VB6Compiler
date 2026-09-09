@@ -1388,7 +1388,7 @@
     },
     {
       "id": "l1-02-i-object-members-lifecycle",
-      "implementation": "implemented",
+      "implementation": "partial",
       "matrixEntry": "language-operators-and-variants",
       "input": "Let/Set assignment, As New activation, Collection members, Implements contracts, Events and WithEvents handlers",
       "expected": {
@@ -1406,7 +1406,7 @@
         "tests/VB6.Compiler.Tests/ClassTerminateGuaranteeExecutionTests.cs",
         "tests/VB6.Runtime.Tests/ObjectLifetimeTests.cs"
       ],
-      "notes": "Let and Set choose value versus object assignment and honour default members, As New creates on first use, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before. Class_Terminate is guaranteed to run: it used to hang on a finalizer alone, and since the CLR runs no pending finalizers at process exit, a measurement found it never ran at all -- not on Set x = Nothing, not at scope exit, not at program end. A weak register drains it at shutdown, newest first, and an object whose Class_Initialize failed is not registered because VB6 gives it no Terminate either. The timing is deliberately not claimed to match VB6: that needs a reference count, and half a reference count would fire Terminate on a live object."
+      "notes": "Offen ist genau eine der vier Zugriffsformen, die As New ausloesen: ein Zugriff auf ein Public-Feld instanziiert nicht nach und meldet Fehler 91 statt zu erzeugen (r2-asnew-field-instantiation). Werteverwendung, Methodenaufruf und Property Get erzeugen wie zugesagt. Alles Folgende ist gemessen und bleibt gueltig. Let and Set choose value versus object assignment and honour default members, As New creates on first use, Implements dispatches through the interface and reports a missing member, and WithEvents delivers RaiseEvent to the sink -- including rewiring on a new source and disconnecting on Nothing, which had no execution test at all before. Class_Terminate is guaranteed to run: it used to hang on a finalizer alone, and since the CLR runs no pending finalizers at process exit, a measurement found it never ran at all -- not on Set x = Nothing, not at scope exit, not at program end. A weak register drains it at shutdown, newest first, and an object whose Class_Initialize failed is not registered because VB6 gives it no Terminate either. The timing is deliberately not claimed to match VB6: that needs a reference count, and half a reference count would fire Terminate on a live object."
     },
     {
       "id": "l1-02-j-nested-error-resume",
@@ -2415,7 +2415,7 @@
       "dependsOn": [
         "managed-r0-status-checks"
       ],
-      "implementation": "implemented",
+      "implementation": "partial",
       "input": "Grammatik und Kontext inventarisieren",
       "expected": {
         "acceptance": "Endliches Inventar von Deklarationen, Statements, Sichtbarkeit und Auswertungsreihenfolge; gültige Formen ausführen, ungültige Formen gezielt diagnostizieren."
@@ -2437,7 +2437,7 @@
         "tests/VB6.Compiler.Tests/EvaluationOrderExecutionTests.cs",
         "tests/VB6.Compiler.Tests/LoopAndJustificationExecutionTests.cs"
       ],
-      "notes": "The listed individual grammar contracts form the finite inventory; they are all implemented and documented-verified. This aggregate is not a claim of unrestricted VB6 grammar compatibility.",
+      "notes": "The listed individual grammar contracts form the finite inventory; they are all implemented and documented-verified. This aggregate is not a claim of unrestricted VB6 grammar compatibility. Offen: Das Statement-Inventar hat Stop nicht erfasst -- ein dokumentiertes VB6-Statement, das heute als 'Procedure not declared' abgewiesen wird (r1-grammar-stop-statement). Gefunden beim Nachmessen mit Einzelsonden, nicht beim Lesen; die Inventur war aus den vorhandenen Tests gebildet statt aus den dokumentierten Formen.",
       "title": "Grammatik und Kontext inventarisieren"
     },
     {
@@ -2546,7 +2546,7 @@
       "dependsOn": [
         "managed-r1-conversions"
       ],
-      "implementation": "implemented",
+      "implementation": "partial",
       "input": "Standardbibliothek abschließend inventarisieren",
       "expected": {
         "acceptance": "String, Math, Financial, Datum/Zeit, Format, Information und Host-Intrinsics einschließlich Rückgabetyp, Dollar-Form, optionalen Argumenten und Fehlergrenzen messen.",
@@ -2581,7 +2581,7 @@
         "tests/VB6.Compiler.Tests/InputBoxExecutionTests.cs",
         "tests/VB6.Compiler.Tests/FormatStringInputExecutionTests.cs"
       ],
-      "notes": "Die 14 atomaren Standardbibliotheksverträge bilden die endliche Inventur. 108 direkte Runtime-Tests und 86 Managed-Tests prüfen ihre Familien einschließlich Signatur-/Arity-Grenzen, Dollar-Formen, Rückgabetypen, optionalen Argumenten, Fehlern und Headless-Host-Verträgen. Die Karte erweitert keinen unendlichen Anspruch auf alle VB6- oder Host-Oberflächen; darüber hinausgehende ABI-/Kompatibilitätsarbeit bleibt auf ihren eigenen R3–R7-Karten.",
+      "notes": "Offen: Die Inventur war nicht abschließend. Sechs dokumentierte Standardnamen binden nicht (Beep, AppActivate, SavePicture, ChDrive als r1-intrinsics-missing-host-names; InputB als r1-strings-inputb), und DoEvents ist nur als Sub modelliert statt als Funktion mit der Zahl offener Formulare (r1-intrinsics-doevents-return). Gefunden durch Einzelsonden gegen die dokumentierte Namensliste; die Inventur war aus den vorhandenen Tests gebildet und belegte deshalb Qualität statt Vollständigkeit. Die 14 atomaren Standardbibliotheksverträge bilden die endliche Inventur. 108 direkte Runtime-Tests und 86 Managed-Tests prüfen ihre Familien einschließlich Signatur-/Arity-Grenzen, Dollar-Formen, Rückgabetypen, optionalen Argumenten, Fehlern und Headless-Host-Verträgen. Die Karte erweitert keinen unendlichen Anspruch auf alle VB6- oder Host-Oberflächen; darüber hinausgehende ABI-/Kompatibilitätsarbeit bleibt auf ihren eigenen R3–R7-Karten.",
       "title": "Standardbibliothek abschließend inventarisieren"
     },
     {
@@ -2641,6 +2641,117 @@
       ],
       "notes": "The profile-boundary test iterates en-US/de-DE/ja-JP and keeps deterministic Format, explicit weekday constants, Debug formatting and the PMT result separate from VB6Sp6 locale selection. Existing runtime and emitted-program tests compare LenB/Asc and sequential text bytes to the actual active Windows ANSI code page; this exercises a DBCS system when one is active without treating a temporary CurrentCulture change as an ACP change. Two generated profile assemblies execute the same Debug/Financial program and retain identical shared scalar output. This is documented verification, not an original VB6-SP6 oracle run.",
       "title": "Profilgrenzen absichern"
+    },
+    {
+      "id": "r1-intrinsics-missing-host-names",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-intrinsics"
+      ],
+      "implementation": "planned",
+      "input": "Beep, AppActivate, SavePicture und ChDrive in einem Modul aufrufen",
+      "expected": {
+        "binding": "jeder Name bindet über seine dokumentierte Signatur statt VB6S0005 zu melden",
+        "host": "Beep, AppActivate und SavePicture laufen über einen host-neutralen IVBHost-Vertrag mit deterministischem Headless-Verhalten; WinForms setzt ihn gegen echte Fenster um",
+        "runtime": "ChDrive wechselt das aktuelle Laufwerk und meldet für ein ungültiges die dokumentierte VB-Fehlernummer; SavePicture schreibt ein VBPicture in eine Datei"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/StandardLibraryHostContractExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-09 mit Einzelsonden durch vb6c: alle vier melden VB6S0005. Die testRefs nennen die zuständigen Baselines, sie belegen den geplanten Vertrag nicht.",
+      "title": "Fehlende Host- und Dateisystem-Intrinsics ergänzen"
+    },
+    {
+      "id": "r1-intrinsics-doevents-return",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-intrinsics"
+      ],
+      "implementation": "planned",
+      "input": "DoEvents als Anweisung und als Ausdruck: Debug.Print DoEvents()",
+      "expected": {
+        "binding": "die Funktionsform bindet und liefert Integer statt VB6S0010 zu melden; die klammerlose Anweisungsform bindet unverändert weiter",
+        "host": "IVBHost.DoEvents gibt die Zahl offener Formulare zurück; der Headless-Host liefert deterministisch 0, WinForms zählt die offenen Formulare"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/StandardLibraryHostContractExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/InteractionRuntimeTests.cs"
+      ],
+      "notes": "DoEvents ist heute Sub(\"DoEvents\", ...) mit void-Hostvertrag. Die Karte ändert den IVBHost-Vertrag und ist deshalb von r1-intrinsics-missing-host-names getrennt geführt.",
+      "title": "DoEvents als Funktion mit Formularzähler"
+    },
+    {
+      "id": "r1-strings-inputb",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-intrinsics"
+      ],
+      "implementation": "planned",
+      "input": "InputB$(n, #dateinummer) auf einer binär geöffneten Datei",
+      "expected": {
+        "binding": "InputB und InputB$ binden wie Input/Input$ statt VB6S0005 zu melden",
+        "bytes": "gelesen werden n Bytes der Nutzlast, nicht n UTF-16-Zeichen",
+        "profile": "VB6Sp6 verwendet die aktive ANSI-Codepage, Deterministic seine stabile UTF-16-Bytedarstellung"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs"
+      ],
+      "notes": "Die Byte-Familie LeftB/RightB/MidB/InStrB ist unter strings.byte-oriented-intrinsics abgenommen; InputB ist ihr Datei-Geschwister und war in keiner Karte erfasst.",
+      "title": "InputB als Byte-Geschwister von Input"
+    },
+    {
+      "id": "r1-grammar-stop-statement",
+      "matrixEntry": "language-declarations-and-statements",
+      "milestone": "R1",
+      "dependsOn": [
+        "managed-r1-grammar"
+      ],
+      "implementation": "planned",
+      "input": "Stop als Anweisung in einer Prozedur",
+      "expected": {
+        "parse": "Stop ist eine eigene Anweisung mit eigenem Syntax- und Bound-Knoten, kein Prozeduraufruf",
+        "runtime": "in einer kompilierten VB6-EXE beendet Stop das Programm wie End; nur die IDE bricht in den Debugger",
+        "diagnostics": "kein VB6S0005 mehr, weil Stop kein unbekannter Name ist"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Parser.Tests/ErrorHandlingParserTests.cs",
+        "tests/VB6.Compiler.Tests/StatementShapeExecutionTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-09: Stop meldet \"Procedure 'Stop' is not declared\". Eigener Bound-Knoten statt Wiederverwendung von BoundEndStatement, damit eine spätere IDE die beiden unterscheiden kann; gesenkt wird auf dieselbe IR.",
+      "title": "Stop als Anweisung erkennen und beenden"
+    },
+    {
+      "id": "r2-asnew-field-instantiation",
+      "matrixEntry": "language-operators-and-variants",
+      "milestone": "R2",
+      "dependsOn": [
+        "managed-r2-lifetime"
+      ],
+      "implementation": "planned",
+      "input": "Dim c As New K, danach lesender und schreibender Zugriff auf ein Public-Feld von K; dasselbe für eine Modulvariable Private m As New K",
+      "expected": {
+        "instantiation": "der Feldzugriff ist eine erste Verwendung und erzeugt die Instanz, wie Methodenaufruf, Property Get und Werteverwendung es bereits tun",
+        "errors": "kein Fehler 91 und keine unbehandelte NullReferenceException mehr",
+        "inventory": "die vier Zugriffsformen, die As New auslösen, sind als Inventar festgehalten statt einzeln entdeckt zu werden"
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/AsNewExecutionTests.cs",
+        "tests/VB6.Compiler.Tests/ClassInstanceExecutionTests.cs",
+        "tests/VB6.IR.Tests/IrLowererTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-09 an einem ausgeführten .vbp mit einer Klasse aus nichts als Public N As Long: Set c = New K funktioniert, c.Bump und c.P funktionieren, c.N wirft eine NullReferenceException und unter On Error Resume Next Fehler 91. Ursache ist eine Zeile: TryGetClassFieldPlace senkt den Empfänger mit LowerPlace, und die Nachinstanziierung hängt allein an LowerVariableRead. Kein Test der Suite und keine Stelle im VISIA-Korpus trifft die Form -- alle As-New-Tests benutzen ein Property Get.",
+      "title": "As New instanziiert auch beim Feldzugriff"
     },
     {
       "id": "managed-r2-lifetime",
@@ -3092,8 +3203,9 @@
         "bitness": "agnostic",
         "com": "none"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "managed-r1-grammar, r1-grammar-stop-statement",
       "tests": [
         "tests/VB6.Parser.Tests/ParserTests.cs",
         "tests/VB6.Semantics.Tests/BinderTests.cs",
@@ -3186,8 +3298,9 @@
         "bitness": "agnostic except LongPtr",
         "com": "none"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "l1-02-i-object-members-lifecycle, r2-asnew-field-instantiation",
       "tests": [
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",
@@ -3253,8 +3366,9 @@
         "bitness": "agnostic unless API exposes native handles",
         "com": "Clipboard/Printer/host services use explicit adapters"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "managed-r1-intrinsics, r1-intrinsics-missing-host-names, r1-intrinsics-doevents-return, r1-strings-inputb",
       "tests": [
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",

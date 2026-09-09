@@ -8239,3 +8239,57 @@ Beide Karten bleiben `planned`. Offen sind vier Punkte, die beim Review herauska
 ungezählte Deskriptorfreigabe über `ReleaseObjectReferences`, der Finalizer auf jedem
 `VBArray<T>`, der verlorene `Array.Copy`-Pfad in `ReDimPreserve` und ein Test für die
 `FADF_STATIC`-Annahme, auf der die ganze Freigabe steht.
+
+## 2026-09-09 — Neuplanung: zwei Etappen wieder geöffnet
+
+Ein Breitendurchgang mit 54 Einzelsonden durch `vb6c` und einem ausgeführten Mini-`.vbp` hat zwei
+Etappen aufgemacht, die als geschlossen geführt wurden. Kein Umbau am Compiler, nur Status und
+Dokumente — die Implementierung folgt in eigenen Schnitten.
+
+### Was die Sonden gefunden haben
+
+Sieben dokumentierte VB6-Namen binden überhaupt nicht: `Beep`, `AppActivate`, `SavePicture`,
+`ChDrive` und `InputB` melden `VB6S0005`, `Stop` ebenfalls (als angeblich unbekannte Prozedur),
+und `DoEvents` ist nur als Sub modelliert, weshalb `Debug.Print DoEvents()` an `VB6S0010`
+scheitert.
+
+Dazu ein Absturz. `Dim c As New K` gefolgt von `c.N` auf einem `Public`-Feld wirft eine
+`NullReferenceException`, unter `On Error Resume Next` Fehler 91. Gemessen an einer Klasse aus
+nichts als `Public N As Long`: `Set c = New K` funktioniert, `c.Bump` funktioniert, ein echtes
+`Property Get` funktioniert — nur der Feldzugriff nicht. Ursache ist eine Zeile:
+`TryGetClassFieldPlace` senkt den Empfänger mit `LowerPlace`, und die Nachinstanziierung hängt
+allein an `LowerVariableRead`.
+
+### Warum es niemand gesehen hat
+
+Beide Befunde haben dieselbe Wurzel, und sie ist unangenehm: Die Inventare der Sammelkarten waren
+aus den **vorhandenen Tests** gebildet, nicht aus den dokumentierten Formen. `managed-r1-intrinsics`
+heißt „Standardbibliothek abschließend inventarisieren" und nennt Host-Intrinsics ausdrücklich als
+Familie; 108 Runtime- und 86 Managed-Tests prüfen sorgfältig die Familien, die da sind, und keiner
+fragt, welcher dokumentierte Name fehlt. Beim `As New`-Fall dasselbe eine Ebene tiefer: Alle
+Tests in `AsNewExecutionTests` benutzen ein `Property Get`, keiner ein nacktes `Public`-Feld.
+
+Der Korpus kann es auch nicht fangen. VISIA hat vier `As New`-Stellen, alle greifen über Methoden
+oder Properties zu — und VISIA wird ohnehin nur analysiert, nicht ausgeführt.
+
+### Was sich geändert hat
+
+`managed-r1-grammar`, `managed-r1-intrinsics` und `l1-02-i-object-members-lifecycle` stehen auf
+`partial`. `managed-r2-lifetime` bleibt `implemented` — die Karte trägt Terminierung und Besitz,
+nicht Erzeugung; der Befund gehört zu `l1-02-i`, das „As New creates lazily" zusagt.
+`s3-remaining-standard-intrinsics` bleibt ebenfalls unangetastet: Die acht dort namentlich
+genannten Intrinsics binden alle.
+
+Fünf neue Karten, je eine pro Befund, nach dem Muster der vier `r1-*`-Karten aus dem R1-Abschluss:
+`r1-intrinsics-missing-host-names`, `r1-intrinsics-doevents-return`, `r1-strings-inputb`,
+`r1-grammar-stop-statement` und `r2-asnew-field-instantiation`. Die drei betroffenen Bereiche
+sind `partial` / `not-yet-verified` mit `gap`.
+
+In der Roadmap sind R1 und R2 aus „Abgeschlossene Etappen" nach „Abgenommene Teilverträge"
+gewandert — die Nachweistabellen bleiben unverändert stehen, sie sind weiterhin wahr für das, was
+sie belegen — und tauchen mit ihrem Rest in der aktiven Restliste wieder auf. Aus 166 Erwartungen
+werden 171, aus 19 offenen Karten 24.
+
+Nebenbei zwei Korrekturen an `CLAUDE.md`: Der Satz, `Public S As String * 5` sei ein Parserfehler,
+ist weg — die Form übersetzt in einer `.cls`, gemessen. Und die vier Zugriffsformen, die `As New`
+auslösen, stehen jetzt als Falle da, statt einzeln entdeckt zu werden.
