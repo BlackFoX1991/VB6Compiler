@@ -184,12 +184,12 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-09 at `ff4b034` on `main` with uncommitted changes, run `20260909T072423Z-e7ba94df`:
+Measured on 2026-09-09 at `3e6bd76` on `main`, run `20260909T073006Z-9dbc7794`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1823 cases: 1822 passed, 1 failed | Not passing -- VB6.Compiler.Tests: test process exited with 1 |
+| Standard serial run, 13 test projects | 1823 cases: 1823 passed, 0 failed | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | not run | A missing native run is not a passed one; the gate stays open |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
