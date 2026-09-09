@@ -8751,9 +8751,12 @@ ActiveX-DLL-Server: Ein `Long` kommt als `vt=3` zurück, ein Mitglied mit UDT-R�
 einen Recordrückgabewert ein `VT_RECORD` und braucht dafür `IRecordInfo`, das über
 `GetRecordInfoFromGuids` aus einer **auflösbaren** Typbibliothek kommt — aus der Registrierung
 oder einem aktivierten Kontext. Der Messclient lädt den comhost direkt und aktiviert keinen
-Kontext; eine Registrierung braucht Administratorrechte. Die Abnahme des letzten Stücks verlangt
-deshalb entweder einen Client, der den Aktivierungskontext des Manifests selbst aktiviert, oder
-eine registrierte Komponente.
+Kontext; eine Registrierung braucht Administratorrechte. Nachgemessen mit genau so einem Client: Er aktiviert den Kontext des Manifests, erzeugt die
+Klasse über `CoCreateInstance` und ruft über die DISPID -- ohne einen einzigen Registryeintrag.
+Ein `Long` kommt so als `vt=3` zurück, Klasse und Bibliothek sind aus dem Kontext also auflösbar;
+der Recordrückgabewert scheitert trotzdem weiter. Damit ist die Grenze scharf: Es liegt nicht an
+den Metadaten, nicht am Manifest und nicht an der Aktivierungsart. Was fehlt, ist die Messung
+gegen eine *registrierte* Komponente -- und die verlangt Administratorrechte.
 
 Nebenbefund aus derselben Runde, behoben: In einem String-Literal des Typbibliotheksschreibers
 stand ein **echtes NUL-Byte** statt der Escape-Folge `\0` — ein Nebenprodukt einer skriptgesteuerten

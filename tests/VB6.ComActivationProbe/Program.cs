@@ -28,6 +28,11 @@ internal static class Program
             return InvokeForVariant(args[1], args[2], int.Parse(args[3]));
         }
 
+        if (args.Length == 4 && string.Equals(args[0], "--actctx", StringComparison.Ordinal))
+        {
+            return InvokeThroughActivationContext(args[1], args[2], int.Parse(args[3]));
+        }
+
         if (args.Length != 2)
         {
             Console.Error.WriteLine(
@@ -180,6 +185,127 @@ internal static class Program
     /// server answered with. Used to see what a foreign client actually receives for a member whose
     /// type the library describes -- a record among them.
     /// </summary>
+    /// <summary>
+    /// Reg-free COM the way a real client does it: the manifest's activation context is activated,
+    /// the class is created by CLSID through CoCreateInstance, and a member is called by DISPID.
+    /// Everything the runtime has to resolve -- the class, its type library, the record info behind
+    /// a record -- has to come out of that context, because nothing here is registered.
+    /// </summary>
+    private static int InvokeThroughActivationContext(string manifestPath, string classIdText, int dispId)
+    {
+        // RPC_E_CHANGED_MODE heisst nur, dass der Thread schon initialisiert ist -- .NET tut das
+        // selbst. Fuer diesen Aufruf ist das kein Fehler.
+        var initialization = CoInitializeEx(IntPtr.Zero, CoInitApartmentThreaded);
+        if (initialization < 0 && initialization != unchecked((int)0x80010106))
+        {
+            Console.WriteLine($"coinit=0x{initialization:X8}");
+            return 0;
+        }
+
+        var context = new ActCtx
+        {
+            cbSize = Marshal.SizeOf<ActCtx>(),
+            lpSource = manifestPath
+        };
+        var handle = CreateActCtx(ref context);
+        if (handle == new IntPtr(-1))
+        {
+            Console.WriteLine($"createactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        if (!ActivateActCtx(handle, out var cookie))
+        {
+            Console.WriteLine($"activateactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        try
+        {
+            var classId = Guid.Parse(classIdText);
+            var dispatchId = new Guid("00020400-0000-0000-C000-000000000046");
+            var activation = CoCreateInstance(ref classId, IntPtr.Zero, ClsCtxInprocServer, ref dispatchId, out var dispatch);
+            if (activation != 0)
+            {
+                Console.WriteLine($"cocreate=0x{activation:X8}");
+                return 0;
+            }
+
+            try
+            {
+                var vtable = Marshal.ReadIntPtr(dispatch);
+                var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+                    Marshal.ReadIntPtr(vtable, IntPtr.Size * 6));
+                var result = Marshal.AllocCoTaskMem(VariantSize);
+                try
+                {
+                    ClearNativeMemory(result);
+                    var parameters = new NativeDispParams();
+                    var iid = Guid.Empty;
+                    var hresult = invoke(
+                        dispatch,
+                        dispId,
+                        ref iid,
+                        1033,
+                        DispatchMethod,
+                        ref parameters,
+                        result,
+                        IntPtr.Zero,
+                        out _);
+                    Console.WriteLine(hresult == 0
+                        ? $"vt={Marshal.ReadInt16(result)}"
+                        : $"invoke=0x{hresult:X8}");
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(result);
+                }
+            }
+            finally
+            {
+                Marshal.Release(dispatch);
+            }
+        }
+        finally
+        {
+            DeactivateActCtx(0, cookie);
+            ReleaseActCtx(handle);
+        }
+
+        return 0;
+    }
+
+    private const int ClsCtxInprocServer = 1;
+    private const int CoInitApartmentThreaded = 2;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ActCtx
+    {
+        public int cbSize;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpSource;
+        public ushort wProcessorArchitecture;
+        public ushort wLangId;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpAssemblyDirectory;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpResourceName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpApplicationName;
+        public IntPtr hModule;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateActCtx(ref ActCtx actCtx);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ActivateActCtx(IntPtr actCtx, out IntPtr cookie);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeactivateActCtx(uint flags, IntPtr cookie);
+
+    [DllImport("kernel32.dll")]
+    private static extern void ReleaseActCtx(IntPtr actCtx);
+
     private static int InvokeForVariant(string comHostPath, string classIdText, int dispId)
     {
         var module = NativeLibrary.Load(comHostPath);
