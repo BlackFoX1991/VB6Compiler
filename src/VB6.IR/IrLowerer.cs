@@ -153,6 +153,11 @@ public static class IrLowerer
                         fields,
                         classProcedures.ToImmutable(),
                         containingClass.IsInterfaceContract));
+                    if (LowerEventSourceInterface(containingClass) is { } eventSource)
+                    {
+                        classes.Add(eventSource);
+                    }
+
                     continue;
                 }
 
@@ -641,6 +646,65 @@ public static class IrLowerer
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// The event source interface of a class that declares events -- VB6 calls it
+        /// <c>__Klasse</c> and lists it on the coclass as the source.
+        ///
+        /// It exists as a type of its own because an event is a contract *of the client*: a sink
+        /// implements this interface, and without it in the metadata nothing describes what a
+        /// foreign client has to implement. The methods carry no body; the runtime raises them by
+        /// name through the connection point, so nothing calls them through this interface.
+        /// </summary>
+        private static IrClassDefinition? LowerEventSourceInterface(ClassTypeSymbol containingClass)
+        {
+            if (containingClass.IsInterfaceContract || containingClass.Events.IsDefaultOrEmpty)
+            {
+                return null;
+            }
+
+            var name = "__" + containingClass.Name;
+            var source = new ClassTypeSymbol(name, containingClass.SourcePath);
+            source.MarkAsInterfaceContract();
+            source.SetComInstancing(containingClass.IsComExposed, isCreatable: false);
+            var procedures = containingClass.Events
+                .Select(@event => new ProcedureSymbol(@event.Name, @event.Parameters, null))
+                .ToImmutableArray();
+            if (!source.TryDefineMembers(
+                    procedures,
+                    ImmutableArray<PropertySymbol>.Empty,
+                    containingClass.Events,
+                    out _))
+            {
+                return null;
+            }
+
+            var methods = procedures
+                .Select(procedure => new IrProcedure(
+                    procedure,
+                    $"__vb6_{Mangle(procedure.Name)}",
+                    null,
+                    procedure.Parameters
+                        .Select((parameter, index) => new IrParameter(
+                            parameter,
+                            index,
+                            Mangle(parameter.Name),
+                            parameter.Type,
+                            parameter.PassingMode))
+                        .ToImmutableArray(),
+                    ImmutableArray<IrLocal>.Empty,
+                    ImmutableArray<IrBasicBlock>.Empty,
+                    IsStatic: false,
+                    DeclaringClass: source))
+                .ToImmutableArray();
+
+            return new IrClassDefinition(
+                source,
+                Mangle(name),
+                ImmutableArray<IrField>.Empty,
+                methods,
+                IsInterface: true);
         }
 
         private static IrProcedure LowerInterfaceProcedure(
