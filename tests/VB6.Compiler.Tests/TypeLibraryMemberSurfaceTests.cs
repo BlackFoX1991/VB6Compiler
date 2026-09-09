@@ -402,6 +402,227 @@ public sealed class TypeLibraryMemberSurfaceTests
         }
     }
 
+    /// <summary>
+    /// A <c>Public Type</c> is part of the automation surface and belongs in the library as a
+    /// record; a <c>Private Type</c> exists only inside its module and must stay out of it -- the
+    /// same rule a Private class module follows. A member typed with the record names it as
+    /// VT_USERDEFINED instead of degrading to a Variant, because a Variant would describe a call
+    /// nobody can make correctly.
+    /// </summary>
+    [TestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TypeLibrary_PublishesAPublicTypeAsARecord()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Type libraries are a Windows contract.");
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "VB6TypeLibRecord", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var projectPath = Path.Combine(directory, "Orte.vbp");
+            File.WriteAllText(projectPath, """
+                Type=OleDll
+                Name=Orte
+                Module=Typen; Typen.bas
+                Class=Geber; Geber.cls
+                """);
+            File.WriteAllText(Path.Combine(directory, "Typen.bas"), """
+                Attribute VB_Name = "Typen"
+                Option Explicit
+
+                Public Type TPunkt
+                    X As Long
+                    Y As Long
+                End Type
+
+                Private Type TGeheim
+                    Z As Long
+                End Type
+                """);
+            File.WriteAllText(Path.Combine(directory, "Geber.cls"), """
+                VERSION 1.0 CLASS
+                BEGIN
+                  MultiUse = -1  'True
+                END
+                Attribute VB_Name = "Geber"
+                Attribute VB_Creatable = True
+                Attribute VB_PredeclaredId = False
+                Attribute VB_Exposed = True
+                Option Explicit
+
+                Public Function Ort() As TPunkt
+                    Ort.X = 3
+                    Ort.Y = 4
+                End Function
+                """);
+
+            var assemblyPath = Path.Combine(directory, "Orte.dll");
+            var emit = VBProjectCompilation.Create(projectPath).EmitManagedApplication(
+                assemblyPath,
+                new ManagedEmitOptions(assemblyPath) { EnableComHosting = true });
+            Assert.IsTrue(emit.Success, string.Join(Environment.NewLine, emit.Lowering.Analysis.Diagnostics));
+
+            var typeLibraryPath = ManagedTypeLibraryWriter.Create(assemblyPath, ManagedPlatform.X86);
+            var types = ReadTypeKinds(typeLibraryPath);
+
+            Assert.IsTrue(types.TryGetValue("TPunkt", out var kind), "The library has no TPunkt record.");
+            Assert.AreEqual(TYPEKIND.TKIND_RECORD, kind);
+            Assert.IsFalse(types.ContainsKey("TGeheim"), "A Private Type must not reach the library.");
+
+            CollectionAssert.AreEqual(new[] { "X", "Y" }, ReadFieldNames(typeLibraryPath, "TPunkt"));
+
+            // VT_USERDEFINED: das Mitglied nennt den Record, nicht irgendeinen Variant.
+            Assert.AreEqual(29, ReadReturnVariantType(typeLibraryPath, "_Geber", "Ort"));
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Dictionary<string, TYPEKIND> ReadTypeKinds(string typeLibraryPath)
+    {
+        var kinds = new Dictionary<string, TYPEKIND>(StringComparer.Ordinal);
+        Marshal.ThrowExceptionForHR(LoadTypeLibEx(typeLibraryPath, 2, out var library));
+        try
+        {
+            for (var index = 0; index < library!.GetTypeInfoCount(); index++)
+            {
+                library.GetDocumentation(index, out var name, out _, out _, out _);
+                library.GetTypeInfo(index, out var info);
+                info.GetTypeAttr(out var attributes);
+                try
+                {
+                    kinds[name] = Marshal.PtrToStructure<TYPEATTR>(attributes).typekind;
+                }
+                finally
+                {
+                    info.ReleaseTypeAttr(attributes);
+                    Marshal.ReleaseComObject(info);
+                }
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(library!);
+        }
+
+        return kinds;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static string[] ReadFieldNames(string typeLibraryPath, string typeName)
+    {
+        Marshal.ThrowExceptionForHR(LoadTypeLibEx(typeLibraryPath, 2, out var library));
+        try
+        {
+            for (var index = 0; index < library!.GetTypeInfoCount(); index++)
+            {
+                library.GetDocumentation(index, out var name, out _, out _, out _);
+                if (!string.Equals(name, typeName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                library.GetTypeInfo(index, out var info);
+                info.GetTypeAttr(out var attributes);
+                try
+                {
+                    var attribute = Marshal.PtrToStructure<TYPEATTR>(attributes);
+                    var names = new List<string>();
+                    for (var variable = 0; variable < attribute.cVars; variable++)
+                    {
+                        info.GetVarDesc(variable, out var descriptor);
+                        try
+                        {
+                            var vardesc = Marshal.PtrToStructure<VARDESC>(descriptor);
+                            var buffer = new string[1];
+                            info.GetNames(vardesc.memid, buffer, 1, out var got);
+                            names.Add(got > 0 ? buffer[0] : "?");
+                        }
+                        finally
+                        {
+                            info.ReleaseVarDesc(descriptor);
+                        }
+                    }
+
+                    return names.ToArray();
+                }
+                finally
+                {
+                    info.ReleaseTypeAttr(attributes);
+                    Marshal.ReleaseComObject(info);
+                }
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(library!);
+        }
+
+        Assert.Fail("The type library does not contain " + typeName + ".");
+        return Array.Empty<string>();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static int ReadReturnVariantType(string typeLibraryPath, string typeName, string memberName)
+    {
+        Marshal.ThrowExceptionForHR(LoadTypeLibEx(typeLibraryPath, 2, out var library));
+        try
+        {
+            for (var index = 0; index < library!.GetTypeInfoCount(); index++)
+            {
+                library.GetDocumentation(index, out var name, out _, out _, out _);
+                if (!string.Equals(name, typeName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                library.GetTypeInfo(index, out var info);
+                info.GetTypeAttr(out var attributes);
+                try
+                {
+                    var attribute = Marshal.PtrToStructure<TYPEATTR>(attributes);
+                    for (var function = 0; function < attribute.cFuncs; function++)
+                    {
+                        info.GetFuncDesc(function, out var descriptor);
+                        try
+                        {
+                            var func = Marshal.PtrToStructure<FUNCDESC>(descriptor);
+                            var buffer = new string[1];
+                            info.GetNames(func.memid, buffer, 1, out _);
+                            if (string.Equals(buffer[0], memberName, StringComparison.Ordinal))
+                            {
+                                return func.elemdescFunc.tdesc.vt;
+                            }
+                        }
+                        finally
+                        {
+                            info.ReleaseFuncDesc(descriptor);
+                        }
+                    }
+                }
+                finally
+                {
+                    info.ReleaseTypeAttr(attributes);
+                    Marshal.ReleaseComObject(info);
+                }
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(library!);
+        }
+
+        Assert.Fail("The type library does not contain " + typeName + "." + memberName + ".");
+        return 0;
+    }
+
     private const int ImplTypeFlagSource = 0x0002;
     private const int ImplTypeFlagDefault = 0x0001;
 
