@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `972efd4` mit nicht committeten Änderungen, Lauf `20260910T085412Z-f6b5fa5f`:
+Messung vom 2026-09-10 auf `main` / `b09e926` mit nicht committeten Änderungen, Lauf `20260910T093457Z-76250444`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1884 Fälle: 1884 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1889 Fälle: 1889 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **174 Erwartungen**, davon **164 implemented**, **1 partial** und **9 planned**;
-**164/174 documented-verified**, 10 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **174 Erwartungen**, davon **166 implemented**, **0 partial** und **8 planned**;
+**166/174 documented-verified**, 8 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -451,6 +451,50 @@ erzeugtes Control mit `False` ab, statt den Ladeaufruf ins Leere laufen zu lasse
 | --- | --- |
 | `managed-r5-stream-persistence` | `StreamPersistenceTests` |
 
+### Abgenommen aus R5: das generierte UserControl im Fremdcontainer
+
+Ein ActiveX-Control ist keine Schnittstelle, sondern ein Satz, und ein Container entscheidet an
+genau diesem Satz, was er mit einem Control tun darf. Die Ausgangsmessung war eindeutig: Ein
+kompiliertes `.ctl`, reg-frei aus dem eigenen Manifest aktiviert, beantwortete `IDispatch`,
+`IProvideClassInfo` und `IConnectionPointContainer` — alle drei kamen von der CLR — und
+`E_NOINTERFACE` auf **jede** OLE-Control-Schnittstelle. Es war ein Automationsobjekt, das aus
+einem `.ctl` kam.
+
+Der Bauweg entschied sich an einer zweiten Vorabmessung: Für `IID_IDispatch` verweigert die CLR
+ein verwaltetes Interface, für eine OLE-IID gibt sie es heraus, und die vtable-Slots stimmen. Der
+Vertrag steht deshalb als verwaltete Deklarationen auf `VBComUserControl`, die der Emitter für
+eine Klasse aus einem `.ctl` wählt — und nur dafür: Eine PropertyPage und ein UserDocument tragen
+dieselbe Designer-Fläche, sind aber keine Controls.
+
+Drei Befunde daraus sind dauerhaft wichtig:
+
+- **Der Zeitpunkt.** Der Designer-Umschlag eines erzeugten Controls steht in *seinem* Konstruktor
+  und legt die Kinder über den Umgebungshost an. Ein Container erzeugt die Klasse mit
+  `CoCreateInstance` — es gibt keinen früheren Moment als den Basiskonstruktor, und ohne Host läuft
+  der Umschlag gegen nichts und das Control hat still keine Kinder. Die Presentation wird deshalb
+  von dort aufgelöst, über eine **Namenssuche**, weil `VB6.Runtime` die WinForms-Assembly nicht
+  referenzieren darf.
+- **Die Auslieferung schlägt zurück.** Eine Komponente mit einem UserControl bringt den
+  WinForms-Host mit und verlangt damit das WindowsDesktop-Framework. Eine In-Proc-.NET-Komponente
+  kann keinen zweiten Frameworksatz in eine bereits initialisierte Runtime bringen: Ein einfacher
+  .NET-Client scheitert bauartbedingt mit `0x800080A5`. Ein nativer Container hat keine vorgeladene
+  Runtime und ist nicht betroffen; ein verwalteter muss selbst ein Desktopprozess sein.
+- **Zwei Einheiten und ein Fensterstil.** Der OLE-Extent ist die *Inhalts*größe in HIMETRIC —
+  `Form.Size` zu setzen ergab 136 Bildpunkte, wo 96 verlangt waren. Und `SetParent` allein genügt
+  nicht: Ein als Toplevel erzeugtes Fenster behält `WS_POPUP`, und ein Popup-Kind eines fremden
+  Fensters wird von niemandem geclippt oder gemalt.
+
+Abgenommen in einem eigenen Containerprozess, der ein echtes Fenster mit eigener Pumpe besitzt und
+keinen Verweis auf die Runtime des Compilers hat, durchgehend über rohe vtable-Slots:
+`parent=container`, `childsize=200x120` aus dem Positionsrechteck, `movedsize=100x50` nach
+`SetObjectRects`, `drawnpixels>0` in einem Kontext, den nur der Container besitzt, und
+`eventcalls=1` an dessen Senke.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r5-usercontrol-ole` | `OleControlSurfaceTests`, `UserControlSurfaceTests` |
+| `managed-r5-usercontrol-presentation` | `UserControlPresentationTests`, `ControlPresentationTests` |
+
 
 ## Aktive Restliste
 
@@ -466,7 +510,7 @@ kann: einen unabhängigen Container, registrierte native Komponenten, eine laufe
 
 Nach R4.
 
-Die vorhandenen WinForms-/AxHost-Adapter, intrinsischen Controls, PropertyBag-Pfade und die oben abgenommene Stromspeicherung sind die Basis. Die OLE-Verträge generierter UserControls brauchen eine eigene Abnahme in einem unabhängigen Container. Ein im Managed-Host ausführbares `.ctl` ist kein Beleg für vollständige OCX-Kompatibilität.
+Die vorhandenen WinForms-/AxHost-Adapter, intrinsischen Controls, PropertyBag-Pfade, die oben abgenommene Stromspeicherung und die ebenfalls abgenommenen OLE-Verträge generierter UserControls sind die Basis. Ein im Managed-Host ausführbares `.ctl` ist kein Beleg für vollständige OCX-Kompatibilität.
 
 Kompilierte PropertyPages samt ApplyChanges gehören zum Managed-/COM-Umfang. Eine eigene Oberfläche zum visuellen Erstellen und Bearbeiten dieser Seiten gehört zur späteren IDE. DataEnvironment, DataReport und UserDocument werden an ihren tatsächlichen Daten-/Report-/Containerabläufen geprüft; reine Klassifikation oder Ausführung einer eigenen Testmethode reicht nicht. ADO/OLE DB werden konsumiert; Datenbank-Provider werden nicht neu implementiert.
 
@@ -474,8 +518,6 @@ Die Grafikimplementierung arbeitet derzeit auf verwalteten Bitmaps. Entscheidend
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r5-usercontrol-ole` | **Generierte UserControls im Fremdcontainer** — `partial`: Aktivieren, Beschreiben, Speichern, Laden und Freigeben sind im Fremdprozess gemessen, ebenso Ambient Properties und die Ereignissperre. Offen sind Zeichnen und In-Place-Aktivierung; sie hängen an `managed-r5-usercontrol-presentation`. |
-| `managed-r5-usercontrol-presentation` | **Sichtbare Fläche eines UserControls im Fremdcontainer:** Kompilierte ctl-Komponente in einem Fremdcontainer mit echtem Fenster in place aktivieren, in dessen Gerätekontext zeichnen und ein Ereignis an dessen Senke liefern; die Auslieferung trägt den dafür nötigen Host. |
 | `managed-r5-property-pages` | **PropertyPage-COM-Vertrag:** Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt. |
 | `managed-r5-enterprise` | **Enterprise-Artefakte ausführen:** DataEnvironment-Kommandos, DataReport-Bindung/Ausgabe und UserDocument-Hosting über kontrollierte Fixtures/verfügbare ADO-Komponenten prüfen; fehlende Abhängigkeiten sichtbar lassen. |
 | `managed-r5-forms` | **Forms- und Control-Verträge schließen:** Start-/Defaultinstanz, Unload/Wiederladen, Fokus, Tab/Z-Order, Modalität, Menüs, Control-Arrays und Stock-Events auf Identität/Ereignisreihenfolge prüfen; native Fälle verlangen x86. |

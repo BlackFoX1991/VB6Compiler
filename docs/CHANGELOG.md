@@ -9020,3 +9020,65 @@ alle bisherigen Sonden sind Clients, kein Container. Abgetrennt als
 `managed-r5-usercontrol-presentation`, mit der Ereignisabnahme aus einem Fremdcontainer dazu.
 
 Kanonischer Lauf: 1884 von 1884, 0 übersprungen, VISIA 40/40, 0 Warnungen.
+
+## Das Control wird sichtbar — `managed-r5-usercontrol-presentation`
+
+Der offene Rest der Vorkarte war eine Zeile: Neben einer erzeugten ActiveX-Control-Komponente lag
+ausschließlich `VB6.Runtime.dll`. Der visuelle Host wurde gar nicht mitgeliefert, es gab also
+nichts, was eine Presentation anhängen konnte. Drei Messungen später ist die Karte zu, und jede der
+drei war eine Überraschung.
+
+**Erstens, und sie hat die Form der ganzen Abnahme entschieden.** Der Auslieferungsweg existierte
+schon (`EnableWinFormsHost` kopiert `VB6.Runtime.WinForms.dll` und schreibt das
+WindowsDesktop-Framework in die `runtimeconfig.json`); er war für COM-Bibliotheken nur ausdrücklich
+abgeschaltet, mit dem Kommentar, ein UI-Framework sei ihnen nicht zuzumuten. Für ein Control ist
+das messbar falsch — es ist ein UI-Artefakt, das ist sein ganzer Zweck. Nach dem Einschalten
+aktivierte die Komponente in der vorhandenen Clientsonde dann **überhaupt nicht mehr**:
+
+```
+cocreate=0x800080A5
+The specified framework 'Microsoft.WindowsDesktop.App' is not present in the previously loaded runtime.
+```
+
+Eine In-Proc-.NET-Komponente kann keinen zweiten Frameworksatz in eine bereits initialisierte
+Runtime bringen. Ein einfacher .NET-Client eines solchen Controls scheitert damit bauartbedingt;
+ein **nativer** Container hat keine vorgeladene Runtime und ist nicht betroffen, ein verwalteter
+muss selbst ein Desktopprozess sein. Das ist der Preis der Entscheidung und er ist richtig
+bezahlt — aber es heißt, dass die beiden Tests der Vorkarte jetzt ebenfalls durch den
+Containerprozess laufen. Und es heißt, dass die Abnahme einen echten Container brauchte:
+`VB6.OleContainerProbe`, ein eigener WinForms-Prozess mit echtem Fenster, eigener Pumpe und
+**ohne** Verweis auf die Runtime des Compilers.
+
+**Zweitens der Zeitpunkt.** Der Designer-Umschlag eines erzeugten Controls steht in *seinem*
+Konstruktor und legt die Kinder über den Umgebungshost an. Ein Container erzeugt die Klasse mit
+`CoCreateInstance` — es gibt keinen früheren Moment als den **Basiskonstruktor**, und ohne Host
+läuft der Umschlag gegen nichts und das Control hat still keine Kinder. Von dort wird die
+Presentation deshalb aufgelöst, und zwar über eine **Namenssuche**: `VB6.Runtime` darf
+`VB6.Runtime.WinForms` nicht referenzieren, sonst zieht jedes headless Programm ein UI-Framework
+mit. Fehlt der Begleiter, bleibt das Control headless und sagt es — was ein Container verarbeiten
+kann.
+
+**Drittens die Geometrie, in zwei Fallen.** `SetParent` allein genügt nicht: Ein als Toplevel
+erzeugtes Fenster behält `WS_POPUP`, und ein Popup-Kind eines fremden Fensters wird von niemandem
+geclippt oder gemalt — der Stil muss im selben Zug `WS_CHILD` werden. Und der OLE-Extent ist die
+*Inhalts*größe: `Form.Size` zu setzen ergab gemessen 136 Bildpunkte, wo 96 verlangt waren, weil
+Titel und Rahmen mitzählen.
+
+Der Lauf des Containers, durchgehend über rohe vtable-Slots:
+
+```
+cocreate=0   setclientsite=0   initnew=0   doverb=0   window=0
+parent=container   childsize=200x120   setobjectrects=0   movedsize=100x50
+draw=0   drawnpixels=1500   invoke=0   eventcalls=1   close=0   release=0
+```
+
+`parent=container` ist die Aussage, um die es geht — ein Control, das ein eigenes Popup aufmacht,
+käme mit demselben HRESULT zurück. `childsize=200x120` kommt aus dem Positionsrechteck
+(10,20)-(210,140): Die beiden hinteren Werte eines `RECT` sind Kanten, und wer sie als Breite liest,
+bekommt ein Fenster, das mit seiner Position wächst. `drawnpixels` zählt die Bildpunkte, die sich
+in einem Bitmapkontext geändert haben, den nur der Container besitzt — der HRESULT allein würde für
+ein Control durchgehen, das `S_OK` meldet und nichts malt. Und `eventcalls=1` ist die Hälfte des
+Vertrags, die ein Client nicht messen kann: Ereignisse sind das, wofür ein Container da ist.
+
+Damit sind `managed-r5-usercontrol-ole` und `managed-r5-usercontrol-presentation` beide
+geschlossen. Kanonischer Lauf: 1889 von 1889, 0 übersprungen, VISIA 40/40, 0 Warnungen.

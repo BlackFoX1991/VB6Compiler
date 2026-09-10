@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 174 Erwartungen: 164 `implemented`, 1 `partial`, 9 `planned`;
-164 `documented-verified`, 10 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 174 Erwartungen: 166 `implemented`, 0 `partial`, 8 `planned`;
+166 `documented-verified`, 8 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -52,15 +52,13 @@ Marshalling dem Compiler. Ebenfalls geschlossen ist `managed-r5-stream-persisten
 persistierte Strom eines Controls reist über `AxHost.OcxState` und muss dort ankommen, **bevor**
 das OCX entsteht — ein spätes `Load` wird angenommen und ignoriert.
 
-Aktive Karte ist `managed-r5-usercontrol-ole`, und sie steht auf `partial`. Der COM-Vertrag eines
-generierten UserControls ist gebaut und im Fremdprozess gemessen: `VBComUserControl` trägt die
-OLE-Control-Schnittstellen, der Emitter wählt diese Basis für eine Klasse aus einem `.ctl`, und
-Aktivieren, Beschreiben, Speichern, Laden und Freigeben laufen reg-frei über rohe vtable-Slots
-durch — der Zustand reist durch zwei unabhängig aktivierte Instanzen. Offen sind **Zeichnen und
-In-Place-Aktivierung**, und zwar an einem gemessenen Punkt: Neben einer erzeugten
-ActiveX-Control-Komponente liegt ausschließlich `VB6.Runtime.dll`. Der visuelle Host wird nicht
-mitgeliefert, es gibt also nichts, was eine `IVBControlPresentation` anhängen könnte. Abgetrennt
-als `managed-r5-usercontrol-presentation`.
+Geschlossen sind auch `managed-r5-usercontrol-ole` und `managed-r5-usercontrol-presentation`: Ein
+generiertes UserControl ist im Fremdcontainer ein vollständiges ActiveX-Control.
+`VBComUserControl` trägt die OLE-Control-Schnittstellen, der Emitter wählt diese Basis für eine
+Klasse aus einem `.ctl` — und nur dafür. Abgenommen in einem eigenen Containerprozess mit echtem
+Fenster: Das Fenster des Controls hängt im Fenster des Containers, es folgt dem Positionsrechteck,
+es malt in einen Gerätekontext, den nur der Container besitzt, und sein `RaiseEvent` erreicht
+dessen Senke.
 
 Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
@@ -296,8 +294,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `972efd4` mit nicht committeten Änderungen: 1884 Standardfälle in 13 Projekten,
-1884 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
+Stand der Prüfung 2026-09-10 auf `b09e926` mit nicht committeten Änderungen: 1889 Standardfälle in 13 Projekten,
+1889 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
@@ -421,6 +419,33 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Tüte kann sie also nicht unterscheiden, und eine durchgereichte Zeichenkette wird als
   Schnittstellenzeiger gelesen: `0xC0000005`. `IPersistStreamInit` braucht keines der gemessenen
   Stock-Controls — `TextRTF` und `Buttons` bietet die Tüte selbst an.
+- **Eine Komponente mit UI-Host lädt nicht in jeden .NET-Prozess.** Eine erzeugte
+  ActiveX-Control-Komponente bringt `VB6.Runtime.WinForms.dll` mit und verlangt damit
+  `Microsoft.WindowsDesktop.App` in ihrer `runtimeconfig.json`. Eine In-Proc-.NET-Komponente kann
+  aber keinen zweiten Frameworksatz in eine **bereits initialisierte** Runtime bringen:
+  `CoCreateInstance` endet mit `0x800080A5`, und nur die Hostspur (`COREHOST_TRACE=1`) nennt den
+  Grund — „The specified framework 'Microsoft.WindowsDesktop.App' is not present in the previously
+  loaded runtime". Ein **nativer** Container hat keine vorgeladene Runtime und ist nicht betroffen;
+  ein verwalteter muss selbst ein Desktopprozess sein. Wer eine Control-Komponente aus einem Test
+  heraus aktiviert, nimmt deshalb `VB6.OleContainerProbe` (net10.0-windows) und nicht
+  `VB6.ComActivationProbe`. Umgekehrt gilt: Der UI-Host gehört **nur** an ein Artefakt, das
+  wirklich eine Oberfläche hat — ein `Sub Main` und eine COM-Bibliothek aus reinen Klassen werden
+  sonst dort unlädbar, wo WindowsDesktop nicht installiert ist.
+- **Ein generiertes Control braucht seinen Host vor seinem eigenen Konstruktor.** Der
+  Designer-Umschlag steht in *seinem* Konstruktor und legt die Kinder über `VBInteraction.Host` an.
+  Ein Container erzeugt die Klasse mit `CoCreateInstance`, es gibt also keinen früheren Moment als
+  den **Basiskonstruktor** von `VBComUserControl` — und ohne Host läuft der Umschlag gegen nichts
+  und das Control hat **still** keine Kinder. Von dort wird die Presentation deshalb aufgelöst, und
+  zwar über eine Namenssuche (`VBControlPresentationHost` →
+  `VB6.Runtime.WinForms.WinFormsControlPresentationFactory.Install`), weil `VB6.Runtime` die
+  WinForms-Assembly nicht referenzieren darf. Beide Namen sind Vertrag: Ein Umbenennen bricht die
+  Naht, ohne den Build zu brechen.
+- **Zwei Einheiten und ein Fensterstil beim Einhängen in einen Container.** Der OLE-Extent ist die
+  **Inhalts**größe in HIMETRIC (1/100 mm): `Form.Size` zu setzen ergab gemessen 136 Bildpunkte, wo
+  96 verlangt waren, weil Titel und Rahmen mitzählen — es muss `ClientSize` sein. Und `SetParent`
+  allein genügt nicht: Ein als Toplevel erzeugtes Fenster behält `WS_POPUP`, und ein Popup-Kind
+  eines fremden Fensters wird von niemandem geclippt oder gemalt; der Stil muss im selben Zug
+  `WS_CHILD` werden. Das Fenster erscheint in beiden Fehlformen — nur an der falschen Stelle.
 - **Eine OLE-Schnittstelle darf eine verwaltete Deklaration sein — `IID_IDispatch` nicht.** Für
   `IID_IDispatch` verweigert die CLR ein verwaltetes Interface mit dieser GUID (`E_NOINTERFACE`),
   weshalb dort die handgebaute vtable in `VBComDispatchSurface` steht. Für jede andere OLE-IID gibt
