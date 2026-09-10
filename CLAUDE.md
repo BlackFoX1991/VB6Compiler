@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 175 Erwartungen: 166 `implemented`, 0 `partial`, 9 `planned`;
-166 `documented-verified`, 9 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 176 Erwartungen: 166 `implemented`, 0 `partial`, 10 `planned`;
+166 `documented-verified`, 10 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -294,7 +294,7 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `788ed50` mit nicht committeten Änderungen: 1889 Standardfälle in 13 Projekten,
+Stand der Prüfung 2026-09-10 auf `1f63966` mit nicht committeten Änderungen: 1889 Standardfälle in 13 Projekten,
 1889 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
@@ -340,7 +340,7 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   `$project.Name` wurde `$null`, jede Ergebnisdatei hieß `.trx`, und jeder der dreizehn Durchläufe
   testete die ganze Solution. Die Frischeprüfung des Laufberichts schlug **nicht** an — die Datei
   existierte und war frisch. Verraten hat es allein der Dateiname.
-- **`Debug.Print` ist inzwischen VB6-nah formatiert** — führendes Vorzeichen-Leerzeichen über `FormatNumeric`, **`G7` für Single**, `G15` für Double/Currency, `G29` für den Decimal-Subtype (`Runtime.cs`). Dieselbe Staffelung gilt für `CStr` und für `Format(…, "General Number")`: Ein Single trägt sieben signifikante Stellen, und ihn mit fünfzehn auszugeben zeigt seine Umrechnungsreste als wären sie Werte — `1 / 3` ist in VB6 ein Single. Weiterhin gilt: die E2E-Helfer trimmen bewusst, Spalten-/Plattformformat ist damit *nicht* abgedeckt. Beim Anfassen von Zahlenausgabe mitdenken.
+- **`Debug.Print` ist inzwischen VB6-nah formatiert** — führendes Vorzeichen-Leerzeichen über `FormatNumeric`, **`G7` für Single**, `G15` für Double/Currency, `G29` für den Decimal-Subtype (`Runtime.cs`). Dieselbe Staffelung gilt für `CStr` und für `Format(…, "General Number")`: Ein Single trägt sieben signifikante Stellen, und ihn mit fünfzehn auszugeben zeigt seine Umrechnungsreste als wären sie Werte. **Das frühere Beispiel dafür war falsch und ist am 2026-09-10 am Original widerlegt worden:** `1 / 3` ist in VB6 **kein** Single, sondern ein `Double` — `/` rechnet in Double, außer beide Operanden sind Single. Die G7-Staffelung für echte Single-Werte bleibt richtig, nur ihre Begründung war es nicht; der Ergebnistyp von `/` ist als `r1-division-result-type` offen. Weiterhin gilt: die E2E-Helfer trimmen bewusst, Spalten-/Plattformformat ist damit *nicht* abgedeckt. Beim Anfassen von Zahlenausgabe mitdenken.
 - **Locale-Verträge sind profilabhängig.** Bestehende deterministische Signaturen bleiben invariant; `VB6Sp6` verwendet an den implementierten Grenzen System-LCID und ANSI-Codepage. Profilzustand reist über IR/Assembly und explizite Runtime-Verträge, nicht über einen globalen Schalter. Weitere Locale-/DBCS- und Ausgabeabnahme gehört zu R1.
 - **`vbUseSystem` bleibt in beiden Profilen systemabhängig.** Kalenderparameter mit Wert 0 verwenden `CurrentCulture`; das ist eine entschiedene Ausnahme. Die COM-Dispatch-LCID folgt ebenfalls bewusst `CurrentCulture`. Diese Entscheidung nicht erneut als offenen Determinismuskonflikt führen.
 - **Skalare Vergleiche verwenden typisierte Helfer.** Variant-/Objektvergleiche behalten ihren dynamischen Runtime-Vertrag; die frühere Behauptung, jeder Vergleich boxe, ist überholt.
@@ -496,6 +496,24 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   `VB6TestProgram.RunLines`, das `VarType`, `Err.Number` und Ergebniswert über die ganze
   Vertragsfläche ausgibt, kostet Minuten und verhindert, dass funktionierender Code umgebaut
   wird. Das ist verbindlich: erst messen, dann bauen.
+- **Es gibt jetzt ein Orakel, und `documented-verified` heißt nicht, dass es geprüft wurde.** Seit
+  dem 2026-09-10 liegt ein echtes **VB6 SP6** (`VB6.EXE 6.00.9782`, `VBA6.DLL 6.0.9782`, dazu
+  `C2.EXE`/`LINK.EXE`) unter `C:\Users\loewe\Desktop\PortableVB6`, und die Runtime steht system-weit
+  (`MSVBVM60.DLL` in SysWOW64). Es läuft **headless in Sekunden**:
+  `VB6.EXE /make <projekt.vbp> /out <fehler.txt>` schreibt seine Diagnosen in eine Datei und setzt
+  einen Exitcode. Damit ist `oracle-verified` erstmals erreichbar — und beim **ersten** Einsatz hat
+  es eine als `documented-verified` geführte Zusage widerlegt: Die Variant-Promotionstabelle war mit
+  49 gemessenen Operandenpaaren als vollständig korrekt notiert, aber `Integer / Integer` ergibt in
+  VB6 `Double` und bei uns `Single`. Die Lehre ist nicht „die Tabelle war schlampig", sondern: eine
+  Messung gegen das eigene Verständnis ist ein Regressionsnachweis, kein Vertragsnachweis. Wer eine
+  strittige Semantikfrage hat, fragt ab jetzt das Original, statt sie offen zu lassen. Zwei
+  Regeln dabei: Am System wird **nichts registriert** ohne ausdrückliche Rückfrage (`VB6.reg` bleibt
+  unangetastet, `/make` braucht es nicht), und ein Vergleich läuft gegen `--compatibility vb6-sp6`,
+  weil Locale-Verträge profilabhängig sind — das Original benutzt die System-LCID, unser
+  `Deterministic`-Profil bewusst nicht (Dezimalkomma gegen Dezimalpunkt ist also **kein** Befund).
+  Zwei Stolpersteine beim Schreiben von Orakelprojekten, beide vom Original gemeldet: Ein Modul
+  darf nicht `Main` heißen, wenn der Start `Sub Main` ist, und VB6 ist case-insensitiv — eine lokale
+  Variable `p` neben einem `Sub P` ist ein Kompilierfehler.
 - **Bestehende Tests sind Regressionsnachweise, kein Original-VB6-Orakel.** Widersprüche zwischen
   dokumentiertem Vertrag und Testwert erst gezielt messen und mit Quellen/Begründung festhalten.
   Ein Test darf weder allein aufgrund einer Vermutung geändert noch allein aufgrund seines

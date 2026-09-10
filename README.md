@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 175 expectations (166 implemented, 0 partial, 9 planned) with 166/175 documented-verified.
+The compatibility matrix contains 176 expectations (166 implemented, 0 partial, 10 planned) with 166/176 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -184,7 +184,7 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-10 at `788ed50` on `main` with uncommitted changes, run `20260910T103538Z-26f75893`:
+Measured on 2026-09-10 at `1f63966` on `main` with uncommitted changes, run `20260910T105834Z-2fc8dd61`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
@@ -203,8 +203,8 @@ executions — and it was read as a test count for a long time. Since R0 the tab
 from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **175 expectations**: **166 implemented**, **0 partial**, **9 planned**;
-**166 documented-verified**, **9 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **176 expectations**: **166 implemented**, **0 partial**, **10 planned**;
+**166 documented-verified**, **10 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 No original VB6 compiler comparison has been performed. Run accounting, the dependency and status

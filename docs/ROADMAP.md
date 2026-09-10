@@ -21,7 +21,7 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `788ed50` mit nicht committeten Änderungen, Lauf `20260910T103538Z-26f75893`:
+Messung vom 2026-09-10 auf `main` / `1f63966` mit nicht committeten Änderungen, Lauf `20260910T105834Z-2fc8dd61`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **175 Erwartungen**, davon **166 implemented**, **0 partial** und **9 planned**;
-**166/175 documented-verified**, 9 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **176 Erwartungen**, davon **166 implemented**, **0 partial** und **10 planned**;
+**166/176 documented-verified**, 10 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -498,13 +498,36 @@ keinen Verweis auf die Runtime des Compilers hat, durchgehend über rohe vtable-
 
 ## Aktive Restliste
 
-Die folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R4 sind geschlossen und stehen
-als abgeschlossene Etappen darüber. Die IDs in den Tabellen sind dieselben wie in der Matrix; die
-dortigen `dependsOn`-Listen legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche
-Einzelverträge bleiben in der Matrix erhalten und werden nicht neu implementiert.
+Die folgenden Karten sind `planned` / `not-yet-verified`. R0 bis R4 sind als Etappen geschlossen und
+stehen als abgeschlossene Etappen darüber; ihre Nachweistabellen dort bleiben wahr für das, was sie
+belegen. Die IDs in den Tabellen sind dieselben wie in der Matrix; die dortigen `dependsOn`-Listen
+legen die ausführbare Reihenfolge fest. Bereits erfüllte fachliche Einzelverträge bleiben in der
+Matrix erhalten und werden nicht neu implementiert.
 
-Was von hier an offen ist, verlangt durchgehend etwas, das der Compiler nicht allein herstellen
-kann: einen unabhängigen Container, registrierte native Komponenten, eine laufende Anwendung.
+Was von hier an offen ist, verlangte bisher durchgehend etwas, das der Compiler nicht allein
+herstellen kann: einen unabhängigen Container, registrierte native Komponenten, eine laufende
+Anwendung. **Seit dem 2026-09-10 kommt eine vierte Quelle dazu, und sie wiegt schwerer als die
+anderen drei: ein echtes VB6 SP6** (`VB6.EXE 6.00.9782`), das sich mit `/make` headless aufrufen
+lässt. Damit ist die Verifikationsachse `oracle-verified` erstmals überhaupt erreichbar — und beim
+ersten Einsatz hat sie eine Zusage widerlegt, die als `documented-verified` geführt war.
+
+### R1 — Sprach- und Runtime-Verträge: ein Rest aus der Orakelmessung
+
+R1 ist als Etappe abgenommen und steht mit seinen Nachweisen oben. Eine Karte ist danach
+hinzugekommen, und zwar nicht aus einer Lücke im Inventar, sondern aus einer **neuen
+Messmöglichkeit**: Der Ergebnistyp von `/` weicht vom Original ab. `Integer / Integer` ergibt in
+VB6 `Double`, bei uns `Single` — 17 von 20 gemessenen Operandenpaaren stimmen, die drei
+Abweichungen sind diese eine Regel. Der Wert verliert dabei Präzision, nicht nur der Typname:
+`CStr(1 / 3)` ergibt `0.3333333` statt `0,333333333333333`.
+
+Der Befund ist auch eine Warnung über die Prüfung selbst. Die Variant-Promotionstabelle war mit
+49 gemessenen Operandenpaaren als vollständig korrekt notiert — gemessen gegen das eigene
+Verständnis, nicht gegen ein Original. Was daraus für die übrigen `documented-verified`-Zusagen
+folgt, ist offen und wird gemessen, nicht geschätzt.
+
+| Karte | Ziel und Abnahme |
+| --- | --- |
+| `r1-division-result-type` | **Ergebnistyp der Division:** `/` folgt dem Original — `Double`, außer beide Operanden sind `Single`; der gemessene Wert trägt die Präzision dieses Typs. |
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 

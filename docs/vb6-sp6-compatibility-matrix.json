@@ -3111,6 +3111,22 @@
       "title": "Sichtbare Fläche eines UserControls im Fremdcontainer"
     },
     {
+      "id": "r1-division-result-type",
+      "matrixEntry": "language-operators-and-variants",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Ergebnistyp der Division",
+      "expected": {
+        "acceptance": "Der Ergebnistyp von / folgt dem Original: Double, ausser beide Operanden sind Single. Der gemessene Wert traegt die Praezision dieses Typs."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FloatingExecutionTests.cs"
+      ],
+      "notes": "Gemessener Defekt, gefunden am 2026-09-10 beim ersten Einsatz eines echten VB6 SP6 (VB6.EXE 6.00.9782) als Orakel. Dasselbe Projekt wurde mit beiden Compilern uebersetzt und ausgefuehrt, die Ausgaben verglichen. Von 20 Operandenpaaren stimmen 17; die drei Abweichungen sind eine einzige Regel. Original: Integer/Integer ergibt Double, Single/Single ergibt Single, Double/Double ergibt Double, Currency/Currency ergibt Double. Wir promoten Integer nach Single statt nach Double, gemessen an 1/3, CInt(1)/CInt(3) und CInt(7)/CInt(1). Das ist kein Typkosmetikum, sondern Praezisionsverlust im Wert: CStr(1/3) ergibt bei uns 0.3333333, im Original 0,333333333333333 -- und CStr(CDbl(1)/3) stimmt bei uns, der Double-Pfad ist also richtig und allein der Ergebnistyp von / ist falsch. Im vb6-sp6-Profil dieselben drei Abweichungen, es ist also kein Profilartefakt. Der Befund trifft zugleich eine Aussage der Dokumentation: CLAUDE.md fuehrte '1 / 3 ist in VB6 ein Single' als Begruendung fuer die G7-Ausgabe von Single, und genau dieser Satz ist widerlegt. Die G7-Staffelung fuer echte Single-Werte bleibt davon unberuehrt, nur ihr Beispiel war falsch. Bemerkenswert am Rand: Die Variant-Promotionstabelle war mit 49 gemessenen Operandenpaaren als vollstaendig korrekt notiert -- gemessen aber gegen das eigene Verstaendnis, nicht gegen ein Original. Dieselbe Luecke, vor der CLAUDE.md an drei Stellen warnt, diesmal in der Pruefung selbst."
+    },
+    {
       "id": "r5-designer-control-array",
       "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
       "milestone": "R5",
@@ -3380,7 +3396,7 @@
     {
       "id": "language-operators-and-variants",
       "domain": "language",
-      "surface": "scalar comparisons and operator dispatch",
+      "surface": "scalar comparisons, operator dispatch and arithmetic result types",
       "sourceRefs": [
         "vb6-docs"
       ],
@@ -3391,8 +3407,9 @@
         "bitness": "agnostic except LongPtr",
         "com": "none"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "r1-division-result-type: Ergebnistyp der Division",
       "tests": [
         "tests/VB6.Emit.Managed.Tests/ManagedEmitterTests.cs",
         "tests/VB6.Compiler.Tests/CurrencyExecutionTests.cs",

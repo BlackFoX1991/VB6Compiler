@@ -9136,3 +9136,58 @@ dieselbe Ursache hat wie der erste Befund.
 
 Nicht geprüft: das Beenden über das Programm selbst. Ein Klickpfad — Projekt laden, kompilieren,
 beenden — ist die Abnahme von `managed-r6-visia-workflows`.
+
+## Ein echtes VB6 SP6 — und was es beim ersten Einsatz widerlegt hat
+
+Seit heute liegt ein portables **VB6 SP6** auf der Maschine: `VB6.EXE 6.00.9782`, `VBA6.DLL 6.0.9782`,
+dazu `C2.EXE` und `LINK.EXE`, und die Runtime steht system-weit (`MSVBVM60.DLL` in SysWOW64). Build
+9782 *ist* Service Pack 6. Damit ist die Verifikationsachse `oracle-verified` erstmals überhaupt
+erreichbar — 175 Erwartungen stehen bis heute auf `documented-verified`, weil es kein Original gab.
+
+Das Entscheidende war, ob es **headless** läuft, denn nur dann taugt es für die Suite. Es läuft:
+
+```
+VB6.EXE /make <projekt.vbp> /out <fehler.txt>
+```
+
+schreibt Diagnosen in eine Datei und setzt einen Exitcode — in Sekunden, ohne Dialog, ohne dass
+etwas registriert werden musste. Die erste Sonde scheiterte prompt, und zwar an einer VB6-Regel,
+die hier niemand kannte: `Main can't be module, type, project, or form name`. Die zweite an einer
+weiteren: VB6 ist case-insensitiv, eine lokale Variable `p` neben einem `Sub P` ist ein
+Kompilierfehler. Beides sind Regeln, die unser Compiler heute nicht durchsetzt.
+
+Dann der eigentliche Lauf. Dasselbe Projekt, beide Compiler, Ausgaben verglichen — 20
+Operandenpaare, gefragt nach `TypeName`:
+
+```
+1 / 3               VB6=Double    wir=Single    ABWEICHUNG
+CInt(1) / CInt(3)   VB6=Double    wir=Single    ABWEICHUNG
+CInt(7) / CInt(1)   VB6=Double    wir=Single    ABWEICHUNG
+CSng(1) / CSng(3)   VB6=Single    wir=Single    ok
+CDbl(1) / CDbl(3)   VB6=Double    wir=Double    ok
+CCur(1) / CCur(3)   VB6=Double    wir=Double    ok
+… 14 weitere ok
+```
+
+17 von 20 stimmen, und die drei Abweichungen sind **eine** Regel: VB6 rechnet `/` in `Double`,
+außer beide Operanden sind `Single`. Wir promoten Integer nach `Single`. Das ist kein Typkosmetikum
+— der Wert verliert Präzision: `CStr(1 / 3)` ergibt bei uns `0.3333333`, im Original
+`0,333333333333333`. Dass `CStr(CDbl(1) / 3)` bei uns stimmt, zeigt, dass der Double-Pfad in
+Ordnung ist und allein der Ergebnistyp falsch. Im `vb6-sp6`-Profil dieselben drei Abweichungen, es
+ist also kein Profilartefakt. Offen als `r1-division-result-type`; R1 kehrt damit als Etappe mit
+einer offenen Karte in die aktive Restliste zurück.
+
+**Der unangenehme Teil steht daneben.** `CLAUDE.md` führte den Satz „`1 / 3` ist in VB6 ein Single"
+als Begründung für die G7-Ausgabe von Single — genau dieser Satz ist widerlegt. Und die
+Variant-Promotionstabelle war mit 49 gemessenen Operandenpaaren als vollständig korrekt notiert;
+gemessen aber gegen das eigene Verständnis, nicht gegen ein Original. Das ist dieselbe Lücke, vor
+der diese Datei an drei Stellen warnt — diesmal nicht im Inventar, sondern in der Prüfung selbst.
+Was daraus für die übrigen `documented-verified`-Zusagen folgt, wird gemessen und nicht geschätzt:
+Der nächste Schritt ist ein wiederholbarer Orakel-Harness und ein breiter Durchgang über die
+Sprachfläche.
+
+Zwei Regeln für den Umgang, ab jetzt verbindlich: Am System wird **nichts registriert** ohne
+ausdrückliche Rückfrage — `/make` braucht `VB6.reg` nicht —, und ein Vergleich läuft gegen
+`--compatibility vb6-sp6`, weil Locale-Verträge profilabhängig sind. Das Dezimalkomma des Originals
+gegen unseren Dezimalpunkt im `Deterministic`-Profil ist deshalb **kein** Befund, sondern eine
+entschiedene Differenz.
