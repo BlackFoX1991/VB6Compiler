@@ -21,7 +21,7 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `8c612be` mit nicht committeten Änderungen, Lauf `20260910T130427Z-1b003b3c`:
+Messung vom 2026-09-10 auf `main` / `7990a1f` mit nicht committeten Änderungen, Lauf `20260910T141218Z-b1982270`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
@@ -42,8 +42,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **183 Erwartungen**, davon **166 implemented**, **0 partial** und **17 planned**;
-**166/183 documented-verified**, 17 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **184 Erwartungen**, davon **166 implemented**, **0 partial** und **18 planned**;
+**166/184 documented-verified**, 18 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -83,10 +83,14 @@ Vollständigkeitszusage, insbesondere bei Objektlebensdauer, Zeigern und externe
 5. **Implementierung und Nachweis sind getrennt.** Dokumentiertes Sollverhalten, ein
    gemessener Teilvertrag und eine komplette native Ausführung sind unterschiedliche Nachweise.
    Ein vorhandener Test allein ersetzt keine fachliche Prüfung seiner Erwartung.
-6. **Kein Orakel vorausgesetzt.** Offizielle VB6-Dokumentation, veröffentlichte Windows/OLE/COM-
-   Verträge und unabhängig beobachtbares Komponentenverhalten bilden die Grundlage.
-   Ergänzende VBA-Quellen werden ausdrücklich als solche benannt; strittige VB6-Fälle bleiben
-   offen, bis eine belastbare Erwartung vorliegt.
+6. **Kein Orakel vorausgesetzt — aber eines benutzt, wo es erreichbar ist.** Offizielle
+   VB6-Dokumentation, veröffentlichte Windows/OLE/COM-Verträge und unabhängig beobachtbares
+   Komponentenverhalten bleiben die Grundlage: Der Compiler muss ohne ein Original gebaut und
+   geprüft werden können, und CI setzt keines voraus. Seit dem 2026-09-10 steht daneben ein
+   echtes **VB6 SP6**, das sich headless aufrufen lässt, und damit ändert sich die Praxis an einem
+   Punkt: Ein strittiger Fall bleibt nicht mehr offen, bis eine belastbare Erwartung vorliegt — er
+   wird gemessen. Ergänzende VBA-Quellen werden weiterhin ausdrücklich als solche benannt, und
+   eine Zusage, für die kein Orakelfall existiert, bleibt `documented-verified`.
 
 ## Statusmodell und Arbeitsweise
 
@@ -96,7 +100,13 @@ Die Quelle für Karten, Status und Abhängigkeiten ist
 - `implemented`: genau die beschriebene Erwartung ist umgesetzt.
   `partial`: ein konkret beschriebener Teil fehlt. `planned`: das Ziel ist noch offen.
 - `verification` bleibt unabhängig. Eine geplante Erwartung steht auf `not-yet-verified`.
-  `oracle-verified` verlangt einen echten Lauf gegen den Originalcompiler.
+  `oracle-verified` verlangt einen echten Lauf gegen den Originalcompiler. Seit dem 2026-09-10 ist
+  das erreichbar, und die Latte liegt entsprechend präzise: Eine Erwartung wird
+  `oracle-verified`, wenn ein Fall in `tests/VB6.Compiler.Tests/Oracle*Tests.cs` **ihre ganze
+  beschriebene Fläche** gegen das Original stellt und ohne Abweichung besteht. Ein Durchgang mit
+  bekanntem Rest reicht nicht — dann bleibt die Erwartung `documented-verified` und der Rest wird
+  eine Karte. Die Achse steht deshalb weiterhin auf 0; die vier bisherigen Durchgänge haben je
+  einen Rest gefunden.
 - Neue Restkarten besitzen `milestone` und `dependsOn`. IDs bestehender Erwartungen bleiben
   stabil. Die Karte `l1-02-a-language-grammar-context` bezeichnet jetzt ausschließlich ihren
   gemessenen Modul-Sichtbarkeitsvertrag; der abgegrenzte R1-Sprachumfang ist in
@@ -112,7 +122,10 @@ Die Quelle für Karten, Status und Abhängigkeiten ist
   Tests und E2E-Nachweis ausführen, Status und Dokumentation fortschreiben, Changelog ergänzen.
   Ungültige VB6-Formen dürfen durch belegte Negativtests abgeschlossen werden.
 - Der kanonische Lauf bleibt `build.ps1 -Configuration Release` mit seriellen Testprojekten.
-  Native OCX-Abnahme erfolgt zusätzlich mit `-RequireNativeOcx` in geeigneter Umgebung.
+  Native OCX-Abnahme erfolgt zusätzlich mit `-RequireNativeOcx` in geeigneter Umgebung, die
+  Gegenprüfung gegen das Original mit `-RequireOracle` und gesetztem `VB6_ORACLE_PATH`. Beide sind
+  **eigene Laufarten** im Bericht und werden nie in den Standardlauf summiert; die Messwerttabelle
+  nennt jede von ihnen auch dann, wenn sie nicht lief — dann ist das die wichtigere Aussage.
   Vor einem Etappenabschluss müssen alle Karten der Etappe und ihre Abhängigkeiten geschlossen sein.
 
 ## Abgeschlossene Etappen
@@ -512,26 +525,29 @@ anderen drei: ein echtes VB6 SP6** (`VB6.EXE 6.00.9782`), das sich mit `/make` h
 lässt. Damit ist die Verifikationsachse `oracle-verified` erstmals überhaupt erreichbar — und beim
 ersten Einsatz hat sie eine Zusage widerlegt, die als `documented-verified` geführt war.
 
-### R1 — Sprach- und Runtime-Verträge: ein Rest aus der Orakelmessung
+### R1 — Sprach- und Runtime-Verträge: der Rest aus den Orakelmessungen
 
-R1 ist als Etappe abgenommen und steht mit seinen Nachweisen oben. Eine Karte ist danach
-hinzugekommen, und zwar nicht aus einer Lücke im Inventar, sondern aus einer **neuen
-Messmöglichkeit**: Der Ergebnistyp von `/` weicht vom Original ab. `Integer / Integer` ergibt in
-VB6 `Double`, bei uns `Single` — 17 von 20 gemessenen Operandenpaaren stimmen, die drei
-Abweichungen sind diese eine Regel. Der Wert verliert dabei Präzision, nicht nur der Typname:
-`CStr(1 / 3)` ergibt `0.3333333` statt `0,333333333333333`.
+R1 ist als Etappe abgenommen und steht mit seinen Nachweisen oben. Neun Karten sind danach
+hinzugekommen, und **keine** davon aus einer Lücke im Inventar: Sie stammen alle aus einer neuen
+Messmöglichkeit, dem echten VB6 SP6.
 
-Der Befund ist auch eine Warnung über die Prüfung selbst. Die Variant-Promotionstabelle war mit
-49 gemessenen Operandenpaaren als vollständig korrekt notiert — gemessen gegen das eigene
-Verständnis, nicht gegen ein Original. Was daraus für die übrigen `documented-verified`-Zusagen
-folgt, ist offen und wird gemessen, nicht geschätzt.
+Das ist der wichtigere Teil des Befunds. Die Variant-Promotionstabelle stand mit 49 gemessenen
+Operandenpaaren als vollständig korrekt in den Notizen — gemessen gegen das eigene Verständnis,
+nicht gegen ein Original. Eine Messung gegen sich selbst ist ein Regressionsnachweis, kein
+Vertragsnachweis; das gilt für jede Zusage, die hier `documented-verified` heißt.
 
-Der zweite Durchgang galt der Zahlenausgabe — genau der Fläche, deren Begründung schon falsch war.
-Zwölf Abweichungen aus **vier** Ursachen, und die naheliegendste Erklärung war die falsche: Ein
-Komma gegen einen Punkt sieht nach der entschiedenen Profildifferenz aus, ist es aber nicht. Der
-Vergleich läuft bereits im `vb6-sp6`-Profil, und `Format` antwortet auf unserer Seite mit Komma —
-`CStr` geht am Profil vorbei. Das Original schärft die Regel im selben Lauf: `Str` ist dort
-invariant (`.3333333` mit Punkt), während `CStr` daneben mit Komma antwortet.
+Was die vier Durchgänge abgedeckt haben, und was sie **nicht** abdecken:
+
+| Fläche | Gemessen | Ergebnis |
+| --- | --- | --- |
+| Ergebnistypen der Operatoren | 20 Operandenpaare | 17 stimmen; die 3 Abweichungen sind **eine** Regel |
+| Zahlenausgabe | 26 Ausdrücke | 12 Abweichungen aus **vier** Ursachen |
+| Fehlernummern | 26 Fehlerfälle | 25 stimmen, inklusive aller Verdächtigen des Sammelwerts 5 |
+| Datei-Layouts (Binary) | 12 Werte, gegen Rohbytes | 11 bytegleich; der String nicht |
+
+Nicht gemessen und damit weiter offen: der `Random`-Modus von `Get`/`Put`, DBCS- und
+Codepage-Grenzen, Datums- und Zeitformate, und jede Fläche, für die noch kein Orakelfall
+geschrieben ist. Was kein Orakelfall stellt, bleibt `documented-verified`.
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
@@ -543,25 +559,20 @@ invariant (`.3333333` mit Punkt), während `CStr` daneben mit Komma antwortet.
 | `r1-chdir-missing-directory` | **Fehlernummer von ChDir:** ein fehlendes Verzeichnis meldet 76 (Path not found), nicht 53. |
 | `r1-put-binary-string-layout` | **Bytelayout eines Strings bei `Put`:** im Binary-Modus ohne Längenpräfix und in der ANSI-Codepage, wie das Original. |
 | `r1-put-fixed-string` | **`Put` eines Strings fester Länge:** `String * n` wird getragen statt mit `VB6S0058` abgelehnt. |
+| `r1-module-name-rules` | **Namensregeln für Module und Bezeichner:** die drei vom Original durchgesetzten Regeln werden gemeldet statt stillschweigend angenommen. |
 
-Der dritte und vierte Durchgang trafen die Fehlernummern und die Datei-Layouts, und sie fielen sehr
-verschieden aus. Bei den **Fehlernummern** stimmt 25 von 26 — sämtliche Verdächtigen des
-Sammelwerts 5 ebenso wie `Kill` und `FileDateTime` auf eine fehlende Datei, die früher gar nichts
-meldeten. Diese Fläche kam aus R1 in gutem Zustand.
-
-Bei den **Datei-Layouts** liegt der schwerste Befund des Tages. Elf von zwölf Werten kommen
-bytegleich heraus — Integer, Long, Byte, Boolean, Single, Double, Currency, Date, auch negativ. Ein
-String im Binary-Modus nicht:
+`r1-put-binary-string-layout` wiegt unter diesen neun am schwersten, weil es als einzige das
+Projektziel „ein altes `.vbp` wird ohne Quelltextänderung übersetzt" direkt bricht:
 
 ```
-Put #f, 1, "ABC"     VB6: 41 42 43                    (ANSI, kein Präfix)
-                     wir: 03 00 41 00 42 00 43 00     (Längenpräfix + UTF-16)
+Put #f, 1, "ABC"     VB6: 41 42 43                    ANSI, kein Präfix
+                     wir: 03 00 41 00 42 00 43 00     Längenpräfix + UTF-16
 ```
 
-Das Längenpräfix gehört zum *Random*-Modus, und die Kodierung ist unabhängig davon falsch. Die
-Folge ist eine in beide Richtungen gebrochene Dateikompatibilität — genau das, was dieser Compiler
-verhindern soll. Gemessen wurde gegen **Rohbytes**, nicht gegen einen Selbst-Roundtrip; der
-Random-Modus ist eine eigene, noch offene Frage.
+Das Längenpräfix gehört zum `Random`-Modus, die Kodierung ist unabhängig davon falsch. Die Folge
+ist eine in **beide** Richtungen gebrochene Dateikompatibilität: Eine Datendatei aus einem
+VB6-Programm ist für ein übersetztes Programm unlesbar und umgekehrt. Die übrigen acht Karten
+verfälschen Werte oder Texte, aber keine Dateien.
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 
@@ -610,7 +621,7 @@ Nach R6 und allen übrigen Managed-Erwartungen.
 
 Abschluss bedeutet: keine offene Implementierung im zugesagten Managed-Umfang, vollständiger grüner Standardlauf, verpflichtender nativer x86-Lauf und bestandene Anwendungsszenarien auf demselben Quellstand. Wiederholungen dürfen keinen fehlgeschlagenen Gesamtlauf verdecken. Die erforderlichen nativen Komponenten werden dokumentiert; ihr Fehlen ist keine erfolgreiche Prüfung.
 
-Original-VB6-Gegenprüfung bleibt optional und als Verifikationsstatus getrennt sichtbar. Ein dokumentationsbasierter Abschluss darf nicht als `oracle-verified` oder als mathematischer Beweis vollständiger Austauschbarkeit beworben werden. Änderungen am geprüften Stand erfordern passende neue Nachweise.
+Original-VB6-Gegenprüfung bleibt optional und als Verifikationsstatus getrennt sichtbar — sie ist seit dem 2026-09-10 verfügbar und läuft als eigene Laufart `oracle` über `build.ps1 -RequireOracle`. Optional heißt: Ihr Fehlen lässt das Gate nicht fallen, aber die Messwerttabelle nennt sie auch dann, und ohne sie bleibt jede Zusage dokumentationsgestützt. Ein dokumentationsbasierter Abschluss darf nicht als `oracle-verified` oder als mathematischer Beweis vollständiger Austauschbarkeit beworben werden. Änderungen am geprüften Stand erfordern passende neue Nachweise.
 
 | Karte | Ziel und Abnahme |
 | --- | --- |

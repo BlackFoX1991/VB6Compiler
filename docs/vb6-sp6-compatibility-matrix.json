@@ -3111,6 +3111,23 @@
       "title": "Sichtbare Fläche eines UserControls im Fremdcontainer"
     },
     {
+      "id": "r1-module-name-rules",
+      "matrixEntry": "language-declarations-and-statements",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Namensregeln fuer Module und Bezeichner",
+      "expected": {
+        "acceptance": "Die drei vom Original durchgesetzten Namensregeln werden als Diagnose gemeldet statt stillschweigend angenommen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Semantics.Tests/UncoveredDiagnosticTests.cs"
+      ],
+      "notes": "Gefunden am 2026-09-10, und zwar nicht durch eine Sonde, sondern indem das Original die ersten drei Orakelprojekte abgelehnt hat. Drei Regeln, die VB6 SP6 durchsetzt und die unser Compiler stillschweigend annimmt. Erstens: 'Main can''t be module, type, project, or form name' -- ein Modul darf nicht Main heissen, wenn der Start Sub Main ist. Zweitens: VB6 ist case-insensitiv, und eine lokale Variable p neben einem Sub P ist ein Kompilierfehler ('Expected Sub, Function, or Property' an der Verwendungsstelle, nicht an der Deklaration). Drittens: 'Name conflicts with existing module, project, or object library' -- Modulname und Projektname muessen sich unterscheiden. Alle drei sind Faelle fuer die Regel 'lieber melden als raten': Ein Projekt, das VB6 ablehnt, uebersetzt bei uns durch, und was danach passiert, ist nicht mehr das Verhalten des Originals. Jede Regel braucht einen eigenen Diagnose-Code und, nach der Projektregel fuer neue Codes, eine Positivassertion in VB6.Semantics.Tests/UncoveredDiagnosticTests. Der Harness VB6Oracle umschifft alle drei bewusst -- er darf nicht an einer Regel scheitern, die er messen soll.",
+      "title": "Namensregeln fuer Module und Bezeichner"
+    },
+    {
       "id": "r1-put-binary-string-layout",
       "matrixEntry": "runtime-file-io",
       "milestone": "R1",
@@ -3432,8 +3449,9 @@
         "bitness": "agnostic",
         "com": "none"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "r1-module-name-rules: Namensregeln fuer Module und Bezeichner",
       "tests": [
         "tests/VB6.Parser.Tests/ParserTests.cs",
         "tests/VB6.Semantics.Tests/BinderTests.cs",

@@ -9293,3 +9293,37 @@ Fall, der unsere Seite gar nicht übersetzen lässt, hätte die ganzen zwölf bl
 Damit stehen nach vier Durchgängen acht schmale Karten aus Orakelmessungen. Kanonischer Lauf mit
 allen drei Laufarten: 1893/1893 im Standardlauf, 93/93 nativ, 5/5 Orakel, alle ohne übersprungene
 Fälle, VISIA 40/40, Gate vollständig.
+
+## Die Dokumente auf den Stand nach dem Orakel gebracht
+
+Vier Stellen waren durch die Messungen des Tages überholt, und eine fünfte war ein Rückfall in ein
+Muster, das diese Codebasis schon einmal teuer bezahlt hat.
+
+**Der R1-Abschnitt der aktiven Restliste war Verlaufsprosa geworden.** Er hatte durch dreimaliges
+Anhängen die Form eines Tagebuchs — „eine Karte ist hinzugekommen", dann „der zweite Durchgang",
+dann „der dritte und vierte" — während längst neun Karten darin standen. Genau daran ist dieses
+Dokument vorher auf 2800 Zeilen gewachsen. Er ist jetzt Ist-Stand: eine Tabelle, was gemessen wurde
+und mit welchem Ergebnis, dazu ausdrücklich, was **nicht** gemessen wurde (`Random`-Modus,
+DBCS/Codepage, Datums- und Zeitformate). Die Erzählung steht hier im Changelog, wo sie hingehört.
+
+**Die verbindliche Entscheidung 6 hieß „Kein Orakel vorausgesetzt".** Sie war formuliert, als es
+keines gab. Der Grundsatz bleibt — der Compiler muss ohne Original baubar und prüfbar sein, CI
+setzt keines voraus —, aber die Praxis ändert sich an einem Punkt, und der stand wörtlich falsch
+da: Ein strittiger Fall bleibt nicht mehr offen, „bis eine belastbare Erwartung vorliegt". Er wird
+gemessen.
+
+**Das Statusmodell sagte nicht, was `oracle-verified` verlangt.** Solange die Achse unerreichbar
+war, genügte „ein echter Lauf gegen den Originalcompiler". Jetzt ist sie erreichbar und die Latte
+gehört präzise: Eine Erwartung wird `oracle-verified`, wenn ein Fall **ihre ganze beschriebene
+Fläche** stellt und ohne Abweichung besteht. Ein Durchgang mit bekanntem Rest reicht nicht. Deshalb
+steht die Achse weiter auf 0 — alle vier Durchgänge fanden einen Rest.
+
+**Im README stand „No original VB6 compiler comparison has been performed."** Das ist seit heute
+schlicht falsch. Ersetzt durch die Beschreibung des Harness, den Hinweis auf die eigene Laufart —
+und die Begründung, warum `oracle-verified` trotzdem 0 zeigt.
+
+Dazu die neunte Karte, `r1-module-name-rules`: Drei VB6-Namensregeln, die das Original durchsetzt
+und wir nicht, standen bis eben nur als Fließtext in `CLAUDE.md` und im Changelog. Ein
+dokumentierter Befund ohne Karte ist genau das, was die Matrixregeln verbieten — offene Lücken
+nennen konkrete Karten. Sie hat jetzt eine, und der Bereich
+`language-declarations-and-statements` geht darauf auf `partial`.

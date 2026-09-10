@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 183 Erwartungen: 166 `implemented`, 0 `partial`, 17 `planned`;
-166 `documented-verified`, 17 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 184 Erwartungen: 166 `implemented`, 0 `partial`, 18 `planned`;
+166 `documented-verified`, 18 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -28,12 +28,23 @@ R0 ist geschlossen: `build.ps1` wertet Standardlauf, nativen x86-Lauf und Wieder
 aus und schreibt `artifacts/verification-report.json`; die Statusregeln der Matrix prüfen Tests
 statt Leser; `-UpdateVerificationDocs` schreibt die markierten Messwertblöcke.
 
-R1 und R2 sind geschlossen. Ihre Sammelkarten hatten zwischendurch einen Rest, und der ist der
+R2 ist geschlossen. **R1 ist als Etappe abgenommen und trägt trotzdem acht offene Karten** — sie
+stammen alle aus Messungen gegen ein echtes VB6 SP6, das seit dem 2026-09-10 zur Verfügung steht,
+und keine davon aus einer Lücke im Inventar. Vier Flächen sind bisher durchgemessen: Ergebnistypen
+der Operatoren (17 von 20 stimmen), Zahlenausgabe (12 Abweichungen aus vier Ursachen),
+Fehlernummern (25 von 26 stimmen) und Datei-Layouts im Binary-Modus (11 von 12 bytegleich). Die
+schwerste Karte ist `r1-put-binary-string-layout`: `Put` schreibt einen String mit Längenpräfix und
+in UTF-16, das Original ohne Präfix in ANSI — eine in beide Richtungen gebrochene
+Dateikompatibilität. Was kein Orakelfall stellt, bleibt `documented-verified`.
+
+Ihre Sammelkarten hatten schon davor einen Rest, und der ist der
 Grund, warum diese Datei so viel über Messen redet: Ihre Inventare waren aus den **vorhandenen
 Tests** gebildet statt aus den dokumentierten Formen. Sie belegten damit Qualität, nicht
 Vollständigkeit — sieben dokumentierte Standardnamen banden überhaupt nicht, und `As New`
 instanziierte beim Zugriff auf ein `Public`-Feld nicht nach. Kein Test der Suite und keine Stelle
 im VISIA-Korpus traf diese Formen. Ein Inventar, das nur prüft, was schon geprüft wird, ist keines.
+Dasselbe Muster eine Ebene höher hat das Orakel gefunden: Die Variant-Promotionstabelle galt mit 49
+gemessenen Operandenpaaren als vollständig korrekt — gemessen gegen das eigene Verständnis.
 
 R4 ist ebenfalls geschlossen, mit fünf Karten. Was dort abgenommen wurde, verlangte durchgehend
 etwas, das der Compiler nicht allein herstellen kann: einen Fremdclient über die Prozessgrenze
@@ -223,6 +234,17 @@ dotnet test tests/VB6.Runtime.WinForms.Tests -c Release -- RunConfiguration.Targ
 ```
 
 Der Schalter macht aus „überspringen" ein „hart melden"; ohne ihn sagt ein grüner Lauf nichts.
+Dieselbe Bauart hat die Gegenprüfung gegen das Original — `VB6_ORACLE_PATH` nennt `VB6.EXE`,
+`VB6_REQUIRE_ORACLE=1` macht aus „überspringen" ein „hart melden", und im kanonischen Lauf:
+
+```
+$env:VB6_ORACLE_PATH = 'C:\Users\loewe\Desktop\PortableVB6'
+.\build.ps1 -Configuration Release -RequireNativeOcx -RequireOracle
+```
+
+Beide sind **eigene Laufarten** im Bericht (`native-x86`, `oracle`) und werden nie in den
+Standardlauf summiert. Die Messwerttabelle nennt jede auch dann, wenn sie nicht lief — dann ist das
+die wichtigere Zeile.
 Gegenprobe zum Absichern: dasselbe mit `TargetPlatform=x64` muss fehlschlagen.
 
 Commit-Betreffs: imperativ, kurz, kein Präfix, kein Punkt (`Bind Currency arithmetic`). Die bestehende Historie nutzt keine Co-Authored-By-Trailer.
@@ -294,7 +316,7 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `8c612be` mit nicht committeten Änderungen: 1893 Standardfälle in 13 Projekten,
+Stand der Prüfung 2026-09-10 auf `7990a1f` mit nicht committeten Änderungen: 1893 Standardfälle in 13 Projekten,
 1893 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.

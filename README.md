@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 183 expectations (166 implemented, 0 partial, 17 planned) with 166/183 documented-verified.
+The compatibility matrix contains 184 expectations (166 implemented, 0 partial, 18 planned) with 166/184 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -184,7 +184,7 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-10 at `8c612be` on `main` with uncommitted changes, run `20260910T130427Z-1b003b3c`:
+Measured on 2026-09-10 at `7990a1f` on `main` with uncommitted changes, run `20260910T141218Z-b1982270`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
@@ -198,19 +198,31 @@ Complete gate (standard run and native x86 run on the same source state): **True
 The run report is written to `artifacts/verification-report.json` and is not versioned.
 <!-- verification:readme-measurements:end -->
 
-Standard runs, native runs and targeted reruns are reported separately and never added together.
-The **1698** once quoted here was exactly such a sum — 1617 standard cases plus 81 additional x86
-executions — and it was read as a test count for a long time. Since R0 the table above is written
-from `artifacts/verification-report.json` rather than maintained by hand.
+Standard runs, native runs, oracle runs and targeted reruns are reported separately and never added
+together. The **1698** once quoted here was exactly such a sum — 1617 standard cases plus 81
+additional x86 executions — and it was read as a test count for a long time. Since R0 the table
+above is written from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **183 expectations**: **166 implemented**, **0 partial**, **17 planned**;
-**166 documented-verified**, **17 not-yet-verified**, **0 oracle-verified**.
+The matrix reports **184 expectations**: **166 implemented**, **0 partial**, **18 planned**;
+**166 documented-verified**, **18 not-yet-verified**, **0 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
-No original VB6 compiler comparison has been performed. Run accounting, the dependency and status
-checks and the explicit documentation-update switch landed in R0 and are described in
-[the roadmap](docs/ROADMAP.md). Historical measurements remain in [the changelog](docs/CHANGELOG.md).
+Since 2026-09-10 a real **VB6 SP6** (`VB6.EXE 6.00.9782`) is available and is compared against:
+`build.ps1 -RequireOracle` runs `tests/VB6.Compiler.Tests/Oracle*Tests.cs`, which compile the same
+source with both compilers, run both programs and compare the *values they write* — a separate run
+kind that is never added into the standard run. It is optional: its absence does not fail the gate,
+but without it every expectation stays documentation-backed.
+
+That is also why `oracle-verified` still reads **0**. Each of the four surfaces measured so far
+came back with a remainder — arithmetic result types, number formatting, error numbers and binary
+file layouts — and an expectation only earns that status when a case puts its *whole* described
+surface to the original and passes without deviation. The remainders are carried as nine narrow
+`r1-*` cards in [the roadmap](docs/ROADMAP.md).
+
+Run accounting, the dependency and status checks and the explicit documentation-update switch
+landed in R0 and are described in the same document. Historical measurements remain in
+[the changelog](docs/CHANGELOG.md).
 
 The M3 array work was deliberately split into layers, and the guards from that period are gone: declarations, parameters, element access, `ReDim`/`Preserve`, `Erase`, `LBound`/`UBound`, and `For Each` are bound, emitted, and executed against `VBArray<T>`, which keeps VB6 lower bounds instead of normalizing to zero-based CLR arrays. `Erase` on a `ByRef` array parameter now deallocates the caller's descriptor and is covered by semantic and generated-program tests. `StrConv` additionally handles profile-aware combined casing, East-Asian width, and Japanese Kana flags with locale validation. What is still guarded is narrower: `For Each` over arrays of user-defined types (`VB6S0056`) and UDT layouts that managed lowering cannot represent yet (`VB6S0046`).
 
