@@ -23,7 +23,7 @@ namespace VB6.Compiler.Cli.Tests;
 /// pass. A slot number is an independent statement.
 /// </summary>
 [TestClass]
-public sealed class UserControlContainerClientTests
+public sealed class UserControlSurfaceTests
 {
     [TestMethod]
     [SupportedOSPlatform("windows")]
@@ -40,7 +40,7 @@ public sealed class UserControlContainerClientTests
         {
             var manifestPath = Build(directory);
             var classId = ReadClassIdFromManifest(manifestPath);
-            var probe = RunProbe(directory, "--olecontrol", manifestPath, classId.ToString("B"));
+            var probe = RunContainer(directory, "--surface", manifestPath, classId.ToString("B"));
             Assert.AreEqual(0, probe.ExitCode, probe.StandardError);
 
             var answers = ParseAnswers(probe.StandardOutput);
@@ -90,8 +90,8 @@ public sealed class UserControlContainerClientTests
         {
             var manifestPath = Build(directory);
             var classId = ReadClassIdFromManifest(manifestPath);
-            var probe = RunProbe(
-                directory, "--olecontrol-run", manifestPath, classId.ToString("B"), "Zaehler");
+            var probe = RunContainer(
+                directory, "--roundtrip", manifestPath, classId.ToString("B"), "Zaehler");
             Assert.AreEqual(0, probe.ExitCode, probe.StandardError);
 
             var answers = ParseAnswers(probe.StandardOutput);
@@ -224,13 +224,25 @@ public sealed class UserControlContainerClientTests
         return answers;
     }
 
-    private static (int ExitCode, string StandardOutput, string StandardError) RunProbe(
+    /// <summary>
+    /// Runs the container probe against the component.
+    ///
+    /// It has to be the container and not the ordinary client probe, and the reason is measured:
+    /// a component that contains a UserControl ships the WinForms host and therefore declares the
+    /// desktop framework. An in-process .NET component cannot bring a second framework set into a
+    /// runtime that is already initialised, so a plain .NET client answers <c>0x800080A5</c> --
+    /// <c>The specified framework 'Microsoft.WindowsDesktop.App' is not present in the previously
+    /// loaded runtime</c>. A native container has no pre-loaded runtime and is unaffected; a
+    /// managed one has to be a desktop process, which the container probe is.
+    /// </summary>
+    private static (int ExitCode, string StandardOutput, string StandardError) RunContainer(
         string workingDirectory,
         params string[] arguments)
     {
-        var probePath = Path.Combine(AppContext.BaseDirectory, "VB6.ComActivationProbe.dll");
-        Assert.IsTrue(File.Exists(probePath));
-        var startInfo = new ProcessStartInfo("dotnet")
+        var probePath = Path.Combine(
+            AppContext.BaseDirectory, "ole-container", "VB6.OleContainerProbe.exe");
+        Assert.IsTrue(File.Exists(probePath), $"Die Containersonde fehlt: {probePath}");
+        var startInfo = new ProcessStartInfo(probePath)
         {
             WorkingDirectory = Path.Combine(workingDirectory, "bin"),
             RedirectStandardOutput = true,
@@ -238,14 +250,13 @@ public sealed class UserControlContainerClientTests
             UseShellExecute = false,
             CreateNoWindow = true
         };
-        startInfo.ArgumentList.Add(probePath);
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
         }
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Could not start the COM activation probe.");
+            ?? throw new InvalidOperationException("Could not start the OLE container probe.");
         var standardOutput = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();

@@ -25,6 +25,19 @@ public sealed class OleControlSurfaceTests
     private const int OleObjSCannotDoVerbNow = 0x00040181;
     private const int DvAspectContent = 1;
 
+    /// <summary>
+    /// These cases measure what a control answers **without** a host, so the absence of one has to
+    /// be stated rather than assumed. A generated control looks for its presentation companion by
+    /// name on first need, and whether that succeeds would otherwise depend on which files happen
+    /// to sit in this project's output directory.
+    /// </summary>
+    [TestInitialize]
+    public void SuppressThePresentationCompanion() =>
+        VBControlPresentationHost.SuppressForThisProcess();
+
+    [TestCleanup]
+    public void ForgetTheSuppression() => VBControlPresentationHost.Reset();
+
     [TestMethod]
     public void EveryDeclaredControlInterfaceIsHandedOutThroughTheWrapper()
     {
