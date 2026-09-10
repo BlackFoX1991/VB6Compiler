@@ -25,6 +25,13 @@ namespace VB6.Runtime.WinForms.Tests;
 /// The bytes stay opaque to the container on purpose: the control writes what it wants and reads its
 /// own writing back. The acceptance is therefore a round trip through a *second* control, not an
 /// inspection of the block.
+///
+/// The third measurement decided where the load happens. Handing the stream to a control that
+/// already exists does **not** fail -- it succeeds and changes nothing. The block has to arrive
+/// before the OCX does, which in WinForms means <c>AxHost.OcxState</c>, and that in turn wants the
+/// bytes length-prefixed and its storage type numbered the old way. Both details are in
+/// <c>WinFormsHost.WrapPersistedState</c>; getting either wrong produced a control full of zeros
+/// or a torn-down process, never a diagnostic.
 /// </summary>
 [STATestClass]
 public sealed class StreamPersistenceTests
@@ -167,6 +174,95 @@ public sealed class StreamPersistenceTests
         Assert.IsTrue(host.TrySetMember(control.Control, "Value", Array.Empty<object?>(), (short)7));
         _ = VBComStreamPersistence.TrySaveState(control.ComObject);
         Assert.AreEqual(false, VBComStreamPersistence.TryGetDirty(control.ComObject));
+    }
+
+    [STATestMethod]
+    [SupportedOSPlatform("windows")]
+    public void TheStateTravelsThroughTheHostIntoASecondControl()
+    {
+        if (!Available())
+        {
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var source = Sited(host, owner, "Slider1");
+        Assert.IsTrue(host.TrySetMember(source.Control, "Min", Array.Empty<object?>(), (short)5));
+        Assert.IsTrue(host.TrySetMember(source.Control, "Max", Array.Empty<object?>(), (short)55));
+        Assert.IsTrue(host.TrySetMember(source.Control, "Value", Array.Empty<object?>(), (short)42));
+
+        var state = host.TryGetPersistedState(source.Control);
+        Assert.IsNotNull(state);
+
+        // Der Zeitpunkt ist der ganze Vertrag: Das Zielcontrol bekommt den Block, *bevor* sein
+        // Fenster -- und damit das OCX -- entsteht. Genau dieselbe Reihenfolge, in der ein
+        // Designer eine Form aufbaut.
+        using var second = new WinFormsHost(preferNativeActiveX: true);
+        var target = new object();
+        second.Load(target);
+        var control = (Control)second.CreateControl(target, "Slider1", SliderControlType)!;
+        Assert.IsFalse(control.IsHandleCreated, "Das Control war schon erzeugt -- die Sonde misst dann nichts.");
+        Assert.IsTrue(second.TrySetPersistedState(control, state));
+
+        Assert.IsTrue(second.TryInvokeMember(target, "Show", Array.Empty<object?>(), out _));
+        control.CreateControl();
+
+        Assert.AreEqual(5, Convert.ToInt32(Read(second, control, "Min"), System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual(55, Convert.ToInt32(Read(second, control, "Max"), System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual(42, Convert.ToInt32(Read(second, control, "Value"), System.Globalization.CultureInfo.InvariantCulture));
+
+        // Und die Gegenrichtung schliesst den Kreis: Was das Zielcontrol jetzt schreibt, ist der
+        // Block, mit dem es geladen wurde. Ein Zustand, der nur zur Haelfte ankaeme, faellt hier
+        // auf -- die Eigenschaftsabfrage oben deckt nur die drei genannten Namen ab.
+        var written = second.TryGetPersistedState(control);
+        Assert.IsNotNull(written);
+        Assert.IsTrue(state.AsSpan().SequenceEqual(written), "Der zurueckgeschriebene Block weicht ab.");
+    }
+
+    [STATestMethod]
+    [SupportedOSPlatform("windows")]
+    public void AStateOfferedAfterCreationIsRefusedInsteadOfSwallowed()
+    {
+        if (!Available())
+        {
+            return;
+        }
+
+        using var host = new WinFormsHost(preferNativeActiveX: true);
+        var owner = new object();
+        host.Load(owner);
+        Assert.IsTrue(host.TryInvokeMember(owner, "Show", Array.Empty<object?>(), out _));
+
+        var source = Sited(host, owner, "Slider1");
+        Assert.IsTrue(host.TrySetMember(source.Control, "Value", Array.Empty<object?>(), (short)17));
+        var state = host.TryGetPersistedState(source.Control);
+        Assert.IsNotNull(state);
+
+        // Ein erzeugtes Control nimmt den Zustand nicht mehr an -- gemessen: es nimmt den Ladeaufruf
+        // entgegen und ignoriert ihn. Ein stilles True waere hier das schlimmere Ergebnis: Der
+        // Aufrufer glaubte, geladen zu haben, und das Control stuende auf seinen Vorgaben.
+        var other = Sited(host, owner, "Slider2");
+        Assert.IsFalse(host.TrySetPersistedState(other.Control, state));
+        Assert.AreNotEqual(17, Convert.ToInt32(Read(host, other.Control, "Value"), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [STATestMethod]
+    [SupportedOSPlatform("windows")]
+    public void AManagedControlHasNoStreamStateAndSaysSo()
+    {
+        using var host = new WinFormsHost();
+        var owner = new object();
+        host.Load(owner);
+
+        // Der verwaltete Ersatz fuehrt seinen Zustand als Eigenschaften. Keine Stromspeicherung ist
+        // kein Fehler -- der Aufrufer faellt auf die Einzelzuweisungen zurueck.
+        var control = host.CreateControl(owner, "Text1", "TextBox")!;
+        Assert.IsFalse(host.TrySetPersistedState(control, new byte[] { 1, 2, 3 }));
+        Assert.IsNull(host.TryGetPersistedState(control));
     }
 
     private static object? Read(WinFormsHost host, object control, string name)
