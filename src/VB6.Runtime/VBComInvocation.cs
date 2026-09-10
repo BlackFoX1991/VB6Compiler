@@ -79,9 +79,17 @@ internal static class VBComInvocation
         var call = new object?[expected.Length];
         for (var index = 0; index < expected.Length; index++)
         {
-            call[index] = index < arguments.Length
-                ? VBDynamicDispatch.ConvertArgument(arguments[index], expected[index].ParameterType)
-                : expected[index].HasDefaultValue ? expected[index].DefaultValue : Missing(expected[index]);
+            if (index >= arguments.Length)
+            {
+                call[index] = expected[index].HasDefaultValue ? expected[index].DefaultValue : Missing(expected[index]);
+                continue;
+            }
+
+            var declared = expected[index].ParameterType;
+            var target = declared.IsByRef ? declared.GetElementType()! : declared;
+            call[index] = VBComRecordInfo.TryReadRecord(index < variants.Length ? variants[index] : IntPtr.Zero, target) is { } record
+                ? record
+                : VBDynamicDispatch.ConvertArgument(arguments[index], declared);
         }
 
         var returned = method.Invoke(instance, call);
@@ -146,7 +154,12 @@ internal static class VBComInvocation
         {
             var variant = IntPtr.Add(arguments, variantSize * (count - 1 - index));
             variants[index] = variant;
-            values[index] = Marshal.GetObjectForNativeVariant(variant);
+
+            // Ein VT_RECORD wird erst beim Zuordnen zum Parameter zu einem Wert: Erst dort ist der
+            // Typ bekannt, und der CLR-Marshaller kennt ihn ohne registrierte Bibliothek nicht.
+            values[index] = (Marshal.ReadInt16(variant) & VariantTypeMask) == VtRecord
+                ? null
+                : Marshal.GetObjectForNativeVariant(variant);
         }
 
         return values;
@@ -226,6 +239,7 @@ internal static class VBComInvocation
 
     private const short VariantByRef = 0x4000;
     private const short VariantTypeMask = 0x0FFF;
+    private const short VtRecord = 36;
     private const short VtI2 = 2;
     private const short VtI4 = 3;
     private const short VtR4 = 4;
