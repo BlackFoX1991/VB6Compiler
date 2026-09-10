@@ -1073,6 +1073,75 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         ExitMessageLoopWhenNoFormRemains();
     }
 
+    /// <summary>
+    /// Gives a control the designer state it keeps as a stream.
+    ///
+    /// Timing is the whole contract, and it was measured the hard way: a control that already
+    /// exists accepts <c>IPersistStreamInit.Load</c> and ignores it -- the values stay at their
+    /// defaults. The block has to arrive *before* the OCX comes into being, and the only place a
+    /// container can put it that early is <see cref="AxHost.OcxState"/>.
+    ///
+    /// That state is not the raw block, though. <c>AxHost.State</c> reads its buffer
+    /// length-prefixed: an <c>Int32</c> count, then that many bytes. Handing it the control's own
+    /// stream unwrapped makes it read the first four bytes as a length -- which is why the first
+    /// attempt came back with a control full of zeros instead of an error.
+    /// </summary>
+    public bool TrySetPersistedState(object control, byte[]? state)
+    {
+        ThrowIfDisposed();
+        if (control is not NativeActiveXControl native)
+        {
+            return false;
+        }
+
+        // Ein bereits erzeugtes Control nimmt den Zustand nicht mehr an. Das still zu schlucken
+        // waere der schlimmere Ausgang -- der Aufrufer glaubte dann, geladen zu haben.
+        if (native.IsHandleCreated)
+        {
+            return false;
+        }
+
+        native.OcxState = state is { Length: > 0 } ? WrapPersistedState(state) : null;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads back what a control keeps as a stream, in the form
+    /// <see cref="TrySetPersistedState"/> takes it. Answers <see langword="null"/> for a control
+    /// that keeps its state elsewhere.
+    /// </summary>
+    public byte[]? TryGetPersistedState(object control)
+    {
+        ThrowIfDisposed();
+        return control is NativeActiveXControl native && native.ComObject is { } comObject
+            ? VBComStreamPersistence.TrySaveState(comObject)
+            : null;
+    }
+
+    /// <summary>
+    /// Puts the control's own bytes into the envelope <c>AxHost.State</c> expects: the length as
+    /// an <c>Int32</c>, then the block.
+    ///
+    /// The storage type names the interface the bytes belong to, and its number is the **old**
+    /// AxHost constant, not the modern enum -- the constructor shifts it by one onto
+    /// <c>AxHost.StorageType</c>, where <c>Unknown</c> took the zero. Passing the enum's own 2 for
+    /// <c>StreamInit</c> therefore selects <c>Storage</c>, and a control handed stream bytes to read
+    /// as a storage tears the process down without a diagnostic. Measured against a registered
+    /// Slider; 1 is the value that arrives as <c>StreamInit</c>.
+    /// </summary>
+    private static AxHost.State WrapPersistedState(byte[] state)
+    {
+        const int StorageTypeStreamInit = 1;
+
+        var envelope = new MemoryStream(sizeof(int) + state.Length);
+        var writer = new BinaryWriter(envelope);
+        writer.Write(state.Length);
+        writer.Write(state);
+        writer.Flush();
+        envelope.Position = 0;
+        return new AxHost.State(envelope, StorageTypeStreamInit, manualUpdate: false, licKey: null);
+    }
+
     public object? CreateControl(object owner, string name, string typeName)
     {
         ThrowIfDisposed();
