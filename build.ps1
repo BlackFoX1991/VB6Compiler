@@ -10,6 +10,12 @@ param(
     [string] $ResultsDirectory = 'artifacts/test-results',
     [switch] $RequireNativeOcx,
 
+    # Die Gegenpruefung gegen einen echten VB6-SP6-Compiler. Sie laeuft als eigene Laufart und
+    # wird nie in den Standardlauf summiert; R7 verlangt sie "als Verifikationsstatus getrennt
+    # sichtbar". Setzt VB6_ORACLE_PATH voraus und -- auf dieser Maschine -- eine erhoehte Sitzung,
+    # weil VB6.EXE das RUNASADMIN-Kompatibilitaetsflag traegt.
+    [switch] $RequireOracle,
+
     # A repetition of a subset. Its results are recorded, but they can never turn a failed
     # overall run green -- that is the whole point of keeping them apart.
     [switch] $Rerun,
@@ -562,6 +568,42 @@ try {
         }
     }
 
+    if ($RequireOracle) {
+        # Die Gegenpruefung gegen den Originalcompiler. Sie bekommt eine eigene Laufart, weil R7
+        # sie ausdruecklich "als Verifikationsstatus getrennt sichtbar" verlangt -- in den
+        # Standardlauf summiert waere sie genau die Sorte Zahl, an der die frueher genannte 1698
+        # zerbrochen ist.
+        #
+        # VB6.EXE traegt auf der Entwicklungsmaschine das RUNASADMIN-Kompatibilitaetsflag. Diese
+        # Einstellung bleibt bewusst unangetastet; ein Orakel-Lauf gehoert deshalb in eine erhoehte
+        # Sitzung, und ohne sie meldet der Fall die Lage, statt sich still zu ueberspringen.
+        $oracleProject = Join-Path $repositoryRoot 'tests\VB6.Compiler.Tests\VB6.Compiler.Tests.csproj'
+        $previousOracleRequirement = $env:VB6_REQUIRE_ORACLE
+        try {
+            $env:VB6_REQUIRE_ORACLE = '1'
+            Write-Host 'Testing VB6.Compiler.Tests against the original VB6 compiler'
+            $oracleTrxName = 'VB6.Compiler.Tests.oracle.trx'
+            $oracleKind = if ($Rerun) { 'rerun' } else { 'oracle' }
+            $oracleStartedUtc = [DateTime]::UtcNow
+            & dotnet test $oracleProject --configuration $Configuration --no-build --no-restore `
+                --filter 'FullyQualifiedName~Oracle' `
+                --logger "trx;LogFileName=$oracleTrxName" `
+                --results-directory $resultsPath
+            $runs.Add((New-TestRunRecord -Kind $oracleKind `
+                        -Project 'VB6.Compiler.Tests (VB6 SP6 oracle)' `
+                        -TrxPath (Join-Path $resultsPath $oracleTrxName) -ExitCode $LASTEXITCODE `
+                        -NotBeforeUtc $oracleStartedUtc))
+        }
+        finally {
+            if ($null -eq $previousOracleRequirement) {
+                Remove-Item Env:VB6_REQUIRE_ORACLE -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:VB6_REQUIRE_ORACLE = $previousOracleRequirement
+            }
+        }
+    }
+
     # Only runs that belong to the gate decide it. A repetition is recorded and never counted:
     # a targeted rerun that passes says nothing about the overall run that failed.
     $gateRuns = @($runs | Where-Object { $_.kind -ne 'rerun' })
@@ -594,6 +636,7 @@ try {
             filter           = $Filter
             projects         = @($Project)
             requireNativeOcx = [bool]$RequireNativeOcx
+            requireOracle    = [bool]$RequireOracle
         }
         source        = $sourceState
         runs          = @($runs)
@@ -626,7 +669,7 @@ try {
 
     Write-Host ''
     Write-Host "Run $runId on $($sourceState.describes)"
-    foreach ($group in @('standard', 'native-x86', 'rerun')) {
+    foreach ($group in @('standard', 'native-x86', 'oracle', 'rerun')) {
         $inGroup = @($runs | Where-Object { $_.kind -eq $group })
         if ($inGroup.Count -eq 0) { continue }
 
@@ -649,6 +692,13 @@ try {
     Write-Host "  visia ($($visia.kind)): $($visia.outcome) -- $($visia.analyzed)/$($visia.items) items, $($visia.errors) error(s)"
     if (-not $RequireNativeOcx) {
         Write-Host '  native-x86: not run. A missing native run is not a passed one; the gate stays incomplete.'
+    }
+
+    if (-not $RequireOracle) {
+        # Kein Gate-Kriterium: Die Gegenpruefung gegen das Original ist laut R7 ausdruecklich
+        # optional. Sie hier trotzdem zu nennen, haelt sichtbar, dass eine Zusage ohne sie eine
+        # dokumentationsgestuetzte bleibt und keine gemessene.
+        Write-Host '  oracle: not run. Without it every expectation stays documented-verified, never oracle-verified.'
     }
 
     if ($rerunRuns.Count -gt 0) {
