@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
@@ -47,6 +49,16 @@ internal static class Program
         if (args.Length == 6 && string.Equals(args[0], "--events", StringComparison.Ordinal))
         {
             return ReceiveEvents(args[1], args[2], args[3], int.Parse(args[4]), args[5]);
+        }
+
+        if (args.Length == 3 && string.Equals(args[0], "--olecontrol", StringComparison.Ordinal))
+        {
+            return DescribeControlSurface(args[1], args[2]);
+        }
+
+        if (args.Length == 4 && string.Equals(args[0], "--olecontrol-run", StringComparison.Ordinal))
+        {
+            return RunControlLifecycle(args[1], args[2], args[3]);
         }
 
         if (args.Length != 2)
@@ -290,6 +302,381 @@ internal static class Program
 
         return 0;
     }
+
+    /// <summary>
+    /// What a container asks a control for, asked in the container's own order.
+    ///
+    /// An ActiveX control is not one interface but a set, and a container decides what it can do
+    /// with a control by asking for them one at a time. This mode activates the class reg-free out
+    /// of its manifest and reports, for every interface in that set, whether the object answers.
+    /// The answer is the gap list -- nothing here is derived from what the compiler happens to
+    /// emit today.
+    /// </summary>
+    private static int DescribeControlSurface(string manifestPath, string classIdText)
+    {
+        var initialization = CoInitializeEx(IntPtr.Zero, CoInitApartmentThreaded);
+        if (initialization < 0 && initialization != unchecked((int)0x80010106))
+        {
+            Console.WriteLine($"coinit=0x{initialization:X8}");
+            return 0;
+        }
+
+        var context = new ActCtx
+        {
+            cbSize = Marshal.SizeOf<ActCtx>(),
+            lpSource = manifestPath
+        };
+        var handle = CreateActCtx(ref context);
+        if (handle == new IntPtr(-1))
+        {
+            Console.WriteLine($"createactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        if (!ActivateActCtx(handle, out var cookie))
+        {
+            Console.WriteLine($"activateactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        try
+        {
+            var classId = Guid.Parse(classIdText);
+            var unknownId = new Guid("00000000-0000-0000-C000-000000000046");
+            var activation = CoCreateInstance(
+                ref classId, IntPtr.Zero, ClsCtxInprocServer, ref unknownId, out var unknown);
+            if (activation != 0)
+            {
+                Console.WriteLine($"cocreate=0x{activation:X8}");
+                return 0;
+            }
+
+            try
+            {
+                foreach (var (name, iid) in ControlSurface)
+                {
+                    var id = Guid.Parse(iid);
+                    var hresult = Marshal.QueryInterface(unknown, in id, out var candidate);
+                    if (hresult == 0)
+                    {
+                        Marshal.Release(candidate);
+                    }
+
+                    Console.WriteLine($"{name}={(hresult == 0 ? "ja" : $"0x{hresult:X8}")}");
+                }
+            }
+            finally
+            {
+                Marshal.Release(unknown);
+            }
+        }
+        finally
+        {
+            DeactivateActCtx(0, cookie);
+            ReleaseActCtx(handle);
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// The whole life of a control in a foreign container: create it, ask it what it is, give it a
+    /// state, take the state back, hand it to a *second* instance and read the value out again.
+    ///
+    /// Every call goes through the raw vtable at its published slot rather than through a managed
+    /// interface declaration. That is deliberate: this probe links the same runtime the server
+    /// does, so a wrongly ordered declaration would be wrong identically on both sides and the
+    /// round trip would pass. A slot number is an independent statement.
+    /// </summary>
+    private static int RunControlLifecycle(string manifestPath, string classIdText, string caption)
+    {
+        var initialization = CoInitializeEx(IntPtr.Zero, CoInitApartmentThreaded);
+        if (initialization < 0 && initialization != unchecked((int)0x80010106))
+        {
+            Console.WriteLine($"coinit=0x{initialization:X8}");
+            return 0;
+        }
+
+        var context = new ActCtx
+        {
+            cbSize = Marshal.SizeOf<ActCtx>(),
+            lpSource = manifestPath
+        };
+        var handle = CreateActCtx(ref context);
+        if (handle == new IntPtr(-1))
+        {
+            Console.WriteLine($"createactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        if (!ActivateActCtx(handle, out var cookie))
+        {
+            Console.WriteLine($"activateactctx=0x{Marshal.GetLastWin32Error():X8}");
+            return 0;
+        }
+
+        try
+        {
+            var classId = Guid.Parse(classIdText);
+            var source = Create(classId);
+            if (source == IntPtr.Zero)
+            {
+                return 0;
+            }
+
+            try
+            {
+                Describe(source);
+
+                // Der Container gibt dem Control zuerst seine Site und dann seinen Zustand --
+                // genau die Reihenfolge, die OLEMISC_SETCLIENTSITEFIRST verlangt.
+                Call(source, OleObjectIid, SlotSetClientSite, (IntPtr self, IntPtr site) =>
+                {
+                    var call = Slot<SetClientSiteDelegate>(self, SlotSetClientSite);
+                    return call(self, site);
+                }, IntPtr.Zero, "setclientsite");
+
+                WithInterface(source, PersistStreamInitIid, persist =>
+                {
+                    var initNew = Slot<NoArgumentDelegate>(persist, SlotInitNew);
+                    Console.WriteLine($"initnew=0x{initNew(persist):X8}");
+                });
+
+                var dispatch = Marshal.GetObjectForIUnknown(source);
+                dispatch.GetType().InvokeMember(
+                    "Caption",
+                    BindingFlags.SetProperty,
+                    binder: null,
+                    dispatch,
+                    [caption],
+                    CultureInfo.InvariantCulture);
+
+                if (CreateStreamOnHGlobal(IntPtr.Zero, deleteOnRelease: true, out var stream) != 0)
+                {
+                    Console.WriteLine("createstream=fehlgeschlagen");
+                    return 0;
+                }
+
+                try
+                {
+                    WithInterface(source, PersistStreamInitIid, persist =>
+                    {
+                        var save = Slot<SaveDelegate>(persist, SlotSave);
+                        Console.WriteLine($"save=0x{save(persist, stream, 1):X8}");
+                    });
+
+                    // Zuruecksetzen ueber die Rahmen-eigene IStream-Deklaration: Der Strom gehoert
+                    // hier dem Container, nicht dem Server.
+                    ((System.Runtime.InteropServices.ComTypes.IStream)Marshal.GetObjectForIUnknown(stream))
+                        .Seek(0, 0, IntPtr.Zero);
+
+                    var target = Create(classId);
+                    if (target == IntPtr.Zero)
+                    {
+                        return 0;
+                    }
+
+                    try
+                    {
+                        WithInterface(target, PersistStreamInitIid, persist =>
+                        {
+                            var load = Slot<LoadDelegate>(persist, SlotLoad);
+                            Console.WriteLine($"load=0x{load(persist, stream):X8}");
+                        });
+
+                        var restored = Marshal.GetObjectForIUnknown(target);
+                        var value = restored.GetType().InvokeMember(
+                            "Caption",
+                            BindingFlags.GetProperty,
+                            binder: null,
+                            restored,
+                            null,
+                            CultureInfo.InvariantCulture);
+                        Console.WriteLine($"caption={value}");
+
+                        WithInterface(target, OleObjectIid, oleObject =>
+                        {
+                            var close = Slot<CloseDelegate>(oleObject, SlotClose);
+                            Console.WriteLine($"close=0x{close(oleObject, 1):X8}");
+                        });
+                    }
+                    finally
+                    {
+                        Marshal.Release(target);
+                    }
+                }
+                finally
+                {
+                    Marshal.Release(stream);
+                }
+            }
+            finally
+            {
+                Console.WriteLine($"release={Marshal.Release(source)}");
+            }
+        }
+        finally
+        {
+            DeactivateActCtx(0, cookie);
+            ReleaseActCtx(handle);
+        }
+
+        return 0;
+
+        static IntPtr Create(Guid classId)
+        {
+            var unknownId = new Guid("00000000-0000-0000-C000-000000000046");
+            var hresult = CoCreateInstance(
+                ref classId, IntPtr.Zero, ClsCtxInprocServer, ref unknownId, out var unknown);
+            if (hresult == 0)
+            {
+                return unknown;
+            }
+
+            Console.WriteLine($"cocreate=0x{hresult:X8}");
+            return IntPtr.Zero;
+        }
+
+        static void Describe(IntPtr unknown) => WithInterface(unknown, OleObjectIid, oleObject =>
+        {
+            var miscStatus = Slot<GetMiscStatusDelegate>(oleObject, SlotGetMiscStatus);
+            Console.WriteLine(miscStatus(oleObject, DvAspectContent, out var status) == 0
+                ? $"miscstatus=0x{status:X}"
+                : "miscstatus=fehlgeschlagen");
+
+            var extent = Slot<GetExtentDelegate>(oleObject, SlotGetExtent);
+            var size = default(ProbeSize);
+            Console.WriteLine(extent(oleObject, DvAspectContent, ref size) == 0
+                ? $"extent={size.Width}x{size.Height}"
+                : "extent=fehlgeschlagen");
+
+            var userType = Slot<GetUserTypeDelegate>(oleObject, SlotGetUserType);
+            if (userType(oleObject, 1, out var text) == 0)
+            {
+                Console.WriteLine($"usertype={Marshal.PtrToStringUni(text)}");
+                Marshal.FreeCoTaskMem(text);
+            }
+
+            var classId = Slot<GetUserClassIdDelegate>(oleObject, SlotGetUserClassId);
+            if (classId(oleObject, out var identifier) == 0)
+            {
+                Console.WriteLine($"userclsid={identifier.ToString("B").ToUpperInvariant()}");
+            }
+        });
+
+        static void WithInterface(IntPtr unknown, string iid, Action<IntPtr> action)
+        {
+            var id = Guid.Parse(iid);
+            var hresult = Marshal.QueryInterface(unknown, in id, out var pointer);
+            if (hresult != 0)
+            {
+                Console.WriteLine($"qi {iid}=0x{hresult:X8}");
+                return;
+            }
+
+            try
+            {
+                action(pointer);
+            }
+            finally
+            {
+                Marshal.Release(pointer);
+            }
+        }
+
+        static void Call(IntPtr unknown, string iid, int slot, Func<IntPtr, IntPtr, int> call, IntPtr argument, string label)
+        {
+            WithInterface(unknown, iid, pointer =>
+                Console.WriteLine($"{label}=0x{call(pointer, argument):X8}"));
+        }
+
+        static TDelegate Slot<TDelegate>(IntPtr self, int slot) where TDelegate : Delegate =>
+            Marshal.GetDelegateForFunctionPointer<TDelegate>(
+                Marshal.ReadIntPtr(Marshal.ReadIntPtr(self), IntPtr.Size * slot));
+    }
+
+    // Die veroeffentlichten Slotnummern, gezaehlt ab IUnknown. Sie sind der eigentliche Vertrag:
+    // Eine Methode an falscher Stelle ruft die falsche Funktion, statt zu scheitern.
+    private const string OleObjectIid = "00000112-0000-0000-C000-000000000046";
+    private const string PersistStreamInitIid = "7FD52380-4E07-101B-AE2D-08002B2EC713";
+    private const int DvAspectContent = 1;
+    private const int SlotSetClientSite = 3;
+    private const int SlotClose = 6;
+    private const int SlotGetUserClassId = 15;
+    private const int SlotGetUserType = 16;
+    private const int SlotGetExtent = 18;
+    private const int SlotGetMiscStatus = 22;
+    private const int SlotLoad = 5;
+    private const int SlotSave = 6;
+    private const int SlotInitNew = 8;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProbeSize
+    {
+        public int Width;
+        public int Height;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int NoArgumentDelegate(IntPtr self);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int SetClientSiteDelegate(IntPtr self, IntPtr site);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int CloseDelegate(IntPtr self, int saveOption);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetMiscStatusDelegate(IntPtr self, int aspect, out int status);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetExtentDelegate(IntPtr self, int aspect, ref ProbeSize size);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetUserTypeDelegate(IntPtr self, int formOfType, out IntPtr userType);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetUserClassIdDelegate(IntPtr self, out Guid classId);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int LoadDelegate(IntPtr self, IntPtr stream);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int SaveDelegate(IntPtr self, IntPtr stream, int clearDirty);
+
+    [DllImport("ole32.dll")]
+    private static extern int CreateStreamOnHGlobal(
+        IntPtr hGlobal,
+        [MarshalAs(UnmanagedType.Bool)] bool deleteOnRelease,
+        out IntPtr stream);
+
+    /// <summary>
+    /// The interfaces an OLE control container asks for. The list is taken from the published
+    /// OLE Controls contract, not from what this compiler emits -- an inventory built from the
+    /// existing output would only ever confirm itself.
+    /// </summary>
+    private static readonly (string Name, string Iid)[] ControlSurface =
+    [
+        ("IDispatch", "00020400-0000-0000-C000-000000000046"),
+        ("IProvideClassInfo", "B196B283-BAB4-101A-B69C-00AA00341D07"),
+        ("IProvideClassInfo2", "A6BC3AC0-DBAA-11CE-9DE3-00AA004BB851"),
+        ("IConnectionPointContainer", "B196B284-BAB4-101A-B69C-00AA00341D07"),
+        ("IPersistStreamInit", "7FD52380-4E07-101B-AE2D-08002B2EC713"),
+        ("IPersistStream", "00000109-0000-0000-C000-000000000046"),
+        ("IPersistPropertyBag", "37D84F60-42CB-11CE-8135-00AA004BB851"),
+        ("IOleObject", "00000112-0000-0000-C000-000000000046"),
+        ("IOleControl", "B196B288-BAB4-101A-B69C-00AA00341D07"),
+        ("IOleWindow", "00000114-0000-0000-C000-000000000046"),
+        ("IOleInPlaceObject", "00000113-0000-0000-C000-000000000046"),
+        ("IOleInPlaceActiveObject", "00000117-0000-0000-C000-000000000046"),
+        ("IViewObject", "0000010D-0000-0000-C000-000000000046"),
+        ("IViewObject2", "00000127-0000-0000-C000-000000000046"),
+        ("IDataObject", "0000010E-0000-0000-C000-000000000046"),
+        ("ISpecifyPropertyPages", "B196B28B-BAB4-101A-B69C-00AA00341D07"),
+        ("IQuickActivate", "B196B28A-BAB4-101A-B69C-00AA00341D07"),
+        ("IPerPropertyBrowsing", "376BD3AA-3845-101B-84ED-08002B2EC713"),
+        ("IObjectSafety", "CB5BDC81-93C1-11CF-8F20-00805F2CD064")
+    ];
 
     /// <summary>
     /// The sink a client hands to a connection point. It is a plain COM-visible object with the
