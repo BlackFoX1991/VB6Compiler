@@ -1762,4 +1762,11 @@ public sealed class VBPropertyBag
     /// that was saved before.
     /// </summary>
     public bool IsEmpty => _values.Count == 0;
+
+    /// <summary>
+    /// The contents, for persisting the bag. Order is the insertion order the control wrote in, so
+    /// a saved block compares byte for byte with the next save of the same state -- a container
+    /// that diffs the two to decide whether anything changed depends on it.
+    /// </summary>
+    internal IReadOnlyList<KeyValuePair<string, object?>> Snapshot() => _values.ToList();
 }
