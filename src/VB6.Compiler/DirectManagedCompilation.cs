@@ -218,14 +218,22 @@ public static class DirectManagedCompilation
         }
 
         var hasStartupForm = VBProjectCompilation.TryGetStartupForm(lowering.Analysis, out _);
+        var hasGeneratedControl = !program.ClassDefinitions.IsDefault &&
+            program.ClassDefinitions.Any(definition => definition.Symbol.IsGeneratedControl);
         if (actualOptions.EnableWinFormsHost && hasStartupForm)
         {
             program = AddWinFormsStartupLifecycle(program);
         }
-        else if (actualOptions.EnableWinFormsHost)
+        else if (actualOptions.EnableWinFormsHost && !hasGeneratedControl)
         {
-            // The optional WindowsDesktop framework belongs only to an actual Form startup. Do
-            // not burden Sub Main or COM-library artifacts with a UI runtime dependency.
+            // The optional WindowsDesktop framework belongs only to an artifact that actually has a
+            // user interface. A Sub Main and a COM library of plain classes do not, and burdening
+            // them with a UI runtime dependency makes them unloadable where it is not installed.
+            //
+            // A component containing a UserControl is the exception, and it is not a borderline
+            // one: an ActiveX control's whole purpose is to be drawn in a container. Without the
+            // host it can answer every question about itself and still show nothing -- measured,
+            // and the reason this branch used to exclude it.
             actualOptions = actualOptions with { EnableWinFormsHost = false };
         }
 
