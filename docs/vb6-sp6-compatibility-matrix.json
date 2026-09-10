@@ -3075,17 +3075,39 @@
       "dependsOn": [
         "managed-r5-stream-persistence"
       ],
-      "implementation": "planned",
+      "implementation": "partial",
       "input": "Generierte UserControls im Fremdcontainer",
       "expected": {
         "acceptance": "Kompilierte ctl-Komponente unabhängig aktivieren, zeichnen, speichern, laden und freigeben; OLE View/In-Place, Ambient Properties und Events prüfen."
       },
       "verification": "not-yet-verified",
       "testRefs": [
+        "tests/VB6.Runtime.Tests/OleControlSurfaceTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/UserControlContainerClientTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Teilfortschritt am 2026-09-10. Gemessen zuerst, bevor etwas gebaut wurde: Ein kompiliertes .ctl, reg-frei aus dem eigenen Manifest aktiviert, beantwortete IDispatch, IProvideClassInfo und IConnectionPointContainer -- alle drei von der CLR -- und E_NOINTERFACE auf *jede* OLE-Control-Schnittstelle. Es war ein Automationsobjekt, das aus einem .ctl kam, kein Control. Zweite Vorabmessung, die den Bauweg entschied: Die CLR gibt eine verwaltete Schnittstelle mit einer OLE-IID aus ihrem eigenen CCW heraus, und die vtable-Slots stimmen -- anders als bei IID_IDispatch, das sie verweigert und das die handgebaute Flaeche braucht. Der COM-Vertrag steht damit als verwaltete Deklarationen auf einer Control-Basisklasse (VBComUserControl auf VBComEventSource), die der Emitter fuer eine Klasse aus einem .ctl waehlt; ein UserDocument und eine PropertyPage bekommen sie ausdruecklich nicht. Gemessen im Fremdprozess, ohne Registrierung, ueber rohe vtable-Slots statt ueber verwaltete Deklarationen (die Sonde bindet dieselbe Runtime wie der Server, eine falsch geordnete Deklaration waere sonst auf beiden Seiten gleich falsch): IDispatch, IProvideClassInfo, IConnectionPointContainer, IPersistStreamInit, IPersistPropertyBag, IOleObject, IOleControl, IOleWindow, IOleInPlaceObject, IOleInPlaceActiveObject, IViewObject und IViewObject2 werden herausgegeben; miscstatus=0x20191 (RECOMPOSEONRESIZE, CANTLINKINSIDE, INSIDEOUT, ACTIVATEWHENVISIBLE, SETCLIENTSITEFIRST); extent=3175x2116, also die Entwurfsgroesse 1800x1200 Twips der .ctl nach HIMETRIC gerechnet; usertype=Widget, also der VB6-Name statt des CLR-Namens; SetClientSite, InitNew, Save, Load und Close antworten S_OK, und der Zustand reist durch zwei unabhaengig aktivierte Instanzen (caption=Zaehler), die Freigabe endet auf 0. Ambient-Eigenschaften und die Ereignissperre sind in-process gemessen: OnAmbientPropertyChange traegt die DISPID als *Namen* an UserControl_AmbientChanged, DISPID_UNKNOWN einmal pro Eigenschaft, und FreezeEvents zaehlt statt zu schalten, weil die Aufrufe des Containers verschachteln. Offen bleiben genau zwei Teile der Abnahme, beide am selben Punkt: Zeichnen und In-Place-Aktivierung. Ihre Schnittstellen sind vollstaendig da und antworten, aber ohne Fenster und Gerätekontext sagen sie das ehrlich (E_FAIL fuer GetWindow, OLE_E_BLANK fuer Draw, OLEOBJ_S_CANNOT_DOVERB_NOW fuer DoVerb) statt eine Aktivierung zu behaupten, die nicht stattfand -- ein Container legt sonst um ein Fenster herum aus, das nie erscheint. Der Grund ist gemessen und liegt tiefer als eine fehlende Implementierung: Neben einer erzeugten ActiveX-Control-Komponente liegt ausschliesslich VB6.Runtime.dll. Der visuelle Host wird gar nicht mitgeliefert, es gibt also nichts, was eine IVBControlPresentation anhaengen koennte. Das ist als managed-r5-usercontrol-presentation abgetrennt, samt der Ereignisabnahme aus einem Fremdcontainer.",
       "title": "Generierte UserControls im Fremdcontainer"
+    },
+    {
+      "id": "managed-r5-usercontrol-presentation",
+      "matrixEntry": "activex-stock-and-generic-host",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-usercontrol-ole"
+      ],
+      "implementation": "planned",
+      "input": "Sichtbare Fläche eines UserControls im Fremdcontainer",
+      "expected": {
+        "acceptance": "Kompilierte ctl-Komponente in einem Fremdcontainer mit echtem Fenster in place aktivieren, in dessen Gerätekontext zeichnen und ein Ereignis an dessen Senke liefern; die Auslieferung trägt den dafür nötigen Host."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Runtime.Tests/OleControlSurfaceTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/UserControlContainerClientTests.cs"
+      ],
+      "notes": "Abgetrennt am 2026-09-10 aus managed-r5-usercontrol-ole, nachdem gemessen war, dass der COM-Vertrag steht und der Rest an einer anderen Stelle haengt. Der Vertrag ist vollstaendig: IOleObject.DoVerb, IOleInPlaceObject und beide IViewObject-Ids werden herausgegeben und antworten. Was fehlt, ist die Gegenseite -- ein Fenster und ein Gerätekontext. VBComUserControl fragt sie bei einer IVBControlPresentation nach; niemand haengt eine an, und der Grund ist die Auslieferung: Neben einer erzeugten Control-Komponente liegt nur VB6.Runtime.dll, nicht VB6.Runtime.WinForms.dll. Die Karte umfasst deshalb drei Dinge: eine WinForms-Umsetzung der Presentation (Kindfenster am HWND des Containers, Positionierung aus dem Positionsrechteck, Zeichnen in den fremden DC), einen Anhaengeweg, der die Schichtgrenze haelt (VB6.Runtime darf VB6.Runtime.WinForms nicht kennen), und eine Auslieferung, die den Host mitgibt. Die Abnahme verlangt einen Fremdcontainer, der selbst ein Fenster besitzt -- alle bisherigen Sonden sind Clients, kein Container -- und dort auch die Ereignisabnahme: Eine Senke am Connection Point des Controls muss ein RaiseEvent des Controls erhalten.",
+      "title": "Sichtbare Fläche eines UserControls im Fremdcontainer"
     },
     {
       "id": "managed-r5-property-pages",
@@ -3670,7 +3692,7 @@
         "tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs",
         "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
       ],
-      "gap": "managed-r5-usercontrol-ole: Generierte UserControls im Fremdcontainer; managed-r5-property-pages: PropertyPage-COM-Vertrag"
+      "gap": "managed-r5-usercontrol-ole: Zeichnen und In-Place-Aktivierung eines generierten UserControls; managed-r5-usercontrol-presentation: Sichtbare Fläche eines UserControls im Fremdcontainer; managed-r5-property-pages: PropertyPage-COM-Vertrag"
     },
     {
       "id": "abi-declare-addressof",

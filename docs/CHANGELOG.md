@@ -8951,3 +8951,72 @@ wichtigere von beiden: Die drei Namen decken nur ab, wonach der Test fragt; ein 
 zur Hälfte ankäme, fällt erst dort auf.
 
 Nativer Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` unter `TargetPlatform=x86`: 89 von 89, 0 übersprungen.
+
+## Ein `.ctl` wird ein Control — der COM-Vertrag von `managed-r5-usercontrol-ole`
+
+Erst gemessen, wie die Karte verlangt, und die Messung war eindeutig: Ein kompiliertes `.ctl`,
+reg-frei aus dem eigenen Manifest aktiviert, beantwortete `IDispatch`, `IProvideClassInfo` und
+`IConnectionPointContainer` — alle drei kamen von der CLR — und `E_NOINTERFACE` auf **jede**
+OLE-Control-Schnittstelle, die es gibt. Es war ein Automationsobjekt, das aus einem `.ctl` kam.
+Ein Container kann damit nichts anfangen: Ein ActiveX-Control ist keine Schnittstelle, sondern ein
+Satz, und ein Container entscheidet an genau diesem Satz, was er mit einem Control tun darf.
+
+Die zweite Vorabmessung entschied den Bauweg. Für `IID_IDispatch` hatte die CLR eine verwaltete
+Schnittstelle verweigert, weshalb dort eine handgebaute vtable steht. Für eine OLE-IID tut sie es
+**nicht**: Sie gibt die Schnittstelle aus ihrem eigenen CCW heraus, und die Slots stimmen —
+gegengeprüft durch einen Aufruf über Slot 5, der ankam. Eine handgebaute Fläche wäre hier mehr Code
+mit dem schlechteren Fehlerverhalten gewesen.
+
+Der Vertrag steht deshalb als verwaltete Deklarationen auf einer Control-Basisklasse. Sie sitzt auf
+`VBComEventSource`, weil ein Control zuerst eine Ereignisquelle ist, und der Emitter wählt sie für
+eine Klasse aus einem `.ctl` — nur dafür. Eine PropertyPage und ein UserDocument tragen dieselbe
+Designer-Fläche, sind aber keine Controls; ihnen die Schnittstellen zu geben hieße, sie einem
+Container als Controls anzubieten.
+
+Bei den Deklarationen ist die Reihenfolge der Methoden die vtable. Ein Member an falscher Stelle
+scheitert nicht, sondern ruft die falsche Funktion mit den falschen Argumenten — deshalb behält
+jede Methode ihren veröffentlichten Platz, auch die mit `E_NOTIMPL` beantworteten, und eine
+abgeleitete Schnittstelle deklariert alles ihrer Basis erneut. Zwei Stellen, an denen ein Container
+tatsächlich fragt, waren zuerst übersehen: `IViewObject` ohne die `2` — wer nur die neuere anbietet,
+lässt einen Container, der nur die ältere kennt, gar nicht zeichnen, denn er fällt nicht zurück —
+und `IPersistPropertyBag`, der Weg, den VB6s eigener Designer wählt und der erklärt, warum eine
+`.frx` Namen und Werte statt Bytes trägt.
+
+**Gemessen im Fremdprozess, ohne Registrierung, und bewusst über rohe vtable-Slots** statt über
+verwaltete Deklarationen: Die Sonde bindet dieselbe Runtime wie der Server, eine falsch geordnete
+Deklaration wäre also auf beiden Seiten gleich falsch und der Rundlauf ginge trotzdem durch. Eine
+Slotnummer ist eine unabhängige Aussage.
+
+```
+miscstatus=0x20191        extent=3175x2116          usertype=Widget
+setclientsite=0x00000000  initnew=0x00000000        save=0x00000000
+load=0x00000000           caption=Zaehler           close=0x00000000   release=0
+```
+
+`0x20191` ist die Kombination eines VB6-UserControls, und `SETCLIENTSITEFIRST` darin ist die
+wichtigste: Ohne sie lädt der Container den Zustand, bevor das Control seine Site hat, und jede
+Ambient-Eigenschaft, die es beim Wiederherstellen liest, fehlt. `3175x2116` ist die Entwurfsgröße
+der `.ctl` — 1800 × 1200 Twips — nach HIMETRIC gerechnet; die Umrechnung steht mit im Test, weil
+ein Container, dem Twips gereicht werden, das Control rund 1,76-fach zu klein auslegt und dabei
+niemand einen Fehler sieht. Und `caption=Zaehler` ist der eigentliche Nachweis: Der Zustand ist
+durch **zwei unabhängig aktivierte Instanzen** gereist.
+
+Ambient Properties und die Ereignissperre sind in-process gemessen. `OnAmbientPropertyChange` trägt
+die DISPID als *Namen* an `UserControl_AmbientChanged`, weil VB6 den Namen übergibt;
+`DISPID_UNKNOWN` heißt „alle" und wird einmal pro Eigenschaft gemeldet, nicht einmal mit leerem
+Namen. `FreezeEvents` zählt statt zu schalten, weil die Aufrufe eines Containers verschachteln —
+ein Flag taut auf, während der äußere Aufrufer noch eingefroren zu sein glaubt.
+
+**Die Karte bleibt `partial`, und zwar an einem einzigen Punkt.** Zeichnen und In-Place-Aktivierung
+sind Teil der Abnahme und fehlen. Ihre Schnittstellen sind vollständig da und antworten — aber ohne
+Fenster und Gerätekontext sagen sie das ehrlich (`E_FAIL`, `OLE_E_BLANK`,
+`OLEOBJ_S_CANNOT_DOVERB_NOW`) statt eine Aktivierung zu behaupten, die nicht stattfand. Der Grund
+liegt tiefer als eine fehlende Implementierung, und er ist gemessen: **Neben einer erzeugten
+ActiveX-Control-Komponente liegt ausschließlich `VB6.Runtime.dll`.** Der visuelle Host wird gar
+nicht mitgeliefert, es gibt also nichts, was eine Presentation anhängen könnte. Das ist drei Dinge
+— eine WinForms-Umsetzung, ein Anhängeweg, der die Schichtgrenze hält, und eine Auslieferung, die
+den Host mitgibt — und dazu eine Abnahme, die einen Fremdcontainer mit **eigenem Fenster** braucht;
+alle bisherigen Sonden sind Clients, kein Container. Abgetrennt als
+`managed-r5-usercontrol-presentation`, mit der Ereignisabnahme aus einem Fremdcontainer dazu.
+
+Kanonischer Lauf: 1884 von 1884, 0 übersprungen, VISIA 40/40, 0 Warnungen.

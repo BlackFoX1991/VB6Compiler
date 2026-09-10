@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 173 Erwartungen: 164 `implemented`, 0 `partial`, 9 `planned`;
-164 `documented-verified`, 9 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 174 Erwartungen: 164 `implemented`, 1 `partial`, 9 `planned`;
+164 `documented-verified`, 10 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -51,6 +51,16 @@ einer vtable aus Funktionszeigern und einer eigenen `IRecordInfo`. Damit gehöre
 Marshalling dem Compiler. Ebenfalls geschlossen ist `managed-r5-stream-persistence`: Der
 persistierte Strom eines Controls reist über `AxHost.OcxState` und muss dort ankommen, **bevor**
 das OCX entsteht — ein spätes `Load` wird angenommen und ignoriert.
+
+Aktive Karte ist `managed-r5-usercontrol-ole`, und sie steht auf `partial`. Der COM-Vertrag eines
+generierten UserControls ist gebaut und im Fremdprozess gemessen: `VBComUserControl` trägt die
+OLE-Control-Schnittstellen, der Emitter wählt diese Basis für eine Klasse aus einem `.ctl`, und
+Aktivieren, Beschreiben, Speichern, Laden und Freigeben laufen reg-frei über rohe vtable-Slots
+durch — der Zustand reist durch zwei unabhängig aktivierte Instanzen. Offen sind **Zeichnen und
+In-Place-Aktivierung**, und zwar an einem gemessenen Punkt: Neben einer erzeugten
+ActiveX-Control-Komponente liegt ausschließlich `VB6.Runtime.dll`. Der visuelle Host wird nicht
+mitgeliefert, es gibt also nichts, was eine `IVBControlPresentation` anhängen könnte. Abgetrennt
+als `managed-r5-usercontrol-presentation`.
 
 Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
@@ -286,8 +296,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `931fa56` mit nicht committeten Änderungen: 1865 Standardfälle in 13 Projekten,
-1865 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
+Stand der Prüfung 2026-09-10 auf `972efd4` mit nicht committeten Änderungen: 1884 Standardfälle in 13 Projekten,
+1884 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
@@ -411,6 +421,18 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Tüte kann sie also nicht unterscheiden, und eine durchgereichte Zeichenkette wird als
   Schnittstellenzeiger gelesen: `0xC0000005`. `IPersistStreamInit` braucht keines der gemessenen
   Stock-Controls — `TextRTF` und `Buttons` bietet die Tüte selbst an.
+- **Eine OLE-Schnittstelle darf eine verwaltete Deklaration sein — `IID_IDispatch` nicht.** Für
+  `IID_IDispatch` verweigert die CLR ein verwaltetes Interface mit dieser GUID (`E_NOINTERFACE`),
+  weshalb dort die handgebaute vtable in `VBComDispatchSurface` steht. Für jede andere OLE-IID gibt
+  sie die Schnittstelle aus ihrem eigenen CCW heraus, und die Slots stimmen — gemessen. Eine
+  handgebaute Fläche wäre dort mehr Code mit dem schlechteren Fehlerverhalten. Drei Regeln beim
+  Deklarieren: **Die Reihenfolge der Methoden ist die vtable**, und ein Member an falscher Stelle
+  scheitert nicht, sondern ruft die falsche Funktion mit den falschen Argumenten — also behält jede
+  Methode ihren veröffentlichten Platz, auch die mit `E_NOTIMPL` beantworteten. Eine **abgeleitete**
+  COM-Schnittstelle deklariert alles ihrer Basis erneut; C#-Interfacevererbung baut diese vtable
+  nicht. Und `IViewObject` und `IViewObject2` sind **zwei Ids**: Ein Container, der nur die ältere
+  kennt, fragt die ältere und fällt nicht zurück — wer nur die neuere anbietet, lässt ihn gar nicht
+  zeichnen. Dasselbe gilt für `IPersistStream` gegen `IPersistStreamInit`.
 - **Ein persistierter Strom kommt zu spät, sobald das OCX existiert — und `AxHost.State` hat zwei
   stumme Fallen.** Ein erzeugtes Control nimmt `IPersistStreamInit.Load` **an und ignoriert es**;
   es meldet keinen Fehler, es behält seine Vorgaben. Der Block gehört ihm vor der Erzeugung

@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `931fa56` mit nicht committeten Änderungen, Lauf `20260910T080142Z-f0dca120`:
+Messung vom 2026-09-10 auf `main` / `972efd4` mit nicht committeten Änderungen, Lauf `20260910T085412Z-f6b5fa5f`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1865 Fälle: 1865 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1884 Fälle: 1884 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **173 Erwartungen**, davon **164 implemented**, **0 partial** und **9 planned**;
-**164/173 documented-verified**, 9 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **174 Erwartungen**, davon **164 implemented**, **1 partial** und **9 planned**;
+**164/174 documented-verified**, 10 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -474,7 +474,8 @@ Die Grafikimplementierung arbeitet derzeit auf verwalteten Bitmaps. Entscheidend
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r5-usercontrol-ole` | **Generierte UserControls im Fremdcontainer:** Kompilierte ctl-Komponente unabhängig aktivieren, zeichnen, speichern, laden und freigeben; OLE View/In-Place, Ambient Properties und Events prüfen. |
+| `managed-r5-usercontrol-ole` | **Generierte UserControls im Fremdcontainer** — `partial`: Aktivieren, Beschreiben, Speichern, Laden und Freigeben sind im Fremdprozess gemessen, ebenso Ambient Properties und die Ereignissperre. Offen sind Zeichnen und In-Place-Aktivierung; sie hängen an `managed-r5-usercontrol-presentation`. |
+| `managed-r5-usercontrol-presentation` | **Sichtbare Fläche eines UserControls im Fremdcontainer:** Kompilierte ctl-Komponente in einem Fremdcontainer mit echtem Fenster in place aktivieren, in dessen Gerätekontext zeichnen und ein Ereignis an dessen Senke liefern; die Auslieferung trägt den dafür nötigen Host. |
 | `managed-r5-property-pages` | **PropertyPage-COM-Vertrag:** Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt. |
 | `managed-r5-enterprise` | **Enterprise-Artefakte ausführen:** DataEnvironment-Kommandos, DataReport-Bindung/Ausgabe und UserDocument-Hosting über kontrollierte Fixtures/verfügbare ADO-Komponenten prüfen; fehlende Abhängigkeiten sichtbar lassen. |
 | `managed-r5-forms` | **Forms- und Control-Verträge schließen:** Start-/Defaultinstanz, Unload/Wiederladen, Fokus, Tab/Z-Order, Modalität, Menüs, Control-Arrays und Stock-Events auf Identität/Ereignisreihenfolge prüfen; native Fälle verlangen x86. |
