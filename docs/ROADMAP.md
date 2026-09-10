@@ -21,14 +21,14 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `3daf087` mit nicht committeten Änderungen, Lauf `20260910T124003Z-930f3337`:
+Messung vom 2026-09-10 auf `main` / `8c612be` mit nicht committeten Änderungen, Lauf `20260910T130427Z-1b003b3c`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1891 Fälle: 1891 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1893 Fälle: 1893 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
-| Orakel-Gegenpruefung gegen VB6 SP6 | 3/3 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
+| Orakel-Gegenpruefung gegen VB6 SP6 | 5/5 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
 Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
@@ -42,8 +42,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **180 Erwartungen**, davon **166 implemented**, **0 partial** und **14 planned**;
-**166/180 documented-verified**, 14 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **183 Erwartungen**, davon **166 implemented**, **0 partial** und **17 planned**;
+**166/183 documented-verified**, 17 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -540,6 +540,28 @@ invariant (`.3333333` mit Punkt), während `CStr` daneben mit Komma antwortet.
 | `r1-number-notation-threshold` | **Schwelle zur Exponentialschreibweise:** Eine Zahl wird erst dort exponentiell geschrieben, wo das Original es tut — `0,00001` bleibt ausgeschrieben. |
 | `r1-format-general-single` | **General Number auf einem Single:** sieben signifikante Stellen wie im Original, nicht fünfzehn. |
 | `r1-str-leading-zero` | **Führende Null von Str:** `Str` lässt die Null vor dem Trenner weg; das führende Leerzeichen für positive Zahlen bleibt. |
+| `r1-chdir-missing-directory` | **Fehlernummer von ChDir:** ein fehlendes Verzeichnis meldet 76 (Path not found), nicht 53. |
+| `r1-put-binary-string-layout` | **Bytelayout eines Strings bei `Put`:** im Binary-Modus ohne Längenpräfix und in der ANSI-Codepage, wie das Original. |
+| `r1-put-fixed-string` | **`Put` eines Strings fester Länge:** `String * n` wird getragen statt mit `VB6S0058` abgelehnt. |
+
+Der dritte und vierte Durchgang trafen die Fehlernummern und die Datei-Layouts, und sie fielen sehr
+verschieden aus. Bei den **Fehlernummern** stimmt 25 von 26 — sämtliche Verdächtigen des
+Sammelwerts 5 ebenso wie `Kill` und `FileDateTime` auf eine fehlende Datei, die früher gar nichts
+meldeten. Diese Fläche kam aus R1 in gutem Zustand.
+
+Bei den **Datei-Layouts** liegt der schwerste Befund des Tages. Elf von zwölf Werten kommen
+bytegleich heraus — Integer, Long, Byte, Boolean, Single, Double, Currency, Date, auch negativ. Ein
+String im Binary-Modus nicht:
+
+```
+Put #f, 1, "ABC"     VB6: 41 42 43                    (ANSI, kein Präfix)
+                     wir: 03 00 41 00 42 00 43 00     (Längenpräfix + UTF-16)
+```
+
+Das Längenpräfix gehört zum *Random*-Modus, und die Kodierung ist unabhängig davon falsch. Die
+Folge ist eine in beide Richtungen gebrochene Dateikompatibilität — genau das, was dieser Compiler
+verhindern soll. Gemessen wurde gegen **Rohbytes**, nicht gegen einen Selbst-Roundtrip; der
+Random-Modus ist eine eigene, noch offene Frage.
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 

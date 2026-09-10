@@ -3111,6 +3111,57 @@
       "title": "Sichtbare Fläche eines UserControls im Fremdcontainer"
     },
     {
+      "id": "r1-put-binary-string-layout",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Bytelayout eines Strings bei Put im Binary-Modus",
+      "expected": {
+        "acceptance": "Put schreibt im Binary-Modus die Zeichen eines Strings ohne Laengenpraefix und in der ANSI-Codepage, wie das Original."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6, gegen Rohbytes und nicht gegen einen Selbst-Roundtrip -- die Roadmap sagt zu dieser Flaeche ausdruecklich, dass ihre Vertraege auf VBA-Dokumentation ruhen und nie gegen ein Original geprueft wurden. Put #f, 1, 'ABC' im Binary-Modus ergibt im Original 414243, also drei ANSI-Bytes ohne Praefix, und bei uns 0300410042004300: ein Zwei-Byte-Laengenpraefix gefolgt von UTF-16. Das sind zwei Fehler in einem Wert. Das Laengenpraefix gehoert zum **Random**-Modus, nicht zum Binary-Modus, und die Kodierung ist unabhaengig davon falsch -- VB6 schreibt Datei-I/O in der ANSI-Codepage, was CLAUDE.md fuer das vb6-sp6-Profil auch so festhaelt. Die Folge ist eine gebrochene Dateikompatibilitaet in beide Richtungen: Eine Datendatei eines VB6-Programms ist fuer unser Programm unlesbar und umgekehrt, und genau das zu verhindern ist der Zweck dieses Compilers. Was im selben Lauf **stimmt**, grenzt den Befund ein: Integer, Long, Byte, Boolean, Single, Double, Currency und Date kommen bytegleich heraus, bei den vorzeichenbehafteten auch negativ. Die Zahlenlayouts sind also richtig; allein der String ist es nicht. Der Random-Modus wurde hier nicht gemessen und ist eine eigene Frage.",
+      "title": "Bytelayout eines Strings bei Put im Binary-Modus"
+    },
+    {
+      "id": "r1-put-fixed-string",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Put eines Strings fester Laenge",
+      "expected": {
+        "acceptance": "Put und Get tragen einen String * n und schreiben genau n Zeichen, wie das Original."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs"
+      ],
+      "notes": "Gefunden am 2026-09-10 beim Bau der Orakelsonde fuer Datei-Layouts. Put eines String * 6 meldet bei uns VB6S0058: 'Put of type String * 6 is not implemented yet; scalar values, arrays with supported elements, Strings, and supported UDT record layouts are transferable.' Das ist das **gewuenschte** Verhalten fuer eine Luecke -- gemeldet statt still etwas Aehnliches getan, genau die Regel aus CLAUDE.md -- und trotzdem eine Luecke: Das Original uebersetzt und schreibt. Der Fall ist deshalb aus OracleFileLayoutTests herausgenommen und nicht etwa uebersprungen worden; ein Orakelvergleich braucht zwei laufende Programme, und ein Fall, der unsere Seite gar nicht uebersetzen laesst, haette die ganze Sonde blockiert. Er kommt dorthin zurueck, sobald Put ihn traegt -- die Bytefrage (n Zeichen, mit Leerzeichen aufgefuellt, in welcher Kodierung) ist dann in derselben Messung mitzubeantworten wie r1-put-binary-string-layout.",
+      "title": "Put eines Strings fester Laenge"
+    },
+    {
+      "id": "r1-chdir-missing-directory",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Fehlernummer von ChDir bei fehlendem Verzeichnis",
+      "expected": {
+        "acceptance": "ChDir auf ein fehlendes Verzeichnis meldet 76 (Path not found) wie das Original, nicht 53."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleErrorNumberTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6. ChDir auf ein nicht vorhandenes Verzeichnis meldet im Original 76 (Path not found), bei uns 53 (File not found). Ein VB6-Programm, das auf 76 verzweigt, sieht unsere 53 nie. Der Befund ist der einzige aus 26 gemessenen Fehlerfaellen, und das ist die eigentliche Aussage dieser Messung: Alle Verdaechtigen des Sammelwerts 5 stimmen, und auch Kill und FileDateTime auf eine fehlende Datei -- die beiden, die frueher gar nichts meldeten -- geben inzwischen dieselbe Nummer wie das Original. Die Flaeche kam aus R1 in gutem Zustand; was bleibt, ist eine *andere* falsche Nummer, keine fehlende.",
+      "title": "Fehlernummer von ChDir bei fehlendem Verzeichnis"
+    },
+    {
       "id": "r1-cstr-locale",
       "matrixEntry": "runtime-variant-and-conversions",
       "milestone": "R1",
@@ -3590,8 +3641,9 @@
         "bitness": "agnostic",
         "com": "none"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "r1-put-binary-string-layout: Bytelayout eines Strings bei Put im Binary-Modus; r1-put-fixed-string: Put eines Strings fester Laenge; r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis",
       "tests": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",

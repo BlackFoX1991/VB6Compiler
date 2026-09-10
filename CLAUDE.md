@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 180 Erwartungen: 166 `implemented`, 0 `partial`, 14 `planned`;
-166 `documented-verified`, 14 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 183 Erwartungen: 166 `implemented`, 0 `partial`, 17 `planned`;
+166 `documented-verified`, 17 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -294,8 +294,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `3daf087` mit nicht committeten Änderungen: 1891 Standardfälle in 13 Projekten,
-1891 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
+Stand der Prüfung 2026-09-10 auf `8c612be` mit nicht committeten Änderungen: 1893 Standardfälle in 13 Projekten,
+1893 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->

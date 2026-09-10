@@ -9245,3 +9245,51 @@ durchgehen und eine Regression ebenso.
 
 Kanonischer Lauf mit allen drei Laufarten: 1891/1891 im Standardlauf, 93/93 nativ, 3/3 Orakel, alle
 ohne übersprungene Fälle, VISIA 40/40, Gate vollständig.
+
+## Fehlernummern und Datei-Layouts am Original — zwei sehr verschiedene Ergebnisse
+
+Punkt drei und vier des Durchgangs, und sie fielen so unterschiedlich aus, dass die Gegenüber-
+stellung selbst die Aussage ist.
+
+**Die Fehlernummern kamen gut heraus.** 26 Fälle, eine Abweichung. Sämtliche Verdächtigen des
+Sammelwerts 5 stimmen — `Sqr(-1)`, `Log(0)`, `Left$` mit negativer Länge, `Chr(-1)` und die
+übrigen — und auch `Kill` und `FileDateTime` auf eine fehlende Datei, also genau die beiden, die
+laut Projektnotizen früher *gar nichts* meldeten, weil .NET den Fehler verbarg. Die Fälle wurden
+bewusst so gebaut, dass eine 0 eine mögliche Antwort ist; sonst findet eine Fehlernummernmessung
+diese Klasse nie. Bleibt eine Abweichung: `ChDir` auf ein fehlendes Verzeichnis meldet im Original
+**76** (Path not found), bei uns 53 (File not found). Eine *andere* falsche Nummer, keine fehlende
+— offen als `r1-chdir-missing-directory`.
+
+**Die Datei-Layouts trugen den schwersten Befund des Tages.** Das ist die Fläche, von der die
+Roadmap ausdrücklich sagt, ihre Verträge ruhten auf VBA-Dokumentation und seien „kein
+Original-VB6-Lauf" — sie hat am längsten auf ein Orakel gewartet. Gemessen wurde, wie R1 es
+vorschreibt, gegen **Rohbytes** und nicht gegen einen Selbst-Roundtrip: Ein `Put`/`Get`-Paar
+bestätigt nur sich selbst.
+
+Elf von zwölf Werten kommen bytegleich heraus. Integer, Long, Byte, Boolean, Single, Double,
+Currency und Date, bei den vorzeichenbehafteten auch negativ — die Zahlenlayouts waren die ganze
+Zeit richtig. Der String nicht:
+
+```
+Put #f, 1, "ABC"     VB6: 41 42 43                    drei ANSI-Bytes, kein Präfix
+                     wir: 03 00 41 00 42 00 43 00     Längenpräfix + UTF-16
+```
+
+Zwei Fehler in einem Wert. Das Zwei-Byte-Längenpräfix gehört zum **Random**-Modus und nicht in den
+Binary-Modus, und die Kodierung ist unabhängig davon falsch — VB6 schreibt Datei-I/O in der
+ANSI-Codepage, was `CLAUDE.md` für das `vb6-sp6`-Profil selbst so festhält. Die Folge ist eine in
+beide Richtungen gebrochene Dateikompatibilität: Die Datendatei eines VB6-Programms ist für unser
+Programm unlesbar und umgekehrt. Genau das zu verhindern ist der Zweck dieses Compilers. Offen als
+`r1-put-binary-string-layout`; der Random-Modus wurde hier nicht gemessen und bleibt eine eigene
+Frage.
+
+**Ein dritter Befund entstand beim Bauen der Sonde selbst**, und er ist ein Lob wert: `Put` eines
+`String * 6` meldet `VB6S0058` — „is not implemented yet". Das ist das *gewünschte* Verhalten für
+eine Lücke, gemeldet statt still etwas Ähnliches getan. Eine Lücke bleibt es trotzdem, denn das
+Original übersetzt und schreibt. Der Fall steht als `r1-put-fixed-string` und wurde aus der Sonde
+**herausgenommen statt übersprungen**: Ein Orakelvergleich braucht zwei laufende Programme, und ein
+Fall, der unsere Seite gar nicht übersetzen lässt, hätte die ganzen zwölf blockiert.
+
+Damit stehen nach vier Durchgängen acht schmale Karten aus Orakelmessungen. Kanonischer Lauf mit
+allen drei Laufarten: 1893/1893 im Standardlauf, 93/93 nativ, 5/5 Orakel, alle ohne übersprungene
+Fälle, VISIA 40/40, Gate vollständig.
