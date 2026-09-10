@@ -1264,7 +1264,7 @@ public static class VBFiles
             return encoding.GetString(bytes);
         }
 
-        var text = ReadCharacters(fileNumber, stream, encoding, characterCount);
+        var text = ReadCharacters(fileNumber, stream, encoding, characterCount, sizeof(ushort));
         AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
         return text;
     }
@@ -1280,7 +1280,8 @@ public static class VBFiles
         int fileNumber,
         FileStream stream,
         Encoding encoding,
-        int characterCount)
+        int characterCount,
+        int reservedBytes)
     {
         var decoder = encoding.GetDecoder();
         var characters = new char[characterCount];
@@ -1289,7 +1290,7 @@ public static class VBFiles
 
         while (produced < characterCount)
         {
-            EnsureRecordFits(fileNumber, consumed + 1 + sizeof(ushort));
+            EnsureRecordFits(fileNumber, consumed + 1 + reservedBytes);
             var next = ReadRaw(stream, 1);
             consumed++;
             produced += decoder.GetChars(next, 0, 1, characters, produced);
@@ -1584,6 +1585,82 @@ public static class VBFiles
         payload.CopyTo(bytes, sizeof(ushort));
         WriteRecordRaw(fileNumber, bytes);
     }
+
+    /// <summary>
+    /// Writes a <c>String * n</c> at a position: exactly n characters, padded with spaces, and no
+    /// descriptor in either mode.
+    ///
+    /// Measured against VB6 SP6 on 2026-09-10 -- a <c>String * 6</c> holding <c>"AB"</c> writes
+    /// <c>41 42 20 20 20 20</c>. The declared width *is* the length, which is why this transfer
+    /// needs neither a descriptor nor, on the way back, the target's current value: unlike a
+    /// variable-length String it always knows how much it is.
+    /// </summary>
+    public static void PutFixedString(
+        int fileNumber,
+        long? position,
+        string value,
+        int length,
+        VBCompatibilityProfile compatibilityProfile)
+    {
+        ValidateFixedStringLength(length);
+        var padded = VBTypeStorage.WriteFixedString(value ?? string.Empty, length);
+        Write(fileNumber, position, TextEncoding(compatibilityProfile).GetBytes(padded));
+    }
+
+    public static void PutFixedString(
+        int fileNumber,
+        string value,
+        int length,
+        VBCompatibilityProfile compatibilityProfile) =>
+        PutFixedString(fileNumber, null, value, length, compatibilityProfile);
+
+    public static void PutFixedString(
+        int fileNumber,
+        long position,
+        string value,
+        int length,
+        VBCompatibilityProfile compatibilityProfile) =>
+        PutFixedString(fileNumber, (long?)position, value, length, compatibilityProfile);
+
+    /// <summary>Reads a <c>String * n</c> back: exactly n characters, padding included.</summary>
+    public static string GetFixedString(
+        int fileNumber,
+        long? position,
+        int length,
+        VBCompatibilityProfile compatibilityProfile)
+    {
+        ValidateFixedStringLength(length);
+        var encoding = TextEncoding(compatibilityProfile);
+        var stream = Seek(fileNumber, position);
+        var recordStart = stream.Position;
+
+        // Bei einer Einbyte-Codepage ist n die Bytezahl; sonst muss zeichenweise dekodiert werden,
+        // weil n Bytes mitten durch ein Zeichen schneiden koennten.
+        if (encoding.IsSingleByte)
+        {
+            EnsureRecordFits(fileNumber, length);
+            var bytes = ReadRaw(stream, length);
+            AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
+            return encoding.GetString(bytes);
+        }
+
+        var text = ReadCharacters(fileNumber, stream, encoding, length, reservedBytes: 0);
+        AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
+        return text;
+    }
+
+    public static string GetFixedString(
+        int fileNumber,
+        int length,
+        VBCompatibilityProfile compatibilityProfile) =>
+        GetFixedString(fileNumber, null, length, compatibilityProfile);
+
+    public static string GetFixedString(
+        int fileNumber,
+        long position,
+        int length,
+        VBCompatibilityProfile compatibilityProfile) =>
+        GetFixedString(fileNumber, (long?)position, length, compatibilityProfile);
 
     /// <summary>Writes a fixed-length UDT String as exactly its declared byte width.</summary>
     public static void PutRawFixedString(int fileNumber, string value, int length)
