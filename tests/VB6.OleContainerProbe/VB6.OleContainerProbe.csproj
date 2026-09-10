@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    Kein Projektverweis. Dieser Prozess ist der Fremdcontainer der Abnahme: Er darf nichts vom
+    Server wissen, und eine geteilte Deklaration waere auf beiden Seiten gleich falsch.
+
+    WindowsDesktop ist hier Pflicht und war der erste gemessene Befund der Karte: Eine
+    In-Proc-.NET-Komponente, die dieses Framework verlangt, laedt nicht in einen Prozess, dessen
+    Runtime schon ohne es initialisiert wurde. CoCreateInstance endet dann mit 0x800080A5 und der
+    Hostmeldung, das Framework sei in der bereits geladenen Runtime nicht vorhanden. Ein nativer
+    Container hat keine vorgeladene Runtime und ist nicht betroffen.
+  -->
+</Project>

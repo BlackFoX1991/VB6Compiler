@@ -15,4 +15,27 @@
     <ProjectReference Include="../../src/VB6.Runtime/VB6.Runtime.csproj" />
     <ProjectReference Include="../VB6.ComActivationProbe/VB6.ComActivationProbe.csproj" />
   </ItemGroup>
+
+  <!--
+    Der OLE-Containerprozess ist net10.0-windows, dieses Testprojekt ist net10.0. Er wird deshalb
+    nur gebaut, nicht referenziert, und danach in ein Unterverzeichnis der Testausgabe kopiert.
+    Ein gewoehnlicher ProjectReference waere hier ein Frameworkkonflikt, und ein in die Assembly
+    gebackener Quellpfad waere schlechter: Er ueberlebt kein Verschieben des Ausgabeordners.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../VB6.OleContainerProbe/VB6.OleContainerProbe.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <Target Name="CopyOleContainerProbe" AfterTargets="Build">
+    <ItemGroup>
+      <OleContainerProbeFiles
+        Include="$(MSBuildThisFileDirectory)../VB6.OleContainerProbe/bin/$(Configuration)/net10.0-windows/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(OleContainerProbeFiles)"
+          DestinationFolder="$(OutDir)ole-container/%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
