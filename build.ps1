@@ -247,6 +247,23 @@ function Get-VerificationRegions {
         $nativeLimitEn = 'Separate x86 run of the WinForms tests'
     }
 
+    # Die Gegenpruefung gegen den Originalcompiler gehoert in die Tabelle, ob sie lief oder nicht.
+    # Lief sie nicht, ist das die wichtigere Zeile: Sie sagt, dass jede Zusage darunter
+    # dokumentationsgestuetzt bleibt und nicht am Original gemessen wurde.
+    $oracle = @($Report.runs | Where-Object { $_.kind -eq 'oracle' }) | Select-Object -First 1
+    if ($null -eq $oracle) {
+        $oracleResultDe = 'nicht ausgeführt'
+        $oracleResultEn = 'not run'
+        $oracleLimitDe = 'Ohne sie bleibt jede Erwartung documented-verified und wird nie oracle-verified'
+        $oracleLimitEn = 'Without it every expectation stays documented-verified, never oracle-verified'
+    }
+    else {
+        $oracleResultDe = "$($oracle.passed)/$($oracle.total) bestanden, $($oracle.skipped) übersprungen"
+        $oracleResultEn = "$($oracle.passed)/$($oracle.total) passed, $($oracle.skipped) skipped"
+        $oracleLimitDe = 'Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt'
+        $oracleLimitEn = 'Compared against VB6 SP6; covers only the surface an oracle case asks about'
+    }
+
     $rerunRowsDe = ''
     $rerunRowsEn = ''
     foreach ($rerun in @($Report.runs | Where-Object { $_.kind -eq 'rerun' })) {
@@ -267,6 +284,7 @@ Messung vom $date auf ``$branch`` / ``$commit``$dirtyDe, Lauf ``$($Report.runId)
 | Release-Build | 0 Warnungen, 0 Fehler | ``TreatWarningsAsErrors``: eine Warnung bricht den Build ab |
 | Standardlauf, $($standard.Count) Testprojekte | $standardCases Fälle: $standardPassed bestanden, $standardFailed fehlgeschlagen, $standardSkipped übersprungen | $standardLimitDe |
 | Nativer x86-Lauf mit ``VB6_REQUIRE_NATIVE_OCX=1`` | $nativeResultDe | $nativeLimitDe |
+| Orakel-Gegenpruefung gegen VB6 SP6 | $oracleResultDe | $oracleLimitDe |
 | VISIA-Analyse | $($Report.visia.analyzed)/$($Report.visia.items) Projektitems, $($Report.visia.errors) Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |$rerunRowsDe
 
 Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **$($Report.gate.complete)**.
@@ -286,6 +304,7 @@ Measured on $date at ``$commit`` on ``$branch``$dirtyEn, run ``$($Report.runId)`
 | Release build | 0 warnings, 0 errors | ``TreatWarningsAsErrors``: one warning fails the build |
 | Standard serial run, $($standard.Count) test projects | $standardCases cases: $standardPassed passed, $standardFailed failed, $standardSkipped skipped | $standardLimitEn |
 | Native x86 run with ``VB6_REQUIRE_NATIVE_OCX=1`` | $nativeResultEn | $nativeLimitEn |
+| Oracle cross-check against VB6 SP6 | $oracleResultEn | $oracleLimitEn |
 | VISIA analysis | $($Report.visia.analyzed)/$($Report.visia.items) project items, $($Report.visia.errors) diagnostics | Analysis and binding only, not application runtime behavior |$rerunRowsEn
 
 Complete gate (standard run and native x86 run on the same source state): **$($Report.gate.complete)**.
