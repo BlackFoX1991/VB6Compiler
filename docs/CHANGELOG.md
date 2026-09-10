@@ -9191,3 +9191,57 @@ ausdrückliche Rückfrage — `/make` braucht `VB6.reg` nicht —, und ein Vergl
 `--compatibility vb6-sp6`, weil Locale-Verträge profilabhängig sind. Das Dezimalkomma des Originals
 gegen unseren Dezimalpunkt im `Deterministic`-Profil ist deshalb **kein** Befund, sondern eine
 entschiedene Differenz.
+
+## Der Harness, und was der erste breite Durchgang zutage fördert
+
+Aus der Einzelmessung von heute Vormittag ist ein wiederholbarer Aufbau geworden. Ein Fall ist:
+derselbe Quelltext durch **beide** Compiler, **beide** Programme ausgeführt, ihre *Ausgabedateien*
+verglichen. Nicht Exitcodes, nicht Diagnosen — die Werte, die sie erzeugen. In eine Datei, weil ein
+kompiliertes VB6-Programm keine Konsole hat und `Debug.Print` dort ins Leere geht.
+
+Vier Dinge stecken als Erfahrung im Harness, jedes davon vom Original gelehrt. Drei Namensregeln,
+die es beim Bauen der ersten Sonden gemeldet hat: Ein Modul darf nicht `Main` heißen, wenn der
+Start `Sub Main` ist; VB6 ist case-insensitiv, eine lokale Variable `p` neben einem `Sub P` ist ein
+Kompilierfehler; und Modulname und Projektname müssen sich unterscheiden. **Keine der drei setzt
+unser Compiler durch** — für sich schon ein Befund. Dazu der x86-Host: Unsere Seite wird als x86
+emittiert, weil das `vb6-sp6`-Profil das verlangt, und ein 64-Bit-Testhost kann sie nicht starten.
+Diese Meldung steht auf der Ausgabe des *Kindes*, nicht als Ausnahme im Testhost — der erste
+Entwurf verwarf sie und machte den Fehler dadurch unlesbar, genau wie die Projektnotizen es für
+Exitcode `-532462766` beschreiben.
+
+`build.ps1 -RequireOracle` nimmt den Lauf als **eigene Laufart** auf, neben `standard` und
+`native-x86`, und summiert ihn nie in den Standardlauf — R7 verlangt die Gegenprüfung ausdrücklich
+„als Verifikationsstatus getrennt sichtbar". Der Messwertblock trägt jetzt eine Orakelzeile, auch
+wenn kein Orakel lief; dann ist sie die wichtigere von beiden, denn sie sagt, dass jede Zusage
+darunter dokumentationsgestützt bleibt.
+
+**Der zweite Durchgang galt der Zahlenausgabe** — der Fläche, deren Begründung am Vormittag
+widerlegt wurde. Zwölf Abweichungen, und die naheliegendste Erklärung war die falsche. Ein Komma
+gegen einen Punkt sieht nach der entschiedenen Profildifferenz aus; der Vergleich läuft aber
+bereits im `vb6-sp6`-Profil, und `Format` antwortet auf **unserer** Seite mit Komma. Das Profil ist
+also aktiv, und `CStr` geht daran vorbei. Das Original schärft die Regel im selben Lauf: `Str` ist
+dort invariant — es antwortet `.3333333` mit Punkt, während `CStr` daneben mit Komma antwortet.
+Zwei Funktionen, zwei Verhalten, und wir machen es genau andersherum falsch.
+
+Vier Ursachen, vier schmale Karten:
+
+| Karte | Original | Wir |
+| --- | --- | --- |
+| `r1-cstr-locale` | `0,3333333` | `0.3333333` |
+| `r1-number-notation-threshold` | `0,00001` | `1E-05` |
+| `r1-format-general-single` | `0,3333333` | `0,333333343267441` |
+| `r1-str-leading-zero` | `.3333333` | `0.3333333` |
+
+Jede Karte trägt auch, was **nicht** abweicht, weil das den Befund erst eingrenzt: Die obere
+Exponentenschwelle stimmt (`1,234568E+08` auf beiden Seiten), `Format General` auf einem `Double`
+stimmt, und das führende Leerzeichen von `Str` für positive Zahlen stimmt. Der Befund ist jeweils
+enger als die Funktion.
+
+Die Orakelfälle sind als **Tabelle mit bekanntem Rest** geschrieben, nicht als bestandene
+Zusicherung. Jedes übereinstimmende Paar ist festgenagelt; die abweichenden stehen namentlich mit
+der Antwort des Originals. Verschwindet eine davon, schlägt der Test fehl und erzwingt, die Liste
+zu kürzen — ein Test, der die bekannten Fälle einfach überspringt, ließe den Fix unbemerkt
+durchgehen und eine Regression ebenso.
+
+Kanonischer Lauf mit allen drei Laufarten: 1891/1891 im Standardlauf, 93/93 nativ, 3/3 Orakel, alle
+ohne übersprungene Fälle, VISIA 40/40, Gate vollständig.

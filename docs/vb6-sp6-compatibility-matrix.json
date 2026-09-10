@@ -3111,6 +3111,74 @@
       "title": "Sichtbare Fläche eines UserControls im Fremdcontainer"
     },
     {
+      "id": "r1-cstr-locale",
+      "matrixEntry": "runtime-variant-and-conversions",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Dezimaltrenner von CStr im SP6-Profil",
+      "expected": {
+        "acceptance": "CStr folgt im vb6-sp6-Profil der System-LCID wie das Original; Str bleibt invariant."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6 auf einem System mit deutscher LCID. CStr(CSng(1)/CSng(3)) ergibt im Original '0,3333333', bei uns '0.3333333'; dasselbe fuer Double, Currency und die kleinen Werte -- neun der zwoelf gemessenen Abweichungen sind dieser eine Trenner. Die naheliegende Erklaerung waere die entschiedene Profildifferenz, und sie ist falsch: Der Vergleich laeuft bereits mit --compatibility vb6-sp6, und Format antwortet auf derselben Seite mit Komma. Das Profil ist also aktiv, und CStr geht daran vorbei. Gegenprobe im selben Lauf, die die Regel schaerft: Str ist im Original invariant -- es antwortet '.3333333' mit Punkt, waehrend CStr daneben mit Komma antwortet. Die beiden Funktionen unterscheiden sich in VB6 also genau hier, und unsere Umsetzung macht es umgekehrt herum falsch.",
+      "title": "Dezimaltrenner von CStr im SP6-Profil"
+    },
+    {
+      "id": "r1-number-notation-threshold",
+      "matrixEntry": "runtime-variant-and-conversions",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Schwelle zur Exponentialschreibweise",
+      "expected": {
+        "acceptance": "Eine Zahl wird erst dort exponentiell geschrieben, wo das Original es tut."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10. CStr(CDbl(0.00001)) ergibt im Original '0,00001' ausgeschrieben, bei uns '1E-05'. Die Schwelle, ab der VB6 auf Exponentialschreibweise wechselt, liegt also woanders als bei uns. Im selben Lauf stimmt die obere Richtung: CStr(CSng(123456789)) ergibt auf beiden Seiten '1,234568E+08' beziehungsweise '1.234568E+08', dieselbe Mantisse und derselbe Exponent -- der Befund betrifft die kleine Seite, nicht beide.",
+      "title": "Schwelle zur Exponentialschreibweise"
+    },
+    {
+      "id": "r1-format-general-single",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "General Number auf einem Single",
+      "expected": {
+        "acceptance": "Format(wert, 'General Number') gibt fuer ein Single so viele signifikante Stellen aus wie das Original."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10. Format(CSng(1)/CSng(3), 'General Number') ergibt im Original '0,3333333' -- sieben signifikante Stellen -- und bei uns '0,333333343267441', also fuenfzehn. Beide Seiten benutzen hier das Komma, es ist also kein Locale-Befund, sondern die Stellenzahl. Das trifft genau die G7/G15/G29-Staffelung, deren Begruendung am selben Tag widerlegt wurde ('1 / 3 ist in VB6 ein Single' -- es ist ein Double): Die Staffelung selbst gilt weiter, sie wird hier fuer Format nur nicht angewandt. Fuer Double stimmt es -- Format(CDbl(1)/CDbl(3), 'General Number') weicht nicht ab -- der Befund betrifft allein den Single-Fall.",
+      "title": "General Number auf einem Single"
+    },
+    {
+      "id": "r1-str-leading-zero",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Fuehrende Null von Str",
+      "expected": {
+        "acceptance": "Str laesst die fuehrende Null vor dem Dezimaltrenner weg, wie das Original."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10. Str(CSng(1)/CSng(3)) ergibt im Original '.3333333' und Str(CDbl(1)/CDbl(3)) '.333333333333333' -- ohne fuehrende Null. Bei uns steht dort '0.3333333' beziehungsweise '0.333333333333333'. Das fuehrende Leerzeichen fuer positive Zahlen stimmt dagegen: Str(CLng(42)) und Str(CLng(-42)) weichen nicht ab. Der Befund ist also eng auf die Null vor dem Trenner begrenzt, nicht auf die Vorzeichenbehandlung.",
+      "title": "Fuehrende Null von Str"
+    },
+    {
       "id": "r1-division-result-type",
       "matrixEntry": "language-operators-and-variants",
       "milestone": "R1",
@@ -3441,8 +3509,9 @@
         "bitness": "agnostic except LongPtr",
         "com": "Automation VARTYPE mapping is preserved"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "r1-cstr-locale: Dezimaltrenner von CStr im SP6-Profil; r1-number-notation-threshold: Schwelle zur Exponentialschreibweise",
       "tests": [
         "tests/VB6.Runtime.Tests/VariantStateTests.cs",
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
@@ -3475,8 +3544,9 @@
         "bitness": "agnostic unless API exposes native handles",
         "com": "Clipboard/Printer/host services use explicit adapters"
       },
-      "implementation": "implemented",
-      "verification": "documented-verified",
+      "implementation": "partial",
+      "verification": "not-yet-verified",
+      "gap": "r1-format-general-single: General Number auf einem Single; r1-str-leading-zero: Fuehrende Null von Str",
       "tests": [
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",

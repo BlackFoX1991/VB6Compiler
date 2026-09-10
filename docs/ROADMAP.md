@@ -21,13 +21,14 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `1f63966` mit nicht committeten Änderungen, Lauf `20260910T105834Z-2fc8dd61`:
+Messung vom 2026-09-10 auf `main` / `3daf087` mit nicht committeten Änderungen, Lauf `20260910T124003Z-930f3337`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1889 Fälle: 1889 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1891 Fälle: 1891 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
+| Orakel-Gegenpruefung gegen VB6 SP6 | 3/3 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
 Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
@@ -41,8 +42,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **176 Erwartungen**, davon **166 implemented**, **0 partial** und **10 planned**;
-**166/176 documented-verified**, 10 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **180 Erwartungen**, davon **166 implemented**, **0 partial** und **14 planned**;
+**166/180 documented-verified**, 14 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -525,9 +526,20 @@ Der Befund ist auch eine Warnung über die Prüfung selbst. Die Variant-Promotio
 Verständnis, nicht gegen ein Original. Was daraus für die übrigen `documented-verified`-Zusagen
 folgt, ist offen und wird gemessen, nicht geschätzt.
 
+Der zweite Durchgang galt der Zahlenausgabe — genau der Fläche, deren Begründung schon falsch war.
+Zwölf Abweichungen aus **vier** Ursachen, und die naheliegendste Erklärung war die falsche: Ein
+Komma gegen einen Punkt sieht nach der entschiedenen Profildifferenz aus, ist es aber nicht. Der
+Vergleich läuft bereits im `vb6-sp6`-Profil, und `Format` antwortet auf unserer Seite mit Komma —
+`CStr` geht am Profil vorbei. Das Original schärft die Regel im selben Lauf: `Str` ist dort
+invariant (`.3333333` mit Punkt), während `CStr` daneben mit Komma antwortet.
+
 | Karte | Ziel und Abnahme |
 | --- | --- |
 | `r1-division-result-type` | **Ergebnistyp der Division:** `/` folgt dem Original — `Double`, außer beide Operanden sind `Single`; der gemessene Wert trägt die Präzision dieses Typs. |
+| `r1-cstr-locale` | **Dezimaltrenner von CStr im SP6-Profil:** `CStr` folgt der System-LCID wie das Original; `Str` bleibt invariant. |
+| `r1-number-notation-threshold` | **Schwelle zur Exponentialschreibweise:** Eine Zahl wird erst dort exponentiell geschrieben, wo das Original es tut — `0,00001` bleibt ausgeschrieben. |
+| `r1-format-general-single` | **General Number auf einem Single:** sieben signifikante Stellen wie im Original, nicht fünfzehn. |
+| `r1-str-leading-zero` | **Führende Null von Str:** `Str` lässt die Null vor dem Trenner weg; das führende Leerzeichen für positive Zahlen bleibt. |
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 

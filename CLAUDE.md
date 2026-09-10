@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 176 Erwartungen: 166 `implemented`, 0 `partial`, 10 `planned`;
-166 `documented-verified`, 10 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 180 Erwartungen: 166 `implemented`, 0 `partial`, 14 `planned`;
+166 `documented-verified`, 14 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -294,8 +294,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `1f63966` mit nicht committeten Änderungen: 1889 Standardfälle in 13 Projekten,
-1889 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
+Stand der Prüfung 2026-09-10 auf `3daf087` mit nicht committeten Änderungen: 1891 Standardfälle in 13 Projekten,
+1891 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
@@ -511,9 +511,28 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   unangetastet, `/make` braucht es nicht), und ein Vergleich läuft gegen `--compatibility vb6-sp6`,
   weil Locale-Verträge profilabhängig sind — das Original benutzt die System-LCID, unser
   `Deterministic`-Profil bewusst nicht (Dezimalkomma gegen Dezimalpunkt ist also **kein** Befund).
-  Zwei Stolpersteine beim Schreiben von Orakelprojekten, beide vom Original gemeldet: Ein Modul
-  darf nicht `Main` heißen, wenn der Start `Sub Main` ist, und VB6 ist case-insensitiv — eine lokale
-  Variable `p` neben einem `Sub P` ist ein Kompilierfehler.
+  Der Harness dafür ist `tests/VB6.Compiler.Tests/VB6Oracle.cs`: `VB6Oracle.Ask(rumpf)` übersetzt
+  denselben Quelltext mit beiden Compilern, führt beide Programme aus und vergleicht ihre
+  **Ausgabedateien** — nicht Exitcodes, nicht Diagnosen, sondern die Werte. In eine Datei, weil ein
+  kompiliertes VB6-Programm keine Konsole hat. `VB6_ORACLE_PATH` nennt `VB6.EXE`,
+  `VB6_REQUIRE_ORACLE=1` macht aus „überspringen" ein „hart melden", und
+  `build.ps1 -RequireOracle` nimmt den Lauf als **eigene Laufart** in den Bericht auf. Nie in den
+  Standardlauf summieren — R7 verlangt ihn „getrennt sichtbar".
+  **Drei Namensregeln setzt unser Compiler nicht durch**, alle drei vom Original gemeldet und
+  deshalb im Harness umschifft: Ein Modul darf nicht `Main` heißen, wenn der Start `Sub Main` ist;
+  VB6 ist case-insensitiv, eine lokale Variable `p` neben einem `Sub P` ist ein Kompilierfehler;
+  und Modulname und Projektname müssen sich unterscheiden.
+  Und ein vierter Stolperstein: Unsere Seite wird als **x86** emittiert, weil `vb6-sp6` das
+  verlangt, ein 64-Bit-Testhost kann sie also nicht starten. Die Meldung dazu steht auf der Ausgabe
+  des **Kindprozesses** — wer sie verwirft, macht den Fehler unlesbar.
+- **Ein Komma statt eines Punktes ist nicht automatisch die Profildifferenz.** Der naheliegende
+  Schluss beim Orakelvergleich, und er war falsch: Der Vergleich läuft bereits mit
+  `--compatibility vb6-sp6`, und `Format` antwortet auf unserer Seite mit Komma — das Profil ist
+  also aktiv, und `CStr` geht daran vorbei (`r1-cstr-locale`). Das Original schärft die Regel im
+  selben Lauf: `Str` ist dort **invariant** (`.3333333` mit Punkt), während `CStr` daneben mit
+  Komma antwortet. Zwei Funktionen, zwei Verhalten. Wer eine Locale-Abweichung sieht, prüft erst,
+  ob die *andere* Seite derselben Ausgabe dem Profil folgt, bevor er sie als entschiedene Differenz
+  abtut.
 - **Bestehende Tests sind Regressionsnachweise, kein Original-VB6-Orakel.** Widersprüche zwischen
   dokumentiertem Vertrag und Testwert erst gezielt messen und mit Quellen/Begründung festhalten.
   Ein Test darf weder allein aufgrund einer Vermutung geändert noch allein aufgrund seines
