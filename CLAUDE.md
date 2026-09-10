@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 174 Erwartungen: 166 `implemented`, 0 `partial`, 8 `planned`;
-166 `documented-verified`, 8 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 175 Erwartungen: 166 `implemented`, 0 `partial`, 9 `planned`;
+166 `documented-verified`, 9 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -294,10 +294,10 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `b09e926` mit nicht committeten Änderungen: 1889 Standardfälle in 13 Projekten,
-1889 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
+Stand der Prüfung 2026-09-10 auf `788ed50` mit nicht committeten Änderungen: 1889 Standardfälle in 13 Projekten,
+1889 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
-Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
+Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
 
 Standardlauf, x86-Lauf und Wiederholungen werden nie addiert — die früher genannte 1698 war genau
@@ -372,11 +372,27 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Vorgabeart: Ihr Schreibzugriff ging still verloren, sobald derselbe Platz auch einen
   gespeicherten Zeiger hatte. Maßgeblich ist die Form des Ausdrucks (`IrAddressExpression`), nicht
   die Argumentart. Wer eine neue Speicherfamilie ergänzt, prüft beide Formen auf demselben Platz.
+- **Ein Designer-Control-Array hat pro Element einen eigenen Eigenschaftssatz — das Modell trägt
+  aber nur einen.** `ReadDesignerControls` sammelt Designer-Controls in einem Dictionary **nach
+  Namen**; ein Array hat sechs Elemente mit einem Namen. Beim zweiten Element behält es
+  `existing.Initializers` und wirft den gerade gelesenen Satz weg, und `IrLowerer` wendet diesen
+  einen Satz dann auf jedes Element an. Ergebnis: Alle Elemente tragen die Eigenschaften des
+  Blocks, der in der Designer-Datei **zuerst** steht — bei VISIA fällt die ganze Menüleiste
+  `lblMnu(0..5)` auf die Position von `&Help` zusammen, weil die `.frm` absteigend schreibt. Das
+  Modell kann es nicht besser: `DesignerPropertyInitializer(Name, Value)` hat keinen Index, und
+  `DesignerArrayIndices` steht getrennt neben der flachen Liste. Offen als
+  `r5-designer-control-array`.
+  **Der Grund, warum es so lange unbemerkt blieb, ist die eigentliche Lehre:**
+  `UserControlArrayExecutionTests` setzt auf seinen beiden Arrayelementen `Left = 100` und
+  `Left = 200` — und prüft ausschließlich `LBound` und `UBound`. Der Test hatte den Defekt in der
+  Hand und hat ihn nicht angefasst. Wer ein Control-Array prüft, prüft die Eigenschaften **pro
+  Element**, nicht die Grenzen des Arrays.
 - **Eine Form hat eine Default-Instanz, ein UserControl nicht.** `frmMain.Show` ohne `New` ist die
   übliche VB6-Art, ein zweites Fenster zu öffnen — die Form trägt `VB_PredeclaredId`, ihr Name ist
   eine Instanz. Im Compiler ist das ein globales `As New` (`VBProjectCompilation`), genau wie bei
   einer `.cls` mit demselben Attribut. Die Startform bleibt davon eine **eigene** Instanz; wer
-  `frmStart.Show` nach `Unload Me` schreibt, bekommt hier eine zweite. Offene Abweichung.
+  `frmStart.Show` nach `Unload Me` schreibt, bekommt hier eine zweite. Offen als Befund auf
+  `managed-r5-forms`, deren Abnahme „Start-/Defaultinstanz" ausdrücklich nennt.
 - **Der Kopf einer Kontrollflussanweisung hat seine eigene Fehlerregion.**
   `CanProtectForErrorHandling` nimmt `If`, `For`, `For Each`, `While`, `Do`, `With` und
   `Select Case` von der Absicherung *als Anweisung* aus, weil eine geschützte Region keinen
@@ -505,7 +521,7 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   unter `On Error` Fehler 91. Das ist das fünfte Symptom der beiden Fallen darüber: im Binder eine
   Property, im Emitter ein Feld, und hier ein Platz statt eines Ausdrucks. Wer eine neue
   Zugriffsform ergänzt, prüft sie gegen diese Liste — sie ist das Inventar, das gefehlt hat.
-  Offen als `r2-asnew-field-instantiation`.
+  Behoben; `r2-asnew-field-instantiation` ist geschlossen, die Liste bleibt als Inventar.
 - **Zur Laufzeit ist dasselbe `Public`-Feld wieder ein Feld, keine Property.** Der Binder
   modelliert es als Get/Let-Property, der Emitter bildet es auf ein **CLR-Feld** ab. Wer im
   Laufzeitdispatch nach Mitgliedern sucht, muss deshalb Methoden, Properties **und** Felder

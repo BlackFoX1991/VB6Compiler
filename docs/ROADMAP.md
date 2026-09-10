@@ -1,6 +1,6 @@
 # Roadmap
 
-Stand: 2026-09-09. Eine aktive Restliste für den Managed-Abschluss.
+Stand: 2026-09-10. Eine aktive Restliste für den Managed-Abschluss.
 Die chronologische Historie steht in [CHANGELOG.md](CHANGELOG.md).
 
 ## Produktziel und Grenzen
@@ -21,16 +21,16 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `b09e926` mit nicht committeten Änderungen, Lauf `20260910T093457Z-76250444`:
+Messung vom 2026-09-10 auf `main` / `788ed50` mit nicht committeten Änderungen, Lauf `20260910T103538Z-26f75893`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
 | Standardlauf, 13 Testprojekte | 1889 Fälle: 1889 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
-| Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
+| Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
-Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **False**.
+Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
 Der Laufbericht liegt unter `artifacts/verification-report.json` und wird nicht versioniert.
 <!-- verification:roadmap-measurements:end -->
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **174 Erwartungen**, davon **166 implemented**, **0 partial** und **8 planned**;
-**166/174 documented-verified**, 8 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **175 Erwartungen**, davon **166 implemented**, **0 partial** und **9 planned**;
+**166/175 documented-verified**, 9 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -516,8 +516,18 @@ Kompilierte PropertyPages samt ApplyChanges gehören zum Managed-/COM-Umfang. Ei
 
 Die Grafikimplementierung arbeitet derzeit auf verwalteten Bitmaps. Entscheidend sind belegte Pixel-/Eventergebnisse bei definierten Größen, Clipping und Skalierung; die Dokumentation behauptet dafür keine native DC-/DIB-Implementierung. Native OCX-Nachweise bleiben an konkrete registrierte Komponenten und den erzwungenen x86-Lauf gebunden.
 
+Ein Lauf des Korpus am 2026-09-10 hat dieser Etappe einen **gemessenen Defekt** hinzugefügt, und er
+ist der Grund, warum VISIA startet und trotzdem visuell nicht stimmt: Jedes Element eines
+Designer-Control-Arrays bekommt die Eigenschaften des Blocks, der in der Designer-Datei zuerst
+steht. Minimalfall gemessen — erwartet `'Eins'@8px 'Zwei'@60px 'Drei'@120px`, tatsächlich dreimal
+`'Drei'@128px`. Er steht als eigene, sofort lauffähige Karte, weil er eng ist und
+`managed-r5-forms` von seiner Behebung nicht geschlossen wird. Offen und **nicht gemessen** bleibt
+daneben die leere Toolbar des Korpus; sie ist als Frage mit zwei Kandidaten auf
+`managed-r5-paint-mdi` notiert.
+
 | Karte | Ziel und Abnahme |
 | --- | --- |
+| `r5-designer-control-array` | **Designer-Eigenschaften je Element eines Control-Arrays:** Jedes Element trägt die Eigenschaften seines eigenen Designer-Blocks; die Reihenfolge der Blöcke in der Datei entscheidet nichts. |
 | `managed-r5-property-pages` | **PropertyPage-COM-Vertrag:** Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt. |
 | `managed-r5-enterprise` | **Enterprise-Artefakte ausführen:** DataEnvironment-Kommandos, DataReport-Bindung/Ausgabe und UserDocument-Hosting über kontrollierte Fixtures/verfügbare ADO-Komponenten prüfen; fehlende Abhängigkeiten sichtbar lassen. |
 | `managed-r5-forms` | **Forms- und Control-Verträge schließen:** Start-/Defaultinstanz, Unload/Wiederladen, Fokus, Tab/Z-Order, Modalität, Menüs, Control-Arrays und Stock-Events auf Identität/Ereignisreihenfolge prüfen; native Fälle verlangen x86. |

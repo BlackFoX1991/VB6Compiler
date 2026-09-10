@@ -9082,3 +9082,57 @@ Vertrags, die ein Client nicht messen kann: Ereignisse sind das, wofür ein Cont
 
 Damit sind `managed-r5-usercontrol-ole` und `managed-r5-usercontrol-presentation` beide
 geschlossen. Kanonischer Lauf: 1889 von 1889, 0 übersprungen, VISIA 40/40, 0 Warnungen.
+
+## Der Korpus einmal wirklich gestartet — zwei Befunde
+
+Bisher war VISIA eine **Analyse**messung: 40 von 40 Projektitems binden ohne Diagnose, und das
+Gesamtprojekt emittiert durch. Diesmal wurde die erzeugte Anwendung auch **ausgeführt**, und das
+ist eine andere Aussage. Sie fällt überwiegend gut aus.
+
+Der Prozess lebt stabil, keine Zeile auf stdout oder stderr, ein 717×478-Fenster „Visia Compiler",
+und die Statuszeile erreicht `Ready ...`. Die Fensterliste zeigt die angedockten Panels
+**Project View**, **Properties** und **Toolbox** mit ihren Schließern, das Feld `Name:`, die
+Meldungen `Currently no useable items to view.` und `Currently no item selected.` — alle an ihrer
+Stelle. Und mitten darin ein `TreeView20WndClass` bei 571,123: die **native MSCOMCTL-TreeView**,
+korrekt gehostet und bemessen, dazu die VB6-Fensterklassen `msvb_lib_tooltips` und
+`CtlFrameWork_Parking`. Der native OCX-Pfad trägt also in einem echten Programm, nicht nur in
+einem Test.
+
+**Der erste Befund** erklärt, warum das Fenster trotzdem nicht stimmt. Die Menüleiste zeigt ein
+einzelnes „Help" mitten in der Zeile. Sechs Fenster stehen dort — also wurden sechs Controls
+erzeugt —, aber alle sechs tragen `'&Help'` und liegen auf exakt derselben Position 230,37. VISIA
+baut seine Leiste aus dem Label-Array `lblMnu(0..5)` mit File, Edit, Search, Compile, Extras, Help
+bei 135, 630, 1170, 1890, 2655 und 3330 Twips; die `.frm` schreibt Index 5 zuerst, und
+3330 / 15 + 8 = 230 passt auf den Punkt. Jedes Element hat die Eigenschaften **eines** Elements
+bekommen.
+
+Nachgemessen im Minimalfall, drei Labels statt sechs:
+
+```
+Erwartet:    'Eins'@8px    'Zwei'@60px    'Drei'@120px
+Tatsächlich: 'Drei'@128px  'Drei'@128px   'Drei'@128px
+```
+
+Die Ursache sind drei Stellen, die zusammen ein Loch bilden. `ReadDesignerControls` sammelt
+Designer-Controls **nach Namen** — ein Array hat sechs Elemente mit einem Namen — und behält beim
+zweiten Element `existing.Initializers`, wirft also den gerade gelesenen Satz weg. Das Modell
+dazwischen könnte ihn ohnehin nicht tragen: `DesignerPropertyInitializer(Name, Value)` hat keinen
+Index, und `DesignerArrayIndices` steht getrennt neben der flachen Liste. Und `IrLowerer` wendet
+diese eine Liste in der Elementschleife auf jedes Element an. Abgetrennt als
+`r5-designer-control-array`.
+
+Die eigentliche Lehre steht daneben und ist dieselbe wie bei den R1-/R2-Sammelkarten:
+`UserControlArrayExecutionTests` setzt auf seinen beiden Arrayelementen `Left = 100` und
+`Left = 200` — und prüft ausschließlich `LBound` und `UBound`. Der Test hatte den Defekt in der
+Hand und hat ihn nicht angefasst. Er ist als Falle in `CLAUDE.md` notiert.
+
+**Der zweite Befund bleibt eine Frage**, und das ist Absicht. Die Toolbar `mcToolBar` bleibt leer:
+Container in richtiger Größe und Position, kein Inhalt. Das Control steht auf `AutoRedraw = True`
+und malt seine Schaltflächen selbst mit VB6-`Line`; ihre Beschriftungen kommen über die
+Eigenschaftstüte. Es gibt damit zwei Kandidaten — die Tüte liefert die Buttons nicht, oder das
+Zeichnen erreicht die Fläche nicht — und keiner ist nachgemessen. Als Defekt notiert wird hier
+nichts, sondern als offene Frage auf `managed-r5-paint-mdi`; gut möglich, dass ein Teil davon
+dieselbe Ursache hat wie der erste Befund.
+
+Nicht geprüft: das Beenden über das Programm selbst. Ein Klickpfad — Projekt laden, kompilieren,
+beenden — ist die Abnahme von `managed-r6-visia-workflows`.

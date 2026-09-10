@@ -3111,6 +3111,25 @@
       "title": "Sichtbare Fläche eines UserControls im Fremdcontainer"
     },
     {
+      "id": "r5-designer-control-array",
+      "matrixEntry": "forms-lifecycle-and-intrinsic-controls",
+      "milestone": "R5",
+      "dependsOn": [
+        "managed-r5-usercontrol-presentation"
+      ],
+      "implementation": "planned",
+      "input": "Designer-Eigenschaften je Element eines Control-Arrays",
+      "expected": {
+        "acceptance": "Jedes Element eines Designer-Control-Arrays traegt die Eigenschaften seines eigenen Designer-Blocks; die Reihenfolge der Bloecke in der Datei entscheidet nichts."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/UserControlArrayExecutionTests.cs"
+      ],
+      "notes": "Gemessener Defekt, gefunden am 2026-09-10 beim Kompilieren und Starten des VISIA-Korpus. Minimalfall: eine Form mit drei Labels desselben Namens und den Indizes 0, 1, 2, Beschriftungen 'Eins', 'Zwei', 'Drei' und Left 120, 900, 1800 Twips. Erwartet waeren drei Fenster mit 'Eins' bei 8px, 'Zwei' bei 60px und 'Drei' bei 120px; gemessen wurden drei Fenster, alle mit 'Drei' bei 128px. Es entstehen also korrekt drei Controls, aber jedes bekommt die Eigenschaften **eines** Elements -- und zwar des Blocks, der in der Designer-Datei zuerst steht. In VISIA faellt dadurch die gesamte Menueleiste lblMnu(0..5) auf die Position von '&Help' zusammen: die .frm schreibt Index 5 zuerst, 3330 Twips / 15 = 222 px plus 8 px Client-Offset ergibt die gemessenen 230 px, und alle sechs Labels liegen dort uebereinander. Das ist der Grund, warum das Fenster des Korpus visuell nicht stimmt; 21 Array-Elemente sind betroffen (frmMain 15, CodeEdit 4, frmDesign 2). Die Ursache sind drei Stellen, die zusammen ein Loch bilden: VBProjectCompilation.ReadDesignerControls sammelt Designer-Controls nach Namen und behaelt beim zweiten Element eines Arrays existing.Initializers, wirft also das gerade gelesene ReadDesignerInitializers(node) weg; das Modell dazwischen koennte sie ohnehin nicht tragen, weil DesignerPropertyInitializer(Name, Value) keinen Index hat und BoundModuleVariable.DesignerInitializers eine flache Liste pro Control ist, waehrend DesignerArrayIndices getrennt daneben steht; und IrLowerer wendet diese eine Liste in der Elementschleife auf jedes Element an. Bemerkenswert am Rand, und derselbe Befund wie bei den R1-/R2-Sammelkarten: Der vorhandene Test UserControlArrayExecutionTests setzt auf seinen beiden Arrayelementen Left=100 und Left=200 und prueft ausschliesslich LBound und UBound. Genau daran ist der Defekt vorbeigelaufen -- ein Test, der Qualitaet belegt und nicht Vollstaendigkeit.",
+      "title": "Designer-Eigenschaften je Element eines Control-Arrays"
+    },
+    {
       "id": "managed-r5-property-pages",
       "matrixEntry": "activex-stock-and-generic-host",
       "milestone": "R5",
@@ -3164,7 +3183,7 @@
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Offen. Die testRefs sind vorhandene Baseline-/Regressionsstellen und kein Nachweis des kuenftigen Abnahmevertrags. Zwei benannte Befunde gehoeren bereits hierher. Erstens, gemessen am 2026-09-10 am VISIA-Korpus: Jedes Element eines Designer-Control-Arrays bekommt die Eigenschaften des Blocks, der in der Designer-Datei zuerst steht, weshalb die Menueleiste des Korpus auf eine Position zusammenfaellt. Als r5-designer-control-array abgetrennt, weil es ein enger gemessener Defekt mit Minimalfall ist und diese Sammelkarte davon nicht geschlossen wird. Zweitens die Startinstanz einer Form, die diese Karte unter 'Start-/Defaultinstanz' abnehmen soll: frmMain.Show ohne New ist die uebliche VB6-Art, ein zweites Fenster zu oeffnen, und der Compiler bildet das als globales As New ab. Die Startform bleibt davon eine eigene Instanz -- wer frmStart.Show nach Unload Me schreibt, bekommt hier eine zweite. Das ist eine dokumentierte Abweichung, die bis 2026-09-10 in CLAUDE.md ohne Karte stand.",
       "title": "Forms- und Control-Verträge schließen"
     },
     {
@@ -3183,7 +3202,7 @@
       "testRefs": [
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ],
-      "notes": "Planned work: testRefs are existing baseline/regression locations, not passing evidence for the future acceptance contract.",
+      "notes": "Offen. Die testRefs sind vorhandene Baseline-/Regressionsstellen und kein Nachweis des kuenftigen Abnahmevertrags. Eine **offene Frage** gehoert hierher, ausdruecklich als nicht gemessen: Beim Start des VISIA-Korpus am 2026-09-10 blieb die Toolbar mcToolBar leer -- ihr Container hat die richtige Groesse und Position (701x25 an 8,31), aber es wird nichts gezeichnet. Das Control steht auf AutoRedraw = True und malt seine Schaltflaechen selbst mit VB6-Line; ihre Beschriftungen kommen ueber UserControl_ReadProperties aus der Eigenschaftstuete (ButtonCaption0..n). Es gibt damit zwei Kandidaten -- die Tuete liefert die Buttons nicht, oder das Zeichnen erreicht die Flaeche nicht -- und keiner von beiden ist nachgemessen. Ohne Messung wird hier keiner davon als Defekt notiert. Moeglich ist auch, dass ein Teil davon dieselbe Ursache hat wie r5-designer-control-array; die Messung gehoert deshalb hinter diese Karte.",
       "title": "Sichtbare Zeichen- und MDI-Abläufe abnehmen"
     },
     {
@@ -3640,7 +3659,7 @@
         "tests/VB6.Runtime.Tests/FormHostRuntimeTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/WinFormsHostTests.cs"
       ],
-      "gap": "managed-r5-forms: Forms- und Control-Verträge schließen"
+      "gap": "r5-designer-control-array: Designer-Eigenschaften je Element eines Control-Arrays; managed-r5-forms: Forms- und Control-Verträge schließen"
     },
     {
       "id": "forms-drawing-and-mdi",
