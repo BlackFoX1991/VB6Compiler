@@ -1200,23 +1200,102 @@ public static class VBFiles
     public static bool GetBoolean(int fileNumber, long? position) =>
         BitConverter.ToInt16(Read(fileNumber, position, 2)) != 0;
 
-    public static string GetString(int fileNumber, long? position)
+    public static string GetString(int fileNumber, long? position) =>
+        GetString(fileNumber, position, string.Empty, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Reads a variable-length String, and the mode decides how much.
+    ///
+    /// In **Random** mode the record carries a two-byte character count and the read follows it.
+    /// In **Binary** mode there is no count, and VB6 reads exactly as many characters as the
+    /// target string already holds -- measured against a real VB6 SP6 on 2026-09-10: reading a
+    /// six-byte file into a three-character variable yields <c>ABC</c>, and reading it into an
+    /// empty one yields the empty string rather than the whole file.
+    ///
+    /// That rule is why <paramref name="current"/> exists. It reads oddly for a *read* operation
+    /// to need the old value, and it is exactly what the contract says: in Binary mode the
+    /// variable's length is the request.
+    /// </summary>
+    public static string GetString(
+        int fileNumber,
+        long? position,
+        string current,
+        VBCompatibilityProfile compatibilityProfile)
     {
+        ArgumentNullException.ThrowIfNull(current);
+        var encoding = TextEncoding(compatibilityProfile);
         var stream = Seek(fileNumber, position);
         var recordStart = stream.Position;
+
+        if (!UsesRecordDescriptor(fileNumber))
+        {
+            if (current.Length == 0)
+            {
+                AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
+                return string.Empty;
+            }
+
+            // Die Laenge ist in Zeichen gefragt und in Bytes zu lesen. Bei einer Einbyte-Codepage
+            // ist das dieselbe Zahl, bei einer Mehrbyte-Codepage nicht -- GetMaxByteCount waere zu
+            // grosszuegig, deshalb zaehlt die Kodierung die Bytes des tatsaechlichen Werts.
+            var wanted = encoding.GetByteCount(current);
+            EnsureRecordFits(fileNumber, wanted);
+            var payload = ReadRaw(stream, wanted);
+            AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
+            return encoding.GetString(payload);
+        }
+
         EnsureRecordFits(fileNumber, sizeof(ushort));
         var characterCount = BitConverter.ToUInt16(ReadRaw(stream, 2));
-        var byteCount = checked(characterCount * sizeof(char));
-        EnsureRecordFits(fileNumber, byteCount + sizeof(ushort));
         if (characterCount == 0)
         {
             AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
             return string.Empty;
         }
 
-        var bytes = ReadRaw(stream, byteCount);
+        // Der Deskriptor zaehlt Zeichen, gelesen werden Bytes. In VB6 ist das dieselbe Zahl, weil
+        // eine ANSI-Codepage ein Byte je Zeichen hat -- im Deterministic-Profil mit UTF-8 nicht,
+        // und dort schnitt ein Lesen von N Bytes mitten durch ein Zeichen ('Grü?' statt 'Grüße').
+        if (encoding.IsSingleByte)
+        {
+            EnsureRecordFits(fileNumber, characterCount + sizeof(ushort));
+            var bytes = ReadRaw(stream, characterCount);
+            AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
+            return encoding.GetString(bytes);
+        }
+
+        var text = ReadCharacters(fileNumber, stream, encoding, characterCount);
         AdvanceRandomRecord(fileNumber, stream, recordStart, forWrite: false);
-        return Encoding.Unicode.GetString(bytes);
+        return text;
+    }
+
+    /// <summary>
+    /// Reads exactly <paramref name="characterCount"/> characters from a multi-byte encoding.
+    ///
+    /// One byte at a time through a <see cref="Decoder"/>, because that is the only way to know
+    /// where a character ends without reading past it: a record's descriptor counts characters,
+    /// and the bytes after it belong to whatever comes next.
+    /// </summary>
+    private static string ReadCharacters(
+        int fileNumber,
+        FileStream stream,
+        Encoding encoding,
+        int characterCount)
+    {
+        var decoder = encoding.GetDecoder();
+        var characters = new char[characterCount];
+        var produced = 0;
+        var consumed = 0;
+
+        while (produced < characterCount)
+        {
+            EnsureRecordFits(fileNumber, consumed + 1 + sizeof(ushort));
+            var next = ReadRaw(stream, 1);
+            consumed++;
+            produced += decoder.GetChars(next, 0, 1, characters, produced);
+        }
+
+        return new string(characters, 0, produced);
     }
 
     /// <summary>
@@ -1277,6 +1356,19 @@ public static class VBFiles
     public static bool GetBoolean(int fileNumber, long position) => GetBoolean(fileNumber, (long?)position);
     public static string GetString(int fileNumber) => GetString(fileNumber, null);
     public static string GetString(int fileNumber, long position) => GetString(fileNumber, (long?)position);
+
+    public static string GetString(
+        int fileNumber,
+        string current,
+        VBCompatibilityProfile compatibilityProfile) =>
+        GetString(fileNumber, null, current, compatibilityProfile);
+
+    public static string GetString(
+        int fileNumber,
+        long position,
+        string current,
+        VBCompatibilityProfile compatibilityProfile) =>
+        GetString(fileNumber, (long?)position, current, compatibilityProfile);
 
     public static byte GetRawByte(int fileNumber) => ReadRecordRaw(fileNumber, 1)[0];
     public static short GetRawInteger(int fileNumber) => BitConverter.ToInt16(ReadRecordRaw(fileNumber, 2));
@@ -1368,7 +1460,28 @@ public static class VBFiles
     public static void Put(int fileNumber, long? position, bool value) =>
         Write(fileNumber, position, BitConverter.GetBytes(value ? (short)-1 : (short)0));
 
-    public static void Put(int fileNumber, long? position, string value)
+    public static void Put(int fileNumber, long? position, string value) =>
+        Put(fileNumber, position, value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Writes a variable-length String, and the mode decides its shape.
+    ///
+    /// This is the one transfer where VB6 does two different things, and it was measured against a
+    /// real VB6 SP6 on 2026-09-10 because the roadmap said this surface had never seen an original:
+    /// <c>Put #f, 1, "ABC"</c> in **Binary** mode writes <c>41 42 43</c> -- the characters, nothing
+    /// else. The two-byte length descriptor belongs to **Random** mode, where a record has to know
+    /// how much of itself is used. Writing the descriptor in both modes, as this did before, makes
+    /// every binary file unreadable to a VB6 program and every VB6 file unreadable here.
+    ///
+    /// The encoding is the profile's, not UTF-16. VB6 writes one byte per character through the
+    /// active code page; <see cref="TextEncoding"/> already draws that line for <c>Print</c> and
+    /// <c>Write</c>, and a binary transfer is no different.
+    /// </summary>
+    public static void Put(
+        int fileNumber,
+        long? position,
+        string value,
+        VBCompatibilityProfile compatibilityProfile)
     {
         ArgumentNullException.ThrowIfNull(value);
         if (value.Length > ushort.MaxValue)
@@ -1376,12 +1489,28 @@ public static class VBFiles
             throw new OverflowException("VB6 binary String transfers support at most 65535 characters.");
         }
 
-        var payload = Encoding.Unicode.GetBytes(value);
+        var payload = TextEncoding(compatibilityProfile).GetBytes(value);
+        if (!UsesRecordDescriptor(fileNumber))
+        {
+            Write(fileNumber, position, payload);
+            return;
+        }
+
+        // Das Praefix zaehlt Zeichen, nicht Bytes. In einer Mehrbyte-Codepage sind das zwei
+        // verschiedene Zahlen, und VB6 schreibt die Zeichenzahl.
         var bytes = new byte[sizeof(ushort) + payload.Length];
         BitConverter.GetBytes((ushort)value.Length).CopyTo(bytes, 0);
         payload.CopyTo(bytes, sizeof(ushort));
         Write(fileNumber, position, bytes);
     }
+
+    /// <summary>
+    /// True while this channel prefixes a variable-length String with its length -- that is, in
+    /// Random mode. A channel nobody opened answers false: a failed transfer belongs to the
+    /// transfer, not to a lookup beside it.
+    /// </summary>
+    private static bool UsesRecordDescriptor(int fileNumber) =>
+        AccessModes.TryGetValue(fileNumber, out var mode) && mode == VBFileAccessMode.Random;
 
     /// <summary>
     /// Writes a scalar Variant with its VB6/OLE Automation type tag and payload. Arrays and
@@ -1419,6 +1548,16 @@ public static class VBFiles
     public static void Put(int fileNumber, long position, bool value) => Put(fileNumber, (long?)position, value);
     public static void Put(int fileNumber, string value) => Put(fileNumber, null, value);
     public static void Put(int fileNumber, long position, string value) => Put(fileNumber, (long?)position, value);
+
+    public static void Put(int fileNumber, string value, VBCompatibilityProfile compatibilityProfile) =>
+        Put(fileNumber, null, value, compatibilityProfile);
+
+    public static void Put(
+        int fileNumber,
+        long position,
+        string value,
+        VBCompatibilityProfile compatibilityProfile) =>
+        Put(fileNumber, (long?)position, value, compatibilityProfile);
 
     public static void PutRaw(int fileNumber, byte value) => WriteRecordRaw(fileNumber, new[] { value });
     public static void PutRaw(int fileNumber, short value) => WriteRecordRaw(fileNumber, BitConverter.GetBytes(value));
