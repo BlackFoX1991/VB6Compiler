@@ -26,7 +26,17 @@ internal static class Program
 
         if (args.Length == 4 && string.Equals(args[0], "--variant", StringComparison.Ordinal))
         {
-            return InvokeForVariant(args[1], args[2], int.Parse(args[3]));
+            return InvokeForVariant(args[1], args[2], int.Parse(args[3]), viaUnknown: true);
+        }
+
+        if (args.Length == 4 && string.Equals(args[0], "--variant-direct", StringComparison.Ordinal))
+        {
+            return InvokeForVariant(args[1], args[2], int.Parse(args[3]), viaUnknown: false);
+        }
+
+        if (args.Length == 5 && string.Equals(args[0], "--record-in", StringComparison.Ordinal))
+        {
+            return SendRecord(args[1], args[2], int.Parse(args[3]), int.Parse(args[4]));
         }
 
         if (args.Length == 4 && string.Equals(args[0], "--actctx", StringComparison.Ordinal))
@@ -447,7 +457,7 @@ internal static class Program
     [DllImport("kernel32.dll")]
     private static extern void ReleaseActCtx(IntPtr actCtx);
 
-    private static int InvokeForVariant(string comHostPath, string classIdText, int dispId)
+    private static int InvokeForVariant(string comHostPath, string classIdText, int dispId, bool viaUnknown)
     {
         var module = NativeLibrary.Load(comHostPath);
         try
@@ -456,6 +466,7 @@ internal static class Program
                 NativeLibrary.GetExport(module, "DllGetClassObject"));
             var clsid = Guid.Parse(classIdText);
             var classFactoryIid = new Guid("00000001-0000-0000-C000-000000000046");
+            var unknownIid = new Guid("00000000-0000-0000-C000-000000000046");
             var dispatchIid = new Guid("00020400-0000-0000-C000-000000000046");
             var factoryHResult = getClassObject(ref clsid, ref classFactoryIid, out var factoryPointer);
             if (factoryHResult != 0)
@@ -467,14 +478,35 @@ internal static class Program
             try
             {
                 var createInstance = GetClassFactoryCreateInstance(factoryPointer);
+                // Wie ein echter Client: erzeugen ueber IUnknown, dann nach IDispatch fragen. Wer
+                // die Fabrik gleich nach IDispatch fragt, misst die Fabrik und nicht das Objekt.
+                var requested = viaUnknown ? unknownIid : dispatchIid;
                 var createHResult = createInstance(
                     factoryPointer,
                     IntPtr.Zero,
-                    ref dispatchIid,
-                    out var objectPointer);
+                    ref requested,
+                    out var unknownPointer);
                 if (createHResult != 0)
                 {
                     Console.WriteLine($"create=0x{createHResult:X8}");
+                    return 0;
+                }
+
+                IntPtr objectPointer;
+                var queryHResult = 0;
+                if (viaUnknown)
+                {
+                    queryHResult = Marshal.QueryInterface(unknownPointer, in dispatchIid, out objectPointer);
+                    Marshal.Release(unknownPointer);
+                }
+                else
+                {
+                    objectPointer = unknownPointer;
+                }
+
+                if (queryHResult != 0)
+                {
+                    Console.WriteLine($"qi=0x{queryHResult:X8}");
                     return 0;
                 }
 
@@ -500,11 +532,14 @@ internal static class Program
                             IntPtr.Zero,
                             out _);
                         Console.WriteLine(hresult == 0
-                            ? $"vt={Marshal.ReadInt16(result)}"
+                            ? DescribeResult(result)
                             : $"invoke=0x{hresult:X8}");
                     }
                     finally
                     {
+                        // Der Client gibt frei, was er bekommen hat. Bei einem VT_RECORD geht
+                        // VariantClear durch IRecordInfo::RecordDestroy -- also durch den Server.
+                        _ = VariantClear(result);
                         Marshal.FreeCoTaskMem(result);
                     }
 
@@ -524,6 +559,190 @@ internal static class Program
         {
             NativeLibrary.Free(module);
         }
+    }
+
+    /// <summary>
+    /// Sends a record *into* the server: the client builds a VT_RECORD from the description the
+    /// server itself hands out for that member's type, fills the fields through IRecordInfo and
+    /// passes it as an argument. The other direction of the same contract -- and the one where a
+    /// wrong layout shows up as garbage rather than as an error code.
+    /// </summary>
+    private static int SendRecord(string comHostPath, string classIdText, int producingDispId, int consumingDispId)
+    {
+        var module = NativeLibrary.Load(comHostPath);
+        try
+        {
+            var getClassObject = Marshal.GetDelegateForFunctionPointer<DllGetClassObjectDelegate>(
+                NativeLibrary.GetExport(module, "DllGetClassObject"));
+            var clsid = Guid.Parse(classIdText);
+            var classFactoryIid = new Guid("00000001-0000-0000-C000-000000000046");
+            var dispatchIid = new Guid("00020400-0000-0000-C000-000000000046");
+            Marshal.ThrowExceptionForHR(getClassObject(ref clsid, ref classFactoryIid, out var factory));
+            try
+            {
+                var createInstance = GetClassFactoryCreateInstance(factory);
+                Marshal.ThrowExceptionForHR(createInstance(factory, IntPtr.Zero, ref dispatchIid, out var dispatch));
+                try
+                {
+                    // Erst einen Record vom Server holen -- daran hängt die IRecordInfo, mit der
+                    // der Client einen eigenen bauen kann. Genau so kommt ein VB6-Client an die
+                    // Beschreibung eines UDT, den er nicht selbst deklariert hat.
+                    var template = Marshal.AllocCoTaskMem(VariantSize);
+                    try
+                    {
+                        ClearNativeMemory(template);
+                        var invoke = Marshal.GetDelegateForFunctionPointer<InvokeDelegate>(
+                            Marshal.ReadIntPtr(Marshal.ReadIntPtr(dispatch), IntPtr.Size * 6));
+                        var iid = Guid.Empty;
+                        var empty = new NativeDispParams();
+                        Marshal.ThrowExceptionForHR(invoke(
+                            dispatch, producingDispId, ref iid, 1033, DispatchMethod, ref empty, template, IntPtr.Zero, out _));
+
+                        var info = (IRecordInfo)Marshal.GetObjectForIUnknown(
+                            Marshal.ReadIntPtr(template, VariantDataOffset + IntPtr.Size));
+                        info.GetSize(out var size);
+                        var record = Marshal.AllocCoTaskMem((int)size);
+                        try
+                        {
+                            info.RecordInit(record);
+                            WriteField(info, record, "X", 11);
+                            WriteField(info, record, "Y", 22);
+
+                            var argument = Marshal.AllocCoTaskMem(VariantSize);
+                            var result = Marshal.AllocCoTaskMem(VariantSize);
+                            try
+                            {
+                                ClearNativeMemory(argument);
+                                ClearNativeMemory(result);
+                                Marshal.WriteInt16(argument, 36);   // VT_RECORD
+                                Marshal.WriteIntPtr(argument, VariantDataOffset, record);
+                                Marshal.WriteIntPtr(
+                                    argument,
+                                    VariantDataOffset + IntPtr.Size,
+                                    Marshal.ReadIntPtr(template, VariantDataOffset + IntPtr.Size));
+
+                                var parameters = new NativeDispParams { Arguments = argument, ArgumentCount = 1 };
+                                var hresult = invoke(
+                                    dispatch, consumingDispId, ref iid, 1033, DispatchMethod, ref parameters, result, IntPtr.Zero, out _);
+                                Console.WriteLine(hresult == 0
+                                    ? $"sum={Marshal.GetObjectForNativeVariant(result)}"
+                                    : $"invoke=0x{hresult:X8}");
+                            }
+                            finally
+                            {
+                                Marshal.FreeCoTaskMem(result);
+                                Marshal.FreeCoTaskMem(argument);
+                            }
+                        }
+                        finally
+                        {
+                            Marshal.FreeCoTaskMem(record);
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.FreeCoTaskMem(template);
+                    }
+
+                    return 0;
+                }
+                finally
+                {
+                    Marshal.Release(dispatch);
+                }
+            }
+            finally
+            {
+                Marshal.Release(factory);
+            }
+        }
+        finally
+        {
+            NativeLibrary.Free(module);
+        }
+    }
+
+    private static void WriteField(IRecordInfo info, IntPtr record, string name, int value)
+    {
+        var variant = Marshal.AllocCoTaskMem(VariantSize);
+        try
+        {
+            ClearNativeMemory(variant);
+            Marshal.GetNativeVariantForObject(value, variant);
+            info.PutField(0, record, name, variant);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(variant);
+        }
+    }
+
+    /// <summary>
+    /// What came back, in the client's own words. A record is read through the IRecordInfo the
+    /// server put beside the data -- exactly the way a VB6 or C++ client reads a UDT, and the only
+    /// way to tell a real VT_RECORD from a variant that merely claims the type.
+    /// </summary>
+    private static string DescribeResult(IntPtr result)
+    {
+        const short VtRecord = 36;
+        var type = Marshal.ReadInt16(result);
+        if (type != VtRecord)
+        {
+            return $"vt={type}";
+        }
+
+        var data = Marshal.ReadIntPtr(result, VariantDataOffset);
+        var info = (IRecordInfo)Marshal.GetObjectForIUnknown(Marshal.ReadIntPtr(result, VariantDataOffset + IntPtr.Size));
+        info.GetName(out var name);
+        info.GetSize(out var size);
+
+        var fields = new List<string>();
+        foreach (var field in new[] { "X", "Y" })
+        {
+            var value = Marshal.AllocCoTaskMem(VariantSize);
+            try
+            {
+                ClearNativeMemory(value);
+                info.GetField(data, field, value);
+                fields.Add(field + "=" + Marshal.GetObjectForNativeVariant(value));
+            }
+            catch (COMException)
+            {
+                fields.Add(field + "=?");
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(value);
+            }
+        }
+
+        return $"vt={type} name={name} size={size} {string.Join(",", fields)}";
+    }
+
+    [ComImport]
+    [Guid("0000002F-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IRecordInfo
+    {
+        void RecordInit(IntPtr record);
+
+        void RecordClear(IntPtr record);
+
+        void RecordCopy(IntPtr source, IntPtr destination);
+
+        void GetGuid(out Guid guid);
+
+        void GetName([MarshalAs(UnmanagedType.BStr)] out string name);
+
+        void GetSize(out uint size);
+
+        void GetTypeInfo(out IntPtr typeInfo);
+
+        void GetField(IntPtr record, [MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr value);
+
+        void GetFieldNoCopy(IntPtr record, [MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr value, out IntPtr raw);
+
+        void PutField(uint flags, IntPtr record, [MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr value);
     }
 
     private static int InvokeOneInt32ByDispId(IntPtr dispatch, int dispId, int argument)
