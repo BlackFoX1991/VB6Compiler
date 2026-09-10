@@ -1789,6 +1789,22 @@ public static class IrLowerer
                                 LowerExpression(get.FileNumber),
                                 get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position))));
                     }
+                    else if (get.Target.Type == TypeSymbol.String)
+                    {
+                        // Ein String im Binary-Modus liest so viele Zeichen, wie die Variable
+                        // gerade haelt -- gemessen am Original. Der bisherige Wert ist damit ein
+                        // *Argument* des Lesens und nicht nur sein Ziel, und der Platz wird
+                        // deshalb zweimal gesenkt: einmal gelesen, einmal beschrieben.
+                        var stringTarget = LowerPlace(get.Target);
+                        Emit(new IrStoreInstruction(
+                            stringTarget,
+                            Runtime(
+                                IrRuntimeMethod.FileGetString,
+                                TypeSymbol.String,
+                                LowerExpression(get.FileNumber),
+                                get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position),
+                                new IrLoadExpression(stringTarget))));
+                    }
                     else
                     {
                         Emit(new IrStoreInstruction(
