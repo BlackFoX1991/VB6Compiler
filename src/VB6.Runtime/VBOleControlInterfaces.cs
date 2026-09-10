@@ -160,6 +160,49 @@ public interface IVBOleInPlaceActiveObject
 }
 
 /// <summary>
+/// Drawing, without the extent member.
+///
+/// It is declared separately from <see cref="IVBViewObject2"/> and not derived from it because COM
+/// asks for the two by different ids, and a container that only knows the older one asks for the
+/// older one. Offering only the newer interface leaves such a container unable to draw the control
+/// at all -- it does not fall back.
+/// </summary>
+[ComVisible(true)]
+[Guid("0000010D-0000-0000-C000-000000000046")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[SupportedOSPlatform("windows")]
+public interface IVBViewObject
+{
+    [PreserveSig] int Draw(
+        int drawAspect,
+        int index,
+        IntPtr aspect,
+        IntPtr targetDevice,
+        IntPtr informationDevice,
+        IntPtr drawDevice,
+        IntPtr bounds,
+        IntPtr windowBounds,
+        IntPtr continueFunction,
+        IntPtr continueParameter);
+
+    [PreserveSig] int GetColorSet(
+        int drawAspect,
+        int index,
+        IntPtr aspect,
+        IntPtr targetDevice,
+        IntPtr informationDevice,
+        out IntPtr colorSet);
+
+    [PreserveSig] int Freeze(int drawAspect, int index, IntPtr aspect, out int freeze);
+
+    [PreserveSig] int Unfreeze(int freeze);
+
+    [PreserveSig] int SetAdvise(int aspects, int advise, IntPtr adviseSink);
+
+    [PreserveSig] int GetAdvise(IntPtr aspects, IntPtr advise, out IntPtr adviseSink);
+}
+
+/// <summary>
 /// Drawing. <c>IViewObject2</c> adds a single member to <c>IViewObject</c>, so the first six slots
 /// are re-declared in their published order.
 ///

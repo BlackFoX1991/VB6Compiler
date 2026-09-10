@@ -1746,13 +1746,48 @@ public sealed record VBPicture(string FileName)
 public sealed class VBPropertyBag
 {
     private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IVBPropertyBagStore? _store;
 
-    public object? ReadProperty(string name, object? defaultValue = null) =>
-        _values.TryGetValue(name, out var value) ? value : defaultValue;
+    public VBPropertyBag()
+    {
+    }
+
+    /// <summary>
+    /// A bag that is really the container's own. VB6 hands the control a <c>PropertyBag</c> either
+    /// way, so the control's <c>ReadProperties</c> cannot tell the difference -- and must not:
+    /// which persistence a container uses is the container's decision, not the control's.
+    /// </summary>
+    internal VBPropertyBag(IVBPropertyBagStore store) => _store = store;
+
+    public object? ReadProperty(string name, object? defaultValue = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        if (_store is not null)
+        {
+            return _store.TryRead(name, out var stored) ? stored : defaultValue;
+        }
+
+        return _values.TryGetValue(name, out var value) ? value : defaultValue;
+    }
 
     public void WriteProperty(string name, object? value, object? defaultValue = null)
     {
-        _ = defaultValue;
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        // VB6 omits a value that equals its default: the bag stays small, and a control whose
+        // defaults change later picks up the new one instead of the old value frozen into the
+        // saved state.
+        if (Equals(value, defaultValue))
+        {
+            return;
+        }
+
+        if (_store is not null)
+        {
+            _store.Write(name, value);
+            return;
+        }
+
         _values[name] = value;
     }
 
@@ -1769,4 +1804,15 @@ public sealed class VBPropertyBag
     /// that diffs the two to decide whether anything changed depends on it.
     /// </summary>
     internal IReadOnlyList<KeyValuePair<string, object?>> Snapshot() => _values.ToList();
+}
+
+/// <summary>
+/// Where a property bag really keeps its values, when that is not this process. It exists so a
+/// control cannot tell whether it is talking to its own bag or to the container's.
+/// </summary>
+internal interface IVBPropertyBagStore
+{
+    bool TryRead(string name, out object? value);
+
+    void Write(string name, object? value);
 }

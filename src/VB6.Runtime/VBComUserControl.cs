@@ -36,8 +36,10 @@ public abstract class VBComUserControl
       IVBOleWindow,
       IVBOleInPlaceObject,
       IVBOleInPlaceActiveObject,
+      IVBViewObject,
       IVBViewObject2,
-      IVBPersistStreamInit
+      IVBPersistStreamInit,
+      IVBPersistPropertyBag
 {
     private const int SOk = 0;
     private const int SFalse = 1;
@@ -86,6 +88,32 @@ public abstract class VBComUserControl
     /// headless process, and every member that needs it says so.
     /// </summary>
     protected IVBControlPresentation? Presentation { get; private set; }
+
+    /// <summary>
+    /// Takes the designer size from the <c>.ctl</c>, in twips, and stores it as the extent OLE
+    /// asks for.
+    ///
+    /// The two units are the whole reason this is a method rather than a property the emitter
+    /// fills: VB6 designs in twips (1/1440 inch) and OLE measures in HIMETRIC (1/100 mm), and a
+    /// container handed twips lays out a control roughly 1.76 times too small. Converting here
+    /// keeps the arithmetic in one place instead of in emitted IL.
+    /// </summary>
+    protected void SetDesignExtentFromTwips(int widthTwips, int heightTwips)
+    {
+        const int HiMetricPerInch = 2540;
+        const int TwipsPerInch = 1440;
+
+        if (widthTwips <= 0 || heightTwips <= 0)
+        {
+            return;
+        }
+
+        DesignExtent = new VBOleSize
+        {
+            Width = (int)((long)widthTwips * HiMetricPerInch / TwipsPerInch),
+            Height = (int)((long)heightTwips * HiMetricPerInch / TwipsPerInch)
+        };
+    }
 
     /// <summary>Attaches the host's window and drawing implementation to this control.</summary>
     public void AttachPresentation(IVBControlPresentation presentation)
@@ -607,6 +635,85 @@ public abstract class VBComUserControl
     int IVBViewObject2.GetExtent(int drawAspect, int index, IntPtr targetDevice, ref VBOleSize size) =>
         ((IVBOleObject)this).GetExtent(drawAspect, ref size);
 
+    // ---- IViewObject -------------------------------------------------------------------------
+    //
+    // The same six members again, under the older interface id. A container that knows only
+    // IViewObject asks for IViewObject and does not fall back to the newer one.
+
+    int IVBViewObject.Draw(
+        int drawAspect,
+        int index,
+        IntPtr aspect,
+        IntPtr targetDevice,
+        IntPtr informationDevice,
+        IntPtr drawDevice,
+        IntPtr bounds,
+        IntPtr windowBounds,
+        IntPtr continueFunction,
+        IntPtr continueParameter) =>
+        ((IVBViewObject2)this).Draw(
+            drawAspect, index, aspect, targetDevice, informationDevice,
+            drawDevice, bounds, windowBounds, continueFunction, continueParameter);
+
+    int IVBViewObject.GetColorSet(
+        int drawAspect,
+        int index,
+        IntPtr aspect,
+        IntPtr targetDevice,
+        IntPtr informationDevice,
+        out IntPtr colorSet) =>
+        ((IVBViewObject2)this).GetColorSet(
+            drawAspect, index, aspect, targetDevice, informationDevice, out colorSet);
+
+    int IVBViewObject.Freeze(int drawAspect, int index, IntPtr aspect, out int freeze) =>
+        ((IVBViewObject2)this).Freeze(drawAspect, index, aspect, out freeze);
+
+    int IVBViewObject.Unfreeze(int freeze) => ((IVBViewObject2)this).Unfreeze(freeze);
+
+    int IVBViewObject.SetAdvise(int aspects, int advise, IntPtr adviseSink) =>
+        ((IVBViewObject2)this).SetAdvise(aspects, advise, adviseSink);
+
+    int IVBViewObject.GetAdvise(IntPtr aspects, IntPtr advise, out IntPtr adviseSink) =>
+        ((IVBViewObject2)this).GetAdvise(aspects, advise, out adviseSink);
+
+    // ---- IPersistPropertyBag -------------------------------------------------------------------
+
+    void IVBPersistPropertyBag.GetClassID(out Guid classId) => classId = GetClassId();
+
+    void IVBPersistPropertyBag.InitNew() => ((IVBPersistStreamInit)this).InitNew();
+
+    /// <summary>
+    /// The other way a container persists a control: named values instead of one opaque block.
+    ///
+    /// A control does not choose between the two -- the container does, and VB6's own designer
+    /// chooses this one, which is why a <c>.frx</c> holds names and values rather than bytes. The
+    /// control's own handlers are the same either way; only the bag differs, so this reads the
+    /// container's bag into ours and runs the identical lifecycle.
+    ///
+    /// Which names to read is the control's business. There is no way to enumerate the container's
+    /// bag -- <c>IPropertyBag</c> has no enumerator at all -- so the values arrive by being asked
+    /// for, and a control that asks for nothing gets nothing.
+    /// </summary>
+    void IVBPersistPropertyBag.Load(IVBPropertyBag propertyBag, IntPtr errorLog)
+    {
+        ArgumentNullException.ThrowIfNull(propertyBag);
+        _propertyBag = new VBPropertyBag(new VBContainerPropertyBagStore(propertyBag, errorLog));
+        _initialised = true;
+        _dirty = false;
+        InvokeLifecycle("UserControl_ReadProperties", _propertyBag);
+    }
+
+    void IVBPersistPropertyBag.Save(IVBPropertyBag propertyBag, bool clearDirty, bool saveAllProperties)
+    {
+        ArgumentNullException.ThrowIfNull(propertyBag);
+        var bag = new VBPropertyBag(new VBContainerPropertyBagStore(propertyBag, IntPtr.Zero));
+        InvokeLifecycle("UserControl_WriteProperties", bag);
+        if (clearDirty)
+        {
+            _dirty = false;
+        }
+    }
+
     // ---- helpers -----------------------------------------------------------------------------
 
     private int GetWindowCore(out IntPtr window)
@@ -752,6 +859,35 @@ public abstract class VBComUserControl
 
     /// <summary>True once the control has been given a state or told it has none.</summary>
     protected bool IsInitialised => _initialised;
+}
+
+/// <summary>
+/// A property bag that lives in the container.
+///
+/// <c>IPropertyBag.Read</c> is where the asymmetry of this contract shows: a name the container
+/// does not have is <em>not</em> an error the control should propagate. VB6 controls pass a default
+/// to <c>ReadProperty</c> for exactly that case, and a container that has never saved this control
+/// answers every read that way.
+/// </summary>
+[SupportedOSPlatform("windows")]
+internal sealed class VBContainerPropertyBagStore : IVBPropertyBagStore
+{
+    private readonly IVBPropertyBag _bag;
+    private readonly IntPtr _errorLog;
+
+    public VBContainerPropertyBagStore(IVBPropertyBag bag, IntPtr errorLog)
+    {
+        _bag = bag;
+        _errorLog = errorLog;
+    }
+
+    public bool TryRead(string name, out object? value)
+    {
+        value = null;
+        return _bag.Read(name, ref value, _errorLog) == 0;
+    }
+
+    public void Write(string name, object? value) => _bag.Write(name, ref value);
 }
 
 /// <summary>
