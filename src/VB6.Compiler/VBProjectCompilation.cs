@@ -606,6 +606,36 @@ public sealed class VBProjectCompilation
         return classTypes;
     }
 
+    /// <summary>
+    /// The designer size of a control, in twips.
+    ///
+    /// <c>ClientWidth</c> and <c>ClientHeight</c> are the ones a <c>.ctl</c> states, and they are
+    /// the outer size a container has to reserve. <c>ScaleWidth</c>/<c>ScaleHeight</c> stand in
+    /// the same block but mean the *inner* coordinate system, which is a different number as soon
+    /// as the control has a border -- reading those would place every bordered control slightly
+    /// too small.
+    /// </summary>
+    private static (int Width, int Height) ReadDesignerExtent(
+        string path,
+        IReadOnlyDictionary<string, VBDesignerDocument> designerDocuments)
+    {
+        if (!designerDocuments.TryGetValue(path, out var document))
+        {
+            return (0, 0);
+        }
+
+        return (ReadTwips("ClientWidth"), ReadTwips("ClientHeight"));
+
+        int ReadTwips(string name) => document.Root.Properties
+            .FirstOrDefault(property => property.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?.Value switch
+        {
+            long value when value is > 0 and <= int.MaxValue => (int)value,
+            int value when value > 0 => value,
+            _ => 0
+        };
+    }
+
     private static IEnumerable<DesignerControl> ReadDesignerControls(
         string path,
         IReadOnlyDictionary<string, VBDesignerDocument> designerDocuments)
@@ -977,6 +1007,16 @@ public sealed class VBProjectCompilation
                     isFieldBacked: true,
                     allowObjectAssignment: !withEventsNames.Contains(variable.Name),
                     isPublic: variable.IsPublic);
+            }
+
+            if (module.Item.Kind == VBProjectItemKind.UserControl)
+            {
+                // Nur das UserControl. Eine PropertyPage und ein UserDocument tragen dieselbe
+                // Designer-Flaeche, sind aber keine ActiveX-Controls -- ihre COM-Vertraege sind
+                // eigene Karten, und ihnen die Control-Schnittstellen zu geben hiesse, sie einem
+                // Container als Controls anzubieten.
+                var extent = ReadDesignerExtent(module.FilePath, designerDocuments);
+                classType.MarkAsGeneratedControl(extent.Width, extent.Height);
             }
 
             if (HasDesignerSurface(module.Item.Kind))

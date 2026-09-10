@@ -39,6 +39,23 @@ public sealed record ClassTypeSymbol : TypeSymbol
     /// <summary>True when this host-provided object participates in the VB6 Control hierarchy.</summary>
     public bool IsControlContract { get; private set; }
     /// <summary>
+    /// True when this class comes from a <c>.ctl</c> and is therefore an ActiveX control rather
+    /// than a plain Automation class.
+    ///
+    /// The distinction has to be carried this far because it decides which interfaces the emitted
+    /// class offers a container. Answering the OLE control set from an ordinary <c>.cls</c> would
+    /// be worse than not answering it at all: a container would place a class that has no
+    /// presentation as a control and lay out around it.
+    /// </summary>
+    public bool IsGeneratedControl { get; private set; }
+    /// <summary>
+    /// The designer size of a generated control in twips, or null when its designer never stated
+    /// one. It travels with the symbol because the emitter has to write it into the class: a
+    /// control activated in a foreign container has no host to ask, and an extent it invents is a
+    /// layout defect somewhere else.
+    /// </summary>
+    public (int Width, int Height)? ControlDesignExtent { get; private set; }
+    /// <summary>
     /// The registered coclass this contract activates, for an imported creatable COM class. Null
     /// for every class the compilation emits itself and for a contract that cannot be created --
     /// VB6 rejects New on those, and so does the binder.
@@ -197,6 +214,18 @@ public sealed record ClassTypeSymbol : TypeSymbol
     public void MarkAsLateBoundObject() => IsLateBoundObject = true;
 
     public void MarkAsControlContract() => IsControlContract = true;
+
+    /// <summary>
+    /// Marks this class as a generated ActiveX control and records the designer size its
+    /// <c>.ctl</c> stated, in twips.
+    /// </summary>
+    public void MarkAsGeneratedControl(int widthTwips, int heightTwips)
+    {
+        IsGeneratedControl = true;
+        ControlDesignExtent = widthTwips > 0 && heightTwips > 0
+            ? (widthTwips, heightTwips)
+            : null;
+    }
 
     public void SetComClassId(Guid classId) => ComClassId = classId;
 
