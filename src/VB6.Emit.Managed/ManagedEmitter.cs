@@ -2184,8 +2184,16 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.FileInputField or
                      IrRuntimeMethod.FileInputValue or
                      IrRuntimeMethod.FileInput or
-                     IrRuntimeMethod.FileInputB)
+                     IrRuntimeMethod.FileInputB or
+                     IrRuntimeMethod.FileGetString)
             {
+                encoder.LoadConstantI4((int)_program.CompatibilityProfile);
+            }
+            else if (call.Method == IrRuntimeMethod.FilePut &&
+                     call.Arguments[2].Expression.Type == TypeSymbol.String)
+            {
+                // Dieselbe Unterscheidung wie in ResolveFilePut, und sie muss dieselbe bleiben:
+                // Ein Profil ohne passende Ueberladung ist ein Argument zu viel auf dem Stapel.
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
             encoder.Call(GetRuntimeMethodReference(info));
@@ -6858,6 +6866,7 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileInputValue => Static(typeof(VBFiles), nameof(VBFiles.InputValue), typeof(int), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileInput => Static(typeof(VBFiles), "Input", typeof(long), typeof(int), typeof(VBCompatibilityProfile)),
                 IrRuntimeMethod.FileInputB => Static(typeof(VBFiles), "InputB", typeof(long), typeof(int), typeof(VBCompatibilityProfile)),
+                IrRuntimeMethod.FileGetString => ResolveFileGetString(call, out skippedArgument),
                 IrRuntimeMethod.FileGetVariant => ResolveFileVariantGet(call, out skippedArgument),
                 IrRuntimeMethod.FileGetRawVariant => Static(typeof(VBFiles), nameof(VBFiles.GetRawVariant), typeof(int)),
                 _ => ResolveFileGet(call, out skippedArgument)
@@ -6896,9 +6905,33 @@ public sealed class ManagedEmitter
             var valueType = RuntimeScalarType(call.Arguments[2].Expression.Type);
             var omitted = call.Arguments[1].Expression is IrNullExpression;
             skippedArgument = omitted ? 1 : -1;
+
+            // Nur der String kennt eine Codepage, und nur er bekommt deshalb das Profil. Es an
+            // Put(int, long, int) zu haengen waere eine Ueberladung, die es nicht gibt.
+            if (valueType == typeof(string))
+            {
+                return omitted
+                    ? Static(typeof(VBFiles), "Put", typeof(int), typeof(string), typeof(VBCompatibilityProfile))
+                    : Static(typeof(VBFiles), "Put", typeof(int), typeof(long), typeof(string), typeof(VBCompatibilityProfile));
+            }
+
             return omitted
                 ? Static(typeof(VBFiles), "Put", typeof(int), valueType)
                 : Static(typeof(VBFiles), "Put", typeof(int), typeof(long), valueType);
+        }
+
+        /// <summary>
+        /// <c>GetString</c> takes the target's current value, because in Binary mode its length is
+        /// the read request. That makes it the one Get whose signature differs from the
+        /// name-derived shape the other scalars share.
+        /// </summary>
+        private MethodInfo ResolveFileGetString(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            var omitted = call.Arguments[1].Expression is IrNullExpression;
+            skippedArgument = omitted ? 1 : -1;
+            return omitted
+                ? Static(typeof(VBFiles), nameof(VBFiles.GetString), typeof(int), typeof(string), typeof(VBCompatibilityProfile))
+                : Static(typeof(VBFiles), nameof(VBFiles.GetString), typeof(int), typeof(long), typeof(string), typeof(VBCompatibilityProfile));
         }
 
         private MethodInfo ResolveFilePutRaw(IrRuntimeCallExpression call, out int skippedArgument)
