@@ -672,7 +672,20 @@ public sealed class ManagedEmitter
                     {
                         encoder.LoadArgument(0);
                         encoder.OpCode(ILOpCode.Call);
-                        encoder.Token(GetComEventSourceConstructor());
+                        encoder.Token(GetClassBaseConstructor(constructedClass));
+
+                        // Ein Control aus einem .ctl traegt seine Entwurfsgroesse selbst. In einem
+                        // Fremdcontainer gibt es keinen Host, den es danach fragen koennte, und
+                        // eine erfundene Groesse ist ein Layoutdefekt an anderer Stelle.
+                        if (constructedClass.IsGeneratedControl &&
+                            constructedClass.ControlDesignExtent is { } extent)
+                        {
+                            encoder.LoadArgument(0);
+                            encoder.LoadConstantI4(extent.Width);
+                            encoder.LoadConstantI4(extent.Height);
+                            encoder.OpCode(ILOpCode.Call);
+                            encoder.Token(GetControlDesignExtentSetter());
+                        }
                     }
 
                     encoder.Call(GetRuntimeMethodReference(Static(typeof(VBErrors), nameof(VBErrors.EnterProcedure))));
@@ -5917,15 +5930,40 @@ public sealed class ManagedEmitter
         /// can advise a sink on it. VB6 events are dispatched by name at run time rather than
         /// through CLR events, so the CLR cannot build the connection point itself. Every other
         /// class stays a plain object -- the base carries plumbing that has no meaning outside COM.
+        ///
+        /// A class from a <c>.ctl</c> takes the control base instead, which adds the OLE control
+        /// interfaces on top of the event source. Only a UserControl does: giving them to an
+        /// ordinary class would offer a container a control that has nothing to show.
         /// </summary>
-        private EntityHandle GetClassBaseType(IrClassDefinition classDefinition) =>
-            _options.EnableComHosting && classDefinition.Symbol.IsComExposed
-                ? GetReflectionTypeReference(typeof(VBComEventSource))
-                : _systemObject;
-
-        private MemberReferenceHandle GetComEventSourceConstructor()
+        private EntityHandle GetClassBaseType(IrClassDefinition classDefinition)
         {
-            const string key = "VBComEventSource::.ctor()";
+            if (!_options.EnableComHosting || !classDefinition.Symbol.IsComExposed)
+            {
+                return _systemObject;
+            }
+
+            return classDefinition.Symbol.IsGeneratedControl
+                ? GetReflectionTypeReference(typeof(VBComUserControl))
+                : GetReflectionTypeReference(typeof(VBComEventSource));
+        }
+
+        /// <summary>
+        /// The base constructor a generated COM class chains to. It has to be the one that matches
+        /// the base <see cref="GetClassBaseType"/> chose -- a control that calls the event source's
+        /// constructor instead of its own base skips the control half entirely, and the CLR loads
+        /// the type anyway.
+        /// </summary>
+        private MemberReferenceHandle GetClassBaseConstructor(ClassTypeSymbol classType) =>
+            classType.IsGeneratedControl
+                ? GetParameterlessConstructor(typeof(VBComUserControl))
+                : GetParameterlessConstructor(typeof(VBComEventSource));
+
+        private MemberReferenceHandle GetComEventSourceConstructor() =>
+            GetParameterlessConstructor(typeof(VBComEventSource));
+
+        private MemberReferenceHandle GetParameterlessConstructor(Type type)
+        {
+            var key = $"{type.Name}::.ctor()";
             if (_memberReferences.TryGetValue(key, out var cached))
             {
                 return cached;
@@ -5937,8 +5975,37 @@ public sealed class ManagedEmitter
                 returnType => returnType.Void(),
                 parameters => { });
             var handle = _metadata.AddMemberReference(
-                GetReflectionTypeReference(typeof(VBComEventSource)),
+                GetReflectionTypeReference(type),
                 _metadata.GetOrAddString(".ctor"),
+                _metadata.GetOrAddBlob(blob));
+            _memberReferences.Add(key, handle);
+            return handle;
+        }
+
+        /// <summary>
+        /// <c>VBComUserControl.SetDesignExtentFromTwips</c>. The conversion to HIMETRIC lives in
+        /// the runtime; the emitter only hands over the two numbers the designer stated.
+        /// </summary>
+        private MemberReferenceHandle GetControlDesignExtentSetter()
+        {
+            const string key = "VBComUserControl::SetDesignExtentFromTwips(int,int)";
+            if (_memberReferences.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var blob = new BlobBuilder();
+            new BlobEncoder(blob).MethodSignature(isInstanceMethod: true).Parameters(
+                2,
+                returnType => returnType.Void(),
+                parameters =>
+                {
+                    parameters.AddParameter().Type().Int32();
+                    parameters.AddParameter().Type().Int32();
+                });
+            var handle = _metadata.AddMemberReference(
+                GetReflectionTypeReference(typeof(VBComUserControl)),
+                _metadata.GetOrAddString("SetDesignExtentFromTwips"),
                 _metadata.GetOrAddBlob(blob));
             _memberReferences.Add(key, handle);
             return handle;
